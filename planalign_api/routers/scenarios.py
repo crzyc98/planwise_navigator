@@ -335,6 +335,7 @@ async def export_scenario_results(
     if results_file and results_file.exists():
         # Build descriptive filename: {workspace}_{scenario}_results_{date}.xlsx
         from datetime import datetime
+
         date_str = datetime.now().strftime("%Y%m%d")
         # Sanitize names for filename (replace spaces with underscores)
         ws_name = workspace.name.replace(" ", "_")

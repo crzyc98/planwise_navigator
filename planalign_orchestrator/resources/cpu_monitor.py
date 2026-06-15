@@ -104,9 +104,7 @@ class CPUMonitor:
         """Capture current CPU usage snapshot."""
         try:
             cpu_percent = psutil.cpu_percent(interval=None)
-            load_avg = (
-                os.getloadavg() if hasattr(os, "getloadavg") else (0.0, 0.0, 0.0)
-            )
+            load_avg = os.getloadavg() if hasattr(os, "getloadavg") else (0.0, 0.0, 0.0)
 
             snapshot = CPUUsageSnapshot(
                 timestamp=time.time(),

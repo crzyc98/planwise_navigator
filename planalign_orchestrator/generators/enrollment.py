@@ -138,9 +138,7 @@ class EnrollmentEventGenerator(EventGenerator):
             if hasattr(payload, "after_tax_contribution_rate"):
                 total += payload.after_tax_contribution_rate
             if total > Decimal("1"):
-                warnings.append(
-                    f"Total contribution rate ({total}) exceeds 100%"
-                )
+                warnings.append(f"Total contribution rate ({total}) exceeds 100%")
 
         return ValidationResult(
             is_valid=len(errors) == 0, errors=errors, warnings=warnings

@@ -129,8 +129,7 @@ class AutoInitializer:
         # Step 1: Check tables
         check_step = steps[0]
         check_step = self._execute_step(
-            check_step,
-            lambda: None  # Just timing, actual check follows
+            check_step, lambda: None  # Just timing, actual check follows
         )
         steps[0] = check_step
 
@@ -155,7 +154,7 @@ class AutoInitializer:
             extra={
                 "missing_count": len(missing_tables),
                 "missing_tables": missing_names,
-            }
+            },
         )
 
         # Acquire initialization lock if enabled
@@ -207,15 +206,17 @@ class AutoInitializer:
             # Step 2: Load seeds
             load_seeds_step = steps[1]
             load_seeds_step = self._execute_step(
-                load_seeds_step,
-                lambda: self._run_dbt_seed()
+                load_seeds_step, lambda: self._run_dbt_seed()
             )
             steps[1] = load_seeds_step
 
             if not load_seeds_step.success:
                 return self._create_failed_result(
-                    started_at, steps, missing_names, tables_created,
-                    load_seeds_step.error_message or "Seed loading failed"
+                    started_at,
+                    steps,
+                    missing_names,
+                    tables_created,
+                    load_seeds_step.error_message or "Seed loading failed",
                 )
 
             # Track created seed tables
@@ -228,15 +229,17 @@ class AutoInitializer:
             # Step 3: Build foundation models
             build_step = steps[2]
             build_step = self._execute_step(
-                build_step,
-                lambda: self._run_dbt_foundation()
+                build_step, lambda: self._run_dbt_foundation()
             )
             steps[2] = build_step
 
             if not build_step.success:
                 return self._create_failed_result(
-                    started_at, steps, missing_names, tables_created,
-                    build_step.error_message or "Foundation model build failed"
+                    started_at,
+                    steps,
+                    missing_names,
+                    tables_created,
+                    build_step.error_message or "Foundation model build failed",
                 )
 
             # Track created foundation tables
@@ -249,15 +252,17 @@ class AutoInitializer:
             # Step 4: Verify initialization
             verify_step = steps[3]
             verify_step = self._execute_step(
-                verify_step,
-                lambda: self._verify_initialization()
+                verify_step, lambda: self._verify_initialization()
             )
             steps[3] = verify_step
 
             if not verify_step.success:
                 return self._create_failed_result(
-                    started_at, steps, missing_names, tables_created,
-                    verify_step.error_message or "Verification failed"
+                    started_at,
+                    steps,
+                    missing_names,
+                    tables_created,
+                    verify_step.error_message or "Verification failed",
                 )
 
             # Success!
@@ -268,7 +273,7 @@ class AutoInitializer:
                 extra={
                     "duration_seconds": (completed_at - started_at).total_seconds(),
                     "tables_created": tables_created,
-                }
+                },
             )
 
             return InitializationResult(
@@ -310,7 +315,7 @@ class AutoInitializer:
             extra={
                 "step_name": step.name,
                 "started_at": started_at.isoformat(),
-            }
+            },
         )
 
         try:
@@ -328,7 +333,7 @@ class AutoInitializer:
                     "completed_at": completed_at.isoformat(),
                     "duration_seconds": duration,
                     "success": True,
-                }
+                },
             )
 
             return InitializationStep(
@@ -353,7 +358,7 @@ class AutoInitializer:
                     "duration_seconds": (completed_at - started_at).total_seconds(),
                     "success": False,
                     "error": error_msg,
-                }
+                },
             )
 
             return InitializationStep(
@@ -378,7 +383,9 @@ class AutoInitializer:
         cleanup_manager = DataCleanupManager(self.db_manager, verbose=self.verbose)
         dropped = cleanup_manager.drop_seed_tables_with_schema_mismatch()
         if dropped:
-            logger.info("Dropped %d seed tables with schema mismatch: %s", len(dropped), dropped)
+            logger.info(
+                "Dropped %d seed tables with schema mismatch: %s", len(dropped), dropped
+            )
 
         result = self.dbt_runner.execute_command(
             ["seed", "--full-refresh", "--threads", "1"],

@@ -23,7 +23,8 @@ from planalign_api.services.database_path_resolver import (
 
 def _create_test_db(conn: duckdb.DuckDBPyConnection):
     """Populate an in-memory DuckDB connection with ADP test tables."""
-    conn.execute("""
+    conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS config_irs_limits (
             limit_year INTEGER,
             base_limit INTEGER,
@@ -32,15 +33,19 @@ def _create_test_db(conn: duckdb.DuckDBPyConnection):
             compensation_limit INTEGER,
             hce_compensation_threshold INTEGER
         )
-    """)
-    conn.execute("""
+    """
+    )
+    conn.execute(
+        """
         INSERT INTO config_irs_limits VALUES
         (2024, 23000, 30500, 50, 345000, 155000),
         (2025, 23500, 31000, 50, 350000, 160000),
         (2026, 24000, 32000, 50, 360000, 165000)
-    """)
+    """
+    )
 
-    conn.execute("""
+    conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS fct_workforce_snapshot (
             employee_id VARCHAR,
             simulation_year INTEGER,
@@ -54,7 +59,8 @@ def _create_test_db(conn: duckdb.DuckDBPyConnection):
             employment_status VARCHAR,
             current_tenure DOUBLE
         )
-    """)
+    """
+    )
 
 
 def _insert_employee(
@@ -73,8 +79,19 @@ def _insert_employee(
 ):
     conn.execute(
         """INSERT INTO fct_workforce_snapshot VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        [employee_id, year, compensation, prorated_comp, deferrals,
-         match_amount, core_amount, eligibility, enrolled, status, tenure],
+        [
+            employee_id,
+            year,
+            compensation,
+            prorated_comp,
+            deferrals,
+            match_amount,
+            core_amount,
+            eligibility,
+            enrolled,
+            status,
+            tenure,
+        ],
     )
 
 
@@ -231,9 +248,7 @@ class TestADPZeroDeferralsIncluded:
             )
 
         assert result.nhce_count == 1
-        nhce_emp = next(
-            e for e in result.employees if e.employee_id == "NHCE1"
-        )
+        nhce_emp = next(e for e in result.employees if e.employee_id == "NHCE1")
         assert nhce_emp.individual_adp == 0.0
         assert nhce_emp.is_hce is False
 
@@ -344,9 +359,7 @@ class TestADPSafeHarbor:
         """safe_harbor=True returns test_result='exempt' with no calculations."""
         service, conn, mock_resolver = adp_service_with_db
 
-        result = service.run_adp_test(
-            "ws1", "sc1", "Test", 2025, safe_harbor=True
-        )
+        result = service.run_adp_test("ws1", "sc1", "Test", 2025, safe_harbor=True)
 
         assert result.test_result == "exempt"
         assert result.safe_harbor is True
@@ -421,7 +434,10 @@ class TestADPPriorYearFallback:
         # Should fall back to current year
         assert result.testing_method == "current"
         assert result.test_message is not None
-        assert "prior" in result.test_message.lower() or "fell back" in result.test_message.lower()
+        assert (
+            "prior" in result.test_message.lower()
+            or "fell back" in result.test_message.lower()
+        )
 
 
 # ==============================================================================
@@ -497,7 +513,9 @@ class TestADPDatabaseNotFound:
         """Resolver returning non-existent path -> test_result='error'."""
         service, conn, mock_resolver = adp_service_with_db
 
-        mock_resolver.resolve.return_value = ResolvedDatabasePath(path=None, source=None)
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=None, source=None
+        )
 
         result = service.run_adp_test("ws1", "sc1", "Test", 2025)
 

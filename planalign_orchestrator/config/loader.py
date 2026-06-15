@@ -41,8 +41,12 @@ class SimulationConfig(BaseModel):
     workforce: WorkforceSettings = Field(default_factory=WorkforceSettings)
     enrollment: EnrollmentSettings = Field(default_factory=EnrollmentSettings)
     eligibility: EligibilitySettings = Field(default_factory=EligibilitySettings)
-    plan_eligibility: PlanEligibilitySettings = Field(default_factory=PlanEligibilitySettings)
-    employer_match: Optional[EmployerMatchSettings] = Field(default=None, description="Employer match configuration")
+    plan_eligibility: PlanEligibilitySettings = Field(
+        default_factory=PlanEligibilitySettings
+    )
+    employer_match: Optional[EmployerMatchSettings] = Field(
+        default=None, description="Employer match configuration"
+    )
 
     # E058: Match-responsive deferral adjustments
     deferral_match_response: DeferralMatchResponseSettings = Field(
@@ -51,10 +55,14 @@ class SimulationConfig(BaseModel):
     )
 
     # Performance optimization configuration (optional for backward compatibility)
-    optimization: Optional[OptimizationSettings] = Field(default=None, description="Performance optimization settings")
+    optimization: Optional[OptimizationSettings] = Field(
+        default=None, description="Performance optimization settings"
+    )
 
     # Orchestrator configuration including threading support
-    orchestrator: Optional[OrchestratorSettings] = Field(default=None, description="Orchestrator configuration including threading")
+    orchestrator: Optional[OrchestratorSettings] = Field(
+        default=None, description="Orchestrator configuration including threading"
+    )
 
     def require_identifiers(self) -> None:
         """Raise if scenario_id/plan_design_id are missing."""
@@ -140,11 +148,17 @@ class SimulationConfig(BaseModel):
 
             if mode == "sequential" and thread_count > 1:
                 import warnings
-                warnings.warn(f"Threading mode is 'sequential' but thread_count is {thread_count}. Consider setting thread_count=1 or changing mode to 'selective'.")
+
+                warnings.warn(
+                    f"Threading mode is 'sequential' but thread_count is {thread_count}. Consider setting thread_count=1 or changing mode to 'selective'."
+                )
 
             if mode == "aggressive" and thread_count == 1:
                 import warnings
-                warnings.warn("Threading mode is 'aggressive' but thread_count is 1. Consider increasing thread_count or changing mode to 'sequential'.")
+
+                warnings.warn(
+                    "Threading mode is 'aggressive' but thread_count is 1. Consider increasing thread_count or changing mode to 'sequential'."
+                )
 
 
 def _lower_keys(d: Dict[str, Any]) -> Dict[str, Any]:

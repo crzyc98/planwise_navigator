@@ -7,9 +7,13 @@ from decimal import Decimal
 import pytest
 from pydantic import ValidationError
 
-from config.events import (ComplianceEventPayload, ForfeiturePayload,
-                           HCEStatusPayload, PlanAdministrationEventFactory,
-                           SimulationEvent)
+from config.events import (
+    ComplianceEventPayload,
+    ForfeiturePayload,
+    HCEStatusPayload,
+    PlanAdministrationEventFactory,
+    SimulationEvent,
+)
 
 
 class TestForfeiturePayload:

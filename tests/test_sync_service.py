@@ -17,6 +17,7 @@ from unittest.mock import Mock, patch, MagicMock
 try:
     import git
     from git import Repo
+
     GIT_AVAILABLE = True
 except ImportError:
     GIT_AVAILABLE = False
@@ -26,8 +27,7 @@ except ImportError:
 
 # Skip all tests if GitPython is not installed
 pytestmark = pytest.mark.skipif(
-    not GIT_AVAILABLE,
-    reason="GitPython is required for sync tests"
+    not GIT_AVAILABLE, reason="GitPython is required for sync tests"
 )
 
 
@@ -47,13 +47,17 @@ def sample_workspace(temp_workspaces_dir):
 
     # Create workspace.json
     workspace_json = workspace_dir / "workspace.json"
-    workspace_json.write_text(json.dumps({
-        "id": workspace_id,
-        "name": "Test Workspace",
-        "description": "A test workspace",
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-    }))
+    workspace_json.write_text(
+        json.dumps(
+            {
+                "id": workspace_id,
+                "name": "Test Workspace",
+                "description": "A test workspace",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+    )
 
     # Create base_config.yaml
     base_config = workspace_dir / "base_config.yaml"
@@ -68,12 +72,16 @@ def sample_workspace(temp_workspaces_dir):
     scenario_dir.mkdir()
 
     scenario_json = scenario_dir / "scenario.json"
-    scenario_json.write_text(json.dumps({
-        "id": scenario_id,
-        "workspace_id": workspace_id,
-        "name": "Test Scenario",
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    }))
+    scenario_json.write_text(
+        json.dumps(
+            {
+                "id": scenario_id,
+                "workspace_id": workspace_id,
+                "name": "Test Scenario",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+    )
 
     return workspace_dir
 
@@ -82,6 +90,7 @@ def sample_workspace(temp_workspaces_dir):
 def sync_service(temp_workspaces_dir):
     """Create a SyncService with a temporary workspaces directory."""
     from planalign_api.services.sync_service import SyncService
+
     return SyncService(workspaces_root=temp_workspaces_dir)
 
 
@@ -230,7 +239,7 @@ class TestSyncServiceOperations:
     def test_init_creates_git_repo(self, sync_service, temp_workspaces_dir):
         """Test that init creates a Git repository."""
         # Mock the remote operations
-        with patch.object(sync_service, '_create_initial_commit') as mock_commit:
+        with patch.object(sync_service, "_create_initial_commit") as mock_commit:
             # Init will fail on remote operations, but should create local repo
             try:
                 sync_service.init(

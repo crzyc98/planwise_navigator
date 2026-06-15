@@ -105,10 +105,7 @@ async def batch_websocket(
         while True:
             try:
                 # Wait for client messages (or heartbeat timeout)
-                data = await asyncio.wait_for(
-                    websocket.receive_text(),
-                    timeout=30.0
-                )
+                data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
                 # Handle client commands if needed
                 logger.debug(f"Received from batch client: {data}")
 

@@ -30,9 +30,9 @@ class TestErrorPattern:
                 ResolutionHint(
                     title="Close Connections",
                     description="Close IDE connections",
-                    steps=["Close VS Code"]
+                    steps=["Close VS Code"],
                 )
-            ]
+            ],
         )
 
         assert pattern.category == ErrorCategory.DATABASE
@@ -45,7 +45,7 @@ class TestErrorPattern:
             category=ErrorCategory.DATABASE,
             title="Database Lock",
             description="Test",
-            resolution_hints=[]
+            resolution_hints=[],
         )
 
         assert pattern.matches("Database is locked")
@@ -59,7 +59,7 @@ class TestErrorPattern:
             category=ErrorCategory.RESOURCE,
             title="Memory Error",
             description="Test",
-            resolution_hints=[]
+            resolution_hints=[],
         )
 
         assert not pattern.matches("Database is locked")
@@ -101,7 +101,9 @@ class TestErrorCatalog:
         hints = catalog.find_resolution_hints("Compilation error in dbt model")
 
         assert len(hints) > 0
-        assert any("Compilation" in hint.title or "Syntax" in hint.title for hint in hints)
+        assert any(
+            "Compilation" in hint.title or "Syntax" in hint.title for hint in hints
+        )
 
     def test_dependency_error_pattern(self):
         """Test missing dependency error pattern"""
@@ -110,7 +112,9 @@ class TestErrorCatalog:
         hints = catalog.find_resolution_hints("Upstream model not found")
 
         assert len(hints) > 0
-        assert any("Dependency" in hint.title or "Model" in hint.title for hint in hints)
+        assert any(
+            "Dependency" in hint.title or "Model" in hint.title for hint in hints
+        )
 
     def test_data_quality_pattern(self):
         """Test data quality test failure pattern"""
@@ -176,9 +180,9 @@ class TestErrorCatalog:
                 ResolutionHint(
                     title="Custom Fix",
                     description="Apply custom fix",
-                    steps=["Step 1", "Step 2"]
+                    steps=["Step 1", "Step 2"],
                 )
-            ]
+            ],
         )
 
         initial_count = len(catalog.patterns)
@@ -219,7 +223,9 @@ class TestResolutionHintQuality:
 
         for pattern in catalog.patterns:
             for hint in pattern.resolution_hints:
-                assert len(hint.steps) > 0, f"Pattern {pattern.title} has hint without steps"
+                assert (
+                    len(hint.steps) > 0
+                ), f"Pattern {pattern.title} has hint without steps"
 
     def test_hints_have_descriptions(self):
         """Test that all hints have descriptions"""
@@ -227,8 +233,12 @@ class TestResolutionHintQuality:
 
         for pattern in catalog.patterns:
             for hint in pattern.resolution_hints:
-                assert hint.description, f"Pattern {pattern.title} has hint without description"
-                assert len(hint.description) > 10, f"Pattern {pattern.title} has too short description"
+                assert (
+                    hint.description
+                ), f"Pattern {pattern.title} has hint without description"
+                assert (
+                    len(hint.description) > 10
+                ), f"Pattern {pattern.title} has too short description"
 
     def test_hints_have_estimated_time(self):
         """Test that hints include estimated resolution time"""
@@ -236,7 +246,9 @@ class TestResolutionHintQuality:
 
         for pattern in catalog.patterns:
             for hint in pattern.resolution_hints:
-                assert hint.estimated_resolution_time, f"Pattern {pattern.title} missing time estimate"
+                assert (
+                    hint.estimated_resolution_time
+                ), f"Pattern {pattern.title} missing time estimate"
 
 
 class TestPatternCoverage:
@@ -246,42 +258,54 @@ class TestPatternCoverage:
         """Test coverage of database errors"""
         catalog = ErrorCatalog()
 
-        database_patterns = [p for p in catalog.patterns if p.category == ErrorCategory.DATABASE]
+        database_patterns = [
+            p for p in catalog.patterns if p.category == ErrorCategory.DATABASE
+        ]
         assert len(database_patterns) >= 1
 
     def test_resource_category_coverage(self):
         """Test coverage of resource errors"""
         catalog = ErrorCatalog()
 
-        resource_patterns = [p for p in catalog.patterns if p.category == ErrorCategory.RESOURCE]
+        resource_patterns = [
+            p for p in catalog.patterns if p.category == ErrorCategory.RESOURCE
+        ]
         assert len(resource_patterns) >= 1
 
     def test_configuration_category_coverage(self):
         """Test coverage of configuration errors"""
         catalog = ErrorCatalog()
 
-        config_patterns = [p for p in catalog.patterns if p.category == ErrorCategory.CONFIGURATION]
+        config_patterns = [
+            p for p in catalog.patterns if p.category == ErrorCategory.CONFIGURATION
+        ]
         assert len(config_patterns) >= 1
 
     def test_data_quality_category_coverage(self):
         """Test coverage of data quality errors"""
         catalog = ErrorCatalog()
 
-        dq_patterns = [p for p in catalog.patterns if p.category == ErrorCategory.DATA_QUALITY]
+        dq_patterns = [
+            p for p in catalog.patterns if p.category == ErrorCategory.DATA_QUALITY
+        ]
         assert len(dq_patterns) >= 1
 
     def test_network_category_coverage(self):
         """Test coverage of network errors"""
         catalog = ErrorCatalog()
 
-        network_patterns = [p for p in catalog.patterns if p.category == ErrorCategory.NETWORK]
+        network_patterns = [
+            p for p in catalog.patterns if p.category == ErrorCategory.NETWORK
+        ]
         assert len(network_patterns) >= 1
 
     def test_state_category_coverage(self):
         """Test coverage of state management errors (checkpoint patterns removed in E070)"""
         catalog = ErrorCatalog()
 
-        state_patterns = [p for p in catalog.patterns if p.category == ErrorCategory.STATE]
+        state_patterns = [
+            p for p in catalog.patterns if p.category == ErrorCategory.STATE
+        ]
         assert len(state_patterns) >= 0
 
 

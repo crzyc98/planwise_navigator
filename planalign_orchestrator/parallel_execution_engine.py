@@ -19,7 +19,10 @@ from pathlib import Path
 from queue import Queue, Empty
 import psutil
 
-from .model_dependency_analyzer import ModelDependencyAnalyzer, ParallelizationOpportunity
+from .model_dependency_analyzer import (
+    ModelDependencyAnalyzer,
+    ParallelizationOpportunity,
+)
 from .model_execution_types import ModelClassifier, ModelExecutionType
 from .dbt_runner import DbtRunner, DbtResult
 from .resource_manager import ResourceManager, ResourcePressure
@@ -29,6 +32,7 @@ from .logger import ProductionLogger
 @dataclass
 class ExecutionContext:
     """Context information for model execution."""
+
     simulation_year: int
     dbt_vars: Dict[str, Any]
     stage_name: str
@@ -39,6 +43,7 @@ class ExecutionContext:
 @dataclass
 class ExecutionResult:
     """Result of parallel execution phase."""
+
     success: bool
     model_results: Dict[str, DbtResult]
     execution_time: float
@@ -50,6 +55,7 @@ class ExecutionResult:
 @dataclass
 class LegacyResourceMonitor:
     """Legacy resource monitor for backward compatibility."""
+
     memory_threshold_mb: float = 4000.0  # 4GB default
     cpu_threshold_pct: float = 90.0
 
@@ -63,7 +69,8 @@ class LegacyResourceMonitor:
             "cpu_percent": cpu_pct,
             "memory_pressure": memory_mb > self.memory_threshold_mb,
             "cpu_pressure": cpu_pct > self.cpu_threshold_pct,
-            "safe_for_parallelization": memory_mb < self.memory_threshold_mb and cpu_pct < self.cpu_threshold_pct
+            "safe_for_parallelization": memory_mb < self.memory_threshold_mb
+            and cpu_pct < self.cpu_threshold_pct,
         }
 
 
@@ -85,7 +92,7 @@ class ParallelExecutionEngine:
         verbose: bool = False,
         resource_manager: Optional[ResourceManager] = None,
         logger: Optional[ProductionLogger] = None,
-        enable_adaptive_scaling: bool = True
+        enable_adaptive_scaling: bool = True,
     ):
         self.dbt_runner = dbt_runner
         self.dependency_analyzer = dependency_analyzer
@@ -105,7 +112,9 @@ class ParallelExecutionEngine:
         else:
             # Fall back to legacy resource monitoring for backward compatibility
             self.resource_manager = None
-            self.legacy_resource_monitor = LegacyResourceMonitor(memory_threshold_mb=memory_limit_mb)
+            self.legacy_resource_monitor = LegacyResourceMonitor(
+                memory_threshold_mb=memory_limit_mb
+            )
 
         # Thread safety
         self._execution_lock = threading.RLock()
@@ -115,17 +124,19 @@ class ParallelExecutionEngine:
         self._current_thread_count = max_workers
         self._scaling_history: List[Dict[str, Any]] = []
 
-        logger.debug("ParallelExecutionEngine initialized: workers=%d, resource_monitoring=%s, "
-                     "deterministic=%s, memory_limit=%.0fMB, advanced_rm=%s, adaptive_scaling=%s",
-                     max_workers, resource_monitoring, deterministic_execution,
-                     memory_limit_mb,
-                     'enabled' if resource_manager else 'disabled',
-                     'enabled' if enable_adaptive_scaling else 'disabled')
+        logger.debug(
+            "ParallelExecutionEngine initialized: workers=%d, resource_monitoring=%s, "
+            "deterministic=%s, memory_limit=%.0fMB, advanced_rm=%s, adaptive_scaling=%s",
+            max_workers,
+            resource_monitoring,
+            deterministic_execution,
+            memory_limit_mb,
+            "enabled" if resource_manager else "disabled",
+            "enabled" if enable_adaptive_scaling else "disabled",
+        )
 
     def _determine_effective_workers(
-        self,
-        stage_models: List[str],
-        context: ExecutionContext
+        self, stage_models: List[str], context: ExecutionContext
     ) -> Optional[int]:
         """Determine effective worker count based on resource state.
 
@@ -134,36 +145,46 @@ class ParallelExecutionEngine:
         # Advanced resource management integration (S067-03)
         if self.resource_manager:
             if not self.resource_manager.check_resource_health():
-                logger.warning("Critical resource pressure detected, falling back to sequential execution")
+                logger.warning(
+                    "Critical resource pressure detected, falling back to sequential execution"
+                )
                 return None
 
             # Adaptive thread count optimization
             if self.enable_adaptive_scaling:
                 optimal_threads, reason = self.resource_manager.optimize_thread_count(
                     self._current_thread_count,
-                    {"stage": context.stage_name, "model_count": len(stage_models)}
+                    {"stage": context.stage_name, "model_count": len(stage_models)},
                 )
 
                 if optimal_threads != self._current_thread_count:
-                    logger.info("Adjusting thread count: %d -> %d (%s)",
-                                self._current_thread_count, optimal_threads, reason)
+                    logger.info(
+                        "Adjusting thread count: %d -> %d (%s)",
+                        self._current_thread_count,
+                        optimal_threads,
+                        reason,
+                    )
                     self._current_thread_count = optimal_threads
 
                     # Record scaling decision
-                    self._scaling_history.append({
-                        "timestamp": time.time(),
-                        "stage": context.stage_name,
-                        "old_threads": self._current_thread_count,
-                        "new_threads": optimal_threads,
-                        "reason": reason
-                    })
+                    self._scaling_history.append(
+                        {
+                            "timestamp": time.time(),
+                            "stage": context.stage_name,
+                            "old_threads": self._current_thread_count,
+                            "new_threads": optimal_threads,
+                            "reason": reason,
+                        }
+                    )
 
             return self._current_thread_count
 
         if self.legacy_resource_monitor and self.resource_monitoring:
             initial_resources = self.legacy_resource_monitor.check_resources()
             if not initial_resources["safe_for_parallelization"]:
-                logger.warning("Resource pressure detected, falling back to sequential execution")
+                logger.warning(
+                    "Resource pressure detected, falling back to sequential execution"
+                )
                 return None
             return self.max_workers
 
@@ -171,10 +192,7 @@ class ParallelExecutionEngine:
         return self.max_workers
 
     def _record_final_resource_metrics(
-        self,
-        total_parallelism: int,
-        execution_time: float,
-        context: ExecutionContext
+        self, total_parallelism: int, execution_time: float, context: ExecutionContext
     ) -> Dict[str, Any]:
         """Record final resource metrics and return resource status."""
         if self.resource_manager:
@@ -197,11 +215,13 @@ class ParallelExecutionEngine:
         self,
         stage_models: List[str],
         context: ExecutionContext,
-        enable_conditional_parallelization: bool = False
+        enable_conditional_parallelization: bool = False,
     ) -> ExecutionResult:
         """Execute a stage with intelligent parallelization and advanced resource management."""
 
-        logger.info("Executing stage %s with %d models", context.stage_name, len(stage_models))
+        logger.info(
+            "Executing stage %s with %d models", context.stage_name, len(stage_models)
+        )
 
         start_time = time.perf_counter()
 
@@ -213,7 +233,7 @@ class ParallelExecutionEngine:
         execution_plan = self.dependency_analyzer.create_execution_plan(
             stage_models,
             max_parallelism=effective_max_workers,
-            enable_conditional_parallelization=enable_conditional_parallelization
+            enable_conditional_parallelization=enable_conditional_parallelization,
         )
 
         if self.verbose:
@@ -228,7 +248,9 @@ class ParallelExecutionEngine:
             try:
                 if phase["type"] == "parallel":
                     phase_result = self._execute_parallel_phase(phase, context)
-                    total_parallelism = max(total_parallelism, phase_result.parallelism_achieved)
+                    total_parallelism = max(
+                        total_parallelism, phase_result.parallelism_achieved
+                    )
                 else:
                     phase_result = self._execute_sequential_phase(phase, context)
 
@@ -255,32 +277,38 @@ class ParallelExecutionEngine:
             execution_time=execution_time,
             parallelism_achieved=total_parallelism,
             resource_usage=final_resources,
-            errors=errors
+            errors=errors,
         )
 
         # Log execution summary with resource metrics
         if self.resource_manager:
-            logger.info("Stage execution complete: %s (%.1fs, %d threads, %.0fMB, success=%s)",
-                        context.stage_name, execution_time, total_parallelism,
-                        final_resources.get('memory', {}).get('usage_mb', 0),
-                        execution_result.success)
+            logger.info(
+                "Stage execution complete: %s (%.1fs, %d threads, %.0fMB, success=%s)",
+                context.stage_name,
+                execution_time,
+                total_parallelism,
+                final_resources.get("memory", {}).get("usage_mb", 0),
+                execution_result.success,
+            )
 
         return execution_result
 
     def _execute_parallel_phase(
-        self,
-        phase: Dict[str, Any],
-        context: ExecutionContext
+        self, phase: Dict[str, Any], context: ExecutionContext
     ) -> ExecutionResult:
         """Execute a parallel phase with thread pool and deterministic result collection."""
 
         models = phase["models"]
         max_parallel = min(len(models), self.max_workers)
 
-        logger.debug("Parallel phase: %d models, %d threads, group=%s, est speedup=%.1fx",
-                     len(models), max_parallel, phase.get('group', 'unknown'),
-                     phase.get('estimated_speedup', 1.0))
-        logger.debug("Models: %s", ', '.join(models))
+        logger.debug(
+            "Parallel phase: %d models, %d threads, group=%s, est speedup=%.1fx",
+            len(models),
+            max_parallel,
+            phase.get("group", "unknown"),
+            phase.get("estimated_speedup", 1.0),
+        )
+        logger.debug("Models: %s", ", ".join(models))
 
         # Validate execution safety
         safety_check = self.dependency_analyzer.validate_execution_safety(models)
@@ -303,9 +331,13 @@ class ParallelExecutionEngine:
 
         # DETERMINISM FIX: Use deterministic thread-safe execution
         if self.deterministic_execution:
-            return self._execute_parallel_deterministic(models, context, max_parallel, start_time)
+            return self._execute_parallel_deterministic(
+                models, context, max_parallel, start_time
+            )
 
-        with ThreadPoolExecutor(max_workers=max_parallel, thread_name_prefix="dbt-model") as executor:
+        with ThreadPoolExecutor(
+            max_workers=max_parallel, thread_name_prefix="dbt-model"
+        ) as executor:
             # Submit all models
             future_to_model = {}
             for model in models:
@@ -320,7 +352,9 @@ class ParallelExecutionEngine:
                     model_results[model] = result
 
                     if not result.success:
-                        errors.append(f"Model {model} failed with code {result.return_code}")
+                        errors.append(
+                            f"Model {model} failed with code {result.return_code}"
+                        )
                         logger.error("%s: failed", model)
                     else:
                         logger.info("%s: %.1fs", model, result.execution_time)
@@ -332,8 +366,12 @@ class ParallelExecutionEngine:
         execution_time = time.perf_counter() - start_time
 
         success_count = sum(1 for r in model_results.values() if r.success)
-        logger.info("Parallel phase complete: %d/%d succeeded in %.1fs",
-                     success_count, len(models), execution_time)
+        logger.info(
+            "Parallel phase complete: %d/%d succeeded in %.1fs",
+            success_count,
+            len(models),
+            execution_time,
+        )
 
         return ExecutionResult(
             success=len(errors) == 0,
@@ -341,12 +379,11 @@ class ParallelExecutionEngine:
             execution_time=execution_time,
             parallelism_achieved=max_parallel,
             resource_usage={},
-            errors=errors
+            errors=errors,
         )
 
     def _collect_deterministic_results(
-        self,
-        future_to_model: Dict[Future, Tuple[str, int]]
+        self, future_to_model: Dict[Future, Tuple[str, int]]
     ) -> Tuple[Dict[str, DbtResult], List[str]]:
         """Collect results from futures in deterministic order.
 
@@ -362,10 +399,14 @@ class ParallelExecutionEngine:
                 completed_futures[order_idx] = (model, result)
 
                 if not result.success:
-                    errors.append(f"Model {model} failed with code {result.return_code}")
+                    errors.append(
+                        f"Model {model} failed with code {result.return_code}"
+                    )
                     logger.error("%s: failed (order: %d)", model, order_idx)
                 else:
-                    logger.info("%s: %.1fs (order: %d)", model, result.execution_time, order_idx)
+                    logger.info(
+                        "%s: %.1fs (order: %d)", model, result.execution_time, order_idx
+                    )
 
             except Exception as e:
                 errors.append(f"Model {model} raised exception: {str(e)}")
@@ -384,13 +425,15 @@ class ParallelExecutionEngine:
         models: List[str],
         context: ExecutionContext,
         max_parallel: int,
-        start_time: float
+        start_time: float,
     ) -> ExecutionResult:
         """Execute parallel phase with deterministic result collection for reproducible results."""
 
         logger.debug("Deterministic parallel execution: %d models", len(models))
 
-        with ThreadPoolExecutor(max_workers=max_parallel, thread_name_prefix="dbt-model-det") as executor:
+        with ThreadPoolExecutor(
+            max_workers=max_parallel, thread_name_prefix="dbt-model-det"
+        ) as executor:
             # Submit models in sorted order for deterministic execution
             future_to_model = {}
             for i, model in enumerate(models):
@@ -400,10 +443,12 @@ class ParallelExecutionEngine:
                     dbt_vars=context.dbt_vars.copy(),
                     stage_name=context.stage_name,
                     execution_id=f"{context.execution_id}:model_{i:03d}:{model}",
-                    start_time=context.start_time
+                    start_time=context.start_time,
                 )
 
-                future = executor.submit(self._execute_single_model_deterministic, model, model_context, i)
+                future = executor.submit(
+                    self._execute_single_model_deterministic, model, model_context, i
+                )
                 future_to_model[future] = (model, i)
 
             model_results, errors = self._collect_deterministic_results(future_to_model)
@@ -411,8 +456,12 @@ class ParallelExecutionEngine:
         execution_time = time.perf_counter() - start_time
 
         success_count = sum(1 for r in model_results.values() if r.success)
-        logger.debug("Deterministic phase complete: %d/%d succeeded in %.1fs",
-                      success_count, len(models), execution_time)
+        logger.debug(
+            "Deterministic phase complete: %d/%d succeeded in %.1fs",
+            success_count,
+            len(models),
+            execution_time,
+        )
 
         return ExecutionResult(
             success=len(errors) == 0,
@@ -420,7 +469,7 @@ class ParallelExecutionEngine:
             execution_time=execution_time,
             parallelism_achieved=max_parallel,
             resource_usage={},
-            errors=errors
+            errors=errors,
         )
 
     def _execute_parallel_with_monitoring(
@@ -428,7 +477,7 @@ class ParallelExecutionEngine:
         models: List[str],
         context: ExecutionContext,
         max_parallel: int,
-        resource_manager: ResourceManager
+        resource_manager: ResourceManager,
     ) -> ExecutionResult:
         """Execute parallel phase with advanced resource monitoring."""
 
@@ -443,11 +492,18 @@ class ParallelExecutionEngine:
         # Track per-thread resource usage
         thread_resource_tracking = {}
 
-        with ThreadPoolExecutor(max_workers=max_parallel, thread_name_prefix="dbt-model") as executor:
+        with ThreadPoolExecutor(
+            max_workers=max_parallel, thread_name_prefix="dbt-model"
+        ) as executor:
             # Submit all models with resource tracking
             future_to_model = {}
             for model in models:
-                future = executor.submit(self._execute_single_model_with_monitoring, model, context, resource_manager)
+                future = executor.submit(
+                    self._execute_single_model_with_monitoring,
+                    model,
+                    context,
+                    resource_manager,
+                )
                 future_to_model[future] = model
 
             # Collect results as they complete with resource monitoring
@@ -458,14 +514,18 @@ class ParallelExecutionEngine:
                     model_results[model] = result
 
                     if not result.success:
-                        errors.append(f"Model {model} failed with code {result.return_code}")
+                        errors.append(
+                            f"Model {model} failed with code {result.return_code}"
+                        )
                         logger.error("%s: failed", model)
                     else:
                         logger.info("%s: %.1fs", model, result.execution_time)
 
                     # Check for resource pressure after each model completion
                     if not resource_manager.check_resource_health():
-                        logger.warning("Resource pressure detected, may affect remaining models")
+                        logger.warning(
+                            "Resource pressure detected, may affect remaining models"
+                        )
 
                 except Exception as e:
                     errors.append(f"Model {model} raised exception: {str(e)}")
@@ -474,23 +534,26 @@ class ParallelExecutionEngine:
         execution_time = time.perf_counter() - start_time
 
         success_count = sum(1 for r in model_results.values() if r.success)
-        logger.info("Parallel phase complete: %d/%d succeeded in %.1fs",
-                     success_count, len(models), execution_time)
+        logger.info(
+            "Parallel phase complete: %d/%d succeeded in %.1fs",
+            success_count,
+            len(models),
+            execution_time,
+        )
 
         return ExecutionResult(
             success=len(errors) == 0,
             model_results=model_results,
             execution_time=execution_time,
             parallelism_achieved=max_parallel,
-            resource_usage=resource_manager.get_resource_status() if resource_manager else {},
-            errors=errors
+            resource_usage=resource_manager.get_resource_status()
+            if resource_manager
+            else {},
+            errors=errors,
         )
 
     def _execute_parallel_legacy(
-        self,
-        models: List[str],
-        context: ExecutionContext,
-        max_parallel: int
+        self, models: List[str], context: ExecutionContext, max_parallel: int
     ) -> ExecutionResult:
         """Legacy parallel execution without advanced resource management."""
 
@@ -502,7 +565,9 @@ class ParallelExecutionEngine:
         if self.deterministic_execution:
             models = sorted(models)
 
-        with ThreadPoolExecutor(max_workers=max_parallel, thread_name_prefix="dbt-model") as executor:
+        with ThreadPoolExecutor(
+            max_workers=max_parallel, thread_name_prefix="dbt-model"
+        ) as executor:
             # Submit all models
             future_to_model = {}
             for model in models:
@@ -517,7 +582,9 @@ class ParallelExecutionEngine:
                     model_results[model] = result
 
                     if not result.success:
-                        errors.append(f"Model {model} failed with code {result.return_code}")
+                        errors.append(
+                            f"Model {model} failed with code {result.return_code}"
+                        )
                         logger.error("%s: failed", model)
                     else:
                         logger.info("%s: %.1fs", model, result.execution_time)
@@ -529,8 +596,12 @@ class ParallelExecutionEngine:
         execution_time = time.perf_counter() - start_time
 
         success_count = sum(1 for r in model_results.values() if r.success)
-        logger.info("Parallel phase complete: %d/%d succeeded in %.1fs",
-                     success_count, len(models), execution_time)
+        logger.info(
+            "Parallel phase complete: %d/%d succeeded in %.1fs",
+            success_count,
+            len(models),
+            execution_time,
+        )
 
         return ExecutionResult(
             success=len(errors) == 0,
@@ -538,13 +609,11 @@ class ParallelExecutionEngine:
             execution_time=execution_time,
             parallelism_achieved=max_parallel,
             resource_usage={},
-            errors=errors
+            errors=errors,
         )
 
     def _execute_sequential_phase(
-        self,
-        phase: Dict[str, Any],
-        context: ExecutionContext
+        self, phase: Dict[str, Any], context: ExecutionContext
     ) -> ExecutionResult:
         """Execute a sequential phase."""
 
@@ -552,7 +621,7 @@ class ParallelExecutionEngine:
 
         logger.info("Sequential phase: %d models", len(models))
         if "reason" in phase:
-            logger.info("Reason: %s", phase['reason'])
+            logger.info("Reason: %s", phase["reason"])
 
         start_time = time.perf_counter()
         model_results = {}
@@ -564,7 +633,9 @@ class ParallelExecutionEngine:
                 model_results[model] = result
 
                 if not result.success:
-                    errors.append(f"Model {model} failed with code {result.return_code}")
+                    errors.append(
+                        f"Model {model} failed with code {result.return_code}"
+                    )
                     logger.error("%s: failed", model)
                     break  # Stop on first failure in sequential phase
                 else:
@@ -583,14 +654,10 @@ class ParallelExecutionEngine:
             execution_time=execution_time,
             parallelism_achieved=1,
             resource_usage={},
-            errors=errors
+            errors=errors,
         )
 
-    def _execute_single_model(
-        self,
-        model: str,
-        context: ExecutionContext
-    ) -> DbtResult:
+    def _execute_single_model(self, model: str, context: ExecutionContext) -> DbtResult:
         """Execute a single model with proper context."""
 
         with self._execution_lock:
@@ -604,7 +671,11 @@ class ParallelExecutionEngine:
             if self.legacy_resource_monitor and self.resource_monitoring:
                 resources = self.legacy_resource_monitor.check_resources()
                 if resources["memory_pressure"]:
-                    logger.warning("Memory pressure during %s execution: %.0fMB", model, resources['memory_mb'])
+                    logger.warning(
+                        "Memory pressure during %s execution: %.0fMB",
+                        model,
+                        resources["memory_mb"],
+                    )
 
             # DETERMINISM FIX: Create deterministic dbt_vars with thread-local seed
             deterministic_vars = context.dbt_vars.copy()
@@ -612,13 +683,20 @@ class ParallelExecutionEngine:
             if self.deterministic_execution:
                 # Generate deterministic thread-local seed based on model name and context
                 import hashlib
+
                 thread_seed_str = f"{context.execution_id}:{model}:{context.simulation_year}:{context.dbt_vars.get('random_seed', 42)}"
-                thread_seed_hash = hashlib.sha256(thread_seed_str.encode()).hexdigest()[:8]
-                thread_seed = int(thread_seed_hash, 16) % (2**31)  # Ensure 32-bit signed int
+                thread_seed_hash = hashlib.sha256(thread_seed_str.encode()).hexdigest()[
+                    :8
+                ]
+                thread_seed = int(thread_seed_hash, 16) % (
+                    2**31
+                )  # Ensure 32-bit signed int
 
                 # Override random_seed with deterministic thread-local value
-                deterministic_vars['thread_local_seed'] = thread_seed
-                deterministic_vars['model_execution_id'] = f"{context.execution_id}:{model}"
+                deterministic_vars["thread_local_seed"] = thread_seed
+                deterministic_vars[
+                    "model_execution_id"
+                ] = f"{context.execution_id}:{model}"
 
             # Execute the model
             result = self.dbt_runner.execute_command(
@@ -627,7 +705,7 @@ class ParallelExecutionEngine:
                 dbt_vars=deterministic_vars,
                 stream_output=False,  # Disable streaming for parallel execution
                 retry=True,
-                max_attempts=2  # Reduced retries for parallel execution
+                max_attempts=2,  # Reduced retries for parallel execution
             )
 
             return result
@@ -637,10 +715,7 @@ class ParallelExecutionEngine:
                 self._active_executions.discard(execution_key)
 
     def _execute_single_model_deterministic(
-        self,
-        model: str,
-        context: ExecutionContext,
-        execution_order: int
+        self, model: str, context: ExecutionContext, execution_order: int
     ) -> DbtResult:
         """Execute a single model with deterministic state isolation for reproducible results."""
 
@@ -655,26 +730,37 @@ class ParallelExecutionEngine:
             if self.legacy_resource_monitor and self.resource_monitoring:
                 resources = self.legacy_resource_monitor.check_resources()
                 if resources["memory_pressure"]:
-                    logger.warning("Memory pressure during %s execution: %.0fMB", model, resources['memory_mb'])
+                    logger.warning(
+                        "Memory pressure during %s execution: %.0fMB",
+                        model,
+                        resources["memory_mb"],
+                    )
 
             # DETERMINISM FIX: Create completely isolated deterministic execution context
             deterministic_vars = context.dbt_vars.copy()
 
             # Generate deterministic model-specific seed
             import hashlib
+
             model_seed_str = f"{execution_order:03d}:{model}:{context.simulation_year}:{context.dbt_vars.get('random_seed', 42)}"
             model_seed_hash = hashlib.sha256(model_seed_str.encode()).hexdigest()[:8]
-            model_seed = int(model_seed_hash, 16) % (2**31)  # Ensure 32-bit signed int
+            model_seed = int(model_seed_hash, 16) % (
+                2**31
+            )  # Ensure 32-bit signed int
 
             # Override dbt vars with deterministic values
-            deterministic_vars.update({
-                'thread_local_seed': model_seed,
-                'model_execution_order': execution_order,
-                'model_execution_id': execution_key,
-                'deterministic_execution': True
-            })
+            deterministic_vars.update(
+                {
+                    "thread_local_seed": model_seed,
+                    "model_execution_order": execution_order,
+                    "model_execution_id": execution_key,
+                    "deterministic_execution": True,
+                }
+            )
 
-            logger.debug("%s (order: %03d, seed: %d)", model, execution_order, model_seed)
+            logger.debug(
+                "%s (order: %03d, seed: %d)", model, execution_order, model_seed
+            )
 
             # Execute the model with isolated state
             result = self.dbt_runner.execute_command(
@@ -683,7 +769,7 @@ class ParallelExecutionEngine:
                 dbt_vars=deterministic_vars,
                 stream_output=False,  # Disable streaming for parallel execution
                 retry=True,
-                max_attempts=2  # Reduced retries for parallel execution
+                max_attempts=2,  # Reduced retries for parallel execution
             )
 
             return result
@@ -693,10 +779,7 @@ class ParallelExecutionEngine:
                 self._active_executions.discard(execution_key)
 
     def _execute_single_model_with_monitoring(
-        self,
-        model: str,
-        context: ExecutionContext,
-        resource_manager: ResourceManager
+        self, model: str, context: ExecutionContext, resource_manager: ResourceManager
     ) -> DbtResult:
         """Execute a single model with advanced resource monitoring."""
 
@@ -729,7 +812,7 @@ class ParallelExecutionEngine:
                     dbt_vars=context.dbt_vars,
                     stream_output=False,  # Disable streaming for parallel execution
                     retry=True,
-                    max_attempts=2  # Reduced retries for parallel execution
+                    max_attempts=2,  # Reduced retries for parallel execution
                 )
 
             return result
@@ -739,9 +822,7 @@ class ParallelExecutionEngine:
                 self._active_executions.discard(execution_key)
 
     def _execute_sequential_fallback(
-        self,
-        models: List[str],
-        context: ExecutionContext
+        self, models: List[str], context: ExecutionContext
     ) -> ExecutionResult:
         """Fallback to sequential execution when parallelization isn't safe."""
 
@@ -757,7 +838,9 @@ class ParallelExecutionEngine:
                 model_results[model] = result
 
                 if not result.success:
-                    errors.append(f"Model {model} failed with code {result.return_code}")
+                    errors.append(
+                        f"Model {model} failed with code {result.return_code}"
+                    )
                     break
 
             except Exception as e:
@@ -772,21 +855,29 @@ class ParallelExecutionEngine:
             execution_time=execution_time,
             parallelism_achieved=1,
             resource_usage={},
-            errors=errors
+            errors=errors,
         )
 
     def _log_execution_plan(self, plan: Dict[str, Any]) -> None:
         """Log the execution plan for transparency."""
-        logger.info("Execution plan: total=%d, parallelizable=%d, speedup=%.1fx, phases=%d",
-                    plan['total_models'], plan['parallelizable_models'],
-                    plan['estimated_total_speedup'], len(plan['execution_phases']))
+        logger.info(
+            "Execution plan: total=%d, parallelizable=%d, speedup=%.1fx, phases=%d",
+            plan["total_models"],
+            plan["parallelizable_models"],
+            plan["estimated_total_speedup"],
+            len(plan["execution_phases"]),
+        )
 
         for i, phase in enumerate(plan["execution_phases"], 1):
             if phase["type"] == "parallel":
-                logger.info("Phase %d (Parallel): %d models, %s group",
-                            i, len(phase['models']), phase.get('group', 'mixed'))
+                logger.info(
+                    "Phase %d (Parallel): %d models, %s group",
+                    i,
+                    len(phase["models"]),
+                    phase.get("group", "mixed"),
+                )
             else:
-                logger.info("Phase %d (Sequential): %d models", i, len(phase['models']))
+                logger.info("Phase %d (Sequential): %d models", i, len(phase["models"]))
 
     def get_parallelization_statistics(self) -> Dict[str, Any]:
         """Get statistics about parallelization capabilities."""
@@ -795,8 +886,10 @@ class ParallelExecutionEngine:
         parallel_safe = self.classifier.get_parallel_safe_models(all_models)
         sequential = self.classifier.get_sequential_models(all_models)
         conditional = [
-            model for model in all_models
-            if self.classifier.classify_model(model).execution_type == ModelExecutionType.CONDITIONAL
+            model
+            for model in all_models
+            if self.classifier.classify_model(model).execution_type
+            == ModelExecutionType.CONDITIONAL
         ]
 
         return {
@@ -804,14 +897,22 @@ class ParallelExecutionEngine:
             "parallel_safe": len(parallel_safe),
             "sequential_required": len(sequential),
             "conditional": len(conditional),
-            "parallelization_ratio": len(parallel_safe) / len(all_models) if all_models else 0,
-            "max_theoretical_speedup": min(len(parallel_safe), self.max_workers) if parallel_safe else 1,
+            "parallelization_ratio": len(parallel_safe) / len(all_models)
+            if all_models
+            else 0,
+            "max_theoretical_speedup": min(len(parallel_safe), self.max_workers)
+            if parallel_safe
+            else 1,
             "parallel_groups": self.classifier.get_parallel_groups(parallel_safe),
             "resource_limits": {
                 "max_workers": self.max_workers,
-                "memory_limit_mb": self.legacy_resource_monitor.memory_threshold_mb if self.legacy_resource_monitor else 0,
-                "cpu_threshold_pct": self.legacy_resource_monitor.cpu_threshold_pct if self.legacy_resource_monitor else 0
-            }
+                "memory_limit_mb": self.legacy_resource_monitor.memory_threshold_mb
+                if self.legacy_resource_monitor
+                else 0,
+                "cpu_threshold_pct": self.legacy_resource_monitor.cpu_threshold_pct
+                if self.legacy_resource_monitor
+                else 0,
+            },
         }
 
     def validate_stage_parallelization(self, stage_models: List[str]) -> Dict[str, Any]:
@@ -822,8 +923,7 @@ class ParallelExecutionEngine:
 
         total_parallelizable = sum(len(op.parallel_models) for op in opportunities)
         high_safety = sum(
-            len(op.parallel_models) for op in opportunities
-            if op.safety_level == "high"
+            len(op.parallel_models) for op in opportunities if op.safety_level == "high"
         )
 
         return {
@@ -831,17 +931,19 @@ class ParallelExecutionEngine:
             "parallelizable_models": total_parallelizable,
             "high_safety_models": high_safety,
             "parallelization_opportunities": len(opportunities),
-            "estimated_speedup": max([op.estimated_speedup for op in opportunities] + [1.0]),
+            "estimated_speedup": max(
+                [op.estimated_speedup for op in opportunities] + [1.0]
+            ),
             "safety_breakdown": {
-                op.safety_level: len(op.parallel_models)
-                for op in opportunities
+                op.safety_level: len(op.parallel_models) for op in opportunities
             },
-            "recommendations": self._generate_parallelization_recommendations(opportunities)
+            "recommendations": self._generate_parallelization_recommendations(
+                opportunities
+            ),
         }
 
     def _generate_parallelization_recommendations(
-        self,
-        opportunities: List[ParallelizationOpportunity]
+        self, opportunities: List[ParallelizationOpportunity]
     ) -> List[str]:
         """Generate recommendations for improving parallelization."""
         recommendations = []
@@ -861,6 +963,8 @@ class ParallelExecutionEngine:
             )
 
         if not opportunities:
-            recommendations.append("No parallelization opportunities found - all models require sequential execution")
+            recommendations.append(
+                "No parallelization opportunities found - all models require sequential execution"
+            )
 
         return recommendations

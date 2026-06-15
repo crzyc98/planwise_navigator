@@ -11,19 +11,27 @@ class HealthResponse(BaseModel):
 
     healthy: bool = Field(description="Whether the system is healthy")
     issues: List[str] = Field(default_factory=list, description="Blocking issues")
-    warnings: List[str] = Field(default_factory=list, description="Non-blocking warnings")
+    warnings: List[str] = Field(
+        default_factory=list, description="Non-blocking warnings"
+    )
 
 
 class SystemStatus(BaseModel):
     """Detailed system status response."""
 
-    system_ready: bool = Field(description="Whether the system is ready for simulations")
+    system_ready: bool = Field(
+        description="Whether the system is ready for simulations"
+    )
     system_message: str = Field(description="Human-readable status message")
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Simulation status
-    active_simulations: int = Field(default=0, description="Number of running simulations")
-    queued_simulations: int = Field(default=0, description="Number of queued simulations")
+    active_simulations: int = Field(
+        default=0, description="Number of running simulations"
+    )
+    queued_simulations: int = Field(
+        default=0, description="Number of queued simulations"
+    )
 
     # Storage
     total_storage_mb: float = Field(default=0.0, description="Total storage used in MB")

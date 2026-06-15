@@ -38,7 +38,7 @@ class StageValidator:
         db_manager: "DatabaseConnectionManager",
         config: "SimulationConfig",
         state_manager: "StateManager",
-        verbose: bool = False
+        verbose: bool = False,
     ):
         """
         Initialize stage validator.
@@ -55,10 +55,7 @@ class StageValidator:
         self.verbose = verbose
 
     def validate_stage(
-        self,
-        stage: StageDefinition,
-        year: int,
-        fail_on_error: bool = False
+        self, stage: StageDefinition, year: int, fail_on_error: bool = False
     ) -> None:
         """
         Run validation checks for a completed workflow stage.
@@ -91,14 +88,20 @@ class StageValidator:
         def _chk(conn):
             baseline = self._safe_count(conn, "int_baseline_workforce", year)
             # For years > start_year, baseline lives in start_year; fetch preserved baseline rows
-            preserved_baseline = self._safe_count(conn, "int_baseline_workforce", start_year)
-            compensation = self._safe_count(conn, "int_employee_compensation_by_year", year)
+            preserved_baseline = self._safe_count(
+                conn, "int_baseline_workforce", start_year
+            )
+            compensation = self._safe_count(
+                conn, "int_employee_compensation_by_year", year
+            )
             wn = self._safe_count(conn, "int_workforce_needs", year)
             wnbl = self._safe_count(conn, "int_workforce_needs_by_level", year)
             # Epic E039: Employer contribution model validation (eligibility may not be built in FOUNDATION)
             employer_elig = self._safe_count(conn, "int_employer_eligibility", year)
             # int_employer_core_contributions is built in STATE_ACCUMULATION, not FOUNDATION
-            employer_core = self._safe_count(conn, "int_employer_core_contributions", year)
+            employer_core = self._safe_count(
+                conn, "int_employer_core_contributions", year
+            )
             # Diagnostics: hiring demand (safe query with COALESCE for missing tables)
             try:
                 total_hires_needed = conn.execute(
@@ -145,16 +148,20 @@ class StageValidator:
             # Baseline is only populated in start_year; show preserved baseline for clarity
             logger.info(
                 "  int_baseline_workforce: %d rows (current year); preserved baseline %d rows (start_year=%d)",
-                baseline_cnt, preserved_baseline_cnt, start_year
+                baseline_cnt,
+                preserved_baseline_cnt,
+                start_year,
             )
         logger.info("  int_employee_compensation_by_year: %d rows", comp_cnt)
         logger.info("  int_workforce_needs: %d rows", wn_cnt)
         logger.info("  int_workforce_needs_by_level: %d rows", wnbl_cnt)
         logger.info(
-            "  int_employer_eligibility: %d rows (not built in FOUNDATION)", employer_elig_cnt
+            "  int_employer_eligibility: %d rows (not built in FOUNDATION)",
+            employer_elig_cnt,
         )
         logger.info(
-            "  int_employer_core_contributions: %d rows (built later in STATE_ACCUMULATION)", employer_core_cnt
+            "  int_employer_core_contributions: %d rows (built later in STATE_ACCUMULATION)",
+            employer_core_cnt,
         )
         logger.info("  hiring_demand.total_hires_needed: %d", total_hires_needed)
         logger.info("  hiring_demand.sum_by_level: %d", level_hires_needed)
@@ -167,7 +174,9 @@ class StageValidator:
         elif baseline_cnt == 0 and year > self.config.simulation.start_year:
             logger.info(
                 "int_baseline_workforce has 0 rows for year %d (expected). Baseline is preserved in start_year=%d with %d rows.",
-                year, start_year, preserved_baseline_cnt
+                year,
+                start_year,
+                preserved_baseline_cnt,
             )
         if comp_cnt == 0:
             raise PipelineStageError(
@@ -179,11 +188,13 @@ class StageValidator:
             )
         if employer_elig_cnt == 0:
             logger.info(
-                "int_employer_eligibility has 0 rows for year %d (expected before EVENT_GENERATION).", year
+                "int_employer_eligibility has 0 rows for year %d (expected before EVENT_GENERATION).",
+                year,
             )
         if employer_core_cnt == 0:
             logger.info(
-                "int_employer_core_contributions has 0 rows for year %d (expected; built during STATE_ACCUMULATION).", year
+                "int_employer_core_contributions has 0 rows for year %d (expected; built during STATE_ACCUMULATION).",
+                year,
             )
         if total_hires_needed == 0 or level_hires_needed == 0:
             logger.warning(
@@ -192,6 +203,7 @@ class StageValidator:
 
     def _validate_event_generation(self, year: int) -> None:
         """Validate EVENT_GENERATION stage outputs - ensure hires materialized."""
+
         def _ev_chk(conn):
             hires = conn.execute(
                 "SELECT COUNT(*) FROM int_hiring_events WHERE simulation_year = ?",

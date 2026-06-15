@@ -126,12 +126,10 @@ class SimulationOutputParser:
 
         return changes
 
-    def _parse_structured_line(
-        self, line_text: str, changes: Dict[str, Any]
-    ) -> None:
+    def _parse_structured_line(self, line_text: str, changes: Dict[str, Any]) -> None:
         """Apply a sentinel-prefixed JSON record to parser state."""
         try:
-            record = json.loads(line_text[len(STRUCTURED_SENTINEL):])
+            record = json.loads(line_text[len(STRUCTURED_SENTINEL) :])
         except (json.JSONDecodeError, ValueError) as e:
             logger.warning("Malformed structured telemetry line ignored: %s", e)
             return

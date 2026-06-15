@@ -41,7 +41,12 @@ from config.constants import (
 )
 
 # Import modular pipeline components
-from .pipeline.workflow import WorkflowBuilder, WorkflowStage, StageDefinition, WorkflowCheckpoint
+from .pipeline.workflow import (
+    WorkflowBuilder,
+    WorkflowStage,
+    StageDefinition,
+    WorkflowCheckpoint,
+)
 from .pipeline.state_manager import StateManager
 from .pipeline.data_cleanup import DataCleanupManager
 from .pipeline.hooks import HookManager, HookType
@@ -56,6 +61,7 @@ try:
     from .model_dependency_analyzer import ModelDependencyAnalyzer
     from .resource_manager import ResourceManager
     from .logger import ProductionLogger
+
     MODEL_PARALLELIZATION_AVAILABLE = True
     RESOURCE_MANAGEMENT_AVAILABLE = True
 except ImportError:
@@ -100,8 +106,12 @@ class PipelineOrchestrator:
         self.event_generation_mode = "sql"
 
         # Log E068C threading configuration
-        logger.debug("E068C Threading Configuration: dbt_threads=%d, event_shards=%d, max_parallel_years=%d",
-                      self.dbt_threads, self.event_shards, self.max_parallel_years)
+        logger.debug(
+            "E068C Threading Configuration: dbt_threads=%d, event_shards=%d, max_parallel_years=%d",
+            self.dbt_threads,
+            self.event_shards,
+            self.max_parallel_years,
+        )
         logger.debug("Event Generation Mode: SQL")
 
         # Enhanced compensation parameter visibility
@@ -118,7 +128,9 @@ class PipelineOrchestrator:
             # BUG FIX #235: Use mode='json' to convert Decimal values to floats for JSON serialization
             # Without this, json.dumps() fails with: TypeError: Object of type Decimal is not JSON serializable
             try:
-                self.observability.set_configuration(self.config.model_dump(mode='json'))
+                self.observability.set_configuration(
+                    self.config.model_dump(mode="json")
+                )
             except Exception:
                 pass
             logger.debug("Observability run_id: %s", self.observability.get_run_id())
@@ -128,9 +140,7 @@ class PipelineOrchestrator:
 
         # S063-08: Adaptive Memory Management
         self.memory_manager = setup_memory_manager(
-            config=self.config,
-            reports_dir=self.reports_dir,
-            verbose=self.verbose
+            config=self.config, reports_dir=self.reports_dir, verbose=self.verbose
         )
 
         # S067-02: Model-level parallelization setup
@@ -141,34 +151,29 @@ class PipelineOrchestrator:
             self.dependency_analyzer,
             self.model_parallelization_enabled,
         ) = setup_parallelization(
-            config=self.config,
-            dbt_runner=self.dbt_runner,
-            verbose=self.verbose
+            config=self.config, dbt_runner=self.dbt_runner, verbose=self.verbose
         )
 
         # E068D: Initialize hazard cache manager for automatic change detection
         self.hazard_cache_manager = setup_hazard_cache(
-            config=self.config,
-            dbt_runner=self.dbt_runner,
-            verbose=self.verbose
+            config=self.config, dbt_runner=self.dbt_runner, verbose=self.verbose
         )
 
         # E068E: Initialize DuckDB performance monitoring system
         self.duckdb_performance_monitor = setup_performance_monitor(
             db_manager=self.db_manager,
             reports_dir=self.reports_dir,
-            verbose=self.verbose
+            verbose=self.verbose,
         )
 
         # Initialize modular pipeline components (Story S072-06)
         self.workflow_builder = WorkflowBuilder()
         self.state_manager = StateManager(
-            db_manager=db_manager,
-            dbt_runner=dbt_runner,
-            config=config,
-            verbose=verbose
+            db_manager=db_manager, dbt_runner=dbt_runner, config=config, verbose=verbose
         )
-        self.cleanup_manager = DataCleanupManager(db_manager=db_manager, verbose=verbose)
+        self.cleanup_manager = DataCleanupManager(
+            db_manager=db_manager, verbose=verbose
+        )
         self.hook_manager = HookManager(verbose=verbose)
 
         # Feature 094: structured telemetry for PlanAlign Studio (env-gated)
@@ -181,7 +186,7 @@ class PipelineOrchestrator:
             db_manager=db_manager,
             config=config,
             state_manager=self.state_manager,
-            verbose=verbose
+            verbose=verbose,
         )
 
         # Initialize event generation executor
@@ -191,7 +196,7 @@ class PipelineOrchestrator:
             db_manager=db_manager,
             dbt_vars=self._dbt_vars,
             event_shards=self.event_shards,
-            verbose=verbose
+            verbose=verbose,
         )
 
         # Initialize year executor with optional parallelization support
@@ -206,14 +211,14 @@ class PipelineOrchestrator:
             verbose=verbose,
             parallel_execution_engine=self.parallel_execution_engine,
             model_parallelization_enabled=self.model_parallelization_enabled,
-            parallelization_config=self.parallelization_config
+            parallelization_config=self.parallelization_config,
         )
 
     def _cleanup_resources(self) -> None:
         """Cleanup resource management components"""
         try:
             # Cleanup database connection pool (E079 Phase 3A)
-            if hasattr(self, 'db_manager') and self.db_manager:
+            if hasattr(self, "db_manager") and self.db_manager:
                 try:
                     self.db_manager.close_all()
                     logger.info("Database connection pool closed")
@@ -224,13 +229,15 @@ class PipelineOrchestrator:
             # are context-managed per stage and already closed by this point.
 
             # Cleanup resource manager
-            if hasattr(self, 'resource_manager') and self.resource_manager:
+            if hasattr(self, "resource_manager") and self.resource_manager:
                 try:
                     # Get final resource statistics
                     final_stats = self.resource_manager.get_resource_status()
-                    logger.info("Final resource status: Memory=%.0fMB, CPU=%.1f%%",
-                                final_stats['memory']['usage_mb'],
-                                final_stats['cpu']['current_percent'])
+                    logger.info(
+                        "Final resource status: Memory=%.0fMB, CPU=%.1f%%",
+                        final_stats["memory"]["usage_mb"],
+                        final_stats["cpu"]["current_percent"],
+                    )
 
                     self.resource_manager.stop_monitoring()
                     logger.info("Resource manager monitoring stopped")
@@ -261,7 +268,7 @@ class PipelineOrchestrator:
         # Execute PRE_SIMULATION hooks (e.g., self-healing database initialization)
         self.hook_manager.execute_hooks(
             HookType.PRE_SIMULATION,
-            {"start_year": start, "end_year": end, "dry_run": dry_run}
+            {"start_year": start, "end_year": end, "dry_run": dry_run},
         )
 
         # Enhanced multi-year simulation startup logging
@@ -283,21 +290,33 @@ class PipelineOrchestrator:
                 try:
                     for year in range(start, end + 1):
                         year_start_time = time.time()
-                        self.hook_manager.execute_hooks(HookType.PRE_YEAR, {"year": year})
+                        self.hook_manager.execute_hooks(
+                            HookType.PRE_YEAR, {"year": year}
+                        )
                         self._execute_year_with_monitoring(
-                            year, fail_on_validation_error=fail_on_validation_error, dry_run=dry_run
+                            year,
+                            fail_on_validation_error=fail_on_validation_error,
+                            dry_run=dry_run,
                         )
                         completed_years.append(year)
                         self.hook_manager.execute_hooks(
                             HookType.POST_YEAR,
-                            {"year": year, "duration_seconds": time.time() - year_start_time},
+                            {
+                                "year": year,
+                                "duration_seconds": time.time() - year_start_time,
+                            },
                         )
 
                 except Exception as e:
                     if self.memory_manager:
-                        error_snapshot = self.memory_manager.force_memory_check("simulation_error")
-                        logger.debug("Memory at error: %.1fMB (pressure: %s)",
-                                     error_snapshot.rss_mb, error_snapshot.pressure_level.value)
+                        error_snapshot = self.memory_manager.force_memory_check(
+                            "simulation_error"
+                        )
+                        logger.debug(
+                            "Memory at error: %.1fMB (pressure: %s)",
+                            error_snapshot.rss_mb,
+                            error_snapshot.pressure_level.value,
+                        )
                     raise
 
                 finally:
@@ -318,11 +337,19 @@ class PipelineOrchestrator:
         """Start adaptive memory and DuckDB performance monitoring."""
         if self.memory_manager:
             self.memory_manager.start_monitoring()
-            initial_snapshot = self.memory_manager.force_memory_check("simulation_startup")
-            logger.debug("Initial memory: %.1fMB (pressure: %s)",
-                         initial_snapshot.rss_mb, initial_snapshot.pressure_level.value)
+            initial_snapshot = self.memory_manager.force_memory_check(
+                "simulation_startup"
+            )
+            logger.debug(
+                "Initial memory: %.1fMB (pressure: %s)",
+                initial_snapshot.rss_mb,
+                initial_snapshot.pressure_level.value,
+            )
 
-        if hasattr(self, 'duckdb_performance_monitor') and self.duckdb_performance_monitor:
+        if (
+            hasattr(self, "duckdb_performance_monitor")
+            and self.duckdb_performance_monitor
+        ):
             self.duckdb_performance_monitor.start_monitoring()
             logger.debug("E068E DuckDB performance monitoring started")
 
@@ -333,6 +360,7 @@ class PipelineOrchestrator:
                 "multi_year_run", start_year=start, end_year=end
             )
         from contextlib import nullcontext
+
         return nullcontext()
 
     def _initialize_registries(self, start: int) -> None:
@@ -357,15 +385,21 @@ class PipelineOrchestrator:
 
         if self.memory_manager:
             year_snapshot = self.memory_manager.force_memory_check(f"year_{year}_start")
-            logger.debug("Memory before year %d: %.1fMB (batch size: %d)",
-                         year, year_snapshot.rss_mb, self.memory_manager.get_current_batch_size())
+            logger.debug(
+                "Memory before year %d: %.1fMB (batch size: %d)",
+                year,
+                year_snapshot.rss_mb,
+                self.memory_manager.get_current_batch_size(),
+            )
 
         if self.observability:
             with self.observability.track_operation(
                 f"year_simulation_{year}", year=year
             ):
                 self._execute_year_workflow(
-                    year, fail_on_validation_error=fail_on_validation_error, dry_run=dry_run
+                    year,
+                    fail_on_validation_error=fail_on_validation_error,
+                    dry_run=dry_run,
                 )
         else:
             self._execute_year_workflow(
@@ -373,8 +407,12 @@ class PipelineOrchestrator:
             )
 
         if self.memory_manager:
-            post_year_snapshot = self.memory_manager.force_memory_check(f"year_{year}_complete")
-            logger.debug("Memory after year %d: %.1fMB", year, post_year_snapshot.rss_mb)
+            post_year_snapshot = self.memory_manager.force_memory_check(
+                f"year_{year}_complete"
+            )
+            logger.debug(
+                "Memory after year %d: %.1fMB", year, post_year_snapshot.rss_mb
+            )
 
     def _finalize_monitoring(self) -> None:
         """Stop memory monitoring and generate final report."""
@@ -385,16 +423,18 @@ class PipelineOrchestrator:
         stats = self.memory_manager.get_memory_statistics()
         recommendations = self.memory_manager.get_recommendations()
 
-        logger.debug("Adaptive Memory Management Summary: Peak=%sMB, GC=%s, BatchAdj=%s, Fallbacks=%s",
-                     stats['trends']['peak_memory_mb'],
-                     stats['stats']['total_gc_collections'],
-                     stats['stats']['batch_size_adjustments'],
-                     stats['stats']['automatic_fallbacks'])
+        logger.debug(
+            "Adaptive Memory Management Summary: Peak=%sMB, GC=%s, BatchAdj=%s, Fallbacks=%s",
+            stats["trends"]["peak_memory_mb"],
+            stats["stats"]["total_gc_collections"],
+            stats["stats"]["batch_size_adjustments"],
+            stats["stats"]["automatic_fallbacks"],
+        )
 
         if recommendations:
             logger.debug("Memory recommendations: %d", len(recommendations))
             for rec in recommendations[-3:]:
-                logger.debug("  %s: %s", rec['type'], rec['description'])
+                logger.debug("  %s: %s", rec["type"], rec["description"])
 
         try:
             profile_path = self.memory_manager.export_memory_profile()
@@ -430,7 +470,9 @@ class PipelineOrchestrator:
             generated_at=datetime.now(timezone.utc),
         )
 
-    def _build_single_year_summary(self, reporter: "MultiYearReporter", year: int) -> MultiYearSummary:
+    def _build_single_year_summary(
+        self, reporter: "MultiYearReporter", year: int
+    ) -> MultiYearSummary:
         """Construct a minimal single-year summary compatible with MultiYearSummary."""
         with self.db_manager.get_connection() as conn:
             progression = [reporter._workforce_breakdown(conn, year)]
@@ -462,7 +504,9 @@ class PipelineOrchestrator:
             generated_at=datetime.now(timezone.utc),
         )
 
-    def _finalize_simulation(self, summary: MultiYearSummary, completed_years: List[int]) -> MultiYearSummary:
+    def _finalize_simulation(
+        self, summary: MultiYearSummary, completed_years: List[int]
+    ) -> MultiYearSummary:
         """Persist summary CSV, cleanup resources, finalize observability."""
         # Persist summary CSV
         if completed_years:
@@ -484,7 +528,7 @@ class PipelineOrchestrator:
         except Exception:
             pass
 
-        if hasattr(summary, '__dict__'):
+        if hasattr(summary, "__dict__"):
             summary.threading_config = {
                 "dbt_threads": self.dbt_threads,
                 "event_shards": self.event_shards,
@@ -498,8 +542,7 @@ class PipelineOrchestrator:
     ) -> None:
         """Execute workflow for a single simulation year using modular components."""
         workflow = self.workflow_builder.build_year_workflow(
-            year=year,
-            start_year=self.config.simulation.start_year
+            year=year, start_year=self.config.simulation.start_year
         )
 
         self.state_manager.maybe_clear_year_data(year)
@@ -527,7 +570,9 @@ class PipelineOrchestrator:
                 self._record_performance_checkpoint(stage.name.value, year, "complete")
 
                 if not dry_run:
-                    self.stage_validator.validate_stage(stage, year, fail_on_validation_error)
+                    self.stage_validator.validate_stage(
+                        stage, year, fail_on_validation_error
+                    )
 
             self.hook_manager.execute_hooks(
                 HookType.POST_STAGE,
@@ -540,14 +585,16 @@ class PipelineOrchestrator:
 
     def _ensure_hazard_caches_current(self) -> None:
         """E068D: Ensure hazard caches are current before workflow execution."""
-        if not (hasattr(self, 'hazard_cache_manager') and self.hazard_cache_manager):
+        if not (hasattr(self, "hazard_cache_manager") and self.hazard_cache_manager):
             return
         try:
             logger.debug("Checking hazard cache currency...")
             self.hazard_cache_manager.ensure_hazard_caches_current()
         except Exception as e:
             logger.debug("Hazard cache check failed (non-critical): %s", e)
-            logger.debug("Hazard cache check skipped (will rebuild if needed during execution)")
+            logger.debug(
+                "Hazard cache check skipped (will rebuild if needed during execution)"
+            )
 
     def _ensure_seeds_loaded(self) -> None:
         """Ensure dbt seeds are loaded once, dropping stale schema tables first."""
@@ -576,7 +623,7 @@ class PipelineOrchestrator:
             ["run", "--select", "staging.*"],
             simulation_year=year,
             dbt_vars=self._dbt_vars,
-            stream_output=True
+            stream_output=True,
         )
         if not staging_res.success:
             raise PipelineStageError(
@@ -586,10 +633,17 @@ class PipelineOrchestrator:
         self.registry_manager.get_enrollment_registry().create_for_year(year)
         self.registry_manager.get_deferral_registry().create_table()
 
-    def _record_performance_checkpoint(self, stage_name: str, year: int, suffix: str) -> None:
+    def _record_performance_checkpoint(
+        self, stage_name: str, year: int, suffix: str
+    ) -> None:
         """Record a DuckDB performance checkpoint if monitoring is available."""
-        if hasattr(self, 'duckdb_performance_monitor') and self.duckdb_performance_monitor:
-            self.duckdb_performance_monitor.record_checkpoint(f"{stage_name}_{year}_{suffix}")
+        if (
+            hasattr(self, "duckdb_performance_monitor")
+            and self.duckdb_performance_monitor
+        ):
+            self.duckdb_performance_monitor.record_checkpoint(
+                f"{stage_name}_{year}_{suffix}"
+            )
 
     def _execute_specialized_stage(self, stage: "StageDefinition", year: int) -> bool:
         """Handle EVENT_GENERATION and STATE_ACCUMULATION stages. Returns True if handled."""
@@ -600,88 +654,141 @@ class PipelineOrchestrator:
         if stage.name == WorkflowStage.STATE_ACCUMULATION:
             stage_result = self.year_executor.execute_workflow_stage(stage, year)
             if not stage_result[KEY_SUCCESS]:
-                raise PipelineStageError(f"Stage {stage.name.value} failed: {stage_result.get('error', 'Unknown error')}")
+                raise PipelineStageError(
+                    f"Stage {stage.name.value} failed: {stage_result.get('error', 'Unknown error')}"
+                )
             self._record_performance_checkpoint(stage.name.value, year, "complete")
             return True
 
         return False
 
-    def _execute_event_generation_stage(self, stage: "StageDefinition", year: int) -> None:
+    def _execute_event_generation_stage(
+        self, stage: "StageDefinition", year: int
+    ) -> None:
         """Execute the hybrid event generation stage."""
         try:
-            hybrid_result = self.event_generation_executor.execute_hybrid_event_generation([year])
+            hybrid_result = (
+                self.event_generation_executor.execute_hybrid_event_generation([year])
+            )
             if not hybrid_result[KEY_SUCCESS]:
-                raise PipelineStageError(f"Hybrid event generation failed: {hybrid_result}")
+                raise PipelineStageError(
+                    f"Hybrid event generation failed: {hybrid_result}"
+                )
 
-            mode = hybrid_result['mode'].upper()
-            duration = hybrid_result['execution_time']
-            events = hybrid_result['total_events']
-            logger.info("%s event generation completed: %s events in %.1fs",
-                        mode, f"{events:,}", duration)
-            if hybrid_result.get('fallback_used'):
+            mode = hybrid_result["mode"].upper()
+            duration = hybrid_result["execution_time"]
+            events = hybrid_result["total_events"]
+            logger.info(
+                "%s event generation completed: %s events in %.1fs",
+                mode,
+                f"{events:,}",
+                duration,
+            )
+            if hybrid_result.get("fallback_used"):
                 logger.warning("Used fallback mode due to primary mode failure")
 
             self._record_performance_checkpoint(stage.name.value, year, "complete")
 
         except Exception as e:
-            raise PipelineStageError(f"Hybrid event generation failed for year {year}: {e}")
+            raise PipelineStageError(
+                f"Hybrid event generation failed for year {year}: {e}"
+            )
 
-    def _execute_stage_with_monitoring(self, stage: "StageDefinition", year: int) -> None:
+    def _execute_stage_with_monitoring(
+        self, stage: "StageDefinition", year: int
+    ) -> None:
         """Execute a generic stage with resource management or legacy memory monitoring."""
-        if hasattr(self, 'resource_manager') and self.resource_manager:
+        if hasattr(self, "resource_manager") and self.resource_manager:
             self._execute_stage_with_resource_manager(stage, year)
         else:
             self._execute_stage_with_legacy_memory(stage, year)
 
-    def _execute_stage_with_resource_manager(self, stage: "StageDefinition", year: int) -> None:
+    def _execute_stage_with_resource_manager(
+        self, stage: "StageDefinition", year: int
+    ) -> None:
         """Execute stage with advanced resource management (S067-03)."""
         if not self.resource_manager.check_resource_health():
-            logger.warning("Resource pressure detected before stage %s", stage.name.value)
+            logger.warning(
+                "Resource pressure detected before stage %s", stage.name.value
+            )
             cleanup_result = self.resource_manager.trigger_resource_cleanup()
-            logger.debug("Resource cleanup: %+.1fMB freed", cleanup_result['memory_freed_mb'])
+            logger.debug(
+                "Resource cleanup: %+.1fMB freed", cleanup_result["memory_freed_mb"]
+            )
 
         pre_stage_status = self.resource_manager.get_resource_status()
-        logger.debug("Pre-stage resources: %.0fMB memory, %.1f%% CPU",
-                      pre_stage_status['memory']['usage_mb'],
-                      pre_stage_status['cpu']['current_percent'])
+        logger.debug(
+            "Pre-stage resources: %.0fMB memory, %.1f%% CPU",
+            pre_stage_status["memory"]["usage_mb"],
+            pre_stage_status["cpu"]["current_percent"],
+        )
 
-        with self.resource_manager.monitor_execution(f"stage_{stage.name.value}_{year}", 1):
+        with self.resource_manager.monitor_execution(
+            f"stage_{stage.name.value}_{year}", 1
+        ):
             self._execute_stage_core(stage, year)
 
         post_stage_status = self.resource_manager.get_resource_status()
-        memory_delta = post_stage_status['memory']['usage_mb'] - pre_stage_status['memory']['usage_mb']
-        logger.debug("Post-stage resources: %.0fMB memory (%+.0fMB), %.1f%% CPU",
-                      post_stage_status['memory']['usage_mb'], memory_delta,
-                      post_stage_status['cpu']['current_percent'])
+        memory_delta = (
+            post_stage_status["memory"]["usage_mb"]
+            - pre_stage_status["memory"]["usage_mb"]
+        )
+        logger.debug(
+            "Post-stage resources: %.0fMB memory (%+.0fMB), %.1f%% CPU",
+            post_stage_status["memory"]["usage_mb"],
+            memory_delta,
+            post_stage_status["cpu"]["current_percent"],
+        )
 
-        if pre_stage_status['memory']['pressure'] != post_stage_status['memory']['pressure']:
-            logger.warning("Memory pressure changed: %s -> %s",
-                           pre_stage_status['memory']['pressure'],
-                           post_stage_status['memory']['pressure'])
+        if (
+            pre_stage_status["memory"]["pressure"]
+            != post_stage_status["memory"]["pressure"]
+        ):
+            logger.warning(
+                "Memory pressure changed: %s -> %s",
+                pre_stage_status["memory"]["pressure"],
+                post_stage_status["memory"]["pressure"],
+            )
 
-        if post_stage_status['memory']['leak_detected']:
+        if post_stage_status["memory"]["leak_detected"]:
             logger.warning("Memory leak detected during stage %s", stage.name.value)
 
-    def _execute_stage_with_legacy_memory(self, stage: "StageDefinition", year: int) -> None:
+    def _execute_stage_with_legacy_memory(
+        self, stage: "StageDefinition", year: int
+    ) -> None:
         """Execute stage with legacy memory management fallback."""
         pre_stage_snapshot = None
-        if hasattr(self, 'memory_manager') and self.memory_manager:
-            pre_stage_snapshot = self.memory_manager.force_memory_check(f"{stage.name.value}_start")
+        if hasattr(self, "memory_manager") and self.memory_manager:
+            pre_stage_snapshot = self.memory_manager.force_memory_check(
+                f"{stage.name.value}_start"
+            )
 
         self._execute_stage_core(stage, year)
 
-        if hasattr(self, 'memory_manager') and self.memory_manager:
-            post_stage_snapshot = self.memory_manager.force_memory_check(f"{stage.name.value}_complete")
+        if hasattr(self, "memory_manager") and self.memory_manager:
+            post_stage_snapshot = self.memory_manager.force_memory_check(
+                f"{stage.name.value}_complete"
+            )
             if pre_stage_snapshot:
                 memory_change = post_stage_snapshot.rss_mb - pre_stage_snapshot.rss_mb
-                logger.debug("Stage memory change: %+.1fMB (now: %.1fMB)",
-                             memory_change, post_stage_snapshot.rss_mb)
+                logger.debug(
+                    "Stage memory change: %+.1fMB (now: %.1fMB)",
+                    memory_change,
+                    post_stage_snapshot.rss_mb,
+                )
 
-                if post_stage_snapshot.pressure_level != pre_stage_snapshot.pressure_level:
-                    logger.debug("Memory pressure changed: %s -> %s",
-                                 pre_stage_snapshot.pressure_level.value,
-                                 post_stage_snapshot.pressure_level.value)
-                    logger.debug("Batch size: %d", self.memory_manager.get_current_batch_size())
+                if (
+                    post_stage_snapshot.pressure_level
+                    != pre_stage_snapshot.pressure_level
+                ):
+                    logger.debug(
+                        "Memory pressure changed: %s -> %s",
+                        pre_stage_snapshot.pressure_level.value,
+                        post_stage_snapshot.pressure_level.value,
+                    )
+                    logger.debug(
+                        "Batch size: %d", self.memory_manager.get_current_batch_size()
+                    )
 
     def _execute_stage_core(self, stage: "StageDefinition", year: int) -> None:
         """Execute a workflow stage with optional observability tracking."""
@@ -699,19 +806,19 @@ class PipelineOrchestrator:
 
     def get_adaptive_batch_size(self) -> int:
         """Get current adaptive batch size from memory manager"""
-        if hasattr(self, 'memory_manager') and self.memory_manager:
+        if hasattr(self, "memory_manager") and self.memory_manager:
             return self.memory_manager.get_current_batch_size()
         return 1000  # Default fallback
 
     def get_memory_recommendations(self) -> List[Dict[str, Any]]:
         """Get memory optimization recommendations"""
-        if hasattr(self, 'memory_manager') and self.memory_manager:
+        if hasattr(self, "memory_manager") and self.memory_manager:
             return self.memory_manager.get_recommendations()
         return []
 
     def get_memory_statistics(self) -> Dict[str, Any]:
         """Get memory usage statistics"""
-        if hasattr(self, 'memory_manager') and self.memory_manager:
+        if hasattr(self, "memory_manager") and self.memory_manager:
             return self.memory_manager.get_memory_statistics()
         return {}
 
@@ -719,9 +826,12 @@ class PipelineOrchestrator:
         """Log compensation parameters for enhanced visibility"""
         try:
             comp = self.config.compensation
-            logger.info("Compensation Parameters: COLA=%.1f%%, Merit=%.1f%%, Promotion Lift=%.1f%%",
-                        comp.base_cola_rate * 100, comp.base_merit_budget * 100,
-                        comp.promotion_lift_pct * 100)
+            logger.info(
+                "Compensation Parameters: COLA=%.1f%%, Merit=%.1f%%, Promotion Lift=%.1f%%",
+                comp.base_cola_rate * 100,
+                comp.base_merit_budget * 100,
+                comp.promotion_lift_pct * 100,
+            )
         except Exception:
             pass
 
@@ -732,13 +842,19 @@ class PipelineOrchestrator:
             warnings = []
 
             if comp.base_cola_rate < 0.0 or comp.base_cola_rate > 0.1:
-                warnings.append(f"COLA rate {comp.base_cola_rate:.1%} is outside normal range [0%, 10%]")
+                warnings.append(
+                    f"COLA rate {comp.base_cola_rate:.1%} is outside normal range [0%, 10%]"
+                )
 
             if comp.base_merit_budget < 0.0 or comp.base_merit_budget > 0.15:
-                warnings.append(f"Merit budget {comp.base_merit_budget:.1%} is outside normal range [0%, 15%]")
+                warnings.append(
+                    f"Merit budget {comp.base_merit_budget:.1%} is outside normal range [0%, 15%]"
+                )
 
             if comp.promotion_lift_pct < 0.0 or comp.promotion_lift_pct > 0.25:
-                warnings.append(f"Promotion lift {comp.promotion_lift_pct:.1%} is outside normal range [0%, 25%]")
+                warnings.append(
+                    f"Promotion lift {comp.promotion_lift_pct:.1%} is outside normal range [0%, 25%]"
+                )
 
             for warning in warnings:
                 logger.warning("Compensation parameter: %s", warning)
@@ -747,10 +863,14 @@ class PipelineOrchestrator:
 
     def _log_simulation_startup_summary(self, start_year: int, end_year: int) -> None:
         """Enhanced simulation startup logging"""
-        logger.info("PlanWise Navigator Multi-Year Simulation: Period=%d->%d (%d years), Seed=%s, Growth=%.1f%%",
-                    start_year, end_year, end_year - start_year + 1,
-                    self.config.simulation.random_seed,
-                    self.config.simulation.target_growth_rate * 100)
+        logger.info(
+            "PlanWise Navigator Multi-Year Simulation: Period=%d->%d (%d years), Seed=%s, Growth=%.1f%%",
+            start_year,
+            end_year,
+            end_year - start_year + 1,
+            self.config.simulation.random_seed,
+            self.config.simulation.target_growth_rate * 100,
+        )
 
     def update_compensation_parameters(
         self, *, cola_rate: Optional[float] = None, merit_budget: Optional[float] = None
@@ -779,6 +899,8 @@ class PipelineOrchestrator:
             if result.success:
                 logger.info("Parameter models rebuilt successfully")
             else:
-                logger.warning("Failed to rebuild parameter models: %s", result.return_code)
+                logger.warning(
+                    "Failed to rebuild parameter models: %s", result.return_code
+                )
         except Exception as e:
             logger.warning("Error rebuilding parameter models: %s", e)

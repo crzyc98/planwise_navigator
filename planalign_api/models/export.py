@@ -14,15 +14,21 @@ class ManifestContents(BaseModel):
     scenarios: List[str] = Field(..., description="List of scenario names")
     file_count: int = Field(..., ge=0, description="Total files in archive")
     total_size_bytes: int = Field(..., ge=0, description="Uncompressed size in bytes")
-    checksum_sha256: str = Field(..., description="SHA256 of workspace.json for integrity")
+    checksum_sha256: str = Field(
+        ..., description="SHA256 of workspace.json for integrity"
+    )
 
 
 class ExportManifest(BaseModel):
     """Manifest file included in every workspace archive for integrity and version tracking."""
 
     version: str = Field(default="1.0", description="Manifest schema version")
-    export_date: datetime = Field(..., description="ISO 8601 timestamp when export was created")
-    app_version: str = Field(..., description="PlanAlign version that created the export")
+    export_date: datetime = Field(
+        ..., description="ISO 8601 timestamp when export was created"
+    )
+    app_version: str = Field(
+        ..., description="PlanAlign version that created the export"
+    )
     workspace_id: str = Field(..., description="Original workspace UUID")
     workspace_name: str = Field(..., description="Human-readable workspace name")
     contents: ManifestContents = Field(..., description="Inventory of archive contents")
@@ -35,6 +41,7 @@ class ExportManifest(BaseModel):
 
 class ExportStatus(str, Enum):
     """Status of an export operation."""
+
     SUCCESS = "success"
     FAILED = "failed"
 
@@ -57,12 +64,13 @@ class BulkExportRequest(BaseModel):
         ...,
         min_length=1,
         max_length=50,
-        description="List of workspace UUIDs to export"
+        description="List of workspace UUIDs to export",
     )
 
 
 class BulkOperationStatus(str, Enum):
     """Status of a bulk operation."""
+
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
@@ -76,8 +84,12 @@ class BulkExportStatus(BaseModel):
     status: BulkOperationStatus = Field(..., description="Operation status")
     total: int = Field(..., ge=0, description="Total workspaces to export")
     completed: int = Field(default=0, ge=0, description="Number completed so far")
-    current_workspace: Optional[str] = Field(None, description="Name of workspace currently being processed")
-    results: List[ExportResult] = Field(default_factory=list, description="Results for completed exports")
+    current_workspace: Optional[str] = Field(
+        None, description="Name of workspace currently being processed"
+    )
+    results: List[ExportResult] = Field(
+        default_factory=list, description="Results for completed exports"
+    )
 
 
 class ImportConflict(BaseModel):
@@ -92,14 +104,23 @@ class ImportValidationResponse(BaseModel):
     """Result of archive validation."""
 
     valid: bool = Field(..., description="Whether archive is valid for import")
-    manifest: Optional[ExportManifest] = Field(None, description="Parsed manifest if valid")
-    conflict: Optional[ImportConflict] = Field(None, description="Conflict details if name collision")
-    warnings: List[str] = Field(default_factory=list, description="Non-blocking warnings")
-    errors: List[str] = Field(default_factory=list, description="Blocking errors (if invalid)")
+    manifest: Optional[ExportManifest] = Field(
+        None, description="Parsed manifest if valid"
+    )
+    conflict: Optional[ImportConflict] = Field(
+        None, description="Conflict details if name collision"
+    )
+    warnings: List[str] = Field(
+        default_factory=list, description="Non-blocking warnings"
+    )
+    errors: List[str] = Field(
+        default_factory=list, description="Blocking errors (if invalid)"
+    )
 
 
 class ConflictResolution(str, Enum):
     """How to handle import name conflicts."""
+
     RENAME = "rename"
     REPLACE = "replace"
     SKIP = "skip"
@@ -107,6 +128,7 @@ class ConflictResolution(str, Enum):
 
 class ImportStatus(str, Enum):
     """Status of an import operation."""
+
     SUCCESS = "success"
     PARTIAL = "partial"
 
@@ -118,7 +140,9 @@ class ImportResponse(BaseModel):
     name: str = Field(..., description="Final workspace name")
     scenario_count: int = Field(..., ge=0, description="Number of scenarios imported")
     status: ImportStatus = Field(..., description="Import status")
-    warnings: List[str] = Field(default_factory=list, description="Non-blocking issues encountered")
+    warnings: List[str] = Field(
+        default_factory=list, description="Non-blocking issues encountered"
+    )
 
 
 class BulkImportStatus(BaseModel):
@@ -128,8 +152,12 @@ class BulkImportStatus(BaseModel):
     status: BulkOperationStatus = Field(..., description="Operation status")
     total: int = Field(..., ge=0, description="Total archives to import")
     completed: int = Field(default=0, ge=0, description="Number completed so far")
-    current_file: Optional[str] = Field(None, description="Name of file currently being processed")
-    results: List[ImportResponse] = Field(default_factory=list, description="Results for completed imports")
+    current_file: Optional[str] = Field(
+        None, description="Name of file currently being processed"
+    )
+    results: List[ImportResponse] = Field(
+        default_factory=list, description="Results for completed imports"
+    )
 
 
 class ErrorResponse(BaseModel):
@@ -137,4 +165,6 @@ class ErrorResponse(BaseModel):
 
     error: str = Field(..., description="Error code")
     message: str = Field(..., description="Human-readable error message")
-    details: Optional[Dict[str, Any]] = Field(None, description="Additional error context")
+    details: Optional[Dict[str, Any]] = Field(
+        None, description="Additional error context"
+    )

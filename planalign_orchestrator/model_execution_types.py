@@ -38,6 +38,7 @@ class ModelExecutionType(Enum):
     PARALLEL_SAFE: Can execute concurrently with other parallel-safe models
     CONDITIONAL: Execution safety depends on runtime conditions or dependencies
     """
+
     SEQUENTIAL = "sequential"
     PARALLEL_SAFE = "parallel_safe"
     CONDITIONAL = "conditional"
@@ -46,6 +47,7 @@ class ModelExecutionType(Enum):
 @dataclass
 class ModelClassification:
     """Complete classification information for a dbt model."""
+
     model_name: str
     execution_type: ModelExecutionType
     dependencies: Set[str]
@@ -59,6 +61,7 @@ class ModelClassification:
 @dataclass
 class ParallelExecutionGroup:
     """Group of models that can execute in parallel together."""
+
     group_id: str
     models: List[str]
     max_parallelism: int
@@ -94,13 +97,11 @@ class ModelClassifier:
             "int_hazard_termination": "Independent hazard calculation using static config",
             "int_hazard_promotion": "Independent hazard calculation using static config",
             "int_hazard_merit": "Independent hazard calculation using static config",
-
             # Staging models - pure data transformations
             "stg_census_data": "Data cleaning and validation",
             "stg_comp_levers": "Parameter staging",
             "stg_comp_targets": "Target staging",
             "stg_scenario_meta": "Metadata staging",
-
             # Configuration models - static reference data
             "stg_config_cola_by_year": "Static configuration data",
             "stg_config_termination_hazard_tenure_multipliers": "Static configuration data",
@@ -111,7 +112,6 @@ class ModelClassifier:
             "stg_config_job_levels": "Static configuration data",
             "stg_config_promotion_hazard_base": "Static configuration data",
             "stg_config_termination_hazard_base": "Static configuration data",
-
             # Independent business logic models
             "int_effective_parameters": "Parameter calculation independent of workforce state",
             MODEL_INT_BASELINE_WORKFORCE: "Initial workforce setup (year 1 only)",
@@ -120,12 +120,10 @@ class ModelClassifier:
             "int_new_hire_compensation_staging": "New hire compensation calculation",
             "int_employer_eligibility": "Eligibility determination based on static rules",
             "int_plan_eligibility_determination": "Plan eligibility calculation",
-
             # Data quality and validation models
             "dq_employee_contributions_validation": "Independent data validation",
             "dq_performance_monitoring": "Performance metrics calculation",
             "dq_compliance_monitoring": "Compliance checking",
-
             # Reporting models
             "dim_hazard_table": "Reference dimension table",
             "dim_payroll_calendar": "Calendar dimension table",
@@ -139,7 +137,6 @@ class ModelClassifier:
             MODEL_INT_PROMOTION_EVENTS: "Depends on workforce state and hazard calculations",
             MODEL_INT_MERIT_EVENTS: "Depends on workforce state and promotion timing",
             "int_new_hire_termination_events": "Depends on hiring events",
-
             # Enrollment and contribution models - complex state dependencies
             MODEL_INT_ENROLLMENT_EVENTS: "Depends on eligibility and enrollment decisions",
             "int_voluntary_enrollment_decision": "Depends on multiple state factors",
@@ -149,7 +146,6 @@ class ModelClassifier:
             "int_employee_match_calculations": "Depends on contributions",
             "int_employer_core_contributions": "Depends on eligibility and contributions",
             "int_deferral_rate_escalation_events": "Depends on enrollment state",
-
             # Complex snapshot and aggregation models
             MODEL_INT_EMPLOYEE_COMPENSATION: "Complex compensation aggregation",
             "fct_employer_match_events": "Depends on multiple contribution calculations",
@@ -164,7 +160,7 @@ class ModelClassifier:
                 dependencies=set(),  # Will be populated by dependency analyzer
                 tags={"sequential_required", "state_accumulator"},
                 reason=reason,
-                threads_safe=False
+                threads_safe=False,
             )
 
         for model, reason in parallel_safe_models.items():
@@ -187,7 +183,7 @@ class ModelClassifier:
                 tags={"parallel_safe", group},
                 reason=reason,
                 parallel_group=group,
-                threads_safe=True
+                threads_safe=True,
             )
 
         for model, reason in conditional_models.items():
@@ -197,7 +193,7 @@ class ModelClassifier:
                 dependencies=set(),  # Will be populated by dependency analyzer
                 tags={"conditional", "event_generation"},
                 reason=reason,
-                threads_safe=True  # May be safe in some contexts
+                threads_safe=True,  # May be safe in some contexts
             )
 
     def classify_model(self, model_name: str) -> ModelClassification:
@@ -212,21 +208,25 @@ class ModelClassifier:
             dependencies=set(),
             tags={"unknown", "conditional"},
             reason=f"Unknown model {model_name} - conservative classification",
-            threads_safe=True
+            threads_safe=True,
         )
 
     def get_parallel_safe_models(self, models: List[str]) -> List[str]:
         """Filter list to only parallel-safe models."""
         return [
-            model for model in models
-            if self.classify_model(model).execution_type == ModelExecutionType.PARALLEL_SAFE
+            model
+            for model in models
+            if self.classify_model(model).execution_type
+            == ModelExecutionType.PARALLEL_SAFE
         ]
 
     def get_sequential_models(self, models: List[str]) -> List[str]:
         """Filter list to only sequential models."""
         return [
-            model for model in models
-            if self.classify_model(model).execution_type == ModelExecutionType.SEQUENTIAL
+            model
+            for model in models
+            if self.classify_model(model).execution_type
+            == ModelExecutionType.SEQUENTIAL
         ]
 
     def get_parallel_groups(self, models: List[str]) -> Dict[str, List[str]]:
@@ -235,9 +235,10 @@ class ModelClassifier:
 
         for model in models:
             classification = self.classify_model(model)
-            if (classification.execution_type == ModelExecutionType.PARALLEL_SAFE and
-                classification.parallel_group):
-
+            if (
+                classification.execution_type == ModelExecutionType.PARALLEL_SAFE
+                and classification.parallel_group
+            ):
                 if classification.parallel_group not in groups:
                     groups[classification.parallel_group] = []
                 groups[classification.parallel_group].append(model)
@@ -250,8 +251,10 @@ class ModelClassifier:
         class_b = self.classify_model(model_b)
 
         # Both must be parallel-safe or conditional
-        if (class_a.execution_type == ModelExecutionType.SEQUENTIAL or
-            class_b.execution_type == ModelExecutionType.SEQUENTIAL):
+        if (
+            class_a.execution_type == ModelExecutionType.SEQUENTIAL
+            or class_b.execution_type == ModelExecutionType.SEQUENTIAL
+        ):
             return False
 
         # Check for mutual dependencies
@@ -259,8 +262,10 @@ class ModelClassifier:
             return False
 
         # Both parallel-safe models can run together
-        if (class_a.execution_type == ModelExecutionType.PARALLEL_SAFE and
-            class_b.execution_type == ModelExecutionType.PARALLEL_SAFE):
+        if (
+            class_a.execution_type == ModelExecutionType.PARALLEL_SAFE
+            and class_b.execution_type == ModelExecutionType.PARALLEL_SAFE
+        ):
             return True
 
         # For conditional models, be conservative and don't parallelize
@@ -293,16 +298,20 @@ class ModelClassifier:
             by_type[exec_type.value] = []
 
         for classification in self.classifications.values():
-            by_type[classification.execution_type.value].append({
-                "model": classification.model_name,
-                "reason": classification.reason,
-                "tags": list(classification.tags),
-                "parallel_group": classification.parallel_group,
-                "threads_safe": classification.threads_safe
-            })
+            by_type[classification.execution_type.value].append(
+                {
+                    "model": classification.model_name,
+                    "reason": classification.reason,
+                    "tags": list(classification.tags),
+                    "parallel_group": classification.parallel_group,
+                    "threads_safe": classification.threads_safe,
+                }
+            )
 
         return {
             "total_models": len(self.classifications),
             "by_execution_type": by_type,
-            "parallel_groups": self.get_parallel_groups(list(self.classifications.keys()))
+            "parallel_groups": self.get_parallel_groups(
+                list(self.classifications.keys())
+            ),
         }

@@ -26,6 +26,7 @@ from .dbt_runner import DbtRunner, DbtResult
 
 class HazardCacheError(Exception):
     """Exception raised for hazard cache operations."""
+
     pass
 
 
@@ -45,7 +46,7 @@ class HazardCacheManager:
         "dim_promotion_hazards",
         "dim_termination_hazards",
         "dim_merit_hazards",
-        "dim_enrollment_hazards"
+        "dim_enrollment_hazards",
     ]
 
     # Metadata model to track cache state
@@ -56,7 +57,7 @@ class HazardCacheManager:
         config: SimulationConfig,
         dbt_runner: DbtRunner,
         *,
-        logger: Optional[logging.Logger] = None
+        logger: Optional[logging.Logger] = None,
     ):
         """
         Initialize hazard cache manager.
@@ -94,67 +95,81 @@ class HazardCacheManager:
 
         try:
             # Collect parameters from simulation config
-            params: Dict[str, Any] = {
-                'simulation_config': {}
-            }
+            params: Dict[str, Any] = {"simulation_config": {}}
 
             # Core simulation parameters
-            if hasattr(self.config, 'simulation'):
-                params['simulation_config']['target_growth_rate'] = getattr(
-                    self.config.simulation, 'target_growth_rate', None
+            if hasattr(self.config, "simulation"):
+                params["simulation_config"]["target_growth_rate"] = getattr(
+                    self.config.simulation, "target_growth_rate", None
                 )
-                params['simulation_config']['random_seed'] = getattr(
-                    self.config.simulation, 'random_seed', None
+                params["simulation_config"]["random_seed"] = getattr(
+                    self.config.simulation, "random_seed", None
                 )
 
             # Workforce parameters (termination rates)
-            if hasattr(self.config, 'workforce'):
-                params['simulation_config']['total_termination_rate'] = getattr(
-                    self.config.workforce, 'total_termination_rate', None
+            if hasattr(self.config, "workforce"):
+                params["simulation_config"]["total_termination_rate"] = getattr(
+                    self.config.workforce, "total_termination_rate", None
                 )
-                params['simulation_config']['new_hire_termination_rate'] = getattr(
-                    self.config.workforce, 'new_hire_termination_rate', None
+                params["simulation_config"]["new_hire_termination_rate"] = getattr(
+                    self.config.workforce, "new_hire_termination_rate", None
                 )
 
             # Compensation parameters
-            if hasattr(self.config, 'compensation'):
-                params['simulation_config']['compensation'] = {
-                    'cola_rate': getattr(self.config.compensation, 'cola_rate', None),
-                    'merit_budget': getattr(self.config.compensation, 'merit_budget', None)
+            if hasattr(self.config, "compensation"):
+                params["simulation_config"]["compensation"] = {
+                    "cola_rate": getattr(self.config.compensation, "cola_rate", None),
+                    "merit_budget": getattr(
+                        self.config.compensation, "merit_budget", None
+                    ),
                 }
 
                 # Promotion compensation settings
-                if hasattr(self.config.compensation, 'promotion_compensation'):
+                if hasattr(self.config.compensation, "promotion_compensation"):
                     promo_comp = self.config.compensation.promotion_compensation
-                    params['simulation_config']['promotion_compensation'] = {
-                        'base_increase_pct': getattr(promo_comp, 'base_increase_pct', None),
-                        'distribution_range': getattr(promo_comp, 'distribution_range', None),
-                        'max_cap_pct': getattr(promo_comp, 'max_cap_pct', None),
-                        'max_cap_amount': getattr(promo_comp, 'max_cap_amount', None),
-                        'distribution_type': getattr(promo_comp, 'distribution_type', None),
-                        'level_overrides': getattr(promo_comp, 'level_overrides', None)
+                    params["simulation_config"]["promotion_compensation"] = {
+                        "base_increase_pct": getattr(
+                            promo_comp, "base_increase_pct", None
+                        ),
+                        "distribution_range": getattr(
+                            promo_comp, "distribution_range", None
+                        ),
+                        "max_cap_pct": getattr(promo_comp, "max_cap_pct", None),
+                        "max_cap_amount": getattr(promo_comp, "max_cap_amount", None),
+                        "distribution_type": getattr(
+                            promo_comp, "distribution_type", None
+                        ),
+                        "level_overrides": getattr(promo_comp, "level_overrides", None),
                     }
 
             # Enrollment parameters
-            if hasattr(self.config, 'enrollment'):
+            if hasattr(self.config, "enrollment"):
                 enrollment = self.config.enrollment
-                params['simulation_config']['enrollment'] = {}
+                params["simulation_config"]["enrollment"] = {}
 
-                if hasattr(enrollment, 'auto_enrollment'):
+                if hasattr(enrollment, "auto_enrollment"):
                     auto = enrollment.auto_enrollment
-                    params['simulation_config']['enrollment']['auto_enrollment'] = {
-                        'enabled': getattr(auto, 'enabled', None),
-                        'default_deferral_rate': getattr(auto, 'default_deferral_rate', None),
-                        'window_days': getattr(auto, 'window_days', None),
-                        'opt_out_grace_period': getattr(auto, 'opt_out_grace_period', None)
+                    params["simulation_config"]["enrollment"]["auto_enrollment"] = {
+                        "enabled": getattr(auto, "enabled", None),
+                        "default_deferral_rate": getattr(
+                            auto, "default_deferral_rate", None
+                        ),
+                        "window_days": getattr(auto, "window_days", None),
+                        "opt_out_grace_period": getattr(
+                            auto, "opt_out_grace_period", None
+                        ),
                     }
 
                     # Opt-out rates
-                    if hasattr(auto, 'opt_out_rates'):
+                    if hasattr(auto, "opt_out_rates"):
                         opt_out = auto.opt_out_rates
-                        params['simulation_config']['enrollment']['opt_out_rates'] = {
-                            'by_age': getattr(opt_out, 'by_age', {}).dict() if hasattr(getattr(opt_out, 'by_age', {}), 'dict') else getattr(opt_out, 'by_age', {}),
-                            'by_income': getattr(opt_out, 'by_income', {}).dict() if hasattr(getattr(opt_out, 'by_income', {}), 'dict') else getattr(opt_out, 'by_income', {})
+                        params["simulation_config"]["enrollment"]["opt_out_rates"] = {
+                            "by_age": getattr(opt_out, "by_age", {}).dict()
+                            if hasattr(getattr(opt_out, "by_age", {}), "dict")
+                            else getattr(opt_out, "by_age", {}),
+                            "by_income": getattr(opt_out, "by_income", {}).dict()
+                            if hasattr(getattr(opt_out, "by_income", {}), "dict")
+                            else getattr(opt_out, "by_income", {}),
                         }
 
             # Include comp_levers.csv if exists
@@ -163,31 +178,31 @@ class HazardCacheManager:
                 try:
                     comp_levers_df = pd.read_csv(comp_levers_path)
                     # Convert to dict and ensure deterministic ordering
-                    params['comp_levers'] = comp_levers_df.sort_values(
+                    params["comp_levers"] = comp_levers_df.sort_values(
                         by=list(comp_levers_df.columns)
-                    ).to_dict('records')
+                    ).to_dict("records")
                 except Exception as e:
                     self.logger.warning(f"Could not read comp_levers.csv: {e}")
-                    params['comp_levers'] = None
+                    params["comp_levers"] = None
             else:
-                params['comp_levers'] = None
+                params["comp_levers"] = None
 
             # Include hazard-specific configuration files if they exist
             hazard_config_path = Path("config/hazard_parameters.yaml")
             if hazard_config_path.exists():
                 try:
-                    with open(hazard_config_path, 'r', encoding='utf-8') as f:
+                    with open(hazard_config_path, "r", encoding="utf-8") as f:
                         hazard_config = yaml.safe_load(f)
-                        params['hazard_config'] = hazard_config
+                        params["hazard_config"] = hazard_config
                 except Exception as e:
                     self.logger.warning(f"Could not read hazard_parameters.yaml: {e}")
-                    params['hazard_config'] = None
+                    params["hazard_config"] = None
             else:
-                params['hazard_config'] = None
+                params["hazard_config"] = None
 
             # Create deterministic hash using sorted keys and compact JSON
-            params_json = json.dumps(params, sort_keys=True, separators=(',', ':'))
-            hash_value = hashlib.sha256(params_json.encode('utf-8')).hexdigest()
+            params_json = json.dumps(params, sort_keys=True, separators=(",", ":"))
+            hash_value = hashlib.sha256(params_json.encode("utf-8")).hexdigest()
 
             # Cache the computed hash
             self._current_hash_cache = hash_value
@@ -220,29 +235,37 @@ class HazardCacheManager:
             db_path = get_database_path()
             with duckdb.connect(str(db_path)) as conn:
                 # Check if metadata table exists first
-                table_check = conn.execute("""
+                table_check = conn.execute(
+                    """
                     SELECT COUNT(*)
                     FROM information_schema.tables
                     WHERE table_name = 'hazard_cache_metadata'
-                """).fetchone()
+                """
+                ).fetchone()
 
                 if table_check and table_check[0] > 0:
                     # Query cache metadata table for current hash
-                    result = conn.execute("""
+                    result = conn.execute(
+                        """
                         SELECT params_hash
                         FROM hazard_cache_metadata
                         WHERE is_current = TRUE
                         ORDER BY built_at DESC
                         LIMIT 1
-                    """).fetchall()
+                    """
+                    ).fetchall()
 
                     if result:
                         params_hash = result[0][0]
                         self._cached_hash_cache = params_hash
-                        self.logger.debug(f"Retrieved cached params hash: {params_hash[:16]}...")
+                        self.logger.debug(
+                            f"Retrieved cached params hash: {params_hash[:16]}..."
+                        )
                         return params_hash
 
-            self.logger.debug("No cached params hash found or metadata table doesn't exist")
+            self.logger.debug(
+                "No cached params hash found or metadata table doesn't exist"
+            )
             return None
 
         except Exception as e:
@@ -266,8 +289,8 @@ class HazardCacheManager:
             needs_rebuild = current_hash != cached_hash
 
             # Log detailed comparison
-            current_short = current_hash[:16] if current_hash else 'None'
-            cached_short = cached_hash[:16] if cached_hash else 'None'
+            current_short = current_hash[:16] if current_hash else "None"
+            cached_short = cached_hash[:16] if cached_hash else "None"
 
             self.logger.info(
                 f"Hazard cache check: current_hash={current_short}..., "
@@ -276,9 +299,13 @@ class HazardCacheManager:
             self.logger.info(f"Hazard caches need rebuild: {needs_rebuild}")
 
             if needs_rebuild and cached_hash:
-                self.logger.info("Parameter changes detected - hazard cache rebuild required")
+                self.logger.info(
+                    "Parameter changes detected - hazard cache rebuild required"
+                )
             elif needs_rebuild and not cached_hash:
-                self.logger.info("No existing cache found - initial hazard cache build required")
+                self.logger.info(
+                    "No existing cache found - initial hazard cache build required"
+                )
             else:
                 self.logger.info("Parameters unchanged - hazard caches are current")
 
@@ -319,7 +346,7 @@ class HazardCacheManager:
                     # Use `dbt build` so seeds and dependent models are materialized
                     result = self.dbt_runner.execute_command(
                         ["build", "--select", model, "--full-refresh"],
-                        dbt_vars=extra_vars
+                        dbt_vars=extra_vars,
                     )
 
                     if not result.success:
@@ -335,7 +362,7 @@ class HazardCacheManager:
                 self.logger.info("Updating hazard cache metadata...")
                 result = self.dbt_runner.execute_command(
                     ["build", "--select", self.METADATA_MODEL, "--full-refresh"],
-                    dbt_vars=extra_vars
+                    dbt_vars=extra_vars,
                 )
 
                 if not result.success:
@@ -412,23 +439,23 @@ class HazardCacheManager:
             needs_rebuild = current_hash != cached_hash
 
             return {
-                'current_params_hash': current_hash,
-                'cached_params_hash': cached_hash,
-                'needs_rebuild': needs_rebuild,
-                'cache_models': self.CACHE_MODELS,
-                'metadata_model': self.METADATA_MODEL,
-                'thread_safe': True
+                "current_params_hash": current_hash,
+                "cached_params_hash": cached_hash,
+                "needs_rebuild": needs_rebuild,
+                "cache_models": self.CACHE_MODELS,
+                "metadata_model": self.METADATA_MODEL,
+                "thread_safe": True,
             }
 
         except Exception as e:
             return {
-                'error': str(e),
-                'current_params_hash': None,
-                'cached_params_hash': None,
-                'needs_rebuild': True,
-                'cache_models': self.CACHE_MODELS,
-                'metadata_model': self.METADATA_MODEL,
-                'thread_safe': True
+                "error": str(e),
+                "current_params_hash": None,
+                "cached_params_hash": None,
+                "needs_rebuild": True,
+                "cache_models": self.CACHE_MODELS,
+                "metadata_model": self.METADATA_MODEL,
+                "thread_safe": True,
             }
 
     def _log_cache_statistics(self) -> None:
@@ -441,15 +468,18 @@ class HazardCacheManager:
             db_path = get_database_path()
             with duckdb.connect(str(db_path)) as conn:
                 # Check if metadata table exists first
-                table_check = conn.execute("""
+                table_check = conn.execute(
+                    """
                     SELECT COUNT(*)
                     FROM information_schema.tables
                     WHERE table_name = 'hazard_cache_metadata'
-                """).fetchone()
+                """
+                ).fetchone()
 
                 if table_check and table_check[0] > 0:
                     # Query cache metadata for statistics
-                    results = conn.execute("""
+                    results = conn.execute(
+                        """
                         SELECT
                             cache_name,
                             built_at,
@@ -458,18 +488,23 @@ class HazardCacheManager:
                         FROM hazard_cache_metadata
                         WHERE is_current = TRUE
                         ORDER BY cache_name
-                    """).fetchall()
+                    """
+                    ).fetchall()
 
                     if results:
                         self.logger.info("Hazard cache statistics:")
                         for cache_name, built_at, row_count, data_checksum in results:
                             # Protect against NULLs in early runs
                             _prefix = (data_checksum or "")[0:8]
-                            self.logger.info(f"  {cache_name}: {row_count} rows, checksum {_prefix}...")
+                            self.logger.info(
+                                f"  {cache_name}: {row_count} rows, checksum {_prefix}..."
+                            )
                     else:
                         self.logger.info("No current hazard cache statistics available")
                 else:
-                    self.logger.info("Hazard cache metadata table not found - caches not yet built")
+                    self.logger.info(
+                        "Hazard cache metadata table not found - caches not yet built"
+                    )
 
         except Exception as e:
             self.logger.warning(f"Error logging cache statistics: {e}")

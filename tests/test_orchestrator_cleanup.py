@@ -39,9 +39,7 @@ def test_cleanup_uses_only_real_resource_manager_methods(caplog):
 
     orch.resource_manager.stop_monitoring.assert_called_once()
     orch.db_manager.close_all.assert_called_once()
-    cleanup_errors = [
-        r for r in caplog.records if "Error during" in r.getMessage()
-    ]
+    cleanup_errors = [r for r in caplog.records if "Error during" in r.getMessage()]
     assert cleanup_errors == []
 
 

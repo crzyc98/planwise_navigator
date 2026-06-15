@@ -479,7 +479,9 @@ class DuckDBPerformanceMonitor:
     def _get_database_size(self) -> int:
         """Get current database file size"""
         try:
-            return self.database_path.stat().st_size if self.database_path.exists() else 0
+            return (
+                self.database_path.stat().st_size if self.database_path.exists() else 0
+            )
         except Exception:
             return 0
 

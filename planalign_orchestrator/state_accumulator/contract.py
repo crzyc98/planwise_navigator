@@ -56,31 +56,24 @@ class StateAccumulatorContract(BaseModel):
     model_config = {"protected_namespaces": ()}
 
     model_name: str = Field(
-        ...,
-        description="dbt model name implementing the accumulator pattern"
+        ..., description="dbt model name implementing the accumulator pattern"
     )
-    table_name: str = Field(
-        ...,
-        description="Database table name for the accumulator"
-    )
+    table_name: str = Field(..., description="Database table name for the accumulator")
     prior_year_column: str = Field(
-        default=COL_SIMULATION_YEAR,
-        description="Column used for year-based filtering"
+        default=COL_SIMULATION_YEAR, description="Column used for year-based filtering"
     )
     start_year_source: str = Field(
-        ...,
-        description="Model providing initial state for start year"
+        ..., description="Model providing initial state for start year"
     )
     description: str = Field(
-        default="",
-        description="Human-readable description of the accumulator"
+        default="", description="Human-readable description of the accumulator"
     )
     required_for_year_validation: bool = Field(
         default=True,
         description="If True, this accumulator MUST have rows for year N-1 "
-                    "before year N can execute. Set to False for accumulators "
-                    "that may legitimately have 0 rows (e.g., only tracking "
-                    "enrolled employees when no one has enrolled yet)."
+        "before year N can execute. Set to False for accumulators "
+        "that may legitimately have 0 rows (e.g., only tracking "
+        "enrolled employees when no one has enrolled yet).",
     )
 
     @field_validator("model_name")

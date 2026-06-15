@@ -23,10 +23,13 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("PLANALIGN_API_WORKSPACES_ROOT", str(tmp_path / "workspaces"))
     from importlib import reload
     import planalign_api.config as api_config
+
     reload(api_config)
     import planalign_api.main as api_main
+
     reload(api_main)
     from planalign_api.main import app
+
     return TestClient(app)
 
 
@@ -41,8 +44,8 @@ def workspace_id(client) -> str:
 # T011 — US1: Upload and Map CSV
 # ===========================================================================
 
-class TestUploadAndMap:
 
+class TestUploadAndMap:
     def test_upload_csv_returns_201_with_detected_columns(self, client, workspace_id):
         with open(SAMPLE_CSV, "rb") as f:
             resp = client.post(
@@ -61,6 +64,7 @@ class TestUploadAndMap:
     def test_upload_xlsx_detects_available_sheets(self, client, workspace_id):
         pytest.importorskip("openpyxl")
         import openpyxl
+
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "Employees"
@@ -73,7 +77,13 @@ class TestUploadAndMap:
         buf.seek(0)
         resp = client.post(
             f"/api/workspaces/{workspace_id}/imports/upload",
-            files={"file": ("data.xlsx", buf, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+            files={
+                "file": (
+                    "data.xlsx",
+                    buf,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            },
         )
         assert resp.status_code == 201
         data = resp.json()
@@ -118,7 +128,10 @@ class TestUploadAndMap:
                     "is_required": False,
                     "is_excluded": False,
                     "transformations": [
-                        {"transform_type": "date_parse", "params": {"format": "%m/%d/%Y"}}
+                        {
+                            "transform_type": "date_parse",
+                            "params": {"format": "%m/%d/%Y"},
+                        }
                     ],
                 },
                 {
@@ -142,7 +155,9 @@ class TestUploadAndMap:
         assert data["import_id"] == import_id
         assert data["validation_errors"] == []
 
-    def test_put_mapping_returns_validation_error_for_invalid_output_column(self, client, workspace_id):
+    def test_put_mapping_returns_validation_error_for_invalid_output_column(
+        self, client, workspace_id
+    ):
         with open(SAMPLE_CSV, "rb") as f:
             upload_resp = client.post(
                 f"/api/workspaces/{workspace_id}/imports/upload",
@@ -151,13 +166,17 @@ class TestUploadAndMap:
         import_id = upload_resp.json()["import_id"]
         resp = client.put(
             f"/api/workspaces/{workspace_id}/imports/{import_id}/mapping",
-            json={"field_mappings": [{
-                "input_column": "EMP_ID",
-                "output_column": "INVALID COLUMN NAME!",
-                "output_type": "string",
-                "is_excluded": False,
-                "transformations": [],
-            }]},
+            json={
+                "field_mappings": [
+                    {
+                        "input_column": "EMP_ID",
+                        "output_column": "INVALID COLUMN NAME!",
+                        "output_type": "string",
+                        "is_excluded": False,
+                        "transformations": [],
+                    }
+                ]
+            },
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -168,8 +187,8 @@ class TestUploadAndMap:
 # T019 — US2: Generate Parquet
 # ===========================================================================
 
-class TestGenerateParquet:
 
+class TestGenerateParquet:
     def _upload_and_map(self, client, workspace_id: str) -> str:
         with open(SAMPLE_CSV, "rb") as f:
             upload_resp = client.post(
@@ -178,12 +197,24 @@ class TestGenerateParquet:
             )
         assert upload_resp.status_code == 201
         import_id = upload_resp.json()["import_id"]
-        mapping_payload = {"field_mappings": [
-            {"input_column": "EMP_ID", "output_column": "employee_id", "output_type": "string",
-             "is_excluded": False, "transformations": []},
-            {"input_column": "SALARY", "output_column": "salary", "output_type": "decimal",
-             "is_excluded": False, "transformations": []},
-        ]}
+        mapping_payload = {
+            "field_mappings": [
+                {
+                    "input_column": "EMP_ID",
+                    "output_column": "employee_id",
+                    "output_type": "string",
+                    "is_excluded": False,
+                    "transformations": [],
+                },
+                {
+                    "input_column": "SALARY",
+                    "output_column": "salary",
+                    "output_type": "decimal",
+                    "is_excluded": False,
+                    "transformations": [],
+                },
+            ]
+        }
         map_resp = client.put(
             f"/api/workspaces/{workspace_id}/imports/{import_id}/mapping",
             json=mapping_payload,
@@ -201,6 +232,7 @@ class TestGenerateParquet:
 
     def test_generated_parquet_readable_by_duckdb(self, client, workspace_id):
         import duckdb
+
         import_id = self._upload_and_map(client, workspace_id)
         gen_resp = client.post(
             f"/api/workspaces/{workspace_id}/imports/{import_id}/generate",
@@ -211,11 +243,15 @@ class TestGenerateParquet:
         assert status_resp.status_code == 200
         data = status_resp.json()
         assert data["status"] == "completed"
-        parquet_files = client.get(f"/api/workspaces/{workspace_id}/parquet-files").json()
+        parquet_files = client.get(
+            f"/api/workspaces/{workspace_id}/parquet-files"
+        ).json()
         assert parquet_files["total_count"] >= 1
         storage_path = parquet_files["parquet_files"][0]["storage_path"]
         conn = duckdb.connect(":memory:")
-        count = conn.execute(f"SELECT COUNT(*) FROM read_parquet('{storage_path}')").fetchone()[0]
+        count = conn.execute(
+            f"SELECT COUNT(*) FROM read_parquet('{storage_path}')"
+        ).fetchone()[0]
         conn.close()
         assert count > 0
 
@@ -237,9 +273,11 @@ class TestGenerateParquet:
 # T052 — US3: File Management
 # ===========================================================================
 
-class TestFileManagement:
 
-    def _full_flow(self, client, workspace_id: str, filename: str = "sample_census_import.csv"):
+class TestFileManagement:
+    def _full_flow(
+        self, client, workspace_id: str, filename: str = "sample_census_import.csv"
+    ):
         with open(SAMPLE_CSV, "rb") as f:
             upload_resp = client.post(
                 f"/api/workspaces/{workspace_id}/imports/upload",
@@ -248,12 +286,21 @@ class TestFileManagement:
         import_id = upload_resp.json()["import_id"]
         client.put(
             f"/api/workspaces/{workspace_id}/imports/{import_id}/mapping",
-            json={"field_mappings": [
-                {"input_column": "EMP_ID", "output_column": "employee_id",
-                 "output_type": "string", "is_excluded": False, "transformations": []},
-            ]},
+            json={
+                "field_mappings": [
+                    {
+                        "input_column": "EMP_ID",
+                        "output_column": "employee_id",
+                        "output_type": "string",
+                        "is_excluded": False,
+                        "transformations": [],
+                    },
+                ]
+            },
         )
-        client.post(f"/api/workspaces/{workspace_id}/imports/{import_id}/generate", json={})
+        client.post(
+            f"/api/workspaces/{workspace_id}/imports/{import_id}/generate", json={}
+        )
         return import_id
 
     def test_generated_file_appears_in_parquet_list(self, client, workspace_id):
@@ -273,15 +320,21 @@ class TestFileManagement:
 
     def test_download_returns_binary(self, client, workspace_id):
         self._full_flow(client, workspace_id)
-        files = client.get(f"/api/workspaces/{workspace_id}/parquet-files").json()["parquet_files"]
+        files = client.get(f"/api/workspaces/{workspace_id}/parquet-files").json()[
+            "parquet_files"
+        ]
         file_id = files[0]["file_id"]
-        resp = client.get(f"/api/workspaces/{workspace_id}/parquet-files/{file_id}/download")
+        resp = client.get(
+            f"/api/workspaces/{workspace_id}/parquet-files/{file_id}/download"
+        )
         assert resp.status_code == 200
         assert "attachment" in resp.headers.get("content-disposition", "")
 
     def test_delete_by_creator_returns_204(self, client, workspace_id):
         self._full_flow(client, workspace_id)
-        files = client.get(f"/api/workspaces/{workspace_id}/parquet-files").json()["parquet_files"]
+        files = client.get(f"/api/workspaces/{workspace_id}/parquet-files").json()[
+            "parquet_files"
+        ]
         file_id = files[0]["file_id"]
         resp = client.delete(
             f"/api/workspaces/{workspace_id}/parquet-files/{file_id}",
@@ -293,7 +346,9 @@ class TestFileManagement:
 
     def test_delete_by_non_creator_returns_403(self, client, workspace_id):
         self._full_flow(client, workspace_id)
-        files = client.get(f"/api/workspaces/{workspace_id}/parquet-files").json()["parquet_files"]
+        files = client.get(f"/api/workspaces/{workspace_id}/parquet-files").json()[
+            "parquet_files"
+        ]
         file_id = files[0]["file_id"]
         resp = client.delete(
             f"/api/workspaces/{workspace_id}/parquet-files/{file_id}",
@@ -306,8 +361,8 @@ class TestFileManagement:
 # T053 — US4: Preview endpoints
 # ===========================================================================
 
-class TestPreviewEndpoints:
 
+class TestPreviewEndpoints:
     def _upload(self, client, workspace_id: str) -> str:
         with open(SAMPLE_CSV, "rb") as f:
             resp = client.post(
@@ -316,7 +371,9 @@ class TestPreviewEndpoints:
             )
         return resp.json()["import_id"]
 
-    def test_raw_preview_returns_100_rows_with_original_columns(self, client, workspace_id):
+    def test_raw_preview_returns_100_rows_with_original_columns(
+        self, client, workspace_id
+    ):
         import_id = self._upload(client, workspace_id)
         resp = client.get(f"/api/workspaces/{workspace_id}/imports/{import_id}/preview")
         assert resp.status_code == 200
@@ -328,28 +385,52 @@ class TestPreviewEndpoints:
         import_id = self._upload(client, workspace_id)
         client.put(
             f"/api/workspaces/{workspace_id}/imports/{import_id}/mapping",
-            json={"field_mappings": [
-                {"input_column": "EMP_ID", "output_column": "employee_id",
-                 "output_type": "string", "is_excluded": False, "transformations": []},
-            ]},
+            json={
+                "field_mappings": [
+                    {
+                        "input_column": "EMP_ID",
+                        "output_column": "employee_id",
+                        "output_type": "string",
+                        "is_excluded": False,
+                        "transformations": [],
+                    },
+                ]
+            },
         )
-        resp = client.get(f"/api/workspaces/{workspace_id}/imports/{import_id}/mapped-preview")
+        resp = client.get(
+            f"/api/workspaces/{workspace_id}/imports/{import_id}/mapped-preview"
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert "employee_id" in data["columns"]
         assert "EMP_ID" not in data["columns"]
 
-    def test_mapped_preview_with_date_parse_reports_warnings(self, client, workspace_id):
+    def test_mapped_preview_with_date_parse_reports_warnings(
+        self, client, workspace_id
+    ):
         import_id = self._upload(client, workspace_id)
         client.put(
             f"/api/workspaces/{workspace_id}/imports/{import_id}/mapping",
-            json={"field_mappings": [
-                {"input_column": "HIRE_DATE", "output_column": "hire_date",
-                 "output_type": "date", "is_excluded": False,
-                 "transformations": [{"transform_type": "date_parse", "params": {"format": "%m/%d/%Y"}}]},
-            ]},
+            json={
+                "field_mappings": [
+                    {
+                        "input_column": "HIRE_DATE",
+                        "output_column": "hire_date",
+                        "output_type": "date",
+                        "is_excluded": False,
+                        "transformations": [
+                            {
+                                "transform_type": "date_parse",
+                                "params": {"format": "%m/%d/%Y"},
+                            }
+                        ],
+                    },
+                ]
+            },
         )
-        resp = client.get(f"/api/workspaces/{workspace_id}/imports/{import_id}/mapped-preview")
+        resp = client.get(
+            f"/api/workspaces/{workspace_id}/imports/{import_id}/mapped-preview"
+        )
         assert resp.status_code == 200
         warnings = resp.json()["transformation_warnings"]
         assert len(warnings) >= 1
@@ -357,7 +438,9 @@ class TestPreviewEndpoints:
 
     def test_mapped_preview_without_mapping_returns_409(self, client, workspace_id):
         import_id = self._upload(client, workspace_id)
-        resp = client.get(f"/api/workspaces/{workspace_id}/imports/{import_id}/mapped-preview")
+        resp = client.get(
+            f"/api/workspaces/{workspace_id}/imports/{import_id}/mapped-preview"
+        )
         assert resp.status_code == 409
 
 
@@ -365,8 +448,8 @@ class TestPreviewEndpoints:
 # T054 — US5: Mapping Templates
 # ===========================================================================
 
-class TestMappingTemplates:
 
+class TestMappingTemplates:
     def _upload_and_map(self, client, workspace_id: str) -> str:
         with open(SAMPLE_CSV, "rb") as f:
             upload_resp = client.post(
@@ -376,13 +459,29 @@ class TestMappingTemplates:
         import_id = upload_resp.json()["import_id"]
         client.put(
             f"/api/workspaces/{workspace_id}/imports/{import_id}/mapping",
-            json={"field_mappings": [
-                {"input_column": "EMP_ID", "output_column": "employee_id",
-                 "output_type": "string", "is_excluded": False, "transformations": []},
-                {"input_column": "DEPT", "output_column": "department",
-                 "output_type": "string", "is_excluded": False,
-                 "transformations": [{"transform_type": "string_case", "params": {"case": "lower"}}]},
-            ]},
+            json={
+                "field_mappings": [
+                    {
+                        "input_column": "EMP_ID",
+                        "output_column": "employee_id",
+                        "output_type": "string",
+                        "is_excluded": False,
+                        "transformations": [],
+                    },
+                    {
+                        "input_column": "DEPT",
+                        "output_column": "department",
+                        "output_type": "string",
+                        "is_excluded": False,
+                        "transformations": [
+                            {
+                                "transform_type": "string_case",
+                                "params": {"case": "lower"},
+                            }
+                        ],
+                    },
+                ]
+            },
         )
         return import_id
 
@@ -390,7 +489,11 @@ class TestMappingTemplates:
         import_id = self._upload_and_map(client, workspace_id)
         save_resp = client.post(
             f"/api/workspaces/{workspace_id}/mapping-templates",
-            json={"import_id": import_id, "name": "Standard HR Export", "description": "Test"},
+            json={
+                "import_id": import_id,
+                "name": "Standard HR Export",
+                "description": "Test",
+            },
         )
         assert save_resp.status_code == 201
         list_resp = client.get(f"/api/workspaces/{workspace_id}/mapping-templates")
@@ -438,6 +541,7 @@ class TestMappingTemplates:
             json={"template_id": template_id},
         )
         assert apply_resp.status_code == 200
+
 
 # ===========================================================================
 # Performance benchmark (T057) — documented, not blocking

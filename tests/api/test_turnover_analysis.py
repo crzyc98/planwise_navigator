@@ -53,39 +53,51 @@ class TestTurnoverAnalysisService:
 
         # 80 experienced active employees (tenure >= 1 year)
         for i in range(80):
-            rows.append({
-                "employee_id": f"EXP_A_{i}",
-                "employee_hire_date": (today - timedelta(days=730 + i)).isoformat(),
-                "employee_termination_date": "",
-                "active": "true",
-            })
+            rows.append(
+                {
+                    "employee_id": f"EXP_A_{i}",
+                    "employee_hire_date": (today - timedelta(days=730 + i)).isoformat(),
+                    "employee_termination_date": "",
+                    "active": "true",
+                }
+            )
 
         # 10 experienced terminated employees
         for i in range(10):
-            rows.append({
-                "employee_id": f"EXP_T_{i}",
-                "employee_hire_date": (today - timedelta(days=730 + i)).isoformat(),
-                "employee_termination_date": (today - timedelta(days=30 + i)).isoformat(),
-                "active": "false",
-            })
+            rows.append(
+                {
+                    "employee_id": f"EXP_T_{i}",
+                    "employee_hire_date": (today - timedelta(days=730 + i)).isoformat(),
+                    "employee_termination_date": (
+                        today - timedelta(days=30 + i)
+                    ).isoformat(),
+                    "active": "false",
+                }
+            )
 
         # 8 new hire active employees (tenure < 1 year)
         for i in range(8):
-            rows.append({
-                "employee_id": f"NH_A_{i}",
-                "employee_hire_date": (today - timedelta(days=100 + i)).isoformat(),
-                "employee_termination_date": "",
-                "active": "true",
-            })
+            rows.append(
+                {
+                    "employee_id": f"NH_A_{i}",
+                    "employee_hire_date": (today - timedelta(days=100 + i)).isoformat(),
+                    "employee_termination_date": "",
+                    "active": "true",
+                }
+            )
 
         # 2 new hire terminated employees
         for i in range(2):
-            rows.append({
-                "employee_id": f"NH_T_{i}",
-                "employee_hire_date": (today - timedelta(days=100 + i)).isoformat(),
-                "employee_termination_date": (today - timedelta(days=10 + i)).isoformat(),
-                "active": "false",
-            })
+            rows.append(
+                {
+                    "employee_id": f"NH_T_{i}",
+                    "employee_hire_date": (today - timedelta(days=100 + i)).isoformat(),
+                    "employee_termination_date": (
+                        today - timedelta(days=10 + i)
+                    ).isoformat(),
+                    "active": "false",
+                }
+            )
 
         csv_path = workspace_dir / "census.csv"
         _write_csv(csv_path, rows)
@@ -114,11 +126,15 @@ class TestTurnoverAnalysisService:
         today = date.today()
         rows = []
         for i in range(50):
-            rows.append({
-                "employee_id": f"EMP_{i}",
-                "employee_hire_date": (today - timedelta(days=365 * 2 + i)).isoformat(),
-                "active": "true",
-            })
+            rows.append(
+                {
+                    "employee_id": f"EMP_{i}",
+                    "employee_hire_date": (
+                        today - timedelta(days=365 * 2 + i)
+                    ).isoformat(),
+                    "active": "true",
+                }
+            )
 
         csv_path = workspace_dir / "census.csv"
         _write_csv(csv_path, rows)
@@ -139,19 +155,23 @@ class TestTurnoverAnalysisService:
 
         # Active employees
         for i in range(40):
-            rows.append({
-                "employee_id": f"A_{i}",
-                "employee_hire_date": (today - timedelta(days=730 + i)).isoformat(),
-                "active": "true",
-            })
+            rows.append(
+                {
+                    "employee_id": f"A_{i}",
+                    "employee_hire_date": (today - timedelta(days=730 + i)).isoformat(),
+                    "active": "true",
+                }
+            )
 
         # Terminated employees (active=false)
         for i in range(10):
-            rows.append({
-                "employee_id": f"T_{i}",
-                "employee_hire_date": (today - timedelta(days=730 + i)).isoformat(),
-                "active": "false",
-            })
+            rows.append(
+                {
+                    "employee_id": f"T_{i}",
+                    "employee_hire_date": (today - timedelta(days=730 + i)).isoformat(),
+                    "active": "false",
+                }
+            )
 
         csv_path = workspace_dir / "census.csv"
         _write_csv(csv_path, rows)
@@ -169,20 +189,26 @@ class TestTurnoverAnalysisService:
 
         # All experienced
         for i in range(40):
-            rows.append({
-                "employee_id": f"A_{i}",
-                "employee_hire_date": (today - timedelta(days=730 + i)).isoformat(),
-                "employee_termination_date": "",
-                "active": "true",
-            })
+            rows.append(
+                {
+                    "employee_id": f"A_{i}",
+                    "employee_hire_date": (today - timedelta(days=730 + i)).isoformat(),
+                    "employee_termination_date": "",
+                    "active": "true",
+                }
+            )
 
         for i in range(10):
-            rows.append({
-                "employee_id": f"T_{i}",
-                "employee_hire_date": (today - timedelta(days=730 + i)).isoformat(),
-                "employee_termination_date": (today - timedelta(days=30)).isoformat(),
-                "active": "false",
-            })
+            rows.append(
+                {
+                    "employee_id": f"T_{i}",
+                    "employee_hire_date": (today - timedelta(days=730 + i)).isoformat(),
+                    "employee_termination_date": (
+                        today - timedelta(days=30)
+                    ).isoformat(),
+                    "active": "false",
+                }
+            )
 
         csv_path = workspace_dir / "census.csv"
         _write_csv(csv_path, rows)
@@ -200,18 +226,22 @@ class TestTurnoverAnalysisService:
         rows = []
 
         for i in range(200):
-            rows.append({
-                "employee_id": f"A_{i}",
-                "employee_hire_date": (today - timedelta(days=730 + i)).isoformat(),
-                "active": "true",
-            })
+            rows.append(
+                {
+                    "employee_id": f"A_{i}",
+                    "employee_hire_date": (today - timedelta(days=730 + i)).isoformat(),
+                    "active": "true",
+                }
+            )
 
         for i in range(50):
-            rows.append({
-                "employee_id": f"T_{i}",
-                "employee_hire_date": (today - timedelta(days=730 + i)).isoformat(),
-                "active": "false",
-            })
+            rows.append(
+                {
+                    "employee_id": f"T_{i}",
+                    "employee_hire_date": (today - timedelta(days=730 + i)).isoformat(),
+                    "active": "false",
+                }
+            )
 
         csv_path = workspace_dir / "census.csv"
         _write_csv(csv_path, rows)

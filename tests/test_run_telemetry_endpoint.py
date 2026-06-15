@@ -66,8 +66,13 @@ def test_active_run_returns_full_snapshot(client, scenario):
     )
     svc.apply_structured_record(
         "run-1",
-        {"record": "year_completed", "year": 2025, "duration_seconds": 10.0,
-         "event_counts": {"HIRE": 5}, "cumulative_counts": {"HIRE": 5}},
+        {
+            "record": "year_completed",
+            "year": 2025,
+            "duration_seconds": 10.0,
+            "event_counts": {"HIRE": 5},
+            "cumulative_counts": {"HIRE": 5},
+        },
     )
 
     response = client.get(f"/api/scenarios/{scenario['scenario_id']}/run/telemetry")
@@ -89,9 +94,7 @@ def test_terminal_state_still_served(client, scenario):
     )
     svc.set_terminal("run-2", "failed", message="boom")
 
-    body = client.get(
-        f"/api/scenarios/{scenario['scenario_id']}/run/telemetry"
-    ).json()
+    body = client.get(f"/api/scenarios/{scenario['scenario_id']}/run/telemetry").json()
     assert body["run"]["status"] == "failed"
     assert body["telemetry"]["status"] == "failed"
     assert body["telemetry"]["milestones"][-1]["kind"] == "terminal"
@@ -107,9 +110,7 @@ def test_api_restart_returns_status_without_telemetry(client, scenario, tmp_path
         scenario["workspace_id"], scenario["scenario_id"], "running", "run-lost"
     )
 
-    body = client.get(
-        f"/api/scenarios/{scenario['scenario_id']}/run/telemetry"
-    ).json()
+    body = client.get(f"/api/scenarios/{scenario['scenario_id']}/run/telemetry").json()
     assert body["run"]["status"] == "running"
     assert body["run"]["run_id"] == "run-lost"
     assert body["telemetry"] is None

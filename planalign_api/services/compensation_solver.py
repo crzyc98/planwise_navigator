@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class LevelDistribution:
     """Distribution of employees across job levels."""
+
     level: int
     name: str
     headcount: int
@@ -39,32 +40,38 @@ class LevelDistribution:
 @dataclass
 class WorkforceDynamics:
     """Workforce dynamics parameters that affect average compensation growth."""
+
     turnover_rate: float = 0.15  # Annual turnover rate (e.g., 0.15 = 15%)
     workforce_growth_rate: float = 0.03  # Annual workforce growth (e.g., 0.03 = 3%)
-    new_hire_comp_ratio: float = 0.85  # New hire avg comp as ratio of workforce avg (e.g., 0.85 = 85%)
-    terminating_comp_ratio: float = 1.0  # Terminating avg comp as ratio of workforce avg
+    new_hire_comp_ratio: float = (
+        0.85  # New hire avg comp as ratio of workforce avg (e.g., 0.85 = 85%)
+    )
+    terminating_comp_ratio: float = (
+        1.0  # Terminating avg comp as ratio of workforce avg
+    )
 
 
 @dataclass
 class CompensationSolverResult:
     """Result from the compensation solver."""
+
     # Target input
     target_growth_rate: float  # As decimal (0.02 = 2%)
 
     # Solved parameters (as percentages for UI display)
-    cola_rate: float          # e.g., 2.0 for 2%
-    merit_budget: float       # e.g., 3.5 for 3.5%
-    promotion_increase: float # e.g., 12.5 for 12.5%
-    promotion_budget: float   # e.g., 1.5 for 1.5%
+    cola_rate: float  # e.g., 2.0 for 2%
+    merit_budget: float  # e.g., 3.5 for 3.5%
+    promotion_increase: float  # e.g., 12.5 for 12.5%
+    promotion_budget: float  # e.g., 1.5 for 1.5%
 
     # Validation
     achieved_growth_rate: float  # Actual growth with these settings
-    growth_gap: float            # Difference from target
+    growth_gap: float  # Difference from target
 
     # Breakdown for transparency
-    cola_contribution: float     # Contribution to growth from COLA
-    merit_contribution: float    # Contribution to growth from merit
-    promo_contribution: float    # Contribution to growth from promotions
+    cola_contribution: float  # Contribution to growth from COLA
+    merit_contribution: float  # Contribution to growth from merit
+    promo_contribution: float  # Contribution to growth from promotions
 
     # Workforce context
     total_headcount: int
@@ -72,7 +79,9 @@ class CompensationSolverResult:
     weighted_promotion_rate: float
 
     # Fields with defaults must come after fields without defaults
-    turnover_contribution: float = 0.0  # Contribution (usually negative) from turnover/new hires
+    turnover_contribution: float = (
+        0.0  # Contribution (usually negative) from turnover/new hires
+    )
 
     # Workforce dynamics used
     turnover_rate: float = 0.0
@@ -153,7 +162,9 @@ class CompensationSolver:
             )
 
         # Get column names (normalized to lowercase)
-        columns_result = conn.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'census'").fetchall()
+        columns_result = conn.execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = 'census'"
+        ).fetchall()
         original_columns = [row[0] for row in columns_result]
 
         # Rename columns to lowercase
@@ -165,7 +176,9 @@ class CompensationSolver:
                 )
 
         # Get updated column list
-        columns_result = conn.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'census'").fetchall()
+        columns_result = conn.execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = 'census'"
+        ).fetchall()
         columns = [row[0] for row in columns_result]
 
         # Filter to active employees with robust boolean handling
@@ -179,14 +192,21 @@ class CompensationSolver:
                 """
             )
         elif "employee_termination_date" in columns:
-            conn.execute("DELETE FROM census WHERE employee_termination_date IS NOT NULL")
+            conn.execute(
+                "DELETE FROM census WHERE employee_termination_date IS NOT NULL"
+            )
 
         # Get total headcount
         total_headcount = conn.execute("SELECT COUNT(*) FROM census").fetchone()[0]
 
         # Get compensation column
         comp_col = None
-        for col in ["employee_gross_compensation", "annual_salary", "compensation", "salary"]:
+        for col in [
+            "employee_gross_compensation",
+            "annual_salary",
+            "compensation",
+            "salary",
+        ]:
             if col in columns:
                 comp_col = col
                 break
@@ -229,24 +249,28 @@ class CompensationSolver:
                 headcount = row[1]
                 avg_comp = row[2]
 
-                distributions.append(LevelDistribution(
-                    level=level,
-                    name=self._level_name(level),
-                    headcount=headcount,
-                    percentage=headcount / total_headcount,
-                    avg_compensation=avg_comp,
-                    promotion_rate=self.DEFAULT_PROMOTION_RATES.get(level, 0.10),
-                ))
+                distributions.append(
+                    LevelDistribution(
+                        level=level,
+                        name=self._level_name(level),
+                        headcount=headcount,
+                        percentage=headcount / total_headcount,
+                        avg_compensation=avg_comp,
+                        promotion_rate=self.DEFAULT_PROMOTION_RATES.get(level, 0.10),
+                    )
+                )
         else:
             # No level data - use single level assumption
-            distributions.append(LevelDistribution(
-                level=1,
-                name="All Employees",
-                headcount=total_headcount,
-                percentage=1.0,
-                avg_compensation=avg_compensation,
-                promotion_rate=0.10,  # Default 10% promotion rate
-            ))
+            distributions.append(
+                LevelDistribution(
+                    level=1,
+                    name="All Employees",
+                    headcount=total_headcount,
+                    percentage=1.0,
+                    avg_compensation=avg_compensation,
+                    promotion_rate=0.10,  # Default 10% promotion rate
+                )
+            )
 
         conn.close()
         return distributions, avg_compensation, total_headcount
@@ -292,7 +316,9 @@ class CompensationSolver:
         total_headcount: Optional[int] = None,
         promotion_increase: Optional[float] = None,  # If user wants to lock this
         cola_to_merit_ratio: Optional[float] = None,  # Customize ratio
-        workforce_dynamics: Optional[WorkforceDynamics] = None,  # Turnover/new hire effects
+        workforce_dynamics: Optional[
+            WorkforceDynamics
+        ] = None,  # Turnover/new hire effects
     ) -> CompensationSolverResult:
         """
         Solve for compensation parameters given a target growth rate.
@@ -323,30 +349,52 @@ class CompensationSolver:
         if distributions is None:
             distributions = [
                 LevelDistribution(
-                    level=1, name="Staff", headcount=500, percentage=0.50,
-                    avg_compensation=50000, promotion_rate=0.20,
+                    level=1,
+                    name="Staff",
+                    headcount=500,
+                    percentage=0.50,
+                    avg_compensation=50000,
+                    promotion_rate=0.20,
                 ),
                 LevelDistribution(
-                    level=2, name="Manager", headcount=250, percentage=0.25,
-                    avg_compensation=80000, promotion_rate=0.15,
+                    level=2,
+                    name="Manager",
+                    headcount=250,
+                    percentage=0.25,
+                    avg_compensation=80000,
+                    promotion_rate=0.15,
                 ),
                 LevelDistribution(
-                    level=3, name="Sr Manager", headcount=150, percentage=0.15,
-                    avg_compensation=110000, promotion_rate=0.10,
+                    level=3,
+                    name="Sr Manager",
+                    headcount=150,
+                    percentage=0.15,
+                    avg_compensation=110000,
+                    promotion_rate=0.10,
                 ),
                 LevelDistribution(
-                    level=4, name="Director", headcount=80, percentage=0.08,
-                    avg_compensation=150000, promotion_rate=0.08,
+                    level=4,
+                    name="Director",
+                    headcount=80,
+                    percentage=0.08,
+                    avg_compensation=150000,
+                    promotion_rate=0.08,
                 ),
                 LevelDistribution(
-                    level=5, name="VP", headcount=20, percentage=0.02,
-                    avg_compensation=250000, promotion_rate=0.05,
+                    level=5,
+                    name="VP",
+                    headcount=20,
+                    percentage=0.02,
+                    avg_compensation=250000,
+                    promotion_rate=0.05,
                 ),
             ]
             warnings.append("Using default level distribution (no census data)")
 
         if avg_compensation is None:
-            avg_compensation = sum(d.avg_compensation * d.percentage for d in distributions)
+            avg_compensation = sum(
+                d.avg_compensation * d.percentage for d in distributions
+            )
 
         if total_headcount is None:
             total_headcount = sum(d.headcount for d in distributions)
@@ -359,7 +407,9 @@ class CompensationSolver:
         # N = fraction of next year's workforce that are new hires
         next_year_multiplier = 1 + dynamics.workforce_growth_rate
         stayer_fraction = (1 - dynamics.turnover_rate) / next_year_multiplier
-        new_hire_fraction = (dynamics.turnover_rate + dynamics.workforce_growth_rate) / next_year_multiplier
+        new_hire_fraction = (
+            dynamics.turnover_rate + dynamics.workforce_growth_rate
+        ) / next_year_multiplier
 
         # Calculate weighted promotion rate
         weighted_promo_rate = self.calculate_weighted_promotion_rate(distributions)
@@ -378,13 +428,19 @@ class CompensationSolver:
         new_hire_contribution = new_hire_fraction * dynamics.new_hire_comp_ratio
 
         # Required raise rate for stayers
-        required_stayer_multiplier = (target_multiplier - new_hire_contribution) / stayer_fraction
+        required_stayer_multiplier = (
+            target_multiplier - new_hire_contribution
+        ) / stayer_fraction
         required_raise_rate = required_stayer_multiplier - 1
 
         # Calculate turnover contribution (the drag/boost from workforce dynamics)
         # This is: (N × R + S × 1) - 1 = what growth would be with 0% raises
-        baseline_multiplier = stayer_fraction * 1.0 + new_hire_fraction * dynamics.new_hire_comp_ratio
-        turnover_contribution = baseline_multiplier - 1  # Usually negative if new hires paid less
+        baseline_multiplier = (
+            stayer_fraction * 1.0 + new_hire_fraction * dynamics.new_hire_comp_ratio
+        )
+        turnover_contribution = (
+            baseline_multiplier - 1
+        )  # Usually negative if new hires paid less
 
         # Log workforce dynamics impact
         if abs(turnover_contribution) > 0.005:
@@ -424,20 +480,28 @@ class CompensationSolver:
 
         # Verify achieved growth using the full formula
         actual_raise_rate = cola_rate + merit_effective + promo_contribution
-        achieved_multiplier = stayer_fraction * (1 + actual_raise_rate) + new_hire_contribution
+        achieved_multiplier = (
+            stayer_fraction * (1 + actual_raise_rate) + new_hire_contribution
+        )
         achieved_growth = achieved_multiplier - 1
         growth_gap = achieved_growth - target_growth_rate
 
         # Bounds checking and warnings
         if cola_rate < 0.01:
-            warnings.append(f"COLA rate ({cola_rate*100:.1f}%) is very low. May not keep pace with inflation.")
+            warnings.append(
+                f"COLA rate ({cola_rate*100:.1f}%) is very low. May not keep pace with inflation."
+            )
         if cola_rate > 0.08:
             warnings.append(f"COLA rate ({cola_rate*100:.1f}%) is unusually high.")
 
         if merit_budget < 0.02:
-            warnings.append(f"Merit budget ({merit_budget*100:.1f}%) is low. May impact retention.")
+            warnings.append(
+                f"Merit budget ({merit_budget*100:.1f}%) is low. May impact retention."
+            )
         if merit_budget > 0.08:
-            warnings.append(f"Merit budget ({merit_budget*100:.1f}%) is unusually high.")
+            warnings.append(
+                f"Merit budget ({merit_budget*100:.1f}%) is unusually high."
+            )
 
         if required_raise_rate > 0.15:
             warnings.append(
@@ -454,7 +518,9 @@ class CompensationSolver:
 
         if new_hire_fraction > 0.01:  # Avoid division by zero
             # What new hire ratio would exactly hit target with our calculated raises?
-            required_nh_contribution = target_multiplier - stayer_fraction * (1 + actual_raise_rate)
+            required_nh_contribution = target_multiplier - stayer_fraction * (
+                1 + actual_raise_rate
+            )
             recommended_nh_ratio = required_nh_contribution / new_hire_fraction
 
             # Clamp to reasonable range (50% to 120% of avg)
@@ -477,7 +543,7 @@ class CompensationSolver:
 
         return CompensationSolverResult(
             target_growth_rate=target_growth_rate,
-            cola_rate=round(cola_rate * 100, 2),          # Convert to percentage
+            cola_rate=round(cola_rate * 100, 2),  # Convert to percentage
             merit_budget=round(merit_budget * 100, 2),
             promotion_increase=round(promotion_increase * 100, 2),
             promotion_budget=round(promo_budget * 100, 2),

@@ -137,7 +137,9 @@ class EventGenerator(ABC):
         """
         pass
 
-    def calculate_hazard(self, employee_id: str, year: int, context: EventContext) -> float:
+    def calculate_hazard(
+        self, employee_id: str, year: int, context: EventContext
+    ) -> float:
         """
         Calculate hazard probability for an employee.
 
@@ -321,7 +323,9 @@ class EventRegistry:
     _disabled: Dict[str, Set[str]] = {}  # scenario_id -> set of disabled event_types
 
     @classmethod
-    def register(cls, event_type: str) -> Callable[[Type[EventGenerator]], Type[EventGenerator]]:
+    def register(
+        cls, event_type: str
+    ) -> Callable[[Type[EventGenerator]], Type[EventGenerator]]:
         """
         Decorator to register an event generator class.
 

@@ -25,7 +25,8 @@ def in_memory_db() -> Generator[duckdb.DuckDBPyConnection, None, None]:
     conn = duckdb.connect(":memory:")
 
     # Create minimal schema for testing
-    conn.execute("""
+    conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS fct_yearly_events (
             event_id VARCHAR PRIMARY KEY,
             employee_id VARCHAR NOT NULL,
@@ -36,9 +37,11 @@ def in_memory_db() -> Generator[duckdb.DuckDBPyConnection, None, None]:
             plan_design_id VARCHAR NOT NULL,
             payload JSON
         )
-    """)
+    """
+    )
 
-    conn.execute("""
+    conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS fct_workforce_snapshot (
             employee_id VARCHAR,
             simulation_year INTEGER NOT NULL,
@@ -48,7 +51,8 @@ def in_memory_db() -> Generator[duckdb.DuckDBPyConnection, None, None]:
             plan_design_id VARCHAR NOT NULL,
             PRIMARY KEY (employee_id, simulation_year, scenario_id, plan_design_id)
         )
-    """)
+    """
+    )
 
     yield conn
     conn.close()
@@ -74,23 +78,27 @@ def populated_test_db(in_memory_db) -> duckdb.DuckDBPyConnection:
     """
     # Insert sample workforce data
     for i in range(100):
-        in_memory_db.execute(f"""
+        in_memory_db.execute(
+            f"""
             INSERT INTO fct_workforce_snapshot VALUES (
                 'EMP{i:05d}', 2025, {50000 + (i * 500)}, NULL, 'test_scenario', 'test_plan'
             )
-        """)
+        """
+        )
 
     # Insert sample events
-    event_types = ['hire', 'termination', 'promotion']
+    event_types = ["hire", "termination", "promotion"]
     for i in range(50):
         event_type = event_types[i % 3]
-        in_memory_db.execute(f"""
+        in_memory_db.execute(
+            f"""
             INSERT INTO fct_yearly_events VALUES (
                 'EVT{i:05d}', 'EMP{i:05d}', '{event_type}',
                 DATE '2025-01-01' + INTERVAL {i * 7} DAY,
                 2025, 'test_scenario', 'test_plan', '{{}}'
             )
-        """)
+        """
+        )
 
     return in_memory_db
 

@@ -31,7 +31,9 @@ print()
 # 4. Check if we're in the right directory
 repo_root = Path(__file__).parent.parent
 print(f"✓ Repository root: {repo_root}")
-print(f"✓ planalign_orchestrator exists: {(repo_root / 'planalign_orchestrator').exists()}")
+print(
+    f"✓ planalign_orchestrator exists: {(repo_root / 'planalign_orchestrator').exists()}"
+)
 print(f"✓ planalign_cli exists: {(repo_root / 'planalign_cli').exists()}")
 print()
 
@@ -39,6 +41,7 @@ print()
 print("Testing imports...")
 try:
     import planalign_orchestrator
+
     print(f"✅ planalign_orchestrator imported from: {planalign_orchestrator.__file__}")
 except ImportError as e:
     print(f"❌ Cannot import planalign_orchestrator: {e}")
@@ -78,6 +81,7 @@ print()
 # 7. Check planwise CLI
 try:
     import planalign_cli
+
     print(f"✅ planalign_cli imported from: {planalign_cli.__file__}")
 except ImportError as e:
     print(f"❌ Cannot import planalign_cli: {e}")
@@ -87,6 +91,7 @@ print()
 
 # 8. Check if planwise command is available
 import shutil
+
 planwise_path = shutil.which("planwise")
 if planwise_path:
     print(f"✅ planwise command found at: {planwise_path}")

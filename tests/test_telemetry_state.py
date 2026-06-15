@@ -63,7 +63,9 @@ class TestRunLifecycle:
         assert snap.milestones[-1].kind == "terminal"
 
     def test_failed_terminal_keeps_progress(self, started):
-        started.apply_update(RUN, progress=60, current_stage="VALIDATION", current_year=2026)
+        started.apply_update(
+            RUN, progress=60, current_stage="VALIDATION", current_year=2026
+        )
         started.set_terminal(RUN, "failed", message="boom")
         snap = started.get_snapshot(RUN)
         assert snap.status == "failed"
@@ -71,7 +73,9 @@ class TestRunLifecycle:
 
     def test_new_run_for_same_scenario_discards_old_state(self, started):
         started.set_terminal(RUN, "completed")
-        started.start_run("run-456", scenario_id=SCENARIO, start_year=2025, total_years=3)
+        started.start_run(
+            "run-456", scenario_id=SCENARIO, start_year=2025, total_years=3
+        )
         assert started.get_snapshot(RUN) is None
         assert started.get_snapshot("run-456").status == "running"
 
@@ -79,8 +83,13 @@ class TestRunLifecycle:
 class TestUpdatesAndSamples:
     def test_apply_update_mutates_snapshot_and_appends_sample(self, started):
         started.apply_update(
-            RUN, progress=42, current_stage="EVENT_GENERATION", current_year=2026,
-            memory_mb=512.0, events_generated=1500, events_per_second=50.0,
+            RUN,
+            progress=42,
+            current_stage="EVENT_GENERATION",
+            current_year=2026,
+            memory_mb=512.0,
+            events_generated=1500,
+            events_per_second=50.0,
             elapsed_seconds=30.5,
         )
         snap = started.get_snapshot(RUN)
@@ -92,8 +101,13 @@ class TestUpdatesAndSamples:
 
     def test_sample_ring_buffer_capped(self, started):
         for i in range(SAMPLE_CAP + 50):
-            started.apply_update(RUN, progress=1, current_stage="FOUNDATION",
-                                 current_year=2025, elapsed_seconds=float(i))
+            started.apply_update(
+                RUN,
+                progress=1,
+                current_stage="FOUNDATION",
+                current_year=2025,
+                elapsed_seconds=float(i),
+            )
         snap = started.get_snapshot(RUN)
         assert len(snap.performance_samples) == SAMPLE_CAP
         # Oldest samples dropped, newest retained
@@ -103,8 +117,12 @@ class TestUpdatesAndSamples:
         started._min_update_interval = 60.0
         queue = started.subscribe(RUN)
         drain(queue)  # discard snapshot
-        started.apply_update(RUN, progress=10, current_stage="FOUNDATION", current_year=2025)
-        started.apply_update(RUN, progress=11, current_stage="FOUNDATION", current_year=2025)
+        started.apply_update(
+            RUN, progress=10, current_stage="FOUNDATION", current_year=2025
+        )
+        started.apply_update(
+            RUN, progress=11, current_stage="FOUNDATION", current_year=2025
+        )
         updates = [m for m in drain(queue) if m["type"] == "update"]
         assert len(updates) == 1
 
@@ -125,9 +143,13 @@ class TestStructuredRecords:
     def test_year_completed_updates_counts(self, started):
         started.apply_structured_record(
             RUN,
-            {"record": "year_completed", "year": 2025, "duration_seconds": 48.2,
-             "event_counts": {"HIRE": 142, "TERMINATION": 98},
-             "cumulative_counts": {"HIRE": 142, "TERMINATION": 98}},
+            {
+                "record": "year_completed",
+                "year": 2025,
+                "duration_seconds": 48.2,
+                "event_counts": {"HIRE": 142, "TERMINATION": 98},
+                "cumulative_counts": {"HIRE": 142, "TERMINATION": 98},
+            },
         )
         snap = started.get_snapshot(RUN)
         assert snap.event_counts.by_type == {"HIRE": 142, "TERMINATION": 98}
@@ -144,8 +166,13 @@ class TestStructuredRecords:
             RUN, {"record": "stage_started", "year": 2025, "stage": "FOUNDATION"}
         )
         started.apply_structured_record(
-            RUN, {"record": "stage_completed", "year": 2025, "stage": "FOUNDATION",
-                  "duration_seconds": 1.0}
+            RUN,
+            {
+                "record": "stage_completed",
+                "year": 2025,
+                "stage": "FOUNDATION",
+                "duration_seconds": 1.0,
+            },
         )
         seqs = [m.sequence for m in started.get_snapshot(RUN).milestones]
         assert seqs == sorted(seqs)
@@ -179,7 +206,9 @@ class TestLogMilestones:
 
 class TestSubscribeReplay:
     def test_subscribe_sends_snapshot_first(self, started):
-        started.apply_update(RUN, progress=33, current_stage="FOUNDATION", current_year=2025)
+        started.apply_update(
+            RUN, progress=33, current_stage="FOUNDATION", current_year=2025
+        )
         queue = started.subscribe(RUN)
         messages = drain(queue)
         assert messages[0]["type"] == "snapshot"

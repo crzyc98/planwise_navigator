@@ -384,7 +384,9 @@ class WorkspaceStorage:
         data["status"] = status
         if run_id:
             data["last_run_id"] = run_id
-            data["last_run_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            data["last_run_at"] = (
+                datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            )
         if results_summary:
             data["results_summary"] = results_summary
 
@@ -447,7 +449,11 @@ class WorkspaceStorage:
         Returns:
             Dictionary with removed_count, bytes_freed, removed_runs list.
         """
-        result: Dict[str, Any] = {"removed_count": 0, "bytes_freed": 0, "removed_runs": []}
+        result: Dict[str, Any] = {
+            "removed_count": 0,
+            "bytes_freed": 0,
+            "removed_runs": [],
+        }
 
         if max_runs <= 0:
             return result
@@ -472,7 +478,9 @@ class WorkspaceStorage:
                 except Exception:
                     pass  # Treat corrupt/missing metadata as oldest
 
-            run_entries.append({"path": run_dir, "started_at": started_at, "run_id": run_dir.name})
+            run_entries.append(
+                {"path": run_dir, "started_at": started_at, "run_id": run_dir.name}
+            )
 
         if len(run_entries) <= max_runs:
             return result
@@ -485,7 +493,9 @@ class WorkspaceStorage:
             run_dir = entry["path"]
             run_id = entry["run_id"]
             try:
-                dir_size = sum(f.stat().st_size for f in run_dir.rglob("*") if f.is_file())
+                dir_size = sum(
+                    f.stat().st_size for f in run_dir.rglob("*") if f.is_file()
+                )
                 shutil.rmtree(run_dir)
                 result["removed_count"] += 1
                 result["bytes_freed"] += dir_size
@@ -628,7 +638,11 @@ class WorkspaceStorage:
             if key in self._ATOMIC_SECTIONS:
                 # Section-level replacement for seed configs
                 result[key] = value
-            elif key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            elif (
+                key in result
+                and isinstance(result[key], dict)
+                and isinstance(value, dict)
+            ):
                 result[key] = self._deep_merge(result[key], value)
             else:
                 result[key] = value
@@ -840,7 +854,9 @@ class WorkspaceStorage:
                     "action": "repaired",
                     "reason": str(e),
                     "backup": str(backup_path),
-                    "salvaged_fields": list(salvaged_data.keys()) if salvaged_data else [],
+                    "salvaged_fields": list(salvaged_data.keys())
+                    if salvaged_data
+                    else [],
                 }
             except Exception as repair_err:
                 logger.error(f"Failed to repair {json_path}: {repair_err}")
@@ -889,7 +905,7 @@ class WorkspaceStorage:
                 salvaged["description"] = desc_match.group(1)
 
             # Look for ISO date patterns for created_at/updated_at
-            date_pattern = r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+            date_pattern = r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}"
             dates = re.findall(date_pattern, content)
             if dates:
                 salvaged["_salvaged_dates"] = dates
@@ -913,8 +929,12 @@ class WorkspaceStorage:
 
         return {
             "id": salvaged.get("id", context["workspace_id"]),
-            "name": salvaged.get("name", f"Recovered Workspace ({context['workspace_id'][:8]})"),
-            "description": salvaged.get("description", "Workspace recovered from corrupted data"),
+            "name": salvaged.get(
+                "name", f"Recovered Workspace ({context['workspace_id'][:8]})"
+            ),
+            "description": salvaged.get(
+                "description", "Workspace recovered from corrupted data"
+            ),
             "created_at": created_at,
             "updated_at": updated_at,
         }
@@ -933,8 +953,12 @@ class WorkspaceStorage:
         return {
             "id": salvaged.get("id", context["scenario_id"]),
             "workspace_id": salvaged.get("workspace_id", context["workspace_id"]),
-            "name": salvaged.get("name", f"Recovered Scenario ({context['scenario_id'][:8]})"),
-            "description": salvaged.get("description", "Scenario recovered from corrupted data"),
+            "name": salvaged.get(
+                "name", f"Recovered Scenario ({context['scenario_id'][:8]})"
+            ),
+            "description": salvaged.get(
+                "description", "Scenario recovered from corrupted data"
+            ),
             "config_overrides": {},
             "status": "not_run",
             "created_at": created_at,

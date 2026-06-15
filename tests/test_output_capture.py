@@ -111,54 +111,63 @@ class TestIsSignalLine:
 
     # --- Signal lines that SHOULD be detected ---
 
-    @pytest.mark.parametrize("line", [
-        "ERROR: compilation error",
-        "  error in model int_foo",
-        "WARNING: unused config",
-        "warn: deprecated feature",
-        "3 of 5 OK created fct_yearly_events",
-        "Running with dbt=1.8.8",
-        "Finished running 12 table models",
-        "Done.",
-        "OK created int_baseline_workforce",
-        "FAIL 1 stg_census",
-        "PASS 42 not_null_employee_id",
-    ])
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "ERROR: compilation error",
+            "  error in model int_foo",
+            "WARNING: unused config",
+            "warn: deprecated feature",
+            "3 of 5 OK created fct_yearly_events",
+            "Running with dbt=1.8.8",
+            "Finished running 12 table models",
+            "Done.",
+            "OK created int_baseline_workforce",
+            "FAIL 1 stg_census",
+            "PASS 42 not_null_employee_id",
+        ],
+    )
     def test_signal_lines_detected(self, line: str):
         assert _is_signal_line(line) is True
 
-    @pytest.mark.parametrize("line", [
-        "ERROR: something",
-        "error: something",
-        "Error: something",
-    ])
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "ERROR: something",
+            "error: something",
+            "Error: something",
+        ],
+    )
     def test_signal_case_insensitive(self, line: str):
         assert _is_signal_line(line) is True
 
     # --- Noise lines that SHOULD be filtered ---
 
-    @pytest.mark.parametrize("line", [
-        "select employee_id, hire_date",
-        "  SELECT count(*) FROM employees",
-        "from stg_census",
-        "  FROM int_baseline_workforce",
-        "where simulation_year = 2025",
-        "  WHERE employee_id IS NOT NULL",
-        "with base AS (",
-        "  WITH cte AS (",
-        "join int_termination_events",
-        "  JOIN stg_census ON ...",
-        "group by employee_id",
-        "order by hire_date",
-        "---",
-        "------",
-        "=====",
-        "=========",
-        "[debug] some message",
-        "  [debug] another message",
-        "Concurrency: 1 thread",
-        "registered in project",
-    ])
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "select employee_id, hire_date",
+            "  SELECT count(*) FROM employees",
+            "from stg_census",
+            "  FROM int_baseline_workforce",
+            "where simulation_year = 2025",
+            "  WHERE employee_id IS NOT NULL",
+            "with base AS (",
+            "  WITH cte AS (",
+            "join int_termination_events",
+            "  JOIN stg_census ON ...",
+            "group by employee_id",
+            "order by hire_date",
+            "---",
+            "------",
+            "=====",
+            "=========",
+            "[debug] some message",
+            "  [debug] another message",
+            "Concurrency: 1 thread",
+            "registered in project",
+        ],
+    )
     def test_noise_lines_filtered(self, line: str):
         assert _is_signal_line(line) is False
 
@@ -205,6 +214,7 @@ class TestIsSignalLine:
     def test_signal_search_returns_match_without_groups(self):
         """Non-capturing groups should not produce numbered groups."""
         from planalign_cli.ui.output_capture import _SIGNAL_PATTERNS
+
         m = _SIGNAL_PATTERNS.search("3 of 5 OK")
         assert m is not None
         assert m.groups() == ()
@@ -212,6 +222,7 @@ class TestIsSignalLine:
     def test_noise_match_returns_match_without_groups(self):
         """Non-capturing groups should not produce numbered groups."""
         from planalign_cli.ui.output_capture import _NOISE_PATTERNS
+
         m = _NOISE_PATTERNS.match("select foo")
         assert m is not None
         assert m.groups() == ()
@@ -265,7 +276,7 @@ class TestIsTty:
     """Test TTY detection."""
 
     def test_returns_false_when_not_tty(self):
-        with patch.object(sys, 'stdout', new=io.StringIO()):
+        with patch.object(sys, "stdout", new=io.StringIO()):
             assert is_tty() is False
 
     @patch("sys.stdout")
@@ -283,9 +294,11 @@ class TestIsTty:
 
     @patch("os.name", "nt")
     def test_falls_back_to_rich_on_windows_without_term(self):
-        with patch.object(sys.stdout, 'isatty', return_value=True):
+        with patch.object(sys.stdout, "isatty", return_value=True):
             with patch.dict("os.environ", {}, clear=True):
-                with patch("planalign_cli.ui.output_capture.Console") as mock_console_cls:
+                with patch(
+                    "planalign_cli.ui.output_capture.Console"
+                ) as mock_console_cls:
                     mock_console_cls.return_value.is_terminal = False
                     result = is_tty()
                     assert result is False
@@ -295,15 +308,20 @@ class TestIsTty:
     def test_returns_true_on_windows_with_term_env(self, mock_stdout):
         """Windows with TERM env var set returns True without Rich fallback."""
         mock_stdout.isatty.return_value = True
-        with patch.dict("os.environ", {"TERM": "xterm-256color", "WT_SESSION": ""}, clear=False):
+        with patch.dict(
+            "os.environ", {"TERM": "xterm-256color", "WT_SESSION": ""}, clear=False
+        ):
             assert is_tty() is True
 
     @patch("os.name", "nt")
     def test_rich_console_exception_returns_false(self):
         """Windows Rich Console detection failure returns False."""
-        with patch.object(sys.stdout, 'isatty', return_value=True):
+        with patch.object(sys.stdout, "isatty", return_value=True):
             with patch.dict("os.environ", {}, clear=True):
-                with patch("planalign_cli.ui.output_capture.Console", side_effect=Exception("boom")):
+                with patch(
+                    "planalign_cli.ui.output_capture.Console",
+                    side_effect=Exception("boom"),
+                ):
                     assert is_tty() is False
 
     def test_update_year_same_year_no_increment(self, capsys):

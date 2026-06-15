@@ -66,13 +66,16 @@ class TableExistenceChecker:
             Uses information_schema.tables to list tables.
             Only returns tables from the 'main' schema.
         """
+
         def _query(conn):
-            result = conn.execute("""
+            result = conn.execute(
+                """
                 SELECT table_name
                 FROM information_schema.tables
                 WHERE table_schema = 'main'
                 ORDER BY table_name
-            """).fetchall()
+            """
+            ).fetchall()
             return {row[0] for row in result}
 
         return self.db_manager.execute_with_retry(_query)
@@ -88,10 +91,7 @@ class TableExistenceChecker:
             Maintains original order from REQUIRED_TABLES.
         """
         existing = self.get_existing_tables()
-        return [
-            table for table in REQUIRED_TABLES
-            if table.name not in existing
-        ]
+        return [table for table in REQUIRED_TABLES if table.name not in existing]
 
     def is_initialized(self) -> bool:
         """Check if all required tables exist.
@@ -104,10 +104,7 @@ class TableExistenceChecker:
             any required table is found missing.
         """
         existing = self.get_existing_tables()
-        return all(
-            table.name in existing
-            for table in REQUIRED_TABLES
-        )
+        return all(table.name in existing for table in REQUIRED_TABLES)
 
     def get_missing_by_tier(self) -> Dict[TableTier, List[RequiredTable]]:
         """Group missing tables by their initialization tier.

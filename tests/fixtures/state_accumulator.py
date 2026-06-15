@@ -61,7 +61,9 @@ def clean_registry():
 
 
 @pytest.fixture
-def populated_registry(clean_registry, sample_enrollment_contract, sample_deferral_contract):
+def populated_registry(
+    clean_registry, sample_enrollment_contract, sample_deferral_contract
+):
     """Provide a registry pre-populated with standard accumulators."""
     clean_registry.register(sample_enrollment_contract)
     clean_registry.register(sample_deferral_contract)

@@ -35,9 +35,11 @@ from planalign_orchestrator.config import get_database_path
 
 console = Console()
 
+
 @dataclass
 class YearSnapshot:
     """Snapshot of simulation state for a single year."""
+
     year: int
     workforce_count: int
     hire_events: int
@@ -53,6 +55,7 @@ class YearSnapshot:
     @property
     def net_workforce_change(self) -> int:
         return self.hire_events - self.termination_events
+
 
 class DatabaseInspector:
     """Fast database inspection and health checks."""
@@ -191,10 +194,18 @@ class DatabaseInspector:
         """
         missing_count = self.conn.execute(missing_dates, [year]).fetchone()[0]
         if missing_count > 0:
-            issues.append(f"❌ {missing_count} enrollment events missing employee_enrollment_date in snapshot")
+            issues.append(
+                f"❌ {missing_count} enrollment events missing employee_enrollment_date in snapshot"
+            )
 
         # Check for zero workforce
-        if self.conn.execute(f"SELECT COUNT(*) FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} WHERE {COL_SIMULATION_YEAR} = ?", [year]).fetchone()[0] == 0:
+        if (
+            self.conn.execute(
+                f"SELECT COUNT(*) FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} WHERE {COL_SIMULATION_YEAR} = ?",
+                [year],
+            ).fetchone()[0]
+            == 0
+        ):
             issues.append(f"🚨 Zero workforce records for year {year}")
 
         return issues
@@ -243,7 +254,9 @@ class DatabaseInspector:
             for issue in snapshot.data_quality_issues:
                 console.print(f"  {issue}")
         else:
-            console.print("\n[bold green]✓ No data quality issues detected[/bold green]")
+            console.print(
+                "\n[bold green]✓ No data quality issues detected[/bold green]"
+            )
 
     def close(self) -> None:
         """Close database connection if one was opened."""
@@ -261,6 +274,7 @@ class DatabaseInspector:
 @dataclass
 class CheckpointMetadata:
     """Metadata for a simulation checkpoint."""
+
     year: int
     stage: str
     timestamp: datetime
@@ -289,17 +303,23 @@ class StateVisualizer:
                     data = json.load(f)
 
                     # Handle different checkpoint formats
-                    checkpoints.append(CheckpointMetadata(
-                        year=data.get("year", 0),
-                        stage=data.get("stage", "unknown"),
-                        timestamp=datetime.fromisoformat(data.get("timestamp", datetime.now().isoformat())),
-                        duration_seconds=data.get("duration_seconds", 0.0),
-                        success=data.get("success", True),
-                        error=data.get("error"),
-                        models_executed=data.get("models_executed", []),
-                    ))
+                    checkpoints.append(
+                        CheckpointMetadata(
+                            year=data.get("year", 0),
+                            stage=data.get("stage", "unknown"),
+                            timestamp=datetime.fromisoformat(
+                                data.get("timestamp", datetime.now().isoformat())
+                            ),
+                            duration_seconds=data.get("duration_seconds", 0.0),
+                            success=data.get("success", True),
+                            error=data.get("error"),
+                            models_executed=data.get("models_executed", []),
+                        )
+                    )
             except (KeyError, ValueError) as e:
-                console.print(f"[yellow]Warning: Could not parse {checkpoint_file}: {e}[/yellow]")
+                console.print(
+                    f"[yellow]Warning: Could not parse {checkpoint_file}: {e}[/yellow]"
+                )
                 continue
 
         return sorted(checkpoints, key=lambda c: (c.year, c.timestamp))
@@ -496,7 +516,9 @@ class DependencyAnalyzer:
         if highlight_cycles:
             cycles = self.find_circular_dependencies()
             for cycle in cycles:
-                cycle_edges = [(cycle[i], cycle[(i+1) % len(cycle)]) for i in range(len(cycle))]
+                cycle_edges = [
+                    (cycle[i], cycle[(i + 1) % len(cycle)]) for i in range(len(cycle))
+                ]
                 nx.draw_networkx_edges(
                     self.graph,
                     pos,
@@ -525,16 +547,22 @@ class DependencyAnalyzer:
         # Circular dependencies
         cycles = self.find_circular_dependencies()
         if cycles:
-            console.print(f"\n[bold red]⚠️  Found {len(cycles)} circular dependencies:[/bold red]")
+            console.print(
+                f"\n[bold red]⚠️  Found {len(cycles)} circular dependencies:[/bold red]"
+            )
             for i, cycle in enumerate(cycles, 1):
                 console.print(f"  {i}. {' → '.join(cycle + [cycle[0]])}")
         else:
-            console.print("\n[bold green]✓ No circular dependencies detected[/bold green]")
+            console.print(
+                "\n[bold green]✓ No circular dependencies detected[/bold green]"
+            )
 
         # Critical path
         critical_path = self.get_critical_path()
         if critical_path:
-            console.print(f"\n[bold]Critical Path ({len(critical_path)} models):[/bold]")
+            console.print(
+                f"\n[bold]Critical Path ({len(critical_path)} models):[/bold]"
+            )
             console.print(f"  {' → '.join(critical_path)}")
 
         # Most depended-upon models

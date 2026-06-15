@@ -13,7 +13,9 @@ from pydantic import BaseModel, Field
 class PromotionHazardBase(BaseModel):
     """Global promotion hazard parameters."""
 
-    base_rate: float = Field(..., ge=0, le=1, description="Base promotion rate (0.0-1.0)")
+    base_rate: float = Field(
+        ..., ge=0, le=1, description="Base promotion rate (0.0-1.0)"
+    )
     level_dampener_factor: float = Field(
         ..., ge=0, le=1, description="Level dampening factor (0.0-1.0)"
     )

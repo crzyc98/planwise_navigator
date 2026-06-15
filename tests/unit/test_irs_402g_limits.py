@@ -45,14 +45,14 @@ compensation_strategy = st.decimals(
     max_value=Decimal("10000000"),  # Up to $10M
     places=2,
     allow_nan=False,
-    allow_infinity=False
+    allow_infinity=False,
 )
 deferral_rate_strategy = st.decimals(
     min_value=Decimal("0"),
     max_value=Decimal("1.0"),  # 0% to 100%
     places=4,
     allow_nan=False,
-    allow_infinity=False
+    allow_infinity=False,
 )
 plan_year_strategy = st.integers(min_value=2025, max_value=2035)
 
@@ -64,15 +64,11 @@ class TestIRSContributionLimitCompliance:
         age=age_strategy,
         compensation=compensation_strategy,
         deferral_rate=deferral_rate_strategy,
-        plan_year=plan_year_strategy
+        plan_year=plan_year_strategy,
     )
     @settings(max_examples=10000, deadline=timedelta(seconds=60))
     def test_contribution_never_exceeds_limit(
-        self,
-        age: int,
-        compensation: Decimal,
-        deferral_rate: Decimal,
-        plan_year: int
+        self, age: int, compensation: Decimal, deferral_rate: Decimal, plan_year: int
     ):
         """Core invariant: No contribution can ever exceed the IRS 402(g) limit.
 
@@ -94,7 +90,7 @@ class TestIRSContributionLimitCompliance:
             age=age,
             compensation=compensation,
             deferral_rate=deferral_rate,
-            irs_limits=irs_limits
+            irs_limits=irs_limits,
         )
 
         # Determine applicable limit based on age
@@ -114,15 +110,11 @@ class TestIRSContributionLimitCompliance:
         age=age_strategy,
         compensation=compensation_strategy,
         deferral_rate=deferral_rate_strategy,
-        plan_year=plan_year_strategy
+        plan_year=plan_year_strategy,
     )
     @settings(max_examples=10000, deadline=timedelta(seconds=60))
     def test_irs_limit_applied_flag_accuracy(
-        self,
-        age: int,
-        compensation: Decimal,
-        deferral_rate: Decimal,
-        plan_year: int
+        self, age: int, compensation: Decimal, deferral_rate: Decimal, plan_year: int
     ):
         """The irs_limit_applied flag must accurately reflect capping behavior.
 
@@ -141,7 +133,7 @@ class TestIRSContributionLimitCompliance:
             age=age,
             annual_compensation=compensation,
             deferral_rate=deferral_rate,
-            plan_year=plan_year
+            plan_year=plan_year,
         ).calculate_contributions(irs_limits)
 
         # Calculate expected flag value
@@ -163,14 +155,11 @@ class TestIRSContributionLimitCompliance:
     @given(
         compensation=compensation_strategy,
         deferral_rate=deferral_rate_strategy,
-        plan_year=plan_year_strategy
+        plan_year=plan_year_strategy,
     )
     @settings(max_examples=5000, deadline=timedelta(seconds=60))
     def test_age_threshold_boundary(
-        self,
-        compensation: Decimal,
-        deferral_rate: Decimal,
-        plan_year: int
+        self, compensation: Decimal, deferral_rate: Decimal, plan_year: int
     ):
         """Age threshold boundary must be correctly applied.
 
@@ -191,23 +180,23 @@ class TestIRSContributionLimitCompliance:
             age=age_below,
             compensation=compensation,
             deferral_rate=deferral_rate,
-            irs_limits=irs_limits
+            irs_limits=irs_limits,
         )
-        assert contrib_below <= Decimal(irs_limits.base_limit), (
-            f"Age {age_below} should use base_limit ${irs_limits.base_limit}"
-        )
+        assert contrib_below <= Decimal(
+            irs_limits.base_limit
+        ), f"Age {age_below} should use base_limit ${irs_limits.base_limit}"
 
         # Test at threshold
         contrib_at = calculate_max_contribution(
             age=threshold,
             compensation=compensation,
             deferral_rate=deferral_rate,
-            irs_limits=irs_limits
+            irs_limits=irs_limits,
         )
         # At threshold, can use catch_up_limit
-        assert contrib_at <= Decimal(irs_limits.catch_up_limit), (
-            f"Age {threshold} should use catch_up_limit ${irs_limits.catch_up_limit}"
-        )
+        assert contrib_at <= Decimal(
+            irs_limits.catch_up_limit
+        ), f"Age {threshold} should use catch_up_limit ${irs_limits.catch_up_limit}"
 
         # Test above threshold
         age_above = threshold + 1
@@ -215,25 +204,21 @@ class TestIRSContributionLimitCompliance:
             age=age_above,
             compensation=compensation,
             deferral_rate=deferral_rate,
-            irs_limits=irs_limits
+            irs_limits=irs_limits,
         )
-        assert contrib_above <= Decimal(irs_limits.catch_up_limit), (
-            f"Age {age_above} should use catch_up_limit ${irs_limits.catch_up_limit}"
-        )
+        assert contrib_above <= Decimal(
+            irs_limits.catch_up_limit
+        ), f"Age {age_above} should use catch_up_limit ${irs_limits.catch_up_limit}"
 
     @given(
         age=age_strategy,
         compensation=compensation_strategy,
         deferral_rate=deferral_rate_strategy,
-        plan_year=plan_year_strategy
+        plan_year=plan_year_strategy,
     )
     @settings(max_examples=10000, deadline=timedelta(seconds=60))
     def test_amount_capped_calculation_accuracy(
-        self,
-        age: int,
-        compensation: Decimal,
-        deferral_rate: Decimal,
-        plan_year: int
+        self, age: int, compensation: Decimal, deferral_rate: Decimal, plan_year: int
     ):
         """The amount_capped field must equal GREATEST(0, requested - actual).
 
@@ -250,12 +235,11 @@ class TestIRSContributionLimitCompliance:
             age=age,
             annual_compensation=compensation,
             deferral_rate=deferral_rate,
-            plan_year=plan_year
+            plan_year=plan_year,
         ).calculate_contributions(irs_limits)
 
         expected_capped = max(
-            Decimal(0),
-            scenario.requested_contribution - scenario.actual_contribution
+            Decimal(0), scenario.requested_contribution - scenario.actual_contribution
         )
 
         assert scenario.amount_capped == expected_capped, (
@@ -278,7 +262,9 @@ class TestIRSLimitConfigValidation:
 
     def test_catch_up_limit_exceeds_base_limit(self):
         """Catch-up limit must always exceed base limit."""
-        for year, limits in get_irs_limits_for_year.__globals__['IRS_LIMITS_BY_YEAR'].items():
+        for year, limits in get_irs_limits_for_year.__globals__[
+            "IRS_LIMITS_BY_YEAR"
+        ].items():
             assert limits.catch_up_limit > limits.base_limit, (
                 f"Year {year}: catch_up ${limits.catch_up_limit} "
                 f"should exceed base ${limits.base_limit}"
@@ -305,7 +291,7 @@ class TestEdgeCases:
             age=35,
             compensation=Decimal("0"),
             deferral_rate=Decimal("1.0"),
-            irs_limits=DEFAULT_IRS_LIMITS_2025
+            irs_limits=DEFAULT_IRS_LIMITS_2025,
         )
         assert contribution == Decimal("0")
 
@@ -315,7 +301,7 @@ class TestEdgeCases:
             age=35,
             compensation=Decimal("1000000"),
             deferral_rate=Decimal("0"),
-            irs_limits=DEFAULT_IRS_LIMITS_2025
+            irs_limits=DEFAULT_IRS_LIMITS_2025,
         )
         assert contribution == Decimal("0")
 
@@ -328,7 +314,7 @@ class TestEdgeCases:
             age=35,
             compensation=Decimal("500000"),
             deferral_rate=Decimal("1.0"),
-            irs_limits=limits
+            irs_limits=limits,
         )
         assert contribution_under_50 == Decimal(limits.base_limit)
 
@@ -337,7 +323,7 @@ class TestEdgeCases:
             age=55,
             compensation=Decimal("500000"),
             deferral_rate=Decimal("1.0"),
-            irs_limits=limits
+            irs_limits=limits,
         )
         assert contribution_over_50 == Decimal(limits.catch_up_limit)
 
@@ -347,16 +333,14 @@ class TestEdgeCases:
 
         # Contribution exactly at base limit
         assert is_contribution_compliant(
-            contribution_amount=Decimal(limits.base_limit),
-            age=35,
-            irs_limits=limits
+            contribution_amount=Decimal(limits.base_limit), age=35, irs_limits=limits
         )
 
         # Contribution exactly at catch-up limit
         assert is_contribution_compliant(
             contribution_amount=Decimal(limits.catch_up_limit),
             age=55,
-            irs_limits=limits
+            irs_limits=limits,
         )
 
     def test_one_dollar_over_limit_is_violation(self):
@@ -367,14 +351,14 @@ class TestEdgeCases:
         assert not is_contribution_compliant(
             contribution_amount=Decimal(limits.base_limit + 1),
             age=35,
-            irs_limits=limits
+            irs_limits=limits,
         )
 
         # One dollar over catch-up limit
         assert not is_contribution_compliant(
             contribution_amount=Decimal(limits.catch_up_limit + 1),
             age=55,
-            irs_limits=limits
+            irs_limits=limits,
         )
 
 
@@ -388,22 +372,19 @@ class TestComplianceGuarantee:
             max_value=Decimal("10000000"),
             places=2,
             allow_nan=False,
-            allow_infinity=False
+            allow_infinity=False,
         ),
         deferral_rate=st.decimals(
             min_value=Decimal("0.5"),  # High deferral rates
             max_value=Decimal("1.0"),
             places=4,
             allow_nan=False,
-            allow_infinity=False
-        )
+            allow_infinity=False,
+        ),
     )
     @settings(max_examples=10000, deadline=timedelta(seconds=60))
     def test_high_earners_always_compliant(
-        self,
-        age: int,
-        compensation: Decimal,
-        deferral_rate: Decimal
+        self, age: int, compensation: Decimal, deferral_rate: Decimal
     ):
         """High earners with high deferral rates must still be compliant.
 
@@ -416,13 +397,11 @@ class TestComplianceGuarantee:
             age=age,
             compensation=compensation,
             deferral_rate=deferral_rate,
-            irs_limits=limits
+            irs_limits=limits,
         )
 
         assert is_contribution_compliant(
-            contribution_amount=contribution,
-            age=age,
-            irs_limits=limits
+            contribution_amount=contribution, age=age, irs_limits=limits
         ), (
             f"COMPLIANCE FAILURE: age={age}, comp=${compensation:.2f}, "
             f"rate={deferral_rate:.4f}, contrib=${contribution:.2f}"

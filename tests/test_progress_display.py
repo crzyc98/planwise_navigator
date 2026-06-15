@@ -13,7 +13,9 @@ from planalign_cli.commands.simulate import LiveProgressTracker
 class TestLiveProgressTrackerState:
     """Test LiveProgressTracker internal state updates."""
 
-    def _make_tracker(self, total_years=3, start_year=2025, end_year=2027, verbose=False):
+    def _make_tracker(
+        self, total_years=3, start_year=2025, end_year=2027, verbose=False
+    ):
         return LiveProgressTracker(total_years, start_year, end_year, verbose)
 
     def test_update_year_sets_current_year(self):
@@ -129,7 +131,9 @@ class TestLiveProgressTrackerOnDbtLine:
         tracker._live = mock_live
 
         tracker.on_dbt_line("12 of 30 OK created")
-        mock_console.print.assert_called_once_with("12 of 30 OK created", highlight=False)
+        mock_console.print.assert_called_once_with(
+            "12 of 30 OK created", highlight=False
+        )
 
     def test_on_dbt_line_ignores_empty_lines(self):
         tracker = LiveProgressTracker(1, 2025, 2025, verbose=True)

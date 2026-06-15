@@ -122,7 +122,9 @@ def generate_mock_workforce_parquet(
             if term_date_start <= term_date_end:
                 time_delta = term_date_end - term_date_start
                 days_to_add = (
-                    _secure_rng.randint(0, time_delta.days) if time_delta.days > 0 else 0
+                    _secure_rng.randint(0, time_delta.days)
+                    if time_delta.days > 0
+                    else 0
                 )
                 termination_date = term_date_start + timedelta(days=days_to_add)
             else:  # If hire date is in future of base_year, no termination for this year
@@ -164,7 +166,9 @@ def generate_mock_workforce_parquet(
         employer_match_contribution = min(
             employee_contribution * employer_match_rate, gross_compensation * 0.03
         )
-        employer_core_contribution = gross_compensation * _secure_rng.uniform(0.01, 0.03)
+        employer_core_contribution = gross_compensation * _secure_rng.uniform(
+            0.01, 0.03
+        )
 
         # Capped compensation (IRS limits - $345,000 for 2024)
         employee_capped_compensation = min(gross_compensation, 345000.0)

@@ -164,7 +164,11 @@ class SmartCommandWrapper:
         # Prepare the actual command that would be executed
         cmd_parts = shlex.split(command_line)
 
-        if context["requires_venv"] and context["executable"] and cmd_parts[0] in ["python", "dbt", "dagster", "pytest"]:
+        if (
+            context["requires_venv"]
+            and context["executable"]
+            and cmd_parts[0] in ["python", "dbt", "dagster", "pytest"]
+        ):
             if cmd_parts[0] == "python":
                 cmd_parts[0] = str(context["executable"])
             else:
@@ -226,13 +230,18 @@ class SmartCommandWrapper:
         cmd_parts = shlex.split(command_line)
         original_command = cmd_parts[0]
 
-        if context["requires_venv"] and context["executable"] and cmd_parts[0] in [
+        if (
+            context["requires_venv"]
+            and context["executable"]
+            and cmd_parts[0]
+            in [
                 "python",
                 "dbt",
                 "dagster",
                 "pytest",
                 "pip",
-            ]:
+            ]
+        ):
             if cmd_parts[0] == "python":
                 cmd_parts[0] = str(context["executable"])
             else:

@@ -222,13 +222,19 @@ class ExportService:
 
         # Check file size
         if file_size > MAX_IMPORT_SIZE_BYTES:
-            errors.append(f"File size ({file_size / (1024*1024):.1f} MB) exceeds maximum allowed (1 GB)")
-            return ImportValidationResponse(valid=False, errors=errors, warnings=warnings)
+            errors.append(
+                f"File size ({file_size / (1024*1024):.1f} MB) exceeds maximum allowed (1 GB)"
+            )
+            return ImportValidationResponse(
+                valid=False, errors=errors, warnings=warnings
+            )
 
         try:
             manifest = self._extract_and_validate_manifest(archive_path, errors)
             if manifest is None:
-                return ImportValidationResponse(valid=False, errors=errors, warnings=warnings)
+                return ImportValidationResponse(
+                    valid=False, errors=errors, warnings=warnings
+                )
 
             # Check version compatibility
             if manifest.version > MANIFEST_VERSION:
@@ -242,7 +248,9 @@ class ExportService:
         except Exception as e:
             logger.exception("Error validating archive")
             errors.append(f"Validation error: {str(e)}")
-            return ImportValidationResponse(valid=False, errors=errors, warnings=warnings)
+            return ImportValidationResponse(
+                valid=False, errors=errors, warnings=warnings
+            )
 
         return ImportValidationResponse(
             valid=len(errors) == 0,
@@ -308,11 +316,15 @@ class ExportService:
                 return ImportConflict(
                     existing_workspace_id=ws.id,
                     existing_workspace_name=ws.name,
-                    suggested_name=self._generate_unique_name(workspace_name, existing_workspaces),
+                    suggested_name=self._generate_unique_name(
+                        workspace_name, existing_workspaces
+                    ),
                 )
         return None
 
-    def _generate_unique_name(self, base_name: str, existing_workspaces: List[Any]) -> str:
+    def _generate_unique_name(
+        self, base_name: str, existing_workspaces: List[Any]
+    ) -> str:
         """Generate a unique workspace name by appending (N).
 
         Args:
@@ -364,7 +376,9 @@ class ExportService:
         # Generate archive filename
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         # Sanitize workspace name for filename
-        safe_name = "".join(c if c.isalnum() or c in " -_" else "_" for c in workspace_name)
+        safe_name = "".join(
+            c if c.isalnum() or c in " -_" else "_" for c in workspace_name
+        )
         safe_name = safe_name.strip().replace(" ", "_")
         filename = f"{safe_name}_{timestamp}.7z"
 
@@ -376,12 +390,16 @@ class ExportService:
 
         try:
             # Create manifest
-            manifest = self.create_manifest(workspace_id, workspace_name, workspace_path)
+            manifest = self.create_manifest(
+                workspace_id, workspace_name, workspace_path
+            )
 
             # Create archive
             archive_size = self.create_archive(workspace_path, manifest, archive_path)
 
-            logger.info(f"Exported workspace '{workspace_name}' to {archive_path} ({archive_size} bytes)")
+            logger.info(
+                f"Exported workspace '{workspace_name}' to {archive_path} ({archive_size} bytes)"
+            )
 
             return archive_path, ExportResult(
                 workspace_id=workspace_id,
@@ -505,7 +523,9 @@ class ExportService:
                 with open(workspace_json_path, "rb") as f:
                     actual_checksum = hashlib.sha256(f.read()).hexdigest()
                 if actual_checksum != extracted_manifest.contents.checksum_sha256:
-                    warnings.append("Workspace checksum mismatch - file may have been modified")
+                    warnings.append(
+                        "Workspace checksum mismatch - file may have been modified"
+                    )
 
             # Create new workspace
             new_workspace_id = str(uuid.uuid4())
@@ -563,7 +583,8 @@ class ExportService:
         if not scenarios_path.exists():
             return 0
         return sum(
-            1 for d in scenarios_path.iterdir()
+            1
+            for d in scenarios_path.iterdir()
             if d.is_dir() and (d / "scenario.json").exists()
         )
 
@@ -590,7 +611,9 @@ class ExportService:
         self._export_temp_files[operation_id] = {}
         return status
 
-    def execute_bulk_export(self, operation_id: str, workspace_ids: List[str]) -> BulkExportStatus:
+    def execute_bulk_export(
+        self, operation_id: str, workspace_ids: List[str]
+    ) -> BulkExportStatus:
         """Execute bulk export operation.
 
         This should be called after start_bulk_export to actually perform the exports.
@@ -629,19 +652,23 @@ class ExportService:
 
             except Exception as e:
                 logger.exception(f"Failed to export workspace {workspace_id}")
-                status.results.append(ExportResult(
-                    workspace_id=workspace_id,
-                    workspace_name=workspace.name if workspace else "Unknown",
-                    status=ExportStatus.FAILED,
-                    error=str(e),
-                ))
+                status.results.append(
+                    ExportResult(
+                        workspace_id=workspace_id,
+                        workspace_name=workspace.name if workspace else "Unknown",
+                        status=ExportStatus.FAILED,
+                        error=str(e),
+                    )
+                )
 
             status.completed += 1
 
         status.current_workspace = None
-        status.status = BulkOperationStatus.COMPLETED if all(
-            r.status == ExportStatus.SUCCESS for r in status.results
-        ) else BulkOperationStatus.FAILED
+        status.status = (
+            BulkOperationStatus.COMPLETED
+            if all(r.status == ExportStatus.SUCCESS for r in status.results)
+            else BulkOperationStatus.FAILED
+        )
 
         return status
 
@@ -656,7 +683,9 @@ class ExportService:
         """
         return self._bulk_export_operations.get(operation_id)
 
-    def get_export_archive_path(self, operation_id: str, workspace_id: str) -> Optional[Path]:
+    def get_export_archive_path(
+        self, operation_id: str, workspace_id: str
+    ) -> Optional[Path]:
         """Get path to exported archive for download.
 
         Args:

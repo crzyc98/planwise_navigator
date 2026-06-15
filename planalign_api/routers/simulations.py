@@ -33,6 +33,7 @@ router = APIRouter()
 
 # Import for logging
 import logging
+
 logger = logging.getLogger(__name__)
 
 
@@ -167,18 +168,20 @@ async def get_run_status(
 
     # Feature 094 (T020): report the persisted scenario status faithfully —
     # never fabricate completed/100% for scenarios that failed or never ran.
-    persisted = scenario.status if scenario.status in (
-        "running", "completed", "failed", "cancelled"
-    ) else "pending"
+    persisted = (
+        scenario.status
+        if scenario.status in ("running", "completed", "failed", "cancelled")
+        else "pending"
+    )
     return SimulationRun(
         id=scenario.last_run_id or "unknown",
         scenario_id=scenario_id,
         status=persisted,
         progress=100 if persisted == "completed" else 0,
         started_at=scenario.last_run_at or datetime.now(timezone.utc),
-        completed_at=scenario.last_run_at if persisted in (
-            "completed", "failed", "cancelled"
-        ) else None,
+        completed_at=scenario.last_run_at
+        if persisted in ("completed", "failed", "cancelled")
+        else None,
     )
 
 
@@ -227,9 +230,11 @@ async def get_run_telemetry(
             telemetry=None,
         )
 
-    persisted = scenario.status if scenario.status in (
-        "pending", "running", "completed", "failed", "cancelled"
-    ) else "not_run"
+    persisted = (
+        scenario.status
+        if scenario.status in ("pending", "running", "completed", "failed", "cancelled")
+        else "not_run"
+    )
     return RunTelemetryResponse(
         run={"run_id": run_id, "status": persisted, "error_message": None},
         telemetry=None,
@@ -340,23 +345,35 @@ async def list_runs(
                             metadata = json.load(f)
 
                         # Count artifacts
-                        artifact_count = sum(1 for f in run_dir.iterdir() if f.is_file())
+                        artifact_count = sum(
+                            1 for f in run_dir.iterdir() if f.is_file()
+                        )
 
-                        runs.append(RunSummary(
-                            id=run_dir.name,
-                            scenario_id=scenario_id,
-                            status=metadata.get("status", "completed"),
-                            started_at=datetime.fromisoformat(metadata["started_at"]),
-                            completed_at=datetime.fromisoformat(metadata["completed_at"]) if metadata.get("completed_at") else None,
-                            duration_seconds=metadata.get("duration_seconds"),
-                            start_year=metadata.get("start_year"),
-                            end_year=metadata.get("end_year"),
-                            total_events=metadata.get("events_generated"),
-                            final_headcount=metadata.get("final_headcount"),
-                            artifact_count=artifact_count,
-                        ))
+                        runs.append(
+                            RunSummary(
+                                id=run_dir.name,
+                                scenario_id=scenario_id,
+                                status=metadata.get("status", "completed"),
+                                started_at=datetime.fromisoformat(
+                                    metadata["started_at"]
+                                ),
+                                completed_at=datetime.fromisoformat(
+                                    metadata["completed_at"]
+                                )
+                                if metadata.get("completed_at")
+                                else None,
+                                duration_seconds=metadata.get("duration_seconds"),
+                                start_year=metadata.get("start_year"),
+                                end_year=metadata.get("end_year"),
+                                total_events=metadata.get("events_generated"),
+                                final_headcount=metadata.get("final_headcount"),
+                                artifact_count=artifact_count,
+                            )
+                        )
                     except Exception as e:
-                        logger.warning(f"Error loading run metadata from {run_dir}: {e}")
+                        logger.warning(
+                            f"Error loading run metadata from {run_dir}: {e}"
+                        )
                         continue
 
     # Also check for legacy runs in results/ folder (migration path)
@@ -376,21 +393,29 @@ async def list_runs(
                 existing_ids = {r.id for r in runs}
                 if run_id not in existing_ids:
                     # Count artifacts in results folder
-                    artifact_count = sum(1 for f in results_path.iterdir() if f.is_file())
+                    artifact_count = sum(
+                        1 for f in results_path.iterdir() if f.is_file()
+                    )
 
-                    runs.append(RunSummary(
-                        id=run_id,
-                        scenario_id=scenario_id,
-                        status=metadata.get("status", "completed"),
-                        started_at=datetime.fromisoformat(metadata["started_at"]),
-                        completed_at=datetime.fromisoformat(metadata["completed_at"]) if metadata.get("completed_at") else None,
-                        duration_seconds=metadata.get("duration_seconds"),
-                        start_year=metadata.get("start_year"),
-                        end_year=metadata.get("end_year"),
-                        total_events=metadata.get("events_generated"),
-                        final_headcount=metadata.get("final_headcount"),
-                        artifact_count=artifact_count,
-                    ))
+                    runs.append(
+                        RunSummary(
+                            id=run_id,
+                            scenario_id=scenario_id,
+                            status=metadata.get("status", "completed"),
+                            started_at=datetime.fromisoformat(metadata["started_at"]),
+                            completed_at=datetime.fromisoformat(
+                                metadata["completed_at"]
+                            )
+                            if metadata.get("completed_at")
+                            else None,
+                            duration_seconds=metadata.get("duration_seconds"),
+                            start_year=metadata.get("start_year"),
+                            end_year=metadata.get("end_year"),
+                            total_events=metadata.get("events_generated"),
+                            final_headcount=metadata.get("final_headcount"),
+                            artifact_count=artifact_count,
+                        )
+                    )
             except Exception as e:
                 logger.warning(f"Error loading legacy run metadata: {e}")
 
@@ -453,6 +478,7 @@ async def get_run(
     if config_file.exists():
         try:
             import yaml
+
             with open(config_file) as f:
                 config = yaml.safe_load(f)
         except Exception:
@@ -463,13 +489,17 @@ async def get_run(
     for file_path in run_path.iterdir():
         if file_path.is_file():
             stat = file_path.stat()
-            artifacts.append(Artifact(
-                name=file_path.name,
-                type=_get_artifact_type(file_path.name),
-                size_bytes=stat.st_size,
-                path=f"runs/{run_id}/{file_path.name}" if "runs" in str(run_path) else f"results/{file_path.name}",
-                created_at=datetime.fromtimestamp(stat.st_ctime),
-            ))
+            artifacts.append(
+                Artifact(
+                    name=file_path.name,
+                    type=_get_artifact_type(file_path.name),
+                    size_bytes=stat.st_size,
+                    path=f"runs/{run_id}/{file_path.name}"
+                    if "runs" in str(run_path)
+                    else f"results/{file_path.name}",
+                    created_at=datetime.fromtimestamp(stat.st_ctime),
+                )
+            )
 
     return RunDetails(
         id=run_id,
@@ -478,8 +508,12 @@ async def get_run(
         workspace_id=workspace.id,
         workspace_name=workspace.name,
         status=metadata.get("status", "completed"),
-        started_at=datetime.fromisoformat(metadata["started_at"]) if metadata.get("started_at") else None,
-        completed_at=datetime.fromisoformat(metadata["completed_at"]) if metadata.get("completed_at") else None,
+        started_at=datetime.fromisoformat(metadata["started_at"])
+        if metadata.get("started_at")
+        else None,
+        completed_at=datetime.fromisoformat(metadata["completed_at"])
+        if metadata.get("completed_at")
+        else None,
         duration_seconds=metadata.get("duration_seconds"),
         start_year=metadata.get("start_year"),
         end_year=metadata.get("end_year"),
@@ -513,9 +547,7 @@ async def get_run_logs(
     scenario_path = storage._scenario_path(workspace.id, scenario_id)
     log_file = scenario_path / "runs" / run_id / "simulation.log"
 
-    is_active = (
-        run_id in _active_runs and _active_runs[run_id].status == "running"
-    )
+    is_active = run_id in _active_runs and _active_runs[run_id].status == "running"
 
     if not log_file.exists():
         return LogPage(
@@ -537,7 +569,7 @@ async def get_run_logs(
 
     total = len(lines)
     offset = (page - 1) * page_size
-    page_lines = lines[offset: offset + page_size]
+    page_lines = lines[offset : offset + page_size]
 
     return LogPage(
         run_id=run_id,
@@ -570,8 +602,8 @@ def _parse_log_file(log_file: Path) -> List[SimulationLogLine]:
             bracket_open = raw_line.index(" [")
             bracket_close = raw_line.index("] ", bracket_open)
             ts_str = raw_line[:bracket_open]
-            sev = raw_line[bracket_open + 2: bracket_close]
-            msg = raw_line[bracket_close + 2:]
+            sev = raw_line[bracket_open + 2 : bracket_close]
+            msg = raw_line[bracket_close + 2 :]
             # Parse timestamp — strip trailing Z and add UTC
             ts_str_clean = ts_str.rstrip("Z")
             ts = datetime.fromisoformat(ts_str_clean).replace(tzinfo=timezone.utc)
@@ -582,7 +614,9 @@ def _parse_log_file(log_file: Path) -> List[SimulationLogLine]:
             sev = "INFO"
             msg = raw_line
 
-        lines.append(SimulationLogLine(sequence=seq, timestamp=ts, severity=sev, message=msg))
+        lines.append(
+            SimulationLogLine(sequence=seq, timestamp=ts, severity=sev, message=msg)
+        )
 
     return lines
 
@@ -798,7 +832,9 @@ async def get_run_details(
 
         # First try: Look in runs/{run_id}/ directory (new structure)
         if scenario.last_run_id:
-            metadata_path = scenario_path / "runs" / scenario.last_run_id / "run_metadata.json"
+            metadata_path = (
+                scenario_path / "runs" / scenario.last_run_id / "run_metadata.json"
+            )
             if metadata_path.exists():
                 try:
                     with open(metadata_path) as f:
@@ -857,7 +893,9 @@ async def get_run_details(
             if scenario.last_run_id and scenario.last_run_id in _active_runs:
                 active_run = _active_runs[scenario.last_run_id]
                 if active_run.started_at:
-                    duration_seconds = (datetime.now() - active_run.started_at).total_seconds()
+                    duration_seconds = (
+                        datetime.now() - active_run.started_at
+                    ).total_seconds()
 
         # Get simulation years from config
         sim_config = config.get("simulation", {}) if config else {}

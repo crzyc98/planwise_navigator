@@ -2,12 +2,15 @@ from pathlib import Path
 
 import duckdb
 
-from planalign_orchestrator.reports import (EXECUTIVE_SUMMARY_TEMPLATE,
-                                            ConsoleReporter, MultiYearReporter,
-                                            ReportTemplate, YearAuditor)
+from planalign_orchestrator.reports import (
+    EXECUTIVE_SUMMARY_TEMPLATE,
+    ConsoleReporter,
+    MultiYearReporter,
+    ReportTemplate,
+    YearAuditor,
+)
 from planalign_orchestrator.utils import DatabaseConnectionManager
-from planalign_orchestrator.validation import (DataValidator,
-                                               HireTerminationRatioRule)
+from planalign_orchestrator.validation import DataValidator, HireTerminationRatioRule
 
 
 def _seed_year(
@@ -29,7 +32,9 @@ def _seed_year(
     hire_participating = min(hires, participating)
     hire_non_participating = hires - hire_participating
     rows += [(year, "active", "new_hire_active", "participating")] * hire_participating
-    rows += [(year, "active", "new_hire_active", "non_participating")] * hire_non_participating
+    rows += [
+        (year, "active", "new_hire_active", "non_participating")
+    ] * hire_non_participating
     # Terminations (employment_status='terminated')
     rows += [(year, "terminated", "terminated", "non_participating")] * terms
     # Remaining active employees
@@ -37,7 +42,9 @@ def _seed_year(
     remaining_participating = max(0, participating - hire_participating)
     remaining_non_participating = remaining_active - remaining_participating
     rows += [(year, "active", "active", "participating")] * remaining_participating
-    rows += [(year, "active", "active", "non_participating")] * remaining_non_participating
+    rows += [
+        (year, "active", "active", "non_participating")
+    ] * remaining_non_participating
     conn.executemany("INSERT INTO fct_workforce_snapshot VALUES (?,?,?,?)", rows)
 
     # events

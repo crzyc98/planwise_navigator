@@ -35,21 +35,13 @@ class WinnersLosersResponse(BaseModel):
     plan_a_scenario_id: str = Field(description="Plan A scenario ID")
     plan_b_scenario_id: str = Field(description="Plan B scenario ID")
     final_year: int = Field(description="Simulation year used for comparison")
-    total_compared: int = Field(
-        description="Employees present in both scenarios"
-    )
-    total_excluded: int = Field(
-        description="Employees present in only one scenario"
-    )
+    total_compared: int = Field(description="Employees present in both scenarios")
+    total_excluded: int = Field(description="Employees present in only one scenario")
     total_winners: int = Field(description="Total winners")
     total_losers: int = Field(description="Total losers")
     total_neutral: int = Field(description="Total neutral")
-    age_band_results: List[BandGroupResult] = Field(
-        description="Breakdown by age band"
-    )
+    age_band_results: List[BandGroupResult] = Field(description="Breakdown by age band")
     tenure_band_results: List[BandGroupResult] = Field(
         description="Breakdown by tenure band"
     )
-    heatmap: List[HeatmapCell] = Field(
-        description="Age × tenure grid cells"
-    )
+    heatmap: List[HeatmapCell] = Field(description="Age × tenure grid cells")

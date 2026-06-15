@@ -18,6 +18,7 @@ import yaml
 try:
     import git
     from git import Repo, GitCommandError, InvalidGitRepositoryError
+
     GIT_AVAILABLE = True
 except ImportError:
     GIT_AVAILABLE = False
@@ -73,16 +74,19 @@ SYNC_LOG_FILE = ".planalign-sync-log.json"
 
 class SyncError(Exception):
     """Base exception for sync operations."""
+
     pass
 
 
 class SyncAuthError(SyncError):
     """Authentication failed with remote."""
+
     pass
 
 
 class SyncConflictError(SyncError):
     """Conflict detected during sync."""
+
     def __init__(self, message: str, conflicting_files: List[str]):
         super().__init__(message)
         self.conflicting_files = conflicting_files
@@ -90,6 +94,7 @@ class SyncConflictError(SyncError):
 
 class SyncNetworkError(SyncError):
     """Network error during sync."""
+
     pass
 
 
@@ -305,7 +310,11 @@ class SyncService:
         self._stage_syncable_files(repo)
 
         # Only commit if there are staged changes
-        if repo.index.diff("HEAD", staged=True) if repo.head.is_valid() else repo.index.entries:
+        if (
+            repo.index.diff("HEAD", staged=True)
+            if repo.head.is_valid()
+            else repo.index.entries
+        ):
             repo.index.commit("Initial PlanAlign workspace sync")
 
     def _stage_syncable_files(self, repo: Repo) -> int:
@@ -691,7 +700,8 @@ class SyncService:
                 scenario_count = 0
                 if scenarios_dir.exists():
                     scenario_count = sum(
-                        1 for d in scenarios_dir.iterdir()
+                        1
+                        for d in scenarios_dir.iterdir()
                         if d.is_dir() and (d / "scenario.json").exists()
                     )
 
@@ -710,12 +720,14 @@ class SyncService:
                                 has_changes = True
                                 break
 
-                infos.append(WorkspaceSyncInfo(
-                    workspace_id=data["id"],
-                    workspace_name=data["name"],
-                    scenario_count=scenario_count,
-                    has_local_changes=has_changes,
-                ))
+                infos.append(
+                    WorkspaceSyncInfo(
+                        workspace_id=data["id"],
+                        workspace_name=data["name"],
+                        scenario_count=scenario_count,
+                        has_local_changes=has_changes,
+                    )
+                )
 
             except Exception as e:
                 logger.warning(f"Failed to get sync info for {workspace_dir}: {e}")

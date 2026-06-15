@@ -105,7 +105,9 @@ class TurnoverAnalysisService:
             for col_name in CENSUS_TERMINATION_DATE_COLUMNS:
                 if col_name in columns:
                     term_date_col = validate_column_name_from_set(
-                        col_name, CENSUS_TERMINATION_DATE_COLUMNS, "termination date column"
+                        col_name,
+                        CENSUS_TERMINATION_DATE_COLUMNS,
+                        "termination date column",
                     )
                     break
 
@@ -134,10 +136,14 @@ class TurnoverAnalysisService:
             )
 
             # Remove rows with invalid tenure
-            conn.execute("DELETE FROM census WHERE _tenure_years < 0 OR _tenure_years IS NULL")
+            conn.execute(
+                "DELETE FROM census WHERE _tenure_years < 0 OR _tenure_years IS NULL"
+            )
 
             # Determine terminated status
-            conn.execute("ALTER TABLE census ADD COLUMN _is_terminated BOOLEAN DEFAULT false")
+            conn.execute(
+                "ALTER TABLE census ADD COLUMN _is_terminated BOOLEAN DEFAULT false"
+            )
 
             if term_date_col:
                 # Primary: use termination date column
@@ -166,9 +172,7 @@ class TurnoverAnalysisService:
                 )
 
             # Calculate totals
-            total_employees = conn.execute(
-                "SELECT COUNT(*) FROM census"
-            ).fetchone()[0]
+            total_employees = conn.execute("SELECT COUNT(*) FROM census").fetchone()[0]
 
             total_terminated = conn.execute(
                 "SELECT COUNT(*) FROM census WHERE _is_terminated = true"

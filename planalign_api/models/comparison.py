@@ -19,9 +19,7 @@ class WorkforceComparisonYear(BaseModel):
     """Workforce comparison for a single year."""
 
     year: int = Field(description="Simulation year")
-    values: Dict[str, WorkforceMetrics] = Field(
-        description="Metrics by scenario ID"
-    )
+    values: Dict[str, WorkforceMetrics] = Field(description="Metrics by scenario ID")
     deltas: Dict[str, WorkforceMetrics] = Field(
         description="Delta from baseline by scenario ID"
     )
@@ -55,18 +53,12 @@ class DCPlanMetrics(BaseModel):
     total_employee_contributions: float = Field(
         default=0.0, description="Total employee contributions"
     )
-    total_employer_match: float = Field(
-        default=0.0, description="Total employer match"
-    )
-    total_employer_core: float = Field(
-        default=0.0, description="Total employer core"
-    )
+    total_employer_match: float = Field(default=0.0, description="Total employer match")
+    total_employer_core: float = Field(default=0.0, description="Total employer core")
     total_employer_cost: float = Field(
         default=0.0, description="Total employer cost (match + core)"
     )
-    employer_cost_rate: float = Field(
-        default=0.0, description="Employer cost rate (%)"
-    )
+    employer_cost_rate: float = Field(default=0.0, description="Employer cost rate (%)")
     participant_count: int = Field(
         default=0, description="Number of enrolled employees"
     )
@@ -76,9 +68,7 @@ class DCPlanComparisonYear(BaseModel):
     """DC plan comparison for a single year."""
 
     year: int = Field(description="Simulation year")
-    values: Dict[str, DCPlanMetrics] = Field(
-        description="Metrics by scenario ID"
-    )
+    values: Dict[str, DCPlanMetrics] = Field(description="Metrics by scenario ID")
     deltas: Dict[str, DCPlanMetrics] = Field(
         description="Delta from baseline by scenario ID"
     )

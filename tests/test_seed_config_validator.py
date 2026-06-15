@@ -38,7 +38,9 @@ def _valid_promotion_hazard() -> dict:
     }
 
 
-def _valid_band(band_id: str, label: str, min_val: float, max_val: float, order: int) -> dict:
+def _valid_band(
+    band_id: str, label: str, min_val: float, max_val: float, order: int
+) -> dict:
     return {
         "band_id": band_id,
         "band_label": label,
@@ -308,7 +310,12 @@ class TestValidatePromotionHazard:
         errors = validate_promotion_hazard({})
         assert len(errors) == 4
         fields = {e.field for e in errors}
-        assert fields == {"base_rate", "level_dampener_factor", "age_multipliers", "tenure_multipliers"}
+        assert fields == {
+            "base_rate",
+            "level_dampener_factor",
+            "age_multipliers",
+            "tenure_multipliers",
+        }
 
     def test_multiple_bad_multiplier_entries(self):
         config = _valid_promotion_hazard()
@@ -357,9 +364,16 @@ class TestValidateBands:
 
     # --- missing required fields ---
 
-    @pytest.mark.parametrize("missing_field", [
-        "band_id", "band_label", "min_value", "max_value", "display_order",
-    ])
+    @pytest.mark.parametrize(
+        "missing_field",
+        [
+            "band_id",
+            "band_label",
+            "min_value",
+            "max_value",
+            "display_order",
+        ],
+    )
     def test_missing_required_field(self, missing_field):
         band = _valid_band("b1", "0-25", 0, 25, 1)
         del band[missing_field]
@@ -453,7 +467,7 @@ class TestValidateBands:
     def test_structural_error_prevents_gap_overlap_check(self):
         """When a band has max <= min, we get the structural error but not gap/overlap."""
         bands = [
-            _valid_band("b1", "bad", 10, 5, 1),   # max < min
+            _valid_band("b1", "bad", 10, 5, 1),  # max < min
             _valid_band("b2", "also_bad", 20, 15, 2),  # max < min
         ]
         errors = validate_bands(bands, "age")
@@ -486,11 +500,13 @@ class TestValidateSeedConfigs:
         assert errors == []
 
     def test_all_valid_sections_no_errors(self):
-        errors = validate_seed_configs({
-            "promotion_hazard": _valid_promotion_hazard(),
-            "age_bands": _valid_age_bands(),
-            "tenure_bands": _valid_tenure_bands(),
-        })
+        errors = validate_seed_configs(
+            {
+                "promotion_hazard": _valid_promotion_hazard(),
+                "age_bands": _valid_age_bands(),
+                "tenure_bands": _valid_tenure_bands(),
+            }
+        )
         assert errors == []
 
     def test_invalid_promotion_hazard_returns_errors_with_correct_section(self):
@@ -517,11 +533,13 @@ class TestValidateSeedConfigs:
         assert "must be a dict" in errors[0].message
 
     def test_multiple_invalid_sections_all_errors_collected(self):
-        errors = validate_seed_configs({
-            "promotion_hazard": {},         # missing all 4 fields
-            "age_bands": [],                # empty
-            "tenure_bands": [],             # empty
-        })
+        errors = validate_seed_configs(
+            {
+                "promotion_hazard": {},  # missing all 4 fields
+                "age_bands": [],  # empty
+                "tenure_bands": [],  # empty
+            }
+        )
         sections_with_errors = {e.section for e in errors}
         assert "promotion_hazard" in sections_with_errors
         assert "age_bands" in sections_with_errors
@@ -540,10 +558,12 @@ class TestValidateSeedConfigs:
 
     def test_invalid_tenure_bands_with_valid_promotion_hazard(self):
         """Errors from one section don't suppress validation of other sections."""
-        errors = validate_seed_configs({
-            "promotion_hazard": _valid_promotion_hazard(),
-            "tenure_bands": [],
-        })
+        errors = validate_seed_configs(
+            {
+                "promotion_hazard": _valid_promotion_hazard(),
+                "tenure_bands": [],
+            }
+        )
         assert len(errors) == 1
         assert errors[0].section == "tenure_bands"
 

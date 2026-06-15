@@ -4,7 +4,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from planalign_api.services.simulation.service import SimulationService
-from planalign_api.services.simulation import SimulationService as PackageSimulationService
+from planalign_api.services.simulation import (
+    SimulationService as PackageSimulationService,
+)
 
 
 @pytest.mark.fast

@@ -69,7 +69,10 @@ class DatabaseMigrator:
         required_space = source_size * 2  # Source + backup + buffer
 
         if available_space < required_space:
-            return False, f"Insufficient disk space. Need {required_space / (1024**3):.2f} GB, have {available_space / (1024**3):.2f} GB"
+            return (
+                False,
+                f"Insufficient disk space. Need {required_space / (1024**3):.2f} GB, have {available_space / (1024**3):.2f} GB",
+            )
 
         return True, "Migration preconditions satisfied"
 
@@ -103,12 +106,17 @@ class DatabaseMigrator:
 
                 # Look for any of the expected simulation tables
                 expected_tables = {
-                    'fct_yearly_events', 'fct_workforce_snapshot',
-                    'stg_census_data', 'int_baseline_workforce'
+                    "fct_yearly_events",
+                    "fct_workforce_snapshot",
+                    "stg_census_data",
+                    "int_baseline_workforce",
                 }
 
                 if not any(table in table_names for table in expected_tables):
-                    self.log(f"Warning: No expected simulation tables found. Tables: {table_names}", "WARN")
+                    self.log(
+                        f"Warning: No expected simulation tables found. Tables: {table_names}",
+                        "WARN",
+                    )
                     # Don't fail if no expected tables - might be empty database
 
                 return True
@@ -135,10 +143,15 @@ class DatabaseMigrator:
                     self.log(message)
                     return True
                 elif "already exists" in message and not force:
-                    self.log(f"Migration blocked: {message}. Use --force to overwrite.", "ERROR")
+                    self.log(
+                        f"Migration blocked: {message}. Use --force to overwrite.",
+                        "ERROR",
+                    )
                     return False
                 elif "already exists" in message and force:
-                    self.log("Forcing migration - removing existing target database", "WARN")
+                    self.log(
+                        "Forcing migration - removing existing target database", "WARN"
+                    )
                     self.target_path.unlink()
                 else:
                     self.log(f"Migration failed: {message}", "ERROR")
@@ -203,7 +216,9 @@ class DatabaseMigrator:
             # Create relative symlink
             relative_target = os.path.relpath(self.target_path, self.root_path.parent)
             self.root_path.symlink_to(relative_target)
-            self.log(f"Created compatibility symlink: {self.root_path} -> {relative_target}")
+            self.log(
+                f"Created compatibility symlink: {self.root_path} -> {relative_target}"
+            )
             return True
         except Exception as e:
             self.log(f"Failed to create symlink: {e}", "ERROR")
@@ -221,7 +236,9 @@ class DatabaseMigrator:
 
         try:
             # Final verification that target exists and works
-            if not self.target_path.exists() or not self._verify_database_integrity(self.target_path):
+            if not self.target_path.exists() or not self._verify_database_integrity(
+                self.target_path
+            ):
                 self.log("Cannot cleanup - target database not verified", "ERROR")
                 return False
 
@@ -249,22 +266,24 @@ class DatabaseMigrator:
 
         report_lines.extend(self.migration_log)
 
-        report_lines.extend([
-            "",
-            "Post-Migration Status:",
-            "-" * 40,
-            f"Source exists: {self.root_path.exists()}",
-            f"Target exists: {self.target_path.exists()}",
-            f"Target size: {self.target_path.stat().st_size if self.target_path.exists() else 'N/A'} bytes",
-            "",
-            "Next Steps:",
-            "-" * 40,
-            "1. Test applications with new database location",
-            "2. Update any remaining hardcoded paths",
-            "3. Consider creating compatibility symlink if needed",
-            "4. Update team documentation and notify developers",
-            "=" * 60
-        ])
+        report_lines.extend(
+            [
+                "",
+                "Post-Migration Status:",
+                "-" * 40,
+                f"Source exists: {self.root_path.exists()}",
+                f"Target exists: {self.target_path.exists()}",
+                f"Target size: {self.target_path.stat().st_size if self.target_path.exists() else 'N/A'} bytes",
+                "",
+                "Next Steps:",
+                "-" * 40,
+                "1. Test applications with new database location",
+                "2. Update any remaining hardcoded paths",
+                "3. Consider creating compatibility symlink if needed",
+                "4. Update team documentation and notify developers",
+                "=" * 60,
+            ]
+        )
 
         return "\n".join(report_lines)
 
@@ -287,32 +306,36 @@ Examples:
 
     # Create transition symlink after migration
     python scripts/migrate_database_location.py --create-symlink
-        """
+        """,
     )
 
     parser.add_argument(
-        "--dry-run", action="store_true",
-        help="Show what would be done without making changes"
+        "--dry-run",
+        action="store_true",
+        help="Show what would be done without making changes",
     )
     parser.add_argument(
-        "--force", action="store_true",
-        help="Overwrite existing target database if it exists"
+        "--force",
+        action="store_true",
+        help="Overwrite existing target database if it exists",
     )
     parser.add_argument(
-        "--create-symlink", action="store_true",
-        help="Create compatibility symlink for transition period"
+        "--create-symlink",
+        action="store_true",
+        help="Create compatibility symlink for transition period",
     )
     parser.add_argument(
-        "--cleanup", action="store_true",
-        help="Remove old database file after migration (requires --confirm)"
+        "--cleanup",
+        action="store_true",
+        help="Remove old database file after migration (requires --confirm)",
     )
     parser.add_argument(
-        "--confirm", action="store_true",
-        help="Confirm destructive operations"
+        "--confirm", action="store_true", help="Confirm destructive operations"
     )
     parser.add_argument(
-        "--project-root", type=Path,
-        help="Project root directory (default: current directory)"
+        "--project-root",
+        type=Path,
+        help="Project root directory (default: current directory)",
     )
 
     args = parser.parse_args()

@@ -98,8 +98,11 @@ class SabbaticalPayload(BaseModel):
     end_date: date
     reason: Literal["academic", "personal", "medical", "community_service"]
     compensation_percentage: Decimal = Field(
-        ..., ge=0, le=1, decimal_places=4,
-        description="Percentage of salary continued during sabbatical (0.0 to 1.0)"
+        ...,
+        ge=0,
+        le=1,
+        decimal_places=4,
+        description="Percentage of salary continued during sabbatical (0.0 to 1.0)",
     )
 
     @field_validator("compensation_percentage")

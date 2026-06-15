@@ -6,12 +6,16 @@ from pathlib import Path
 
 import pytest
 
-from planalign_api.models.opt_out import OptOutRateAnalysisRequest, OptOutRateAnalysisResult
+from planalign_api.models.opt_out import (
+    OptOutRateAnalysisRequest,
+    OptOutRateAnalysisResult,
+)
 
 
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
+
 
 def _write_csv(path: Path, rows: list[dict]) -> None:
     """Write a list of dicts as a CSV file."""
@@ -35,6 +39,7 @@ def _hire_date(years_ago: float, anchor: date | None = None) -> str:
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def workspaces_root(tmp_path: Path) -> Path:
     root = tmp_path / "workspaces"
@@ -52,12 +57,14 @@ def workspace_dir(workspaces_root: Path) -> Path:
 @pytest.fixture
 def service(workspaces_root: Path):
     from planalign_api.services.opt_out_service import OptOutAnalysisService
+
     return OptOutAnalysisService(workspaces_root)
 
 
 # ===========================================================================
 # Phase 3 Tests (US1) — write BEFORE service implementation
 # ===========================================================================
+
 
 @pytest.mark.fast
 class TestEnrollmentDetection:
@@ -75,7 +82,9 @@ class TestEnrollmentDetection:
         csv_path = workspace_dir / "census.csv"
         _write_csv(csv_path, rows)
 
-        result = service.analyze_opt_out_rate("test-ws", str(csv_path), lookback_years=3)
+        result = service.analyze_opt_out_rate(
+            "test-ws", str(csv_path), lookback_years=3
+        )
 
         assert result.non_participant_count == 2
         assert result.eligible_count == 5
@@ -89,7 +98,9 @@ class TestEnrollmentDetection:
         csv_path = workspace_dir / "census.csv"
         _write_csv(csv_path, rows)
 
-        result = service.analyze_opt_out_rate("test-ws", str(csv_path), lookback_years=3)
+        result = service.analyze_opt_out_rate(
+            "test-ws", str(csv_path), lookback_years=3
+        )
 
         assert result.non_participant_count == 1
         assert result.eligible_count == 1
@@ -109,7 +120,9 @@ class TestEndpointContract:
         csv_path = workspace_dir / "census.csv"
         _write_csv(csv_path, rows)
 
-        result = service.analyze_opt_out_rate("test-ws", str(csv_path), lookback_years=3)
+        result = service.analyze_opt_out_rate(
+            "test-ws", str(csv_path), lookback_years=3
+        )
 
         assert isinstance(result, OptOutRateAnalysisResult)
         assert result.eligible_count == 2
@@ -124,6 +137,7 @@ class TestEndpointContract:
 # Phase 4 Tests (US2) — lookback filtering
 # ===========================================================================
 
+
 @pytest.mark.fast
 class TestLookbackFiltering:
     """T014, T015: Lookback filter and anchor behavior."""
@@ -133,16 +147,34 @@ class TestLookbackFiltering:
         anchor = date(2024, 6, 1)
         rows = (
             # 5 employees hired 4 years ago (outside 2-year window)
-            [{"hire_date": _hire_date(4, anchor), "deferral_rate": 0.00, "active": "true"}] * 5
+            [
+                {
+                    "hire_date": _hire_date(4, anchor),
+                    "deferral_rate": 0.00,
+                    "active": "true",
+                }
+            ]
+            * 5
             +
             # 3 employees hired 1 year ago (inside 2-year window)
-            [{"hire_date": _hire_date(1, anchor), "deferral_rate": 0.00, "active": "true"}] * 3
+            [
+                {
+                    "hire_date": _hire_date(1, anchor),
+                    "deferral_rate": 0.00,
+                    "active": "true",
+                }
+            ]
+            * 3
         )
         csv_path = workspace_dir / "census.csv"
         _write_csv(csv_path, rows)
 
-        result_2yr = service.analyze_opt_out_rate("test-ws", str(csv_path), lookback_years=2)
-        result_5yr = service.analyze_opt_out_rate("test-ws", str(csv_path), lookback_years=5)
+        result_2yr = service.analyze_opt_out_rate(
+            "test-ws", str(csv_path), lookback_years=2
+        )
+        result_5yr = service.analyze_opt_out_rate(
+            "test-ws", str(csv_path), lookback_years=5
+        )
 
         assert result_2yr.eligible_count == 3
         assert result_5yr.eligible_count == 8
@@ -160,7 +192,9 @@ class TestLookbackFiltering:
 
         # MAX hire_date = 2020-03-01; lookback 3 yrs → cutoff ≈ 2017-03-01
         # All 3 employees are within 3 years of 2020-03-01 → eligible_count == 3
-        result = service.analyze_opt_out_rate("test-ws", str(csv_path), lookback_years=3)
+        result = service.analyze_opt_out_rate(
+            "test-ws", str(csv_path), lookback_years=3
+        )
 
         assert result.eligible_count == 3, (
             "Lookback anchor must be MAX(hire_date) in census, not today's date. "
@@ -172,6 +206,7 @@ class TestLookbackFiltering:
 # Phase 5 Tests (US3) — error paths
 # ===========================================================================
 
+
 @pytest.mark.fast
 class TestErrorPaths:
     """T018-T021: Missing file, missing columns, endpoint 400 response."""
@@ -179,7 +214,9 @@ class TestErrorPaths:
     def test_missing_file_raises_value_error(self, service, workspace_dir):
         """T018: Non-existent file path raises ValueError with 'not found'."""
         with pytest.raises(ValueError, match="(?i)not found"):
-            service.analyze_opt_out_rate("test-ws", str(workspace_dir / "nonexistent.csv"), lookback_years=3)
+            service.analyze_opt_out_rate(
+                "test-ws", str(workspace_dir / "nonexistent.csv"), lookback_years=3
+            )
 
     def test_missing_hire_date_column_raises_value_error(self, service, workspace_dir):
         """T019: CSV with no hire_date column raises ValueError listing expected names."""
@@ -224,11 +261,14 @@ class TestErrorPaths:
 # Phase 6 Tests (Polish) — edge cases
 # ===========================================================================
 
+
 @pytest.mark.fast
 class TestEdgeCases:
     """T027, T028: Empty window and null hire dates."""
 
-    def test_empty_lookback_window_returns_null_rate_with_message(self, service, workspace_dir):
+    def test_empty_lookback_window_returns_null_rate_with_message(
+        self, service, workspace_dir
+    ):
         """T027: When no active employees have valid hire dates, suggested_rate is None with message."""
         # All employees are inactive — the active filter excludes them → eligible_count = 0
         rows = [
@@ -238,7 +278,9 @@ class TestEdgeCases:
         csv_path = workspace_dir / "census.csv"
         _write_csv(csv_path, rows)
 
-        result = service.analyze_opt_out_rate("test-ws", str(csv_path), lookback_years=3)
+        result = service.analyze_opt_out_rate(
+            "test-ws", str(csv_path), lookback_years=3
+        )
 
         assert result.suggested_rate is None
         assert result.eligible_count == 0
@@ -248,13 +290,15 @@ class TestEdgeCases:
         """T028: Employees with NULL hire_date are excluded and counted in excluded_null_tenure."""
         rows = [
             {"hire_date": _hire_date(1), "deferral_rate": 0.00, "active": "true"},
-            {"hire_date": None, "deferral_rate": 0.00, "active": "true"},   # excluded
-            {"hire_date": "", "deferral_rate": 0.00, "active": "true"},     # excluded
+            {"hire_date": None, "deferral_rate": 0.00, "active": "true"},  # excluded
+            {"hire_date": "", "deferral_rate": 0.00, "active": "true"},  # excluded
         ]
         csv_path = workspace_dir / "census.csv"
         _write_csv(csv_path, rows)
 
-        result = service.analyze_opt_out_rate("test-ws", str(csv_path), lookback_years=3)
+        result = service.analyze_opt_out_rate(
+            "test-ws", str(csv_path), lookback_years=3
+        )
 
         assert result.eligible_count == 1
         assert result.excluded_null_tenure == 2

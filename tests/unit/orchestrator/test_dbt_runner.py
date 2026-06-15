@@ -33,6 +33,7 @@ from planalign_orchestrator.dbt_runner import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _ok_result(cmd: Optional[List[str]] = None) -> DbtResult:
     return DbtResult(
         success=True,
@@ -73,6 +74,7 @@ def _fail_result(
 # ===================================================================
 # classify_dbt_error
 # ===================================================================
+
 
 class TestClassifyDbtError:
     @pytest.mark.fast
@@ -122,6 +124,7 @@ class TestClassifyDbtError:
 # ===================================================================
 # retry_with_backoff
 # ===================================================================
+
 
 class TestRetryWithBackoff:
     @pytest.mark.fast
@@ -201,6 +204,7 @@ class TestRetryWithBackoff:
 # DbtRunner.__init__ / validation
 # ===================================================================
 
+
 class TestDbtRunnerInit:
     @pytest.mark.fast
     def test_default_init(self):
@@ -261,6 +265,7 @@ class TestDbtRunnerInit:
 # _validate_thread_count / update_thread_count
 # ===================================================================
 
+
 class TestThreadManagement:
     @pytest.mark.fast
     def test_validate_thread_count_boundary(self):
@@ -297,7 +302,9 @@ class TestThreadManagement:
 
     @pytest.mark.fast
     def test_get_thread_utilization_info(self):
-        runner = DbtRunner(threads=4, threading_enabled=True, threading_mode="selective")
+        runner = DbtRunner(
+            threads=4, threading_enabled=True, threading_mode="selective"
+        )
         info = runner.get_thread_utilization_info()
         assert info["thread_count"] == 4
         assert info["threading_enabled"] is True
@@ -314,6 +321,7 @@ class TestThreadManagement:
 # ===================================================================
 # _build_command
 # ===================================================================
+
 
 class TestBuildCommand:
     @pytest.mark.fast
@@ -356,6 +364,7 @@ class TestBuildCommand:
         )
         idx = cmd.index("--vars")
         import json
+
         vars_parsed = json.loads(cmd[idx + 1])
         assert vars_parsed["simulation_year"] == 2026
         assert vars_parsed["extra"] == 1
@@ -411,6 +420,7 @@ class TestBuildCommand:
 # _build_subprocess_env
 # ===================================================================
 
+
 class TestBuildSubprocessEnv:
     @pytest.mark.fast
     def test_no_database_path_returns_none_when_no_network(self):
@@ -447,6 +457,7 @@ class TestBuildSubprocessEnv:
             # Mock network_utils to ImportError
             import importlib
             import sys
+
             # Temporarily remove network_utils if present
             saved = sys.modules.get("planalign_orchestrator.network_utils")
             sys.modules["planalign_orchestrator.network_utils"] = None  # type: ignore
@@ -469,6 +480,7 @@ class TestBuildSubprocessEnv:
             database_path="/some/other/path/sim.duckdb",
         )
         import sys
+
         saved = sys.modules.get("planalign_orchestrator.network_utils")
         sys.modules["planalign_orchestrator.network_utils"] = None  # type: ignore
         try:
@@ -480,12 +492,15 @@ class TestBuildSubprocessEnv:
                 sys.modules.pop("planalign_orchestrator.network_utils", None)
 
         assert env is not None
-        assert env["DATABASE_PATH"] == str(Path("/some/other/path/sim.duckdb").absolute())
+        assert env["DATABASE_PATH"] == str(
+            Path("/some/other/path/sim.duckdb").absolute()
+        )
 
 
 # ===================================================================
 # execute_command / _execute_with_retry
 # ===================================================================
+
 
 class TestExecuteCommand:
     @pytest.mark.fast
@@ -535,7 +550,9 @@ class TestExecuteCommand:
         mock_exec.return_value = _ok_result()
         runner = DbtRunner()
         result = runner.execute_command(
-            ["run"], retry=True, max_attempts=3,
+            ["run"],
+            retry=True,
+            max_attempts=3,
         )
         assert result.success
         mock_exec.assert_called_once()
@@ -589,6 +606,7 @@ class TestExecuteCommand:
 # _run_subprocess / _execute_with_streaming
 # ===================================================================
 
+
 class TestSubprocessExecution:
     @pytest.mark.fast
     @patch("subprocess.run")
@@ -602,7 +620,9 @@ class TestSubprocessExecution:
 
         # Patch network_utils import to fail so standard subprocess is used
         with patch.dict("sys.modules", {"planalign_orchestrator.network_utils": None}):
-            result = runner._run_subprocess(["dbt", "run"], start_ts=time.perf_counter())
+            result = runner._run_subprocess(
+                ["dbt", "run"], start_ts=time.perf_counter()
+            )
 
         assert result.success
         assert result.stdout == "all good"
@@ -618,7 +638,9 @@ class TestSubprocessExecution:
         )
         runner = DbtRunner()
         with patch.dict("sys.modules", {"planalign_orchestrator.network_utils": None}):
-            result = runner._run_subprocess(["dbt", "run"], start_ts=time.perf_counter())
+            result = runner._run_subprocess(
+                ["dbt", "run"], start_ts=time.perf_counter()
+            )
 
         assert not result.success
         assert result.return_code == 2
@@ -664,6 +686,7 @@ class TestSubprocessExecution:
 # run_model / run_models
 # ===================================================================
 
+
 class TestRunModels:
     @pytest.mark.fast
     @patch.object(DbtRunner, "execute_command", return_value=_ok_result())
@@ -703,6 +726,7 @@ class TestRunModels:
 # ===================================================================
 # run_models_with_smart_parallelization
 # ===================================================================
+
 
 class TestSmartParallelization:
     @pytest.mark.fast
@@ -768,6 +792,7 @@ class TestSmartParallelization:
 # ===================================================================
 # Parallelization info / enable / disable
 # ===================================================================
+
 
 class TestParallelizationManagement:
     @pytest.mark.fast
@@ -854,6 +879,7 @@ class TestParallelizationManagement:
 # execute_command_with_threads
 # ===================================================================
 
+
 class TestExecuteCommandWithThreads:
     @pytest.mark.fast
     @patch.object(DbtRunner, "execute_command", return_value=_ok_result())
@@ -875,6 +901,7 @@ class TestExecuteCommandWithThreads:
 # ===================================================================
 # run_models_by_tag / run_stage_models
 # ===================================================================
+
 
 class TestTagAndStageExecution:
     @pytest.mark.fast
@@ -940,7 +967,12 @@ class TestTagAndStageExecution:
     def test_run_stage_known_stages(self, mock_exec):
         """All known parallel stages use run_models_by_tag."""
         runner = DbtRunner()
-        for stage in ["EVENT_GENERATION", "STATE_ACCUMULATION", "VALIDATION", "FOUNDATION"]:
+        for stage in [
+            "EVENT_GENERATION",
+            "STATE_ACCUMULATION",
+            "VALIDATION",
+            "FOUNDATION",
+        ]:
             results = runner.run_stage_models(stage, simulation_year=2025)
             assert len(results) == 1
 
@@ -948,6 +980,7 @@ class TestTagAndStageExecution:
 # ===================================================================
 # DbtResult dataclass
 # ===================================================================
+
 
 class TestDbtResult:
     @pytest.mark.fast

@@ -25,6 +25,7 @@ from planalign_api.services.scenario_service import (
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 def _make_scenario(
     scenario_id: str,
     name: str,
@@ -70,7 +71,14 @@ FULL_CONFIG = {
         "age_distribution": [{"age": 30, "weight": 1.0}],
         "level_distribution_mode": "adaptive",
         "level_distribution": [{"level": 3, "percentage": 0.5}],
-        "job_level_compensation": [{"level": 3, "name": "L3", "min_compensation": 80000, "max_compensation": 120000}],
+        "job_level_compensation": [
+            {
+                "level": 3,
+                "name": "L3",
+                "min_compensation": 80000,
+                "max_compensation": 120000,
+            }
+        ],
         "level_market_adjustments": [{"level": 3, "adjustment_percent": 5}],
     },
     "dc_plan": {
@@ -87,8 +95,12 @@ FULL_CONFIG = {
         "age_multipliers": [{"age_band": "25-34", "multiplier": 1.2}],
         "tenure_multipliers": [{"tenure_band": "0-2", "multiplier": 1.5}],
     },
-    "age_bands": [{"band_id": 1, "band_label": "25-34", "min_value": 25, "max_value": 35}],
-    "tenure_bands": [{"band_id": 1, "band_label": "0-2", "min_value": 0, "max_value": 2}],
+    "age_bands": [
+        {"band_id": 1, "band_label": "25-34", "min_value": 25, "max_value": 35}
+    ],
+    "tenure_bands": [
+        {"band_id": 1, "band_label": "0-2", "min_value": 0, "max_value": 2}
+    ],
     "data_sources": {"census_parquet_path": "/data/census.parquet"},
     "advanced": {"engine": "sql", "log_level": "INFO"},
 }
@@ -97,6 +109,7 @@ FULL_CONFIG = {
 # ---------------------------------------------------------------------------
 # extract_workforce_params tests
 # ---------------------------------------------------------------------------
+
 
 class TestExtractWorkforceParams:
     def test_extracts_workforce_sections(self):
@@ -143,6 +156,7 @@ class TestExtractWorkforceParams:
 # ScenarioService.apply_workforce_params tests
 # ---------------------------------------------------------------------------
 
+
 class TestApplyWorkforceParams:
     def _make_service(self):
         storage = MagicMock()
@@ -158,10 +172,17 @@ class TestApplyWorkforceParams:
         service, storage = self._make_service()
 
         source = _make_scenario("src", "Source", FULL_CONFIG)
-        target = _make_scenario("tgt", "Target", {
-            "dc_plan": {"match_enabled": True, "match_tiers": [{"match_rate": 0.5}]},
-            "compensation": {"merit_budget_percent": 1.0},
-        })
+        target = _make_scenario(
+            "tgt",
+            "Target",
+            {
+                "dc_plan": {
+                    "match_enabled": True,
+                    "match_tiers": [{"match_rate": 0.5}],
+                },
+                "compensation": {"merit_budget_percent": 1.0},
+            },
+        )
         updated = _make_scenario("tgt", "Target", {})
 
         storage.get_scenario.side_effect = lambda ws, sid: (
@@ -177,7 +198,9 @@ class TestApplyWorkforceParams:
 
         # Verify the merged config passed to update_scenario
         call_args = storage.update_scenario.call_args
-        merged = call_args.kwargs.get("config_overrides") or call_args[1].get("config_overrides")
+        merged = call_args.kwargs.get("config_overrides") or call_args[1].get(
+            "config_overrides"
+        )
         assert merged["compensation"]["merit_budget_percent"] == 3.0
         assert merged["dc_plan"]["match_enabled"] is True
         assert merged["dc_plan"]["match_tiers"] == [{"match_rate": 0.5}]
@@ -203,7 +226,9 @@ class TestApplyWorkforceParams:
         service.apply_workforce_params("ws1", "src", ["tgt"])
 
         call_args = storage.update_scenario.call_args
-        merged = call_args.kwargs.get("config_overrides") or call_args[1].get("config_overrides")
+        merged = call_args.kwargs.get("config_overrides") or call_args[1].get(
+            "config_overrides"
+        )
         assert merged["dc_plan"] == target_dc
 
     def test_partial_failure(self):
@@ -235,9 +260,17 @@ class TestApplyWorkforceParams:
         service, storage = self._make_service()
 
         source = _make_scenario("src", "Source", FULL_CONFIG)
-        target = _make_scenario("tgt", "Target", {
-            "simulation": {"name": "My Scenario", "start_year": 2026, "random_seed": 99},
-        })
+        target = _make_scenario(
+            "tgt",
+            "Target",
+            {
+                "simulation": {
+                    "name": "My Scenario",
+                    "start_year": 2026,
+                    "random_seed": 99,
+                },
+            },
+        )
         updated = _make_scenario("tgt", "Target", {})
 
         storage.get_scenario.side_effect = lambda ws, sid: (
@@ -248,7 +281,9 @@ class TestApplyWorkforceParams:
         service.apply_workforce_params("ws1", "src", ["tgt"])
 
         call_args = storage.update_scenario.call_args
-        merged = call_args.kwargs.get("config_overrides") or call_args[1].get("config_overrides")
+        merged = call_args.kwargs.get("config_overrides") or call_args[1].get(
+            "config_overrides"
+        )
         assert merged["simulation"]["name"] == "My Scenario"
         assert merged["simulation"]["start_year"] == 2026
         assert merged["simulation"]["random_seed"] == 99
@@ -258,6 +293,7 @@ class TestApplyWorkforceParams:
 # ---------------------------------------------------------------------------
 # Pydantic model validation tests
 # ---------------------------------------------------------------------------
+
 
 class TestWorkforceParamsApplyRequest:
     def test_valid_request(self):

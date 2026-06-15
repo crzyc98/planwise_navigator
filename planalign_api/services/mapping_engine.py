@@ -33,7 +33,9 @@ def _eval_expression(expr: str, df: pd.DataFrame) -> pd.Series:
     namespace = {col: df[col] for col in df.columns}
     namespace["__builtins__"] = {}
     try:
-        result = eval(expr, namespace)  # noqa: S307 — builtins disabled, whitelist validated
+        result = eval(
+            expr, namespace
+        )  # noqa: S307 — builtins disabled, whitelist validated
     except Exception as exc:
         raise ValueError(f"Expression evaluation failed: {exc}") from exc
     if isinstance(result, pd.Series):
@@ -77,19 +79,23 @@ def _apply_transform(series: pd.Series, transform_type: str, params: dict) -> pd
 
 def _strip_currency(series: pd.Series) -> pd.Series:
     """Strip currency symbols, commas, and parenthetical negatives from string values."""
+
     def _clean(v: object) -> object:
         if v is None or (isinstance(v, float) and pd.isna(v)):
             return v
         s = _CURRENCY_STRIP_RE.sub("", str(v))
         m = _PAREN_NEG_RE.match(s)
         return f"-{m.group(1)}" if m else s
+
     return series.apply(_clean)
 
 
 class MappingEngine:
     """Applies field mappings (rename + ordered transforms) to a DataFrame."""
 
-    def apply(self, df: pd.DataFrame, field_mappings: List[FieldMapping]) -> pd.DataFrame:
+    def apply(
+        self, df: pd.DataFrame, field_mappings: List[FieldMapping]
+    ) -> pd.DataFrame:
         result = df.copy()
         drop_null_columns: list[str] = []
 
@@ -100,7 +106,9 @@ class MappingEngine:
                 continue
 
             if mapping.input_column not in result.columns:
-                logger.warning("Column %r not found in DataFrame; skipping", mapping.input_column)
+                logger.warning(
+                    "Column %r not found in DataFrame; skipping", mapping.input_column
+                )
                 continue
 
             col = result[mapping.input_column].copy()
@@ -122,11 +130,15 @@ class MappingEngine:
 
             result[mapping.input_column] = col
             if mapping.input_column != mapping.output_column:
-                result = result.rename(columns={mapping.input_column: mapping.output_column})
+                result = result.rename(
+                    columns={mapping.input_column: mapping.output_column}
+                )
 
         if drop_null_columns:
             renamed = [
-                m.output_column for m in field_mappings if m.input_column in drop_null_columns
+                m.output_column
+                for m in field_mappings
+                if m.input_column in drop_null_columns
             ]
             for col_name in renamed:
                 if col_name in result.columns:
@@ -194,7 +206,9 @@ class MappingEngine:
 
             result[mapping.input_column] = col
             if mapping.input_column != mapping.output_column:
-                result = result.rename(columns={mapping.input_column: mapping.output_column})
+                result = result.rename(
+                    columns={mapping.input_column: mapping.output_column}
+                )
 
         output_cols = [
             m.output_column

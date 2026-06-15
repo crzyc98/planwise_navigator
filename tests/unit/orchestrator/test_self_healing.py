@@ -37,6 +37,7 @@ from planalign_orchestrator.exceptions import (
 # T011: Unit test TableExistenceChecker.is_initialized() returns False for empty DB
 # ============================================================================
 
+
 @pytest.mark.fast
 @pytest.mark.unit
 class TestTableExistenceChecker:
@@ -154,6 +155,7 @@ class TestTableExistenceChecker:
 # T013: Unit test AutoInitializer.ensure_initialized() triggers dbt commands
 # ============================================================================
 
+
 @pytest.mark.fast
 @pytest.mark.unit
 class TestAutoInitializer:
@@ -202,13 +204,16 @@ class TestAutoInitializer:
         # Create mock db_manager that returns empty tables initially,
         # then all tables after dbt runs
         call_count = [0]
+
         def mock_execute(fn):
             call_count[0] += 1
             conn = duckdb.connect(str(db_path))
             # After first call, simulate that tables were created
             if call_count[0] > 1:
                 for table in REQUIRED_TABLES:
-                    conn.execute(f"CREATE TABLE IF NOT EXISTS {table.name} (id INTEGER)")
+                    conn.execute(
+                        f"CREATE TABLE IF NOT EXISTS {table.name} (id INTEGER)"
+                    )
             result = fn(conn)
             conn.close()
             return result
@@ -228,7 +233,10 @@ class TestAutoInitializer:
 
         # Should trigger dbt commands
         assert dbt_runner.run_seed.called or dbt_runner.execute_command.called
-        assert result.state in [InitializationState.COMPLETED, InitializationState.IN_PROGRESS]
+        assert result.state in [
+            InitializationState.COMPLETED,
+            InitializationState.IN_PROGRESS,
+        ]
 
     def test_ensure_initialized_records_step_timing(self, tmp_path):
         """T025: Initialization steps should include timing information."""
@@ -269,6 +277,7 @@ class TestAutoInitializer:
 # T024: Unit test InitializationStep.status property returns correct values
 # ============================================================================
 
+
 @pytest.mark.fast
 @pytest.mark.unit
 class TestInitializationStep:
@@ -276,18 +285,13 @@ class TestInitializationStep:
 
     def test_status_pending_when_not_started(self):
         """T024: Step with no timestamps should be 'pending'."""
-        step = InitializationStep(
-            name="test_step",
-            display_name="Test Step"
-        )
+        step = InitializationStep(name="test_step", display_name="Test Step")
         assert step.status == "pending"
 
     def test_status_running_when_started_not_completed(self):
         """T024: Step with started_at but no completed_at should be 'running'."""
         step = InitializationStep(
-            name="test_step",
-            display_name="Test Step",
-            started_at=datetime.now()
+            name="test_step", display_name="Test Step", started_at=datetime.now()
         )
         assert step.status == "running"
 
@@ -298,7 +302,7 @@ class TestInitializationStep:
             display_name="Test Step",
             started_at=datetime.now(),
             completed_at=datetime.now(),
-            success=True
+            success=True,
         )
         assert step.status == "completed"
 
@@ -310,7 +314,7 @@ class TestInitializationStep:
             started_at=datetime.now(),
             completed_at=datetime.now(),
             success=False,
-            error_message="Something went wrong"
+            error_message="Something went wrong",
         )
         assert step.status == "failed"
 
@@ -324,7 +328,7 @@ class TestInitializationStep:
             display_name="Test Step",
             started_at=start,
             completed_at=end,
-            success=True
+            success=True,
         )
         assert step.duration_seconds == 15.0
 
@@ -333,6 +337,7 @@ class TestInitializationStep:
 # T030: Unit test InitializationError includes step and missing_tables context
 # ============================================================================
 
+
 @pytest.mark.fast
 @pytest.mark.unit
 class TestInitializationErrors:
@@ -340,36 +345,30 @@ class TestInitializationErrors:
 
     def test_initialization_error_includes_step_context(self):
         """T030: InitializationError should include step in metadata."""
-        error = InitializationError(
-            "Initialization failed",
-            step="load_seeds"
-        )
+        error = InitializationError("Initialization failed", step="load_seeds")
         assert "failed_step" in error.additional_data.get("metadata", {})
         assert error.additional_data["metadata"]["failed_step"] == "load_seeds"
 
     def test_initialization_error_includes_missing_tables(self):
         """T030: InitializationError should include missing_tables in metadata."""
         error = InitializationError(
-            "Initialization failed",
-            missing_tables=["table1", "table2"]
+            "Initialization failed", missing_tables=["table1", "table2"]
         )
         assert "missing_tables" in error.additional_data.get("metadata", {})
-        assert error.additional_data["metadata"]["missing_tables"] == ["table1", "table2"]
+        assert error.additional_data["metadata"]["missing_tables"] == [
+            "table1",
+            "table2",
+        ]
 
     def test_timeout_error_includes_timing_info(self):
         """InitializationTimeoutError should include timeout and elapsed time."""
-        error = InitializationTimeoutError(
-            timeout_seconds=60.0,
-            elapsed_seconds=75.5
-        )
+        error = InitializationTimeoutError(timeout_seconds=60.0, elapsed_seconds=75.5)
         assert "60" in str(error) or "60.0" in str(error)
         assert "75" in str(error) or "75.5" in str(error)
 
     def test_concurrent_initialization_error_includes_lock_file(self):
         """ConcurrentInitializationError should include lock file path."""
-        error = ConcurrentInitializationError(
-            lock_file="/tmp/.planalign_init.lock"
-        )
+        error = ConcurrentInitializationError(lock_file="/tmp/.planalign_init.lock")
         assert "lock" in str(error).lower()
         assert ".planalign_init.lock" in str(error)
 
@@ -403,7 +402,9 @@ class TestInitializationErrors:
                 # Create tables on success
                 conn = duckdb.connect(str(db_path))
                 for table in REQUIRED_TABLES:
-                    conn.execute(f"CREATE TABLE IF NOT EXISTS {table.name} (id INTEGER)")
+                    conn.execute(
+                        f"CREATE TABLE IF NOT EXISTS {table.name} (id INTEGER)"
+                    )
                 conn.close()
                 return DbtResult(
                     success=True,
@@ -434,7 +435,10 @@ class TestInitializationErrors:
 
     def test_concurrent_initialization_raises_error(self, tmp_path):
         """T031: Concurrent initialization should raise ConcurrentInitializationError."""
-        from planalign_orchestrator.self_healing.auto_initializer import AutoInitializer, INIT_LOCK_NAME
+        from planalign_orchestrator.self_healing.auto_initializer import (
+            AutoInitializer,
+            INIT_LOCK_NAME,
+        )
         from planalign_orchestrator.utils import ExecutionMutex
         from pathlib import Path
 
@@ -470,6 +474,7 @@ class TestInitializationErrors:
 # Standard Steps Tests
 # ============================================================================
 
+
 @pytest.mark.fast
 @pytest.mark.unit
 class TestStandardSteps:
@@ -500,6 +505,7 @@ class TestStandardSteps:
 # InitializationResult Tests
 # ============================================================================
 
+
 @pytest.mark.fast
 @pytest.mark.unit
 class TestInitializationResult:
@@ -508,8 +514,7 @@ class TestInitializationResult:
     def test_success_true_when_completed(self):
         """Result with COMPLETED state should report success=True."""
         result = InitializationResult(
-            state=InitializationState.COMPLETED,
-            started_at=datetime.now()
+            state=InitializationState.COMPLETED, started_at=datetime.now()
         )
         assert result.success is True
 
@@ -518,15 +523,14 @@ class TestInitializationResult:
         result = InitializationResult(
             state=InitializationState.FAILED,
             started_at=datetime.now(),
-            error="Something went wrong"
+            error="Something went wrong",
         )
         assert result.success is False
 
     def test_duration_none_when_not_completed(self):
         """Duration should be None when not completed."""
         result = InitializationResult(
-            state=InitializationState.IN_PROGRESS,
-            started_at=datetime.now()
+            state=InitializationState.IN_PROGRESS, started_at=datetime.now()
         )
         assert result.duration_seconds is None
 
@@ -536,8 +540,6 @@ class TestInitializationResult:
         end = datetime(2025, 1, 1, 12, 0, 30)
 
         result = InitializationResult(
-            state=InitializationState.COMPLETED,
-            started_at=start,
-            completed_at=end
+            state=InitializationState.COMPLETED, started_at=start, completed_at=end
         )
         assert result.duration_seconds == 30.0

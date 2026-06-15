@@ -243,9 +243,7 @@ def _query_participation_rate(
                 )
                 return rate
     except Exception as e:
-        logger.warning(
-            f"Error calculating participation rate, using default: {e}"
-        )
+        logger.warning(f"Error calculating participation rate, using default: {e}")
 
     return DEFAULT_PARTICIPATION_RATE
 

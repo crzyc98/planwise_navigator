@@ -2,10 +2,12 @@ from pathlib import Path
 
 import duckdb
 
-from planalign_orchestrator.registries import (DeferralEscalationRegistry,
-                                               EnrollmentRegistry,
-                                               RegistryManager,
-                                               SQLTemplateManager)
+from planalign_orchestrator.registries import (
+    DeferralEscalationRegistry,
+    EnrollmentRegistry,
+    RegistryManager,
+    SQLTemplateManager,
+)
 from planalign_orchestrator.utils import DatabaseConnectionManager
 
 

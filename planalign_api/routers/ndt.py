@@ -129,7 +129,9 @@ async def run_401a4_test(
     scenarios: str = Query(..., description="Comma-separated scenario IDs"),
     year: int = Query(..., description="Simulation year to analyze"),
     include_employees: bool = Query(False, description="Include per-employee detail"),
-    include_match: bool = Query(False, description="Include employer match in contribution rate"),
+    include_match: bool = Query(
+        False, description="Include employer match in contribution rate"
+    ),
     storage: WorkspaceStorage = Depends(get_storage),
     ndt_service: NDTService = Depends(get_ndt_service),
 ) -> Section401a4TestResponse:
@@ -255,8 +257,12 @@ async def run_adp_test(
     scenarios: str = Query(..., description="Comma-separated scenario IDs"),
     year: int = Query(..., description="Simulation year to analyze"),
     include_employees: bool = Query(False, description="Include per-employee detail"),
-    safe_harbor: bool = Query(False, description="Mark plan as safe harbor (returns exempt)"),
-    testing_method: str = Query("current", description="Testing method: current or prior"),
+    safe_harbor: bool = Query(
+        False, description="Mark plan as safe harbor (returns exempt)"
+    ),
+    testing_method: str = Query(
+        "current", description="Testing method: current or prior"
+    ),
     storage: WorkspaceStorage = Depends(get_storage),
     ndt_service: NDTService = Depends(get_ndt_service),
 ) -> ADPTestResponse:

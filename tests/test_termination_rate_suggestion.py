@@ -49,9 +49,7 @@ class TestTerminationRateSuggestion:
         assert abs(actual_rate - expected_rate) < Decimal("0.1")
         assert_valid_termination_rate(result.model_dump())
 
-    def test_termination_rate_no_terminations(
-        self, service, edge_case_census_data
-    ):
+    def test_termination_rate_no_terminations(self, service, edge_case_census_data):
         """Test: 100 active, 0 terminated → expect 0%"""
         # Arrange
         no_term_data = edge_case_census_data["no_terminations"]
@@ -145,7 +143,7 @@ class TestTerminationRateSuggestion:
             {
                 "employee_id": f"EMP{i:05d}",
                 "employment_status": "ACTIVE",
-                "hire_date": date(2020, 1, 1) + timedelta(days=i*10),
+                "hire_date": date(2020, 1, 1) + timedelta(days=i * 10),
                 "termination_date": None,
                 "annual_salary": 50000,
                 "age": 30,
@@ -172,7 +170,7 @@ class TestTerminationRateSuggestion:
             {
                 "employee_id": f"EMP{i:05d}",
                 "employment_status": "ACTIVE",
-                "hire_date": date(2020, 1, 1) + timedelta(days=i*2),
+                "hire_date": date(2020, 1, 1) + timedelta(days=i * 2),
                 "termination_date": None,
                 "annual_salary": 50000,
                 "age": 30,
@@ -198,7 +196,7 @@ class TestTerminationRateSuggestion:
             {
                 "employee_id": f"EMP{i:05d}",
                 "employment_status": "ACTIVE",
-                "hire_date": date(2020, 1, 1) + timedelta(days=i*10),
+                "hire_date": date(2020, 1, 1) + timedelta(days=i * 10),
                 "termination_date": None,
                 "annual_salary": 50000,
                 "age": 30,
@@ -224,7 +222,7 @@ class TestTerminationRateSuggestion:
             {
                 "employee_id": f"EMP{i:05d}",
                 "employment_status": "ACTIVE",
-                "hire_date": date(2020, 1, 1) + timedelta(days=i*100),
+                "hire_date": date(2020, 1, 1) + timedelta(days=i * 100),
                 "termination_date": None,
                 "annual_salary": 50000,
                 "age": 30,
@@ -280,7 +278,9 @@ class TestTerminationRateSuggestion:
 
     # ===== Regression Tests (Ensure bug is fixed) =====
 
-    def test_never_returns_100_percent(self, service, sample_census_data, edge_case_census_data):
+    def test_never_returns_100_percent(
+        self, service, sample_census_data, edge_case_census_data
+    ):
         """Regression test: System never returns 100% (the original bug)."""
         test_cases = [
             (sample_census_data, "Baseline 5% turnover"),
@@ -329,26 +329,33 @@ class TestTerminationRateSuggestion:
 
         # Active employees
         for i in range(active):
-            census.append({
-                "employee_id": f"EMP{i:05d}",
-                "employment_status": "ACTIVE",
-                "hire_date": date(2020, 1, 1) + timedelta(days=i*10),
-                "termination_date": None,
-                "annual_salary": 50000,
-                "age": 30,
-                "tenure_months": (today - (date(2020, 1, 1) + timedelta(days=i*10))).days / 30,
-            })
+            census.append(
+                {
+                    "employee_id": f"EMP{i:05d}",
+                    "employment_status": "ACTIVE",
+                    "hire_date": date(2020, 1, 1) + timedelta(days=i * 10),
+                    "termination_date": None,
+                    "annual_salary": 50000,
+                    "age": 30,
+                    "tenure_months": (
+                        today - (date(2020, 1, 1) + timedelta(days=i * 10))
+                    ).days
+                    / 30,
+                }
+            )
 
         # Terminated employees
         for i in range(terminated):
-            census.append({
-                "employee_id": f"EMP{active+i:05d}",
-                "employment_status": "TERMINATED",
-                "hire_date": date(2020, 1, 1),
-                "termination_date": date(2025, 6, 15) + timedelta(days=i*10),
-                "annual_salary": 50000,
-                "age": 30,
-                "tenure_months": 60,
-            })
+            census.append(
+                {
+                    "employee_id": f"EMP{active+i:05d}",
+                    "employment_status": "TERMINATED",
+                    "hire_date": date(2020, 1, 1),
+                    "termination_date": date(2025, 6, 15) + timedelta(days=i * 10),
+                    "annual_salary": 50000,
+                    "age": 30,
+                    "tenure_months": 60,
+                }
+            )
 
         return census

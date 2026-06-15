@@ -98,7 +98,9 @@ class TestExportResultsToExcel:
 
         assert result is None
 
-    def test_returns_none_when_run_dir_db_missing_and_scenario_db_missing(self, tmp_path):
+    def test_returns_none_when_run_dir_db_missing_and_scenario_db_missing(
+        self, tmp_path
+    ):
         """Should return None when neither run_dir nor scenario_path has a database."""
         scenario_path = tmp_path / "scenario"
         scenario_path.mkdir()
@@ -151,11 +153,18 @@ class TestExportResultsToExcel:
         mock_sc = MagicMock()
         mock_sc.from_dict.side_effect = ValueError("bad config")
 
-        with patch.dict("sys.modules", {
-            "planalign_orchestrator.utils": MagicMock(DatabaseConnectionManager=mock_dcm),
-            "planalign_orchestrator.excel_exporter": MagicMock(ExcelExporter=mock_ee),
-            "planalign_orchestrator.config": MagicMock(SimulationConfig=mock_sc),
-        }):
+        with patch.dict(
+            "sys.modules",
+            {
+                "planalign_orchestrator.utils": MagicMock(
+                    DatabaseConnectionManager=mock_dcm
+                ),
+                "planalign_orchestrator.excel_exporter": MagicMock(
+                    ExcelExporter=mock_ee
+                ),
+                "planalign_orchestrator.config": MagicMock(SimulationConfig=mock_sc),
+            },
+        ):
             result = export_results_to_excel(
                 scenario_path=scenario_path,
                 scenario_name="test",
@@ -183,11 +192,18 @@ class TestExportResultsToExcel:
         mock_sc = MagicMock()
         mock_sc.from_dict.return_value = mock_sim_config
 
-        with patch.dict("sys.modules", {
-            "planalign_orchestrator.utils": MagicMock(DatabaseConnectionManager=mock_dcm),
-            "planalign_orchestrator.excel_exporter": MagicMock(ExcelExporter=mock_ee),
-            "planalign_orchestrator.config": MagicMock(SimulationConfig=mock_sc),
-        }):
+        with patch.dict(
+            "sys.modules",
+            {
+                "planalign_orchestrator.utils": MagicMock(
+                    DatabaseConnectionManager=mock_dcm
+                ),
+                "planalign_orchestrator.excel_exporter": MagicMock(
+                    ExcelExporter=mock_ee
+                ),
+                "planalign_orchestrator.config": MagicMock(SimulationConfig=mock_sc),
+            },
+        ):
             result = export_results_to_excel(
                 scenario_path=scenario_path,
                 scenario_name="test",
@@ -225,11 +241,18 @@ class TestExportResultsToExcel:
         mock_sc = MagicMock()
         mock_sc.from_dict.return_value = MagicMock()
 
-        with patch.dict("sys.modules", {
-            "planalign_orchestrator.utils": MagicMock(DatabaseConnectionManager=mock_dcm),
-            "planalign_orchestrator.excel_exporter": MagicMock(ExcelExporter=mock_ee),
-            "planalign_orchestrator.config": MagicMock(SimulationConfig=mock_sc),
-        }):
+        with patch.dict(
+            "sys.modules",
+            {
+                "planalign_orchestrator.utils": MagicMock(
+                    DatabaseConnectionManager=mock_dcm
+                ),
+                "planalign_orchestrator.excel_exporter": MagicMock(
+                    ExcelExporter=mock_ee
+                ),
+                "planalign_orchestrator.config": MagicMock(SimulationConfig=mock_sc),
+            },
+        ):
             result = export_results_to_excel(
                 scenario_path=scenario_path,
                 scenario_name="test",
@@ -259,11 +282,18 @@ class TestExportResultsToExcel:
         mock_sc = MagicMock()
         mock_sc.from_dict.side_effect = ValueError("invalid config")
 
-        with patch.dict("sys.modules", {
-            "planalign_orchestrator.utils": MagicMock(DatabaseConnectionManager=mock_dcm),
-            "planalign_orchestrator.excel_exporter": MagicMock(ExcelExporter=mock_ee),
-            "planalign_orchestrator.config": MagicMock(SimulationConfig=mock_sc),
-        }):
+        with patch.dict(
+            "sys.modules",
+            {
+                "planalign_orchestrator.utils": MagicMock(
+                    DatabaseConnectionManager=mock_dcm
+                ),
+                "planalign_orchestrator.excel_exporter": MagicMock(
+                    ExcelExporter=mock_ee
+                ),
+                "planalign_orchestrator.config": MagicMock(SimulationConfig=mock_sc),
+            },
+        ):
             result = export_results_to_excel(
                 scenario_path=scenario_path,
                 scenario_name="test",
@@ -292,11 +322,18 @@ class TestExportResultsToExcel:
         mock_sc = MagicMock()
         mock_sc.from_dict.return_value = MagicMock()
 
-        with patch.dict("sys.modules", {
-            "planalign_orchestrator.utils": MagicMock(DatabaseConnectionManager=mock_dcm),
-            "planalign_orchestrator.excel_exporter": MagicMock(ExcelExporter=mock_ee),
-            "planalign_orchestrator.config": MagicMock(SimulationConfig=mock_sc),
-        }):
+        with patch.dict(
+            "sys.modules",
+            {
+                "planalign_orchestrator.utils": MagicMock(
+                    DatabaseConnectionManager=mock_dcm
+                ),
+                "planalign_orchestrator.excel_exporter": MagicMock(
+                    ExcelExporter=mock_ee
+                ),
+                "planalign_orchestrator.config": MagicMock(SimulationConfig=mock_sc),
+            },
+        ):
             export_results_to_excel(
                 scenario_path=scenario_path,
                 scenario_name="test",
