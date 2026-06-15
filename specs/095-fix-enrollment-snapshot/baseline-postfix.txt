@@ -1,0 +1,14 @@
+┌─────────────────┬──────────────────────────┬───────────┬───────────────┐
+│ simulation_year │      event_category      │ enrollees │ participating │
+│      int32      │         varchar          │   int64   │     int64     │
+├─────────────────┼──────────────────────────┼───────────┼───────────────┤
+│            2025 │ proactive_voluntary      │       587 │           587 │
+│            2025 │ voluntary_enrollment     │       541 │           541 │
+│            2025 │ year_over_year_voluntary │        18 │            18 │
+│            2026 │ proactive_voluntary      │       705 │           705 │
+│            2026 │ voluntary_enrollment     │        59 │            59 │
+│            2026 │ year_over_year_voluntary │         1 │             1 │
+│            2027 │ proactive_voluntary      │       731 │           731 │
+│            2027 │ voluntary_enrollment     │        26 │            26 │
+│            2027 │ year_over_year_voluntary │         2 │             2 │
+└─────────────────┴──────────────────────────┴───────────┴───────────────┘

@@ -462,9 +462,14 @@ subsequent_year_state AS (
         END as days_since_last_escalation,
 
         -- Enrollment information (carry forward or new)
+        -- Feature 095 fix: a current-year enrollment (ne) must override a stale
+        -- prior-year unenrolled flag. The previous COALESCE returned ps.is_enrolled_flag
+        -- first, so a previously-unenrolled employee who newly enrolls resolved to
+        -- false and was dropped by the WHERE filter below. Opt-out still wins.
         CASE
             WHEN oo.employee_id IS NOT NULL THEN false
-            ELSE COALESCE(ps.is_enrolled_flag, ne.employee_id IS NOT NULL, false)
+            WHEN ne.employee_id IS NOT NULL THEN true
+            ELSE COALESCE(ps.is_enrolled_flag, false)
         END as is_enrolled_flag,
         COALESCE(ne.enrollment_date, ps.employee_enrollment_date) as employee_enrollment_date,
 
@@ -502,8 +507,10 @@ subsequent_year_state AS (
     -- E058: Join workforce for compensation (needed for IRS limit calculation in additive case)
     LEFT JOIN current_year_workforce cyw ON COALESCE(w.employee_id, ps.employee_id) = cyw.employee_id
     -- Include employees who are enrolled (new enrollments, carry-forward, have escalations, or match-response)
+    -- Feature 095 fix: retain a current-year enrollment (ne) even when prior-year
+    -- state is unenrolled (false). Mirrors the is_enrolled_flag precedence above.
     WHERE (ps.employee_id IS NOT NULL OR ne.employee_id IS NOT NULL OR ce.employee_id IS NOT NULL OR mr.employee_id IS NOT NULL)
-      AND COALESCE(ps.is_enrolled_flag, ne.employee_id IS NOT NULL, false) = true
+      AND (ne.employee_id IS NOT NULL OR COALESCE(ps.is_enrolled_flag, false) = true)
 )
 
 {% endif %}
