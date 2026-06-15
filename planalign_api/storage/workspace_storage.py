@@ -531,6 +531,23 @@ class WorkspaceStorage:
         merged = self._deep_merge(workspace.base_config, scenario.config_overrides)
         logger.info(f"E091: Merged config simulation: {merged.get('simulation', {})}")
 
+        # Reconcile employer_match.active_formula with dc_plan.match_template.
+        # The DC Plan UI writes the selected formula to dc_plan.match_template (scenario
+        # overrides) but never touches employer_match.active_formula (workspace base config),
+        # leaving a stale "simple_match" label even when tiered or other formulas are active.
+        _TEMPLATE_TO_FORMULA = {
+            "simple": "simple_match",
+            "tiered": "tiered_match",
+            "stretch": "stretch_match",
+            "safe_harbor": "safe_harbor_basic",
+            "qaca": "qaca_safe_harbor",
+        }
+        _match_template = merged.get("dc_plan", {}).get("match_template")
+        if _match_template and "employer_match" in merged:
+            merged["employer_match"]["active_formula"] = _TEMPLATE_TO_FORMULA.get(
+                _match_template, _match_template
+            )
+
         # Ensure employer_match and employer_core_contribution always have defaults
         # This handles workspaces created before these sections were added
         if "employer_match" not in merged:

@@ -547,12 +547,18 @@ class PipelineOrchestrator:
 
         self.state_manager.maybe_clear_year_data(year)
         self.state_manager.clear_year_fact_rows(year)
-        self._ensure_hazard_caches_current()
         self._ensure_seeds_loaded()
 
         # Start-year specific initialization
         if year == self.config.simulation.start_year:
             self._run_start_year_setup(year)
+
+        # Hazard cache rebuild runs `dbt build --select dim_*_hazards`, which reads
+        # staging tables (e.g. stg_config_job_levels). It must run only after seeds
+        # and the start-year staging models exist; otherwise a fresh scenario DB
+        # emits a non-fatal but alarming "stg_config_job_levels does not exist"
+        # warning before staging has been built.
+        self._ensure_hazard_caches_current()
 
         for stage in workflow:
             logger.info("Executing stage: %s", stage.name.value)

@@ -682,6 +682,12 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
             "Error processing dc_plan match configuration: %s", e, exc_info=True
         )
 
+    # dc_plan.match_template is the source of truth for the active formula.
+    # Override the legacy active_match_formula var (set from employer_match.active_formula
+    # earlier) so dbt vars stay consistent with what's actually being calculated.
+    if "match_template" in dbt_vars:
+        dbt_vars["active_match_formula"] = dbt_vars["match_template"]
+
     return dbt_vars
 
 
