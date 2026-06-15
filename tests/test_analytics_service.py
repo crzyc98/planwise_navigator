@@ -1303,11 +1303,14 @@ class TestDeferralDistribution:
         assert abs(total_pct - 100.0) < 0.1
 
     @pytest.mark.fast
-    def test_deferral_distribution_excludes_terminated(self, in_memory_conn):
-        """Only active enrolled employees appear in deferral distribution."""
+    def test_deferral_distribution_excludes_terminated_includes_non_enrolled(
+        self, in_memory_conn
+    ):
+        """Terminated employees are excluded; active non-enrolled appear in 0% bucket."""
         _seed_employees(
             in_memory_conn,
             [
+                # A1: active, enrolled at 6% → counted in 6% bucket
                 {
                     "employee_id": "A1",
                     "year": 2025,
@@ -1315,6 +1318,7 @@ class TestDeferralDistribution:
                     "enrolled": True,
                     "deferral_rate": 0.06,
                 },
+                # T1: terminated, enrolled → excluded by ACTIVE filter
                 {
                     "employee_id": "T1",
                     "year": 2025,
@@ -1322,12 +1326,13 @@ class TestDeferralDistribution:
                     "enrolled": True,
                     "deferral_rate": 0.06,
                 },
+                # A2: active, NOT enrolled, NULL-equivalent deferral → 0% bucket
                 {
                     "employee_id": "A2",
                     "year": 2025,
                     "status": "ACTIVE",
                     "enrolled": False,
-                    "deferral_rate": 0.06,
+                    "deferral_rate": 0.0,
                 },
             ],
         )
@@ -1336,7 +1341,11 @@ class TestDeferralDistribution:
         dist = service._get_deferral_distribution(in_memory_conn)
 
         total_count = sum(b.count for b in dist)
-        assert total_count == 1  # Only A1
+        assert total_count == 2  # A1 (6%) + A2 (0%) — T1 excluded
+
+        bucket_map = {b.bucket: b for b in dist}
+        assert bucket_map["0%"].count == 1  # A2
+        assert bucket_map["6%"].count == 1  # A1
 
     @pytest.mark.fast
     def test_deferral_distribution_error_fallback(self):
@@ -1812,3 +1821,117 @@ class TestGetDCPlanAnalyticsFull:
         assert result.employee_contribution_rate == round(11000 / 210000 * 100, 2)
         assert result.match_contribution_rate == round(4500 / 210000 * 100, 2)
         assert result.core_contribution_rate == round(2200 / 210000 * 100, 2)
+
+
+# =============================================================================
+# Feature 097: 0% deferral fix — non-enrolled employees in distribution
+# =============================================================================
+
+
+def _seed_097_employees(conn: duckdb.DuckDBPyConnection) -> None:
+    """10 enrolled active (non-zero deferral) + 5 non-enrolled active + 2 terminated."""
+    rows = []
+    for i in range(10):
+        rows.append(
+            {
+                "employee_id": f"ENR_{i}",
+                "year": 2025,
+                "status": "ACTIVE",
+                "enrolled": True,
+                "deferral_rate": 0.06,
+                "contributions": 6000,
+                "match": 3000,
+                "compensation": 100000,
+            }
+        )
+    for i in range(5):
+        rows.append(
+            {
+                "employee_id": f"NONENR_{i}",
+                "year": 2025,
+                "status": "ACTIVE",
+                "enrolled": False,
+                "deferral_rate": 0.0,
+                "contributions": 0,
+                "match": 0,
+                "compensation": 90000,
+            }
+        )
+    for i in range(2):
+        rows.append(
+            {
+                "employee_id": f"TERM_{i}",
+                "year": 2025,
+                "status": "TERMINATED",
+                "enrolled": False,
+                "deferral_rate": 0.0,
+                "contributions": 0,
+                "match": 0,
+                "compensation": 80000,
+            }
+        )
+    _seed_employees(conn, rows)
+
+
+@pytest.mark.fast
+def test_deferral_distribution_includes_non_enrolled(in_memory_conn):
+    """T004: Non-enrolled active employees appear in 0% bucket; terminated excluded."""
+    _seed_097_employees(in_memory_conn)
+    service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
+    dist = service._get_deferral_distribution(in_memory_conn)
+
+    bucket_map = {b.bucket: b for b in dist}
+    # 5 non-enrolled active → 0% bucket
+    assert bucket_map["0%"].count == 5
+    # 10 enrolled active → 6% bucket
+    assert bucket_map["6%"].count == 10
+    # Total = all active (enrolled + non-enrolled), terminated excluded
+    total_count = sum(b.count for b in dist)
+    assert total_count == 15
+
+
+@pytest.mark.fast
+def test_deferral_distribution_all_years_includes_non_enrolled(in_memory_conn):
+    """T005: Per-year distribution also includes non-enrolled in 0% bucket."""
+    _seed_097_employees(in_memory_conn)
+    service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
+    result = service._get_deferral_distribution_all_years(in_memory_conn)
+
+    assert len(result) == 1
+    year_2025 = result[0]
+    assert year_2025.year == 2025
+
+    bucket_map = {b.bucket: b for b in year_2025.distribution}
+    assert bucket_map["0%"].count == 5
+    assert bucket_map["6%"].count == 10
+    total_count = sum(b.count for b in year_2025.distribution)
+    assert total_count == 15
+
+
+@pytest.mark.fast
+def test_contribution_by_year_total_eligible_count(in_memory_conn):
+    """T006: total_eligible_count per year = enrolled + non-enrolled (same employment filter)."""
+    _seed_097_employees(in_memory_conn)
+    service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
+    results = service._get_contribution_by_year(in_memory_conn)
+
+    assert len(results) == 1
+    year_result = results[0]
+    # 10 enrolled + 5 non-enrolled active = 15; 2 terminated excluded by active filter? No —
+    # default mode (active_only=False) includes all employment statuses, so total = 17
+    assert year_result.total_eligible_count == 17
+    assert year_result.participant_count == 10
+
+
+@pytest.mark.fast
+def test_contribution_by_year_total_eligible_count_active_only(in_memory_conn):
+    """T006b: active_only=True filters total_eligible_count to active employees only."""
+    _seed_097_employees(in_memory_conn)
+    service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
+    results = service._get_contribution_by_year(in_memory_conn, active_only=True)
+
+    assert len(results) == 1
+    year_result = results[0]
+    # 10 enrolled active + 5 non-enrolled active = 15
+    assert year_result.total_eligible_count == 15
+    assert year_result.participant_count == 10

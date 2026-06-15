@@ -16,6 +16,10 @@ class ContributionYearSummary(BaseModel):
     total_employer_core: float = Field(description="Total employer core contributions")
     total_all_contributions: float = Field(description="Total of all contributions")
     participant_count: int = Field(description="Number of enrolled participants")
+    total_eligible_count: int = Field(
+        default=0,
+        description="Total eligible employees (enrolled + non-enrolled) for this year",
+    )
     # E104: New fields for cost comparison
     average_deferral_rate: float = Field(
         default=0.0, description="Average deferral rate for enrolled participants"
@@ -55,7 +59,7 @@ class DeferralRateBucket(BaseModel):
 
     bucket: str = Field(description="Deferral rate bucket (e.g., '0%', '1%', '10%+')")
     count: int = Field(description="Number of employees in this bucket")
-    percentage: float = Field(description="Percentage of enrolled employees")
+    percentage: float = Field(description="Percentage of eligible active employees")
 
 
 class DeferralDistributionYear(BaseModel):

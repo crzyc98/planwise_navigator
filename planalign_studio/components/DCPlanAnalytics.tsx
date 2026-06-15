@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import {
   BarChart, Bar, PieChart, Pie, Cell,
@@ -16,6 +16,7 @@ import {
   Scenario,
   DCPlanAnalytics as DCPlanAnalyticsData,
   DCPlanComparisonResponse,
+  ContributionYearSummary,
 } from '../services/api';
 import { COLORS, MAX_SCENARIO_SELECTION } from '../constants';
 
@@ -107,6 +108,43 @@ export default function DCPlanAnalytics() {
   // Active-only toggle for participation metrics (default: all participants)
   const [activeOnly, setActiveOnly] = useState(false);
 
+  // Year filter: null = "All Years" aggregate
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
+
+  // Derived: years available for the year picker
+  const availableYears = useMemo<number[]>(() => {
+    if (analytics) {
+      return analytics.contribution_by_year.map((y) => y.year);
+    }
+    if (comparisonData && comparisonData.analytics.length > 0) {
+      const sets = comparisonData.analytics.map(
+        (a) => new Set(a.contribution_by_year.map((y) => y.year))
+      );
+      return [...sets[0]]
+        .filter((yr) => sets.every((s) => s.has(yr)))
+        .sort((a, b) => a - b);
+    }
+    return [];
+  }, [analytics, comparisonData]);
+
+  // Derived: single-scenario data for the selected year
+  const activeYearData = useMemo<ContributionYearSummary | null>(() => {
+    if (!analytics || selectedYear === null) return null;
+    return analytics.contribution_by_year.find((y) => y.year === selectedYear) ?? null;
+  }, [analytics, selectedYear]);
+
+  // Derived: deferral distribution for selected year (or final-year aggregate)
+  const activeDeferralDistribution = useMemo(() => {
+    if (!analytics) return [];
+    if (selectedYear !== null) {
+      return (
+        analytics.deferral_distribution_by_year.find((y) => y.year === selectedYear)
+          ?.distribution ?? []
+      );
+    }
+    return analytics.deferral_rate_distribution;
+  }, [analytics, selectedYear]);
+
   // Fetch scenarios when workspace changes
   useEffect(() => {
     if (activeWorkspace?.id) {
@@ -115,11 +153,13 @@ export default function DCPlanAnalytics() {
       setAnalytics(null);
       setComparisonData(null);
       setError(null);
+      setSelectedYear(null);
     } else {
       setScenarios([]);
       setSelectedScenarioIds([]);
       setAnalytics(null);
       setComparisonData(null);
+      setSelectedYear(null);
     }
   }, [activeWorkspace?.id]);
 
@@ -215,11 +255,11 @@ export default function DCPlanAnalytics() {
     Core: year.total_employer_core,
   })) || [];
 
-  const deferralDistributionData = analytics?.deferral_rate_distribution.map(bucket => ({
+  const deferralDistributionData = activeDeferralDistribution.map((bucket) => ({
     bucket: bucket.bucket,
     count: bucket.count,
     percentage: bucket.percentage,
-  })) || [];
+  }));
 
   const participationPieData = analytics ? [
     { name: 'Auto Enrolled', value: analytics.participation_by_method.auto_enrolled },
@@ -227,13 +267,18 @@ export default function DCPlanAnalytics() {
     { name: 'Census', value: analytics.participation_by_method.census_enrolled },
   ].filter(d => d.value > 0) : [];
 
-  // Comparison chart data
-  const comparisonContributionData = comparisonData?.analytics.map(a => ({
-    scenario: a.scenario_name,
-    Employee: a.total_employee_contributions,
-    Match: a.total_employer_match,
-    Core: a.total_employer_core,
-  })) || [];
+  // Comparison chart data — year-filtered when a year is selected
+  const comparisonContributionData = comparisonData?.analytics.map((a) => {
+    const yearData = selectedYear !== null
+      ? a.contribution_by_year.find((y) => y.year === selectedYear)
+      : null;
+    return {
+      scenario: a.scenario_name,
+      Employee: yearData?.total_employee_contributions ?? a.total_employee_contributions,
+      Match: yearData?.total_employer_match ?? a.total_employer_match,
+      Core: yearData?.total_employer_core ?? a.total_employer_core,
+    };
+  }) || [];
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -263,6 +308,27 @@ export default function DCPlanAnalytics() {
             </select>
             <ChevronDown size={16} className="absolute right-3 top-2.5 text-gray-400 pointer-events-none" />
           </div>
+
+          {/* Year Picker */}
+          {(analytics || comparisonData) && availableYears.length > 1 && (
+            <div className="relative">
+              <select
+                value={selectedYear ?? ''}
+                onChange={(e) =>
+                  setSelectedYear(e.target.value ? Number(e.target.value) : null)
+                }
+                className="appearance-none bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm"
+              >
+                <option value="">All Years</option>
+                {availableYears.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={16} className="absolute right-3 top-2.5 text-gray-400 pointer-events-none" />
+            </div>
+          )}
 
           {/* Comparison Mode Toggle */}
           <button
@@ -349,49 +415,81 @@ export default function DCPlanAnalytics() {
                 <tbody className="divide-y divide-gray-100">
                   <tr>
                     <td className="py-3 px-4 text-gray-700">Participation Rate</td>
-                    {comparisonData.analytics.map(a => (
-                      <td key={a.scenario_id} className="py-3 px-4 text-right font-medium">
-                        {a.participation_rate.toFixed(1)}%
-                      </td>
-                    ))}
+                    {comparisonData.analytics.map((a) => {
+                      const yd = selectedYear !== null
+                        ? a.contribution_by_year.find((y) => y.year === selectedYear)
+                        : null;
+                      return (
+                        <td key={a.scenario_id} className="py-3 px-4 text-right font-medium">
+                          {(yd?.participation_rate ?? a.participation_rate).toFixed(1)}%
+                        </td>
+                      );
+                    })}
                   </tr>
                   <tr>
                     <td className="py-3 px-4 text-gray-700">Total Employee Contributions</td>
-                    {comparisonData.analytics.map(a => (
-                      <td key={a.scenario_id} className="py-3 px-4 text-right font-medium">
-                        {formatCurrency(a.total_employee_contributions)}
-                      </td>
-                    ))}
+                    {comparisonData.analytics.map((a) => {
+                      const yd = selectedYear !== null
+                        ? a.contribution_by_year.find((y) => y.year === selectedYear)
+                        : null;
+                      return (
+                        <td key={a.scenario_id} className="py-3 px-4 text-right font-medium">
+                          {formatCurrency(yd?.total_employee_contributions ?? a.total_employee_contributions)}
+                        </td>
+                      );
+                    })}
                   </tr>
                   <tr>
                     <td className="py-3 px-4 text-gray-700">Total Employer Match</td>
-                    {comparisonData.analytics.map(a => (
-                      <td key={a.scenario_id} className="py-3 px-4 text-right font-medium">
-                        {formatCurrency(a.total_employer_match)}
-                      </td>
-                    ))}
+                    {comparisonData.analytics.map((a) => {
+                      const yd = selectedYear !== null
+                        ? a.contribution_by_year.find((y) => y.year === selectedYear)
+                        : null;
+                      return (
+                        <td key={a.scenario_id} className="py-3 px-4 text-right font-medium">
+                          {formatCurrency(yd?.total_employer_match ?? a.total_employer_match)}
+                        </td>
+                      );
+                    })}
                   </tr>
                   <tr>
                     <td className="py-3 px-4 text-gray-700">Total Employer Core</td>
-                    {comparisonData.analytics.map(a => (
-                      <td key={a.scenario_id} className="py-3 px-4 text-right font-medium">
-                        {formatCurrency(a.total_employer_core)}
-                      </td>
-                    ))}
+                    {comparisonData.analytics.map((a) => {
+                      const yd = selectedYear !== null
+                        ? a.contribution_by_year.find((y) => y.year === selectedYear)
+                        : null;
+                      return (
+                        <td key={a.scenario_id} className="py-3 px-4 text-right font-medium">
+                          {formatCurrency(yd?.total_employer_core ?? a.total_employer_core)}
+                        </td>
+                      );
+                    })}
                   </tr>
                   <tr className="bg-gray-50">
                     <td className="py-3 px-4 text-gray-900 font-semibold">Total All Contributions</td>
-                    {comparisonData.analytics.map(a => (
-                      <td key={a.scenario_id} className="py-3 px-4 text-right font-bold text-fidelity-green">
-                        {formatCurrency(a.total_all_contributions)}
-                      </td>
-                    ))}
+                    {comparisonData.analytics.map((a) => {
+                      const yd = selectedYear !== null
+                        ? a.contribution_by_year.find((y) => y.year === selectedYear)
+                        : null;
+                      return (
+                        <td key={a.scenario_id} className="py-3 px-4 text-right font-bold text-fidelity-green">
+                          {formatCurrency(yd?.total_all_contributions ?? a.total_all_contributions)}
+                        </td>
+                      );
+                    })}
                   </tr>
                   <tr>
-                    <td className="py-3 px-4 text-gray-700">Employees at IRS Limit</td>
-                    {comparisonData.analytics.map(a => (
+                    <td className="py-3 px-4 text-gray-700">
+                      Employees at IRS Limit
+                      {selectedYear !== null && (
+                        <span className="ml-1 text-xs text-gray-400">(final year)</span>
+                      )}
+                    </td>
+                    {comparisonData.analytics.map((a) => (
                       <td key={a.scenario_id} className="py-3 px-4 text-right font-medium">
-                        {a.irs_limit_metrics.employees_at_irs_limit.toLocaleString()} ({a.irs_limit_metrics.irs_limit_rate.toFixed(1)}%)
+                        {selectedYear !== null
+                          ? '—'
+                          : `${a.irs_limit_metrics.employees_at_irs_limit.toLocaleString()} (${a.irs_limit_metrics.irs_limit_rate.toFixed(1)}%)`}
                       </td>
                     ))}
                   </tr>
@@ -430,15 +528,23 @@ export default function DCPlanAnalytics() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <KPICard
               title="Employee Deferrals"
-              value={formatCurrency(analytics.total_employee_contributions)}
-              subtext={`${analytics.total_enrolled.toLocaleString()} participants`}
+              value={formatCurrency(
+                activeYearData?.total_employee_contributions ?? analytics.total_employee_contributions
+              )}
+              subtext={
+                activeYearData
+                  ? `${activeYearData.participant_count.toLocaleString()} participants`
+                  : `${analytics.total_enrolled.toLocaleString()} participants`
+              }
               icon={DollarSign}
               color="blue"
               loading={loading}
             />
             <KPICard
               title="Employer Match"
-              value={formatCurrency(analytics.total_employer_match)}
+              value={formatCurrency(
+                activeYearData?.total_employer_match ?? analytics.total_employer_match
+              )}
               subtext="Total employer match"
               icon={DollarSign}
               color="green"
@@ -446,7 +552,9 @@ export default function DCPlanAnalytics() {
             />
             <KPICard
               title="Employer Core"
-              value={formatCurrency(analytics.total_employer_core)}
+              value={formatCurrency(
+                activeYearData?.total_employer_core ?? analytics.total_employer_core
+              )}
               subtext="Non-elective contributions"
               icon={DollarSign}
               color="orange"
@@ -454,8 +562,12 @@ export default function DCPlanAnalytics() {
             />
             <KPICard
               title="Participation Rate"
-              value={`${analytics.participation_rate.toFixed(1)}%`}
-              subtext={`${analytics.total_enrolled.toLocaleString()} of ${analytics.total_eligible.toLocaleString()} ${activeOnly ? 'active eligible' : 'eligible'}`}
+              value={`${(activeYearData?.participation_rate ?? analytics.participation_rate).toFixed(1)}%`}
+              subtext={
+                activeYearData
+                  ? `${activeYearData.participant_count.toLocaleString()} of ${activeYearData.total_eligible_count.toLocaleString()} eligible`
+                  : `${analytics.total_enrolled.toLocaleString()} of ${analytics.total_eligible.toLocaleString()} ${activeOnly ? 'active eligible' : 'eligible'}`
+              }
               icon={Users}
               color="purple"
               loading={loading}
@@ -493,9 +605,33 @@ export default function DCPlanAnalytics() {
                         formatter={(value: number) => [formatCurrency(value), '']}
                       />
                       <Legend verticalAlign="top" height={36} />
-                      <Bar dataKey="Employee" stackId="a" fill={CONTRIBUTION_COLORS.employee} name="Employee" radius={[0, 0, 4, 4]} />
-                      <Bar dataKey="Match" stackId="a" fill={CONTRIBUTION_COLORS.match} name="Employer Match" />
-                      <Bar dataKey="Core" stackId="a" fill={CONTRIBUTION_COLORS.core} name="Employer Core" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="Employee" stackId="a" fill={CONTRIBUTION_COLORS.employee} name="Employee" radius={[0, 0, 4, 4]}>
+                        {contributionChartData.map((entry) => (
+                          <Cell
+                            key={`emp-${entry.year}`}
+                            fill={CONTRIBUTION_COLORS.employee}
+                            opacity={selectedYear === null || entry.year === selectedYear ? 1 : 0.35}
+                          />
+                        ))}
+                      </Bar>
+                      <Bar dataKey="Match" stackId="a" fill={CONTRIBUTION_COLORS.match} name="Employer Match">
+                        {contributionChartData.map((entry) => (
+                          <Cell
+                            key={`match-${entry.year}`}
+                            fill={CONTRIBUTION_COLORS.match}
+                            opacity={selectedYear === null || entry.year === selectedYear ? 1 : 0.35}
+                          />
+                        ))}
+                      </Bar>
+                      <Bar dataKey="Core" stackId="a" fill={CONTRIBUTION_COLORS.core} name="Employer Core" radius={[4, 4, 0, 0]}>
+                        {contributionChartData.map((entry) => (
+                          <Cell
+                            key={`core-${entry.year}`}
+                            fill={CONTRIBUTION_COLORS.core}
+                            opacity={selectedYear === null || entry.year === selectedYear ? 1 : 0.35}
+                          />
+                        ))}
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (

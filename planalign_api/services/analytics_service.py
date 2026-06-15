@@ -269,6 +269,7 @@ class AnalyticsService:
                     AVG(CASE WHEN is_enrolled_flag THEN current_deferral_rate ELSE NULL END) as avg_deferral_rate,
                     {participation_rate_expr} as participation_rate,
                     COUNT(CASE WHEN is_enrolled_flag THEN 1 END) as participant_count,
+                    COUNT(*) as total_eligible,
                     COALESCE(SUM(prorated_annual_compensation), 0) as total_compensation
                 FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
                 {status_filter}
@@ -305,6 +306,7 @@ class AnalyticsService:
                         total_employer_core=total_core,
                         total_all_contributions=float(row["total_all"]),
                         participant_count=int(row["participant_count"]),
+                        total_eligible_count=int(row["total_eligible"]),
                         # E104: New fields
                         average_deferral_rate=float(row["avg_deferral_rate"] or 0.0),
                         participation_rate=round(
@@ -354,7 +356,6 @@ class AnalyticsService:
                     FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}, final_year
                     WHERE simulation_year = final_year.max_year
                       AND UPPER(employment_status) = 'ACTIVE'
-                      AND is_enrolled_flag = true
                 )
                 SELECT
                     bucket,
@@ -453,7 +454,6 @@ class AnalyticsService:
                         END as bucket
                     FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
                     WHERE UPPER(employment_status) = 'ACTIVE'
-                      AND is_enrolled_flag = true
                 )
                 SELECT
                     simulation_year,
