@@ -39,6 +39,30 @@ logger = logging.getLogger(__name__)
 # Regex for validating SQL identifiers (table names) that can't be parameterized
 _VALID_IDENTIFIER_RE = re.compile(r'^[a-zA-Z_]\w*$')
 
+# Characters that are invalid in filenames on Windows/macOS/Linux, plus control chars
+_UNSAFE_FILENAME_CHARS_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+
+
+def _safe_filename_component(
+    name: str, *, fallback: str = 'scenario', max_length: int = 100
+) -> str:
+    """Sanitize an arbitrary string for safe use as a filename component.
+
+    Analysts can name scenarios with characters that are illegal in filenames
+    (e.g. ``/``, ``:``, ``*``, ``?``), which previously caused the Excel/CSV
+    export to fail when it built ``{scenario_name}_results.xlsx``. This replaces
+    those characters (and control characters) with underscores, trims the
+    leading/trailing whitespace and dots that Windows rejects, caps the length,
+    and falls back to a default when nothing usable remains.
+    """
+    if name is None:
+        return fallback
+    sanitized = _UNSAFE_FILENAME_CHARS_RE.sub('_', str(name))
+    sanitized = sanitized.strip().strip('. ').strip()
+    if len(sanitized) > max_length:
+        sanitized = sanitized[:max_length].rstrip('. ')
+    return sanitized or fallback
+
 
 class ExcelExporter:
     """Export simulation results to analyst-friendly Excel workbooks with metadata and splitting options."""
@@ -76,6 +100,10 @@ class ExcelExporter:
         Returns:
             Path to the main export file or directory
         """
+        # Sanitize the scenario name before it is used to build output filenames;
+        # analysts may include characters that are illegal on the filesystem.
+        scenario_name = _safe_filename_component(scenario_name)
+
         output_dir.mkdir(parents=True, exist_ok=True)
 
         with self.db_manager.get_connection() as conn:
