@@ -105,6 +105,8 @@ def run_simulation(
             verbose=verbose,
         )
 
+        _print_config_summary(config_path, console, verbose)
+
         # Check system health before starting
         _check_system_health(wrapper)
 
@@ -171,6 +173,79 @@ def run_simulation(
     except Exception as e:
         show_error_message(f"Simulation error: {e}")
         raise typer.Exit(1)
+
+
+def _print_config_summary(config_path: Path, console: Console, verbose: bool) -> None:
+    """Print key dc_plan and match configuration from the merged config file."""
+    try:
+        import yaml
+
+        with open(config_path) as f:
+            cfg = yaml.safe_load(f) or {}
+
+        sim = cfg.get("simulation", {})
+        dc = cfg.get("dc_plan", {})
+        match_template = dc.get("match_template", "tiered")
+        match_enabled = dc.get("match_enabled", True)
+        match_status = dc.get("match_status", "deferral_based")
+        match_tiers = dc.get("match_tiers", [])
+        match_cap = dc.get("match_cap_percent")
+
+        lines = [
+            f"[bold]Scenario:[/bold] {sim.get('name', 'unnamed')}  "
+            f"[bold]Years:[/bold] {sim.get('start_year')}–{sim.get('end_year')}  "
+            f"[bold]Seed:[/bold] {sim.get('random_seed')}",
+            f"[bold]Match:[/bold] {'enabled' if match_enabled else 'DISABLED'}  "
+            f"[bold]Template:[/bold] {match_template}  "
+            f"[bold]Mode:[/bold] {match_status}  "
+            f"[bold]Cap:[/bold] {f'{match_cap*100:.1f}%' if match_cap is not None else 'default'}",
+        ]
+
+        # Show the tiers that are ACTUALLY used by the dbt model for the active mode
+        if match_status in ("deferral_based", ""):
+            if match_tiers:
+                tier_parts = [
+                    f"{t.get('employee_min',0)*100:.0f}–{t.get('employee_max',0)*100:.0f}% @ {t.get('match_rate',0)*100:.0f}%"
+                    for t in match_tiers
+                ]
+                lines.append(f"[bold]Deferral tiers:[/bold] {', '.join(tier_parts)}")
+            else:
+                lines.append("[bold yellow]WARNING:[/bold yellow] Mode=deferral_based but no match_tiers configured → using dbt defaults")
+        elif match_status == "tenure_based":
+            tenure_tiers = dc.get("tenure_match_tiers", [])
+            if tenure_tiers:
+                tier_parts = [
+                    f"{t.get('min_years',0)}–{t.get('max_years','∞')} yrs @ {t.get('match_rate',0)*100:.0f}% (max deferral {t.get('max_deferral_pct',0)*100:.0f}%)"
+                    for t in tenure_tiers
+                ]
+                lines.append(f"[bold]Tenure tiers:[/bold] {', '.join(tier_parts)}")
+            else:
+                lines.append("[bold red]WARNING: Mode=tenure_based but tenure_match_tiers is EMPTY → match will be $0[/bold red]")
+        elif match_status == "graded_by_service":
+            schedule = dc.get("match_graded_schedule", [])
+            if schedule:
+                tier_parts = [
+                    f"{t.get('min_years',0)}–{t.get('max_years','∞')} yrs @ {t.get('match_rate',0)*100:.0f}%"
+                    for t in schedule
+                ]
+                lines.append(f"[bold]Service tiers:[/bold] {', '.join(tier_parts)}")
+            else:
+                lines.append("[bold red]WARNING: Mode=graded_by_service but match_graded_schedule is EMPTY → match will be $0[/bold red]")
+        elif match_status == "points_based":
+            points_tiers = dc.get("points_match_tiers", [])
+            if points_tiers:
+                tier_parts = [
+                    f"{t.get('min_points',0)}–{t.get('max_points','∞')} pts @ {t.get('match_rate',0)*100:.0f}%"
+                    for t in points_tiers
+                ]
+                lines.append(f"[bold]Points tiers:[/bold] {', '.join(tier_parts)}")
+            else:
+                lines.append("[bold red]WARNING: Mode=points_based but points_match_tiers is EMPTY → match will be $0[/bold red]")
+
+        console.print(Panel("\n".join(lines), title="[bold cyan]Config Summary[/bold cyan]", border_style="cyan"))
+    except Exception as e:
+        if verbose:
+            console.print(f"[dim]Config summary unavailable: {e}[/dim]")
 
 
 def _check_system_health(wrapper: OrchestratorWrapper) -> None:

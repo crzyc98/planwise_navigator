@@ -467,11 +467,15 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
   }, [activeWorkspace?.id, scenarioId]);
 
   // --- useEffect 4: savedFormData snapshot ---
+  // Gate on !scenarioLoading: Effect 2 applies base_config (synchronously) then Effect 1
+  // applies scenario overrides (async). Without the gate, the snapshot fires after
+  // Effect 2 but before Effect 1 completes, capturing base_config-only values and
+  // permanently marking all scenario-specific fields as dirty.
   useEffect(() => {
-    if (savedFormData === null && (freshBaseConfig || currentScenario?.config_overrides)) {
+    if (savedFormData === null && !scenarioLoading && (freshBaseConfig || currentScenario?.config_overrides)) {
       setSavedFormData({ ...formData });
     }
-  }, [formData, freshBaseConfig, currentScenario?.config_overrides, savedFormData]);
+  }, [formData, freshBaseConfig, currentScenario?.config_overrides, savedFormData, scenarioLoading]);
 
   // --- useEffect 5: beforeunload warning ---
   const isDirty = useMemo(() => {
