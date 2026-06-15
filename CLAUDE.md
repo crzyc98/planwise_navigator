@@ -869,6 +869,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - DuckDB (`dbt/simulation.duckdb`) — no schema migration needed (nullable column added) (093-part-time-scheduled-hours)
 - Python 3.11 (orchestrator + FastAPI backend), TypeScript / React 18 (Vite frontend) + FastAPI + Pydantic v2, asyncio (existing WS stack); Recharts 3.5.0 (already a frontend dep, used by feature 066), Tailwind CSS v4, Lucide icons (094-live-run-dashboard)
 - In-memory per-run telemetry state in the API process (per clarification, no persistence); DuckDB read only *in-process by the orchestrator* (its own connection) for year-boundary event counts — the API never opens the scenario DB mid-run (094-live-run-dashboard)
+- SQL (dbt-core 1.8.8, dbt-duckdb 1.8.1), Python 3.11 (orchestrator + tests) + DuckDB 1.0.0, dbt-duckdb 1.8.1; existing temporal-accumulator pattern (E023) (095-fix-enrollment-snapshot)
+- DuckDB (`dbt/simulation.duckdb`) — no schema migration; incremental accumulator model, fix is logic-only (095-fix-enrollment-snapshot)
 
 ## Recent Changes
 - 063-1000-hr-eligibility: Added Python 3.11, SQL (dbt-core 1.8.8) + dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic 2.7.4
