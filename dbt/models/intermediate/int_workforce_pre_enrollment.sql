@@ -38,7 +38,7 @@ SELECT
   NULL as termination_reason,
   simulation_year,
   current_timestamp as snapshot_created_at,
-  CASE WHEN simulation_year = {{ var('simulation_start_year', 2025) }} THEN true ELSE false END as is_from_census,
+  CASE WHEN simulation_year = {{ var('start_year', 2025) }} THEN true ELSE false END as is_from_census,
   age_band,
   tenure_band,
   'active' as detailed_status_code,

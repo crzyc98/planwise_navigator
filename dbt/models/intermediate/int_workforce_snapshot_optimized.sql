@@ -10,7 +10,7 @@
 ) }}
 
 {% set simulation_year = var('simulation_year', 2025) | int %}
-{% set start_year = var('simulation_start_year', 2025) | int %}
+{% set start_year = var('start_year', 2025) | int %}
 
 -- **S031-02 OPTIMIZED WORKFORCE SNAPSHOT**
 --

@@ -34,6 +34,7 @@ def _export_simulation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     # Simulation bounds
     if cfg.simulation.start_year is not None:
         dbt_vars["start_year"] = int(cfg.simulation.start_year)
+        dbt_vars["simulation_start_year"] = int(cfg.simulation.start_year)
     if cfg.simulation.end_year is not None:
         dbt_vars["end_year"] = int(cfg.simulation.end_year)
 
