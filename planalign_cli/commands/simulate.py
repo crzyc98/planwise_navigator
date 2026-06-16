@@ -215,7 +215,7 @@ def _print_config_summary(config_path: Path, console: Console, verbose: bool) ->
             tenure_tiers = dc.get("tenure_match_tiers", [])
             if tenure_tiers:
                 tier_parts = [
-                    f"{t.get('min_years',0)}–{t.get('max_years','∞')} yrs @ {t.get('match_rate',0)*100:.0f}% (max deferral {t.get('max_deferral_pct',0)*100:.0f}%)"
+                    f"{t.get('min_years',0)}–{t.get('max_years') or '∞'} yrs @ {t.get('match_rate',0)*100:.0f}% (max deferral {t.get('max_deferral_pct',0)*100:.0f}%)"
                     for t in tenure_tiers
                 ]
                 lines.append(f"[bold]Tenure tiers:[/bold] {', '.join(tier_parts)}")
@@ -225,7 +225,7 @@ def _print_config_summary(config_path: Path, console: Console, verbose: bool) ->
             schedule = dc.get("match_graded_schedule", [])
             if schedule:
                 tier_parts = [
-                    f"{t.get('min_years',0)}–{t.get('max_years','∞')} yrs @ {t.get('match_rate',0)*100:.0f}%"
+                    f"{t.get('min_years',0)}–{t.get('max_years') or '∞'} yrs @ {t.get('match_rate',0)*100:.0f}%"
                     for t in schedule
                 ]
                 lines.append(f"[bold]Service tiers:[/bold] {', '.join(tier_parts)}")
@@ -235,7 +235,7 @@ def _print_config_summary(config_path: Path, console: Console, verbose: bool) ->
             points_tiers = dc.get("points_match_tiers", [])
             if points_tiers:
                 tier_parts = [
-                    f"{t.get('min_points',0)}–{t.get('max_points','∞')} pts @ {t.get('match_rate',0)*100:.0f}%"
+                    f"{t.get('min_points',0)}–{t.get('max_points') or '∞'} pts @ {t.get('match_rate',0)*100:.0f}%"
                     for t in points_tiers
                 ]
                 lines.append(f"[bold]Points tiers:[/bold] {', '.join(tier_parts)}")

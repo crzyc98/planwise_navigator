@@ -875,6 +875,8 @@ See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
 - DuckDB (`dbt/simulation.duckdb`) — no schema migration; logic-only change to existing (096-newhire-voluntary-enroll)
 - Python 3.11 (backend), TypeScript/React 18 (frontend) + FastAPI + Pydantic v2 (backend API); React 18 + Recharts 3.5.0 + Tailwind CSS v4 (frontend) (097-dc-analytics-year)
 - DuckDB 1.0.0 (`dbt/simulation.duckdb`) — read-only; no schema migration needed (097-dc-analytics-year)
+- Python 3.11 (CLI + orchestrator), SQL / Jinja2 (dbt-core 1.8.8 + dbt-duckdb 1.8.1) + dbt-core 1.8.8, dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic v2 (098-tenure-match-tier-bug)
+- DuckDB (`simulation.duckdb` per scenario) — no schema changes needed (098-tenure-match-tier-bug)
 
 ## Recent Changes
 - 063-1000-hr-eligibility: Added Python 3.11, SQL (dbt-core 1.8.8) + dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic 2.7.4
