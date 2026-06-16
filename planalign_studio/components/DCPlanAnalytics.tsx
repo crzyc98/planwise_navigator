@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import {
   BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList
 } from 'recharts';
 import {
   Users, DollarSign, TrendingUp, PieChart as PieChartIcon,
@@ -84,6 +84,26 @@ const ErrorState = ({ message, onRetry }: { message: string; onRetry: () => void
   </div>
 );
 
+const DeferralTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  const { count, percentage } = payload[0].payload;
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg shadow-lg px-4 py-3 min-w-[160px]">
+      <p className="font-semibold text-gray-800 mb-2 text-sm">{label} deferral</p>
+      <div className="space-y-1">
+        <p className="text-sm text-gray-600">
+          <span className="font-semibold text-gray-900">{count.toLocaleString()}</span>{' '}
+          employees
+        </p>
+        <p className="text-sm text-gray-600">
+          <span className="font-semibold text-fidelity-green">{percentage.toFixed(1)}%</span>{' '}
+          of participants
+        </p>
+      </div>
+    </div>
+  );
+};
+
 const PARTICIPATION_COLORS = ['#00853F', '#4CAF50', '#81C784'];
 const CONTRIBUTION_COLORS = { employee: '#0088FE', match: '#00C49F', core: '#FFBB28' };
 
@@ -107,6 +127,9 @@ export default function DCPlanAnalytics() {
 
   // Active-only toggle for participation metrics (default: all participants)
   const [activeOnly, setActiveOnly] = useState(false);
+
+  // Deferral distribution view: effective rate for the year vs year-end snapshot
+  const [deferralView, setDeferralView] = useState<'effective' | 'yearend'>('yearend');
 
   // Year filter: null = "All Years" aggregate
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
@@ -163,7 +186,7 @@ export default function DCPlanAnalytics() {
     }
   }, [activeWorkspace?.id]);
 
-  // Fetch analytics when scenario or active-only toggle changes
+  // Fetch analytics when scenario, active-only toggle, or deferral view changes
   useEffect(() => {
     if (!activeWorkspace?.id) return;
     if (selectedScenarioIds.length === 1 && !comparisonMode) {
@@ -174,7 +197,7 @@ export default function DCPlanAnalytics() {
       setAnalytics(null);
       setComparisonData(null);
     }
-  }, [selectedScenarioIds, comparisonMode, activeWorkspace?.id, activeOnly]);
+  }, [selectedScenarioIds, comparisonMode, activeWorkspace?.id, activeOnly, deferralView]);
 
   const fetchScenarios = async (workspaceId: string) => {
     setLoadingScenarios(true);
@@ -198,9 +221,13 @@ export default function DCPlanAnalytics() {
     setLoading(true);
     setError(null);
     try {
-      const data = await getDCPlanAnalytics(activeWorkspace.id, scenarioId, activeOnly);
+      const data = await getDCPlanAnalytics(activeWorkspace.id, scenarioId, activeOnly, deferralView === 'effective');
       setAnalytics(data);
       setComparisonData(null);
+      if (data.contribution_by_year.length > 0) {
+        const years = data.contribution_by_year.map((y) => y.year);
+        setSelectedYear((prev) => (prev === null || !years.includes(prev) ? years[0] : prev));
+      }
     } catch (err: any) {
       console.error('Failed to fetch analytics:', err);
       setError(err.message || 'Failed to load DC plan analytics');
@@ -215,7 +242,7 @@ export default function DCPlanAnalytics() {
     setLoading(true);
     setError(null);
     try {
-      const data = await compareDCPlanAnalytics(activeWorkspace.id, scenarioIds, activeOnly);
+      const data = await compareDCPlanAnalytics(activeWorkspace.id, scenarioIds, activeOnly, deferralView === 'effective');
       setComparisonData(data);
       setAnalytics(null);
     } catch (err: any) {
@@ -644,23 +671,57 @@ export default function DCPlanAnalytics() {
 
             {/* Deferral Rate Distribution */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-800 mb-6">Deferral Rate Distribution</h3>
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800">Deferral Rate Distribution</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {deferralView === 'effective'
+                      ? 'Rate used for contribution calculation — 0% aligns with non-participants'
+                      : 'Year-end snapshot — reflects escalations and mid-year opt-outs'}
+                  </p>
+                </div>
+                <div className="flex items-center bg-gray-100 rounded-lg p-1 shrink-0 ml-4">
+                  <button
+                    onClick={() => setDeferralView('effective')}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                      deferralView === 'effective'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Effective Rate
+                  </button>
+                  <button
+                    onClick={() => setDeferralView('yearend')}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                      deferralView === 'yearend'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Year-End
+                  </button>
+                </div>
+              </div>
               <div className="h-80">
                 {deferralDistributionData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={deferralDistributionData} layout="vertical" barSize={20}>
+                    <BarChart data={deferralDistributionData} layout="vertical" barSize={20} margin={{ right: 56 }}>
                       <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E5E7EB" />
                       <XAxis type="number" stroke="#9CA3AF" />
                       <YAxis dataKey="bucket" type="category" stroke="#9CA3AF" width={50} />
                       <Tooltip
                         cursor={{ fill: '#F3F4F6' }}
-                        contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb' }}
-                        formatter={(value: number, name: string) => [
-                          name === 'count' ? `${value} employees` : `${value.toFixed(1)}%`,
-                          name === 'count' ? 'Count' : 'Percentage'
-                        ]}
+                        content={<DeferralTooltip />}
                       />
-                      <Bar dataKey="count" fill={COLORS.primary} name="count" radius={[0, 4, 4, 0]} />
+                      <Bar dataKey="count" fill={COLORS.primary} name="count" radius={[0, 4, 4, 0]}>
+                        <LabelList
+                          dataKey="percentage"
+                          position="right"
+                          formatter={(v: number) => `${v.toFixed(1)}%`}
+                          style={{ fill: '#6B7280', fontSize: 12 }}
+                        />
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (

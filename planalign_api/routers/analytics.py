@@ -38,6 +38,10 @@ async def get_dc_plan_analytics(
         False,
         description="If true, include only active employees in participation metrics",
     ),
+    effective_rate: bool = Query(
+        False,
+        description="If true, use effective_annual_deferral_rate for the deferral distribution (matches contribution calculation). If false, use current_deferral_rate (year-end snapshot).",
+    ),
     storage: WorkspaceStorage = Depends(get_storage),
     analytics_service: AnalyticsService = Depends(get_analytics_service),
 ) -> DCPlanAnalytics:
@@ -71,7 +75,11 @@ async def get_dc_plan_analytics(
 
     # Get analytics
     analytics = analytics_service.get_dc_plan_analytics(
-        workspace_id, scenario_id, scenario.name, active_only=active_only
+        workspace_id,
+        scenario_id,
+        scenario.name,
+        active_only=active_only,
+        effective_rate=effective_rate,
     )
 
     if not analytics:
@@ -95,6 +103,10 @@ async def compare_dc_plan_analytics(
     active_only: bool = Query(
         False,
         description="If true, include only active employees in participation metrics",
+    ),
+    effective_rate: bool = Query(
+        False,
+        description="If true, use effective_annual_deferral_rate for the deferral distribution.",
     ),
     storage: WorkspaceStorage = Depends(get_storage),
     analytics_service: AnalyticsService = Depends(get_analytics_service),
@@ -151,6 +163,7 @@ async def compare_dc_plan_analytics(
             scenario_id,
             scenario_names[scenario_id],
             active_only=active_only,
+            effective_rate=effective_rate,
         )
         if analytics:
             analytics_list.append(analytics)

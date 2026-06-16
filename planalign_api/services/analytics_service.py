@@ -110,6 +110,7 @@ class AnalyticsService:
         scenario_id: str,
         scenario_name: str,
         active_only: bool = False,
+        effective_rate: bool = False,
     ) -> Optional[DCPlanAnalytics]:
         """
         Get DC Plan analytics for a single scenario.
@@ -129,9 +130,11 @@ class AnalyticsService:
             participation = self._get_participation_summary(conn, active_only)
             contribution_by_year = self._get_contribution_by_year(conn, active_only)
             totals = self._compute_grand_totals(contribution_by_year)
-            deferral_distribution = self._get_deferral_distribution(conn)
+            deferral_distribution = self._get_deferral_distribution(
+                conn, effective_rate=effective_rate, active_only=active_only
+            )
             deferral_distribution_by_year = self._get_deferral_distribution_all_years(
-                conn
+                conn, effective_rate=effective_rate, active_only=active_only
             )
             escalation = self._get_escalation_metrics(conn)
             irs_limits = self._get_irs_limit_metrics(conn)
@@ -328,8 +331,23 @@ class AnalyticsService:
             logger.warning(f"Failed to get contribution by year: {e}")
             return []
 
-    def _get_deferral_distribution(self, conn) -> List[DeferralRateBucket]:
-        """Get deferral rate distribution (11 buckets: 0%, 1%...9%, 10%+)."""
+    def _get_deferral_distribution(
+        self,
+        conn,
+        effective_rate: bool = False,
+        active_only: bool = False,
+    ) -> List[DeferralRateBucket]:
+        """Get deferral rate distribution (11 buckets: 0%, 1%...9%, 10%+).
+
+        effective_rate=True  → uses effective_annual_deferral_rate (matches contribution
+                               calculation) with the same population as participation rate.
+        effective_rate=False → uses current_deferral_rate (year-end snapshot, active only).
+        """
+        rate_col = "effective_annual_deferral_rate" if effective_rate else "current_deferral_rate"
+        if effective_rate:
+            status_filter = "AND UPPER(employment_status) = 'ACTIVE'" if active_only else ""
+        else:
+            status_filter = "AND UPPER(employment_status) = 'ACTIVE'"
         try:
             # Query for distribution buckets
             df = conn.execute(
@@ -341,21 +359,21 @@ class AnalyticsService:
                 bucketed AS (
                     SELECT
                         CASE
-                            WHEN current_deferral_rate IS NULL OR current_deferral_rate = 0 THEN '0%'
-                            WHEN current_deferral_rate < 0.015 THEN '1%'
-                            WHEN current_deferral_rate < 0.025 THEN '2%'
-                            WHEN current_deferral_rate < 0.035 THEN '3%'
-                            WHEN current_deferral_rate < 0.045 THEN '4%'
-                            WHEN current_deferral_rate < 0.055 THEN '5%'
-                            WHEN current_deferral_rate < 0.065 THEN '6%'
-                            WHEN current_deferral_rate < 0.075 THEN '7%'
-                            WHEN current_deferral_rate < 0.085 THEN '8%'
-                            WHEN current_deferral_rate < 0.095 THEN '9%'
+                            WHEN {rate_col} IS NULL OR {rate_col} = 0 THEN '0%'
+                            WHEN {rate_col} < 0.015 THEN '1%'
+                            WHEN {rate_col} < 0.025 THEN '2%'
+                            WHEN {rate_col} < 0.035 THEN '3%'
+                            WHEN {rate_col} < 0.045 THEN '4%'
+                            WHEN {rate_col} < 0.055 THEN '5%'
+                            WHEN {rate_col} < 0.065 THEN '6%'
+                            WHEN {rate_col} < 0.075 THEN '7%'
+                            WHEN {rate_col} < 0.085 THEN '8%'
+                            WHEN {rate_col} < 0.095 THEN '9%'
                             ELSE '10%+'
                         END as bucket
                     FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}, final_year
                     WHERE simulation_year = final_year.max_year
-                      AND UPPER(employment_status) = 'ACTIVE'
+                      {status_filter}
                 )
                 SELECT
                     bucket,
@@ -417,9 +435,22 @@ class AnalyticsService:
             ]
 
     def _get_deferral_distribution_all_years(
-        self, conn
+        self,
+        conn,
+        effective_rate: bool = False,
+        active_only: bool = False,
     ) -> List[DeferralDistributionYear]:
-        """Get deferral rate distribution for all simulation years (E059)."""
+        """Get deferral rate distribution for all simulation years (E059).
+
+        effective_rate=True  → uses effective_annual_deferral_rate with participation-rate
+                               population (respects active_only).
+        effective_rate=False → uses current_deferral_rate, active employees only.
+        """
+        rate_col = "effective_annual_deferral_rate" if effective_rate else "current_deferral_rate"
+        if effective_rate:
+            status_filter = "WHERE UPPER(employment_status) = 'ACTIVE'" if active_only else ""
+        else:
+            status_filter = "WHERE UPPER(employment_status) = 'ACTIVE'"
         bucket_order = [
             "0%",
             "1%",
@@ -440,20 +471,20 @@ class AnalyticsService:
                     SELECT
                         simulation_year,
                         CASE
-                            WHEN current_deferral_rate IS NULL OR current_deferral_rate = 0 THEN '0%'
-                            WHEN current_deferral_rate < 0.015 THEN '1%'
-                            WHEN current_deferral_rate < 0.025 THEN '2%'
-                            WHEN current_deferral_rate < 0.035 THEN '3%'
-                            WHEN current_deferral_rate < 0.045 THEN '4%'
-                            WHEN current_deferral_rate < 0.055 THEN '5%'
-                            WHEN current_deferral_rate < 0.065 THEN '6%'
-                            WHEN current_deferral_rate < 0.075 THEN '7%'
-                            WHEN current_deferral_rate < 0.085 THEN '8%'
-                            WHEN current_deferral_rate < 0.095 THEN '9%'
+                            WHEN {rate_col} IS NULL OR {rate_col} = 0 THEN '0%'
+                            WHEN {rate_col} < 0.015 THEN '1%'
+                            WHEN {rate_col} < 0.025 THEN '2%'
+                            WHEN {rate_col} < 0.035 THEN '3%'
+                            WHEN {rate_col} < 0.045 THEN '4%'
+                            WHEN {rate_col} < 0.055 THEN '5%'
+                            WHEN {rate_col} < 0.065 THEN '6%'
+                            WHEN {rate_col} < 0.075 THEN '7%'
+                            WHEN {rate_col} < 0.085 THEN '8%'
+                            WHEN {rate_col} < 0.095 THEN '9%'
                             ELSE '10%+'
                         END as bucket
                     FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
-                    WHERE UPPER(employment_status) = 'ACTIVE'
+                    {status_filter}
                 )
                 SELECT
                     simulation_year,

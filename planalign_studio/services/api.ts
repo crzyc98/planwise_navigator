@@ -1108,11 +1108,15 @@ export interface DCPlanComparisonResponse {
 export async function getDCPlanAnalytics(
   workspaceId: string,
   scenarioId: string,
-  activeOnly: boolean = false
+  activeOnly: boolean = false,
+  effectiveRate: boolean = false
 ): Promise<DCPlanAnalytics> {
-  const params = activeOnly ? '?active_only=true' : '';
+  const params = new URLSearchParams();
+  if (activeOnly) params.set('active_only', 'true');
+  if (effectiveRate) params.set('effective_rate', 'true');
+  const qs = params.toString() ? `?${params}` : '';
   const response = await fetch(
-    `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}/analytics/dc-plan${params}`
+    `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}/analytics/dc-plan${qs}`
   );
   return handleResponse<DCPlanAnalytics>(response);
 }
@@ -1120,14 +1124,14 @@ export async function getDCPlanAnalytics(
 export async function compareDCPlanAnalytics(
   workspaceId: string,
   scenarioIds: string[],
-  activeOnly: boolean = false
+  activeOnly: boolean = false,
+  effectiveRate: boolean = false
 ): Promise<DCPlanComparisonResponse> {
   const params = new URLSearchParams({
     scenarios: scenarioIds.join(','),
   });
-  if (activeOnly) {
-    params.set('active_only', 'true');
-  }
+  if (activeOnly) params.set('active_only', 'true');
+  if (effectiveRate) params.set('effective_rate', 'true');
   const response = await fetch(
     `${API_BASE}/api/workspaces/${workspaceId}/analytics/dc-plan/compare?${params}`
   );
