@@ -822,7 +822,8 @@ class TestExportDcPlanTenureTiers:
     """T018: Verify dc_plan (UI) path exports tenure/points tiers with field mapping."""
 
     def test_dc_plan_tenure_tiers_decimal_conversion(self):
-        """UI sends match_rate as decimal (0.50), export converts to percentage (50)."""
+        """UI sends match_rate as decimal (0.50); legacy tenure_based dc_plan configs
+        are now auto-migrated to tenure_graded_bands on export (Feature 099 supersession)."""
         cfg = _FakeConfig(
             employer_match=None,
             dc_plan={
@@ -846,12 +847,55 @@ class TestExportDcPlanTenureTiers:
 
         dbt_vars = _export_employer_match_vars(cfg)
 
-        assert dbt_vars["employer_match_status"] == "tenure_based"
-        tiers = dbt_vars["tenure_match_tiers"]
-        assert len(tiers) == 2
-        assert tiers[0]["rate"] == 25.0  # 0.25 * 100
-        assert tiers[0]["max_deferral_pct"] == 6.0  # 0.06 * 100
-        assert tiers[1]["rate"] == 100.0
+        assert dbt_vars["employer_match_status"] == "tenure_graded"
+        bands = dbt_vars["tenure_graded_bands"]
+        assert len(bands) == 2
+        assert bands[0]["tiers"][0]["match_rate"] == 0.25
+        assert bands[0]["tiers"][0]["employee_max"] == 0.06
+        assert bands[1]["tiers"][0]["match_rate"] == 1.0
+
+    def test_dc_plan_tenure_graded_bands_passthrough(self):
+        """UI saves tenure_graded_bands directly (already decimal form) — passthrough, no migration."""
+        cfg = _FakeConfig(
+            employer_match=None,
+            dc_plan={
+                "match_status": "tenure_graded",
+                "tenure_graded_bands": [
+                    {
+                        "min_years": 0, "max_years": 10,
+                        "tiers": [
+                            {"employee_min": 0.00, "employee_max": 0.02, "match_rate": 1.00},
+                            {"employee_min": 0.02, "employee_max": 0.08, "match_rate": 0.50},
+                        ],
+                    },
+                    {
+                        "min_years": 10, "max_years": None,
+                        "tiers": [
+                            {"employee_min": 0.00, "employee_max": 0.02, "match_rate": 1.00},
+                            {"employee_min": 0.02, "employee_max": 0.10, "match_rate": 0.50},
+                        ],
+                    },
+                ],
+            },
+        )
+
+        dbt_vars = _export_employer_match_vars(cfg)
+
+        assert dbt_vars["employer_match_status"] == "tenure_graded"
+        bands = dbt_vars["tenure_graded_bands"]
+        assert len(bands) == 2
+        assert bands[0]["tiers"][1] == {"employee_min": 0.02, "employee_max": 0.08, "match_rate": 0.50}
+
+    def test_dc_plan_tenure_graded_missing_bands_no_crash(self):
+        """Regression test: tenure_graded selected with no bands saved must not crash export
+        (this was the root cause of the production "syntax error near )" pipeline failure)."""
+        cfg = _FakeConfig(
+            employer_match=None,
+            dc_plan={"match_status": "tenure_graded", "tenure_match_tiers": []},
+        )
+        dbt_vars = _export_employer_match_vars(cfg)
+        assert dbt_vars["employer_match_status"] == "tenure_graded"
+        assert dbt_vars.get("tenure_graded_bands") in (None, [])
 
     def test_dc_plan_points_tiers_decimal_conversion(self):
         """UI sends match_rate as decimal (0.75), export converts to percentage (75)."""

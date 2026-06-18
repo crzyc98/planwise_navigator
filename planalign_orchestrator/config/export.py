@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any, Dict, List
 
 from planalign_orchestrator.config.tenure_graded_match import (
     migrate_legacy_tenure_based_config,
@@ -618,9 +618,9 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
 
             # E046: Tenure-based match tiers (for tenure_based mode)
             tenure_tiers = dc_plan_dict.get("tenure_match_tiers")
+            tenure_tiers_pct: List[Dict[str, Any]] = []
             if tenure_tiers is not None:
                 if isinstance(tenure_tiers, list) and len(tenure_tiers) > 0:
-                    transformed_tiers = []
                     for tier in tenure_tiers:
                         transformed_tier = {
                             "min_years": tier.get("min_years", 0),
@@ -635,8 +635,8 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                             and tier.get("max_deferral_pct") <= 1
                             else tier.get("max_deferral_pct", 6),
                         }
-                        transformed_tiers.append(transformed_tier)
-                    dbt_vars["tenure_match_tiers"] = transformed_tiers
+                        tenure_tiers_pct.append(transformed_tier)
+                    dbt_vars["tenure_match_tiers"] = tenure_tiers_pct
 
             # E046: Points-based match tiers (for points_based mode)
             points_tiers = dc_plan_dict.get("points_match_tiers")
@@ -659,6 +659,49 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                         }
                         transformed_tiers.append(transformed_tier)
                     dbt_vars["points_match_tiers"] = transformed_tiers
+
+            # Feature 099: Tenure-graded multi-tier match bands (for tenure_graded mode).
+            # Unlike tenure_match_tiers/points_match_tiers above, these are saved by the
+            # Studio UI already in decimal form (employee_min/employee_max/match_rate as
+            # 0.02/0.08/1.00, not percentages) to match the macro's expected shape — see
+            # specs/099-tenure-graded-match/contracts/config-schema.md.
+            tenure_graded_bands = dc_plan_dict.get("tenure_graded_bands")
+            # migrate_legacy_tenure_based_config expects whole-number-percent
+            # match_rate/max_deferral_pct (the Pydantic TenureMatchTier convention),
+            # so use tenure_tiers_pct (already converted above), not the raw
+            # decimal-or-percent dc_plan input.
+            migrated_status, migrated_bands = migrate_legacy_tenure_based_config(
+                str(match_status) if match_status is not None else "",
+                [
+                    {
+                        "min_years": t["min_years"],
+                        "max_years": t["max_years"],
+                        "match_rate": t["rate"],
+                        "max_deferral_pct": t["max_deferral_pct"],
+                    }
+                    for t in tenure_tiers_pct
+                ],
+            )
+            if migrated_bands:
+                dbt_vars["employer_match_status"] = migrated_status
+                tenure_graded_bands = migrated_bands
+
+            if tenure_graded_bands and len(tenure_graded_bands) > 0:
+                dbt_vars["tenure_graded_bands"] = [
+                    {
+                        "min_years": b.get("min_years", 0),
+                        "max_years": b.get("max_years"),
+                        "tiers": [
+                            {
+                                "employee_min": t.get("employee_min", 0.0),
+                                "employee_max": t.get("employee_max", 0.0),
+                                "match_rate": t.get("match_rate", 0.0),
+                            }
+                            for t in b.get("tiers", [])
+                        ],
+                    }
+                    for b in tenure_graded_bands
+                ]
 
             # E095: Export match eligibility from dc_plan (UI format) to employer_match structure
             # The UI sends flat fields like match_min_hours_annual, we need to merge into employer_match

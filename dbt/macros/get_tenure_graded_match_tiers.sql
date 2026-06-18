@@ -45,6 +45,18 @@
     }) -%}
   {%- endfor -%}
 {%- endfor -%}
+{%- if flat_rows | length == 0 -%}
+-- Defensive no-op: tenure_graded mode selected but no bands/tiers configured.
+-- Returns an empty (but schema-valid) row set so the CROSS JOIN in
+-- int_employee_match_calculations.sql never produces invalid SQL.
+SELECT
+    CAST(NULL AS INTEGER) AS band_min_years,
+    CAST(NULL AS INTEGER) AS band_max_years,
+    CAST(NULL AS DECIMAL(10,6)) AS employee_min,
+    CAST(NULL AS DECIMAL(10,6)) AS employee_max,
+    CAST(NULL AS DECIMAL(10,6)) AS match_rate
+WHERE FALSE
+{%- else -%}
 {%- for row in flat_rows %}
 SELECT
     {{ row['band_min_years'] }} AS band_min_years,
@@ -54,4 +66,5 @@ SELECT
     {{ row['match_rate'] }} AS match_rate
 {% if not loop.last %}UNION ALL{% endif %}
 {%- endfor -%}
+{%- endif -%}
 {%- endmacro %}
