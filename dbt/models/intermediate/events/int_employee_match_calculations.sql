@@ -68,9 +68,12 @@
 {% set employer_match_status = var('employer_match_status', 'deferral_based') %}
 {% set employer_match_graded_schedule = var('employer_match_graded_schedule', []) %}
 
--- E046: Tenure-based and points-based match configuration
-{% set tenure_match_tiers = var('tenure_match_tiers', []) %}
+-- E046: Points-based match configuration
 {% set points_match_tiers = var('points_match_tiers', []) %}
+
+-- Feature 099: Tenure-graded multi-tier match configuration (supersedes the
+-- legacy single-tier tenure_based mode / tenure_match_tiers)
+{% set tenure_graded_bands = var('tenure_graded_bands', []) %}
 
 -- E069: Master match enable/disable flag (mirrors employer_core_enabled pattern)
 {% set employer_match_enabled = var('employer_match_enabled', true) %}
@@ -81,8 +84,8 @@
 -- Match cap: {{ match_cap_percent * 100 }}% of compensation
 -- Deferral-based Tiers: {{ match_tiers | length }} defined
 -- Service-based Tiers: {{ employer_match_graded_schedule | length }} defined
--- Tenure-based Tiers: {{ tenure_match_tiers | length }} defined
 -- Points-based Tiers: {{ points_match_tiers | length }} defined
+-- Tenure-Graded Bands: {{ tenure_graded_bands | length }} defined
 
 -- E026: IRS Section 401(a)(17) compensation limit for employer contributions
 WITH irs_compensation_limits AS (
@@ -171,12 +174,15 @@ all_matches AS (
     FROM service_based_match
 ),
 
-{% elif employer_match_status == 'tenure_based' %}
--- E046: Tenure-based match calculation
--- Match rate varies by employee years of service, using tenure_match_tiers config
--- Formula: match = tier_rate × min(deferral%, tier_max_deferral_pct) × capped_compensation
--- Reuses existing get_tiered_match_rate/get_tiered_match_max_deferral macros
-tenure_based_match AS (
+{% elif employer_match_status == 'tenure_graded' %}
+-- Feature 099: Tenure-graded multi-tier match calculation
+-- Match rate AND deferral-tier schedule both vary by employee years of service.
+-- Each tenure band carries its own ordered, cumulative list of deferral-rate
+-- tiers (e.g. 100% on first 2%, 50% on next 6%), unlike tenure_based mode
+-- which only varies a single flat rate + single max deferral cap per band.
+-- Formula: match = SUM over the employee's band's tiers of
+--   tier_rate × min(deferral% above tier floor, tier width) × capped_compensation
+tenure_graded_match AS (
     SELECT
         ec.employee_id,
         ec.simulation_year,
@@ -185,18 +191,25 @@ tenure_based_match AS (
         ec.annual_deferrals,
         ec.years_of_service,
         lim.irs_401a17_limit,
-        -- Get the match rate for this employee's tenure tier
-        {{ get_tiered_match_rate('ec.years_of_service', tenure_match_tiers, 0.0) }} AS tier_rate,
-        -- Get the max deferral cap for this employee's tenure tier
-        {{ get_tiered_match_max_deferral('ec.years_of_service', tenure_match_tiers, 0.06) }} AS tier_max_deferral_pct,
-        -- Calculate match: rate × min(deferral%, max_deferral_pct) × capped_compensation
-        {{ get_tiered_match_rate('ec.years_of_service', tenure_match_tiers, 0.0) }}
-            * LEAST(ec.deferral_rate, {{ get_tiered_match_max_deferral('ec.years_of_service', tenure_match_tiers, 0.06) }})
-            * LEAST(ec.eligible_compensation, lim.irs_401a17_limit) AS match_amount,
-        'tenure_based' AS formula_type,
+        SUM(
+            CASE
+                WHEN ec.deferral_rate > tier.employee_min
+                THEN LEAST(
+                    ec.deferral_rate - tier.employee_min,
+                    tier.employee_max - tier.employee_min
+                ) * tier.match_rate * LEAST(ec.eligible_compensation, lim.irs_401a17_limit)
+                ELSE 0
+            END
+        ) AS match_amount,
+        'tenure_graded' AS formula_type,
         NULL::INT AS applied_points
     FROM employee_contributions ec
     CROSS JOIN irs_compensation_limits lim
+    CROSS JOIN ({{ get_tenure_graded_match_tiers(tenure_graded_bands) }}) AS tier
+    WHERE ec.years_of_service >= tier.band_min_years
+      AND (tier.band_max_years IS NULL OR ec.years_of_service < tier.band_max_years)
+    GROUP BY ec.employee_id, ec.simulation_year, ec.eligible_compensation,
+             ec.deferral_rate, ec.annual_deferrals, ec.years_of_service, lim.irs_401a17_limit
 ),
 
 all_matches AS (
@@ -211,7 +224,7 @@ all_matches AS (
         years_of_service,
         irs_401a17_limit,
         applied_points
-    FROM tenure_based_match
+    FROM tenure_graded_match
 ),
 
 {% elif employer_match_status == 'points_based' %}
@@ -358,7 +371,7 @@ final_match AS (
         FALSE AS match_cap_applied,
         'disabled' AS match_status,
         0 AS uncapped_match_amount
-        {% elif employer_match_status in ('graded_by_service', 'tenure_based', 'points_based') %}
+        {% elif employer_match_status in ('graded_by_service', 'tenure_graded', 'points_based') %}
         -- E010/E046: Tier-based modes - no match cap, tier already includes max_deferral_pct
         -- E026: 401(a)(17) cap already applied in match_amount calculation
         am.match_amount AS capped_match_amount,
@@ -435,10 +448,10 @@ SELECT
     'graded_by_service' AS formula_name,
     years_of_service AS applied_years_of_service,
     NULL::INT AS applied_points,
-    {% elif employer_match_status == 'tenure_based' %}
-    -- E046: Tenure-based mode identifiers
-    'tenure_based' AS formula_id,
-    'tenure_based' AS formula_name,
+    {% elif employer_match_status == 'tenure_graded' %}
+    -- Feature 099: Tenure-graded multi-tier mode identifiers
+    'tenure_graded' AS formula_id,
+    'tenure_graded' AS formula_name,
     years_of_service AS applied_years_of_service,
     NULL::INT AS applied_points,
     {% elif employer_match_status == 'points_based' %}

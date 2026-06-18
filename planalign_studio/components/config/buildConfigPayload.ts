@@ -122,6 +122,16 @@ export function buildConfigPayload(
         match_rate: t.matchRate / 100,
         max_deferral_pct: t.maxDeferralPct / 100,
       })),
+      // Feature 099: tenure-graded multi-tier bands
+      tenure_graded_bands: formData.dcTenureGradedBands.map(b => ({
+        min_years: b.minYears,
+        max_years: b.maxYears,
+        tiers: b.tiers.map(t => ({
+          employee_min: t.deferralMin / 100,
+          employee_max: t.deferralMax / 100,
+          match_rate: t.matchRate / 100,
+        })),
+      })),
       match_min_tenure_years: Number(formData.dcMatchMinTenureYears),
       match_require_year_end_active: Boolean(formData.dcMatchRequireYearEndActive),
       match_min_hours_annual: Number(formData.dcMatchMinHoursAnnual),

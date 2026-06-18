@@ -173,6 +173,19 @@ function mapDCPlanMatchFields(cfg: any, prev: FormData): Partial<FormData> {
           maxDeferralPct: convertRateToPercent(t.max_deferral_pct, 6),
         }))
       : prev.dcPointsMatchTiers,
+    // Feature 099: tenure-graded multi-tier bands. Tier deferral/match values are
+    // stored as decimals on disk and converted to whole-number percents for the UI.
+    dcTenureGradedBands: cfg.dc_plan?.tenure_graded_bands
+      ? cfg.dc_plan.tenure_graded_bands.map((b: any) => ({
+          minYears: b.min_years ?? 0,
+          maxYears: b.max_years ?? null,
+          tiers: (b.tiers ?? []).map((t: any) => ({
+            deferralMin: (t.employee_min ?? 0) * 100,
+            deferralMax: (t.employee_max ?? 0) * 100,
+            matchRate: (t.match_rate ?? 0) * 100,
+          })),
+        }))
+      : prev.dcTenureGradedBands,
     dcMatchEnabled: cfg.dc_plan?.match_enabled ?? prev.dcMatchEnabled,
     dcMatchMinTenureYears: cfg.dc_plan?.match_min_tenure_years ?? prev.dcMatchMinTenureYears,
     dcMatchRequireYearEndActive: cfg.dc_plan?.match_require_year_end_active ?? prev.dcMatchRequireYearEndActive,

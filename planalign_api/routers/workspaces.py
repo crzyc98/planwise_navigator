@@ -86,6 +86,8 @@ async def get_default_config(
             # E046: New match mode defaults (empty tiers = not configured)
             "tenure_match_tiers": [],
             "points_match_tiers": [],
+            # Feature 099: tenure-graded multi-tier defaults (empty bands = not configured)
+            "tenure_graded_bands": [],
         },
         "employer_core_contribution": {
             "enabled": True,
