@@ -295,3 +295,6 @@ pnpm-lock.yaml
 
 # PlanAlign Studio workspace data (user scenarios, imports, databases)
 workspaces/
+
+# PlanAlign runtime lock files (transient, per-process)
+.planalign_*.lock
