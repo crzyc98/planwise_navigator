@@ -132,50 +132,7 @@ enrollment_event = DCPlanEventFactory.create_enrollment_event(
   * **DC Plan Engine**: Retirement plan contribution, vesting, and distribution modeling.
   * **Plan Administration Engine**: Forfeiture processing, HCE determination, IRS compliance.
 
-**Event Type Abstraction Layer (E004)**:
-
-The event type abstraction layer enables adding new workforce event types by implementing a single interface and registering in one location.
-
-```python
-from planalign_orchestrator.generators import (
-    EventGenerator,
-    EventRegistry,
-    EventContext,
-    ValidationResult,
-)
-
-# Register a new event type with decorator
-@EventRegistry.register("sabbatical")
-class SabbaticalEventGenerator(EventGenerator):
-    event_type = "sabbatical"
-    execution_order = 35  # Determines execution sequence
-    requires_hazard = False
-    supports_sql = True
-
-    def generate_events(self, context: EventContext):
-        # Implementation (SQL mode delegates to dbt models)
-        return []
-
-    def validate_event(self, event):
-        # Validation logic
-        return ValidationResult(is_valid=True)
-
-# List all registered event types
-EventRegistry.list_all()  # ['enrollment', 'hire', 'merit', 'promotion', 'sabbatical', 'termination']
-
-# Get generators by execution order
-EventRegistry.list_ordered("baseline")  # Returns generators sorted by execution_order
-
-# Disable event type for specific scenario
-EventRegistry.disable("sabbatical", scenario_id="baseline")
-```
-
-**Key Components**:
-- `EventGenerator`: Abstract base class with `generate_events()` and `validate_event()` methods
-- `EventRegistry`: Centralized registration and lookup with scenario-specific enable/disable
-- `HazardBasedEventGeneratorMixin`: Mixin for hazard probability-based event selection
-- `EventContext`: Runtime context with simulation year, config, and database access
-- `GeneratorMetrics`: Structured logging output for observability
+**Event Generator Pattern**: New event types implement `EventGenerator` (in `planalign_orchestrator/generators/`) with `generate_events()` and `validate_event()`, registered via `@EventRegistry.register("name")`. See `generators/sabbatical.py` for a minimal example.
 
 -----
 
@@ -254,33 +211,7 @@ planalign_engine/
 
 ## **6. Pipeline Orchestration (E072 - Modular Architecture)**
 
-The pipeline was refactored from a 2,478-line monolith into 6 focused modules:
-
-**Core Components**:
-
-```python
-from planalign_orchestrator.pipeline import (
-    WorkflowBuilder,      # Stage definitions and workflow building
-    StateManager,         # Database state management
-    YearExecutor,         # Stage-by-stage execution orchestration
-    EventGenerationExecutor,  # SQL-based event generation
-    HookManager,          # Extensible callback system
-    DataCleanupManager    # Database cleanup operations
-)
-
-from planalign_orchestrator.pipeline_orchestrator import PipelineOrchestrator
-
-# Create orchestrator
-config = load_simulation_config('config/simulation_config.yaml')
-orchestrator = PipelineOrchestrator(config)
-
-# Execute multi-year simulation
-summary = orchestrator.execute_multi_year_simulation(
-    start_year=2025,
-    end_year=2027,
-    fail_on_validation_error=False
-)
-```
+The pipeline runs 6 focused modules via `PipelineOrchestrator` (`planalign_orchestrator/pipeline/`). Entry point: `orchestrator.execute_multi_year_simulation(start_year, end_year)`.
 
 **Workflow Stages** (sequential execution within each year):
 
@@ -518,52 +449,12 @@ Bands use **lower bound inclusive, upper bound exclusive**:
 - Age 35 → `35-44` band (not `25-34`)
 - Tenure 2.0 years → `2-4` band (not `< 2`)
 
-### **PlanAlign Studio Band Configuration UI (E003)**
-
-The web interface provides a visual editor for managing band configurations:
-
-**Features:**
-- **View Bands**: Display age and tenure band definitions in editable tables
-- **Edit Bands**: Modify band boundaries and labels with inline editing
-- **Real-time Validation**: Instant feedback for gaps, overlaps, and invalid ranges
-- **Match Census**: Analyze census data to suggest optimal band boundaries
-
-**Access:**
-1. Launch PlanAlign Studio: `planalign studio`
-2. Open a workspace
-3. Navigate to "Configuration" → "Workforce Segmentation"
-
-**API Endpoints:**
-- `GET /api/workspaces/{workspace_id}/config/bands` - Get current band configurations
-- `PUT /api/workspaces/{workspace_id}/config/bands` - Save band configurations
-- `POST /api/workspaces/{workspace_id}/analyze-age-bands` - Suggest age bands from census
-- `POST /api/workspaces/{workspace_id}/analyze-tenure-bands` - Suggest tenure bands from census
-
-**Match Census Algorithm:**
-Uses percentile-based boundary detection to suggest bands that follow data distribution:
-- Age bands (6 bands): 0%, 10%, 25%, 50%, 75%, 90%, 100% percentiles
-- Tenure bands (5 bands): 0%, 20%, 40%, 60%, 80%, 100% percentiles
-
-**Validation Rules:**
-- First band must start at 0
-- Each band's max_value must be greater than min_value
-- No gaps allowed between consecutive bands
-- No overlapping ranges
-- Saved bands are automatically loaded at simulation start
-
 ### **Modifying Bands (CLI Method)**
 
 1. Edit the CSV seed file (`config_age_bands.csv` or `config_tenure_bands.csv`)
 2. Run `dbt seed --threads 1` to load changes
 3. Run `dbt test --select stg_config_age_bands stg_config_tenure_bands --threads 1` to validate
 4. Run `dbt build --threads 1` to rebuild all models
-
-### **Validation Tests**
-
-- `test_age_band_no_gaps.sql` - Ensures no gaps between age bands
-- `test_age_band_no_overlaps.sql` - Ensures age bands don't overlap
-- `test_tenure_band_no_gaps.sql` - Ensures no gaps between tenure bands
-- `test_tenure_band_no_overlaps.sql` - Ensures tenure bands don't overlap
 
 -----
 
@@ -767,116 +658,19 @@ planalign status --detailed           # Full system information
 - ✅ **E082**: Configurable New Hire Demographics - Age/level distribution via seeds + UI
 - ✅ **E084**: Configurable DC Plan Match Formulas - UI config, editable match tiers, graded core by service
 - ✅ **E014**: Layered Defense Strategy - Achieved via E075/E080/E074 testing infrastructure
+- ✅ **Feature 099**: Tenure-Graded Multi-Tier Employer Match - Per-tenure-band multi-tier deferral schedules (`employer_match_status: 'tenure_graded'`), superseding the single-tier `tenure_based` mode
 
-### **Planned / Available**
-
-- No active epics - project feature-complete for MVP
-
-### **Superseded**
-
-- ⚠️ **E076, E078, E079**: Polars-related performance epics - SUPERSEDED by E024
-  - **Resolution**: E024 removed Polars pipeline in favor of SQL-only mode
-  - **Status**: Codebase simplified; all simulations use dbt/SQL path
+Project is feature-complete for MVP. All simulations use dbt/SQL-only path (Polars pipeline removed in E024).
 
 -----
 
 ## **13. Versioning**
 
-Fidelity PlanAlign Engine follows **Semantic Versioning 2.0.0** (MAJOR.MINOR.PATCH):
-
-- **Current Version**: 1.0.0 ("Foundation")
-- **View Version**: `planalign --version` or `planalign health`
-- **Version Module**: `_version.py` (centralized version management)
-
-**When to Increment:**
-- **MAJOR**: Breaking changes (config schema, database schema, API changes)
-- **MINOR**: New features/epics (E076, E077, etc.)
-- **PATCH**: Bug fixes, docs, tests
-
-**Version Update Process:**
-1. Update `_version.py` (version, release_date, release_name)
-2. Update `pyproject.toml` (line 3)
-3. Update `CHANGELOG.md` with changes
-4. Commit: `git commit -m "chore: Bump version to X.Y.Z"`
-5. Tag: `git tag -a vX.Y.Z -m "Release vX.Y.Z"`
-6. Reinstall: `uv pip install -e .`
-
-See `/docs/VERSIONING_GUIDE.md` for detailed versioning workflow.
-
------
-
-## **14. Further Reading**
-
-  * `/docs/VERSIONING_GUIDE.md` – Complete versioning workflow and best practices
-  * `/CHANGELOG.md` – Version history and release notes
-  * `/docs/architecture.md` – Deep-dive diagrams
-  * `/docs/events.md` – Workforce event taxonomy
-  * `/docs/guides/error_troubleshooting.md` – Comprehensive troubleshooting guide
-  * `/tests/TEST_INFRASTRUCTURE.md` – Testing guide and fixture documentation
-  * `/tests/QUICK_START.md` – Developer quick reference
-  * [Semantic Versioning](https://semver.org/)
-  * [dbt Style Guide](https://docs.getdbt.com/docs/collaborate/style-guide)
-  * [DuckDB Documentation](https://duckdb.org/docs/)
+Current version: **1.0.0** ("Foundation") — managed in `_version.py` and `pyproject.toml`. See `/docs/VERSIONING_GUIDE.md` for the full update process and `/CHANGELOG.md` for history.
 
 ## Active Technologies
-- Python 3.11, SQL (dbt-core 1.8.8) + dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic 2.7.4 (063-1000-hr-eligibility)
-- DuckDB (`dbt/simulation.duckdb`) (063-1000-hr-eligibility)
-- TypeScript (React/Vite frontend), Python 3.11 (FastAPI backend) + React, FastAPI, Pydantic v2 (064-fix-comp-growth-persist)
-- Scenario config stored as flexible `Dict[str, Any]` (config_overrides) — no migration needed (064-fix-comp-growth-persist)
-- Python 3.11 + Rich (Live, Progress, Layout, Console), Typer, subprocess (stdlib) (065-async-progress-streaming)
-- N/A (no data persistence changes) (065-async-progress-streaming)
-- Python 3.11 (backend), TypeScript (frontend React/Vite) + FastAPI, Pydantic v2 (backend); React, Recharts 3.5.0 (frontend) (066-dc-contribution-rates)
-- DuckDB via `fct_workforce_snapshot` (read-only for this feature) (066-dc-contribution-rates)
-- TypeScript (React/Vite frontend), Python 3.11 (FastAPI backend) + React, FastAPI, Pydantic v2, dbt-duckdb 1.8.1 (068-optout-rate-config)
-- DuckDB (`dbt/simulation.duckdb`) — no schema changes needed (068-optout-rate-config)
-- Python 3.11, SQL (dbt-core 1.8.8, dbt-duckdb 1.8.1) + Pydantic v2, DuckDB 1.0.0, FastAPI, React/Vite (069-fix-match-core-disabled)
-- Python 3.11 + Typer (CLI), Rich (display), Pydantic v2 (config) (070-remove-checkpoint-system)
-- DuckDB (unchanged — no schema modifications) (070-remove-checkpoint-system)
-- TypeScript (React/Vite frontend) + React 18, Lucide React (icons) (071-fix-census-validation-persist)
-- N/A — transient React component state only (071-fix-census-validation-persist)
-- Python 3.11 (backend), TypeScript (frontend React/Vite) + FastAPI, Pydantic v2 (backend); React 18, Lucide React (frontend) (072-apply-workforce-params)
-- File-based JSON/YAML per scenario (`workspaces/{id}/scenarios/{id}/scenario.json`) (072-apply-workforce-params)
-- SQL (dbt-core 1.8.8, dbt-duckdb 1.8.1) + dbt macros (`assign_age_band`, `assign_tenure_band`), seed CSVs (073-fix-band-label-mismatch)
-- DuckDB 1.0.0 (`dbt/simulation.duckdb`) (073-fix-band-label-mismatch)
-- SQL (dbt-core 1.8.8, dbt-duckdb 1.8.1), Python 3.11 + dbt-core 1.8.8, dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic 2.7.4 (074-fix-auto-enroll-disabled)
-- Python 3.11 (backend), TypeScript (React/Vite frontend), SQL (dbt-core 1.8.8) + FastAPI, Pydantic v2, React 18, dbt-duckdb 1.8.1 (075-voluntary-enrollment-config)
-- DuckDB (simulation), filesystem JSON/YAML (scenario config) (075-voluntary-enrollment-config)
-- Python 3.11 + FastAPI (backend), React/Vite (frontend), Pydantic v2, DuckDB 1.0.0 (076-fix-termination-rate)
-- DuckDB (`dbt/simulation.duckdb`) for census data and audit trails (076-fix-termination-rate)
-- TypeScript/React (frontend), Python 3.11 (backend) + React 18, Vite (frontend); FastAPI, Pydantic v2 (backend) (077-remove-pause-button)
-- DuckDB (backend data persistence); React state (UI state) (077-remove-pause-button)
-- Python 3.11 + Pydantic v2 (model serialization), DuckDB 1.0.0 (database), dbt-core 1.8.8 + dbt-duckdb 1.8.1, Rich (CLI) (078-fix-json-serializer)
-- Python 3.11 + Pydantic v2, FastAPI, dbt-core 1.8.8, DuckDB 1.0.0 (079-fix-config-deser)
-- SQL (dbt-core 1.8.8), Python 3.11 + dbt-duckdb 1.8.1, DuckDB 1.0.0 (081-remove-duplicate-dbt-models)
-- SQL (dbt-core 1.8.8, dbt-duckdb 1.8.1), Python 3.11 + dbt-core 1.8.8, DuckDB 1.0.0 (082-fix-yoy-enrollment-rate)
-- TypeScript (React 18 / Vite frontend) + React 18, Tailwind CSS v4 (083-fix-dc-match-ui)
-- N/A (UI-only changes; scenario config persisted via existing API) (083-fix-dc-match-ui)
-- SQL (dbt-core 1.8.8 / dbt-duckdb 1.8.1), Jinja2 templating + dbt-core 1.8.8, dbt-duckdb 1.8.1, DuckDB 1.0.0 (084-fix-match-magnet)
-- DuckDB (`dbt/simulation.duckdb`) — no schema changes; new audit column only (084-fix-match-magnet)
-- Python 3.11 (backend), TypeScript/React 18 (frontend) + FastAPI + Pydantic v2 (backend), React 18 + Tailwind CSS v4 (frontend), DuckDB in-memory (census analysis) (085-optout-match-census)
-- No new storage; census analysis reads files in-memory; opt-out rate value persisted via existing scenario config JSON (085-optout-match-census)
-- Python 3.11, SQL (dbt-core 1.8.8) + dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic v2 (086-dc-eligibility-events)
-- `dbt/simulation.duckdb` (incremental model, self-referencing for prior-year deduplication) (086-dc-eligibility-events)
-- Python 3.11 (backend), TypeScript/React 18 (frontend) + FastAPI + Pydantic v2 (backend); React 18 + Tailwind CSS v4 (frontend); pandas ≥2.0, openpyxl ≥3.1, DuckDB 1.0.0 (data processing — all already in `pyproject.toml`) (087-data-import)
-- Filesystem JSON (session state + metadata) + Parquet files in `workspaces/{id}/` directories (087-data-import)
-- Python 3.11 (backend), TypeScript with React 18 (frontend) + FastAPI (backend API), Pydantic v2 (models), asyncio (subprocess streaming), React 18 + Tailwind CSS v4 (frontend) (088-sim-job-logs)
-- Filesystem — `simulation.log` in run directory; no DuckDB changes (088-sim-job-logs)
-- Python 3.11 + FastAPI, pandas ≥2.0, DuckDB 1.0.0, Pydantic v2 (090-fix-import-str-type)
-- Filesystem (Parquet files per import session, no DuckDB state changes) (090-fix-import-str-type)
-- Python 3.11 + DuckDB 1.0.0 (in-process read test), FastAPI, Pydantic v2, concurrent.futures (stdlib timeout) (091-census-file-errors)
-- No persistent schema changes; `error_message` string content improved (091-census-file-errors)
-- Python 3.11, TypeScript (React 18 / Vite) + dbt-core 1.8.8, dbt-duckdb 1.8.1, DuckDB 1.0.0, FastAPI, Pydantic v2, React 18, Tailwind CSS v4 (093-part-time-scheduled-hours)
-- DuckDB (`dbt/simulation.duckdb`) — no schema migration needed (nullable column added) (093-part-time-scheduled-hours)
-- Python 3.11 (orchestrator + FastAPI backend), TypeScript / React 18 (Vite frontend) + FastAPI + Pydantic v2, asyncio (existing WS stack); Recharts 3.5.0 (already a frontend dep, used by feature 066), Tailwind CSS v4, Lucide icons (094-live-run-dashboard)
-- In-memory per-run telemetry state in the API process (per clarification, no persistence); DuckDB read only *in-process by the orchestrator* (its own connection) for year-boundary event counts — the API never opens the scenario DB mid-run (094-live-run-dashboard)
-- SQL (dbt-core 1.8.8, dbt-duckdb 1.8.1), Python 3.11 (orchestrator + tests) + DuckDB 1.0.0, dbt-duckdb 1.8.1; existing temporal-accumulator pattern (E023) (095-fix-enrollment-snapshot)
-- DuckDB (`dbt/simulation.duckdb`) — no schema migration; incremental accumulator model, fix is logic-only (095-fix-enrollment-snapshot)
-- SQL (dbt-core 1.8.8, dbt-duckdb 1.8.1), Python 3.11 (tests) + DuckDB 1.0.0; existing temporal-accumulator pattern (E023) and feature-095 (096-newhire-voluntary-enroll)
-- DuckDB (`dbt/simulation.duckdb`) — no schema migration; logic-only change to existing (096-newhire-voluntary-enroll)
-- Python 3.11 (backend), TypeScript/React 18 (frontend) + FastAPI + Pydantic v2 (backend API); React 18 + Recharts 3.5.0 + Tailwind CSS v4 (frontend) (097-dc-analytics-year)
-- DuckDB 1.0.0 (`dbt/simulation.duckdb`) — read-only; no schema migration needed (097-dc-analytics-year)
-- Python 3.11 (CLI + orchestrator), SQL / Jinja2 (dbt-core 1.8.8 + dbt-duckdb 1.8.1) + dbt-core 1.8.8, dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic v2 (098-tenure-match-tier-bug)
-- DuckDB (`simulation.duckdb` per scenario) — no schema changes needed (098-tenure-match-tier-bug)
+- Python 3.11 (orchestrator/config/API), SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1, TypeScript/React (Studio UI) + Pydantic v2 (config validation), DuckDB 1.0.0 (storage/engine), FastAPI (workspace config API), React/Vite + Tailwind (Studio) (099-tenure-graded-match)
+- DuckDB (`dbt/simulation.duckdb`) — match contribution events land in `fct_employer_match_events`; no new tables required (099-tenure-graded-match)
 
 ## Recent Changes
-- 063-1000-hr-eligibility: Added Python 3.11, SQL (dbt-core 1.8.8) + dbt-duckdb 1.8.1, DuckDB 1.0.0, Pydantic 2.7.4
+- 099-tenure-graded-match: Added Python 3.11 (orchestrator/config/API), SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1, TypeScript/React (Studio UI) + Pydantic v2 (config validation), DuckDB 1.0.0 (storage/engine), FastAPI (workspace config API), React/Vite + Tailwind (Studio)

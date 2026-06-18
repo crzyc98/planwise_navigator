@@ -87,20 +87,33 @@ class TenureGradedMatchBand(BaseModel):
         return self
 
 
+_TENURE_VARYING_STATUSES = ("tenure_based", "tenure_graded")
+
+
 def migrate_legacy_tenure_based_config(
     employer_match_status: str,
     tenure_match_tiers: List[Dict[str, Any]],
 ) -> Tuple[str, List[Dict[str, Any]]]:
-    """Convert a legacy single-tier `tenure_based` config into the new shape.
+    """Convert legacy single-tier tenure tiers into the new tenure_graded shape.
 
     Legacy `TenureMatchTier` entries (`min_years`, `max_years`, `match_rate`,
     `max_deferral_pct`, both percentages as whole numbers) become one-tier
     `TenureGradedMatchBand` dicts (decimal form), per the backward-compatibility
     contract in specs/099-tenure-graded-match/contracts/config-schema.md.
 
-    Returns the input unchanged (status, []) when not in legacy tenure_based mode.
+    Fires for both:
+      - legacy `tenure_based` configs, and
+      - `tenure_graded` configs that were saved before band persistence existed
+        (status set to tenure_graded but no tenure_graded_bands written, only the
+        leftover tenure_match_tiers) — without this, those configs would compute
+        zero match.
+
+    Callers MUST only invoke this when no native tenure_graded_bands are present,
+    so a properly-configured tenure_graded scenario is never clobbered.
+
+    Returns the input unchanged (status, []) when there is nothing to migrate.
     """
-    if employer_match_status != "tenure_based" or not tenure_match_tiers:
+    if employer_match_status not in _TENURE_VARYING_STATUSES or not tenure_match_tiers:
         return employer_match_status, []
 
     migrated_bands = [

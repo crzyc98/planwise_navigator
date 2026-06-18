@@ -589,6 +589,21 @@ class TestMigrateLegacyTenureBasedConfig:
         assert status == "tenure_based"
         assert bands == []
 
+    def test_tenure_graded_limbo_state_migrates(self):
+        """Regression: a scenario saved with status='tenure_graded' but no bands
+        (only leftover tenure_match_tiers) — the limbo state produced by saving in
+        the UI before band persistence was wired up — must still migrate to bands,
+        otherwise it computes zero match."""
+        legacy_tiers = [
+            {"min_years": 0, "max_years": 5, "match_rate": 100, "max_deferral_pct": 6},
+            {"min_years": 5, "max_years": None, "match_rate": 100, "max_deferral_pct": 8},
+        ]
+        status, bands = migrate_legacy_tenure_based_config("tenure_graded", legacy_tiers)
+        assert status == "tenure_graded"
+        assert len(bands) == 2
+        assert bands[0]["tiers"][0]["employee_max"] == 0.06
+        assert bands[1]["tiers"][0]["employee_max"] == 0.08
+
 
 # =============================================================================
 # Feature 099 / T025: N-Band Generalization (User Story 3)
@@ -896,6 +911,30 @@ class TestExportDcPlanTenureTiers:
         dbt_vars = _export_employer_match_vars(cfg)
         assert dbt_vars["employer_match_status"] == "tenure_graded"
         assert dbt_vars.get("tenure_graded_bands") in (None, [])
+
+    def test_dc_plan_tenure_graded_limbo_recovers_from_legacy_tiers(self):
+        """The real production case: a scenario saved (pre-persistence-fix) with
+        status='tenure_graded' and no bands, but with leftover decimal-form
+        tenure_match_tiers, must migrate those into bands so it computes match
+        instead of zero."""
+        cfg = _FakeConfig(
+            employer_match=None,
+            dc_plan={
+                "match_status": "tenure_graded",
+                # decimal form, as the Studio UI saved them
+                "tenure_match_tiers": [
+                    {"min_years": 0, "max_years": 5, "match_rate": 1.0, "max_deferral_pct": 0.06},
+                    {"min_years": 5, "max_years": 10, "match_rate": 1.0, "max_deferral_pct": 0.08},
+                    {"min_years": 10, "max_years": None, "match_rate": 1.0, "max_deferral_pct": 0.1},
+                ],
+            },
+        )
+        dbt_vars = _export_employer_match_vars(cfg)
+        assert dbt_vars["employer_match_status"] == "tenure_graded"
+        bands = dbt_vars["tenure_graded_bands"]
+        assert len(bands) == 3
+        assert bands[0]["tiers"][0] == {"employee_min": 0.0, "employee_max": 0.06, "match_rate": 1.0}
+        assert bands[2]["tiers"][0]["employee_max"] == 0.1
 
     def test_dc_plan_points_tiers_decimal_conversion(self):
         """UI sends match_rate as decimal (0.75), export converts to percentage (75)."""

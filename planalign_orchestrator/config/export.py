@@ -449,13 +449,17 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
             # to the superseding 'tenure_graded' shape on export (see
             # specs/099-tenure-graded-match/contracts/config-schema.md).
             tenure_graded_bands = employer_data.get("tenure_graded_bands") or []
-            migrated_status, migrated_bands = migrate_legacy_tenure_based_config(
-                str(match_status) if match_status is not None else "",
-                tenure_tiers or [],
-            )
-            if migrated_bands:
-                dbt_vars["employer_match_status"] = migrated_status
-                tenure_graded_bands = migrated_bands
+            # Only migrate legacy tiers when no native bands exist, so a properly
+            # configured tenure_graded scenario with leftover tenure_match_tiers
+            # is never clobbered.
+            if not tenure_graded_bands:
+                migrated_status, migrated_bands = migrate_legacy_tenure_based_config(
+                    str(match_status) if match_status is not None else "",
+                    tenure_tiers or [],
+                )
+                if migrated_bands:
+                    dbt_vars["employer_match_status"] = migrated_status
+                    tenure_graded_bands = migrated_bands
 
             if tenure_graded_bands:
                 dbt_vars["tenure_graded_bands"] = [
@@ -666,25 +670,31 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
             # 0.02/0.08/1.00, not percentages) to match the macro's expected shape — see
             # specs/099-tenure-graded-match/contracts/config-schema.md.
             tenure_graded_bands = dc_plan_dict.get("tenure_graded_bands")
+            # Only migrate legacy tiers when no native bands were saved. This covers
+            # scenarios saved before band persistence existed (status=tenure_graded
+            # but no tenure_graded_bands, only leftover tenure_match_tiers), which
+            # would otherwise compute zero match. A properly configured scenario with
+            # real bands is never clobbered.
             # migrate_legacy_tenure_based_config expects whole-number-percent
             # match_rate/max_deferral_pct (the Pydantic TenureMatchTier convention),
             # so use tenure_tiers_pct (already converted above), not the raw
             # decimal-or-percent dc_plan input.
-            migrated_status, migrated_bands = migrate_legacy_tenure_based_config(
-                str(match_status) if match_status is not None else "",
-                [
-                    {
-                        "min_years": t["min_years"],
-                        "max_years": t["max_years"],
-                        "match_rate": t["rate"],
-                        "max_deferral_pct": t["max_deferral_pct"],
-                    }
-                    for t in tenure_tiers_pct
-                ],
-            )
-            if migrated_bands:
-                dbt_vars["employer_match_status"] = migrated_status
-                tenure_graded_bands = migrated_bands
+            if not tenure_graded_bands:
+                migrated_status, migrated_bands = migrate_legacy_tenure_based_config(
+                    str(match_status) if match_status is not None else "",
+                    [
+                        {
+                            "min_years": t["min_years"],
+                            "max_years": t["max_years"],
+                            "match_rate": t["rate"],
+                            "max_deferral_pct": t["max_deferral_pct"],
+                        }
+                        for t in tenure_tiers_pct
+                    ],
+                )
+                if migrated_bands:
+                    dbt_vars["employer_match_status"] = migrated_status
+                    tenure_graded_bands = migrated_bands
 
             if tenure_graded_bands and len(tenure_graded_bands) > 0:
                 dbt_vars["tenure_graded_bands"] = [
