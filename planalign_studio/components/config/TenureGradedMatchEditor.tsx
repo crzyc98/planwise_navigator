@@ -113,7 +113,11 @@ export function TenureGradedMatchEditor({ bands, onChange }: TenureGradedMatchEd
                 {band.tiers.map((tier, tierIdx) => (
                   <div key={tierIdx} className="flex items-center gap-2 bg-gray-50 p-1.5 rounded border border-gray-200">
                     <span className="text-xs text-gray-500 w-4">{tierIdx + 1}.</span>
-                    <span className="text-sm text-gray-600">0% to</span>
+                    <input type="number" step="1" min={0} max={100} value={tier.deferralMin}
+                      onChange={(e) => updateTier(bandIdx, tierIdx, { deferralMin: parseFloat(e.target.value) || 0 })}
+                      className="w-14 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
+                    />
+                    <span className="text-sm text-gray-600">% to</span>
                     <input type="number" step="1" min={0} max={100} value={tier.deferralMax}
                       onChange={(e) => updateTier(bandIdx, tierIdx, { deferralMax: parseFloat(e.target.value) || 0 })}
                       className="w-14 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
