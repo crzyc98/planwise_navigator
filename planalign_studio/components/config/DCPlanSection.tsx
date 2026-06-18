@@ -4,8 +4,9 @@ import { useConfigContext } from './ConfigContext';
 import { InputField } from './InputField';
 import { MATCH_TEMPLATES, calculateMatchCap, DEFAULT_FORM_DATA } from './constants';
 import { analyzeOptOutRate, OptOutRateAnalysisResult } from '../../services/api';
+import { TenureGradedMatchEditor } from './TenureGradedMatchEditor';
 
-function validateMatchTiers(
+export function validateMatchTiers(
   tiers: Array<{ min: number; max: number | null }>,
   label: string,
 ): string[] {
@@ -320,110 +321,23 @@ export function DCPlanSection() {
            >
              <option value="deferral_based">Deferral-Based (match varies by deferral %)</option>
              <option value="graded_by_service">Graded by Service (existing service tiers)</option>
-             <option value="tenure_based">Tenure-Based (match varies by years of service)</option>
+             <option value="tenure_graded">Tenure-Graded (multi-tier schedule by years of service)</option>
              <option value="points_based">Points-Based (match varies by age + tenure points)</option>
            </select>
            <p className="mt-1 text-xs text-gray-500">
-             {formData.dcMatchMode === 'tenure_based' && 'Match rate increases with employee years of service'}
+             {formData.dcMatchMode === 'tenure_graded' && 'Each tenure band has its own multi-tier deferral schedule (e.g. 100% on first 2%, 50% on next 6%)'}
              {formData.dcMatchMode === 'points_based' && 'Points = FLOOR(age) + FLOOR(tenure). Higher points = higher match'}
              {formData.dcMatchMode === 'deferral_based' && 'Traditional: match rate varies by employee deferral percentage'}
              {formData.dcMatchMode === 'graded_by_service' && 'Uses existing graded-by-service schedule'}
            </p>
          </div>
 
-         {/* E046: Tenure-Based Tier Editor */}
-         {formData.dcMatchMode === 'tenure_based' && (
-           <div className="sm:col-span-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
-             <span className="block text-sm font-medium text-gray-700 mb-3">Tenure Match Tiers</span>
-             <div className="space-y-2">
-               {formData.dcTenureMatchTiers.map((tier, idx) => (
-                 <div key={idx} className="flex items-center gap-2 bg-white p-2 rounded border border-gray-200">
-                   <span className="text-xs text-gray-500 w-4">{idx + 1}.</span>
-                   <input type="number" min={0} value={tier.minYears}
-                     onChange={(e) => {
-                       const newTiers = [...formData.dcTenureMatchTiers];
-                       newTiers[idx] = { ...newTiers[idx], minYears: parseInt(e.target.value) || 0 };
-                       setFormData(prev => ({ ...prev, dcTenureMatchTiers: newTiers }));
-                     }}
-                     className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
-                   />
-                   <span className="text-sm text-gray-600">to</span>
-                   <input type="number" min={0} value={tier.maxYears ?? ''}
-                     placeholder="&#8734;"
-                     onChange={(e) => {
-                       const newTiers = [...formData.dcTenureMatchTiers];
-                       newTiers[idx] = { ...newTiers[idx], maxYears: e.target.value === '' ? null : parseInt(e.target.value) || 0 };
-                       setFormData(prev => ({ ...prev, dcTenureMatchTiers: newTiers }));
-                     }}
-                     className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
-                   />
-                   <span className="text-sm text-gray-600">yrs | 0% to</span>
-                   <input type="number" step="1" min={0} max={100} value={tier.maxDeferralPct}
-                     onChange={(e) => {
-                       const newTiers = [...formData.dcTenureMatchTiers];
-                       newTiers[idx] = { ...newTiers[idx], maxDeferralPct: parseFloat(e.target.value) || 0 };
-                       setFormData(prev => ({ ...prev, dcTenureMatchTiers: newTiers }));
-                     }}
-                     className="w-14 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
-                   />
-                   <span className="text-sm text-gray-600">% deferrals &#8594;</span>
-                   <input type="number" step="5" min={0} max={200} value={tier.matchRate}
-                     onChange={(e) => {
-                       const newTiers = [...formData.dcTenureMatchTiers];
-                       newTiers[idx] = { ...newTiers[idx], matchRate: parseFloat(e.target.value) || 0 };
-                       setFormData(prev => ({ ...prev, dcTenureMatchTiers: newTiers }));
-                     }}
-                     className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
-                   />
-                   <span className="text-sm text-gray-600">% match</span>
-                   {formData.dcTenureMatchTiers.length > 1 && (
-                     <button type="button"
-                       onClick={() => {
-                         const newTiers = formData.dcTenureMatchTiers.filter((_, i) => i !== idx);
-                         setFormData(prev => ({ ...prev, dcTenureMatchTiers: newTiers }));
-                       }}
-                       className="ml-auto text-red-500 hover:text-red-700 p-1"
-                     ><X size={16} /></button>
-                   )}
-                 </div>
-               ))}
-             </div>
-             <button type="button"
-               onClick={() => {
-                 const last = formData.dcTenureMatchTiers[formData.dcTenureMatchTiers.length - 1];
-                  let newMin = 0;
-                 if (last) { newMin = last.maxYears ?? last.minYears + 5; }
-                 const updatedTiers = [...formData.dcTenureMatchTiers];
-                 if (last && last.maxYears === null) {
-                   updatedTiers[updatedTiers.length - 1] = { ...last, maxYears: newMin };
-                 }
-                 const newTier = { minYears: newMin, maxYears: null, matchRate: 100, maxDeferralPct: 6 };
-                 setFormData(prev => ({ ...prev, dcTenureMatchTiers: [...updatedTiers, newTier] }));
-               }}
-               className="mt-3 text-sm text-fidelity-green hover:text-green-700 flex items-center gap-1"
-             >+ Add Tier</button>
-             {formData.dcTenureMatchTiers.length === 0 && (
-               <p className="mt-2 text-xs text-amber-600">Add at least one tier to configure tenure-based matching</p>
-             )}
-             {/* E046: Tenure tier gap/overlap warnings */}
-             {(() => {
-               const warnings = validateMatchTiers(
-                 formData.dcTenureMatchTiers.map(t => ({ min: t.minYears, max: t.maxYears })),
-                 'tenure years',
-               );
-               return warnings.length > 0 ? (
-                 <div className="mt-3 bg-amber-50 border border-amber-300 rounded-md p-3">
-                   <p className="text-xs font-medium text-amber-800 mb-1">Tier configuration warnings:</p>
-                   <ul className="list-disc list-inside space-y-0.5">
-                     {warnings.map((w, i) => (
-                       <li key={i} className="text-xs text-amber-700">{w}</li>
-                     ))}
-                   </ul>
-                   <p className="text-xs text-amber-600 mt-1.5">Tiers use [min, max) intervals — min is inclusive, max is exclusive.</p>
-                 </div>
-               ) : null;
-             })()}
-           </div>
+         {/* Feature 099: Tenure-Graded Match Editor */}
+         {formData.dcMatchMode === 'tenure_graded' && (
+           <TenureGradedMatchEditor
+             bands={formData.dcTenureGradedBands}
+             onChange={(newBands) => setFormData(prev => ({ ...prev, dcTenureGradedBands: newBands }))}
+           />
          )}
 
          {/* E046: Points-Based Tier Editor */}

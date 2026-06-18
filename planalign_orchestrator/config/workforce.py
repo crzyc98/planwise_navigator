@@ -234,6 +234,11 @@ def validate_tier_contiguity(
 
 
 # E046: Tenure-based match tier configuration
+#
+# DEPRECATED (Feature 099): superseded by TenureGradedMatchBand. Retained
+# solely so legacy saved configs (employer_match_status='tenure_based') still
+# parse, allowing migrate_legacy_tenure_based_config() to convert them to the
+# new shape. Do not use for new configs — use tenure_graded_bands instead.
 class TenureMatchTier(BaseModel):
     """A match rate bracket based on employee years of service.
 
@@ -299,9 +304,16 @@ class PointsMatchTier(BaseModel):
 _VALID_MATCH_STATUSES = (
     "deferral_based",
     "graded_by_service",
-    "tenure_based",
+    "tenure_based",  # Feature 099: kept recognized for reading legacy saved configs only
+    "tenure_graded",  # Feature 099: supersedes "tenure_based" for new configs
     "points_based",
 )
+
+
+# Feature 099: imported here (not at module top) to avoid a circular import —
+# tenure_graded_match.py imports validate_tier_contiguity from this module, which
+# must already be defined (it is, above) before this import executes.
+from .tenure_graded_match import TenureGradedMatchBand  # noqa: E402
 
 
 class EmployerMatchSettings(BaseModel):
@@ -326,11 +338,23 @@ class EmployerMatchSettings(BaseModel):
     )
     tenure_match_tiers: List[TenureMatchTier] = Field(
         default_factory=list,
-        description="Tenure-based match tiers (used when status = tenure_based)",
+        description=(
+            "DEPRECATED (Feature 099): legacy single-tier tenure bands "
+            "(status = tenure_based). Retained for backward-compatible parsing "
+            "and auto-migration to tenure_graded_bands; do not use for new configs."
+        ),
     )
     points_match_tiers: List[PointsMatchTier] = Field(
         default_factory=list,
         description="Points-based match tiers (used when status = points_based)",
+    )
+    tenure_graded_bands: List[TenureGradedMatchBand] = Field(
+        default_factory=list,
+        description=(
+            "Feature 099: tenure bands, each with its own ordered, cumulative "
+            "deferral-rate tier schedule (used when status = tenure_graded). "
+            "Supersedes tenure_match_tiers."
+        ),
     )
 
     @model_validator(mode="after")
@@ -356,6 +380,22 @@ class EmployerMatchSettings(BaseModel):
                 min_key="min",
                 max_key="max",
                 label="tenure",
+            )
+
+        # Feature 099: validate tenure-graded bands when tenure_graded mode is active
+        if self.employer_match_status == "tenure_graded":
+            if not self.tenure_graded_bands:
+                raise ValueError(
+                    "At least one tenure-graded band is required when employer_match_status = 'tenure_graded'"
+                )
+            validate_tier_contiguity(
+                [
+                    {"min": b.min_years, "max": b.max_years}
+                    for b in self.tenure_graded_bands
+                ],
+                min_key="min",
+                max_key="max",
+                label="tenure-graded band",
             )
 
         # Validate points tiers when points_based mode is active

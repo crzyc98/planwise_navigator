@@ -51,6 +51,16 @@ export interface PointsMatchTier {
   maxDeferralPct: number;
 }
 
+// Feature 099: tenure-graded multi-tier match — each band carries its own
+// ordered, cumulative deferral-rate tier list (reuses MatchTier's
+// deferralMin/deferralMax/matchRate shape), superseding the single-tier
+// TenureMatchTier above.
+export interface TenureGradedBand {
+  minYears: number;
+  maxYears: number | null;
+  tiers: MatchTier[];
+}
+
 export interface CoreGradedTier {
   serviceYearsMin: number;
   serviceYearsMax: number | null;
@@ -111,6 +121,7 @@ export interface FormData {
   dcMatchMode: string;
   dcTenureMatchTiers: TenureMatchTier[];
   dcPointsMatchTiers: PointsMatchTier[];
+  dcTenureGradedBands: TenureGradedBand[];
   dcAutoEscalation: boolean;
   dcEscalationRate: number;
   dcEscalationCap: number;

@@ -9,6 +9,10 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict
 
+from planalign_orchestrator.config.tenure_graded_match import (
+    migrate_legacy_tenure_based_config,
+)
+
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
@@ -438,6 +442,36 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                         "max_deferral_pct": t.get("max_deferral_pct", 6),
                     }
                     for t in tenure_tiers
+                ]
+
+            # Feature 099: Export tenure_graded_bands from Pydantic model.
+            # Legacy employer_match_status='tenure_based' configs are auto-migrated
+            # to the superseding 'tenure_graded' shape on export (see
+            # specs/099-tenure-graded-match/contracts/config-schema.md).
+            tenure_graded_bands = employer_data.get("tenure_graded_bands") or []
+            migrated_status, migrated_bands = migrate_legacy_tenure_based_config(
+                str(match_status) if match_status is not None else "",
+                tenure_tiers or [],
+            )
+            if migrated_bands:
+                dbt_vars["employer_match_status"] = migrated_status
+                tenure_graded_bands = migrated_bands
+
+            if tenure_graded_bands:
+                dbt_vars["tenure_graded_bands"] = [
+                    {
+                        "min_years": b.get("min_years", 0),
+                        "max_years": b.get("max_years"),
+                        "tiers": [
+                            {
+                                "employee_min": t.get("employee_min", 0.0),
+                                "employee_max": t.get("employee_max", 0.0),
+                                "match_rate": t.get("match_rate", 0.0),
+                            }
+                            for t in b.get("tiers", [])
+                        ],
+                    }
+                    for b in tenure_graded_bands
                 ]
 
             # E046: Export points_match_tiers from Pydantic model

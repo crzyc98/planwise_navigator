@@ -1,7 +1,7 @@
 // Shared constants for ConfigStudio section components
 // Extracted from ConfigStudio.tsx lines 21-64 and 205-337
 
-import type { MatchTier, MatchTemplate, FormData } from './types';
+import type { MatchTier, MatchTemplate, FormData, TenureGradedBand } from './types';
 
 // Helper to calculate match cap from tiers: sum of (tier_width * match_rate)
 export const calculateMatchCap = (tiers: MatchTier[]): number => {
@@ -11,6 +11,11 @@ export const calculateMatchCap = (tiers: MatchTier[]): number => {
     return sum + (tierWidth * matchRate);
   }, 0);
 };
+
+// Feature 099: same formula as calculateMatchCap, applied to one tenure-graded band's
+// own tier list — used to display each band's "max effective match %" in the editor.
+export const calculateTenureGradedBandCap = (band: TenureGradedBand): number =>
+  calculateMatchCap(band.tiers);
 
 export const MATCH_TEMPLATES: Record<string, MatchTemplate> = {
   simple: {
@@ -130,6 +135,7 @@ export const DEFAULT_FORM_DATA: FormData = {
   dcMatchMode: 'deferral_based',
   dcTenureMatchTiers: [],
   dcPointsMatchTiers: [],
+  dcTenureGradedBands: [],
   dcAutoEscalation: true,
   dcEscalationRate: 1.0,
   dcEscalationCap: 10.0,
