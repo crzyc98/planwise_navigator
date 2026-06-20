@@ -145,7 +145,7 @@ FROM all_validations
     SELECT 1 FROM {{ this }} existing
     WHERE existing.validation_rule = all_validations.validation_rule
       AND existing.simulation_year = {{ simulation_year }}
-      AND DATE(existing.validation_timestamp) = CURRENT_DATE
+      AND existing.validation_timestamp::DATE = CURRENT_DATE
   )
 {% endif %}
 

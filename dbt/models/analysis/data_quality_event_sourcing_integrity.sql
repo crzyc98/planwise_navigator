@@ -245,7 +245,7 @@ timeline_consistency AS (
                  AND COUNT(CASE
                     WHEN ee.last_termination_date IS NOT NULL
                          AND ws.termination_date IS NOT NULL
-                         AND DATE(ee.last_termination_date) != DATE(ws.termination_date)
+                         AND ee.last_termination_date::DATE != ws.termination_date::DATE
                     THEN 1
                 END) = 0
                  AND COUNT(CASE
@@ -265,6 +265,10 @@ timeline_consistency AS (
 )
 
 -- **FINAL OUTPUT**: Union all integrity test results
+-- Wrap the UNION ALL in a subquery so the ORDER BY CASE expression is valid:
+-- DuckDB cannot ORDER BY an expression that is not in the select list of a set operation.
+SELECT *
+FROM (
 SELECT
     test_name,
     simulation_year,
@@ -354,7 +358,7 @@ SELECT
     test_result,
     test_timestamp
 FROM timeline_consistency
-
+) unioned_results
 ORDER BY
     CASE test_name
         WHEN 'EMPLOYEE_LIFECYCLE_CONSISTENCY' THEN 1
