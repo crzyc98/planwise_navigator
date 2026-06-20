@@ -309,6 +309,38 @@ def query_events(year: int):
 # duckdb dbt/simulation.duckdb "SELECT * FROM fct_workforce_snapshot LIMIT 10"
 ```
 
+### **Validating Changes in an Isolated Database (NOT the shared dev DB)**
+
+`dbt/simulation.duckdb` is the **shared dev database**. It is fine for quick reads and exploration, but it is **not** the place to validate a behavioral change. Two failure modes have bitten us:
+
+1. **Mutating shared state.** Running `dbt run`/`dbt build` for validation overwrites the shared DB, leaving it in a half-built, single-year, or single-config state that confuses the next person (and the next agent).
+2. **False conclusions from default-config state.** A change can look correct (or a bug can look real) under the one config that happens to be materialized in the shared DB. Edge configs (e.g. `auto_enrollment_scope: all_eligible_employees` with an early hire-date cutoff) are the ones that actually exercise the logic.
+
+**Rule: validate behavioral changes in an isolated, explicitly-configured database — the way PlanAlign Studio / batch scenarios do — never against the shared dev DB.**
+
+```bash
+# Preferred: isolated scenario databases (one .duckdb per scenario, never touches the shared DB)
+planalign batch --scenarios my_edge_case --clean   # writes scenario_name.duckdb in a timestamped dir
+
+# Or: a one-off isolated run with an explicit config + database path
+cp config/simulation_config.yaml /tmp/run/cfg.yaml   # edit the edge config you need to exercise
+DATABASE_PATH=/tmp/run/iso.duckdb \
+  planalign simulate 2025-2027 --config /tmp/run/cfg.yaml --database /tmp/run/iso.duckdb
+```
+
+**Point tests at the isolated DB.** `get_database_path()` honors the `DATABASE_PATH` env var (so do dbt `profiles.yml` and the integration test fixtures). Run integration tests against the isolated DB you just built:
+
+```bash
+DATABASE_PATH=/tmp/run/iso.duckdb pytest tests/test_my_feature.py -v
+```
+
+**Do/Don't:**
+- ✅ Validate against an isolated scenario/`DATABASE_PATH` DB; cover the **edge configs**, not just defaults.
+- ✅ For a multi-year invariant, run the full `simulate <start>-<end>` — a single-year `dbt run` of a few models can hide cross-year and dead-code issues.
+- ✅ Confirm a model you are "fixing" actually feeds `fct_yearly_events`/`fct_workforce_snapshot` before trusting it (some `int_*` models are orphaned and never built by the pipeline).
+- ❌ Don't `dbt run`/`dbt build` into `dbt/simulation.duckdb` to "check" a change, then read it back as proof.
+- ❌ Don't treat whatever is currently materialized in the shared DB as ground truth for a new behavior.
+
 ### **dbt Development Patterns**
 
 ```bash
@@ -571,7 +603,7 @@ Styles are bundled locally by Vite — **never use CDN scripts for CSS framework
 
 ### **Database and Path Issues**
 
-  * **Database Location**: `dbt/simulation.duckdb` (standardized location)
+  * **Database Location**: `dbt/simulation.duckdb` (standardized location) — this is the **shared dev DB**; don't `dbt run`/`build` into it to validate a change (see §8 "Validating Changes in an Isolated Database"). A half-built or single-config shared DB is a common source of confusing/contradictory query results.
   * **dbt Commands**: Always run from `/dbt` directory
   * **Database Access**: Always use `get_database_path()` from `planalign_orchestrator.config`
 
