@@ -210,7 +210,9 @@ def _print_config_summary(config_path: Path, console: Console, verbose: bool) ->
                 ]
                 lines.append(f"[bold]Deferral tiers:[/bold] {', '.join(tier_parts)}")
             else:
-                lines.append("[bold yellow]WARNING:[/bold yellow] Mode=deferral_based but no match_tiers configured → using dbt defaults")
+                lines.append(
+                    "[bold yellow]WARNING:[/bold yellow] Mode=deferral_based but no match_tiers configured → using dbt defaults"
+                )
         elif match_status == "tenure_based":
             tenure_tiers = dc.get("tenure_match_tiers", [])
             if tenure_tiers:
@@ -220,7 +222,9 @@ def _print_config_summary(config_path: Path, console: Console, verbose: bool) ->
                 ]
                 lines.append(f"[bold]Tenure tiers:[/bold] {', '.join(tier_parts)}")
             else:
-                lines.append("[bold red]WARNING: Mode=tenure_based but tenure_match_tiers is EMPTY → match will be $0[/bold red]")
+                lines.append(
+                    "[bold red]WARNING: Mode=tenure_based but tenure_match_tiers is EMPTY → match will be $0[/bold red]"
+                )
         elif match_status == "graded_by_service":
             schedule = dc.get("match_graded_schedule", [])
             if schedule:
@@ -230,7 +234,9 @@ def _print_config_summary(config_path: Path, console: Console, verbose: bool) ->
                 ]
                 lines.append(f"[bold]Service tiers:[/bold] {', '.join(tier_parts)}")
             else:
-                lines.append("[bold red]WARNING: Mode=graded_by_service but match_graded_schedule is EMPTY → match will be $0[/bold red]")
+                lines.append(
+                    "[bold red]WARNING: Mode=graded_by_service but match_graded_schedule is EMPTY → match will be $0[/bold red]"
+                )
         elif match_status == "points_based":
             points_tiers = dc.get("points_match_tiers", [])
             if points_tiers:
@@ -240,9 +246,17 @@ def _print_config_summary(config_path: Path, console: Console, verbose: bool) ->
                 ]
                 lines.append(f"[bold]Points tiers:[/bold] {', '.join(tier_parts)}")
             else:
-                lines.append("[bold red]WARNING: Mode=points_based but points_match_tiers is EMPTY → match will be $0[/bold red]")
+                lines.append(
+                    "[bold red]WARNING: Mode=points_based but points_match_tiers is EMPTY → match will be $0[/bold red]"
+                )
 
-        console.print(Panel("\n".join(lines), title="[bold cyan]Config Summary[/bold cyan]", border_style="cyan"))
+        console.print(
+            Panel(
+                "\n".join(lines),
+                title="[bold cyan]Config Summary[/bold cyan]",
+                border_style="cyan",
+            )
+        )
     except Exception as e:
         if verbose:
             console.print(f"[dim]Config summary unavailable: {e}[/dim]")

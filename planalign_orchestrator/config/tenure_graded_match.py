@@ -79,7 +79,10 @@ class TenureGradedMatchBand(BaseModel):
         if not self.tiers:
             raise ValueError("At least one tier is required per tenure-graded band")
         validate_tier_contiguity(
-            [{"employee_min": t.employee_min, "employee_max": t.employee_max} for t in self.tiers],
+            [
+                {"employee_min": t.employee_min, "employee_max": t.employee_max}
+                for t in self.tiers
+            ],
             min_key="employee_min",
             max_key="employee_max",
             label="tenure-graded tier",

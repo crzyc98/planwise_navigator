@@ -343,9 +343,15 @@ class AnalyticsService:
                                calculation) with the same population as participation rate.
         effective_rate=False → uses current_deferral_rate (year-end snapshot, active only).
         """
-        rate_col = "effective_annual_deferral_rate" if effective_rate else "current_deferral_rate"
+        rate_col = (
+            "effective_annual_deferral_rate"
+            if effective_rate
+            else "current_deferral_rate"
+        )
         if effective_rate:
-            status_filter = "AND UPPER(employment_status) = 'ACTIVE'" if active_only else ""
+            status_filter = (
+                "AND UPPER(employment_status) = 'ACTIVE'" if active_only else ""
+            )
         else:
             status_filter = "AND UPPER(employment_status) = 'ACTIVE'"
         try:
@@ -446,9 +452,15 @@ class AnalyticsService:
                                population (respects active_only).
         effective_rate=False → uses current_deferral_rate, active employees only.
         """
-        rate_col = "effective_annual_deferral_rate" if effective_rate else "current_deferral_rate"
+        rate_col = (
+            "effective_annual_deferral_rate"
+            if effective_rate
+            else "current_deferral_rate"
+        )
         if effective_rate:
-            status_filter = "WHERE UPPER(employment_status) = 'ACTIVE'" if active_only else ""
+            status_filter = (
+                "WHERE UPPER(employment_status) = 'ACTIVE'" if active_only else ""
+            )
         else:
             status_filter = "WHERE UPPER(employment_status) = 'ACTIVE'"
         bucket_order = [

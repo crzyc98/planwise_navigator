@@ -385,13 +385,17 @@ class TestTenureBandMatchTier:
     """Validate TenureBandMatchTier field-level constraints."""
 
     def test_valid_tier(self):
-        tier = TenureBandMatchTier(employee_min=0.00, employee_max=0.02, match_rate=1.00)
+        tier = TenureBandMatchTier(
+            employee_min=0.00, employee_max=0.02, match_rate=1.00
+        )
         assert tier.employee_min == 0.00
         assert tier.employee_max == 0.02
         assert tier.match_rate == 1.00
 
     def test_invalid_range_max_le_min(self):
-        with pytest.raises(ValidationError, match="employee_max.*must be greater than employee_min"):
+        with pytest.raises(
+            ValidationError, match="employee_max.*must be greater than employee_min"
+        ):
             TenureBandMatchTier(employee_min=0.02, employee_max=0.02, match_rate=0.5)
 
     def test_match_rate_bounds(self):
@@ -408,26 +412,37 @@ class TestTenureGradedMatchBand:
 
     def test_valid_single_tier_band(self):
         band = TenureGradedMatchBand(
-            min_years=0, max_years=5,
-            tiers=[TenureBandMatchTier(employee_min=0, employee_max=0.06, match_rate=0.5)],
+            min_years=0,
+            max_years=5,
+            tiers=[
+                TenureBandMatchTier(employee_min=0, employee_max=0.06, match_rate=0.5)
+            ],
         )
         assert len(band.tiers) == 1
 
     def test_valid_multi_tier_band(self):
         # The spec's example: under-10-years band — 100% on first 2%, 50% on next 6%
         band = TenureGradedMatchBand(
-            min_years=0, max_years=10,
+            min_years=0,
+            max_years=10,
             tiers=[
-                TenureBandMatchTier(employee_min=0.00, employee_max=0.02, match_rate=1.00),
-                TenureBandMatchTier(employee_min=0.02, employee_max=0.08, match_rate=0.50),
+                TenureBandMatchTier(
+                    employee_min=0.00, employee_max=0.02, match_rate=1.00
+                ),
+                TenureBandMatchTier(
+                    employee_min=0.02, employee_max=0.08, match_rate=0.50
+                ),
             ],
         )
         assert len(band.tiers) == 2
 
     def test_unbounded_band(self):
         band = TenureGradedMatchBand(
-            min_years=10, max_years=None,
-            tiers=[TenureBandMatchTier(employee_min=0, employee_max=0.10, match_rate=0.5)],
+            min_years=10,
+            max_years=None,
+            tiers=[
+                TenureBandMatchTier(employee_min=0, employee_max=0.10, match_rate=0.5)
+            ],
         )
         assert band.max_years is None
 
@@ -438,35 +453,57 @@ class TestTenureGradedMatchBand:
     def test_tier_list_not_starting_at_zero_rejected(self):
         with pytest.raises(ValidationError, match="must start at 0"):
             TenureGradedMatchBand(
-                min_years=0, max_years=10,
-                tiers=[TenureBandMatchTier(employee_min=0.02, employee_max=0.08, match_rate=0.5)],
+                min_years=0,
+                max_years=10,
+                tiers=[
+                    TenureBandMatchTier(
+                        employee_min=0.02, employee_max=0.08, match_rate=0.5
+                    )
+                ],
             )
 
     def test_tier_gap_rejected(self):
         with pytest.raises(ValidationError, match="Gap"):
             TenureGradedMatchBand(
-                min_years=0, max_years=10,
+                min_years=0,
+                max_years=10,
                 tiers=[
-                    TenureBandMatchTier(employee_min=0.00, employee_max=0.02, match_rate=1.00),
-                    TenureBandMatchTier(employee_min=0.04, employee_max=0.08, match_rate=0.50),
+                    TenureBandMatchTier(
+                        employee_min=0.00, employee_max=0.02, match_rate=1.00
+                    ),
+                    TenureBandMatchTier(
+                        employee_min=0.04, employee_max=0.08, match_rate=0.50
+                    ),
                 ],
             )
 
     def test_tier_overlap_rejected(self):
         with pytest.raises(ValidationError, match="Overlap"):
             TenureGradedMatchBand(
-                min_years=0, max_years=10,
+                min_years=0,
+                max_years=10,
                 tiers=[
-                    TenureBandMatchTier(employee_min=0.00, employee_max=0.04, match_rate=1.00),
-                    TenureBandMatchTier(employee_min=0.02, employee_max=0.08, match_rate=0.50),
+                    TenureBandMatchTier(
+                        employee_min=0.00, employee_max=0.04, match_rate=1.00
+                    ),
+                    TenureBandMatchTier(
+                        employee_min=0.02, employee_max=0.08, match_rate=0.50
+                    ),
                 ],
             )
 
     def test_invalid_band_range_max_le_min(self):
-        with pytest.raises(ValidationError, match="max_years.*must be greater than min_years"):
+        with pytest.raises(
+            ValidationError, match="max_years.*must be greater than min_years"
+        ):
             TenureGradedMatchBand(
-                min_years=10, max_years=5,
-                tiers=[TenureBandMatchTier(employee_min=0, employee_max=0.06, match_rate=0.5)],
+                min_years=10,
+                max_years=5,
+                tiers=[
+                    TenureBandMatchTier(
+                        employee_min=0, employee_max=0.06, match_rate=0.5
+                    )
+                ],
             )
 
 
@@ -481,17 +518,27 @@ class TestEmployerMatchSettingsTenureGraded:
     def _spec_example_bands(self):
         return [
             TenureGradedMatchBand(
-                min_years=0, max_years=10,
+                min_years=0,
+                max_years=10,
                 tiers=[
-                    TenureBandMatchTier(employee_min=0.00, employee_max=0.02, match_rate=1.00),
-                    TenureBandMatchTier(employee_min=0.02, employee_max=0.08, match_rate=0.50),
+                    TenureBandMatchTier(
+                        employee_min=0.00, employee_max=0.02, match_rate=1.00
+                    ),
+                    TenureBandMatchTier(
+                        employee_min=0.02, employee_max=0.08, match_rate=0.50
+                    ),
                 ],
             ),
             TenureGradedMatchBand(
-                min_years=10, max_years=None,
+                min_years=10,
+                max_years=None,
                 tiers=[
-                    TenureBandMatchTier(employee_min=0.00, employee_max=0.02, match_rate=1.00),
-                    TenureBandMatchTier(employee_min=0.02, employee_max=0.10, match_rate=0.50),
+                    TenureBandMatchTier(
+                        employee_min=0.00, employee_max=0.02, match_rate=1.00
+                    ),
+                    TenureBandMatchTier(
+                        employee_min=0.02, employee_max=0.10, match_rate=0.50
+                    ),
                 ],
             ),
         ]
@@ -504,46 +551,81 @@ class TestEmployerMatchSettingsTenureGraded:
         assert len(settings.tenure_graded_bands) == 2
 
     def test_empty_bands_rejected(self):
-        with pytest.raises(ValidationError, match="At least one tenure-graded band is required"):
-            EmployerMatchSettings(employer_match_status="tenure_graded", tenure_graded_bands=[])
+        with pytest.raises(
+            ValidationError, match="At least one tenure-graded band is required"
+        ):
+            EmployerMatchSettings(
+                employer_match_status="tenure_graded", tenure_graded_bands=[]
+            )
 
     def test_band_gap_rejected(self):
         bands = [
             TenureGradedMatchBand(
-                min_years=0, max_years=5,
-                tiers=[TenureBandMatchTier(employee_min=0, employee_max=0.06, match_rate=0.5)],
+                min_years=0,
+                max_years=5,
+                tiers=[
+                    TenureBandMatchTier(
+                        employee_min=0, employee_max=0.06, match_rate=0.5
+                    )
+                ],
             ),
             TenureGradedMatchBand(
-                min_years=10, max_years=None,
-                tiers=[TenureBandMatchTier(employee_min=0, employee_max=0.06, match_rate=0.5)],
+                min_years=10,
+                max_years=None,
+                tiers=[
+                    TenureBandMatchTier(
+                        employee_min=0, employee_max=0.06, match_rate=0.5
+                    )
+                ],
             ),
         ]
         with pytest.raises(ValidationError, match="Gap"):
-            EmployerMatchSettings(employer_match_status="tenure_graded", tenure_graded_bands=bands)
+            EmployerMatchSettings(
+                employer_match_status="tenure_graded", tenure_graded_bands=bands
+            )
 
     def test_band_overlap_rejected(self):
         bands = [
             TenureGradedMatchBand(
-                min_years=0, max_years=10,
-                tiers=[TenureBandMatchTier(employee_min=0, employee_max=0.06, match_rate=0.5)],
+                min_years=0,
+                max_years=10,
+                tiers=[
+                    TenureBandMatchTier(
+                        employee_min=0, employee_max=0.06, match_rate=0.5
+                    )
+                ],
             ),
             TenureGradedMatchBand(
-                min_years=5, max_years=None,
-                tiers=[TenureBandMatchTier(employee_min=0, employee_max=0.06, match_rate=0.5)],
+                min_years=5,
+                max_years=None,
+                tiers=[
+                    TenureBandMatchTier(
+                        employee_min=0, employee_max=0.06, match_rate=0.5
+                    )
+                ],
             ),
         ]
         with pytest.raises(ValidationError, match="Overlap"):
-            EmployerMatchSettings(employer_match_status="tenure_graded", tenure_graded_bands=bands)
+            EmployerMatchSettings(
+                employer_match_status="tenure_graded", tenure_graded_bands=bands
+            )
 
     def test_bands_not_starting_at_zero_rejected(self):
         bands = [
             TenureGradedMatchBand(
-                min_years=2, max_years=None,
-                tiers=[TenureBandMatchTier(employee_min=0, employee_max=0.06, match_rate=0.5)],
+                min_years=2,
+                max_years=None,
+                tiers=[
+                    TenureBandMatchTier(
+                        employee_min=0, employee_max=0.06, match_rate=0.5
+                    )
+                ],
             ),
         ]
         with pytest.raises(ValidationError, match="must start at 0"):
-            EmployerMatchSettings(employer_match_status="tenure_graded", tenure_graded_bands=bands)
+            EmployerMatchSettings(
+                employer_match_status="tenure_graded", tenure_graded_bands=bands
+            )
 
 
 # =============================================================================
@@ -557,7 +639,12 @@ class TestMigrateLegacyTenureBasedConfig:
     def test_migrates_single_tier_to_one_tier_band(self):
         legacy_tiers = [
             {"min_years": 0, "max_years": 5, "match_rate": 25, "max_deferral_pct": 6},
-            {"min_years": 5, "max_years": None, "match_rate": 100, "max_deferral_pct": 6},
+            {
+                "min_years": 5,
+                "max_years": None,
+                "match_rate": 100,
+                "max_deferral_pct": 6,
+            },
         ]
         status, bands = migrate_legacy_tenure_based_config("tenure_based", legacy_tiers)
 
@@ -573,10 +660,17 @@ class TestMigrateLegacyTenureBasedConfig:
     def test_migrated_bands_pass_validation(self):
         legacy_tiers = [
             {"min_years": 0, "max_years": 5, "match_rate": 25, "max_deferral_pct": 6},
-            {"min_years": 5, "max_years": None, "match_rate": 100, "max_deferral_pct": 6},
+            {
+                "min_years": 5,
+                "max_years": None,
+                "match_rate": 100,
+                "max_deferral_pct": 6,
+            },
         ]
         status, bands = migrate_legacy_tenure_based_config("tenure_based", legacy_tiers)
-        settings = EmployerMatchSettings(employer_match_status=status, tenure_graded_bands=bands)
+        settings = EmployerMatchSettings(
+            employer_match_status=status, tenure_graded_bands=bands
+        )
         assert len(settings.tenure_graded_bands) == 2
 
     def test_non_tenure_based_status_returns_unchanged(self):
@@ -596,9 +690,16 @@ class TestMigrateLegacyTenureBasedConfig:
         otherwise it computes zero match."""
         legacy_tiers = [
             {"min_years": 0, "max_years": 5, "match_rate": 100, "max_deferral_pct": 6},
-            {"min_years": 5, "max_years": None, "match_rate": 100, "max_deferral_pct": 8},
+            {
+                "min_years": 5,
+                "max_years": None,
+                "match_rate": 100,
+                "max_deferral_pct": 8,
+            },
         ]
-        status, bands = migrate_legacy_tenure_based_config("tenure_graded", legacy_tiers)
+        status, bands = migrate_legacy_tenure_based_config(
+            "tenure_graded", legacy_tiers
+        )
         assert status == "tenure_graded"
         assert len(bands) == 2
         assert bands[0]["tiers"][0]["employee_max"] == 0.06
@@ -616,56 +717,102 @@ class TestTenureGradedFourBandGeneralization:
     def test_four_bands_with_varying_tier_counts(self):
         bands = [
             TenureGradedMatchBand(
-                min_years=0, max_years=2,
-                tiers=[TenureBandMatchTier(employee_min=0, employee_max=0.06, match_rate=0.25)],
-            ),
-            TenureGradedMatchBand(
-                min_years=2, max_years=5,
+                min_years=0,
+                max_years=2,
                 tiers=[
-                    TenureBandMatchTier(employee_min=0.00, employee_max=0.03, match_rate=0.75),
-                    TenureBandMatchTier(employee_min=0.03, employee_max=0.06, match_rate=0.40),
+                    TenureBandMatchTier(
+                        employee_min=0, employee_max=0.06, match_rate=0.25
+                    )
                 ],
             ),
             TenureGradedMatchBand(
-                min_years=5, max_years=10,
+                min_years=2,
+                max_years=5,
                 tiers=[
-                    TenureBandMatchTier(employee_min=0.00, employee_max=0.02, match_rate=1.00),
-                    TenureBandMatchTier(employee_min=0.02, employee_max=0.05, match_rate=0.60),
-                    TenureBandMatchTier(employee_min=0.05, employee_max=0.08, match_rate=0.30),
+                    TenureBandMatchTier(
+                        employee_min=0.00, employee_max=0.03, match_rate=0.75
+                    ),
+                    TenureBandMatchTier(
+                        employee_min=0.03, employee_max=0.06, match_rate=0.40
+                    ),
                 ],
             ),
             TenureGradedMatchBand(
-                min_years=10, max_years=None,
-                tiers=[TenureBandMatchTier(employee_min=0, employee_max=0.10, match_rate=1.00)],
+                min_years=5,
+                max_years=10,
+                tiers=[
+                    TenureBandMatchTier(
+                        employee_min=0.00, employee_max=0.02, match_rate=1.00
+                    ),
+                    TenureBandMatchTier(
+                        employee_min=0.02, employee_max=0.05, match_rate=0.60
+                    ),
+                    TenureBandMatchTier(
+                        employee_min=0.05, employee_max=0.08, match_rate=0.30
+                    ),
+                ],
+            ),
+            TenureGradedMatchBand(
+                min_years=10,
+                max_years=None,
+                tiers=[
+                    TenureBandMatchTier(
+                        employee_min=0, employee_max=0.10, match_rate=1.00
+                    )
+                ],
             ),
         ]
-        settings = EmployerMatchSettings(employer_match_status="tenure_graded", tenure_graded_bands=bands)
+        settings = EmployerMatchSettings(
+            employer_match_status="tenure_graded", tenure_graded_bands=bands
+        )
         assert len(settings.tenure_graded_bands) == 4
         assert len(settings.tenure_graded_bands[2].tiers) == 3
 
     def test_export_handles_four_bands(self):
         bands = [
             TenureGradedMatchBand(
-                min_years=0, max_years=2,
-                tiers=[TenureBandMatchTier(employee_min=0, employee_max=0.06, match_rate=0.25)],
-            ),
-            TenureGradedMatchBand(
-                min_years=2, max_years=5,
-                tiers=[TenureBandMatchTier(employee_min=0, employee_max=0.06, match_rate=0.50)],
-            ),
-            TenureGradedMatchBand(
-                min_years=5, max_years=10,
+                min_years=0,
+                max_years=2,
                 tiers=[
-                    TenureBandMatchTier(employee_min=0.00, employee_max=0.02, match_rate=1.00),
-                    TenureBandMatchTier(employee_min=0.02, employee_max=0.08, match_rate=0.50),
+                    TenureBandMatchTier(
+                        employee_min=0, employee_max=0.06, match_rate=0.25
+                    )
                 ],
             ),
             TenureGradedMatchBand(
-                min_years=10, max_years=None,
-                tiers=[TenureBandMatchTier(employee_min=0, employee_max=0.10, match_rate=1.00)],
+                min_years=2,
+                max_years=5,
+                tiers=[
+                    TenureBandMatchTier(
+                        employee_min=0, employee_max=0.06, match_rate=0.50
+                    )
+                ],
+            ),
+            TenureGradedMatchBand(
+                min_years=5,
+                max_years=10,
+                tiers=[
+                    TenureBandMatchTier(
+                        employee_min=0.00, employee_max=0.02, match_rate=1.00
+                    ),
+                    TenureBandMatchTier(
+                        employee_min=0.02, employee_max=0.08, match_rate=0.50
+                    ),
+                ],
+            ),
+            TenureGradedMatchBand(
+                min_years=10,
+                max_years=None,
+                tiers=[
+                    TenureBandMatchTier(
+                        employee_min=0, employee_max=0.10, match_rate=1.00
+                    )
+                ],
             ),
         ]
-        cfg = _make_config_mock(employer_match_status="tenure_graded", tenure_graded_bands=bands)
+        cfg = _make_config_mock(
+            employer_match_status="tenure_graded", tenure_graded_bands=bands
+        )
         dbt_vars = _export_employer_match_vars(cfg)
         assert len(dbt_vars["tenure_graded_bands"]) == 4
 
@@ -739,17 +886,27 @@ class TestExportTenureGradedMatchVars:
             employer_match_status="tenure_graded",
             tenure_graded_bands=[
                 TenureGradedMatchBand(
-                    min_years=0, max_years=10,
+                    min_years=0,
+                    max_years=10,
                     tiers=[
-                        TenureBandMatchTier(employee_min=0.00, employee_max=0.02, match_rate=1.00),
-                        TenureBandMatchTier(employee_min=0.02, employee_max=0.08, match_rate=0.50),
+                        TenureBandMatchTier(
+                            employee_min=0.00, employee_max=0.02, match_rate=1.00
+                        ),
+                        TenureBandMatchTier(
+                            employee_min=0.02, employee_max=0.08, match_rate=0.50
+                        ),
                     ],
                 ),
                 TenureGradedMatchBand(
-                    min_years=10, max_years=None,
+                    min_years=10,
+                    max_years=None,
                     tiers=[
-                        TenureBandMatchTier(employee_min=0.00, employee_max=0.02, match_rate=1.00),
-                        TenureBandMatchTier(employee_min=0.02, employee_max=0.10, match_rate=0.50),
+                        TenureBandMatchTier(
+                            employee_min=0.00, employee_max=0.02, match_rate=1.00
+                        ),
+                        TenureBandMatchTier(
+                            employee_min=0.02, employee_max=0.10, match_rate=0.50
+                        ),
                     ],
                 ),
             ],
@@ -763,8 +920,16 @@ class TestExportTenureGradedMatchVars:
         band_0 = bands[0]
         assert band_0["min_years"] == 0
         assert band_0["max_years"] == 10
-        assert band_0["tiers"][0] == {"employee_min": 0.00, "employee_max": 0.02, "match_rate": 1.00}
-        assert band_0["tiers"][1] == {"employee_min": 0.02, "employee_max": 0.08, "match_rate": 0.50}
+        assert band_0["tiers"][0] == {
+            "employee_min": 0.00,
+            "employee_max": 0.02,
+            "match_rate": 1.00,
+        }
+        assert band_0["tiers"][1] == {
+            "employee_min": 0.02,
+            "employee_max": 0.08,
+            "match_rate": 0.50,
+        }
 
         band_1 = bands[1]
         assert band_1["min_years"] == 10
@@ -779,8 +944,12 @@ class TestExportTenureGradedMatchVars:
         cfg = _make_config_mock(
             employer_match_status="tenure_based",
             tenure_match_tiers=[
-                TenureMatchTier(min_years=0, max_years=5, match_rate=25, max_deferral_pct=6),
-                TenureMatchTier(min_years=5, max_years=None, match_rate=100, max_deferral_pct=6),
+                TenureMatchTier(
+                    min_years=0, max_years=5, match_rate=25, max_deferral_pct=6
+                ),
+                TenureMatchTier(
+                    min_years=5, max_years=None, match_rate=100, max_deferral_pct=6
+                ),
             ],
         )
         dbt_vars = _export_employer_match_vars(cfg)
@@ -838,7 +1007,8 @@ class TestExportDcPlanTenureTiers:
 
     def test_dc_plan_tenure_tiers_decimal_conversion(self):
         """UI sends match_rate as decimal (0.50); legacy tenure_based dc_plan configs
-        are now auto-migrated to tenure_graded_bands on export (Feature 099 supersession)."""
+        are now auto-migrated to tenure_graded_bands on export (Feature 099 supersession).
+        """
         cfg = _FakeConfig(
             employer_match=None,
             dc_plan={
@@ -877,17 +1047,35 @@ class TestExportDcPlanTenureTiers:
                 "match_status": "tenure_graded",
                 "tenure_graded_bands": [
                     {
-                        "min_years": 0, "max_years": 10,
+                        "min_years": 0,
+                        "max_years": 10,
                         "tiers": [
-                            {"employee_min": 0.00, "employee_max": 0.02, "match_rate": 1.00},
-                            {"employee_min": 0.02, "employee_max": 0.08, "match_rate": 0.50},
+                            {
+                                "employee_min": 0.00,
+                                "employee_max": 0.02,
+                                "match_rate": 1.00,
+                            },
+                            {
+                                "employee_min": 0.02,
+                                "employee_max": 0.08,
+                                "match_rate": 0.50,
+                            },
                         ],
                     },
                     {
-                        "min_years": 10, "max_years": None,
+                        "min_years": 10,
+                        "max_years": None,
                         "tiers": [
-                            {"employee_min": 0.00, "employee_max": 0.02, "match_rate": 1.00},
-                            {"employee_min": 0.02, "employee_max": 0.10, "match_rate": 0.50},
+                            {
+                                "employee_min": 0.00,
+                                "employee_max": 0.02,
+                                "match_rate": 1.00,
+                            },
+                            {
+                                "employee_min": 0.02,
+                                "employee_max": 0.10,
+                                "match_rate": 0.50,
+                            },
                         ],
                     },
                 ],
@@ -899,11 +1087,16 @@ class TestExportDcPlanTenureTiers:
         assert dbt_vars["employer_match_status"] == "tenure_graded"
         bands = dbt_vars["tenure_graded_bands"]
         assert len(bands) == 2
-        assert bands[0]["tiers"][1] == {"employee_min": 0.02, "employee_max": 0.08, "match_rate": 0.50}
+        assert bands[0]["tiers"][1] == {
+            "employee_min": 0.02,
+            "employee_max": 0.08,
+            "match_rate": 0.50,
+        }
 
     def test_dc_plan_tenure_graded_missing_bands_no_crash(self):
         """Regression test: tenure_graded selected with no bands saved must not crash export
-        (this was the root cause of the production "syntax error near )" pipeline failure)."""
+        (this was the root cause of the production "syntax error near )" pipeline failure).
+        """
         cfg = _FakeConfig(
             employer_match=None,
             dc_plan={"match_status": "tenure_graded", "tenure_match_tiers": []},
@@ -923,9 +1116,24 @@ class TestExportDcPlanTenureTiers:
                 "match_status": "tenure_graded",
                 # decimal form, as the Studio UI saved them
                 "tenure_match_tiers": [
-                    {"min_years": 0, "max_years": 5, "match_rate": 1.0, "max_deferral_pct": 0.06},
-                    {"min_years": 5, "max_years": 10, "match_rate": 1.0, "max_deferral_pct": 0.08},
-                    {"min_years": 10, "max_years": None, "match_rate": 1.0, "max_deferral_pct": 0.1},
+                    {
+                        "min_years": 0,
+                        "max_years": 5,
+                        "match_rate": 1.0,
+                        "max_deferral_pct": 0.06,
+                    },
+                    {
+                        "min_years": 5,
+                        "max_years": 10,
+                        "match_rate": 1.0,
+                        "max_deferral_pct": 0.08,
+                    },
+                    {
+                        "min_years": 10,
+                        "max_years": None,
+                        "match_rate": 1.0,
+                        "max_deferral_pct": 0.1,
+                    },
                 ],
             },
         )
@@ -933,7 +1141,11 @@ class TestExportDcPlanTenureTiers:
         assert dbt_vars["employer_match_status"] == "tenure_graded"
         bands = dbt_vars["tenure_graded_bands"]
         assert len(bands) == 3
-        assert bands[0]["tiers"][0] == {"employee_min": 0.0, "employee_max": 0.06, "match_rate": 1.0}
+        assert bands[0]["tiers"][0] == {
+            "employee_min": 0.0,
+            "employee_max": 0.06,
+            "match_rate": 1.0,
+        }
         assert bands[2]["tiers"][0]["employee_max"] == 0.1
 
     def test_dc_plan_points_tiers_decimal_conversion(self):
