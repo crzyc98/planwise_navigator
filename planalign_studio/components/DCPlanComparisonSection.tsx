@@ -6,7 +6,7 @@ import {
 import {
   Loader2, AlertCircle, DollarSign, TrendingUp, TrendingDown
 } from 'lucide-react';
-import { DCPlanComparisonResponse } from '../services/api';
+import { DCPlanComparisonResponse, DCPlanAnalytics, ContributionYearSummary } from '../services/api';
 
 // --- Props ---
 
@@ -160,11 +160,12 @@ function TrendLineChart({
 // --- Summary comparison table sub-component ---
 
 function SummaryComparisonTable({
-  summaryRows, scenarioNames, scenarioColors,
+  summaryRows, scenarioNames, scenarioColors, headerRight,
 }: {
   summaryRows: SummaryMetricRow[];
   scenarioNames: string[];
   scenarioColors: Record<string, string>;
+  headerRight?: React.ReactNode;
 }) {
   if (summaryRows.length === 0) return null;
 
@@ -183,7 +184,10 @@ function SummaryComparisonTable({
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-      <h3 className="text-lg font-semibold text-gray-800 mb-4">DC Plan Summary Comparison</h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-gray-800">DC Plan Summary Comparison</h3>
+        {headerRight}
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -417,29 +421,58 @@ export default function DCPlanComparisonSection({
     });
   }, [comparisonData, selectedDistributionYear, availableDistributionYears]);
 
+  // --- Year-specific comparison (summary table + contribution mix) ---
+  // Years available across all compared scenarios (intersection of contribution years).
+  const availableYears = useMemo((): number[] => {
+    if (!comparisonData || comparisonData.analytics.length === 0) return [];
+    const yearSets = comparisonData.analytics
+      .map(a => new Set((a.contribution_by_year ?? []).map(c => c.year)))
+      .filter(s => s.size > 0);
+    if (yearSets.length === 0) return [];
+    const common = [...yearSets[0]].filter(y => yearSets.every(s => s.has(y)));
+    return common.sort((a, b) => a - b);
+  }, [comparisonData]);
+
+  const [selectedComparisonYear, setSelectedComparisonYear] = React.useState<number | null>(null);
+
+  // Default to the final available year whenever the available years change.
+  React.useEffect(() => {
+    setSelectedComparisonYear(
+      availableYears.length > 0 ? availableYears[availableYears.length - 1] : null
+    );
+  }, [availableYears.join(',')]);
+
+  // Resolve a scenario's contribution summary for the selected comparison year,
+  // falling back to its final year when the selected year is unavailable.
+  const getYearSummary = React.useCallback(
+    (a: DCPlanAnalytics): ContributionYearSummary | null => {
+      const byYear = a.contribution_by_year;
+      if (!byYear || byYear.length === 0) return null;
+      if (selectedComparisonYear !== null) {
+        const match = byYear.find(c => c.year === selectedComparisonYear);
+        if (match) return match;
+      }
+      return byYear[byYear.length - 1];
+    },
+    [selectedComparisonYear]
+  );
+
   const contributionBreakdownData = useMemo((): ContributionBreakdownPoint[] => {
     if (!comparisonData || comparisonData.analytics.length === 0) return [];
 
     return comparisonData.analytics
       .filter(a => a.contribution_by_year && a.contribution_by_year.length > 0)
       .map(a => {
-        const finalYear = a.contribution_by_year[a.contribution_by_year.length - 1];
+        const yearData = getYearSummary(a)!;
         const scenarioName = comparisonData.scenario_names[a.scenario_id] || a.scenario_id;
         return {
           name: scenarioName,
-          employee: finalYear.total_employee_contributions || 0,
-          match: finalYear.total_employer_match || 0,
-          core: finalYear.total_employer_core || 0,
+          employee: yearData.total_employee_contributions || 0,
+          match: yearData.total_employer_match || 0,
+          core: yearData.total_employer_core || 0,
         };
       });
-  }, [comparisonData]);
-
-  const finalYear = useMemo((): number | null => {
-    if (!comparisonData || comparisonData.analytics.length === 0) return null;
-    const firstAnalytics = comparisonData.analytics[0];
-    if (!firstAnalytics.contribution_by_year || firstAnalytics.contribution_by_year.length === 0) return null;
-    return firstAnalytics.contribution_by_year[firstAnalytics.contribution_by_year.length - 1].year;
-  }, [comparisonData]);
+  }, [comparisonData, getYearSummary]);
 
   const summaryRows = useMemo((): SummaryMetricRow[] => {
     if (!comparisonData || comparisonData.analytics.length === 0) return [];
@@ -448,71 +481,73 @@ export default function DCPlanComparisonSection({
       metric: string;
       unit: 'percent' | 'currency';
       favorableDirection: 'higher' | 'lower';
-      getValue: (a: typeof comparisonData.analytics[0]) => number;
+      getValue: (ys: ContributionYearSummary) => number;
     }> = [
       {
         metric: 'Participation Rate',
         unit: 'percent',
         favorableDirection: 'higher',
-        getValue: a => a.participation_rate || 0,
+        getValue: ys => ys.participation_rate || 0,
       },
       {
         metric: 'Avg Deferral Rate',
         unit: 'percent',
         favorableDirection: 'higher',
-        getValue: a => (a.average_deferral_rate || 0) * 100,
+        getValue: ys => (ys.average_deferral_rate || 0) * 100,
       },
       {
         metric: 'Employer Cost Rate',
         unit: 'percent',
         favorableDirection: 'lower',
-        getValue: a => a.employer_cost_rate || 0,
+        getValue: ys => ys.employer_cost_rate || 0,
       },
       {
         metric: 'Employee Contribution Rate',
         unit: 'percent',
         favorableDirection: 'higher',
-        getValue: a => a.employee_contribution_rate || 0,
+        getValue: ys => ys.employee_contribution_rate || 0,
       },
       {
         metric: 'Employer Match Rate',
         unit: 'percent',
         favorableDirection: 'lower',
-        getValue: a => a.match_contribution_rate || 0,
+        getValue: ys => ys.match_contribution_rate || 0,
       },
       {
         metric: 'Employer Core Rate',
         unit: 'percent',
         favorableDirection: 'lower',
-        getValue: a => a.core_contribution_rate || 0,
+        getValue: ys => ys.core_contribution_rate || 0,
       },
       {
         metric: 'Total Contribution Rate',
         unit: 'percent',
         favorableDirection: 'higher',
-        getValue: a => a.total_contribution_rate || 0,
+        getValue: ys => ys.total_contribution_rate || 0,
       },
       {
         metric: 'Total Contributions',
         unit: 'currency',
         favorableDirection: 'lower',
-        getValue: a => a.total_all_contributions || 0,
+        getValue: ys => ys.total_all_contributions || 0,
       },
     ];
 
     const baselineAnalytics = comparisonData.analytics[0];
     const baselineName = comparisonData.scenario_names[baselineAnalytics.scenario_id] || baselineAnalytics.scenario_id;
+    const baselineYs = getYearSummary(baselineAnalytics);
 
     return metrics.map(m => {
       const values: Record<string, number> = {};
       const deltas: Record<string, number> = {};
       const deltaPcts: Record<string, number> = {};
 
-      const baselineValue = m.getValue(baselineAnalytics);
+      const baselineValue = baselineYs ? m.getValue(baselineYs) : 0;
 
       comparisonData.analytics.forEach(a => {
         const name = comparisonData.scenario_names[a.scenario_id] || a.scenario_id;
-        const value = m.getValue(a);
+        const ys = getYearSummary(a);
+        const value = ys ? m.getValue(ys) : 0;
         values[name] = value;
 
         if (name !== baselineName) {
@@ -532,7 +567,7 @@ export default function DCPlanComparisonSection({
         deltaPcts,
       };
     });
-  }, [comparisonData]);
+  }, [comparisonData, getYearSummary]);
 
   // --- Loading / Error / Empty States ---
 
@@ -591,6 +626,23 @@ export default function DCPlanComparisonSection({
     </select>
   ) : availableDistributionYears.length === 1 && selectedDistributionYear !== null ? (
     <span className="text-sm text-gray-500">Year {selectedDistributionYear}</span>
+  ) : undefined;
+
+  // Shared year selector for the year-specific comparison (summary table + contribution mix).
+  const comparisonYearSelector = availableYears.length > 1 ? (
+    <select
+      value={selectedComparisonYear ?? ''}
+      onChange={e => setSelectedComparisonYear(Number(e.target.value))}
+      className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+    >
+      {availableYears.map(y => {
+        const isFinal = y === availableYears[availableYears.length - 1];
+        const label = isFinal ? `${y} (Final)` : String(y);
+        return <option key={y} value={y}>{label}</option>;
+      })}
+    </select>
+  ) : availableYears.length === 1 && selectedComparisonYear !== null ? (
+    <span className="text-sm text-gray-500">Year {selectedComparisonYear}</span>
   ) : undefined;
 
   return (
@@ -670,9 +722,10 @@ export default function DCPlanComparisonSection({
       {/* Contribution Breakdown */}
       <ChartCard
         title="Contribution Breakdown"
-        subtitle={`${finalYear ? 'Final year (' + finalYear + ')' : 'Final year'} — Employee, Employer Match, and Employer Core`}
+        subtitle={`${selectedComparisonYear ? 'Year ' + selectedComparisonYear : 'Final year'} — Employee, Employer Match, and Employer Core`}
         emptyMessage="No contribution data available"
         hasData={contributionBreakdownData.length > 0}
+        headerRight={comparisonYearSelector}
       >
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={contributionBreakdownData}>
@@ -693,6 +746,7 @@ export default function DCPlanComparisonSection({
         summaryRows={summaryRows}
         scenarioNames={scenarioNames}
         scenarioColors={scenarioColors}
+        headerRight={comparisonYearSelector}
       />
     </div>
   );
