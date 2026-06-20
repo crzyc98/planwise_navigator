@@ -1,7 +1,7 @@
 {{ config(
     materialized='incremental',
     incremental_strategy='delete+insert',
-    unique_key=['simulation_year', 'scenario_id', 'employee_id'],
+    unique_key=['simulation_year', 'employee_id'],
     tags=['marts', 'validation', 'gate_c', 'E077']
 ) }}
 
@@ -13,15 +13,15 @@
 {% set scenario_id = var('scenario_id', 'default') %}
 
 WITH base_snapshot AS (
+  -- fct_workforce_snapshot is single-scenario per database (no scenario_id column);
+  -- the scenario is selected upstream via the scenario_id var on global_needs.
   SELECT *
   FROM {{ ref('fct_workforce_snapshot') }}
   WHERE simulation_year = {{ simulation_year }}
-    AND scenario_id = '{{ scenario_id }}'
 ),
 global_needs AS (
   SELECT
     simulation_year,
-    scenario_id,
     starting_workforce_count,
     target_ending_workforce,
     target_net_growth,
@@ -35,7 +35,6 @@ global_needs AS (
 actual_counts AS (
   SELECT
     simulation_year,
-    scenario_id,
     COUNT(*) FILTER (WHERE employment_status = 'active') AS actual_ending_workforce,
     COUNT(*) FILTER (WHERE detailed_status_code = 'continuous_active') AS actual_continuous_active,
     COUNT(*) FILTER (WHERE detailed_status_code = 'experienced_termination') AS actual_exp_terms,
@@ -43,12 +42,11 @@ actual_counts AS (
     COUNT(*) FILTER (WHERE detailed_status_code = 'new_hire_termination') AS actual_nh_terms,
     COUNT(*) AS total_snapshot_rows
   FROM base_snapshot
-  GROUP BY simulation_year, scenario_id
+  GROUP BY simulation_year
 ),
 validation AS (
   SELECT
     ac.simulation_year,
-    ac.scenario_id,
     -- Actual vs expected ending workforce
     ac.actual_ending_workforce,
     gn.target_ending_workforce,
@@ -90,7 +88,7 @@ validation AS (
     || 'NHTerms=' || (ac.actual_nh_terms - gn.expected_new_hire_terminations)
     AS gate_c_diagnostic
   FROM actual_counts ac
-  JOIN global_needs gn USING (simulation_year, scenario_id)
+  JOIN global_needs gn USING (simulation_year)
 )
 SELECT
   bs.*,
@@ -102,12 +100,10 @@ SELECT
 FROM base_snapshot bs
 LEFT JOIN validation v
   ON bs.simulation_year = v.simulation_year
-  AND bs.scenario_id = v.scenario_id
 -- HARD STOP: Only allow PASS through Gate C
 -- Comment out next line to see diagnostic details for failing scenarios
 WHERE v.gate_c_status = 'PASS'
 
 {% if is_incremental() %}
   AND bs.simulation_year = {{ var('simulation_year') }}
-  AND bs.scenario_id = '{{ var('scenario_id', 'default') }}'
 {% endif %}
