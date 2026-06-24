@@ -456,6 +456,10 @@ models:
       and comprehensive data quality validation.
     config:
       tags: ["contribution", "critical", "core_calculation"]
+    data_tests:
+      # Feature 101: the windowed base can never exceed employment-prorated comp
+      - dbt_utils.expression_is_true:
+          expression: "total_contribution_base_compensation <= prorated_annual_compensation + 0.01"
     columns:
       - name: employee_id
         description: Unique employee identifier
@@ -495,6 +499,33 @@ models:
           - dbt_utils.accepted_range:
               min_value: 0
               max_value: 1.0
+      # Feature 101: active-enrollment-window proration
+      - name: total_contribution_base_compensation
+        description: >
+          Compensation base the deferral rate is applied to. Equals prorated_annual_compensation
+          except for same-year enroll→opt-out employees, where it is scaled to the active-enrollment window.
+          The upper bound (≤ prorated_annual_compensation) is enforced by the model-level
+          expression_is_true test, so no fixed max is asserted here (avoids duplicating the
+          pre-existing exec-comp > 500k range failure on prorated_annual_compensation).
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: active_enrollment_days
+        description: >
+          Days credited for the active-enrollment window (enrollment→opt-out, bounded by employment).
+          0 for full-year participants and degenerate/zero-day windows (Feature 101).
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 366
+      - name: contribution_window_category
+        description: "'enroll_optout_window' | 'full_year' | 'partial_year' (Feature 101)"
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['enroll_optout_window', 'full_year', 'partial_year']
       - name: contribution_periods_count
         description: Number of contribution periods calculated for this employee
 

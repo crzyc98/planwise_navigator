@@ -103,7 +103,10 @@ employee_contributions AS (
         ec.employee_id,
         ec.simulation_year,
         ec.annual_contribution_amount AS annual_deferrals,
-        ec.prorated_annual_compensation AS eligible_compensation,
+        -- Feature 101: use the active-enrollment-window base so employer match follows
+        -- the windowed contribution for same-year enroll→opt-out employees
+        -- (equals prorated_annual_compensation for everyone else).
+        ec.total_contribution_base_compensation AS eligible_compensation,
         ec.effective_annual_deferral_rate AS deferral_rate,
         ec.is_enrolled_flag AS is_enrolled,
         ec.first_contribution_date AS enrollment_date,
