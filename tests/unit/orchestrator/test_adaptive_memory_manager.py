@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -116,9 +115,7 @@ def test_initial_batch_size_matches_medium_level(tmp_path):
 def test_reset_statistics_clears_counters_and_recommendations(tmp_path):
     mgr = _manager(tmp_path)
     mgr._stats["total_gc_collections"] = 5
-    mgr._recommendations.append(
-        MemoryRecommendation("gc", "d", "a")
-    )
+    mgr._recommendations.append(MemoryRecommendation("gc", "d", "a"))
 
     mgr.reset_statistics()
 
@@ -190,9 +187,7 @@ def test_stop_monitoring_is_idempotent(tmp_path):
 
 def test_factory_derives_thresholds_from_memory_limit(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)  # factory uses default reports/memory under cwd
-    mgr = create_adaptive_memory_manager(
-        memory_limit_gb=10.0, logger=MagicMock()
-    )
+    mgr = create_adaptive_memory_manager(memory_limit_gb=10.0, logger=MagicMock())
     t = mgr.config.thresholds
     assert t.moderate_mb == pytest.approx(10 * 1024 * 0.5)
     assert t.high_mb == pytest.approx(10 * 1024 * 0.75)

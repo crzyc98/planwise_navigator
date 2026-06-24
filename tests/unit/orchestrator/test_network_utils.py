@@ -45,9 +45,7 @@ def test_network_error_sets_timestamp_when_missing():
 
 
 def test_network_error_preserves_explicit_timestamp():
-    err = NetworkError(
-        error_type="X", message="boom", url="http://x", timestamp=123.0
-    )
+    err = NetworkError(error_type="X", message="boom", url="http://x", timestamp=123.0)
     assert err.timestamp == 123.0
 
 
@@ -100,7 +98,9 @@ def test_create_network_error_unknown(bare_client):
 # ---------------------------------------------------------------------------
 
 
-def _diagnostics(*, connectivity, proxy_detected=False, proxy_working=True, errors=None):
+def _diagnostics(
+    *, connectivity, proxy_detected=False, proxy_working=True, errors=None
+):
     return SimpleNamespace(
         connectivity_tests=connectivity,
         proxy_detected=proxy_detected,
@@ -111,7 +111,10 @@ def _diagnostics(*, connectivity, proxy_detected=False, proxy_working=True, erro
 
 def test_recommendations_healthy_network_is_empty():
     diag = _diagnostics(connectivity={"google": True})
-    system_info = {"dns_resolution": {"google.com": True}, "port_connectivity": {"x": True}}
+    system_info = {
+        "dns_resolution": {"google.com": True},
+        "port_connectivity": {"x": True},
+    }
     assert _generate_recommendations(diag, system_info) == []
 
 
@@ -149,17 +152,28 @@ def test_recommendations_flags_errors():
 # ---------------------------------------------------------------------------
 
 
-def _proxy_config(*, http=None, https=None, no_proxy=None, ca_bundle=None, total_timeout=30):
+def _proxy_config(
+    *, http=None, https=None, no_proxy=None, ca_bundle=None, total_timeout=30
+):
     return SimpleNamespace(
-        proxy=SimpleNamespace(http_proxy=http, https_proxy=https, no_proxy=no_proxy or []),
+        proxy=SimpleNamespace(
+            http_proxy=http, https_proxy=https, no_proxy=no_proxy or []
+        ),
         certificates=SimpleNamespace(ca_bundle_path=ca_bundle),
         timeouts=SimpleNamespace(total_timeout=total_timeout),
     )
 
 
 def test_subprocess_with_proxy_injects_env_and_runs():
-    cfg = _proxy_config(http="http://proxy:8080", https="http://proxy:8080", no_proxy=["localhost"], ca_bundle="/certs/ca.pem")
-    completed = subprocess.CompletedProcess(args=["echo"], returncode=0, stdout="hi", stderr="")
+    cfg = _proxy_config(
+        http="http://proxy:8080",
+        https="http://proxy:8080",
+        no_proxy=["localhost"],
+        ca_bundle="/certs/ca.pem",
+    )
+    completed = subprocess.CompletedProcess(
+        args=["echo"], returncode=0, stdout="hi", stderr=""
+    )
 
     with patch.object(nu, "load_network_config", return_value=cfg), patch.object(
         nu.subprocess, "run", return_value=completed
@@ -195,7 +209,9 @@ def test_subprocess_with_proxy_handles_timeout():
 def test_create_network_client_uses_loaded_config():
     sentinel_config = MagicMock(name="config")
     sentinel_client = MagicMock(name="client")
-    with patch.object(nu, "load_network_config", return_value=sentinel_config) as load_mock, patch.object(
+    with patch.object(
+        nu, "load_network_config", return_value=sentinel_config
+    ) as load_mock, patch.object(
         nu, "CorporateNetworkClient", return_value=sentinel_client
     ) as client_cls:
         result = create_network_client("/path/cfg.json")

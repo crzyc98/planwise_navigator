@@ -58,9 +58,11 @@ def _engine(**kwargs) -> ParallelExecutionEngine:
 
 def test_legacy_monitor_reports_safe_when_below_thresholds():
     monitor = LegacyResourceMonitor(memory_threshold_mb=4000.0, cpu_threshold_pct=90.0)
-    with patch.object(pee.psutil, "virtual_memory", return_value=SimpleNamespace(used=1000 * 1024 * 1024)), patch.object(
-        pee.psutil, "cpu_percent", return_value=10.0
-    ):
+    with patch.object(
+        pee.psutil,
+        "virtual_memory",
+        return_value=SimpleNamespace(used=1000 * 1024 * 1024),
+    ), patch.object(pee.psutil, "cpu_percent", return_value=10.0):
         result = monitor.check_resources()
 
     assert result["memory_pressure"] is False
@@ -70,9 +72,11 @@ def test_legacy_monitor_reports_safe_when_below_thresholds():
 
 def test_legacy_monitor_detects_memory_pressure():
     monitor = LegacyResourceMonitor(memory_threshold_mb=4000.0, cpu_threshold_pct=90.0)
-    with patch.object(pee.psutil, "virtual_memory", return_value=SimpleNamespace(used=5000 * 1024 * 1024)), patch.object(
-        pee.psutil, "cpu_percent", return_value=10.0
-    ):
+    with patch.object(
+        pee.psutil,
+        "virtual_memory",
+        return_value=SimpleNamespace(used=5000 * 1024 * 1024),
+    ), patch.object(pee.psutil, "cpu_percent", return_value=10.0):
         result = monitor.check_resources()
 
     assert result["memory_pressure"] is True
