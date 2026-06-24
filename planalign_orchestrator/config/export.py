@@ -438,9 +438,7 @@ def _compute_match_max_deferral_rate(emv: Dict[str, Any]) -> Optional[float]:
             if formula_type in ("tiered", "safe_harbor", "qaca"):
                 ftiers = formula.get("tiers", [])
                 if ftiers:
-                    return max(
-                        float(t.get("employee_max", 0)) for t in ftiers
-                    )
+                    return max(float(t.get("employee_max", 0)) for t in ftiers)
     except (KeyError, TypeError, ValueError) as e:
         logger.warning("Could not compute match-max deferral rate: %s", e)
     return None
