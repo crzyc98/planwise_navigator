@@ -93,6 +93,10 @@ export function buildConfigPayload(
       auto_enroll_hire_date_cutoff: formData.dcAutoEnrollHireDateCutoff,
       opt_out_rate_target: Number(formData.dcOptOutRateTarget) / 100,
       ...(formData.dcVoluntaryEnrollmentRate !== '' ? { voluntary_enrollment_rate: Number(formData.dcVoluntaryEnrollmentRate) / 100 } : {}),
+      // Feature 102: match-magnet dial (UI percent → decimal)
+      match_magnet_enabled: Boolean(formData.dcMatchMagnetEnabled),
+      match_magnet_probability: Number(formData.dcMatchMagnetProbability) / 100,
+      max_voluntary_deferral_percent: Number(formData.dcMaxVoluntaryDeferral) / 100,
       opt_out_rate_young: Number(formData.dcOptOutRateTarget) / 100 * OPT_OUT_AGE_MULTIPLIERS.young,
       opt_out_rate_mid: Number(formData.dcOptOutRateTarget) / 100 * OPT_OUT_AGE_MULTIPLIERS.mid,
       opt_out_rate_mature: Number(formData.dcOptOutRateTarget) / 100 * OPT_OUT_AGE_MULTIPLIERS.mature,

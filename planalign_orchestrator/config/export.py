@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from planalign_orchestrator.config.tenure_graded_match import (
     migrate_legacy_tenure_based_config,
@@ -254,6 +254,26 @@ def _apply_dc_plan_enrollment_overrides(
         float,
     )
 
+    # Feature 102: match-magnet dial overrides (UI sends decimals for the rate fields)
+    _set_if_not_none(
+        dbt_vars,
+        "enrollment_match_magnet_enabled",
+        dc_plan_dict.get("match_magnet_enabled"),
+        bool,
+    )
+    _set_if_not_none(
+        dbt_vars,
+        "enrollment_match_magnet_probability",
+        dc_plan_dict.get("match_magnet_probability"),
+        float,
+    )
+    _set_if_not_none(
+        dbt_vars,
+        "voluntary_max_deferral_rate",
+        dc_plan_dict.get("max_voluntary_deferral_percent"),
+        float,
+    )
+
     # Plan eligibility waiting period (UI sends months, dbt expects days)
     if dc_plan_dict.get("eligibility_months") is not None:
         days = int(dc_plan_dict["eligibility_months"]) * 30
@@ -261,10 +281,21 @@ def _apply_dc_plan_enrollment_overrides(
         dbt_vars["plan_eligibility_waiting_period_days"] = days
 
 
+def _export_match_magnet(cfg: "SimulationConfig", dbt_vars: Dict[str, Any]) -> None:
+    """Export match-magnet dial settings to dbt vars (Feature 102).
+
+    Defaults reproduce prior behavior; dc_plan (UI) overrides applied later.
+    """
+    mm = cfg.enrollment.match_magnet
+    dbt_vars["enrollment_match_magnet_enabled"] = bool(mm.enabled)
+    dbt_vars["enrollment_match_magnet_probability"] = float(mm.snap_probability)
+    dbt_vars["voluntary_max_deferral_rate"] = float(mm.max_deferral_rate)
+
+
 def _export_enrollment_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     """Export enrollment settings to dbt vars.
 
-    Handles: auto-enrollment, opt-out rates, proactive enrollment, timing.
+    Handles: auto-enrollment, opt-out rates, proactive enrollment, timing, match magnet.
     """
     dbt_vars: Dict[str, Any] = {}
 
@@ -272,6 +303,7 @@ def _export_enrollment_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     _export_auto_enrollment_fields(auto, dbt_vars)
     _export_opt_out_rates(auto, dbt_vars)
     _export_proactive_enrollment(cfg, dbt_vars)
+    _export_match_magnet(cfg, dbt_vars)
 
     try:
         dc_plan_dict = _resolve_dc_plan_dict(cfg)
@@ -371,6 +403,47 @@ def _export_legacy_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
         pass
 
     return dbt_vars
+
+
+def _compute_match_max_deferral_rate(emv: Dict[str, Any]) -> Optional[float]:
+    """Match-maximizing employee deferral rate from the active formula / tiers.
+
+    Feature 102: the voluntary-enrollment match magnet snaps enrollees toward this
+    ceiling. It MUST reflect the active employer-match formula independent of whether
+    `deferral_match_response` is enabled, so it is computed here and exported by
+    `_export_employer_match_vars` whenever a match is configured.
+
+    Returns None when no formula/tiers are configured (caller leaves the var unset,
+    and the SQL falls back to its own default).
+    """
+    try:
+        # UI-driven tiers (dc_plan.match_tiers) take precedence when present.
+        tiers = emv.get("match_tiers")
+        if tiers:
+            maxes = [
+                float(t["employee_max"])
+                for t in tiers
+                if t.get("employee_max") is not None
+            ]
+            if maxes:
+                return max(maxes)
+
+        formulas = emv.get("match_formulas", {})
+        active_key = emv.get("active_match_formula", "")
+        if active_key and active_key in formulas:
+            formula = formulas[active_key]
+            formula_type = formula.get("type", "simple")
+            if formula_type == "simple":
+                return float(formula.get("max_match_percentage", 0.06))
+            if formula_type in ("tiered", "safe_harbor", "qaca"):
+                ftiers = formula.get("tiers", [])
+                if ftiers:
+                    return max(
+                        float(t.get("employee_max", 0)) for t in ftiers
+                    )
+    except (KeyError, TypeError, ValueError) as e:
+        logger.warning("Could not compute match-max deferral rate: %s", e)
+    return None
 
 
 def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
@@ -775,6 +848,12 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     # earlier) so dbt vars stay consistent with what's actually being calculated.
     if "match_template" in dbt_vars:
         dbt_vars["active_match_formula"] = dbt_vars["match_template"]
+
+    # Feature 102: always-on match-magnet ceiling — exported whenever a match
+    # formula/tiers are configured, regardless of deferral_match_response.
+    match_max = _compute_match_max_deferral_rate(dbt_vars)
+    if match_max is not None:
+        dbt_vars["employer_match_max_deferral_rate"] = match_max
 
     return dbt_vars
 
@@ -1185,31 +1264,13 @@ def _export_deferral_match_response_vars(cfg: "SimulationConfig") -> Dict[str, A
             dmr.downward_partial_decrease_factor
         )
 
-        # Pre-compute match-maximizing deferral rate from active formula
-        # This avoids Jinja2 scoping issues when iterating tiers in SQL
-        match_max_rate = 0.06  # sensible default
-        try:
-            all_vars = {}
-            all_vars.update(_export_simulation_vars(cfg))
-            all_vars.update(_export_legacy_vars(cfg))
-            all_vars.update(_export_enrollment_vars(cfg))
-            all_vars.update(_export_employer_match_vars(cfg))
-            formulas = all_vars.get("match_formulas", {})
-            active_key = all_vars.get("active_match_formula", "")
-            if active_key and active_key in formulas:
-                formula = formulas[active_key]
-                formula_type = formula.get("type", "simple")
-                if formula_type == "simple":
-                    match_max_rate = float(formula.get("max_match_percentage", 0.06))
-                elif formula_type in ("tiered", "safe_harbor", "qaca"):
-                    tiers = formula.get("tiers", [])
-                    if tiers:
-                        match_max_rate = max(
-                            float(t.get("employee_max", 0)) for t in tiers
-                        )
-        except Exception:
-            pass  # fall back to default 0.06
-        dbt_vars["deferral_match_response_match_max_rate"] = match_max_rate
+        # Match-maximizing deferral rate — kept as a backward-compatible alias of the
+        # always-on Feature 102 ceiling (computed in _export_employer_match_vars).
+        emv = _export_employer_match_vars(cfg)
+        match_max_rate = emv.get("employer_match_max_deferral_rate")
+        dbt_vars["deferral_match_response_match_max_rate"] = (
+            match_max_rate if match_max_rate is not None else 0.06
+        )
     except Exception:
         # Feature not configured - use defaults (disabled)
         dbt_vars["deferral_match_response_enabled"] = False

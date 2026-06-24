@@ -312,6 +312,7 @@ vars:
   # Match magnet: attract enrollees toward match-maximizing deferral threshold
   enrollment_match_magnet_enabled: true         # Toggle match-threshold attraction at enrollment
   enrollment_match_magnet_probability: 0.45     # Fraction of sub-threshold enrollees who snap to match max
+  voluntary_max_deferral_rate: 0.10             # Upper bound on voluntary-enrollment deferral selection (incl. magnet-snapped rates)
 
   # Plan-specific overrides (future enhancement)
   emergency_plan_auto_enrollment_enabled: false # Disable auto-enrollment for emergency plans

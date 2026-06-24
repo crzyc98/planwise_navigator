@@ -291,6 +291,16 @@ enrollment:
     business_day_adjustment: true    # Adjust enrollment dates to business days
     holiday_calendar: "us_federal"   # Holiday calendar for business day calculations
 
+  # Feature 102: Match-magnet dial for voluntary enrollment. The magnet snaps a
+  # fraction of below-ceiling voluntary enrollees up to the employer-match ceiling
+  # (the deferral that captures the full match). Defaults below reproduce prior
+  # behavior; raise snap_probability to counteract a declining average deferral in
+  # plans without auto-enrollment.
+  # match_magnet:
+  #   enabled: true            # Toggle the defer-to-the-match behavior
+  #   snap_probability: 0.45   # Fraction of below-ceiling enrollees who snap to the ceiling (0.0-1.0)
+  #   max_deferral_rate: 0.10  # Upper bound on voluntary deferral selection (incl. snapped rates)
+
   # Multi-year simulation considerations
   multi_year:
     preserve_enrollment_state: true          # Maintain enrollment status across simulation years

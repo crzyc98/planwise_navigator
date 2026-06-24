@@ -152,6 +152,11 @@ export const DEFAULT_FORM_DATA: FormData = {
   // DC Plan - Voluntary Enrollment Rate (percentage, empty = use demographic defaults)
   dcVoluntaryEnrollmentRate: '30',
 
+  // DC Plan - Match Magnet dial (Feature 102; defaults preserve prior behavior)
+  dcMatchMagnetEnabled: true,
+  dcMatchMagnetProbability: 45,
+  dcMaxVoluntaryDeferral: 10,
+
   // DC Plan - Match Enable/Disable
   dcMatchEnabled: true,
 

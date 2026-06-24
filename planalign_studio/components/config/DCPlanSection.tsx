@@ -292,6 +292,29 @@ export function DCPlanSection() {
            )}
          </div>
 
+         {/* Match Magnet dial (Feature 102) */}
+         <div className="sm:col-span-6 mt-4">
+           <div className="flex items-center justify-between mb-1">
+             <h4 className="text-sm font-semibold text-gray-900">Match Magnet</h4>
+             <label htmlFor="dcplan-match-magnet-enabled" className="flex items-center">
+               <input
+                 id="dcplan-match-magnet-enabled"
+                 type="checkbox"
+                 name="dcMatchMagnetEnabled"
+                 checked={formData.dcMatchMagnetEnabled}
+                 onChange={handleChange}
+                 className="h-4 w-4 text-fidelity-green rounded"
+               />
+               <span className="ml-2 text-sm text-gray-600">Enabled</span>
+             </label>
+           </div>
+           <p className="text-xs text-gray-500 mb-3">Models employees who defer just enough to capture the full employer match: a fraction of below-ceiling voluntary enrollees snap up to the match ceiling. Raise the "snap" share to counteract a declining average deferral when there is no auto-enrollment.</p>
+           <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-6">
+             <InputField label="Snap to Match" {...inputProps('dcMatchMagnetProbability')} type="number" step="1" suffix="%" helper="Share of below-ceiling enrollees who snap to the match ceiling (0–100%)." min={0} max={100} />
+             <InputField label="Max Voluntary Deferral" {...inputProps('dcMaxVoluntaryDeferral')} type="number" step="1" suffix="%" helper="Upper bound on voluntary deferral selection, including magnet-snapped rates." min={1} max={100} />
+           </div>
+         </div>
+
          <div className="col-span-6 h-px bg-gray-200 my-2"></div>
          <div className="sm:col-span-6 flex items-center justify-between mb-2">
            <h4 className="text-sm font-semibold text-gray-900">Employer Match Formula</h4>

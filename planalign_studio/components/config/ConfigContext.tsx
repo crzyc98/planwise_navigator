@@ -209,6 +209,12 @@ function mapDCPlanEnrollmentFields(cfg: any, prev: FormData): Partial<FormData> 
       ? cfg.dc_plan.opt_out_rate_target * 100 : prev.dcOptOutRateTarget,
     dcVoluntaryEnrollmentRate: cfg.dc_plan?.voluntary_enrollment_rate != null
       ? String(cfg.dc_plan.voluntary_enrollment_rate * 100) : prev.dcVoluntaryEnrollmentRate,
+    // Feature 102: match-magnet dial (stored as decimals in config, shown as percent)
+    dcMatchMagnetEnabled: cfg.dc_plan?.match_magnet_enabled ?? prev.dcMatchMagnetEnabled,
+    dcMatchMagnetProbability: cfg.dc_plan?.match_magnet_probability != null
+      ? cfg.dc_plan.match_magnet_probability * 100 : prev.dcMatchMagnetProbability,
+    dcMaxVoluntaryDeferral: cfg.dc_plan?.max_voluntary_deferral_percent != null
+      ? cfg.dc_plan.max_voluntary_deferral_percent * 100 : prev.dcMaxVoluntaryDeferral,
   };
 }
 

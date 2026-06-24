@@ -3,30 +3,30 @@
   tags=['EVENT_GENERATION']
 ) }}
 
-{# Match magnet: compute match-maximizing deferral rate from configured tiers #}
+{# Match magnet (Feature 102): per-employee ceiling resolved by match mode. #}
 {% set employer_match_status = var('employer_match_status', 'deferral_based') %}
-{% set precomputed_match_max = var('deferral_match_response_match_max_rate', none) %}
+{# Always-on deferral_based ceiling: prefer the formula-derived var (exported whenever a #}
+{# match is configured), then the legacy DMR var, then the configured match_tiers. #}
+{% set precomputed_match_max = var('employer_match_max_deferral_rate', var('deferral_match_response_match_max_rate', none)) %}
 {% set match_tiers = var('match_tiers', [
     {'employee_min': 0.00, 'employee_max': 0.03, 'match_rate': 1.00},
     {'employee_min': 0.03, 'employee_max': 0.05, 'match_rate': 0.50}
 ]) %}
 {% set enrollment_match_magnet_enabled = var('enrollment_match_magnet_enabled', true) %}
 {% set enrollment_match_magnet_probability = var('enrollment_match_magnet_probability', 0.45) %}
+{% set voluntary_max_deferral_rate = var('voluntary_max_deferral_rate', 0.10) %}
 
-{% if employer_match_status == 'deferral_based' %}
-  {% if precomputed_match_max is not none %}
-    {% set match_max_rate = precomputed_match_max %}
-  {% else %}
-    {% set ns = namespace(match_max_rate=0.0) %}
-    {% for tier in match_tiers %}
-      {% if tier.employee_max is not none and tier.employee_max > ns.match_max_rate %}
-        {% set ns.match_max_rate = tier.employee_max %}
-      {% endif %}
-    {% endfor %}
-    {% set match_max_rate = ns.match_max_rate %}
-  {% endif %}
+{# Scalar ceiling used only for deferral_based mode; other modes resolve per-employee. #}
+{% if precomputed_match_max is not none %}
+  {% set deferral_scalar = precomputed_match_max %}
 {% else %}
-  {% set match_max_rate = 0.0 %}
+  {% set ns = namespace(match_max_rate=0.0) %}
+  {% for tier in match_tiers %}
+    {% if tier.employee_max is not none and tier.employee_max > ns.match_max_rate %}
+      {% set ns.match_max_rate = tier.employee_max %}
+    {% endif %}
+  {% endfor %}
+  {% set deferral_scalar = ns.match_max_rate %}
 {% endif %}
 
 /*
@@ -256,17 +256,30 @@ deferral_rate_selection AS (
 ),
 
 match_optimization AS (
+  -- Resolve the per-employee match ceiling for the active match mode (Feature 102)
   SELECT
     *,
-    CASE
-      WHEN {{ enrollment_match_magnet_enabled }}
-        AND {{ match_max_rate }} > 0
-        AND selected_deferral_rate < {{ match_max_rate }}
-        AND deferral_random < {{ enrollment_match_magnet_probability }}
-      THEN {{ match_max_rate }}::DECIMAL(5,4)
-      ELSE selected_deferral_rate
-    END AS optimized_deferral_rate
+    {{ resolve_match_magnet_ceiling(
+        employer_match_status,
+        'FLOOR(current_tenure)',
+        '(FLOOR(current_age) + FLOOR(current_tenure))',
+        deferral_scalar
+    ) }} AS match_magnet_ceiling
   FROM deferral_rate_selection
+),
+
+match_snapped AS (
+  -- Snap a deterministic fraction of below-ceiling enrollees up to the ceiling
+  SELECT
+    *,
+    {{ match_magnet_snap(
+        'selected_deferral_rate',
+        'match_magnet_ceiling',
+        'deferral_random',
+        enrollment_match_magnet_enabled,
+        enrollment_match_magnet_probability
+    ) }} AS optimized_deferral_rate
+  FROM match_optimization
 ),
 
 enrollment_decisions AS (
@@ -291,8 +304,8 @@ enrollment_decisions AS (
       ELSE false
     END as will_enroll,
 
-    -- Selected deferral rate (capped between 1% and 10%)
-    GREATEST(0.01, LEAST(0.10, optimized_deferral_rate)) as selected_deferral_rate,
+    -- Selected deferral rate (floor 1%; cap = configurable voluntary_max_deferral_rate)
+    GREATEST(0.01, LEAST({{ voluntary_max_deferral_rate }}, optimized_deferral_rate)) as selected_deferral_rate,
 
     -- Event details for integration
     'voluntary_enrollment' as event_category,
@@ -311,9 +324,10 @@ enrollment_decisions AS (
     enrollment_random,
     deferral_random,
     selected_deferral_rate as raw_deferral_rate,
-    optimized_deferral_rate as match_optimized_rate
+    optimized_deferral_rate as match_optimized_rate,
+    match_magnet_ceiling
 
-  FROM match_optimization
+  FROM match_snapped
 ),
 
 -- Performance metrics for monitoring
@@ -354,7 +368,8 @@ SELECT
   enrollment_random,
   deferral_random,
   raw_deferral_rate,
-  match_optimized_rate
+  match_optimized_rate,
+  match_magnet_ceiling
 
 FROM enrollment_decisions
 WHERE will_enroll = true  -- Only return employees who will enroll

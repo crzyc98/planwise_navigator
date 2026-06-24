@@ -2193,3 +2193,36 @@ models:
         data_type: varchar
         tests: [not_null]
         description: "Plan design identifier"
+
+  # Feature 102: voluntary-enrollment deferral bounds + match-magnet ceiling
+  - name: int_voluntary_enrollment_decision
+    description: "Voluntary enrollment decisions with demographic deferral selection and match-magnet snapping (Feature 102)."
+    columns:
+      - name: selected_deferral_rate
+        description: "Final voluntary deferral rate, bounded by [0.01, voluntary_max_deferral_rate]."
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0.01
+              max_value: 1.0
+      - name: match_magnet_ceiling
+        description: "Per-employee match ceiling the magnet snaps toward (0 when magnet inactive)."
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+
+  - name: int_proactive_voluntary_enrollment
+    description: "Proactive (within auto-enrollment window) voluntary enrollment with match-magnet snapping (Feature 102)."
+    columns:
+      - name: proactive_deferral_rate
+        description: "Final proactive voluntary deferral rate, bounded by [0.01, voluntary_max_deferral_rate]."
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0.01
+              max_value: 1.0
+      - name: match_magnet_ceiling
+        description: "Per-employee match ceiling the magnet snaps toward (0 when magnet inactive)."
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
