@@ -14,18 +14,14 @@ from fastapi.responses import FileResponse
 from ..config import APISettings, get_settings
 from ..models.imports import (
     ApplyTemplateRequest,
-    DataQualityResult,
     DetectedColumn,
     GenerateResponse,
-    ImportErrorResponse,
     ImportSession,
     MappedPreviewResponse,
     MappingSaveRequest,
     MappingSaveResponse,
-    MappingTemplateSummary,
     MappingTemplatesResponse,
     MappingValidationError,
-    ParquetFile,
     ParquetFilesResponse,
     PreviewResponse,
     SaveTemplateRequest,
@@ -356,7 +352,6 @@ async def select_sheet(
     session.preview_rows = preview
     session.row_count = len(df)
     session.column_count = len(detected)
-    from pathlib import Path as _Path
 
     service._metadata_path(workspace_id, import_id).write_text(
         session.model_dump_json(indent=2)

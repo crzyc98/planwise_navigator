@@ -4,24 +4,18 @@ Feature: 031-workspace-export
 Tests: T013 (export endpoint), T022 (import endpoint), T036 (bulk export), T049 (bulk import)
 """
 
-import io
 import json
 import tempfile
-from datetime import datetime
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import py7zr
 import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
 from planalign_api.models.export import (
     BulkOperationStatus,
-    ExportManifest,
     ExportStatus,
     ImportStatus,
-    ManifestContents,
 )
 from planalign_api.models.workspace import Workspace, WorkspaceSummary
 from planalign_api.services.export_service import ExportService, MANIFEST_VERSION

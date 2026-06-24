@@ -4,7 +4,6 @@ import duckdb
 import pytest
 from pathlib import Path
 from typing import Generator
-import tempfile
 
 
 @pytest.fixture

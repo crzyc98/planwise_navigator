@@ -5,7 +5,6 @@ import pytest
 from planalign_api.services.census_schema import (
     CANONICAL_NAMES,
     FIELDS,
-    CensusFieldDefinition,
     get_field,
     get_required_fields,
     is_canonical,

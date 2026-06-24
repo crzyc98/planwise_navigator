@@ -23,7 +23,6 @@ from tests.fixtures.decimal_models import (
 )
 from tests.utils.json_validators import (
     is_json_serializable,
-    assert_json_parseable,
     assert_no_decimals_in_structure,
     count_decimal_occurrences,
 )

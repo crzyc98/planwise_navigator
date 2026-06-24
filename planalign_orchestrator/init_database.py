@@ -21,11 +21,10 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import csv
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
 import duckdb
 from .config import get_database_path

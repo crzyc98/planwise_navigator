@@ -10,10 +10,9 @@ applied yet. After implementing T012, these tests should pass (green phase).
 
 import json
 import pytest
-from decimal import Decimal
-from planalign_orchestrator.pipeline_orchestrator import PipelineOrchestrator
-from tests.fixtures.config import config_with_decimal_fields
 from tests.utils.json_validators import assert_no_decimals_in_structure
+
+# config_with_decimal_fields fixture is auto-discovered via tests/conftest.py.
 
 
 @pytest.mark.integration

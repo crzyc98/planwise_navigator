@@ -9,7 +9,7 @@ from __future__ import annotations
 import io
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -21,7 +21,6 @@ from planalign_cli.integration.orchestrator_wrapper import (
     _EVENT_PATTERN,
     _COMPLETED_STAGE_PATTERN,
     _FOUNDATION_VALIDATION_PATTERN,
-    _MAX_LINE_LENGTH,
     OrchestratorWrapper,
 )
 
@@ -394,7 +393,7 @@ class TestOrchestratorWrapper:
         assert not health["healthy"]
 
     def test_check_system_health_missing_db(self):
-        wrapper = OrchestratorWrapper(
+        OrchestratorWrapper(
             config_path=Path("config.yaml"),
             db_path=Path("nonexistent.duckdb"),
         )

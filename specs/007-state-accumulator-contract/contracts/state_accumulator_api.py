@@ -9,7 +9,7 @@ Date: 2025-12-14
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Protocol, runtime_checkable
+from typing import Dict, List, Protocol, runtime_checkable
 
 
 # =============================================================================

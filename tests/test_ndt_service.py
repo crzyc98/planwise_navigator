@@ -5,7 +5,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
 
-from planalign_api.services.ndt_service import NDTService, ACPScenarioResult
+from planalign_api.services.ndt_service import NDTService
 from planalign_api.services.database_path_resolver import (
     DatabasePathResolver,
     ResolvedDatabasePath,

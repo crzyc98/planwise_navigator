@@ -6,7 +6,6 @@ the required interface contract.
 """
 
 import pytest
-from abc import ABC
 from planalign_orchestrator.generators.base import (
     EventGenerator,
     EventContext,

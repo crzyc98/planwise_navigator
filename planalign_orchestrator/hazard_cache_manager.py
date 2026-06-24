@@ -21,7 +21,7 @@ import pandas as pd
 from threading import Lock
 
 from .config import SimulationConfig
-from .dbt_runner import DbtRunner, DbtResult
+from .dbt_runner import DbtRunner
 
 
 class HazardCacheError(Exception):

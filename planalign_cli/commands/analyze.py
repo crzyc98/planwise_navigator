@@ -7,17 +7,13 @@ for simulation results and workforce trends.
 
 from __future__ import annotations
 
-import math
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 
 import typer
 from rich.console import Console
-from rich.panel import Panel
 from rich.table import Table
-from rich.layout import Layout
-from rich.text import Text
 from rich.progress import BarColumn, Progress, TextColumn
 
 from ..integration.orchestrator_wrapper import OrchestratorWrapper

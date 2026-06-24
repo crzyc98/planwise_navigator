@@ -8,11 +8,10 @@ utility functions.
 
 from __future__ import annotations
 
-import subprocess
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-from unittest.mock import MagicMock, Mock, patch
+from typing import List, Optional
+from unittest.mock import Mock, patch
 
 import logging
 
@@ -455,7 +454,6 @@ class TestBuildSubprocessEnv:
             wraps=runner._build_subprocess_env,
         ):
             # Mock network_utils to ImportError
-            import importlib
             import sys
 
             # Temporarily remove network_utils if present
@@ -598,8 +596,7 @@ class TestExecuteCommand:
                 on_line=None,
             )
             assert result.success
-            captured = capsys.readouterr()
-            assert "Non-fatal" in captured.out or "failed to close" in captured.out
+            assert "Non-fatal" in caplog.text or "failed to close" in caplog.text
 
 
 # ===================================================================
@@ -665,7 +662,7 @@ class TestSubprocessExecution:
         collected: List[str] = []
         result = runner._execute_with_streaming(
             ["dbt", "run"],
-            on_line=lambda l: collected.append(l),
+            on_line=lambda line: collected.append(line),
             start_ts=time.perf_counter(),
         )
         assert result.success

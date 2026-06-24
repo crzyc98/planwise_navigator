@@ -22,7 +22,7 @@ def _get_sync_service():
         from planalign_api.services.sync_service import SyncService
 
         return SyncService()
-    except ImportError as e:
+    except ImportError:
         console.print("[red]GitPython is required for sync functionality.[/red]")
         console.print("Install it with: [cyan]pip install GitPython[/cyan]")
         raise typer.Exit(1)
@@ -53,7 +53,7 @@ def sync_init(
 
     with console.status("[bold blue]Initializing sync...[/bold blue]"):
         try:
-            status = sync_service.init(
+            sync_service.init(
                 remote_url=remote_url,
                 branch=branch,
                 auto_sync=auto_sync,

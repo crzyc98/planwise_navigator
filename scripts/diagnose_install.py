@@ -90,7 +90,7 @@ except ImportError as e:
 print()
 
 # 8. Check if planwise command is available
-import shutil
+import shutil  # noqa: E402
 
 planwise_path = shutil.which("planwise")
 if planwise_path:

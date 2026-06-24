@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 from .workflow import WorkflowStage, StageDefinition
 
 logger = logging.getLogger(__name__)
-from .year_executor import PipelineStageError
+from .year_executor import PipelineStageError  # noqa: E402
 
 if TYPE_CHECKING:
     from ..config import SimulationConfig

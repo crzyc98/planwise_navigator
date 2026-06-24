@@ -4,7 +4,6 @@ import duckdb
 
 from planalign_orchestrator.reports import (
     EXECUTIVE_SUMMARY_TEMPLATE,
-    ConsoleReporter,
     MultiYearReporter,
     ReportTemplate,
     YearAuditor,

@@ -7,7 +7,6 @@ generates events correctly through the abstraction layer.
 
 import pytest
 from datetime import date
-from decimal import Decimal
 from unittest.mock import MagicMock
 from uuid import uuid4
 

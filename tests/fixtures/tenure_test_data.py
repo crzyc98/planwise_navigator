@@ -9,7 +9,6 @@ Feature: 020-fix-tenure-calculation
 """
 
 from datetime import date
-from decimal import Decimal
 from typing import NamedTuple
 
 

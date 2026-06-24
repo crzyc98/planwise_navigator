@@ -14,11 +14,10 @@ These tests verify the end-to-end behavior of:
 from __future__ import annotations
 
 from typing import Dict
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
-from planalign_orchestrator.exceptions import YearDependencyError
 from planalign_orchestrator.pipeline.year_executor import YearExecutor
 from planalign_orchestrator.pipeline.workflow import StageDefinition, WorkflowStage
 from planalign_orchestrator.state_accumulator.registry import StateAccumulatorRegistry

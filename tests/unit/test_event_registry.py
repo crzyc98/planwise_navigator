@@ -8,7 +8,6 @@ import pytest
 from planalign_orchestrator.generators.registry import EventRegistry
 from planalign_orchestrator.generators.base import (
     EventGenerator,
-    EventContext,
     ValidationResult,
 )
 

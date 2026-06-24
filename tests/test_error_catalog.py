@@ -7,7 +7,6 @@ Tests pattern matching, resolution hint discovery, and frequency tracking.
 from __future__ import annotations
 
 import re
-import pytest
 from planalign_orchestrator.error_catalog import (
     ErrorCatalog,
     ErrorPattern,

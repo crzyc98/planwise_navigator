@@ -11,12 +11,22 @@ import gc
 import pytest
 
 
-# Import config fixtures for pytest discovery
-from tests.fixtures.config import (
+# Register fixtures here for pytest auto-discovery so individual test modules
+# don't need to import them (which would trigger F811 redefinition on the test
+# parameters). Not referenced directly here, hence the noqa.
+from tests.fixtures.config import (  # noqa: F401
     minimal_config,
     single_threaded_config,
     multi_threaded_config,
     golden_config,
+    config_with_decimal_fields,
+)
+from tests.fixtures import (  # noqa: F401
+    in_memory_db,
+    populated_test_db,
+    mock_dbt_runner,
+    sample_employees,
+    baseline_workforce_df,
 )
 
 

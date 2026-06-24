@@ -169,7 +169,7 @@ class OptOutAnalysisService:
                 hire_col, lookback_years, source_file, excluded_null_tenure
             )
 
-        cutoff_sql = f"(MAX(TRY_CAST({hire_col} AS DATE)) - INTERVAL {lookback_years * 365} DAYS)"
+        f"(MAX(TRY_CAST({hire_col} AS DATE)) - INTERVAL {lookback_years * 365} DAYS)"
 
         eligible_count = conn.execute(
             f"""

@@ -5,7 +5,6 @@ Tests cover:
 - US2: SimulationTelemetry.recent_log_lines field
 """
 
-import json
 import uuid
 from pathlib import Path
 

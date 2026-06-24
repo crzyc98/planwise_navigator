@@ -13,7 +13,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from planalign_orchestrator.init_database import DatabaseInitializer
+from planalign_orchestrator.init_database import DatabaseInitializer  # noqa: E402
 
 
 def test_database_initialization():

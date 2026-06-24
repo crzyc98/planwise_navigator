@@ -9,9 +9,7 @@ be byte-identical with the same random seed.
 """
 
 import pytest
-from unittest.mock import MagicMock, patch
-from datetime import date
-from decimal import Decimal
+from unittest.mock import MagicMock
 
 from planalign_orchestrator.generators.base import (
     EventContext,

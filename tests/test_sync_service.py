@@ -11,7 +11,7 @@ import pytest
 import tempfile
 from pathlib import Path
 from datetime import datetime, timezone
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch
 
 # Check if GitPython is available
 try:
@@ -239,7 +239,7 @@ class TestSyncServiceOperations:
     def test_init_creates_git_repo(self, sync_service, temp_workspaces_dir):
         """Test that init creates a Git repository."""
         # Mock the remote operations
-        with patch.object(sync_service, "_create_initial_commit") as mock_commit:
+        with patch.object(sync_service, "_create_initial_commit"):
             # Init will fail on remote operations, but should create local repo
             try:
                 sync_service.init(

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -440,7 +439,7 @@ class ImportService:
         mappings = self.get_mapping(workspace_id, import_id)
         if not mappings:
             raise ValueError("No mapping saved for this import session")
-        session = self.get_session(workspace_id, import_id)
+        self.get_session(workspace_id, import_id)
 
         template = MappingTemplate(
             workspace_id=workspace_id,

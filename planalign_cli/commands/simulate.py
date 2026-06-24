@@ -6,20 +6,16 @@ Multi-year workforce simulation with Rich progress bars and enhanced user experi
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
-from typing import Optional, Dict, Any, Callable
-import re
+from typing import Optional
 from datetime import datetime
 from contextlib import contextmanager
 
 import typer
 from rich.console import Console
 from rich.panel import Panel
-from rich.text import Text
 from rich.progress import (
     Progress,
-    SpinnerColumn,
     TextColumn,
     TimeElapsedColumn,
     BarColumn,
@@ -32,10 +28,8 @@ from rich.layout import Layout
 from ..integration.orchestrator_wrapper import OrchestratorWrapper
 from ..ui.output_capture import _is_signal_line
 from ..ui.progress import (
-    create_simulation_progress,
     show_error_message,
     show_success_message,
-    show_warning_message,
 )
 from ..utils.config_helpers import find_default_config, parse_years, validate_year_range
 from config.constants import DATABASE_FILENAME

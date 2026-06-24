@@ -26,7 +26,6 @@ import yaml
 
 from .config import SimulationConfig, load_simulation_config
 from .excel_exporter import ExcelExporter
-from .pipeline_orchestrator import PipelineOrchestrator
 from .utils import DatabaseConnectionManager, ExecutionMutex
 
 logger = logging.getLogger(__name__)

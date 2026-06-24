@@ -7,7 +7,6 @@ This script verifies that the DuckDB performance optimizations from E068E
 are properly configured and functioning in the Fidelity PlanAlign Engine system.
 """
 
-import os
 import sys
 import duckdb
 from pathlib import Path

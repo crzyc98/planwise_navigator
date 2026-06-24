@@ -9,7 +9,6 @@ from fastapi.responses import FileResponse
 from ..config import APISettings, get_settings
 from ..models.scenario import (
     Scenario,
-    ScenarioConfig,
     ScenarioCreate,
     ScenarioUpdate,
     WorkforceParamsApplyRequest,

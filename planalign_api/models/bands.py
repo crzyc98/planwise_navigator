@@ -4,7 +4,7 @@ This module defines the data models for age and tenure band configurations
 used by the PlanAlign simulation engine.
 """
 
-from typing import List, Literal, Optional
+from typing import List, Literal
 
 from pydantic import BaseModel, Field, field_validator
 

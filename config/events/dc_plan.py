@@ -11,7 +11,7 @@ Contains:
 - EnrollmentChangePayload: Enrollment modifications
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from typing import Dict, Literal, Optional

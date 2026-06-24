@@ -207,18 +207,20 @@ class WinnersLosersService:
             for age, tenure in grouped.index:
                 row = grouped.loc[(age, tenure)]
                 w = int(row.get("winner", 0))
-                l = int(row.get("loser", 0))
+                losers = int(row.get("loser", 0))
                 n = int(row.get("neutral", 0))
-                total = w + l + n
+                total = w + losers + n
                 heatmap.append(
                     HeatmapCell(
                         age_band=str(age),
                         tenure_band=str(tenure),
                         winners=w,
-                        losers=l,
+                        losers=losers,
                         neutral=n,
                         total=total,
-                        net_pct=round((w - l) / total * 100, 2) if total > 0 else 0.0,
+                        net_pct=round((w - losers) / total * 100, 2)
+                        if total > 0
+                        else 0.0,
                     )
                 )
 

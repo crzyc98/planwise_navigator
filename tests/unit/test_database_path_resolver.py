@@ -7,9 +7,8 @@ Performance target: <100ms for all unit tests (SC-003)
 """
 
 import pytest
-import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, PropertyMock
+from unittest.mock import MagicMock
 
 from planalign_api.services.database_path_resolver import (
     DatabasePathResolver,

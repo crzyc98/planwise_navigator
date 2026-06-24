@@ -22,10 +22,8 @@ Covers:
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Dict, List, Optional
-from unittest.mock import MagicMock, patch, call
+from typing import Any, Dict, Optional
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -306,7 +304,7 @@ class TestExecuteParallelStage:
         """Non-EVENT_GENERATION stages still use tag-based selection."""
         executor = _make_executor(event_shards=1)
         stage = _validation_stage()
-        results = executor._execute_parallel_stage(stage, 2025)
+        executor._execute_parallel_stage(stage, 2025)
         cmd_call = executor.dbt_runner.execute_command.call_args
         assert "tag:VALIDATION" in cmd_call[0][0]
 

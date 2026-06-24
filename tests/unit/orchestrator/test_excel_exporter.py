@@ -8,12 +8,10 @@ _export_csv, _export_excel, _create_minimal_export, export_scenario_results.
 
 from __future__ import annotations
 
-import json
-import subprocess
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
@@ -293,7 +291,7 @@ class TestCalculateSummaryMetrics:
         ]
         result_df = pd.DataFrame({"simulation_year": [2025], "total_employees": [100]})
         exporter, conn = self._setup(cols, result_df)
-        df = exporter._calculate_summary_metrics(conn)
+        exporter._calculate_summary_metrics(conn)
         query_arg = exporter._query_to_df.call_args[0][1]
         assert "employment_status = 'active'" in query_arg
         assert "enrollment_date IS NOT NULL" in query_arg
@@ -510,7 +508,7 @@ class TestFormatWorksheet:
     def test_formats_headers(self):
         """Verify formatting is applied without error on a real openpyxl worksheet."""
         try:
-            from openpyxl import Workbook
+            from openpyxl import Workbook  # noqa: F401
         except ImportError:
             pytest.skip("openpyxl not installed")
 
@@ -587,7 +585,7 @@ class TestWriteEventsDetailSheets:
         exporter._query_to_df = MagicMock(return_value=events_df)
 
         try:
-            from openpyxl import Workbook
+            from openpyxl import Workbook  # noqa: F401
         except ImportError:
             pytest.skip("openpyxl not installed")
 
@@ -744,7 +742,7 @@ class TestExportExcel:
             {"simulation_year": [2025], "employee_id": ["E001"]}
         )
         summary_df = pd.DataFrame({"simulation_year": [2025], "total": [1]})
-        events_df = pd.DataFrame({"simulation_year": [2025], "event_type": ["hire"]})
+        pd.DataFrame({"simulation_year": [2025], "event_type": ["hire"]})
         events_summary = pd.DataFrame(
             {"simulation_year": [2025], "event_type": ["hire"], "event_count": [1]}
         )
@@ -1027,7 +1025,7 @@ class TestQueryToDf:
         conn = MagicMock()
         conn.execute.return_value.df.return_value = expected
         exporter = ExcelExporter(_make_db_manager(conn))
-        result = exporter._query_to_df(conn, "SELECT ? AS a", params=[1])
+        exporter._query_to_df(conn, "SELECT ? AS a", params=[1])
         conn.execute.assert_called_once_with("SELECT ? AS a", [1])
 
 

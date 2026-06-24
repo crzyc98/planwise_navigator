@@ -22,15 +22,13 @@ from __future__ import annotations
 import logging
 import time
 from datetime import datetime
-from pathlib import Path
 from typing import Callable, List, Optional
 
-from planalign_orchestrator.dbt_runner import DbtRunner, DbtResult
+from planalign_orchestrator.dbt_runner import DbtRunner
 from planalign_orchestrator.exceptions import (
     InitializationError,
     InitializationTimeoutError,
     ConcurrentInitializationError,
-    DatabaseCorruptionError,
 )
 from planalign_orchestrator.self_healing.initialization_state import (
     InitializationState,
@@ -38,7 +36,6 @@ from planalign_orchestrator.self_healing.initialization_state import (
     InitializationResult,
     TableTier,
     RequiredTable,
-    REQUIRED_TABLES,
     create_standard_steps,
 )
 from planalign_orchestrator.self_healing.table_checker import TableExistenceChecker

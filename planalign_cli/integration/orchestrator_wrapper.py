@@ -7,7 +7,6 @@ progress reporting, and user-friendly interfaces.
 
 from __future__ import annotations
 
-import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -164,9 +163,9 @@ class OrchestratorWrapper:
         """Quick health check for system readiness."""
         health = {"healthy": True, "issues": [], "warnings": []}
 
-        # Check configuration
+        # Check configuration (accessing the property raises if config is missing/invalid)
         try:
-            config = self.config
+            _ = self.config
         except Exception as e:
             health["healthy"] = False
             health["issues"].append(f"Configuration error: {e}")

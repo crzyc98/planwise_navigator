@@ -16,7 +16,6 @@ from ..integration.orchestrator_wrapper import OrchestratorWrapper
 from ..ui.progress import (
     create_batch_progress,
     show_error_message,
-    show_success_message,
 )
 from ..utils.config_helpers import find_default_config, find_scenarios_directory
 from config.constants import DATABASE_FILENAME, STATUS_COMPLETED, STATUS_FAILED
@@ -121,7 +120,7 @@ def run_batch(
                     completed=scenario_count,
                     description="✅ Batch processing complete",
                 )
-            except Exception as e:
+            except Exception:
                 progress.update(main_task, description="❌ Batch processing failed")
                 raise
 

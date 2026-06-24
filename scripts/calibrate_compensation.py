@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """
-from planalign_orchestrator.config import get_database_path
 Compensation Growth Calibration Script
 
 This script allows you to manually adjust compensation parameters
@@ -9,6 +8,8 @@ to achieve the 2% target growth rate based on S050 analysis findings.
 
 import duckdb
 import pandas as pd
+
+from planalign_orchestrator.config import get_database_path
 
 
 class CompensationCalibrator:

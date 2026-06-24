@@ -77,13 +77,6 @@ from .loader import (
 # Export functions
 from .export import (
     to_dbt_vars,
-    _export_simulation_vars,
-    _export_enrollment_vars,
-    _export_legacy_vars,
-    _export_employer_match_vars,
-    _export_compensation_vars,
-    _export_threading_vars,
-    _export_core_contribution_vars,
 )
 
 __all__ = [

@@ -7,7 +7,6 @@ from pathlib import Path
 
 from planalign_api.services.ndt_service import (
     NDTService,
-    Section415ScenarioResult,
 )
 from planalign_api.services.database_path_resolver import (
     DatabasePathResolver,

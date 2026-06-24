@@ -15,7 +15,6 @@ from .dbt_runner import DbtRunner
 from .pipeline_orchestrator import PipelineOrchestrator
 from .pipeline.hooks import Hook, HookType
 from .registries import RegistryManager
-from .reports.multi_year_reporter import MultiYearReporter
 from .self_healing import AutoInitializer
 from .utils import DatabaseConnectionManager
 from .validation import (
@@ -67,8 +66,6 @@ class OrchestratorBuilder:
         # Extract E068C threading configuration
         performance_config = getattr(self._config, "performance", None)
         thread_count = 6  # Default
-        event_shards = 1
-        max_parallel_years = 1
 
         if performance_config:
             thread_count = getattr(performance_config, "dbt_threads", 6)
@@ -76,8 +73,8 @@ class OrchestratorBuilder:
             if event_sharding_config and getattr(
                 event_sharding_config, "enabled", False
             ):
-                event_shards = getattr(event_sharding_config, "shard_count", 1)
-            max_parallel_years = getattr(performance_config, "max_parallel_years", 1)
+                getattr(event_sharding_config, "shard_count", 1)
+            getattr(performance_config, "max_parallel_years", 1)
 
         # Legacy orchestrator threading settings (for backward compatibility)
         threading_enabled = True

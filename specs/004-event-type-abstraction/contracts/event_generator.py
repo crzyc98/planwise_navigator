@@ -13,8 +13,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import date
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Set, Type
+from typing import TYPE_CHECKING, Callable, Dict, List, Set, Type
 
 if TYPE_CHECKING:
     from config.events import SimulationEvent

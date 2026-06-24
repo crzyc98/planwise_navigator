@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """
-from planalign_orchestrator.config import get_database_path
 Data Quality Auditor for Fidelity PlanAlign Engine Simulation Database
 
 This script performs comprehensive data quality checks on the simulation database,
@@ -18,6 +17,8 @@ from datetime import datetime
 from typing import Dict, List
 
 import duckdb
+
+from planalign_orchestrator.config import get_database_path
 
 
 class DataQualityAuditor:
@@ -82,7 +83,7 @@ class DataQualityAuditor:
         for col_info in column_info:
             col_name, col_type = col_info[0], col_info[1]
             nullable = col_info[2] if len(col_info) > 2 else "YES"
-            default = col_info[3] if len(col_info) > 3 else None
+            col_info[3] if len(col_info) > 3 else None
             if col_type in numeric_types:
                 try:
                     query = f"""
@@ -230,7 +231,7 @@ class DataQualityAuditor:
         }
 
         for col_info in column_info:
-            col_name, col_type = col_info[0], col_info[1]
+            col_name, _col_type = col_info[0], col_info[1]
             if col_name in range_checks:
                 min_val, max_val = range_checks[col_name]
                 try:

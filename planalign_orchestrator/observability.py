@@ -8,7 +8,7 @@ with enterprise-grade observability features.
 from contextlib import contextmanager
 from typing import Any, ContextManager, Dict, Optional
 
-from .logger import ProductionLogger, get_logger
+from .logger import get_logger
 from .performance_monitor import PerformanceMetrics, PerformanceMonitor
 from .run_summary import RunSummaryGenerator
 

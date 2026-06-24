@@ -4,7 +4,6 @@ Tests for progress display callback wiring and LiveProgressTracker state managem
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import MagicMock, patch
 
 from planalign_cli.commands.simulate import LiveProgressTracker

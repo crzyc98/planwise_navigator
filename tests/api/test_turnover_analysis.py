@@ -1,7 +1,6 @@
 """Tests for turnover rate analysis service."""
 
 import csv
-import tempfile
 from datetime import date, timedelta
 from pathlib import Path
 

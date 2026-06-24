@@ -34,11 +34,11 @@ from typing import Dict, List, Optional
 
 # Import our environment detection utility
 try:
-    from .smart_environment import CommandType, SmartEnvironment
+    from .smart_environment import CommandType, SmartEnvironment  # noqa: F401
 except ImportError:
     # Handle case where we're running directly
     sys.path.append(str(Path(__file__).parent))
-    from smart_environment import CommandType, SmartEnvironment
+    from smart_environment import SmartEnvironment
 
 
 @dataclass

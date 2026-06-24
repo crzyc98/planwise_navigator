@@ -6,7 +6,7 @@ to dbt seed CSV files.
 
 import csv
 import logging
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -22,7 +22,6 @@ from ..models.bands import (
 from .sql_security import (
     CENSUS_BIRTH_DATE_COLUMNS,
     CENSUS_HIRE_DATE_COLUMNS,
-    CENSUS_STATUS_COLUMNS,
     SQLSecurityError,
     validate_column_name_from_set,
     validate_file_path_for_sql,

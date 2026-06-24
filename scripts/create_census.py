@@ -14,7 +14,7 @@ _secure_rng = secrets.SystemRandom()
 # Add project root to path for importing UnifiedIDGenerator
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from orchestrator_mvp.core.id_generator import UnifiedIDGenerator
+from orchestrator_mvp.core.id_generator import UnifiedIDGenerator  # noqa: E402
 
 
 def generate_mock_workforce_parquet(

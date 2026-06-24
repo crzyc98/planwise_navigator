@@ -8,17 +8,15 @@ import json
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 from planalign_api.models.export import (
     BulkOperationStatus,
-    ExportManifest,
     ExportStatus,
-    ManifestContents,
 )
-from planalign_api.models.workspace import Workspace, WorkspaceSummary
+from planalign_api.models.workspace import Workspace
 from planalign_api.services.export_service import ExportService, MANIFEST_VERSION
 
 

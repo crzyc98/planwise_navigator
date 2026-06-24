@@ -8,9 +8,8 @@ requirements are met and provides documentation for benefits counsel review.
 
 import json
 from datetime import date, datetime
-from decimal import Decimal
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 

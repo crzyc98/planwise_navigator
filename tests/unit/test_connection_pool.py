@@ -88,12 +88,12 @@ class TestDatabaseConnectionPool:
     def test_pool_exhaustion(self, connection_pool):
         """Test that pool raises error when exhausted."""
         # Hold all 3 connections
-        with connection_pool.get_connection(thread_id="t1") as conn1:
-            with connection_pool.get_connection(thread_id="t2") as conn2:
-                with connection_pool.get_connection(thread_id="t3") as conn3:
+        with connection_pool.get_connection(thread_id="t1"):
+            with connection_pool.get_connection(thread_id="t2"):
+                with connection_pool.get_connection(thread_id="t3"):
                     # Try to get a 4th connection (pool size is 3)
                     with pytest.raises(RuntimeError, match="Connection pool exhausted"):
-                        with connection_pool.get_connection(thread_id="t4") as conn4:
+                        with connection_pool.get_connection(thread_id="t4"):
                             pass
 
     def test_deterministic_mode(self, temp_db_path):
@@ -114,9 +114,9 @@ class TestDatabaseConnectionPool:
         pool = DatabaseConnectionPool(temp_db_path, pool_size=2, deterministic=True)
 
         # Create some connections
-        with pool.get_connection(thread_id="t1") as conn1:
+        with pool.get_connection(thread_id="t1"):
             pass
-        with pool.get_connection(thread_id="t2") as conn2:
+        with pool.get_connection(thread_id="t2"):
             pass
 
         # Verify pool has connections

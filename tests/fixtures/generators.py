@@ -9,11 +9,11 @@ from __future__ import annotations
 
 import pytest
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, List, Dict, Any, Optional
+from typing import TYPE_CHECKING, List, Dict, Any
 from unittest.mock import MagicMock
 
 if TYPE_CHECKING:
-    from planalign_orchestrator.generators.base import EventContext, ValidationResult
+    from planalign_orchestrator.generators.base import ValidationResult
 
 
 @dataclass

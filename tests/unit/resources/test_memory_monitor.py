@@ -7,12 +7,11 @@ pressure detection, and trend analysis.
 
 import pytest
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from planalign_orchestrator.resources import (
     MemoryMonitor,
     MemoryUsageSnapshot,
-    ResourcePressure,
 )
 
 

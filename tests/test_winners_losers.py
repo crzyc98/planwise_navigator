@@ -1,13 +1,7 @@
 """Tests for Winners & Losers comparison service."""
 
 import pandas as pd
-import pytest
 
-from planalign_api.models.winners_losers import (
-    BandGroupResult,
-    HeatmapCell,
-    WinnersLosersResponse,
-)
 from planalign_api.services.winners_losers_service import WinnersLosersService
 
 

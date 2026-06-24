@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Pattern
 import re
 
-from .exceptions import NavigatorError, ResolutionHint, ErrorCategory
+from .exceptions import ResolutionHint, ErrorCategory
 
 
 @dataclass

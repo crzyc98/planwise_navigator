@@ -8,15 +8,12 @@ and deterministic results. Supports dependency-aware scheduling with resource ma
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import time
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed, Future
 from dataclasses import dataclass, field
-from typing import Dict, List, Set, Optional, Any, Callable, Tuple
-from pathlib import Path
-from queue import Queue, Empty
+from typing import Dict, List, Set, Optional, Any, Tuple
 import psutil
 
 from .model_dependency_analyzer import (
@@ -25,7 +22,7 @@ from .model_dependency_analyzer import (
 )
 from .model_execution_types import ModelClassifier, ModelExecutionType
 from .dbt_runner import DbtRunner, DbtResult
-from .resource_manager import ResourceManager, ResourcePressure
+from .resource_manager import ResourceManager
 from .logger import ProductionLogger
 
 
@@ -490,7 +487,6 @@ class ParallelExecutionEngine:
             models = sorted(models)
 
         # Track per-thread resource usage
-        thread_resource_tracking = {}
 
         with ThreadPoolExecutor(
             max_workers=max_parallel, thread_name_prefix="dbt-model"

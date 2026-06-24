@@ -8,7 +8,7 @@ These tests use mock database connections to run fast (<1s).
 from __future__ import annotations
 
 from typing import Dict
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 

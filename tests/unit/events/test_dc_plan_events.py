@@ -3,7 +3,6 @@
 
 from datetime import date
 from decimal import Decimal
-from typing import Dict
 
 import pytest
 from pydantic import ValidationError

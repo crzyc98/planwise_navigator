@@ -12,8 +12,7 @@ Per Constitution Principle III: Write tests FIRST, ensure they FAIL before imple
 
 import pytest
 from datetime import datetime
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 import duckdb
 
 from planalign_orchestrator.self_healing.initialization_state import (
@@ -440,7 +439,6 @@ class TestInitializationErrors:
             INIT_LOCK_NAME,
         )
         from planalign_orchestrator.utils import ExecutionMutex
-        from pathlib import Path
 
         # Setup: Create empty database
         db_path = tmp_path / "test.duckdb"
