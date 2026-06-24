@@ -270,7 +270,7 @@ function mapAdvancedFields(cfg: any, prev: FormData): Partial<FormData> {
 }
 
 /** Apply all config sections to produce updated FormData. */
-function applyConfigToFormData(cfg: any, prev: FormData): FormData {
+export function applyConfigToFormData(cfg: any, prev: FormData): FormData {
   return {
     ...prev,
     ...mapSimulationFields(cfg, prev),
