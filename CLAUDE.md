@@ -703,6 +703,8 @@ Current version: **1.0.0** ("Foundation") — managed in `_version.py` and `pypr
 ## Active Technologies
 - Python 3.11 (orchestrator/config/API), SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1, TypeScript/React (Studio UI) + Pydantic v2 (config validation), DuckDB 1.0.0 (storage/engine), FastAPI (workspace config API), React/Vite + Tailwind (Studio) (099-tenure-graded-match)
 - DuckDB (`dbt/simulation.duckdb`) — match contribution events land in `fct_employer_match_events`; no new tables required (099-tenure-graded-match)
+- Python 3.11 (orchestrator/config/API); SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1; TypeScript/React (Studio UI) + Pydantic v2 (config validation), DuckDB 1.0.0, FastAPI (workspace config API), React/Vite + Tailwind (Studio) (102-match-magnet-dial)
+- DuckDB (`dbt/simulation.duckdb`); no new tables — behavior changes flow through existing `int_voluntary_enrollment_decision`, `int_proactive_voluntary_enrollment`, `fct_yearly_events`, `fct_workforce_snapshot` (102-match-magnet-dial)
 
 ## Recent Changes
 - 099-tenure-graded-match: Added Python 3.11 (orchestrator/config/API), SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1, TypeScript/React (Studio UI) + Pydantic v2 (config validation), DuckDB 1.0.0 (storage/engine), FastAPI (workspace config API), React/Vite + Tailwind (Studio)

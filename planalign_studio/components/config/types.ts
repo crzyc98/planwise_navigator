@@ -138,6 +138,11 @@ export interface FormData {
   // DC Plan - Voluntary Enrollment Rate
   dcVoluntaryEnrollmentRate: string;
 
+  // DC Plan - Match Magnet dial (Feature 102)
+  dcMatchMagnetEnabled: boolean;
+  dcMatchMagnetProbability: number; // percent (0-100)
+  dcMaxVoluntaryDeferral: number;   // percent (1-100)
+
   // DC Plan - Match Enable/Disable
   dcMatchEnabled: boolean;
 

@@ -97,6 +97,28 @@ class EnrollmentTimingSettings(BaseModel):
     business_day_adjustment: bool = True
 
 
+class MatchMagnetSettings(BaseModel):
+    """Voluntary 'defer-to-the-match' behavior controls (Feature 102).
+
+    Defaults reproduce prior behavior, so scenarios that omit this block are
+    unchanged.
+    """
+
+    enabled: bool = True
+    snap_probability: float = Field(
+        default=0.45,
+        ge=0.0,
+        le=1.0,
+        description="Fraction of below-ceiling voluntary enrollees who snap to the match ceiling.",
+    )
+    max_deferral_rate: float = Field(
+        default=0.10,
+        ge=0.01,
+        le=1.0,
+        description="Maximum employee deferral rate for voluntary enrollment (bounds magnet-snapped rates).",
+    )
+
+
 class EnrollmentSettings(BaseModel):
     """Combined enrollment settings."""
 
@@ -107,6 +129,7 @@ class EnrollmentSettings(BaseModel):
         default_factory=ProactiveEnrollmentSettings
     )
     timing: EnrollmentTimingSettings = Field(default_factory=EnrollmentTimingSettings)
+    match_magnet: MatchMagnetSettings = Field(default_factory=MatchMagnetSettings)
 
 
 # =============================================================================
