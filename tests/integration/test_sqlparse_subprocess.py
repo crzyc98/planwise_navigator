@@ -134,7 +134,7 @@ class TestDbtRunnerSubprocessIntegration:
 
         # Create a runner with the dbt directory
         dbt_dir = Path("/workspace/dbt")
-        runner = DbtRunner(working_dir=dbt_dir)
+        DbtRunner(working_dir=dbt_dir)
 
         # Use python to check sqlparse config (simulating dbt's Python environment)
         result = subprocess.run(

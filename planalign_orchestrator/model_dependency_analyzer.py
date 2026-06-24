@@ -12,7 +12,7 @@ import json
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Set, Optional, Any, Tuple
+from typing import Dict, List, Set, Optional, Any
 from collections import defaultdict, deque
 
 from .model_execution_types import (
@@ -304,7 +304,7 @@ class ModelDependencyAnalyzer:
 
             # Also check if any other model depends on this one
             dependents = self.dependency_graph.get_dependents(model)
-            internal_dependents = dependents.intersection(model_set)
+            dependents.intersection(model_set)
 
             if (
                 not internal_deps

@@ -4,7 +4,6 @@ import pytest
 
 from planalign_api.services.simulation.output_parser import (
     SimulationOutputParser,
-    STAGE_PATTERNS,
 )
 
 

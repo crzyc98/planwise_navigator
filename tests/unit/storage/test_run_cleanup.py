@@ -185,7 +185,7 @@ class TestCleanupOldRuns:
 
     def test_empty_runs_directory(self, storage, tmp_path):
         ws = _make_workspace(tmp_path)
-        sc = _make_scenario(ws)
+        _make_scenario(ws)
 
         result = storage.cleanup_old_runs(ws.name, "sc-1", max_runs=3)
 

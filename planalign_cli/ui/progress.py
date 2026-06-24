@@ -20,7 +20,6 @@ from rich.progress import (
     TimeRemainingColumn,
     TaskID,
 )
-from rich.spinner import Spinner
 from rich.status import Status
 
 console = Console()

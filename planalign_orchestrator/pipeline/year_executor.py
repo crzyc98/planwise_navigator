@@ -18,14 +18,13 @@ from __future__ import annotations
 import logging
 import time
 import uuid
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from config.constants import (
     MODEL_FCT_YEARLY_EVENTS,
     TABLE_FCT_WORKFORCE_SNAPSHOT,
 )
-from planalign_orchestrator.config import SimulationConfig, get_database_path
+from planalign_orchestrator.config import SimulationConfig
 from planalign_orchestrator.dbt_runner import DbtResult, DbtRunner
 from planalign_orchestrator.state_accumulator import YearDependencyValidator
 from planalign_orchestrator.utils import DatabaseConnectionManager
@@ -36,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 # Import model parallelization components (optional)
 try:
-    from planalign_orchestrator.parallel_execution_engine import (
+    from planalign_orchestrator.parallel_execution_engine import (  # noqa: F401
         ParallelExecutionEngine,
         ExecutionContext,
     )

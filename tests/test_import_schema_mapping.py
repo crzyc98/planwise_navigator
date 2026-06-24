@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import io
 import json
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -41,7 +40,6 @@ def tmp_workspaces(tmp_path: Path):
 @pytest.fixture()
 def client(tmp_workspaces: Path):
     """FastAPI TestClient with workspaces_root pointed at tmp dir."""
-    from planalign_api.config import APISettings
     from planalign_api.main import app
     from planalign_api.routers.imports import get_import_service, get_workspace_storage
     from planalign_api.services.import_service import ImportService

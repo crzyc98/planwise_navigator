@@ -3,7 +3,6 @@
 from datetime import datetime
 from decimal import Decimal
 from typing import Literal, Optional
-from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 

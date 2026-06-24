@@ -5,11 +5,6 @@ from unittest.mock import MagicMock
 import duckdb
 import pytest
 
-from planalign_api.models.comparison import (
-    ComparisonResponse,
-    DCPlanComparisonYear,
-    DCPlanMetrics,
-)
 from planalign_api.services.comparison_service import ComparisonService
 from planalign_api.services.database_path_resolver import ResolvedDatabasePath
 

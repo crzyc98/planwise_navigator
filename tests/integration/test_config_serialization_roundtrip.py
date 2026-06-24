@@ -4,7 +4,6 @@ This module tests that configs survive the complete serialization cycle:
 creation → serialization → archiving → deserialization
 """
 
-import pytest
 from config.schema import SimulationConfig
 
 

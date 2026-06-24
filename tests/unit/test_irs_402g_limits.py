@@ -22,15 +22,12 @@ This satisfies FR-010 and User Story 4 from the feature specification.
 
 from datetime import timedelta
 from decimal import Decimal
-from typing import Tuple
 
-import pytest
 from hypothesis import given, settings, assume
 from hypothesis import strategies as st
 
 from tests.fixtures.irs_limits import (
     DEFAULT_IRS_LIMITS_2025,
-    IRSLimitConfig,
     EmployeeContributionScenario,
     calculate_max_contribution,
     get_irs_limits_for_year,

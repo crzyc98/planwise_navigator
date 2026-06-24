@@ -19,7 +19,6 @@ import logging
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import date
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from config.constants import COL_EMPLOYEE_ID, COL_AGE_BAND, COL_TENURE_BAND

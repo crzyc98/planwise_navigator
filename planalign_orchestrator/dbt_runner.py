@@ -22,8 +22,6 @@ from typing import (
     Any,
     Callable,
     Dict,
-    Generator,
-    Iterable,
     List,
     Optional,
     Sequence,
@@ -102,7 +100,7 @@ def retry_with_backoff(
     while True:
         try:
             return func()
-        except retry_on as e:
+        except retry_on:
             if attempt >= max_attempts - 1:
                 raise
             delay = min(base_delay * (backoff_factor**attempt), max_delay)

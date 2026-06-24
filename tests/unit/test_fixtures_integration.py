@@ -6,15 +6,9 @@ integrated and functional for unit testing.
 """
 
 import pytest
-from tests.fixtures import (
-    in_memory_db,
-    populated_test_db,
-    minimal_config,
-    single_threaded_config,
-    mock_dbt_runner,
-    sample_employees,
-    baseline_workforce_df,
-)
+
+# Fixtures (in_memory_db, sample_employees, etc.) are auto-discovered via
+# tests/conftest.py — no import needed here.
 
 
 @pytest.mark.fast

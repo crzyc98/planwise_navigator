@@ -11,7 +11,6 @@ from __future__ import annotations
 from enum import Enum
 from dataclasses import dataclass
 from typing import Dict, List, Set, Optional, Any
-from pathlib import Path
 
 from config.constants import (
     MODEL_FCT_WORKFORCE_SNAPSHOT,
@@ -21,13 +20,10 @@ from config.constants import (
     MODEL_INT_EMPLOYEE_COMPENSATION,
     MODEL_INT_ENROLLMENT_EVENTS,
     MODEL_INT_ENROLLMENT_STATE_ACCUMULATOR,
-    MODEL_INT_HIRE_EVENTS,
     MODEL_INT_MERIT_EVENTS,
     MODEL_INT_PROMOTION_EVENTS,
     MODEL_INT_TERMINATION_EVENTS,
     MODEL_INT_WORKFORCE_NEEDS,
-    MODEL_INT_WORKFORCE_SNAPSHOT_FINAL,
-    TABLE_STG_CENSUS,
 )
 
 

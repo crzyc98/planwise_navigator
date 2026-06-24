@@ -22,7 +22,6 @@ Usage:
 import os
 import sys
 import json
-import time
 import logging
 import argparse
 import subprocess

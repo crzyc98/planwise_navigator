@@ -14,7 +14,6 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Optional
 
 from rich.console import Console
 from rich.panel import Panel
@@ -32,7 +31,6 @@ def _repair_workspaces_on_startup() -> None:
     """
     try:
         from planalign_api.storage.workspace_storage import WorkspaceStorage
-        from planalign_api.config import get_settings
 
         console.print("[dim]Checking workspace integrity...[/dim]")
 

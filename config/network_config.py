@@ -22,7 +22,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional
 from urllib.error import URLError
 
 from pydantic import BaseModel, Field, validator

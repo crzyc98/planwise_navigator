@@ -86,9 +86,9 @@ class PerformanceBenchmarker:
                 initial_cpu = self.cpu_monitor._capture_cpu_snapshot()
 
                 # Run benchmark
-                start_time = time.time()
+                time.time()
                 execution_time = benchmark_function(thread_count)
-                end_time = time.time()
+                time.time()
 
                 # Capture final resource state
                 final_memory = self.memory_monitor._capture_memory_snapshot()

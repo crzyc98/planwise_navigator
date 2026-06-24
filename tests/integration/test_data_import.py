@@ -5,8 +5,6 @@ Each test block (T011, T019, T052, T053, T054) is written first (FAIL), then imp
 """
 
 import io
-import json
-import tempfile
 from pathlib import Path
 
 import pytest

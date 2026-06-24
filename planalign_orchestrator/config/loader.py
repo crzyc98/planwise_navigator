@@ -6,7 +6,10 @@ E073: Config Module Refactoring - loader module.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
+
+if TYPE_CHECKING:
+    from .safety import OrchestrationConfig
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError

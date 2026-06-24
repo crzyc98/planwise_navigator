@@ -9,7 +9,6 @@ Tests for HazardBasedEventGeneratorMixin functionality including:
 
 import pytest
 from unittest.mock import MagicMock, patch
-from datetime import date
 
 from planalign_orchestrator.generators.base import (
     EventContext,

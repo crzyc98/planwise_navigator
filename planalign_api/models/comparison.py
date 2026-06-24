@@ -1,6 +1,6 @@
 """Comparison models for scenario analysis."""
 
-from typing import Any, Dict, List, Optional
+from typing import Dict, List
 
 from pydantic import BaseModel, Field
 

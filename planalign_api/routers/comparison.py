@@ -1,16 +1,11 @@
 """Scenario comparison endpoints."""
 
-from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from ..config import APISettings, get_settings
 from ..models.comparison import (
     ComparisonResponse,
-    DeltaValue,
-    EventComparisonMetric,
-    WorkforceComparisonYear,
-    WorkforceMetrics,
 )
 from ..storage.workspace_storage import WorkspaceStorage
 from ..services.comparison_service import ComparisonService

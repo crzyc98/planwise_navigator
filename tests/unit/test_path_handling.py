@@ -10,12 +10,7 @@ Tests for:
 
 from __future__ import annotations
 
-import os
-import sys
-from pathlib import Path, PurePosixPath, PureWindowsPath
-from unittest.mock import patch
-
-import pytest
+from pathlib import Path
 
 
 class TestNormalizePathForDuckDB:

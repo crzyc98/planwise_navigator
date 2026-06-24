@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """
-from planalign_orchestrator.config import get_database_path
 Smart Environment Detection and Setup Utility for Fidelity PlanAlign Engine
 
 This utility prevents trial-and-error command execution by:
@@ -189,7 +188,10 @@ class SmartEnvironment:
         # 4. Check Dagster home
         dagster_home = project_root / ".dagster"
 
-        # 5. Find database files
+        # 5. Find database files (local import: this script may run before the
+        # package is importable, so defer it to call time)
+        from planalign_orchestrator.config import get_database_path
+
         database_files = {}
         db_candidates = [
             ("simulation", project_root / str(get_database_path())),

@@ -7,7 +7,6 @@ to achieve 2% compensation growth target.
 """
 
 import duckdb
-import pandas as pd
 from planalign_orchestrator.config import get_database_path
 
 

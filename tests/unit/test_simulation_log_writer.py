@@ -1,7 +1,5 @@
 """Unit tests for SimulationLogWriter."""
 
-import pytest
-from pathlib import Path
 
 from planalign_api.services.simulation.log_writer import SimulationLogWriter
 

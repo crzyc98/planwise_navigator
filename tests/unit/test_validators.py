@@ -11,7 +11,6 @@ Tests cover:
 User Story 4 (FR-007): Test shared validators independently.
 """
 
-import pytest
 from decimal import Decimal
 
 from config.events.validators import (

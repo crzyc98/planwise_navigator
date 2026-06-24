@@ -11,9 +11,7 @@ import pytest
 
 from planalign_api.models.scenario import (
     Scenario,
-    ScenarioApplyOutcome,
     WorkforceParamsApplyRequest,
-    WorkforceParamsApplyResult,
 )
 from planalign_api.services.scenario_service import (
     ScenarioService,

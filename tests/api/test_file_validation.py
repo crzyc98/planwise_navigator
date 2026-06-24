@@ -5,7 +5,6 @@ alias detection, and backward compatibility of flat validation_warnings.
 """
 
 import csv
-import tempfile
 from pathlib import Path
 
 import pytest

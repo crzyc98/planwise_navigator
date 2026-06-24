@@ -38,7 +38,7 @@ class TestSimulationServiceInit:
         with patch(
             "planalign_api.services.simulation.service.DatabasePathResolver"
         ) as MockResolver:
-            service = SimulationService(storage=mock_storage)
+            SimulationService(storage=mock_storage)
             MockResolver.assert_called_once_with(mock_storage)
 
 

@@ -217,7 +217,7 @@ class SuggestionEngine:
         if not lowered:
             return None
 
-        all_known = all(v in _TRUTHY or v in _FALSY for v in lowered)
+        all(v in _TRUTHY or v in _FALSY for v in lowered)
         match_count = sum(1 for v in lowered if v in _TRUTHY or v in _FALSY)
         ratio = match_count / len(lowered) if lowered else 0
 

@@ -10,26 +10,23 @@ Refactored to use modular pipeline components (Story S072-06).
 
 from __future__ import annotations
 
-import json
 import logging
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import time
 
-from .config import SimulationConfig, to_dbt_vars, get_database_path
+from .config import SimulationConfig, to_dbt_vars
 from .orchestrator_setup import (
     setup_memory_manager,
     setup_parallelization,
     setup_hazard_cache,
     setup_performance_monitor,
 )
-from .dbt_runner import DbtResult, DbtRunner
+from .dbt_runner import DbtRunner
 from .registries import RegistryManager
 from .reports.data_models import MultiYearSummary
 from .reports.multi_year_reporter import MultiYearReporter
-from .reports.year_auditor import YearAuditor
 from .observability import ObservabilityManager
 from .utils import DatabaseConnectionManager, ExecutionMutex, time_block
 from .validation import DataValidator
@@ -45,7 +42,6 @@ from .pipeline.workflow import (
     WorkflowBuilder,
     WorkflowStage,
     StageDefinition,
-    WorkflowCheckpoint,
 )
 from .pipeline.state_manager import StateManager
 from .pipeline.data_cleanup import DataCleanupManager
@@ -57,10 +53,12 @@ from .pipeline.stage_validator import StageValidator
 
 # Import model parallelization components
 try:
-    from .parallel_execution_engine import ParallelExecutionEngine, ExecutionContext
-    from .model_dependency_analyzer import ModelDependencyAnalyzer
-    from .resource_manager import ResourceManager
-    from .logger import ProductionLogger
+    # Imported for availability detection only (sets the *_AVAILABLE flags below).
+    from .parallel_execution_engine import ParallelExecutionEngine  # noqa: F401
+    from .parallel_execution_engine import ExecutionContext  # noqa: F401
+    from .model_dependency_analyzer import ModelDependencyAnalyzer  # noqa: F401
+    from .resource_manager import ResourceManager  # noqa: F401
+    from .logger import ProductionLogger  # noqa: F401
 
     MODEL_PARALLELIZATION_AVAILABLE = True
     RESOURCE_MANAGEMENT_AVAILABLE = True
@@ -307,7 +305,7 @@ class PipelineOrchestrator:
                             },
                         )
 
-                except Exception as e:
+                except Exception:
                     if self.memory_manager:
                         error_snapshot = self.memory_manager.force_memory_check(
                             "simulation_error"

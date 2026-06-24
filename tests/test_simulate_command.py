@@ -5,11 +5,9 @@ Covers helper functions, LiveProgressTracker, and summary display logic.
 
 from __future__ import annotations
 
-import io
-import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 

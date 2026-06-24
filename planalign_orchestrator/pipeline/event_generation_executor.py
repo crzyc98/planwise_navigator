@@ -11,7 +11,6 @@ modular pipeline architecture (Story S072-02 Part 1).
 
 from __future__ import annotations
 
-import os
 import time
 from pathlib import Path
 from typing import Any, Dict, List
@@ -237,7 +236,7 @@ class EventGenerationExecutor:
         for year in years:
             try:
                 # Use existing event generation stage execution
-                event_stage = StageDefinition(
+                StageDefinition(
                     name=WorkflowStage.EVENT_GENERATION,
                     dependencies=[WorkflowStage.FOUNDATION],
                     models=self._get_event_generation_models(year),

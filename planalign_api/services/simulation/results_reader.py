@@ -1,7 +1,6 @@
 """Read simulation results from a DuckDB database."""
 
 import logging
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import duckdb

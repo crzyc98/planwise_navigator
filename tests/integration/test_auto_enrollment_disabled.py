@@ -9,7 +9,6 @@ exports the disabled flag, complementing the dbt-level test that verifies
 the SQL models respect it.
 """
 
-import pytest
 
 from planalign_orchestrator.config import load_simulation_config
 from planalign_orchestrator.config.export import _export_enrollment_vars

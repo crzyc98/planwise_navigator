@@ -1,7 +1,5 @@
 """Simulation execution endpoints."""
 
-import asyncio
-import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -32,7 +30,7 @@ from ..constants import ARTIFACT_TYPE_MAP, MEDIA_TYPE_MAP
 router = APIRouter()
 
 # Import for logging
-import logging
+import logging  # noqa: E402
 
 logger = logging.getLogger(__name__)
 

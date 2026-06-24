@@ -5,10 +5,9 @@ in planalign_cli/integration/orchestrator_wrapper.py.
 
 from __future__ import annotations
 
-import io
 
 import pytest
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock
 
 from planalign_cli.integration.orchestrator_wrapper import (
     _MAX_LINE_LENGTH,

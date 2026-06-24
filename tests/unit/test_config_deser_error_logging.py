@@ -5,7 +5,6 @@ full exception context (type and message) rather than truncated output.
 """
 
 import logging
-import pytest
 from decimal import Decimal
 from config.schema import SimulationConfig
 
@@ -25,7 +24,7 @@ class TestErrorLoggingOnDeserialization:
 
         with caplog.at_level(logging.WARNING):
             try:
-                config = SimulationConfig.from_dict(invalid_config)
+                SimulationConfig.from_dict(invalid_config)
             except Exception as e:
                 # Improved error logging
                 error_msg = f"Could not create SimulationConfig from dict: {type(e).__name__}: {e}"
@@ -48,7 +47,7 @@ class TestErrorLoggingOnDeserialization:
 
         with caplog.at_level(logging.WARNING):
             try:
-                config = SimulationConfig.from_dict(config_with_extra)
+                SimulationConfig.from_dict(config_with_extra)
             except Exception as e:
                 # Note: With key filtering (US2), this won't raise
                 # But for US1 test, we simulate the error logging
@@ -71,7 +70,7 @@ class TestErrorLoggingOnDeserialization:
 
         with caplog.at_level(logging.WARNING):
             try:
-                config = SimulationConfig.from_dict(invalid_config)
+                SimulationConfig.from_dict(invalid_config)
             except Exception as e:
                 # Improved logging format
                 error_msg = f"Could not create SimulationConfig from dict: {type(e).__name__}: {e}"
@@ -95,7 +94,7 @@ class TestErrorLoggingOnDeserialization:
 
         with caplog.at_level(logging.WARNING):
             try:
-                config = SimulationConfig.from_dict(incomplete_config)
+                SimulationConfig.from_dict(incomplete_config)
             except Exception as e:
                 error_msg = f"Could not create SimulationConfig from dict: {type(e).__name__}: {e}"
                 logging.getLogger("result_handlers").warning(error_msg)
@@ -123,7 +122,7 @@ class TestResultHandlerErrorLoggingIntegration:
 
         with caplog.at_level(logging.WARNING):
             try:
-                sim_config = SimulationConfig.from_dict(config_dict)
+                SimulationConfig.from_dict(config_dict)
             except Exception as e:
                 # Improved error handling (what we're implementing)
                 logger = logging.getLogger("result_handlers")

@@ -7,12 +7,11 @@ and performance monitoring capabilities for production observability.
 
 import json
 import logging
-import os
 import uuid
 from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Optional
 import sys
 
 

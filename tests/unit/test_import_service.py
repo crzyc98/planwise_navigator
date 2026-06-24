@@ -4,17 +4,12 @@ Written BEFORE implementation (TDD). These tests MUST FAIL until import_service.
 """
 
 import json
-import tempfile
-from datetime import datetime
 from pathlib import Path
 
 import pytest
 
 from planalign_api.models.imports import (
     DetectedColumn,
-    FieldMapping,
-    ImportSession,
-    Transformation,
 )
 
 
@@ -176,7 +171,6 @@ def test_get_session_returns_none_for_unknown(service, workspace_id):
 
 def test_parquet_index_appends_on_save(service, workspace_id, tmp_workspaces):
     from planalign_api.models.imports import ParquetFile
-    from datetime import datetime
 
     pf = ParquetFile(
         workspace_id=workspace_id,
@@ -238,7 +232,7 @@ def test_audit_log_written_on_generate_success(service, workspace_id, tmp_worksp
     )
     audit_path = service._audit_log_path(workspace_id)
     lines = audit_path.read_text().strip().split("\n")
-    actions = [json.loads(l)["action"] for l in lines]
+    actions = [json.loads(ln)["action"] for ln in lines]
     assert "generate_success" in actions
 
 
@@ -261,5 +255,5 @@ def test_audit_log_written_on_delete(service, workspace_id, tmp_workspaces):
     service.delete_parquet_file(workspace_id, pf.file_id, user="analyst")
     audit_path = service._audit_log_path(workspace_id)
     lines = audit_path.read_text().strip().split("\n")
-    actions = [json.loads(l)["action"] for l in lines if l.strip()]
+    actions = [json.loads(ln)["action"] for ln in lines if ln.strip()]
     assert "file_delete" in actions

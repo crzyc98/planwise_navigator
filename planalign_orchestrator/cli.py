@@ -13,8 +13,6 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-logger = logging.getLogger(__name__)
-
 from .config import load_simulation_config
 from .dbt_runner import DbtRunner
 from .pipeline_orchestrator import PipelineOrchestrator
@@ -22,6 +20,8 @@ from .registries import RegistryManager
 from .scenario_batch_runner import ScenarioBatchRunner
 from .utils import DatabaseConnectionManager
 from .validation import DataValidator, EventSequenceRule, HireTerminationRatioRule
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_years(s: str) -> tuple[int, int]:
@@ -97,7 +97,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
     )
     if getattr(args, "enforce_identifiers", False):
         cfg.require_identifiers()
-    cfg_dict = cfg.model_dump()
+    cfg.model_dump()
     logger.info("Configuration parsed successfully")
     # Basic identifier hints
     if not (cfg.scenario_id and cfg.plan_design_id):

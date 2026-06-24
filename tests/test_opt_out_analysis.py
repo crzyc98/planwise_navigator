@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 
 from planalign_api.models.opt_out import (
-    OptOutRateAnalysisRequest,
     OptOutRateAnalysisResult,
 )
 

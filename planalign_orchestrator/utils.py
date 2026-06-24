@@ -15,7 +15,6 @@ import logging
 import os
 import time
 from contextlib import contextmanager
-from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock
 from typing import Callable, Dict, Generator, Optional, Set, TypeVar
@@ -136,9 +135,9 @@ class DatabaseConnectionPool:
                     # Set a deterministic seed based on thread ID for any internal RNG
                     import hashlib
 
-                    thread_seed = int(
-                        hashlib.sha256(thread_id.encode()).hexdigest()[:8], 16
-                    ) % (2**31)
+                    int(hashlib.sha256(thread_id.encode()).hexdigest()[:8], 16) % (
+                        2**31
+                    )
                     # Note: DuckDB doesn't have a direct seed setting, but this prepares for future use
 
             except Exception as e:

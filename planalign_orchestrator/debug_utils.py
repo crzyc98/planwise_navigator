@@ -10,7 +10,7 @@ import duckdb
 import json
 import re
 from pathlib import Path
-from typing import Literal, Optional, Any, Set, List, Tuple
+from typing import Optional, Any, Set, List
 from dataclasses import dataclass
 from datetime import datetime
 import pandas as pd

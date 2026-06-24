@@ -8,14 +8,11 @@ Per Constitution Principle III: Write tests FIRST, ensure they FAIL before imple
 """
 
 import pytest
-from datetime import datetime
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 import duckdb
 
 from planalign_orchestrator.self_healing.initialization_state import (
     InitializationState,
-    InitializationResult,
     REQUIRED_TABLES,
 )
 
@@ -206,7 +203,6 @@ class TestSelfHealingIntegration:
     def test_create_orchestrator_registers_self_healing_hook(self, tmp_path):
         """T022: create_orchestrator should register self-healing hook when auto_initialize=True."""
         from planalign_orchestrator.factory import create_orchestrator
-        from planalign_orchestrator.pipeline.hooks import HookType
         from planalign_orchestrator.config import load_simulation_config
 
         # Load a real config

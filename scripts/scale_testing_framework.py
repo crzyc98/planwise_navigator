@@ -36,7 +36,6 @@ from typing import List, Dict, Any, Optional, Tuple
 import gc
 
 # Scientific computing for scaling analysis
-from scipy import stats
 from scipy.stats import linregress
 import psutil
 

@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 # Add config directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent / "config"))
 
-from network_config import (
+from network_config import (  # noqa: E402
     CorporateNetworkConfig,
     NetworkDiagnostics,
     build_proxy_handler,

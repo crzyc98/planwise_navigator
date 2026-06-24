@@ -185,10 +185,6 @@ class ResourceManager:
     @contextmanager
     def monitor_execution(self, operation_name: str, expected_thread_count: int = 1):
         """Context manager for monitoring resource usage during execution."""
-        context = {
-            "operation": operation_name,
-            "expected_threads": expected_thread_count,
-        }
 
         start_time = time.time()
         initial_status = self.get_resource_status()

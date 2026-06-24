@@ -9,19 +9,11 @@ Wraps existing planalign_orchestrator functionality with beautiful terminal inte
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 from typing import Optional
 
 import typer
 from rich.console import Console
-from rich.panel import Panel
-from rich.text import Text
 
-from .commands.status import status_command
-from .commands.simulate import simulate_command
-from .commands.batch import batch_command
-from .commands.validate import validate_command
-from .commands.analyze import analyze_command
 from .commands.studio import launch_studio
 from .commands.sync import (
     sync_init,
@@ -80,10 +72,10 @@ def main(
 
 
 # Register commands directly instead of as command groups
-from .commands.simulate import run_simulation
-from .commands.status import show_status, health_check
-from .commands.batch import run_batch
-from .commands.validate import validate_config
+from .commands.simulate import run_simulation  # noqa: E402
+from .commands.status import show_status, health_check  # noqa: E402
+from .commands.batch import run_batch  # noqa: E402
+from .commands.validate import validate_config  # noqa: E402
 
 
 # Main simulate command - direct access

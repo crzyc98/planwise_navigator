@@ -1,7 +1,7 @@
 """Mock dbt runner and result fixtures."""
 
 import pytest
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock
 from planalign_orchestrator.dbt_runner import DbtRunner, DbtResult
 
 

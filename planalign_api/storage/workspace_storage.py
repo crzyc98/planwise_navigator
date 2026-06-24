@@ -10,13 +10,17 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
-logger = logging.getLogger(__name__)
-
 from config.constants import DATABASE_FILENAME, STATUS_RUNNING
 
 from ..config import get_settings
-from ..models.workspace import Workspace, WorkspaceCreate, WorkspaceSummary
+from ..models.workspace import (
+    Workspace,
+    WorkspaceCreate,
+    WorkspaceSummary,
+)
 from ..models.scenario import Scenario, ScenarioCreate
+
+logger = logging.getLogger(__name__)
 
 
 class WorkspaceStorage:

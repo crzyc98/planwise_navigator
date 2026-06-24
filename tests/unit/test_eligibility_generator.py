@@ -10,7 +10,6 @@ from unittest.mock import MagicMock
 
 from planalign_orchestrator.generators.base import (
     EventContext,
-    ValidationResult,
 )
 from planalign_orchestrator.generators.registry import EventRegistry
 from config.constants import EVENT_ELIGIBILITY

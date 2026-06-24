@@ -2,7 +2,6 @@
 
 from decimal import Decimal
 
-import pytest
 
 from planalign_api.models.vesting import VestingScheduleType
 from planalign_api.services.vesting_service import (

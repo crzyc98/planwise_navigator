@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -542,7 +541,7 @@ class SyncService:
             try:
                 # Fetch and merge
                 origin = repo.remote("origin")
-                fetch_info = origin.fetch()
+                origin.fetch()
 
                 # Get current HEAD before merge
                 old_head = repo.head.commit.hexsha if repo.head.is_valid() else None

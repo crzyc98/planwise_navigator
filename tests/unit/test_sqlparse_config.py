@@ -7,7 +7,6 @@ These tests verify the sqlparse configuration module works correctly
 for setting MAX_GROUPING_TOKENS to handle large SQL models.
 """
 
-import pytest
 
 from planalign_orchestrator.sqlparse_config import (
     DEFAULT_MAX_GROUPING_TOKENS,

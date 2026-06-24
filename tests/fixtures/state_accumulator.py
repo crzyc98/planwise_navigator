@@ -13,10 +13,7 @@ import pytest
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from planalign_orchestrator.state_accumulator import (
-        StateAccumulatorContract,
-        StateAccumulatorRegistry,
-    )
+    pass
 
 
 @pytest.fixture
