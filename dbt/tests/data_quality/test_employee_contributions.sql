@@ -26,7 +26,8 @@ WITH base_contribution_data AS (
         irs_limit_applied,
         is_enrolled_flag,
         prorated_annual_compensation,
-        effective_annual_deferral_rate as effective_deferral_rate
+        effective_annual_deferral_rate as effective_deferral_rate,
+        contribution_window_category
     FROM {{ ref('int_employee_contributions') }}
     WHERE simulation_year = {{ simulation_year }}
 ),
@@ -73,7 +74,9 @@ critical_validations AS (
 
     UNION ALL
 
-    -- Rule C02: IRS 402(g) Total Limit Violations (50+ with catch-up)
+    -- Rule C02: IRS 402(g) Total Limit Violations (age 50+).
+    -- Compare against the model's authoritative applicable_irs_limit, which already
+    -- accounts for SECURE 2.0 super-catch-up (ages 60-63 → $34,750 > catch_up_limit).
     SELECT
         'C02' AS validation_rule,
         'IRS_402G_TOTAL_LIMIT_VIOLATION' AS validation_source,
@@ -81,16 +84,16 @@ critical_validations AS (
         1 AS severity_rank,
         cd.employee_id,
         cd.annual_contribution_amount,
-        il.catch_up_limit,
+        cd.applicable_irs_limit,
         CONCAT(
             'IRS 402(g) total limit violation: contribution $',
-            cd.annual_contribution_amount, ' exceeds catch-up limit $',
-            il.catch_up_limit, ' for employee age 50+'
+            cd.annual_contribution_amount, ' exceeds applicable limit $',
+            cd.applicable_irs_limit, ' for employee age 50+'
         ) AS validation_message
     FROM base_contribution_data cd
     CROSS JOIN irs_limits il
     WHERE cd.current_age >= il.catch_up_age_threshold
-        AND cd.annual_contribution_amount > il.catch_up_limit
+        AND cd.annual_contribution_amount > cd.applicable_irs_limit
 
     UNION ALL
 
@@ -128,6 +131,9 @@ error_validations AS (
     FROM base_contribution_data cd
     WHERE cd.is_enrolled_flag = false
         AND cd.annual_contribution_amount > 10  -- $10 minimum threshold
+        -- Feature 101: same-year enroll→opt-out employees are legitimately credited
+        -- for their active-enrollment window even though year-end status is not-enrolled.
+        AND cd.contribution_window_category <> 'enroll_optout_window'
 
     UNION ALL
 

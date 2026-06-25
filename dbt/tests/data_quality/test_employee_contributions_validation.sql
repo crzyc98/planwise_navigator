@@ -98,7 +98,10 @@ irs_limits_for_validation AS (
         limit_year,
         base_limit,
         catch_up_limit,
-        catch_up_age_threshold
+        catch_up_age_threshold,
+        super_catch_up_limit,
+        super_catch_up_age_min,
+        super_catch_up_age_max
     FROM {{ ref('config_irs_limits') }}
     WHERE limit_year = (SELECT current_year FROM simulation_parameters)
 ),
@@ -113,13 +116,13 @@ irs_limit_violations AS (
         CONCAT(
             'Employee ', w.employee_id, ' (age ', w.current_age, ') ',
             'CRITICAL: IRS limit bypass detected: $', ROUND(w.prorated_annual_contributions, 2),
-            ' > $', CASE WHEN w.current_age >= il.catch_up_age_threshold THEN il.catch_up_limit ELSE il.base_limit END,
+            ' > $', CASE WHEN w.current_age BETWEEN il.super_catch_up_age_min AND il.super_catch_up_age_max THEN il.super_catch_up_limit WHEN w.current_age >= il.catch_up_age_threshold THEN il.catch_up_limit ELSE il.base_limit END,
             ' - This indicates IRS enforcement failure!'
         ) AS validation_message
     FROM workforce_with_contributions w
     CROSS JOIN irs_limits_for_validation il
     WHERE w.prorated_annual_contributions >
-        CASE WHEN w.current_age >= il.catch_up_age_threshold THEN il.catch_up_limit ELSE il.base_limit END
+        CASE WHEN w.current_age BETWEEN il.super_catch_up_age_min AND il.super_catch_up_age_max THEN il.super_catch_up_limit WHEN w.current_age >= il.catch_up_age_threshold THEN il.catch_up_limit ELSE il.base_limit END
       AND w.prorated_annual_contributions > 0
 ),
 
@@ -207,7 +210,7 @@ irs_limit_flag_inaccuracy AS (
     CROSS JOIN irs_limits_for_validation il
     WHERE w.irs_limit_reached != (
         w.prorated_annual_contributions >=
-            CASE WHEN w.current_age >= il.catch_up_age_threshold THEN il.catch_up_limit ELSE il.base_limit END
+            CASE WHEN w.current_age BETWEEN il.super_catch_up_age_min AND il.super_catch_up_age_max THEN il.super_catch_up_limit WHEN w.current_age >= il.catch_up_age_threshold THEN il.catch_up_limit ELSE il.base_limit END
     )
       AND w.prorated_annual_contributions > 0
 ),
