@@ -94,6 +94,28 @@ deferral_rates AS (
     WHERE rn = 1
 ),
 
+-- Feature 101: Same-year enroll → opt-out active-enrollment window.
+-- The year-end deferral rate is 0 (post-opt-out), so recover the deferral rate
+-- that was in effect during the enrollment window from the enrollment event payload,
+-- mirroring int_deferral_rate_state_accumulator's parse.
+enroll_optout_window AS (
+    SELECT
+        employee_id,
+        MAX(CASE WHEN event_type = {{ evt_enrollment() }} THEN effective_date::DATE END) AS enroll_date,
+        MAX(CASE WHEN event_type = {{ evt_enrollment_change() }}
+                  AND LOWER(event_details) LIKE '%opt-out%' THEN effective_date::DATE END) AS opt_out_date,
+        MAX(CASE WHEN event_type = {{ evt_enrollment() }}
+                  THEN COALESCE(
+                      CAST(NULLIF(REGEXP_EXTRACT(event_details, '([0-9]+\.?[0-9]*)%\s*deferral', 1), '') AS DECIMAL(6,4)) / 100.0,
+                      0.06)
+            END) AS enrollment_window_deferral_rate
+    FROM {{ ref('fct_yearly_events') }}
+    WHERE simulation_year = (SELECT current_year FROM simulation_parameters)
+      AND {{ is_enrollment_event('event_type') }}
+      AND employee_id IS NOT NULL
+    GROUP BY employee_id
+),
+
 -- Removed legacy CTEs in favor of workforce_proration as the single source
 
 -- Epic E078: Mode-aware query - uses fct_yearly_events in Polars mode, int_hiring_events in SQL mode
@@ -208,39 +230,92 @@ workforce_proration AS (
     SELECT * FROM new_hire_proration
 ),
 
+-- Feature 101: join the enrollment window and compute active-enrollment days,
+-- the effective deferral rate, and the contribution base. prorated_annual_compensation
+-- (employment-window comp) is intentionally left unchanged for all downstream consumers.
+workforce_windowed AS (
+    SELECT
+        wf.*,
+        COALESCE(dr.is_enrolled_flag, false) AS is_enrolled_flag,
+        COALESCE(dr.deferral_rate, 0.0) AS year_end_deferral_rate,
+        COALESCE(dr.source_quality, 'default_zero') AS source_quality,
+        (eo.enroll_date IS NOT NULL
+            AND eo.opt_out_date IS NOT NULL
+            AND eo.opt_out_date >= eo.enroll_date) AS is_same_year_enroll_optout,
+        eo.enrollment_window_deferral_rate,
+        -- Active-enrollment days, bounded by termination / year-end (FR-003, FR-007)
+        CASE
+            WHEN eo.enroll_date IS NOT NULL
+                 AND eo.opt_out_date IS NOT NULL
+                 AND eo.opt_out_date >= eo.enroll_date
+            THEN GREATEST(0,
+                    DATEDIFF('day', eo.enroll_date,
+                        LEAST(eo.opt_out_date,
+                              COALESCE(wf.termination_date, ('{{ simulation_year }}-12-31')::DATE))) + 1)
+            ELSE 0
+        END AS active_enrollment_days
+    FROM workforce_proration wf
+    LEFT JOIN deferral_rates dr ON wf.employee_id = dr.employee_id
+    LEFT JOIN enroll_optout_window eo ON wf.employee_id = eo.employee_id
+),
+
+contribution_inputs AS (
+    SELECT
+        *,
+        -- Effective rate: window rate for enroll→opt-out, else the (carried) rate
+        CASE WHEN is_same_year_enroll_optout
+             THEN enrollment_window_deferral_rate
+             ELSE year_end_deferral_rate
+        END AS effective_deferral_rate,
+        -- Contribution base: active-window comp for enroll→opt-out (= annual comp ×
+        -- active_enrollment_days/365), else the employment-prorated comp (unchanged)
+        CASE WHEN is_same_year_enroll_optout
+             THEN ROUND(current_compensation * active_enrollment_days / 365.0, 2)
+             ELSE prorated_annual_compensation
+        END AS contribution_base_compensation,
+        CASE
+            WHEN is_same_year_enroll_optout THEN 'enroll_optout_window'
+            WHEN employment_status = 'terminated' OR termination_date IS NOT NULL THEN 'partial_year'
+            ELSE 'full_year'
+        END AS contribution_window_category
+    FROM workforce_windowed
+),
+
 
 -- Calculate IRS-compliant contributions for ALL employees
 employee_contributions AS (
     SELECT
-        wf.employee_id,  -- Use workforce_proration as primary source
+        ci.employee_id,  -- Use contribution_inputs as primary source
         {{ simulation_year }} AS simulation_year,
-        wf.current_age,
-        wf.current_compensation,
-        wf.prorated_annual_compensation,
-        wf.employment_status,
-        COALESCE(dr.is_enrolled_flag, false) AS is_enrolled_flag,
-        COALESCE(dr.deferral_rate, 0.0) AS effective_annual_deferral_rate,
-        COALESCE(dr.deferral_rate, 0.0) AS final_deferral_rate,
+        ci.current_age,
+        ci.current_compensation,
+        ci.prorated_annual_compensation,
+        ci.employment_status,
+        ci.is_enrolled_flag,
+        ci.effective_deferral_rate AS effective_annual_deferral_rate,
+        ci.effective_deferral_rate AS final_deferral_rate,
+        ci.active_enrollment_days,
+        ci.contribution_window_category,
 
         -- Calculate requested contribution amount (before IRS limits)
-        wf.prorated_annual_compensation * COALESCE(dr.deferral_rate, 0.0) AS requested_contribution_amount,
+        ci.contribution_base_compensation * ci.effective_deferral_rate AS requested_contribution_amount,
 
         -- Determine applicable IRS limit based on age (SECURE 2.0: super catch-up for ages 60-63)
         CASE
-            WHEN wf.current_age >= il.super_catch_up_age_min AND wf.current_age <= il.super_catch_up_age_max
+            WHEN ci.current_age >= il.super_catch_up_age_min AND ci.current_age <= il.super_catch_up_age_max
                 THEN il.super_catch_up_limit
-            WHEN wf.current_age >= il.catch_up_age_threshold
+            WHEN ci.current_age >= il.catch_up_age_threshold
                 THEN il.catch_up_limit
             ELSE il.base_limit
         END AS applicable_irs_limit,
 
         -- Calculate IRS-compliant contribution amount using LEAST()
         LEAST(
-            (wf.prorated_annual_compensation * COALESCE(dr.deferral_rate, 0.0)),
+            (ci.contribution_base_compensation * ci.effective_deferral_rate),
             CASE
-                WHEN wf.current_age >= il.super_catch_up_age_min AND wf.current_age <= il.super_catch_up_age_max
+                WHEN ci.current_age >= il.super_catch_up_age_min AND ci.current_age <= il.super_catch_up_age_max
                     THEN il.super_catch_up_limit
-                WHEN wf.current_age >= il.catch_up_age_threshold
+                WHEN ci.current_age >= il.catch_up_age_threshold
                     THEN il.catch_up_limit
                 ELSE il.base_limit
             END
@@ -248,11 +323,11 @@ employee_contributions AS (
 
         -- Transparency and audit fields
         CASE
-            WHEN (wf.prorated_annual_compensation * COALESCE(dr.deferral_rate, 0.0)) >
+            WHEN (ci.contribution_base_compensation * ci.effective_deferral_rate) >
                  CASE
-                     WHEN wf.current_age >= il.super_catch_up_age_min AND wf.current_age <= il.super_catch_up_age_max
+                     WHEN ci.current_age >= il.super_catch_up_age_min AND ci.current_age <= il.super_catch_up_age_max
                          THEN il.super_catch_up_limit
-                     WHEN wf.current_age >= il.catch_up_age_threshold
+                     WHEN ci.current_age >= il.catch_up_age_threshold
                          THEN il.catch_up_limit
                      ELSE il.base_limit
                  END
@@ -261,11 +336,11 @@ employee_contributions AS (
 
         -- Amount that was capped off due to IRS limits
         GREATEST(0,
-            (wf.prorated_annual_compensation * COALESCE(dr.deferral_rate, 0.0)) -
+            (ci.contribution_base_compensation * ci.effective_deferral_rate) -
             CASE
-                WHEN wf.current_age >= il.super_catch_up_age_min AND wf.current_age <= il.super_catch_up_age_max
+                WHEN ci.current_age >= il.super_catch_up_age_min AND ci.current_age <= il.super_catch_up_age_max
                     THEN il.super_catch_up_limit
-                WHEN wf.current_age >= il.catch_up_age_threshold
+                WHEN ci.current_age >= il.catch_up_age_threshold
                     THEN il.catch_up_limit
                 ELSE il.base_limit
             END
@@ -273,16 +348,17 @@ employee_contributions AS (
 
         -- Age-based limit type for reporting (SECURE 2.0: super catch-up for ages 60-63)
         CASE
-            WHEN wf.current_age >= il.super_catch_up_age_min AND wf.current_age <= il.super_catch_up_age_max
+            WHEN ci.current_age >= il.super_catch_up_age_min AND ci.current_age <= il.super_catch_up_age_max
                 THEN 'SUPER_CATCH_UP'
-            WHEN wf.current_age >= il.catch_up_age_threshold
+            WHEN ci.current_age >= il.catch_up_age_threshold
                 THEN 'CATCH_UP'
             ELSE 'BASE'
         END AS limit_type,
 
-        -- Set contribution base
-        -- Base used for contributions and employer match calculations
-        wf.prorated_annual_compensation AS total_contribution_base_compensation,
+        -- Set contribution base (Feature 101: active-enrollment-window base for
+        -- same-year enroll→opt-out employees; employment-prorated comp otherwise).
+        -- Used for contributions AND employer match (match reads this column).
+        ci.contribution_base_compensation AS total_contribution_base_compensation,
         -- Basic contribution metrics (updated to use IRS-compliant amount)
         1 AS number_of_contribution_periods,
         365 AS total_contribution_days,
@@ -290,23 +366,23 @@ employee_contributions AS (
         0.0 AS average_per_paycheck_contribution,
         -- Pay periods prorated by compensation ratio relative to full-year comp
         CAST(ROUND(
-            CASE WHEN COALESCE(wf.current_compensation, 0) > 0 THEN
-                26 * LEAST(1.0, GREATEST(0.0, COALESCE(wf.prorated_annual_compensation, 0.0) / NULLIF(wf.current_compensation, 0)))
+            CASE WHEN COALESCE(ci.current_compensation, 0) > 0 THEN
+                26 * LEAST(1.0, GREATEST(0.0, COALESCE(ci.prorated_annual_compensation, 0.0) / NULLIF(ci.current_compensation, 0)))
             ELSE 26 END
         ) AS INTEGER) AS total_pay_periods_with_contributions,
         CAST('{{ simulation_year }}-01-01' AS DATE) AS first_contribution_date,
-        COALESCE(wf.termination_date, CAST('{{ simulation_year }}-12-31' AS DATE)) AS last_contribution_date,
+        COALESCE(ci.termination_date, CAST('{{ simulation_year }}-12-31' AS DATE)) AS last_contribution_date,
         -- FIX: Should be 'partial_year' for terminated employees, 'full_year' for active
         CASE
-            WHEN wf.employment_status = 'terminated' OR wf.termination_date IS NOT NULL THEN 'partial_year'
+            WHEN ci.employment_status = 'terminated' OR ci.termination_date IS NOT NULL THEN 'partial_year'
             ELSE 'full_year'
         END AS contribution_duration_category,
         CASE
-            WHEN (wf.prorated_annual_compensation * COALESCE(dr.deferral_rate, 0.0)) >
+            WHEN (ci.contribution_base_compensation * ci.effective_deferral_rate) >
                  CASE
-                     WHEN wf.current_age >= il.super_catch_up_age_min AND wf.current_age <= il.super_catch_up_age_max
+                     WHEN ci.current_age >= il.super_catch_up_age_min AND ci.current_age <= il.super_catch_up_age_max
                          THEN il.super_catch_up_limit
-                     WHEN wf.current_age >= il.catch_up_age_threshold
+                     WHEN ci.current_age >= il.catch_up_age_threshold
                          THEN il.catch_up_limit
                      ELSE il.base_limit
                  END
@@ -315,11 +391,10 @@ employee_contributions AS (
         END AS contribution_quality_flag,
         CURRENT_TIMESTAMP AS calculated_at,
         'E036_single_source_deferral_rate_fixed' AS calculation_source,
-        COALESCE(dr.source_quality, 'default_zero') AS deferral_rate_source_quality
-    FROM workforce_proration wf
-    LEFT JOIN deferral_rates dr ON wf.employee_id = dr.employee_id
+        ci.source_quality AS deferral_rate_source_quality
+    FROM contribution_inputs ci
     CROSS JOIN irs_limits il  -- Cross join since we only have one row of limits
-    WHERE wf.employee_id IS NOT NULL  -- Include all employees regardless of status
+    WHERE ci.employee_id IS NOT NULL  -- Include all employees regardless of status
 ),
 
 -- Final output with IRS-compliant contributions and audit trail
@@ -346,6 +421,9 @@ final_contributions AS (
         is_enrolled_flag,
         final_deferral_rate,
         contribution_duration_category,
+        -- Feature 101: active-enrollment-window audit fields
+        active_enrollment_days,
+        contribution_window_category,
         contribution_quality_flag,
         -- Temporary compatibility alias for downstream tools/scripts
         -- DEPRECATE after 2025-09-30
