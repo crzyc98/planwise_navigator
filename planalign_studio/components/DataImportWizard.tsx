@@ -44,7 +44,7 @@ function StepIndicator({ current }: { current: WizardStep }) {
 }
 
 export default function DataImportWizard() {
-  const { activeWorkspace } = useOutletContext<LayoutContextType>();
+  const { activeWorkspace, refreshActiveWorkspace } = useOutletContext<LayoutContextType>();
   const [step, setStep] = useState<WizardStep>('upload');
   const [session, setSession] = useState<ImportSession | null>(null);
   const [mappings, setMappings] = useState<FieldMapping[]>([]);
@@ -80,11 +80,15 @@ export default function DataImportWizard() {
   const handleGenerated = (file: ParquetFile) => {
     setGeneratedFile(file);
     setStep('done');
+    // The generate/upload endpoints set this file as the workspace census in
+    // base_config server-side; refresh shared state so Configure sees it immediately.
+    void refreshActiveWorkspace();
   };
 
   const handleParquetDone = (result: FileUploadResponse) => {
     setParquetResult(result);
     setStep('done');
+    void refreshActiveWorkspace();
   };
 
   const handleStartNew = () => {
