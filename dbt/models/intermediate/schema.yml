@@ -460,6 +460,13 @@ models:
       # Feature 101: the windowed base can never exceed employment-prorated comp
       - dbt_utils.expression_is_true:
           expression: "total_contribution_base_compensation <= prorated_annual_compensation + 0.01"
+      # The model caps contributions at the age-appropriate IRS 402(g) limit. Assert
+      # that invariant directly rather than a static numeric ceiling — the limit rises
+      # year over year (super-catch-up reaches $39,250 by 2035 in config_irs_limits),
+      # so any fixed max_value would false-fail in later simulation years.
+      - dbt_utils.expression_is_true:
+          expression: "annual_contribution_amount <= applicable_irs_limit + 0.01"
+          name: "annual_contribution_amount_within_irs_limit"
       # Uniqueness is on the (employee_id, simulation_year) grain — this is a
       # multi-year incremental table, so employee_id alone is NOT unique.
       - dbt_utils.unique_combination_of_columns:
@@ -489,11 +496,11 @@ models:
         description: IRS-limited contributions after applying 402(g) limits
         data_tests:
           - not_null
-          # Capped at the IRS 402(g) super-catch-up limit (ages 60-63 = $34,750 in
-          # 2025), which exceeds the regular catch-up limit ($31,000).
+          # Upper bound is the age-appropriate IRS limit, asserted at the model level
+          # via annual_contribution_amount_within_irs_limit (the limit is not constant
+          # across years, so only the non-negativity floor is checked here).
           - dbt_utils.accepted_range:
               min_value: 0
-              max_value: 35000
       - name: amount_capped_by_irs_limit
         description: Amount of contributions exceeding IRS limits that were capped
         data_tests:

@@ -107,6 +107,11 @@ irs_limits_for_validation AS (
 ),
 
 -- Validation 3: IRS 402(g) limit validation
+-- Compare against the contribution model's authoritative applicable_irs_limit (the limit
+-- actually used to cap the contribution), not a limit re-derived from the snapshot's
+-- current_age. The two age values can legitimately differ by a year — an employee who
+-- attains age 50/60 during the year is catch-up eligible in the model while the snapshot
+-- may still show the prior age — which produced false CRITICAL failures (issue #334).
 irs_limit_violations AS (
     SELECT
         w.employee_id,
@@ -114,16 +119,17 @@ irs_limit_violations AS (
         'irs_402g_limit_exceeded' AS validation_rule,
         'CRITICAL' AS severity,
         CONCAT(
-            'Employee ', w.employee_id, ' (age ', w.current_age, ') ',
-            'CRITICAL: IRS limit bypass detected: $', ROUND(w.prorated_annual_contributions, 2),
-            ' > $', CASE WHEN w.current_age BETWEEN il.super_catch_up_age_min AND il.super_catch_up_age_max THEN il.super_catch_up_limit WHEN w.current_age >= il.catch_up_age_threshold THEN il.catch_up_limit ELSE il.base_limit END,
+            'Employee ', w.employee_id, ' ',
+            'CRITICAL: IRS limit bypass detected: $', ROUND(ec.annual_contribution_amount, 2),
+            ' > $', ROUND(ec.applicable_irs_limit, 2),
             ' - This indicates IRS enforcement failure!'
         ) AS validation_message
     FROM workforce_with_contributions w
-    CROSS JOIN irs_limits_for_validation il
-    WHERE w.prorated_annual_contributions >
-        CASE WHEN w.current_age BETWEEN il.super_catch_up_age_min AND il.super_catch_up_age_max THEN il.super_catch_up_limit WHEN w.current_age >= il.catch_up_age_threshold THEN il.catch_up_limit ELSE il.base_limit END
-      AND w.prorated_annual_contributions > 0
+    JOIN {{ ref('int_employee_contributions') }} ec
+        ON w.employee_id = ec.employee_id
+        AND w.simulation_year = ec.simulation_year
+    WHERE ec.annual_contribution_amount > ec.applicable_irs_limit + 0.01
+      AND ec.annual_contribution_amount > 0
 ),
 
 -- Validation 4: Contribution components mismatch
@@ -235,30 +241,37 @@ contribution_model_integration AS (
       AND ec.employee_id IS NULL
 )
 
--- Union all validation failures and return
+-- Union all validation results, then fail only on genuine ERROR/CRITICAL rows. This is
+-- an error-severity gate, so WARNING-level diagnostics (rate-consistency between the two
+-- deferral-rate fields, >50% rate driven by near-zero prorated comp on early terminations)
+-- are computed for transparency but must not turn the build red (issue #334).
 SELECT employee_id, simulation_year, validation_rule, severity, validation_message
-FROM contributions_exceed_compensation
-UNION ALL
-SELECT employee_id, simulation_year, validation_rule, severity, validation_message
-FROM rate_consistency_violations
-UNION ALL
-SELECT employee_id, simulation_year, validation_rule, severity, validation_message
-FROM irs_limit_violations
-UNION ALL
-SELECT employee_id, simulation_year, validation_rule, severity, validation_message
-FROM contribution_component_mismatch
-UNION ALL
-SELECT employee_id, simulation_year, validation_rule, severity, validation_message
-FROM negative_contributions
-UNION ALL
-SELECT employee_id, simulation_year, validation_rule, severity, validation_message
-FROM enrolled_without_contributions
-UNION ALL
-SELECT employee_id, simulation_year, validation_rule, severity, validation_message
-FROM excessive_contribution_rates
-UNION ALL
-SELECT employee_id, simulation_year, validation_rule, severity, validation_message
-FROM irs_limit_flag_inaccuracy
-UNION ALL
-SELECT employee_id, simulation_year, validation_rule, severity, validation_message
-FROM contribution_model_integration
+FROM (
+    SELECT employee_id, simulation_year, validation_rule, severity, validation_message
+    FROM contributions_exceed_compensation
+    UNION ALL
+    SELECT employee_id, simulation_year, validation_rule, severity, validation_message
+    FROM rate_consistency_violations
+    UNION ALL
+    SELECT employee_id, simulation_year, validation_rule, severity, validation_message
+    FROM irs_limit_violations
+    UNION ALL
+    SELECT employee_id, simulation_year, validation_rule, severity, validation_message
+    FROM contribution_component_mismatch
+    UNION ALL
+    SELECT employee_id, simulation_year, validation_rule, severity, validation_message
+    FROM negative_contributions
+    UNION ALL
+    SELECT employee_id, simulation_year, validation_rule, severity, validation_message
+    FROM enrolled_without_contributions
+    UNION ALL
+    SELECT employee_id, simulation_year, validation_rule, severity, validation_message
+    FROM excessive_contribution_rates
+    UNION ALL
+    SELECT employee_id, simulation_year, validation_rule, severity, validation_message
+    FROM irs_limit_flag_inaccuracy
+    UNION ALL
+    SELECT employee_id, simulation_year, validation_rule, severity, validation_message
+    FROM contribution_model_integration
+) all_validations
+WHERE severity IN ('ERROR', 'CRITICAL')

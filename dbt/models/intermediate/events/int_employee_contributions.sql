@@ -142,24 +142,40 @@ hire_events AS (
     {% endif %}
 ),
 
--- Epic E078: Mode-aware query - uses fct_yearly_events in Polars mode, int_termination_events in SQL mode
+-- Epic E078: Mode-aware query - uses fct_yearly_events in Polars mode, int_*_events in SQL mode
+-- One termination per employee (MIN date) so the LEFT JOINs below stay 1:1.
 termination_events AS (
-    {% if var('event_generation_mode', 'sql') == 'polars' %}
-    -- Polars mode: fct_yearly_events is populated from Parquet files before EVENT_GENERATION
     SELECT
         employee_id,
-        effective_date::DATE AS termination_date
-    FROM {{ ref('fct_yearly_events') }}
-    WHERE simulation_year = (SELECT current_year FROM simulation_parameters)
-      AND event_type = 'termination'
-    {% else %}
-    -- SQL mode: Use intermediate event model that exists during EVENT_GENERATION
-    SELECT
-        employee_id,
-        effective_date::DATE AS termination_date
-    FROM {{ ref('int_termination_events') }}
-    WHERE simulation_year = (SELECT current_year FROM simulation_parameters)
-    {% endif %}
+        MIN(termination_date) AS termination_date
+    FROM (
+        {% if var('event_generation_mode', 'sql') == 'polars' %}
+        -- Polars mode: fct_yearly_events already unions new-hire + experienced terminations
+        SELECT
+            employee_id,
+            effective_date::DATE AS termination_date
+        FROM {{ ref('fct_yearly_events') }}
+        WHERE simulation_year = (SELECT current_year FROM simulation_parameters)
+          AND event_type = 'termination'
+        {% else %}
+        -- SQL mode: experienced-employee terminations live in int_termination_events;
+        -- new-hire terminations are generated separately (issue #334). Both must be
+        -- included or terminated new hires get a full-year comp base, over-stating
+        -- their contributions and employer match.
+        SELECT
+            employee_id,
+            effective_date::DATE AS termination_date
+        FROM {{ ref('int_termination_events') }}
+        WHERE simulation_year = (SELECT current_year FROM simulation_parameters)
+        UNION ALL
+        SELECT
+            employee_id,
+            effective_date::DATE AS termination_date
+        FROM {{ ref('int_new_hire_termination_events') }}
+        WHERE simulation_year = (SELECT current_year FROM simulation_parameters)
+        {% endif %}
+    ) all_terminations
+    GROUP BY employee_id
 ),
 
 -- Workforce proration base: include prior-year actives (snapshot) and current-year new hires
