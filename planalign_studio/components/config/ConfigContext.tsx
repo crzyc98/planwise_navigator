@@ -386,7 +386,10 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
         if (!cancelled) setFreshBaseConfig(activeWorkspace.base_config ?? {});
       });
     return () => { cancelled = true; };
-  }, [activeWorkspace?.id]);
+    // Also depend on the census path: an import during an already-loaded session
+    // updates base_config (via refreshActiveWorkspace) without changing the workspace
+    // id, so re-running here is what re-hydrates censusDataPath for the Config form.
+  }, [activeWorkspace?.id, extractCensusPath(activeWorkspace?.base_config)]);
 
   // --- useEffect 1: Load scenario config overlay ---
   useEffect(() => {
@@ -406,28 +409,32 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
         setCurrentScenario(scenario);
 
         if (scenario.config_overrides) {
-          const cfg = scenario.config_overrides;
-          setFormData(prev => applyConfigToFormData(cfg, prev));
+          setFormData(prev => applyConfigToFormData(scenario.config_overrides, prev));
+        }
 
-          // E089: Validate census file
-          const censusPath = extractCensusPath(cfg);
-          if (censusPath && activeWorkspace?.id) {
-            try {
-              const validation = await validateFilePath(activeWorkspace.id, censusPath);
-              if (validation.valid && validation.row_count) {
-                setFormData(prev => ({
-                  ...prev,
-                  censusDataStatus: 'loaded',
-                  censusRowCount: validation.row_count || prev.censusRowCount,
-                  censusLastModified: validation.last_modified?.split('T')[0] || prev.censusLastModified,
-                }));
-              } else {
-                setFormData(prev => ({ ...prev, censusDataStatus: 'error' }));
-              }
-            } catch (validationError) {
-              console.error('E089: Census file validation failed:', validationError);
+        // E089: Validate the effective census — the scenario override if present,
+        // otherwise the workspace base config. Validating the base_config census is
+        // what flips censusDataStatus to 'loaded' so the New Hire "Match Census"
+        // controls light up immediately after a fresh import (issue #325), not just
+        // when the census has been baked into the scenario overrides.
+        const censusPath = extractCensusPath(scenario.config_overrides) || extractCensusPath(freshBaseConfig);
+        if (censusPath && activeWorkspace?.id) {
+          try {
+            const validation = await validateFilePath(activeWorkspace.id, censusPath);
+            if (validation.valid && validation.row_count) {
+              setFormData(prev => ({
+                ...prev,
+                censusDataPath: prev.censusDataPath || censusPath,
+                censusDataStatus: 'loaded',
+                censusRowCount: validation.row_count || prev.censusRowCount,
+                censusLastModified: validation.last_modified?.split('T')[0] || prev.censusLastModified,
+              }));
+            } else {
               setFormData(prev => ({ ...prev, censusDataStatus: 'error' }));
             }
+          } catch (validationError) {
+            console.error('E089: Census file validation failed:', validationError);
+            setFormData(prev => ({ ...prev, censusDataStatus: 'error' }));
           }
         }
       } catch (err) {

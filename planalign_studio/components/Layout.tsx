@@ -10,6 +10,7 @@ import { APP_NAME, MOCK_NOTIFICATIONS, APP_VERSION } from '../constants';
 import { Workspace, Notification } from '../types';
 import {
   listWorkspaces,
+  getWorkspace as apiGetWorkspace,
   createWorkspace as apiCreateWorkspace,
   updateWorkspace as apiUpdateWorkspace,
   deleteWorkspace as apiDeleteWorkspace,
@@ -24,6 +25,10 @@ export interface LayoutContextType {
   addWorkspace: (ws: Workspace) => Promise<Workspace>;
   updateWorkspace: (id: string, updates: Partial<Workspace>) => Promise<void>;
   deleteWorkspace: (id: string) => Promise<void>;
+  // Refetch the active workspace from the API and refresh shared state. Used after
+  // side-effecting flows (e.g. census import) that mutate base_config server-side so
+  // downstream pages (Configure) re-hydrate instead of reading a stale copy.
+  refreshActiveWorkspace: () => Promise<void>;
   lastRunScenarioId: string | null;
   setLastRunScenarioId: (id: string | null) => void;
   // Feature 045: Global simulation running state
@@ -263,6 +268,18 @@ export default function Layout() {
     }
   };
 
+  const refreshActiveWorkspace = useCallback(async () => {
+    if (!activeWorkspace?.id) return;
+    try {
+      const updated = await apiGetWorkspace(activeWorkspace.id);
+      const frontendWs = toFrontendWorkspace(updated);
+      setWorkspaces(prev => prev.map(w => w.id === frontendWs.id ? frontendWs : w));
+      setActiveWorkspace(frontendWs);
+    } catch (err) {
+      console.error('Failed to refresh active workspace:', err);
+    }
+  }, [activeWorkspace?.id]);
+
   const handleWorkspaceSelect = (workspace: Workspace) => {
     if (workspace.id === activeWorkspace?.id) {
       setIsWorkspaceMenuOpen(false);
@@ -447,6 +464,7 @@ export default function Layout() {
     addWorkspace,
     updateWorkspace,
     deleteWorkspace,
+    refreshActiveWorkspace,
     lastRunScenarioId,
     setLastRunScenarioId,
     isSimulationRunning,
