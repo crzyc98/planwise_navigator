@@ -8,29 +8,50 @@
   calculations based on their partial year of employment, not full annual compensation.
 
   Key Validations:
-  - No new hire has match > 3% of prorated compensation
-  - Match percentage aligns with deferral rates (50% match expected)
-  - No duplicate employee records in contribution processing
-  - Compensation sources are consistent
+  - Contribution-model prorated comp matches the workforce snapshot
+  - Match amount matches between the match model and the workforce snapshot
+  - Prorated comp equals hire_comp x (days worked / 365), where days worked runs
+    hire -> termination (if any) else year-end
 
-  This model helps prevent the critical bug where new hires received
-  match calculations on full annual salaries instead of prorated amounts.
+  This model helps prevent the critical bug where new hires received match (and
+  contribution) calculations on full annual salaries instead of prorated amounts.
+  It does not assert a fixed match ceiling — match formulas are configurable
+  (E084/099), so formula bounds are tested on the match model itself.
 */
 
 {% set simulation_year = var('simulation_year', 2025) | int %}
 
-WITH new_hire_events AS (
-    -- Get all new hires for the simulation year
+WITH new_hire_terminations AS (
+    -- Same-year terminations for new hires (new-hire terminations are in fct_yearly_events
+    -- as event_type='termination'). Needed so days_worked reflects hire→termination, not
+    -- hire→year-end, for new hires who leave mid-year (issue #334).
     SELECT
         employee_id,
-        effective_date::DATE AS hire_date,
-        compensation_amount AS hire_event_compensation,
-        employee_age,
-        DATEDIFF('day', effective_date::DATE, ({{ simulation_year }} || '-12-31')::DATE) + 1 AS days_worked,
-        ({{ simulation_year }} || '-12-31')::DATE AS year_end_date
+        MIN(effective_date::DATE) AS termination_date
     FROM {{ ref('fct_yearly_events') }}
     WHERE simulation_year = {{ simulation_year }}
-      AND event_type = 'hire'
+      AND event_type = 'termination'
+    GROUP BY employee_id
+),
+
+new_hire_events AS (
+    -- Get all new hires for the simulation year
+    SELECT
+        h.employee_id,
+        h.effective_date::DATE AS hire_date,
+        h.compensation_amount AS hire_event_compensation,
+        h.employee_age,
+        -- Prorate over the actual worked window: hire → termination (if any) else year-end
+        DATEDIFF(
+            'day',
+            h.effective_date::DATE,
+            COALESCE(t.termination_date, ({{ simulation_year }} || '-12-31')::DATE)
+        ) + 1 AS days_worked,
+        ({{ simulation_year }} || '-12-31')::DATE AS year_end_date
+    FROM {{ ref('fct_yearly_events') }} h
+    LEFT JOIN new_hire_terminations t ON h.employee_id = t.employee_id
+    WHERE h.simulation_year = {{ simulation_year }}
+      AND h.event_type = 'hire'
 ),
 
 new_hire_contributions AS (
@@ -104,19 +125,13 @@ validation_results AS (
 
         -- Expected calculations
         ROUND(nhe.hire_event_compensation * (nhe.days_worked / 365.0), 2) AS expected_prorated_comp,
-        ROUND(nhe.hire_event_compensation * (nhe.days_worked / 365.0) * 0.03, 2) AS expected_max_match,
 
-        -- Validation flags
-        CASE
-            WHEN nhm.match_percentage_of_comp > 0.03 THEN 'FAIL'
-            ELSE 'PASS'
-        END AS match_limit_validation,
-
-        CASE
-            WHEN nhm.effective_match_rate > 0.50 THEN 'FAIL'
-            ELSE 'PASS'
-        END AS match_rate_validation,
-
+        -- Validation flags. This test's purpose is to confirm new-hire match is computed
+        -- on PRORATED compensation, so it checks comp/match consistency against the
+        -- snapshot and proration accuracy. It deliberately does NOT assert a fixed match
+        -- ceiling (formerly hardcoded 3%-of-comp / 50% rate): match formulas are
+        -- configurable (E084/099) and legitimately reach 4%-of-comp at a 100% tier rate,
+        -- so those bounds belong to the match model's own tests, not here (issue #334).
         CASE
             WHEN ABS(nhc.prorated_annual_compensation - ws.prorated_annual_compensation) > 1.0 THEN 'FAIL'
             ELSE 'PASS'
@@ -131,11 +146,7 @@ validation_results AS (
         CASE
             WHEN ABS(nhc.prorated_annual_compensation - ROUND(nhe.hire_event_compensation * (nhe.days_worked / 365.0), 2)) > 100.0 THEN 'FAIL'
             ELSE 'PASS'
-        END AS proration_accuracy_validation,
-
-        -- Data quality metrics
-        ROUND(nhm.employer_match_amount - ROUND(nhe.hire_event_compensation * (nhe.days_worked / 365.0) * 0.03, 2), 2) AS match_overage_amount,
-        ROUND((nhm.employer_match_amount / NULLIF(ROUND(nhe.hire_event_compensation * (nhe.days_worked / 365.0) * 0.03, 2), 0) - 1) * 100, 1) AS match_overage_percentage
+        END AS proration_accuracy_validation
 
     FROM new_hire_events nhe
     LEFT JOIN new_hire_contributions nhc ON nhe.employee_id = nhc.employee_id
@@ -146,8 +157,6 @@ validation_results AS (
 -- Return only failing records for dbt test
 SELECT *
 FROM validation_results
-WHERE match_limit_validation = 'FAIL'
-   OR match_rate_validation = 'FAIL'
-   OR compensation_consistency_validation = 'FAIL'
+WHERE compensation_consistency_validation = 'FAIL'
    OR match_consistency_validation = 'FAIL'
    OR proration_accuracy_validation = 'FAIL'

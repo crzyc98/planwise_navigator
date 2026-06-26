@@ -8,6 +8,7 @@ _export_csv, _export_excel, _create_minimal_export, export_scenario_results.
 
 from __future__ import annotations
 
+import logging
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
@@ -921,25 +922,29 @@ class TestExportScenarioResults:
 
 class TestCreateComparisonWorkbook:
     @pytest.mark.fast
-    def test_no_data_prints_warning(self, capsys):
+    def test_no_data_logs_warning(self, caplog):
         exporter = ExcelExporter(_make_db_manager(MagicMock()))
         with tempfile.TemporaryDirectory() as tmp:
             output_path = Path(tmp) / "comparison.xlsx"
-            exporter.create_comparison_workbook({}, output_path)
-            captured = capsys.readouterr()
-            assert "No comparison data" in captured.out
+            with caplog.at_level(
+                logging.WARNING, logger="planalign_orchestrator.excel_exporter"
+            ):
+                exporter.create_comparison_workbook({}, output_path)
+            assert "No comparison data" in caplog.text
 
     @pytest.mark.fast
-    def test_missing_database_skipped(self, capsys):
+    def test_missing_database_skipped(self, caplog):
         results = {
             "scenario_a": {"database_path": "/nonexistent/path.duckdb"},
         }
         exporter = ExcelExporter(_make_db_manager(MagicMock()))
         with tempfile.TemporaryDirectory() as tmp:
             output_path = Path(tmp) / "comparison.xlsx"
-            exporter.create_comparison_workbook(results, output_path)
-            captured = capsys.readouterr()
-            assert "No comparison data" in captured.out
+            with caplog.at_level(
+                logging.WARNING, logger="planalign_orchestrator.excel_exporter"
+            ):
+                exporter.create_comparison_workbook(results, output_path)
+            assert "No comparison data" in caplog.text
 
     @pytest.mark.fast
     @patch("planalign_orchestrator.excel_exporter.DatabaseConnectionManager")
