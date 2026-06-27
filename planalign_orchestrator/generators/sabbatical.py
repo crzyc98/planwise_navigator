@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, cast
 
 from planalign_orchestrator.generators.base import (
     EventContext,
@@ -26,6 +26,7 @@ from config.constants import EVENT_SABBATICAL
 
 if TYPE_CHECKING:
     from config.events import SimulationEvent
+    from config.events.workforce import SabbaticalPayload
 
 logger = logging.getLogger(__name__)
 
@@ -102,8 +103,9 @@ class SabbaticalEventGenerator(EventGenerator):
             )
             return ValidationResult(is_valid=False, errors=errors)
 
-        # Access sabbatical-specific fields
-        payload = event.payload
+        # Access sabbatical-specific fields. event_type was already confirmed
+        # to be EVENT_SABBATICAL above, so this narrows the discriminated union.
+        payload = cast("SabbaticalPayload", event.payload)
 
         # Validate dates
         if not hasattr(payload, "start_date") or payload.start_date is None:

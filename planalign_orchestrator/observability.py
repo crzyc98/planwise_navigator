@@ -6,7 +6,7 @@ with enterprise-grade observability features.
 """
 
 from contextlib import contextmanager
-from typing import Any, ContextManager, Dict, Optional
+from typing import Any, Dict, Iterator, Optional
 
 from .logger import get_logger
 from .performance_monitor import PerformanceMetrics, PerformanceMonitor
@@ -52,7 +52,7 @@ class ObservabilityManager:
     @contextmanager
     def track_operation(
         self, operation_name: str, **context
-    ) -> ContextManager[PerformanceMetrics]:
+    ) -> Iterator[PerformanceMetrics]:
         """
         Context manager that tracks an operation with full observability
 
@@ -87,7 +87,9 @@ class ObservabilityManager:
         self.logger.exception(message, **kwargs)
         self.run_summary.add_error(f"Exception: {message}", kwargs)
 
-    def add_metric(self, name: str, value: Any, description: str = None) -> None:
+    def add_metric(
+        self, name: str, value: Any, description: Optional[str] = None
+    ) -> None:
         """Add custom metric to run summary"""
         self.run_summary.add_metric(name, value, description)
 
@@ -152,7 +154,7 @@ def create_observability_manager(
 @contextmanager
 def observability_session(
     run_id: Optional[str] = None, log_level: str = "INFO"
-) -> ContextManager[ObservabilityManager]:
+) -> Iterator[ObservabilityManager]:
     """
     Context manager for complete observability session with automatic cleanup
 

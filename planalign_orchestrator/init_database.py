@@ -475,7 +475,10 @@ class DatabaseInitializer:
                 )
 
                 # Get row count for logging
-                count = conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
+                count_row = conn.execute(
+                    f"SELECT COUNT(*) FROM {table_name}"
+                ).fetchone()
+                count = count_row[0] if count_row is not None else 0
                 logger.info(f"Loaded {count} rows into {table_name}")
 
             except Exception as e:
@@ -486,7 +489,8 @@ class DatabaseInitializer:
         logger.info("Creating sample census data...")
 
         # Check if census data already exists
-        count = conn.execute("SELECT COUNT(*) FROM stg_census_data").fetchone()[0]
+        count_row = conn.execute("SELECT COUNT(*) FROM stg_census_data").fetchone()
+        count = count_row[0] if count_row is not None else 0
         if count > 0:
             logger.info(f"Census data already exists ({count} employees)")
             return
@@ -522,7 +526,8 @@ class DatabaseInitializer:
         """
         )
 
-        count = conn.execute("SELECT COUNT(*) FROM stg_census_data").fetchone()[0]
+        count_row = conn.execute("SELECT COUNT(*) FROM stg_census_data").fetchone()
+        count = count_row[0] if count_row is not None else 0
         logger.info(f"Created {count} sample employees")
 
     def validate_database_structure(self, conn: duckdb.DuckDBPyConnection) -> bool:

@@ -131,7 +131,7 @@ class RunSummaryGenerator:
         self.metadata.configuration = config
         self.prod_logger.info("Run configuration set", configuration=config)
 
-    def add_error(self, error: str, context: Dict[str, Any] = None) -> None:
+    def add_error(self, error: str, context: Optional[Dict[str, Any]] = None) -> None:
         """
         Add error to summary
 
@@ -152,7 +152,9 @@ class RunSummaryGenerator:
         }
         self.prod_logger.error(f"Run error: {error}", **safe_context)
 
-    def add_warning(self, warning: str, context: Dict[str, Any] = None) -> None:
+    def add_warning(
+        self, warning: str, context: Optional[Dict[str, Any]] = None
+    ) -> None:
         """
         Add warning to summary
 
@@ -173,7 +175,9 @@ class RunSummaryGenerator:
         }
         self.prod_logger.log_event("WARNING", f"Run warning: {warning}", **safe_context)
 
-    def add_metric(self, name: str, value: Any, description: str = None) -> None:
+    def add_metric(
+        self, name: str, value: Any, description: Optional[str] = None
+    ) -> None:
         """
         Add custom metric to summary
 
@@ -217,7 +221,7 @@ class RunSummaryGenerator:
             performance_summary = self.performance_monitor.get_summary()
 
         # Build complete summary
-        summary = {
+        summary: Dict[str, Any] = {
             "run_metadata": self.metadata.to_dict(),
             "execution_summary": {
                 "total_errors": len(self.errors),
@@ -434,13 +438,13 @@ class RunSummaryGenerator:
             lines.append("Top Contributors:")
             for item in top:
                 name = item.get("name", "unknown")
-                duration = item.get("duration_seconds", 0)
+                contributor_duration = item.get("duration_seconds", 0)
                 stage = item.get("stage")
                 year = item.get("year")
                 label = name
                 if stage and year:
                     label = "%s %s" % (stage, year)
-                lines.append("  - %s: %.3fs" % (label, duration))
+                lines.append("  - %s: %.3fs" % (label, contributor_duration))
 
         # Backup info
         if metadata["backup_path"]:

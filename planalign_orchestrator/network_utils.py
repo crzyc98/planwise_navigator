@@ -26,7 +26,7 @@ import urllib.request
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 from urllib.error import HTTPError, URLError
 
 import os
@@ -172,7 +172,11 @@ class CorporateNetworkClient:
             data = json.dumps(json_data).encode("utf-8")
             kwargs.setdefault("headers", {})["Content-Type"] = "application/json"
 
-        return self._request("POST", url, data=data, **kwargs)
+        # Callers are expected to pass json_data for dict payloads; by this
+        # point `data` is str/bytes/None at runtime.
+        return self._request(
+            "POST", url, data=cast(Optional[Union[str, bytes]], data), **kwargs
+        )
 
     def _request(
         self,
@@ -213,8 +217,9 @@ class CorporateNetworkClient:
         else:
             opener = self.opener
 
-        # Prepare request
-        request = urllib.request.Request(url, data=data, method=method)
+        # Prepare request (urllib expects bytes, not str, for the body)
+        request_body = data.encode("utf-8") if isinstance(data, str) else data
+        request = urllib.request.Request(url, data=request_body, method=method)
         if headers:
             for key, value in headers.items():
                 request.add_header(key, value)
@@ -268,8 +273,11 @@ class CorporateNetworkClient:
                 time.sleep(delay + jitter)
 
         # All retries exhausted, raise the last error
+        last_error_message = (
+            last_error.message if last_error is not None else "unknown error"
+        )
         raise RuntimeError(
-            f"Network request failed after {max_retries + 1} attempts: {last_error.message}"
+            f"Network request failed after {max_retries + 1} attempts: {last_error_message}"
         )
 
     def _create_network_error(
@@ -496,14 +504,16 @@ def diagnose_network_issues() -> Dict[str, Any]:
     diagnostics = client.health_check()
 
     # Additional system-level diagnostics
-    system_info = {
+    dns_resolution: Dict[str, bool] = {}
+    port_connectivity: Dict[str, bool] = {}
+    system_info: Dict[str, Any] = {
         "proxy_env_vars": {
             "HTTP_PROXY": os.environ.get("HTTP_PROXY"),
             "HTTPS_PROXY": os.environ.get("HTTPS_PROXY"),
             "NO_PROXY": os.environ.get("NO_PROXY"),
         },
-        "dns_resolution": {},
-        "port_connectivity": {},
+        "dns_resolution": dns_resolution,
+        "port_connectivity": port_connectivity,
     }
 
     # Test DNS resolution
@@ -513,9 +523,9 @@ def diagnose_network_issues() -> Dict[str, Any]:
             hostname = parsed.hostname
             if hostname:
                 socket.gethostbyname(hostname)
-                system_info["dns_resolution"][hostname] = True
+                dns_resolution[hostname] = True
         except socket.gaierror:
-            system_info["dns_resolution"][hostname] = False
+            dns_resolution[hostname] = False
 
     # Test port connectivity
     test_ports = [
@@ -530,9 +540,9 @@ def diagnose_network_issues() -> Dict[str, Any]:
             sock.settimeout(5)
             result = sock.connect_ex((host, port))
             sock.close()
-            system_info["port_connectivity"][f"{host}:{port}"] = result == 0
+            port_connectivity[f"{host}:{port}"] = result == 0
         except Exception:
-            system_info["port_connectivity"][f"{host}:{port}"] = False
+            port_connectivity[f"{host}:{port}"] = False
 
     return {
         "network_diagnostics": diagnostics,

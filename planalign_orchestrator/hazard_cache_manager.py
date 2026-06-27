@@ -164,10 +164,10 @@ class HazardCacheManager:
                     if hasattr(auto, "opt_out_rates"):
                         opt_out = auto.opt_out_rates
                         params["simulation_config"]["enrollment"]["opt_out_rates"] = {
-                            "by_age": getattr(opt_out, "by_age", {}).dict()
+                            "by_age": getattr(opt_out, "by_age", {}).dict()  # type: ignore[union-attr]
                             if hasattr(getattr(opt_out, "by_age", {}), "dict")
                             else getattr(opt_out, "by_age", {}),
-                            "by_income": getattr(opt_out, "by_income", {}).dict()
+                            "by_income": getattr(opt_out, "by_income", {}).dict()  # type: ignore[union-attr]
                             if hasattr(getattr(opt_out, "by_income", {}), "dict")
                             else getattr(opt_out, "by_income", {}),
                         }

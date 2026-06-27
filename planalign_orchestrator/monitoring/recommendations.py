@@ -148,7 +148,7 @@ def _generate_io_recommendations(
     recommendations = []
 
     if len(checkpoints) > 2:
-        total_io_gb = 0
+        total_io_gb = 0.0
         for i in range(1, len(checkpoints)):
             curr = checkpoints[i]
             prev = checkpoints[i - 1]

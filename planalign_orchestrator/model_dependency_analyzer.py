@@ -69,7 +69,7 @@ class DependencyGraph:
 
     def topological_sort(self, models: List[str]) -> List[str]:
         """Return topologically sorted list of models."""
-        in_degree = defaultdict(int)
+        in_degree: Dict[str, int] = defaultdict(int)
 
         # Calculate in-degrees
         for model in models:

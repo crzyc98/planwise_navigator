@@ -10,7 +10,7 @@ Provides:
 
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Pattern
+from typing import Any, Dict, List, Optional, Pattern
 import re
 
 from .exceptions import ResolutionHint, ErrorCategory
@@ -61,7 +61,7 @@ class ErrorCatalog:
         # Replaces all uses of ``.*`` to eliminate backtracking risk.
         _W = r"[\s\S]{0,200}"
 
-        pattern_definitions = [
+        pattern_definitions: List[Dict[str, Any]] = [
             {
                 "regex": rf"(conflicting lock|database{_W}lock|cannot acquire lock|lock{_W}database)",
                 "category": ErrorCategory.DATABASE,

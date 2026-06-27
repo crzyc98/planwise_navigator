@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import logging
 
@@ -33,7 +33,7 @@ from .workflow import StageDefinition, WorkflowStage
 logger = logging.getLogger(__name__)
 
 
-def normalize_path_for_duckdb(path: Path, base_dir: Path = None) -> str:
+def normalize_path_for_duckdb(path: Path, base_dir: Optional[Path] = None) -> str:
     """
     Normalize a path for DuckDB compatibility across all platforms.
 
