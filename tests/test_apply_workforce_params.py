@@ -94,10 +94,22 @@ FULL_CONFIG = {
         "tenure_multipliers": [{"tenure_band": "0-2", "multiplier": 1.5}],
     },
     "age_bands": [
-        {"band_id": 1, "band_label": "25-34", "min_value": 25, "max_value": 35}
+        {
+            "band_id": 1,
+            "band_label": "0-34",
+            "min_value": 0,
+            "max_value": 35,
+            "display_order": 1,
+        }
     ],
     "tenure_bands": [
-        {"band_id": 1, "band_label": "0-2", "min_value": 0, "max_value": 2}
+        {
+            "band_id": 1,
+            "band_label": "0-2",
+            "min_value": 0,
+            "max_value": 2,
+            "display_order": 1,
+        }
     ],
     "data_sources": {"census_parquet_path": "/data/census.parquet"},
     "advanced": {"engine": "sql", "log_level": "INFO"},
