@@ -160,9 +160,9 @@ def get_output_directory(base_name: str = "outputs") -> Path:
     return ensure_directory_exists(output_dir)
 
 
-def check_required_files() -> dict:
+def check_required_files() -> dict[str, object]:
     """Check for existence of required files and directories."""
-    checks = {}
+    checks: dict[str, object] = {}
 
     # Configuration file
     config_path = find_default_config()

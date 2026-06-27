@@ -130,7 +130,7 @@ def create_batch_progress(
 def create_dbt_progress() -> Progress:
     """Create progress indicator specifically for dbt operations."""
     return Progress(
-        SpinnerColumn(spinner_style="blue"),
+        SpinnerColumn(style="blue"),
         TextColumn("[bold blue]dbt:[/bold blue] {task.description}"),
         BarColumn(complete_style="green"),
         TimeElapsedColumn(),
@@ -144,8 +144,8 @@ class ProgressReporter:
 
     def __init__(self, console: Optional[Console] = None):
         self.console = console or Console()
-        self._progress = None
-        self._tasks = {}
+        self._progress: Optional[Progress] = None
+        self._tasks: dict[str, TaskID] = {}
 
     def start_operation(self, name: str, total: Optional[int] = None):
         """Start tracking an operation."""
@@ -213,11 +213,11 @@ class SimulationProgressTracker:
         self.total_years = total_years
         self.start_year = start_year
         self.console = console
-        self.progress = None
-        self.main_task = None
-        self.current_year_task = None
-        self.current_stage_task = None
-        self.current_year = None
+        self.progress: Optional[Progress] = None
+        self.main_task: Optional[TaskID] = None
+        self.current_year_task: Optional[TaskID] = None
+        self.current_stage_task: Optional[TaskID] = None
+        self.current_year: Optional[int] = None
 
         # Define stage weights for progress calculation
         self.stage_weights = {
@@ -259,6 +259,9 @@ class SimulationProgressTracker:
         """Update progress when starting a new year."""
         self.current_year = year
 
+        if self.progress is None or self.main_task is None:
+            return
+
         # Calculate overall progress based on completed years
         completed_years = year - self.start_year
         overall_progress = (completed_years / self.total_years) * 100
@@ -274,6 +277,9 @@ class SimulationProgressTracker:
     def update_stage(self, stage: str):
         """Update progress when starting a new stage."""
         stage_lower = stage.lower().replace("_", " ")
+
+        if self.progress is None:
+            return
 
         # Complete previous stage task
         if self.current_stage_task is not None:
@@ -295,6 +301,9 @@ class SimulationProgressTracker:
 
     def update_stage_progress(self, stage: str, progress_percent: float):
         """Update progress for the current stage."""
+        if self.progress is None:
+            return
+
         if self.current_stage_task is not None:
             self.progress.update(self.current_stage_task, completed=progress_percent)
 
@@ -311,6 +320,9 @@ class SimulationProgressTracker:
 
     def complete(self):
         """Mark simulation as complete."""
+        if self.progress is None:
+            return
+
         if self.current_stage_task is not None:
             self.progress.update(self.current_stage_task, completed=100)
         if self.current_year_task is not None:
@@ -320,5 +332,5 @@ class SimulationProgressTracker:
 
     def error(self, message: str):
         """Mark simulation as failed."""
-        if self.main_task is not None:
+        if self.progress is not None and self.main_task is not None:
             self.progress.update(self.main_task, description="❌ Simulation failed")
