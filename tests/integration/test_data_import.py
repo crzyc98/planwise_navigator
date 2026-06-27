@@ -54,9 +54,10 @@ class TestUploadAndMap:
         data = resp.json()
         assert "import_id" in data
         assert data["status"] == "uploaded"
-        assert len(data["detected_columns"]) == 5
+        assert len(data["detected_columns"]) == 6
         col_names = [c["name"] for c in data["detected_columns"]]
         assert "EMP_ID" in col_names
+        assert "BIRTH_DATE" in col_names
         assert "HIRE_DATE" in col_names
 
     def test_upload_xlsx_detects_available_sheets(self, client, workspace_id):
@@ -121,7 +122,7 @@ class TestUploadAndMap:
                 },
                 {
                     "input_column": "HIRE_DATE",
-                    "output_column": "hire_date",
+                    "output_column": "employee_hire_date",
                     "output_type": "date",
                     "is_required": False,
                     "is_excluded": False,
@@ -137,7 +138,8 @@ class TestUploadAndMap:
                     "output_column": "department",
                     "output_type": "string",
                     "is_required": False,
-                    "is_excluded": False,
+                    # No canonical census field for department; exclude it from output.
+                    "is_excluded": True,
                     "transformations": [
                         {"transform_type": "string_case", "params": {"case": "lower"}}
                     ],
@@ -176,9 +178,12 @@ class TestUploadAndMap:
                 ]
             },
         )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert len(data["validation_errors"]) > 0
+        # Invalid (non-canonical) output columns are rejected hard with 422;
+        # the error detail lists the offending field(s). This matches the live
+        # contract asserted by test_import_schema_mapping's free-form-name test.
+        assert resp.status_code == 422
+        detail = resp.json()["detail"]
+        assert len(detail) > 0
 
 
 # ===========================================================================
@@ -206,8 +211,30 @@ class TestGenerateParquet:
                 },
                 {
                     "input_column": "SALARY",
-                    "output_column": "salary",
+                    "output_column": "employee_gross_compensation",
                     "output_type": "decimal",
+                    "is_excluded": False,
+                    "transformations": [],
+                },
+                # Remaining required census fields (generate rejects an incomplete map)
+                {
+                    "input_column": "BIRTH_DATE",
+                    "output_column": "employee_birth_date",
+                    "output_type": "date",
+                    "is_excluded": False,
+                    "transformations": [],
+                },
+                {
+                    "input_column": "HIRE_DATE",
+                    "output_column": "employee_hire_date",
+                    "output_type": "date",
+                    "is_excluded": False,
+                    "transformations": [],
+                },
+                {
+                    "input_column": "ACTIVE",
+                    "output_column": "active",
+                    "output_type": "boolean",
                     "is_excluded": False,
                     "transformations": [],
                 },
@@ -290,6 +317,35 @@ class TestFileManagement:
                         "input_column": "EMP_ID",
                         "output_column": "employee_id",
                         "output_type": "string",
+                        "is_excluded": False,
+                        "transformations": [],
+                    },
+                    # All required census fields must be mapped before generate.
+                    {
+                        "input_column": "BIRTH_DATE",
+                        "output_column": "employee_birth_date",
+                        "output_type": "date",
+                        "is_excluded": False,
+                        "transformations": [],
+                    },
+                    {
+                        "input_column": "HIRE_DATE",
+                        "output_column": "employee_hire_date",
+                        "output_type": "date",
+                        "is_excluded": False,
+                        "transformations": [],
+                    },
+                    {
+                        "input_column": "SALARY",
+                        "output_column": "employee_gross_compensation",
+                        "output_type": "decimal",
+                        "is_excluded": False,
+                        "transformations": [],
+                    },
+                    {
+                        "input_column": "ACTIVE",
+                        "output_column": "active",
+                        "output_type": "boolean",
                         "is_excluded": False,
                         "transformations": [],
                     },
@@ -413,7 +469,7 @@ class TestPreviewEndpoints:
                 "field_mappings": [
                     {
                         "input_column": "HIRE_DATE",
-                        "output_column": "hire_date",
+                        "output_column": "employee_hire_date",
                         "output_type": "date",
                         "is_excluded": False,
                         "transformations": [
@@ -470,7 +526,8 @@ class TestMappingTemplates:
                         "input_column": "DEPT",
                         "output_column": "department",
                         "output_type": "string",
-                        "is_excluded": False,
+                        # No canonical census field for department; exclude from output.
+                        "is_excluded": True,
                         "transformations": [
                             {
                                 "transform_type": "string_case",
