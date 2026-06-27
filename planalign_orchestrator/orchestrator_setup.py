@@ -200,14 +200,16 @@ def setup_parallelization(
 
             mp_logger = ProductionLogger("ModelParallelization")
 
-            manifest_path = Path("dbt/target/manifest.json")
+            dbt_project_dir = Path("dbt")
+            manifest_path = dbt_project_dir / "target" / "manifest.json"
             if not manifest_path.exists():
                 mp_logger.warning("dbt manifest not found - run 'dbt compile' first")
                 mp_logger.warning("Model parallelization will not be available")
                 return None, None, None, None, False
 
-            # Initialize dependency analyzer
-            dependency_analyzer = ModelDependencyAnalyzer(str(manifest_path))  # type: ignore[arg-type]
+            # Initialize dependency analyzer with the dbt project root (it resolves
+            # <project>/target/manifest.json itself), matching the dbt_runner call sites.
+            dependency_analyzer = ModelDependencyAnalyzer(dbt_project_dir)
 
             # Initialize resource manager if available
             if resource_mgmt_config and RESOURCE_MANAGEMENT_AVAILABLE:
