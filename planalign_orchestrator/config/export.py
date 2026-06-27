@@ -1124,7 +1124,7 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                 )
 
             # Also handle core enabled, contribution rate, status and graded schedule from dc_plan
-            core_top_level = {}
+            core_top_level: Dict[str, Any] = {}
             if dc_plan_dict.get("core_enabled") is not None:
                 core_top_level["enabled"] = bool(dc_plan_dict["core_enabled"])
                 dbt_vars["employer_core_enabled"] = bool(dc_plan_dict["core_enabled"])

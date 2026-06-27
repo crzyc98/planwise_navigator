@@ -639,7 +639,7 @@ class ExcelExporter:
         Returns:
             Dictionary with git metadata (SHA, branch, etc.)
         """
-        metadata = {}
+        metadata: Dict[str, Any] = {}
 
         try:
             # Get git SHA

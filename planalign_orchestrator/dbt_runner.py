@@ -517,7 +517,7 @@ class DbtRunner:
         dbt_vars: Optional[Dict[str, Any]] = None,
         enable_conditional_parallelization: bool = False,
         execution_id: Optional[str] = None,
-    ) -> ExecutionResult:
+    ) -> "ExecutionResult | Dict[str, Any]":
         """Run models with intelligent model-level parallelization.
 
         This method uses the parallel execution engine to analyze model dependencies
@@ -544,7 +544,8 @@ class DbtRunner:
 
         # Refresh dependency analysis if needed
         try:
-            self._dependency_analyzer.analyze_dependencies(refresh_cache=False)
+            if self._dependency_analyzer is not None:
+                self._dependency_analyzer.analyze_dependencies(refresh_cache=False)
         except Exception as e:
             logger.warning(
                 "Failed to analyze dependencies: %s. "

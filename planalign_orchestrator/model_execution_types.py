@@ -289,7 +289,7 @@ class ModelClassifier:
 
     def export_classification_report(self) -> Dict[str, Any]:
         """Export a comprehensive classification report."""
-        by_type = {}
+        by_type: Dict[str, List[Dict[str, Any]]] = {}
         for exec_type in ModelExecutionType:
             by_type[exec_type.value] = []
 

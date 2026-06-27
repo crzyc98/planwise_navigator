@@ -120,6 +120,7 @@ class PipelineOrchestrator:
         self._seeded = False
 
         # Initialize observability (structured logs + performance metrics + run summary)
+        self.observability: Optional[ObservabilityManager]
         try:
             self.observability = ObservabilityManager(log_level="INFO")
             # Record configuration for audit trail
@@ -527,7 +528,9 @@ class PipelineOrchestrator:
             pass
 
         if hasattr(summary, "__dict__"):
-            summary.threading_config = {
+            # threading_config is not a declared MultiYearSummary field; it is
+            # attached dynamically here for downstream consumers (e.g. reports).
+            summary.threading_config = {  # type: ignore[attr-defined]
                 "dbt_threads": self.dbt_threads,
                 "event_shards": self.event_shards,
                 "event_generation_mode": "sql",
@@ -711,28 +714,31 @@ class PipelineOrchestrator:
         self, stage: "StageDefinition", year: int
     ) -> None:
         """Execute stage with advanced resource management (S067-03)."""
-        if not self.resource_manager.check_resource_health():
+        # Callers only invoke this method when self.resource_manager is truthy
+        # (see _execute_stage_with_monitoring); narrow the type here.
+        resource_manager = self.resource_manager
+        assert resource_manager is not None
+
+        if not resource_manager.check_resource_health():
             logger.warning(
                 "Resource pressure detected before stage %s", stage.name.value
             )
-            cleanup_result = self.resource_manager.trigger_resource_cleanup()
+            cleanup_result = resource_manager.trigger_resource_cleanup()
             logger.debug(
                 "Resource cleanup: %+.1fMB freed", cleanup_result["memory_freed_mb"]
             )
 
-        pre_stage_status = self.resource_manager.get_resource_status()
+        pre_stage_status = resource_manager.get_resource_status()
         logger.debug(
             "Pre-stage resources: %.0fMB memory, %.1f%% CPU",
             pre_stage_status["memory"]["usage_mb"],
             pre_stage_status["cpu"]["current_percent"],
         )
 
-        with self.resource_manager.monitor_execution(
-            f"stage_{stage.name.value}_{year}", 1
-        ):
+        with resource_manager.monitor_execution(f"stage_{stage.name.value}_{year}", 1):
             self._execute_stage_core(stage, year)
 
-        post_stage_status = self.resource_manager.get_resource_status()
+        post_stage_status = resource_manager.get_resource_status()
         memory_delta = (
             post_stage_status["memory"]["usage_mb"]
             - pre_stage_status["memory"]["usage_mb"]
@@ -832,9 +838,9 @@ class PipelineOrchestrator:
             comp = self.config.compensation
             logger.info(
                 "Compensation Parameters: COLA=%.1f%%, Merit=%.1f%%, Promotion Lift=%.1f%%",
-                comp.base_cola_rate * 100,
-                comp.base_merit_budget * 100,
-                comp.promotion_lift_pct * 100,
+                comp.cola_rate * 100,
+                comp.merit_budget * 100,
+                comp.promotion_increase * 100,
             )
         except Exception:
             pass
@@ -845,19 +851,19 @@ class PipelineOrchestrator:
             comp = self.config.compensation
             warnings = []
 
-            if comp.base_cola_rate < 0.0 or comp.base_cola_rate > 0.1:
+            if comp.cola_rate < 0.0 or comp.cola_rate > 0.1:
                 warnings.append(
-                    f"COLA rate {comp.base_cola_rate:.1%} is outside normal range [0%, 10%]"
+                    f"COLA rate {comp.cola_rate:.1%} is outside normal range [0%, 10%]"
                 )
 
-            if comp.base_merit_budget < 0.0 or comp.base_merit_budget > 0.15:
+            if comp.merit_budget < 0.0 or comp.merit_budget > 0.15:
                 warnings.append(
-                    f"Merit budget {comp.base_merit_budget:.1%} is outside normal range [0%, 15%]"
+                    f"Merit budget {comp.merit_budget:.1%} is outside normal range [0%, 15%]"
                 )
 
-            if comp.promotion_lift_pct < 0.0 or comp.promotion_lift_pct > 0.25:
+            if comp.promotion_increase < 0.0 or comp.promotion_increase > 0.25:
                 warnings.append(
-                    f"Promotion lift {comp.promotion_lift_pct:.1%} is outside normal range [0%, 25%]"
+                    f"Promotion lift {comp.promotion_increase:.1%} is outside normal range [0%, 25%]"
                 )
 
             for warning in warnings:
@@ -881,9 +887,9 @@ class PipelineOrchestrator:
     ) -> None:
         """Update compensation parameters dynamically (Streamlit integration)"""
         if cola_rate is not None:
-            self.config.compensation.base_cola_rate = cola_rate
+            self.config.compensation.cola_rate = cola_rate
         if merit_budget is not None:
-            self.config.compensation.base_merit_budget = merit_budget
+            self.config.compensation.merit_budget = merit_budget
 
         # Rebuild parameter models to reflect changes
         self._rebuild_parameter_models()

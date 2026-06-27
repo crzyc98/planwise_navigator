@@ -103,12 +103,11 @@ class ParallelExecutionEngine:
         self.classifier = ModelClassifier()
 
         # Advanced resource management (S067-03)
+        self.resource_manager: Optional[ResourceManager] = resource_manager
         if resource_manager is not None:
-            self.resource_manager = resource_manager
-            self.legacy_resource_monitor = None
+            self.legacy_resource_monitor: Optional[LegacyResourceMonitor] = None
         else:
             # Fall back to legacy resource monitoring for backward compatibility
-            self.resource_manager = None
             self.legacy_resource_monitor = LegacyResourceMonitor(
                 memory_threshold_mb=memory_limit_mb
             )
@@ -121,16 +120,17 @@ class ParallelExecutionEngine:
         self._current_thread_count = max_workers
         self._scaling_history: List[Dict[str, Any]] = []
 
-        logger.debug(
-            "ParallelExecutionEngine initialized: workers=%d, resource_monitoring=%s, "
-            "deterministic=%s, memory_limit=%.0fMB, advanced_rm=%s, adaptive_scaling=%s",
-            max_workers,
-            resource_monitoring,
-            deterministic_execution,
-            memory_limit_mb,
-            "enabled" if resource_manager else "disabled",
-            "enabled" if enable_adaptive_scaling else "disabled",
-        )
+        if logger is not None:
+            logger.debug(
+                "ParallelExecutionEngine initialized: workers=%d, resource_monitoring=%s, "
+                "deterministic=%s, memory_limit=%.0fMB, advanced_rm=%s, adaptive_scaling=%s",
+                max_workers,
+                resource_monitoring,
+                deterministic_execution,
+                memory_limit_mb,
+                "enabled" if resource_manager else "disabled",
+                "enabled" if enable_adaptive_scaling else "disabled",
+            )
 
     def _determine_effective_workers(
         self, stage_models: List[str], context: ExecutionContext

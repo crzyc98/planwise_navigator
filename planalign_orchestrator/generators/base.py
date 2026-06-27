@@ -328,6 +328,9 @@ class HazardBasedEventGeneratorMixin:
     hazard_table_name: str = ""
     rng_salt: str = ""
 
+    # Provided by the EventGenerator this mixin is combined with (see class docstring)
+    event_type: str
+
     # Cache for band definitions
     _age_bands: Optional[List[Dict[str, Any]]] = None
     _tenure_bands: Optional[List[Dict[str, Any]]] = None
@@ -374,7 +377,8 @@ class HazardBasedEventGeneratorMixin:
         if self._age_bands is None:
             self._load_age_bands(context)
 
-        for band in self._age_bands:
+        age_bands = self._age_bands or []
+        for band in age_bands:
             if band["min_value"] <= age < band["max_value"]:
                 return band["band_label"]
 
@@ -397,7 +401,8 @@ class HazardBasedEventGeneratorMixin:
         if self._tenure_bands is None:
             self._load_tenure_bands(context)
 
-        for band in self._tenure_bands:
+        tenure_bands = self._tenure_bands or []
+        for band in tenure_bands:
             if band["min_value"] <= tenure < band["max_value"]:
                 return band["band_label"]
 

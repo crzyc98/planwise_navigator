@@ -25,20 +25,24 @@ if TYPE_CHECKING:
 
 # Import availability flags for optional components
 try:
-    from .parallel_execution_engine import ParallelExecutionEngine
-    from .model_dependency_analyzer import ModelDependencyAnalyzer
-    from .resource_manager import ResourceManager
-    from .logger import ProductionLogger
+    from .parallel_execution_engine import (
+        ParallelExecutionEngine as ParallelExecutionEngine,
+    )
+    from .model_dependency_analyzer import (
+        ModelDependencyAnalyzer as ModelDependencyAnalyzer,
+    )
+    from .resource_manager import ResourceManager as ResourceManager
+    from .logger import ProductionLogger as ProductionLogger
 
     MODEL_PARALLELIZATION_AVAILABLE = True
     RESOURCE_MANAGEMENT_AVAILABLE = True
 except ImportError:
     MODEL_PARALLELIZATION_AVAILABLE = False
     RESOURCE_MANAGEMENT_AVAILABLE = False
-    ParallelExecutionEngine = None
-    ModelDependencyAnalyzer = None
-    ResourceManager = None
-    ProductionLogger = None
+    ParallelExecutionEngine = None  # type: ignore[assignment, misc]
+    ModelDependencyAnalyzer = None  # type: ignore[assignment, misc]
+    ResourceManager = None  # type: ignore[assignment, misc]
+    ProductionLogger = None  # type: ignore[assignment, misc]
 
 
 logger = logging.getLogger(__name__)
@@ -203,7 +207,7 @@ def setup_parallelization(
                 return None, None, None, None, False
 
             # Initialize dependency analyzer
-            dependency_analyzer = ModelDependencyAnalyzer(str(manifest_path))
+            dependency_analyzer = ModelDependencyAnalyzer(str(manifest_path))  # type: ignore[arg-type]
 
             # Initialize resource manager if available
             if resource_mgmt_config and RESOURCE_MANAGEMENT_AVAILABLE:

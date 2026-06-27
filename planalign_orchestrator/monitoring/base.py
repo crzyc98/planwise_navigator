@@ -162,12 +162,11 @@ class PerformanceMonitor:
         # Get final resource usage
         try:
             memory_info = self._process.memory_info()
-            metrics.end_memory_mb = memory_info.rss / 1024 / 1024
+            end_memory_mb = memory_info.rss / 1024 / 1024
+            metrics.end_memory_mb = end_memory_mb
 
             if metrics.start_memory_mb is not None:
-                metrics.memory_delta_mb = (
-                    metrics.end_memory_mb - metrics.start_memory_mb
-                )
+                metrics.memory_delta_mb = end_memory_mb - metrics.start_memory_mb
 
             # Get CPU usage (averaged over the operation duration)
             metrics.cpu_percent = self._process.cpu_percent()
@@ -222,12 +221,20 @@ class PerformanceMonitor:
             m for m in self.metrics.values() if m.duration_seconds is not None
         ]
         slowest = (
-            max(completed_metrics, key=lambda m: m.duration_seconds, default=None)
+            max(
+                completed_metrics,
+                key=lambda m: m.duration_seconds or 0.0,
+                default=None,
+            )
             if completed_metrics
             else None
         )
         fastest = (
-            min(completed_metrics, key=lambda m: m.duration_seconds, default=None)
+            min(
+                completed_metrics,
+                key=lambda m: m.duration_seconds or 0.0,
+                default=None,
+            )
             if completed_metrics
             else None
         )

@@ -100,6 +100,8 @@ class DatabaseInspector:
         """
 
         result = self.conn.execute(query, params).fetchone()
+        if result is None:
+            raise ValueError("quick_stats query returned no rows")
 
         return {
             "total_events": result[0],
@@ -132,6 +134,8 @@ class DatabaseInspector:
         WHERE {COL_SIMULATION_YEAR} = ?
         """
         events = self.conn.execute(event_query, [year]).fetchone()
+        if events is None:
+            raise ValueError(f"event_query returned no rows for year {year}")
 
         # Workforce metrics
         workforce_query = f"""
@@ -143,6 +147,8 @@ class DatabaseInspector:
         WHERE {COL_SIMULATION_YEAR} = ? AND employment_status = 'active'
         """
         workforce = self.conn.execute(workforce_query, [year]).fetchone()
+        if workforce is None:
+            raise ValueError(f"workforce_query returned no rows for year {year}")
 
         # Data quality checks
         dq_issues = self._check_data_quality(year)
@@ -161,6 +167,13 @@ class DatabaseInspector:
             data_quality_issues=dq_issues,
         )
 
+    def _scalar_count(self, query: str, params: list) -> int:
+        """Execute a COUNT(*)-style query and return the scalar result."""
+        row = self.conn.execute(query, params).fetchone()
+        if row is None:
+            raise ValueError("count query returned no rows")
+        return int(row[0])
+
     def _check_data_quality(self, year: int) -> list[str]:
         """Run fast data quality checks for a year."""
         issues = []
@@ -175,7 +188,7 @@ class DatabaseInspector:
             HAVING COUNT(*) > 1
         )
         """
-        dup_count = self.conn.execute(dup_check, [year]).fetchone()[0]
+        dup_count = self._scalar_count(dup_check, [year])
         if dup_count > 0:
             issues.append(f"⚠️  {dup_count} employees with duplicate enrollment events")
 
@@ -192,20 +205,18 @@ class DatabaseInspector:
                 AND w.employee_enrollment_date IS NULL
         )
         """
-        missing_count = self.conn.execute(missing_dates, [year]).fetchone()[0]
+        missing_count = self._scalar_count(missing_dates, [year])
         if missing_count > 0:
             issues.append(
                 f"❌ {missing_count} enrollment events missing employee_enrollment_date in snapshot"
             )
 
         # Check for zero workforce
-        if (
-            self.conn.execute(
-                f"SELECT COUNT(*) FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} WHERE {COL_SIMULATION_YEAR} = ?",
-                [year],
-            ).fetchone()[0]
-            == 0
-        ):
+        zero_workforce_count = self._scalar_count(
+            f"SELECT COUNT(*) FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} WHERE {COL_SIMULATION_YEAR} = ?",
+            [year],
+        )
+        if zero_workforce_count == 0:
             issues.append(f"🚨 Zero workforce records for year {year}")
 
         return issues
@@ -292,7 +303,7 @@ class StateVisualizer:
 
     def list_checkpoints(self) -> list[CheckpointMetadata]:
         """List all available checkpoints."""
-        checkpoints = []
+        checkpoints: list[CheckpointMetadata] = []
 
         if not self.checkpoint_dir.exists():
             return checkpoints

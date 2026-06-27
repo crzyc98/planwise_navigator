@@ -411,7 +411,10 @@ class YearExecutor:
             if self.parallelization_config and hasattr(
                 self.parallelization_config, "safety"
             ):
-                if self.parallelization_config.safety.validate_execution_safety:
+                if (
+                    self.parallelization_config.safety.validate_execution_safety
+                    and self.parallel_execution_engine is not None
+                ):
                     # Only use if validation passes
                     validation = (
                         self.parallel_execution_engine.validate_stage_parallelization(
@@ -461,6 +464,10 @@ class YearExecutor:
         )
 
         # Execute with parallelization engine
+        # Precondition: caller (_run_stage_models) only invokes this method when
+        # self.parallel_execution_engine and self.parallelization_config are set.
+        assert self.parallel_execution_engine is not None
+        assert self.parallelization_config is not None
         result = self.parallel_execution_engine.execute_stage_with_parallelization(
             stage.models,
             context,

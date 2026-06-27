@@ -510,7 +510,7 @@ class AdaptiveMemoryManager:
         # Calculate statistics
         avg_memory = sum(s.rss_mb for s in recent_snapshots) / len(recent_snapshots)
         max_memory = max(s.rss_mb for s in recent_snapshots)
-        pressure_counts = {}
+        pressure_counts: Dict[MemoryPressureLevel, int] = {}
         for s in recent_snapshots:
             pressure_counts[s.pressure_level] = (
                 pressure_counts.get(s.pressure_level, 0) + 1
