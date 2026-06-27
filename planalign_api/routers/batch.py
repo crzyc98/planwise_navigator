@@ -190,6 +190,10 @@ async def _execute_batch(
         try:
             # Get merged config for this scenario
             merged_config = storage.get_merged_config(workspace_id, scenario.id)
+            if merged_config is None:
+                raise ValueError(
+                    f"No merged config available for scenario {scenario.id}"
+                )
 
             # Execute the simulation
             await simulation_service.execute_simulation(

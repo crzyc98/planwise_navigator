@@ -121,10 +121,10 @@ class PromotionHazardService:
             errors.append(
                 f"Expected 6 age multipliers, got {len(config.age_multipliers)}"
             )
-        for m in config.age_multipliers:
-            if m.multiplier < 0:
+        for age_m in config.age_multipliers:
+            if age_m.multiplier < 0:
                 errors.append(
-                    f"Age multiplier for band '{m.age_band}' must be non-negative"
+                    f"Age multiplier for band '{age_m.age_band}' must be non-negative"
                 )
 
         # Validate tenure multipliers
@@ -132,10 +132,10 @@ class PromotionHazardService:
             errors.append(
                 f"Expected 5 tenure multipliers, got {len(config.tenure_multipliers)}"
             )
-        for m in config.tenure_multipliers:
-            if m.multiplier < 0:
+        for tenure_m in config.tenure_multipliers:
+            if tenure_m.multiplier < 0:
                 errors.append(
-                    f"Tenure multiplier for band '{m.tenure_band}' must be non-negative"
+                    f"Tenure multiplier for band '{tenure_m.tenure_band}' must be non-negative"
                 )
 
         return errors
@@ -172,9 +172,9 @@ class PromotionHazardService:
             with open(age_path, "w", newline="") as f:
                 writer = csv.DictWriter(f, fieldnames=["age_band", "multiplier"])
                 writer.writeheader()
-                for m in config.age_multipliers:
+                for age_m in config.age_multipliers:
                     writer.writerow(
-                        {"age_band": m.age_band, "multiplier": m.multiplier}
+                        {"age_band": age_m.age_band, "multiplier": age_m.multiplier}
                     )
 
             # Write tenure multipliers
@@ -184,9 +184,12 @@ class PromotionHazardService:
             with open(tenure_path, "w", newline="") as f:
                 writer = csv.DictWriter(f, fieldnames=["tenure_band", "multiplier"])
                 writer.writeheader()
-                for m in config.tenure_multipliers:
+                for tenure_m in config.tenure_multipliers:
                     writer.writerow(
-                        {"tenure_band": m.tenure_band, "multiplier": m.multiplier}
+                        {
+                            "tenure_band": tenure_m.tenure_band,
+                            "multiplier": tenure_m.multiplier,
+                        }
                     )
 
             logger.info("Successfully saved promotion hazard configurations")

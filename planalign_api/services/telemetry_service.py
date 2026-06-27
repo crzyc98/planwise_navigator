@@ -187,6 +187,8 @@ class TelemetryService:
         if state is None:
             return
         record_type = record.get("record")
+        if not isinstance(record_type, str):
+            return
         handlers = {
             "stage_started": self._on_stage_started,
             "stage_completed": self._on_stage_completed,

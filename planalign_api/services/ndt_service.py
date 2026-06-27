@@ -261,7 +261,7 @@ class NDTService:
             conn = duckdb.connect(str(db_path))
             try:
                 # Check if all required columns exist
-                column_count = conn.execute(
+                column_count_row = conn.execute(
                     """
                     SELECT COUNT(*) FROM information_schema.columns
                     WHERE table_schema = 'main'
@@ -269,7 +269,9 @@ class NDTService:
                       AND column_name IN (?, ?, ?)
                     """,
                     list(required_columns),
-                ).fetchone()[0]
+                ).fetchone()
+                assert column_count_row is not None
+                column_count = column_count_row[0]
 
                 if column_count == len(required_columns):
                     NDTService._seed_verified.add(key)
@@ -354,6 +356,8 @@ class NDTService:
                 test_message=f"Database not found for scenario {scenario_id}",
             )
 
+        assert resolved.path is not None  # guaranteed by resolved.exists check above
+
         try:
             # Ensure seed table has the hce_compensation_threshold column
             self._ensure_seed_current(resolved.path)
@@ -385,12 +389,12 @@ class NDTService:
             hce_threshold = int(hce_threshold_row[0])
 
             # Check if prior year data exists
+            prior_year_count_row = conn.execute(
+                "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
+                [year - 1],
+            ).fetchone()
             prior_year_exists = (
-                conn.execute(
-                    "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
-                    [year - 1],
-                ).fetchone()[0]
-                > 0
+                prior_year_count_row is not None and prior_year_count_row[0] > 0
             )
 
             # Main ACP query with HCE determination
@@ -612,6 +616,8 @@ class NDTService:
                 test_message=f"Database not found for scenario {scenario_id}",
             )
 
+        assert resolved.path is not None  # guaranteed by resolved.exists check above
+
         try:
             self._ensure_seed_current(resolved.path)
             conn = duckdb.connect(str(resolved.path), read_only=True)
@@ -639,13 +645,12 @@ class NDTService:
             hce_threshold = int(hce_threshold_row[0])
 
             # Check prior year data
-            prior_year_exists = (
-                conn.execute(
-                    "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
-                    [year - 1],
-                ).fetchone()[0]
-                > 0
-            )
+            prior_year_exists_row = conn.execute(
+                "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
+                [year - 1],
+            ).fetchone()
+            assert prior_year_exists_row is not None
+            prior_year_exists = prior_year_exists_row[0] > 0
 
             prior_year_param = year - 1 if prior_year_exists else year
 
@@ -939,6 +944,7 @@ class NDTService:
                 test_message=f"Database not found for scenario {scenario_id}",
             )
 
+        assert resolved.path is not None  # guaranteed by resolved.exists check above
         try:
             self._ensure_seed_current(resolved.path)
             conn = duckdb.connect(str(resolved.path), read_only=True)
@@ -1112,6 +1118,7 @@ class NDTService:
                 testing_method=testing_method,
             )
 
+        assert resolved.path is not None  # guaranteed by resolved.exists check above
         try:
             self._ensure_seed_current(resolved.path)
             conn = duckdb.connect(str(resolved.path), read_only=True)
@@ -1141,12 +1148,12 @@ class NDTService:
             hce_threshold = int(hce_threshold_row[0])
 
             # Check if prior year data exists
+            prior_year_count_row = conn.execute(
+                "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
+                [year - 1],
+            ).fetchone()
             prior_year_exists = (
-                conn.execute(
-                    "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
-                    [year - 1],
-                ).fetchone()[0]
-                > 0
+                prior_year_count_row is not None and prior_year_count_row[0] > 0
             )
 
             # Prior year testing method: get NHCE ADP from prior year
@@ -1178,15 +1185,15 @@ class NDTService:
                     WHERE is_hce = FALSE
                     """
                     # For prior year NHCE baseline, use year-2 for HCE determination of year-1
-                    prior_hce_year = (
-                        year - 2
-                        if conn.execute(
-                            "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
-                            [year - 2],
-                        ).fetchone()[0]
-                        > 0
-                        else year - 1
+                    year_minus_2_count_row = conn.execute(
+                        "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
+                        [year - 2],
+                    ).fetchone()
+                    year_minus_2_exists = (
+                        year_minus_2_count_row is not None
+                        and year_minus_2_count_row[0] > 0
                     )
+                    prior_hce_year = year - 2 if year_minus_2_exists else year - 1
 
                     prior_nhce_rows = conn.execute(
                         prior_nhce_query, [prior_hce_year, hce_threshold, year - 1]

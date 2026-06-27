@@ -61,9 +61,14 @@ def export_results_to_excel(
         exporter = ExcelExporter(db_manager)
 
         # Try to create a SimulationConfig object from the config dict
-        # If that fails, create a minimal mock config
+        # If that fails, create a minimal mock config.
+        # NOTE: `from_dict` does not exist on SimulationConfig (Pydantic v2), so this
+        # call always raises and falls back to the mock config. That latent bug is
+        # tracked separately; behavior is intentionally preserved here to keep this a
+        # type-only change. Switching to `SimulationConfig.model_validate(config)` is
+        # the real fix but changes runtime behavior and must land with its own tests.
         try:
-            sim_config = SimulationConfig.from_dict(config)
+            sim_config: Any = SimulationConfig.from_dict(config)  # type: ignore[attr-defined]
         except Exception as e:
             # Improved error logging: include exception type for diagnostics
             logger.warning(

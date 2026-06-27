@@ -55,9 +55,11 @@ def read_results(
         logger.warning(f"No database found for scenario {scenario_id}")
         return None
 
-    db_source = resolved.source
-    if resolved.source == "project":
-        db_source = "global (shared - may show data from other scenarios)"
+    db_source: str = (
+        "global (shared - may show data from other scenarios)"
+        if resolved.source == "project"
+        else str(resolved.source)
+    )
     logger.info(f"Loading results from {db_source} database: {resolved.path}")
 
     try:

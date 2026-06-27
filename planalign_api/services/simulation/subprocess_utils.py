@@ -41,7 +41,7 @@ async def create_subprocess(
     if IS_WINDOWS:
         # On Windows, use Popen + thread-based async reading
         # This is more reliable than asyncio subprocess on Windows
-        process = subprocess.Popen(
+        win_process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -49,35 +49,39 @@ async def create_subprocess(
             env=env,
             bufsize=1,  # Line buffered
         )
+        win_stdout = win_process.stdout
+        assert win_stdout is not None  # PIPE was requested above
 
         async def read_lines() -> AsyncIterator[bytes]:
             """Read lines from process stdout using thread pool."""
             loop = asyncio.get_event_loop()
             while True:
                 line = await loop.run_in_executor(
-                    _subprocess_executor, process.stdout.readline
+                    _subprocess_executor, win_stdout.readline
                 )
                 if not line:
                     break
                 yield line
 
-        return process, read_lines()
+        return win_process, read_lines()
     else:
         # On Unix, asyncio subprocess works fine
-        process = await asyncio.create_subprocess_exec(
+        unix_process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
             cwd=cwd,
             env=env,
         )
+        unix_stdout = unix_process.stdout
+        assert unix_stdout is not None  # PIPE was requested above
 
         async def read_lines() -> AsyncIterator[bytes]:
             """Read lines from asyncio subprocess."""
-            async for line in process.stdout:
+            async for line in unix_stdout:
                 yield line
 
-        return process, read_lines()
+        return unix_process, read_lines()
 
 
 async def wait_subprocess(process: Any) -> int:

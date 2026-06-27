@@ -80,7 +80,13 @@ class ScenarioService:
         self, workspace_id: str, scenario_id: str, data: ScenarioUpdate
     ) -> Optional[Scenario]:
         """Update an existing scenario."""
-        return self.storage.update_scenario(workspace_id, scenario_id, data)
+        return self.storage.update_scenario(
+            workspace_id,
+            scenario_id,
+            name=data.name,
+            description=data.description,
+            config_overrides=data.config_overrides,
+        )
 
     def delete_scenario(self, workspace_id: str, scenario_id: str) -> bool:
         """Delete a scenario."""

@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import yaml
+import yaml  # type: ignore[import]  # types-PyYAML not in CI deps
 
 from config.constants import DATABASE_FILENAME, STATUS_RUNNING
 
@@ -227,7 +227,7 @@ class WorkspaceStorage:
 
     def list_scenarios(self, workspace_id: str) -> List[Scenario]:
         """List all scenarios in a workspace."""
-        scenarios = []
+        scenarios: List[Scenario] = []
         scenarios_dir = self._scenarios_path(workspace_id)
 
         if not scenarios_dir.exists():
@@ -726,7 +726,7 @@ class WorkspaceStorage:
             - repairs: List of repair actions taken
             - errors: List of unrecoverable errors
         """
-        report = {
+        report: Dict[str, Any] = {
             "workspaces_scanned": 0,
             "scenarios_scanned": 0,
             "repairs": [],

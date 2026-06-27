@@ -8,7 +8,7 @@ import csv
 import logging
 from datetime import date
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 import duckdb
 
@@ -33,6 +33,18 @@ logger = logging.getLogger(__name__)
 
 # Path to dbt seeds directory (relative to project root)
 DBT_SEEDS_DIR = Path(__file__).parent.parent.parent / "dbt" / "seeds"
+
+
+def _fetchone_scalar(cursor: duckdb.DuckDBPyConnection) -> Any:
+    """Fetch the first column of the first row from an executed query.
+
+    Used for aggregate queries (e.g. COUNT(*)) that always return exactly
+    one row, so a None result indicates a programming error rather than
+    an expected empty result.
+    """
+    row = cursor.fetchone()
+    assert row is not None, "Expected a row from aggregate query"
+    return row[0]
 
 
 class BandService:
@@ -354,7 +366,7 @@ class BandService:
             for col_name in CENSUS_BIRTH_DATE_COLUMNS:
                 if col_name in columns:
                     birth_date_col = validate_column_name_from_set(
-                        col_name, CENSUS_BIRTH_DATE_COLUMNS, "birth date column"
+                        col_name, set(CENSUS_BIRTH_DATE_COLUMNS), "birth date column"
                     )
                     break
 
@@ -370,7 +382,7 @@ class BandService:
             for col_name in CENSUS_HIRE_DATE_COLUMNS:
                 if col_name in columns:
                     hire_date_col = validate_column_name_from_set(
-                        col_name, CENSUS_HIRE_DATE_COLUMNS, "hire date column"
+                        col_name, set(CENSUS_HIRE_DATE_COLUMNS), "hire date column"
                     )
                     break
 
@@ -406,10 +418,12 @@ class BandService:
                             context="year",
                         )
                         # Use parameterized query for the year value
-                        recent_count = conn.execute(
-                            f"SELECT COUNT(*) FROM census WHERE YEAR(CAST({hire_date_col} AS DATE)) = ?",
-                            [recent_year],
-                        ).fetchone()[0]
+                        recent_count = _fetchone_scalar(
+                            conn.execute(
+                                f"SELECT COUNT(*) FROM census WHERE YEAR(CAST({hire_date_col} AS DATE)) = ?",
+                                [recent_year],
+                            )
+                        )
 
                         if recent_count >= 10:
                             conn.execute(
@@ -445,7 +459,7 @@ class BandService:
             # Filter out invalid ages
             conn.execute("DELETE FROM census WHERE _age < 18 OR _age >= 100")
 
-            total_count = conn.execute("SELECT COUNT(*) FROM census").fetchone()[0]
+            total_count = _fetchone_scalar(conn.execute("SELECT COUNT(*) FROM census"))
             if total_count == 0:
                 conn.close()
                 raise ValueError("No employees with valid age data found")
@@ -467,6 +481,7 @@ class BandService:
                 FROM census
             """
             ).fetchone()
+            assert stats is not None, "Expected a row from aggregate query"
 
             # Generate suggested bands using percentile-based boundaries
             suggested_bands = self._generate_age_bands_from_percentiles_duckdb(
@@ -530,9 +545,11 @@ class BandService:
             else:
                 # Validate percentile value before use
                 p_decimal = validate_numeric(p / 100, context="percentile")
-                val = conn.execute(
-                    "SELECT QUANTILE_CONT(_age, ?) FROM census", [p_decimal]
-                ).fetchone()[0]
+                val = _fetchone_scalar(
+                    conn.execute(
+                        "SELECT QUANTILE_CONT(_age, ?) FROM census", [p_decimal]
+                    )
+                )
                 boundaries.append(int(val))
 
         # Ensure boundaries are strictly increasing
@@ -632,7 +649,7 @@ class BandService:
             for col_name in CENSUS_HIRE_DATE_COLUMNS:
                 if col_name in columns:
                     hire_date_col = validate_column_name_from_set(
-                        col_name, CENSUS_HIRE_DATE_COLUMNS, "hire date column"
+                        col_name, set(CENSUS_HIRE_DATE_COLUMNS), "hire date column"
                     )
                     break
 
@@ -667,7 +684,7 @@ class BandService:
             # Filter out invalid tenure (negative or very high)
             conn.execute("DELETE FROM census WHERE _tenure < 0 OR _tenure >= 100")
 
-            total_count = conn.execute("SELECT COUNT(*) FROM census").fetchone()[0]
+            total_count = _fetchone_scalar(conn.execute("SELECT COUNT(*) FROM census"))
             if total_count == 0:
                 conn.close()
                 raise ValueError("No employees with valid tenure data found")
@@ -689,6 +706,7 @@ class BandService:
                 FROM census
             """
             ).fetchone()
+            assert stats is not None, "Expected a row from aggregate query"
 
             # Generate suggested bands using percentile-based boundaries
             suggested_bands = self._generate_tenure_bands_from_percentiles_duckdb(
@@ -740,9 +758,11 @@ class BandService:
             else:
                 # Validate percentile value before use
                 p_decimal = validate_numeric(p / 100, context="percentile")
-                val = conn.execute(
-                    "SELECT QUANTILE_CONT(_tenure, ?) FROM census", [p_decimal]
-                ).fetchone()[0]
+                val = _fetchone_scalar(
+                    conn.execute(
+                        "SELECT QUANTILE_CONT(_tenure, ?) FROM census", [p_decimal]
+                    )
+                )
                 boundaries.append(int(val))
 
         # Ensure boundaries are strictly increasing
