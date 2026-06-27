@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-import yaml
+import yaml  # type: ignore[import]  # types-PyYAML not in CI deps
 
 from config.constants import DATABASE_FILENAME, STATUS_COMPLETED
 

@@ -90,7 +90,7 @@ class TurnoverAnalysisService:
             for col_name in CENSUS_HIRE_DATE_COLUMNS:
                 if col_name in columns:
                     hire_date_col = validate_column_name_from_set(
-                        col_name, CENSUS_HIRE_DATE_COLUMNS, "hire date column"
+                        col_name, set(CENSUS_HIRE_DATE_COLUMNS), "hire date column"
                     )
                     break
 
@@ -106,7 +106,7 @@ class TurnoverAnalysisService:
                 if col_name in columns:
                     term_date_col = validate_column_name_from_set(
                         col_name,
-                        CENSUS_TERMINATION_DATE_COLUMNS,
+                        set(CENSUS_TERMINATION_DATE_COLUMNS),
                         "termination date column",
                     )
                     break
@@ -172,11 +172,15 @@ class TurnoverAnalysisService:
                 )
 
             # Calculate totals
-            total_employees = conn.execute("SELECT COUNT(*) FROM census").fetchone()[0]
+            total_employees_row = conn.execute("SELECT COUNT(*) FROM census").fetchone()
+            assert total_employees_row is not None
+            total_employees = total_employees_row[0]
 
-            total_terminated = conn.execute(
+            total_terminated_row = conn.execute(
                 "SELECT COUNT(*) FROM census WHERE _is_terminated = true"
-            ).fetchone()[0]
+            ).fetchone()
+            assert total_terminated_row is not None
+            total_terminated = total_terminated_row[0]
 
             if total_employees == 0:
                 raise ValueError("No employees with valid data found in census file")
@@ -211,6 +215,7 @@ class TurnoverAnalysisService:
                 FROM census
                 """
             ).fetchone()
+            assert stats is not None
 
             experienced_total = stats[0]
             experienced_terminated = stats[1]

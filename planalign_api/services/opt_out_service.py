@@ -131,10 +131,10 @@ class OptOutAnalysisService:
 
         # Validate against the allowlist before use in SQL
         validate_column_name_from_set(
-            hire_col, CENSUS_HIRE_DATE_COLUMNS, "hire date column"
+            hire_col, set(CENSUS_HIRE_DATE_COLUMNS), "hire date column"
         )
         validate_column_name_from_set(
-            deferral_col, CENSUS_DEFERRAL_COLUMNS, "deferral rate column"
+            deferral_col, set(CENSUS_DEFERRAL_COLUMNS), "deferral rate column"
         )
 
         return hire_col, deferral_col
@@ -151,14 +151,18 @@ class OptOutAnalysisService:
         active_filter = self._active_filter(conn)
 
         # Count employees with NULL hire_date (excluded from all calculations)
-        excluded_null_tenure = conn.execute(
+        excluded_null_tenure_row = conn.execute(
             f"SELECT COUNT(*) FROM census WHERE {active_filter} AND ({hire_col} IS NULL OR CAST({hire_col} AS VARCHAR) = '')"
-        ).fetchone()[0]
+        ).fetchone()
+        assert excluded_null_tenure_row is not None
+        excluded_null_tenure = excluded_null_tenure_row[0]
 
         # Total eligible (active, non-null hire date)
-        total_eligible_in_census = conn.execute(
+        total_eligible_in_census_row = conn.execute(
             f"SELECT COUNT(*) FROM census WHERE {active_filter} AND {hire_col} IS NOT NULL AND CAST({hire_col} AS VARCHAR) != ''"
-        ).fetchone()[0]
+        ).fetchone()
+        assert total_eligible_in_census_row is not None
+        total_eligible_in_census = total_eligible_in_census_row[0]
 
         # Lookback cutoff: MAX(hire_date) - lookback_years * 365 days
         max_hire_row = conn.execute(
@@ -171,7 +175,7 @@ class OptOutAnalysisService:
 
         f"(MAX(TRY_CAST({hire_col} AS DATE)) - INTERVAL {lookback_years * 365} DAYS)"
 
-        eligible_count = conn.execute(
+        eligible_count_row = conn.execute(
             f"""
             SELECT COUNT(*) FROM census
             WHERE {active_filter}
@@ -182,7 +186,9 @@ class OptOutAnalysisService:
                   WHERE {active_filter} AND {hire_col} IS NOT NULL AND CAST({hire_col} AS VARCHAR) != ''
               )
             """
-        ).fetchone()[0]
+        ).fetchone()
+        assert eligible_count_row is not None
+        eligible_count = eligible_count_row[0]
 
         if eligible_count == 0:
             return OptOutRateAnalysisResult(
@@ -201,7 +207,7 @@ class OptOutAnalysisService:
                 ),
             )
 
-        non_participant_count = conn.execute(
+        non_participant_count_row = conn.execute(
             f"""
             SELECT COUNT(*) FROM census
             WHERE {active_filter}
@@ -214,7 +220,9 @@ class OptOutAnalysisService:
               AND (TRY_CAST({deferral_col} AS DOUBLE) IS NULL
                    OR TRY_CAST({deferral_col} AS DOUBLE) = 0)
             """
-        ).fetchone()[0]
+        ).fetchone()
+        assert non_participant_count_row is not None
+        non_participant_count = non_participant_count_row[0]
 
         suggested_rate = non_participant_count / eligible_count
 

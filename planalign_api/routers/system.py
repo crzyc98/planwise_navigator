@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends
-import yaml
+import yaml  # type: ignore[import]  # types-PyYAML not in CI deps
 
 from ..config import APISettings, get_settings
 from ..models.system import HealthResponse, SystemStatus

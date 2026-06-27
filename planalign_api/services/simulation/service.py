@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import psutil
-import yaml
+import yaml  # type: ignore[import]  # types-PyYAML not in CI deps
 
 from ...models.simulation import (
     PerformanceMetrics,
@@ -173,7 +173,7 @@ class SimulationService:
         workspace_id: str,
         scenario_id: str,
         config: Dict[str, Any],
-    ) -> tuple:
+    ) -> "tuple[Path, int, int, int]":
         """Prepare scenario directory, config, seeds, and year range.
 
         Returns (scenario_path, start_year, end_year, total_years).

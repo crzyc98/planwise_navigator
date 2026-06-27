@@ -3,7 +3,7 @@
 import logging
 from datetime import datetime, date, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import duckdb
 
@@ -23,6 +23,18 @@ from .sql_security import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _fetchone_scalar(cursor: duckdb.DuckDBPyConnection) -> Any:
+    """Fetch the first column of the first row from an executed query.
+
+    Used for aggregate queries (e.g. COUNT(*)) that always return exactly
+    one row, so a None result indicates a programming error rather than
+    an expected empty result.
+    """
+    row = cursor.fetchone()
+    assert row is not None, "Expected a row from aggregate query"
+    return row[0]
 
 
 class FileService:
@@ -265,10 +277,12 @@ class FileService:
                 for alias, canonical in self.COLUMN_ALIASES.items():
                     if alias in columns and canonical not in columns:
                         safe_alias = validate_column_name_from_set(
-                            alias, ALL_CENSUS_COLUMNS, "census alias column"
+                            alias, set(ALL_CENSUS_COLUMNS), "census alias column"
                         )
                         safe_canonical = validate_column_name_from_set(
-                            canonical, ALL_CENSUS_COLUMNS, "census canonical column"
+                            canonical,
+                            set(ALL_CENSUS_COLUMNS),
+                            "census canonical column",
                         )
                         conn.execute(
                             f'ALTER TABLE census RENAME COLUMN "{safe_alias}" TO "{safe_canonical}"'
@@ -339,7 +353,7 @@ class FileService:
             warnings: List[str] = []
 
             # Get row count
-            row_count = conn.execute("SELECT COUNT(*) FROM census").fetchone()[0]
+            row_count = _fetchone_scalar(conn.execute("SELECT COUNT(*) FROM census"))
 
             # Check required columns
             missing_required = [
@@ -446,15 +460,15 @@ class FileService:
 
             try:
                 # Get count of affected rows
-                count_result = conn.execute(
-                    f"""
+                affected_count = _fetchone_scalar(
+                    conn.execute(
+                        f"""
                     SELECT COUNT(*) FROM (
                         SELECT CAST("{col}" AS VARCHAR) AS val FROM census
                     ) WHERE val IS NULL OR TRIM(val) = ''
                 """
-                ).fetchone()
-
-                affected_count = count_result[0]
+                    )
+                )
                 if affected_count == 0:
                     continue
 
@@ -509,16 +523,16 @@ class FileService:
 
             try:
                 # Check for values that are non-null strings but fail date parsing
-                count_result = conn.execute(
-                    f"""
+                affected_count = _fetchone_scalar(
+                    conn.execute(
+                        f"""
                     SELECT COUNT(*) FROM (
                         SELECT CAST("{col}" AS VARCHAR) AS val FROM census
                     ) WHERE val IS NOT NULL AND TRIM(val) != ''
                       AND TRY_CAST(val AS DATE) IS NULL
                 """
-                ).fetchone()
-
-                affected_count = count_result[0]
+                    )
+                )
                 if affected_count == 0:
                     continue
 
@@ -570,15 +584,15 @@ class FileService:
                 continue
 
             try:
-                count_result = conn.execute(
-                    f"""
+                affected_count = _fetchone_scalar(
+                    conn.execute(
+                        f"""
                     SELECT COUNT(*) FROM (
                         SELECT TRY_CAST("{col}" AS DOUBLE) AS num_val FROM census
                     ) WHERE num_val IS NOT NULL AND num_val <= 0
                 """
-                ).fetchone()
-
-                affected_count = count_result[0]
+                    )
+                )
                 if affected_count == 0:
                     continue
 
@@ -789,7 +803,7 @@ class FileService:
             for col_name in CENSUS_BIRTH_DATE_COLUMNS:
                 if col_name in columns:
                     birth_date_col = validate_column_name_from_set(
-                        col_name, CENSUS_BIRTH_DATE_COLUMNS, "birth date column"
+                        col_name, set(CENSUS_BIRTH_DATE_COLUMNS), "birth date column"
                     )
                     break
 
@@ -804,7 +818,7 @@ class FileService:
             for col_name in CENSUS_HIRE_DATE_COLUMNS:
                 if col_name in columns:
                     hire_date_col = validate_column_name_from_set(
-                        col_name, CENSUS_HIRE_DATE_COLUMNS, "hire date column"
+                        col_name, set(CENSUS_HIRE_DATE_COLUMNS), "hire date column"
                     )
                     break
 
@@ -836,10 +850,12 @@ class FileService:
                         max_hire_date.year, min_val=1900, max_val=2100, context="year"
                     )
                     # Check if we have enough recent hires using parameterized query
-                    recent_count = conn.execute(
-                        f"SELECT COUNT(*) FROM census WHERE YEAR(CAST({hire_date_col} AS DATE)) = ?",
-                        [recent_year],
-                    ).fetchone()[0]
+                    recent_count = _fetchone_scalar(
+                        conn.execute(
+                            f"SELECT COUNT(*) FROM census WHERE YEAR(CAST({hire_date_col} AS DATE)) = ?",
+                            [recent_year],
+                        )
+                    )
 
                     if recent_count >= 10:
                         conn.execute(
@@ -882,7 +898,7 @@ class FileService:
                 (50, 48, 100, "Late career changes"),
             ]
 
-            total_count = conn.execute("SELECT COUNT(*) FROM census").fetchone()[0]
+            total_count = _fetchone_scalar(conn.execute("SELECT COUNT(*) FROM census"))
             if total_count == 0:
                 raise ValueError(
                     "No employees found. "
@@ -892,10 +908,12 @@ class FileService:
             distribution = []
             for target_age, min_age, max_age, description in age_buckets:
                 # Use parameterized query for age range
-                count = conn.execute(
-                    "SELECT COUNT(*) FROM census WHERE _age >= ? AND _age < ?",
-                    [min_age, max_age],
-                ).fetchone()[0]
+                count = _fetchone_scalar(
+                    conn.execute(
+                        "SELECT COUNT(*) FROM census WHERE _age >= ? AND _age < ?",
+                        [min_age, max_age],
+                    )
+                )
                 weight = round(count / total_count, 4) if total_count > 0 else 0
 
                 distribution.append(
@@ -983,7 +1001,7 @@ class FileService:
             elif "status" in columns:
                 conn.execute("DELETE FROM census WHERE LOWER(status) != 'active'")
 
-            headcount = conn.execute("SELECT COUNT(*) FROM census").fetchone()[0]
+            headcount = _fetchone_scalar(conn.execute("SELECT COUNT(*) FROM census"))
 
             # Find scheduled hours column (validate against allowlist)
             hours_col = None
@@ -991,7 +1009,7 @@ class FileService:
                 if col_name in columns:
                     hours_col = validate_column_name_from_set(
                         col_name,
-                        CENSUS_SCHEDULED_HOURS_COLUMNS,
+                        set(CENSUS_SCHEDULED_HOURS_COLUMNS),
                         "scheduled hours column",
                     )
                     break
@@ -1004,13 +1022,15 @@ class FileService:
                     "part_time_pct": 0.0,
                 }
 
-            part_time_count = conn.execute(
-                f"""
+            part_time_count = _fetchone_scalar(
+                conn.execute(
+                    f"""
                 SELECT COUNT(*) FROM census
                 WHERE {hours_col} IS NOT NULL
                   AND CAST({hours_col} AS DOUBLE) * 52 < 1000
                 """
-            ).fetchone()[0]
+                )
+            )
 
             part_time_pct = round(part_time_count / headcount, 4) if headcount else 0.0
 
@@ -1093,7 +1113,9 @@ class FileService:
             for col_name in CENSUS_COMPENSATION_COLUMNS:
                 if col_name in columns:
                     comp_col = validate_column_name_from_set(
-                        col_name, CENSUS_COMPENSATION_COLUMNS, "compensation column"
+                        col_name,
+                        set(CENSUS_COMPENSATION_COLUMNS),
+                        "compensation column",
                     )
                     break
 
@@ -1108,7 +1130,7 @@ class FileService:
             for col_name in CENSUS_JOB_LEVEL_COLUMNS:
                 if col_name in columns:
                     level_col = validate_column_name_from_set(
-                        col_name, CENSUS_JOB_LEVEL_COLUMNS, "job level column"
+                        col_name, set(CENSUS_JOB_LEVEL_COLUMNS), "job level column"
                     )
                     break
 
@@ -1117,7 +1139,7 @@ class FileService:
             for col_name in CENSUS_HIRE_DATE_COLUMNS:
                 if col_name in columns:
                     hire_date_col = validate_column_name_from_set(
-                        col_name, CENSUS_HIRE_DATE_COLUMNS, "hire date column"
+                        col_name, set(CENSUS_HIRE_DATE_COLUMNS), "hire date column"
                     )
                     break
 
@@ -1198,10 +1220,12 @@ class FileService:
                                 days=lookback_years * 365
                             )
                             cutoff_date_str = cutoff_date.isoformat()
-                            recent_count = conn.execute(
-                                "SELECT COUNT(*) FROM census WHERE _hire_date >= ?",
-                                [cutoff_date_str],
-                            ).fetchone()[0]
+                            recent_count = _fetchone_scalar(
+                                conn.execute(
+                                    "SELECT COUNT(*) FROM census WHERE _hire_date >= ?",
+                                    [cutoff_date_str],
+                                )
+                            )
 
                             # Need enough data for meaningful analysis (at least 20 employees)
                             if recent_count >= 20:
@@ -1224,7 +1248,7 @@ class FileService:
                 "DELETE FROM census WHERE _compensation <= 0 OR _compensation >= 2000000"
             )
 
-            total_count = conn.execute("SELECT COUNT(*) FROM census").fetchone()[0]
+            total_count = _fetchone_scalar(conn.execute("SELECT COUNT(*) FROM census"))
             if total_count == 0:
                 raise ValueError("No employees with valid compensation data found")
 
@@ -1316,6 +1340,7 @@ class FileService:
                     FROM census
                 """
                 ).fetchone()
+                assert overall_stats is not None, "Expected a row from aggregate query"
 
                 # Create suggested level ranges based on percentiles
                 suggested_levels = [

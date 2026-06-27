@@ -1,7 +1,7 @@
 """Winners & Losers comparison service."""
 
 import logging
-from typing import Optional
+from typing import List, Optional
 
 import duckdb
 import pandas as pd
@@ -168,8 +168,10 @@ class WinnersLosersService:
         Returns (age_results, tenure_results, heatmap).
         """
 
-        def _band_group(group_df: pd.DataFrame, label_col: str):
-            results = []
+        def _band_group(
+            group_df: pd.DataFrame, label_col: str
+        ) -> List[BandGroupResult]:
+            results: List[BandGroupResult] = []
             if group_df.empty:
                 return results
             grouped = (

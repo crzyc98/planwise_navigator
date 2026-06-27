@@ -48,7 +48,7 @@ async def get_default_config(
     settings: APISettings = Depends(get_settings),
 ) -> Dict[str, Any]:
     """Get default configuration for new workspaces."""
-    import yaml
+    import yaml  # type: ignore[import]  # types-PyYAML not in CI deps
 
     if settings.default_config_path.exists():
         with open(settings.default_config_path) as f:
@@ -262,9 +262,9 @@ async def start_bulk_export(
     status_obj = export_service.start_bulk_export(request.workspace_ids)
 
     # Execute export in background (synchronously for now)
-    export_service.execute_bulk_export(status_obj.operation_id, request.workspace_ids)
-
-    return export_service.get_bulk_export_status(status_obj.operation_id)
+    return export_service.execute_bulk_export(
+        status_obj.operation_id, request.workspace_ids
+    )
 
 
 @router.get("/bulk-export/{operation_id}", response_model=BulkExportStatus)

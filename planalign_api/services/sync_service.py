@@ -10,21 +10,21 @@ import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import TYPE_CHECKING, List, Optional, Tuple
 
 import yaml
 
+if TYPE_CHECKING:
+    from git import GitCommandError, InvalidGitRepositoryError, Repo
+
 try:
-    import git
-    from git import Repo, GitCommandError, InvalidGitRepositoryError
+    from git import GitCommandError, InvalidGitRepositoryError, Repo
 
     GIT_AVAILABLE = True
 except ImportError:
     GIT_AVAILABLE = False
-    git = None
-    Repo = None
-    GitCommandError = Exception
-    InvalidGitRepositoryError = Exception
+    GitCommandError = Exception  # type: ignore[assignment,misc]
+    InvalidGitRepositoryError = Exception  # type: ignore[assignment,misc]
 
 from ..config import get_settings
 from ..models.sync import (
@@ -130,6 +130,17 @@ class SyncService:
         """Check if sync is initialized (Git repo exists)."""
         return self.repo is not None
 
+    def _get_repo(self) -> Repo:
+        """Get the Git repository, raising if not initialized.
+
+        Callers must only invoke this after confirming ``is_initialized()``
+        (or having just created the repo), so a ``None`` result here
+        indicates a programming error rather than an expected state.
+        """
+        repo = self.repo
+        assert repo is not None, "Repo accessed before sync was initialized"
+        return repo
+
     def _get_sync_config_path(self) -> Path:
         """Get path to sync config file."""
         return self.workspaces_root / SYNC_CONFIG_FILE
@@ -226,7 +237,7 @@ class SyncService:
                 self._repo = Repo.init(self.workspaces_root)
                 logger.info(f"Initialized Git repository at {self.workspaces_root}")
 
-            repo = self.repo
+            repo = self._get_repo()
 
             # Create .gitignore if it doesn't exist
             gitignore_path = self.workspaces_root / ".gitignore"
@@ -240,7 +251,7 @@ class SyncService:
                 origin = repo.remote("origin")
                 # Update URL if different
                 if list(origin.urls)[0] != remote_url:
-                    repo.delete_remote("origin")
+                    repo.delete_remote("origin")  # type: ignore[arg-type]
                     origin = repo.create_remote("origin", remote_url)
             except ValueError:
                 origin = repo.create_remote("origin", remote_url)
@@ -382,7 +393,7 @@ class SyncService:
                 branch="main",
             )
 
-        repo = self.repo
+        repo = self._get_repo()
         config = self.get_sync_config()
 
         try:
@@ -446,7 +457,7 @@ class SyncService:
             )
 
         try:
-            repo = self.repo
+            repo = self._get_repo()
             config = self.get_sync_config()
 
             # Stage all syncable files
@@ -529,7 +540,7 @@ class SyncService:
             )
 
         try:
-            repo = self.repo
+            repo = self._get_repo()
             config = self.get_sync_config()
 
             # Stash local changes if any
@@ -635,10 +646,10 @@ class SyncService:
 
     def _get_conflict_files(self, repo: Repo) -> List[str]:
         """Get list of files with merge conflicts."""
-        conflicts = []
+        conflicts: List[str] = []
         try:
             unmerged = repo.index.unmerged_blobs()
-            conflicts = list(unmerged.keys())
+            conflicts = [str(path) for path in unmerged.keys()]
         except Exception:
             pass
         return conflicts
@@ -653,11 +664,11 @@ class SyncService:
             return False
 
         try:
-            repo = self.repo
+            repo = self._get_repo()
 
             # Remove remote
             try:
-                repo.delete_remote("origin")
+                repo.delete_remote("origin")  # type: ignore[arg-type]
             except Exception:
                 pass
 
@@ -706,15 +717,16 @@ class SyncService:
 
                 # Check for local changes
                 has_changes = False
-                if self.repo:
+                repo = self.repo
+                if repo:
                     rel_path = workspace_dir.relative_to(self.workspaces_root)
                     # Check if any files in this workspace are modified
-                    for item in self.repo.untracked_files:
+                    for item in repo.untracked_files:
                         if item.startswith(str(rel_path)):
                             has_changes = True
                             break
                     if not has_changes:
-                        for diff in self.repo.index.diff(None):
+                        for diff in repo.index.diff(None):
                             if diff.a_path and diff.a_path.startswith(str(rel_path)):
                                 has_changes = True
                                 break

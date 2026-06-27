@@ -197,7 +197,9 @@ class CompensationSolver:
             )
 
         # Get total headcount
-        total_headcount = conn.execute("SELECT COUNT(*) FROM census").fetchone()[0]
+        total_headcount_row = conn.execute("SELECT COUNT(*) FROM census").fetchone()
+        assert total_headcount_row is not None
+        total_headcount = total_headcount_row[0]
 
         # Get compensation column
         comp_col = None
@@ -216,9 +218,11 @@ class CompensationSolver:
             raise ValueError("No compensation column found in census")
 
         comp_col_sql = self._quote_identifier(comp_col)
-        avg_compensation = conn.execute(
+        avg_compensation_row = conn.execute(
             f"SELECT AVG({comp_col_sql}) FROM census"
-        ).fetchone()[0]
+        ).fetchone()
+        assert avg_compensation_row is not None
+        avg_compensation = avg_compensation_row[0]
 
         # Get level column
         level_col = None

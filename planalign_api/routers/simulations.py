@@ -23,7 +23,7 @@ from ..models.simulation import (
 from ..services.telemetry_service import get_telemetry_service
 from ..storage.workspace_storage import WorkspaceStorage
 from ..models.scenario import Scenario
-from ..models.workspace import Workspace
+from ..models.workspace import WorkspaceSummary
 from ..services.simulation_service import SimulationService
 from ..constants import ARTIFACT_TYPE_MAP, MEDIA_TYPE_MAP
 
@@ -53,7 +53,7 @@ _active_runs: Dict[str, SimulationRun] = {}
 
 def _find_scenario_and_workspace(
     storage: WorkspaceStorage, scenario_id: str
-) -> tuple[Optional[Workspace], Optional[Scenario]]:
+) -> tuple[Optional[WorkspaceSummary], Optional[Scenario]]:
     """Find a scenario and its workspace by scenario_id.
 
     Args:
@@ -469,16 +469,16 @@ async def get_run(
     config_file = run_path / "config.yaml"
     if not config_file.exists():
         # Try scenario name pattern
-        for f in run_path.glob("*_config.yaml"):
-            config_file = f
+        for candidate in run_path.glob("*_config.yaml"):
+            config_file = candidate
             break
 
     if config_file.exists():
         try:
-            import yaml
+            import yaml  # type: ignore[import]  # types-PyYAML not in CI deps
 
-            with open(config_file) as f:
-                config = yaml.safe_load(f)
+            with open(config_file) as config_fh:
+                config = yaml.safe_load(config_fh)
         except Exception:
             pass
 
@@ -915,11 +915,11 @@ async def get_run_details(
 
         if scenario.status == "completed" and scenario.results_summary:
             # Prefer results_summary values if available
-            if scenario.results_summary.get("final_headcount"):
-                final_headcount = scenario.results_summary.get("final_headcount")
+            if scenario.results_summary.final_headcount:
+                final_headcount = scenario.results_summary.final_headcount
             if not total_events:
-                total_events = scenario.results_summary.get("total_events")
-            participation_rate = scenario.results_summary.get("participation_rate")
+                total_events = scenario.results_summary.total_events
+            participation_rate = scenario.results_summary.participation_rate
 
         return RunDetails(
             id=scenario.last_run_id or "none",

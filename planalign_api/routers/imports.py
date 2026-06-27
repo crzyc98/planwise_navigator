@@ -45,7 +45,7 @@ def _df_to_records(df: pd.DataFrame) -> list[dict]:
 
     records = []
     for row in df.to_dict(orient="records"):
-        clean = {}
+        clean: dict = {}
         for k, v in row.items():
             if v is None or (isinstance(v, float) and math.isnan(v)):
                 clean[k] = None
