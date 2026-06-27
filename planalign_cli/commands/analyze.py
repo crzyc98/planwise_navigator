@@ -485,7 +485,7 @@ def _display_event_summary(event_data: List[Dict[str, Any]], verbose: bool):
 def _display_event_trends(event_data: List[Dict[str, Any]], verbose: bool):
     """Display event trends visualization."""
     # Group by event type for trend analysis
-    event_types = {}
+    event_types: Dict[str, List[Dict[str, Any]]] = {}
     for data in event_data:
         event_type = data["event_type"]
         if event_type not in event_types:
