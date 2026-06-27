@@ -72,7 +72,7 @@ class OrchestratorWrapper:
 
     def get_system_status(self) -> Dict[str, Any]:
         """Get comprehensive system status information."""
-        status = {
+        status: Dict[str, Any] = {
             "system_ready": True,
             "system_message": "All systems operational",
             "timestamp": datetime.now().isoformat(),
@@ -161,7 +161,7 @@ class OrchestratorWrapper:
 
     def check_system_health(self) -> Dict[str, Any]:
         """Quick health check for system readiness."""
-        health = {"healthy": True, "issues": [], "warnings": []}
+        health: Dict[str, Any] = {"healthy": True, "issues": [], "warnings": []}
 
         # Check configuration (accessing the property raises if config is missing/invalid)
         try:
@@ -196,7 +196,7 @@ class OrchestratorWrapper:
         self,
         threads: Optional[int] = None,
         dry_run: bool = False,
-        verbose: bool = None,
+        verbose: Optional[bool] = None,
         progress_callback=None,
     ) -> Union[PipelineOrchestrator, "ProgressAwareOrchestrator"]:
         """Create a configured PipelineOrchestrator instance."""

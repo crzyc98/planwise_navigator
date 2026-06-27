@@ -7,7 +7,7 @@ Multi-year workforce simulation with Rich progress bars and enhanced user experi
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 from datetime import datetime
 from contextlib import contextmanager
 
@@ -20,6 +20,7 @@ from rich.progress import (
     TimeElapsedColumn,
     BarColumn,
     MofNCompleteColumn,
+    TaskID,
 )
 from rich.table import Table
 from rich.live import Live
@@ -124,6 +125,7 @@ def run_simulation(
         # Create progress tracker — use Rich Live display for TTY, plain text for pipes
         from ..ui.output_capture import PlainTextProgressFallback, is_tty
 
+        progress_tracker: Union[LiveProgressTracker, PlainTextProgressFallback]
         if is_tty():
             progress_tracker = LiveProgressTracker(
                 total_years, actual_start_year, end_year, verbose
@@ -172,7 +174,7 @@ def run_simulation(
 def _print_config_summary(config_path: Path, console: Console, verbose: bool) -> None:
     """Print key dc_plan and match configuration from the merged config file."""
     try:
-        import yaml
+        import yaml  # type: ignore[import] # no PyYAML stubs installed in this env
 
         with open(config_path) as f:
             cfg = yaml.safe_load(f) or {}
@@ -417,21 +419,21 @@ class LiveProgressTracker:
         self.verbose = verbose
 
         # Progress tracking state
-        self.current_year = None
-        self.current_stage = None
+        self.current_year: Optional[int] = None
+        self.current_stage: Optional[str] = None
         self.years_completed = 0
-        self.stage_start_time = None
-        self.year_start_time = None
+        self.stage_start_time: Optional[datetime] = None
+        self.year_start_time: Optional[datetime] = None
         self.total_events = 0
-        self.year_events = {}
-        self.stage_durations = {}
+        self.year_events: dict[int, int] = {}
+        self.stage_durations: dict[str, float] = {}
 
         # Live display components
         self.layout = Layout()
-        self.progress = None
-        self.year_task = None
-        self.stage_task = None
-        self._live = None
+        self.progress: Optional[Progress] = None
+        self.year_task: Optional[TaskID] = None
+        self.stage_task: Optional[TaskID] = None
+        self._live: Optional[Live] = None
 
     def update_year(self, year: int):
         """Update current year being processed."""
