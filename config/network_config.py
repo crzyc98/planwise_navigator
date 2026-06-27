@@ -399,7 +399,7 @@ def validate_network_connectivity(config: CorporateNetworkConfig) -> NetworkDiag
             start_time = time.time()
 
             # Build request with proxy and SSL configuration
-            handlers = []
+            handlers: list[urllib.request.BaseHandler] = []
 
             if diagnostics.proxy_detected:
                 proxy_handler = build_proxy_handler(config.proxy)

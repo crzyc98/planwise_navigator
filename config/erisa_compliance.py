@@ -483,7 +483,7 @@ class ERISAComplianceValidator:
 
     def validate_event_coverage(self) -> Dict[str, Any]:
         """Validate that all ERISA requirements are covered by event types."""
-        coverage_analysis = {
+        coverage_analysis: Dict[str, Any] = {
             "total_requirements": len(self.compliance_checklist.requirements),
             "compliant_requirements": 0,
             "needs_review": 0,
@@ -653,8 +653,8 @@ class ERISAComplianceValidator:
 | Classification | Field Count | Examples |
 |----------------|-------------|----------|
 """
-        classification_counts = {}
-        classification_examples = {}
+        classification_counts: Dict[str, int] = {}
+        classification_examples: Dict[str, list] = {}
 
         for field_name, classification in self.data_classifications.items():
             level = classification.classification.value
