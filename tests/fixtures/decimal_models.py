@@ -64,4 +64,5 @@ class EdgeCaseDecimalModel(BaseModel):
     normal: Decimal = Field(default=Decimal("100.00"))
     very_large: Decimal = Field(default=Decimal("1" + "0" * 50))  # 50+ digit number
     very_small: Decimal = Field(default=Decimal("0.000000000001"))
+    zero_amount: Decimal = Field(default=Decimal("0"))
     negative_zero: Decimal = Field(default=Decimal("-0"))
