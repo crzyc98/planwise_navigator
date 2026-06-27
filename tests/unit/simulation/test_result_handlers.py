@@ -151,7 +151,7 @@ class TestExportResultsToExcel:
         mock_dcm = MagicMock(return_value=mock_db_manager)
         mock_ee = MagicMock(return_value=mock_exporter)
         mock_sc = MagicMock()
-        mock_sc.from_dict.side_effect = ValueError("bad config")
+        mock_sc.model_validate.side_effect = ValueError("bad config")
 
         with patch.dict(
             "sys.modules",
@@ -190,7 +190,7 @@ class TestExportResultsToExcel:
         mock_dcm = MagicMock(return_value=mock_db_manager)
         mock_ee = MagicMock(return_value=mock_exporter)
         mock_sc = MagicMock()
-        mock_sc.from_dict.return_value = mock_sim_config
+        mock_sc.model_validate.return_value = mock_sim_config
 
         with patch.dict(
             "sys.modules",
@@ -239,7 +239,7 @@ class TestExportResultsToExcel:
         mock_dcm = MagicMock(return_value=mock_db_manager)
         mock_ee = MagicMock(return_value=mock_exporter)
         mock_sc = MagicMock()
-        mock_sc.from_dict.return_value = MagicMock()
+        mock_sc.model_validate.return_value = MagicMock()
 
         with patch.dict(
             "sys.modules",
@@ -265,8 +265,8 @@ class TestExportResultsToExcel:
         mock_dcm.assert_called_once_with(run_dir / "simulation.duckdb")
         assert result == expected_excel
 
-    def test_falls_back_to_mock_config_on_from_dict_failure(self, tmp_path):
-        """Should use _create_mock_config when SimulationConfig.from_dict fails."""
+    def test_falls_back_to_mock_config_on_validation_failure(self, tmp_path):
+        """Should use _create_mock_config when SimulationConfig.model_validate fails."""
         scenario_path = tmp_path / "scenario"
         scenario_path.mkdir()
         (scenario_path / "simulation.duckdb").touch()
@@ -280,7 +280,7 @@ class TestExportResultsToExcel:
         mock_dcm = MagicMock(return_value=mock_db_manager)
         mock_ee = MagicMock(return_value=mock_exporter)
         mock_sc = MagicMock()
-        mock_sc.from_dict.side_effect = ValueError("invalid config")
+        mock_sc.model_validate.side_effect = ValueError("invalid config")
 
         with patch.dict(
             "sys.modules",
@@ -320,7 +320,7 @@ class TestExportResultsToExcel:
         mock_dcm = MagicMock(return_value=mock_db_manager)
         mock_ee = MagicMock(return_value=mock_exporter)
         mock_sc = MagicMock()
-        mock_sc.from_dict.return_value = MagicMock()
+        mock_sc.model_validate.return_value = MagicMock()
 
         with patch.dict(
             "sys.modules",
