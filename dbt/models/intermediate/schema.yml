@@ -1223,6 +1223,16 @@ models:
       - name: employee_enrollment_date
         description: Date when employee enrolled in DC plan (from census)
 
+      - name: auto_escalation_opt_out
+        description: >
+          Per-employee opt-out flag for the deferral auto-escalation program (issue #316),
+          carried from the census. TRUE means the employee never generates
+          deferral_escalation events. Defaults to FALSE when absent from the census.
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+
   # int_termination_events and int_hiring_events are ephemeral models (E068A optimization)
   # and cannot be tested directly. Data quality validation occurs at fct_yearly_events level.
 

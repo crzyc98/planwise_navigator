@@ -169,8 +169,12 @@ workforce_with_status AS (
         w.*,
         COALESCE(e.is_enrolled, false) as is_enrolled,
         e.first_enrollment_date,
-        -- Program participation flags
-        TRUE as in_auto_escalation_program,
+        -- Program participation flags (issue #316): an employee participates unless
+        -- they carry the per-employee census opt-out flag. Resolved from the static
+        -- census attribute so it holds across all simulation years (new hires absent
+        -- from census default to FALSE → participating). Existing behavior is
+        -- unchanged for employees without the flag set.
+        NOT COALESCE(oo.auto_escalation_opt_out, FALSE) as in_auto_escalation_program,
         -- Use previous year's rate (includes all prior escalations via accumulator)
         COALESCE(pyr.current_deferral_rate, ier.initial_deferral_rate, 0.0) as current_deferral_rate,
         -- Escalation timing
@@ -194,6 +198,8 @@ workforce_with_status AS (
     LEFT JOIN employee_enrollment_status e ON w.employee_id = e.employee_id
     LEFT JOIN previous_year_rates pyr ON w.employee_id = pyr.employee_id
     LEFT JOIN deferral_escalation_registry r ON w.employee_id = r.employee_id
+    -- Issue #316: static per-employee auto-escalation opt-out from census
+    LEFT JOIN {{ ref('stg_census_data') }} oo ON w.employee_id = oo.employee_id
 ),
 
 -- Apply parameter-driven eligibility rules
