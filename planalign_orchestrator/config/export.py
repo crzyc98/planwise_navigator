@@ -1262,13 +1262,10 @@ def _export_deferral_match_response_vars(cfg: "SimulationConfig") -> Dict[str, A
             dmr.downward_partial_decrease_factor
         )
 
-        # Match-maximizing deferral rate — kept as a backward-compatible alias of the
-        # always-on Feature 102 ceiling (computed in _export_employer_match_vars).
-        emv = _export_employer_match_vars(cfg)
-        match_max_rate = emv.get("employer_match_max_deferral_rate")
-        dbt_vars["deferral_match_response_match_max_rate"] = (
-            match_max_rate if match_max_rate is not None else 0.06
-        )
+        # Feature 102: the match-maximizing ceiling is exported once, always-on, as
+        # `employer_match_max_deferral_rate` (see _export_employer_match_vars). The
+        # deferral-match-response model reads that canonical var directly, so no
+        # separate `deferral_match_response_match_max_rate` alias is needed.
     except Exception:
         # Feature not configured - use defaults (disabled)
         dbt_vars["deferral_match_response_enabled"] = False

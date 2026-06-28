@@ -23,8 +23,10 @@
 
 {# Match configuration #}
 {% set employer_match_status = var('employer_match_status', 'deferral_based') %}
-{# Pre-computed match-maximizing rate from Python export (avoids Jinja scoping issues) #}
-{% set precomputed_match_max = var('deferral_match_response_match_max_rate', none) %}
+{# Pre-computed match-maximizing rate from Python export (avoids Jinja scoping issues).
+   Feature 102: reads the always-on `employer_match_max_deferral_rate` ceiling directly
+   (the former `deferral_match_response_match_max_rate` alias was a redundant copy of it). #}
+{% set precomputed_match_max = var('employer_match_max_deferral_rate', none) %}
 {% set match_tiers = var('match_tiers', [
     {'employee_min': 0.00, 'employee_max': 0.03, 'match_rate': 1.00},
     {'employee_min': 0.03, 'employee_max': 0.05, 'match_rate': 0.50}
@@ -150,8 +152,9 @@ eligible_employees AS (
         {% elif employer_match_status == 'tenure_based' %}
         ({{ get_tiered_match_max_deferral('FLOOR(w.current_tenure)', tenure_match_tiers, 0.06) }})::DECIMAL(5,4) AS match_max_rate,
         {% elif employer_match_status == 'points_based' %}
-        {# Points = FLOOR(age) + FLOOR(tenure) #}
-        ({{ get_tiered_match_max_deferral('FLOOR(w.current_age) + FLOOR(w.current_tenure)', points_match_tiers, 0.06) }})::DECIMAL(5,4) AS match_max_rate,
+        {# Points = FLOOR(age) + FLOOR(tenure). Points tiers key on min_points, so use
+           the points-aware macro (get_tiered_match_max_deferral expects min_years). #}
+        ({{ get_points_based_max_deferral('FLOOR(w.current_age) + FLOOR(w.current_tenure)', points_match_tiers, 0.06) }})::DECIMAL(5,4) AS match_max_rate,
         {% else %}
         0.06::DECIMAL(5,4) AS match_max_rate,
         {% endif %}
