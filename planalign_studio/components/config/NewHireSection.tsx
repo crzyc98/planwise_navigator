@@ -12,7 +12,8 @@ const marketMultipliers: Record<string, { label: string; adjustment: number; des
   aggressive: { label: 'Aggressive', adjustment: 10, description: 'Well above market (premium talent strategy)' },
 };
 
-export function NewHireSection() {
+export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essentials' }) {
+  const essentials = variant === 'essentials';
   const { formData, setFormData, handleChange, activeWorkspace } = useConfigContext();
 
   // E082: Match Census state (age distribution)
@@ -181,6 +182,7 @@ export function NewHireSection() {
       </div>
 
       <div className="space-y-4">
+        {!essentials && (<>
         {/* Strategy Selector */}
         <div className="flex items-center space-x-4 mb-6">
           <label htmlFor="newhire-strategy-percentile" className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors w-1/2 ${formData.newHireStrategy === 'percentile' ? 'bg-green-50 border-fidelity-green ring-1 ring-fidelity-green' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
@@ -223,6 +225,7 @@ export function NewHireSection() {
             </div>
           </div>
         )}
+        </>)}
 
         {/* E082: Age Distribution Section */}
         <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 mt-6">
@@ -298,6 +301,7 @@ export function NewHireSection() {
           </div>
         </div>
 
+        {!essentials && (<>
         {/* 093: Part-Time New Hires Section */}
         <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 mt-6">
           <div className="flex items-center justify-between mb-2">
@@ -419,6 +423,7 @@ export function NewHireSection() {
             </div>
           )}
         </div>
+        </>)}
 
         {/* E082: Job Level Compensation Ranges */}
         <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 mt-6">
@@ -534,6 +539,7 @@ export function NewHireSection() {
           </div>
         </div>
 
+        {!essentials && (<>
         {/* E082: Market Positioning Section */}
         <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 mt-6">
           <h3 className="text-sm font-semibold text-gray-900 mb-2">Market Positioning</h3>
@@ -575,6 +581,7 @@ export function NewHireSection() {
 
         {/* 038: Promotion Hazard Section */}
         <PromotionHazardEditor />
+        </>)}
       </div>
     </div>
   );

@@ -2,8 +2,9 @@ import { AlertTriangle } from 'lucide-react';
 import { useConfigContext } from './ConfigContext';
 import { InputField } from './InputField';
 
-export function SimulationSection() {
+export function SimulationSection({ variant = 'full' }: { variant?: 'full' | 'essentials' }) {
   const { inputProps } = useConfigContext();
+  const essentials = variant === 'essentials';
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -18,12 +19,14 @@ export function SimulationSection() {
           <InputField label="End Year" {...inputProps('endYear')} type="number" width="col-span-1" />
         </div>
 
-        <InputField
-          label="Random Seed"
-          {...inputProps('seed')}
-          type="number"
-          helper="Fixed seed (e.g., 42) ensures identical runs."
-        />
+        {!essentials && (
+          <InputField
+            label="Random Seed"
+            {...inputProps('seed')}
+            type="number"
+            helper="Fixed seed (e.g., 42) ensures identical runs."
+          />
+        )}
 
         <InputField
           label="Target Growth Rate"

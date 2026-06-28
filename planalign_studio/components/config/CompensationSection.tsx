@@ -4,8 +4,9 @@ import { useConfigContext } from './ConfigContext';
 import { InputField } from './InputField';
 import { solveCompensationGrowth, CompensationSolverResponse } from '../../services/api';
 
-export function CompensationSection() {
+export function CompensationSection({ variant = 'full' }: { variant?: 'full' | 'essentials' }) {
   const { formData, setFormData, handleChange, inputProps, activeWorkspace } = useConfigContext();
+  const essentials = variant === 'essentials';
 
   const [solverStatus, setSolverStatus] = useState<'idle' | 'solving' | 'success' | 'error'>('idle');
   const [solverResult, setSolverResult] = useState<CompensationSolverResponse | null>(null);
@@ -182,6 +183,7 @@ export function CompensationSection() {
         </div>
       </div>
 
+      {!essentials && (
       <div className="space-y-6">
         <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Annual Review</h3>
         <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
@@ -246,6 +248,7 @@ export function CompensationSection() {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }

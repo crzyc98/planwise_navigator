@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Save, AlertTriangle, FileText, Settings, TrendingUp, Users, DollarSign, PieChart, Database, Check, ArrowLeft, Play, Copy, Layers, Share2 } from 'lucide-react';
+import { Save, AlertTriangle, FileText, Settings, TrendingUp, Users, DollarSign, PieChart, Database, Check, ArrowLeft, Play, Copy, Layers, Share2, Gauge } from 'lucide-react';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { LayoutContextType } from './Layout';
 import { listTemplates, Template, listScenarios, Scenario } from '../services/api';
 import { ConfigProvider, useConfigContext } from './config/ConfigContext';
+import { WorkforceParametersSection } from './config/WorkforceParametersSection';
 import { SimulationSection } from './config/SimulationSection';
 import { DataSourcesSection } from './config/DataSourcesSection';
 import { CompensationSection } from './config/CompensationSection';
@@ -16,14 +17,20 @@ import { TemplateModal } from './config/TemplateModal';
 import { CopyScenarioModal } from './config/CopyScenarioModal';
 import { ApplyWorkforceParamsModal } from './config/ApplyWorkforceParamsModal';
 
-const NAV_ITEMS = [
+// Primary nav: the curated essentials path (#358) plus the self-contained DC Plan.
+const PRIMARY_NAV = [
+  { id: 'workforce', label: 'Workforce Parameters', icon: Gauge },
+  { id: 'dcplan', label: 'DC Plan', icon: PieChart },
+];
+
+// Advanced nav: full detail for every area, one click away under "Advanced".
+const ADVANCED_NAV = [
   { id: 'simulation', label: 'Simulation Settings', icon: TrendingUp },
   { id: 'datasources', label: 'Data Sources', icon: Database },
   { id: 'compensation', label: 'Compensation', icon: DollarSign },
   { id: 'newhire', label: 'New Hire Strategy', icon: Users },
   { id: 'segmentation', label: 'Workforce Segmentation', icon: Layers },
   { id: 'turnover', label: 'Workforce & Turnover', icon: AlertTriangle },
-  { id: 'dcplan', label: 'DC Plan', icon: PieChart },
   { id: 'advanced', label: 'Advanced Settings', icon: Settings },
 ];
 
@@ -36,7 +43,7 @@ function ConfigShell() {
     activeWorkspace,
   } = useConfigContext();
 
-  const [activeSection, setActiveSection] = useState('simulation');
+  const [activeSection, setActiveSection] = useState('workforce');
 
   // Template modal state
   const [showTemplateModal, setShowTemplateModal] = useState(false);
@@ -216,7 +223,27 @@ function ConfigShell() {
         {/* Sidebar */}
         <div className="w-64 bg-gray-50 border-r border-gray-200 p-4 flex-shrink-0 overflow-y-auto">
           <nav className="space-y-1">
-            {NAV_ITEMS.map((item) => (
+            {PRIMARY_NAV.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setActiveSection(item.id)}
+                className={`w-full text-left px-3 py-3 rounded-md text-sm font-medium transition-colors flex items-center justify-between ${activeSection === item.id ? 'bg-white text-fidelity-green shadow-sm border border-gray-200' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}
+              >
+                <span className="flex items-center">
+                  <item.icon size={16} className={`mr-3 ${activeSection === item.id ? 'text-fidelity-green' : 'text-gray-400'}`} />
+                  {item.label}
+                </span>
+                {dirtySections.has(item.id) && (
+                  <span className="w-2 h-2 bg-amber-500 rounded-full" title="Unsaved changes" />
+                )}
+              </button>
+            ))}
+
+            <div className="px-3 pt-5 pb-1">
+              <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Advanced</span>
+            </div>
+
+            {ADVANCED_NAV.map((item) => (
               <button
                 key={item.id}
                 onClick={() => setActiveSection(item.id)}
@@ -237,6 +264,7 @@ function ConfigShell() {
         {/* Form Area */}
         <div className="flex-1 p-8 overflow-y-auto">
           <div className="max-w-3xl">
+            {activeSection === 'workforce' && <WorkforceParametersSection />}
             {activeSection === 'simulation' && <SimulationSection />}
             {activeSection === 'datasources' && <DataSourcesSection />}
             {activeSection === 'compensation' && <CompensationSection />}
