@@ -5,9 +5,9 @@
 
 {# Match magnet (Feature 102): per-employee ceiling resolved by match mode. #}
 {% set employer_match_status = var('employer_match_status', 'deferral_based') %}
-{# Always-on deferral_based ceiling: prefer the formula-derived var (exported whenever a #}
-{# match is configured), then the legacy DMR var, then the configured match_tiers. #}
-{% set precomputed_match_max = var('employer_match_max_deferral_rate', var('deferral_match_response_match_max_rate', none)) %}
+{# Always-on deferral_based ceiling: the formula-derived var (exported whenever a #}
+{# match is configured); falls back to the configured match_tiers below when unset. #}
+{% set precomputed_match_max = var('employer_match_max_deferral_rate', none) %}
 {% set match_tiers = var('match_tiers', [
     {'employee_min': 0.00, 'employee_max': 0.03, 'match_rate': 1.00},
     {'employee_min': 0.03, 'employee_max': 0.05, 'match_rate': 0.50}

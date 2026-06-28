@@ -1,0 +1,45 @@
+# Feature 102 follow-up (issue #335) — focused validation scenario.
+#
+# Exercises the match magnet in a NON-deferral match mode (points_based) to
+# confirm the per-employee ceiling (not a stale default) drives snapping.
+#
+# Design:
+#   - points_based match with two tiers whose max_deferral_pct DIFFERS by points
+#     (points = FLOOR(age) + FLOOR(tenure)), so the ceiling is per-employee:
+#       points  0-49  -> ceiling 4%
+#       points  50+   -> ceiling 8%
+#   - auto-enrollment OFF, so enrollees go through the voluntary path (the magnet).
+#   - match magnet ON with a high snap_probability so snapping is clearly visible.
+#   - max_deferral_rate 0.10 so an 8% ceiling is reachable (not clipped).
+
+simulation:
+  start_year: 2025
+  end_year: 2027
+  random_seed: 100
+  target_growth_rate: 0.03
+
+scenario_id: "magnet_points_based"
+plan_design_id: "magnet_points_based"
+
+enrollment:
+  auto_enrollment:
+    enabled: false
+  voluntary_enrollment:
+    enabled: true
+    annual_enrollment_probability: 0.60
+  match_magnet:
+    enabled: true
+    snap_probability: 0.90   # snap nearly all below-ceiling enrollees so the effect is obvious
+    max_deferral_rate: 0.10
+
+employer_match:
+  employer_match_status: 'points_based'
+  points_match_tiers:
+    - min_points: 0
+      max_points: 50
+      match_rate: 50          # 50% match
+      max_deferral_pct: 4     # ceiling 4% for < 50 points
+    - min_points: 50
+      max_points: null        # unbounded (50+ points)
+      match_rate: 50
+      max_deferral_pct: 8     # ceiling 8% for >= 50 points

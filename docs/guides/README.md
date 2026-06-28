@@ -55,6 +55,15 @@ Guides for system migrations and upgrades:
   - Connection management patterns
   - Performance optimization
 
+### 📊 Plan Design & Enrollment (Analyst Guides)
+Guides for analysts configuring plan behavior:
+
+- **[match_magnet_dial_guide.md](match_magnet_dial_guide.md)** - Match-Magnet Dial (Feature 102)
+  - The "defer to the match" voluntary-enrollment behavior
+  - Controls (`enabled`, `snap_probability`, `max_deferral_rate`), defaults, and where to set them
+  - How the magnet interacts with the employer-match ceiling across all match modes
+  - Tuning recipes and validation queries
+
 ## 🎯 Target Audiences
 
 ### New Team Members

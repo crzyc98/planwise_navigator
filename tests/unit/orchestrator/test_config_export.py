@@ -1056,14 +1056,16 @@ class TestExportDeferralMatchResponseVars:
         assert "deferral_match_response_downward_participation_rate" in result
         assert "deferral_match_response_downward_reduce_to_max_rate" in result
         assert "deferral_match_response_downward_partial_factor" in result
-        assert "deferral_match_response_match_max_rate" in result
 
-    def test_match_max_rate_default(self):
+    def test_no_redundant_match_max_rate_alias(self):
+        # Feature 102 cleanup: the match-maximizing ceiling is exported once as the
+        # always-on `employer_match_max_deferral_rate`; the redundant
+        # `deferral_match_response_match_max_rate` alias was removed and the DMR
+        # model now reads the canonical var directly.
         cfg = _make_config()
         cfg.deferral_match_response.enabled = True
         result = _export_deferral_match_response_vars(cfg)
-        # Default should be 0.06 when no formula is configured
-        assert result["deferral_match_response_match_max_rate"] == pytest.approx(0.06)
+        assert "deferral_match_response_match_max_rate" not in result
 
 
 # ===========================================================================
