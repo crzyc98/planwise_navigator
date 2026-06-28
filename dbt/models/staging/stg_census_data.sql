@@ -32,7 +32,10 @@ WITH schema_scaffold AS (
       NULL::DECIMAL(12,2) AS employer_core_contribution,
       NULL::DECIMAL(12,2) AS employer_match_contribution,
       NULL::DATE AS eligibility_entry_date,
-      NULL::DECIMAL(5,2) AS scheduled_hours_per_week
+      NULL::DECIMAL(5,2) AS scheduled_hours_per_week,
+      -- Per-employee auto-escalation opt-out (issue #316). Optional in source
+      -- parquet; absent → NULL → defaulted to FALSE (not opted out) below.
+      NULL::BOOLEAN AS auto_escalation_opt_out
   WHERE false
 ),
 
@@ -70,6 +73,10 @@ raw_data AS (
 
       -- Scheduled weekly hours: NULL means full-time (40 hrs/wk assumed downstream)
       TRY_CAST(scheduled_hours_per_week AS DECIMAL(5,2)) AS scheduled_hours_per_week,
+
+      -- Per-employee auto-escalation opt-out (issue #316). Defaults to FALSE
+      -- (employee participates in auto-escalation) when absent from the census.
+      COALESCE(CAST(auto_escalation_opt_out AS BOOLEAN), FALSE) AS auto_escalation_opt_out,
 
       -- **FIX**: Add row_number for deduplication - prefer most recent hire_date
       ROW_NUMBER() OVER (
@@ -175,5 +182,6 @@ SELECT
     employee_eligibility_date,
     waiting_period_days,
     current_eligibility_status,
-    employee_enrollment_date
+    employee_enrollment_date,
+    auto_escalation_opt_out
 FROM eligibility_data

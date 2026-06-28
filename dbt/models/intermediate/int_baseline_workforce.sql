@@ -37,7 +37,9 @@ WITH base_employees AS (
         stg.current_eligibility_status,
         stg.employee_enrollment_date,
         -- Epic E049: Census deferral rate integration - preserve exact census rates
-        stg.employee_deferral_rate
+        stg.employee_deferral_rate,
+        -- Issue #316: per-employee auto-escalation opt-out (carried for audit visibility)
+        stg.auto_escalation_opt_out
     FROM {{ ref('stg_census_data') }} stg
     -- Use a subquery to find the best matching level_id for each employee
     LEFT JOIN (
@@ -76,6 +78,8 @@ SELECT
     employee_enrollment_date,
     -- Epic E049: Census deferral rate integration - preserve exact census rates
     employee_deferral_rate,
+    -- Issue #316: per-employee auto-escalation opt-out (carried for audit visibility)
+    auto_escalation_opt_out,
     CASE
         WHEN employee_deferral_rate > 0 THEN true
         ELSE false
