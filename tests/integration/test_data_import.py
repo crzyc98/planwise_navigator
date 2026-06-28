@@ -178,12 +178,13 @@ class TestUploadAndMap:
                 ]
             },
         )
-        # Invalid (non-canonical) output columns are rejected hard with 422;
-        # the error detail lists the offending field(s). This matches the live
-        # contract asserted by test_import_schema_mapping's free-form-name test.
-        assert resp.status_code == 422
-        detail = resp.json()["detail"]
-        assert len(detail) > 0
+        # Soft validation: invalid (non-canonical) output columns return 200
+        # with a populated validation_errors list so the Studio UI can render
+        # them inline. This matches the contract asserted by
+        # test_import_schema_mapping's free-form-name test.
+        assert resp.status_code == 200
+        errors = resp.json()["validation_errors"]
+        assert len(errors) > 0
 
 
 # ===========================================================================

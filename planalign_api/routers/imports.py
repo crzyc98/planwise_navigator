@@ -380,10 +380,18 @@ async def save_mapping(
     detected_names = {c.name for c in session.detected_columns}
     validation_errors = _validate_mapping(body.field_mappings, detected_names)
 
+    from datetime import datetime, timezone
+
+    # Soft validation: invalid mappings return 200 with a populated
+    # validation_errors list (rendered inline by the Studio UI) rather than a
+    # hard 422. The mapping is NOT persisted while errors remain.
     if validation_errors:
-        raise HTTPException(
-            status_code=422,
-            detail=[e.model_dump() for e in validation_errors],
+        return MappingSaveResponse(
+            import_id=import_id,
+            status=session.status,
+            mapping_saved_at=session.mapping_saved_at or datetime.now(timezone.utc),
+            validation_errors=validation_errors,
+            output_column_count=0,
         )
 
     for m in body.field_mappings:
@@ -393,7 +401,6 @@ async def save_mapping(
         workspace_id, import_id, body.field_mappings, user=x_user_id
     )
     output_count = sum(1 for m in body.field_mappings if not m.is_excluded)
-    from datetime import datetime, timezone
 
     return MappingSaveResponse(
         import_id=import_id,
