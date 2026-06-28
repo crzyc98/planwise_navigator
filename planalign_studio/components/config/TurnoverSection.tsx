@@ -4,8 +4,9 @@ import { useConfigContext } from './ConfigContext';
 import { InputField } from './InputField';
 import { analyzeTurnoverRates, TurnoverAnalysisResult } from '../../services/api';
 
-export function TurnoverSection() {
+export function TurnoverSection({ variant = 'full' }: { variant?: 'full' | 'essentials' }) {
   const { formData, setFormData, inputProps, activeWorkspace } = useConfigContext();
+  const essentials = variant === 'essentials';
 
   const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<TurnoverAnalysisResult | null>(null);
@@ -216,6 +217,7 @@ export function TurnoverSection() {
         </p>
       </div>
 
+      {!essentials && (
       <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
         <h4 className="text-sm font-medium text-gray-700 mb-2">How Termination Works</h4>
         <p className="text-xs text-gray-600">
@@ -225,6 +227,7 @@ export function TurnoverSection() {
           is available in the analytics layer for reporting purposes.
         </p>
       </div>
+      )}
     </div>
   );
 }
