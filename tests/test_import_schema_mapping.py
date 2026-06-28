@@ -192,7 +192,9 @@ def test_save_mapping_with_canonical_field_returns_200(client: TestClient):
     assert resp.json()["validation_errors"] == []
 
 
-def test_save_mapping_with_free_form_name_returns_422(client: TestClient):
+def test_save_mapping_with_free_form_name_returns_soft_validation_errors(
+    client: TestClient,
+):
     csv = "EmpID\nE001\n"
     session = _upload_csv(client, csv)
     import_id = session["import_id"]
@@ -212,9 +214,12 @@ def test_save_mapping_with_free_form_name_returns_422(client: TestClient):
         f"/api/workspaces/ws-test/imports/{import_id}/mapping",
         json=mapping_payload,
     )
-    assert resp.status_code == 422
-    errors = resp.json()
-    # Should contain validation error about non-canonical field
+    # Soft validation: invalid (non-canonical) output columns return 200 with a
+    # populated validation_errors list so the Studio UI can render them inline.
+    assert resp.status_code == 200
+    body = resp.json()
+    errors = body["validation_errors"]
+    assert len(errors) > 0
     err_text = str(errors)
     assert "my_custom_field" in err_text or "not a recognized census field" in err_text
 
