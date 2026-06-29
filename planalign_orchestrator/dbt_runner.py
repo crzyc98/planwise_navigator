@@ -70,19 +70,71 @@ class DbtDataQualityError(DbtError):
     """Error due to data quality test failures."""
 
 
-def classify_dbt_error(stdout: str, stderr: str, return_code: int) -> DbtError:
-    """Classify dbt error based on output and return code."""
+def extract_dbt_failure_detail(working_dir: Path | str) -> str:
+    """Extract failing node names and their error messages from run_results.json.
+
+    dbt records per-node results — including the actual SQL/runtime error text —
+    in ``target/run_results.json`` even when stdout only shows a summary line
+    (e.g. ``Done. PASS=0 WARN=0 ERROR=1``). Streaming mode also folds stderr into
+    stdout, so the real cause is frequently absent from the captured streams.
+    Parsing run_results.json lets us surface the failing node + its error instead
+    of an empty diagnostic tail.
+
+    Returns a single-line summary like ``model.proj.dim_x: <error>`` (multiple
+    failures joined by `` | ``), or an empty string when no detail is available.
+    """
+    results_path = Path(working_dir) / "target" / "run_results.json"
+    if not results_path.exists():
+        return ""
+    try:
+        data = json.loads(results_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ""
+
+    failures: List[str] = []
+    for result in data.get("results", []):
+        status = str(result.get("status", "")).lower()
+        if status not in ("error", "fail", "runtime error"):
+            continue
+        node = result.get("unique_id") or "unknown_node"
+        message = str(result.get("message") or "").strip().replace("\n", " ")
+        failures.append(f"{node}: {message}" if message else node)
+    return " | ".join(failures)
+
+
+def classify_dbt_error(
+    stdout: str,
+    stderr: str,
+    return_code: int,
+    failure_detail: str = "",
+) -> DbtError:
+    """Classify dbt error based on output and return code.
+
+    ``failure_detail`` is the per-node failure text extracted from
+    ``target/run_results.json`` (failing node name + actual dbt error). When
+    present it is appended to the message so the operator sees the real cause
+    instead of an empty ``Tail:``.
+    """
     s_err = (stderr or "").lower()
     s_out = (stdout or "").lower()
+    detail = f" Detail: {failure_detail}" if failure_detail else ""
 
     if "compilation error" in s_err:
-        return DbtCompilationError("Model compilation failed")
+        return DbtCompilationError(f"Model compilation failed.{detail}".rstrip())
     if "database error" in s_err or "operationalerror" in s_err:
-        return DbtExecutionError("Database execution failed")
+        return DbtExecutionError(f"Database execution failed.{detail}".rstrip())
     if "test failed" in s_out or "failing tests" in s_out:
-        return DbtDataQualityError("Data quality tests failed")
-    tail = (stdout or "").strip()
-    tail = tail[-400:] if len(tail) > 400 else tail
+        return DbtDataQualityError(f"Data quality tests failed.{detail}".rstrip())
+
+    # Generic fallback: prefer the structured per-node failure detail; otherwise
+    # fall back to a combined stdout/stderr tail (streaming folds stderr into
+    # stdout, so include both).
+    if failure_detail:
+        return DbtError(f"dbt error (code {return_code}). {failure_detail}")
+    combined = "\n".join(
+        part for part in ((stdout or ""), (stderr or "")) if part.strip()
+    )
+    tail = combined.strip()[-400:]
     return DbtError(f"Unknown dbt error (code {return_code}). Tail: {tail}")
 
 
@@ -310,7 +362,10 @@ class DbtRunner:
         def _wrapped() -> DbtResult:
             res = run_once()
             if not res.success:
-                raise classify_dbt_error(res.stdout, res.stderr, res.return_code)
+                failure_detail = extract_dbt_failure_detail(self.working_dir)
+                raise classify_dbt_error(
+                    res.stdout, res.stderr, res.return_code, failure_detail
+                )
             return res
 
         return retry_with_backoff(_wrapped, max_attempts=max_attempts)

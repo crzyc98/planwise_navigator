@@ -1917,6 +1917,43 @@ models:
           - accepted_values:
               values: ['eligible', 'not_eligible_age', 'not_eligible_tenure', 'not_eligible_other']
 
+  - name: int_plan_eligibility_override
+    description: >
+      Feature 103: single resolution point for the per-employee DC-plan ineligibility
+      override. Census employees (EMP_*) carry a static flag read directly from
+      stg_census_data.eligibility_override; new hires (NH_*) are marked ineligible by a
+      deterministic hash against the effective new-hire ineligible rate (the
+      new_hire_ineligible_pct dial, or the census-observed rate when
+      new_hire_eligibility_match_census is true). Incremental temporal accumulator so
+      classification stays consistent across simulation years. Downstream enrollment and
+      eligibility-event models gate on NOT is_plan_ineligible_override.
+    config:
+      tags: ["eligibility", "enrollment", "EVENT_GENERATION", "F103"]
+    columns:
+      - name: employee_id
+        description: Unique employee identifier (EMP_* census or NH_* new hire)
+        data_tests:
+          - not_null
+      - name: simulation_year
+        description: Simulation year for which the override is resolved
+        data_tests:
+          - not_null
+      - name: is_plan_ineligible_override
+        description: TRUE → suppress enrollment/contribution/match for this employee-year
+        data_tests:
+          - not_null
+      - name: override_source
+        description: Provenance of the resolution (census, new_hire_dial, census_match, eligible)
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['census', 'new_hire_dial', 'census_match', 'eligible']
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - employee_id
+            - simulation_year
+
   - name: int_enrollment_state_accumulator
     description: >
       Temporal State Accumulator for Enrollment Tracking (Phase 1 Fix)

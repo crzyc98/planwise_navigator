@@ -46,7 +46,18 @@ class EligibilityPayload(BaseModel):
     plan_id: str = Field(..., min_length=1)
     eligible: bool
     eligibility_date: date
-    reason: Literal["age_and_service", "immediate", "hours_requirement", "rehire"]
+    # Feature 103: "ineligible_override" added for per-employee eligibility overrides
+    # (census flag or new-hire dial). Parity with the dbt event_details annotation.
+    reason: Literal[
+        "age_and_service",
+        "immediate",
+        "hours_requirement",
+        "rehire",
+        "ineligible_override",
+    ]
+    # Provenance of an override-driven classification (e.g. "census", "new_hire_dial",
+    # "census_match", "plan_rules"). Optional for backward compatibility.
+    source: Optional[str] = None
 
 
 class EnrollmentPayload(BaseModel):

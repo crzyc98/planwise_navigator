@@ -21,7 +21,7 @@ import pandas as pd
 from threading import Lock
 
 from .config import SimulationConfig
-from .dbt_runner import DbtRunner
+from .dbt_runner import DbtRunner, extract_dbt_failure_detail
 
 
 class HazardCacheError(Exception):
@@ -316,6 +316,25 @@ class HazardCacheManager:
             # Conservative approach: rebuild on error
             return True
 
+    def _build_rebuild_error(self, prefix: str, result: Any) -> str:
+        """Compose an actionable rebuild error message.
+
+        Streaming dbt runs fold stderr into stdout, so ``result.stderr`` is
+        usually empty. Pull the failing node + actual error text out of
+        ``target/run_results.json`` and fall back to the captured streams so the
+        operator never sees an empty diagnostic.
+        """
+        message = prefix
+        detail = extract_dbt_failure_detail(self.dbt_runner.working_dir)
+        if detail:
+            message += f": {detail}"
+        elif getattr(result, "stderr", ""):
+            message += f": {result.stderr.strip()}"
+        elif getattr(result, "stdout", ""):
+            tail = result.stdout.strip()[-400:]
+            message += f" (return code {result.return_code}). Tail: {tail}"
+        return message
+
     def rebuild_hazard_caches(self) -> None:
         """
         Rebuild all hazard cache tables.
@@ -350,9 +369,9 @@ class HazardCacheManager:
                     )
 
                     if not result.success:
-                        error_msg = f"Failed to rebuild {model}"
-                        if result.stderr:
-                            error_msg += f": {result.stderr}"
+                        error_msg = self._build_rebuild_error(
+                            f"Failed to rebuild {model}", result
+                        )
                         self.logger.error(error_msg)
                         raise HazardCacheError(error_msg)
 
@@ -366,9 +385,9 @@ class HazardCacheManager:
                 )
 
                 if not result.success:
-                    error_msg = "Failed to update cache metadata"
-                    if result.stderr:
-                        error_msg += f": {result.stderr}"
+                    error_msg = self._build_rebuild_error(
+                        "Failed to update cache metadata", result
+                    )
                     self.logger.error(error_msg)
                     raise HazardCacheError(error_msg)
 

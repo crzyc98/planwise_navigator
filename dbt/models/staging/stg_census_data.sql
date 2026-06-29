@@ -35,7 +35,12 @@ WITH schema_scaffold AS (
       NULL::DECIMAL(5,2) AS scheduled_hours_per_week,
       -- Per-employee auto-escalation opt-out (issue #316). Optional in source
       -- parquet; absent → NULL → defaulted to FALSE (not opted out) below.
-      NULL::BOOLEAN AS auto_escalation_opt_out
+      NULL::BOOLEAN AS auto_escalation_opt_out,
+      -- Per-employee plan eligibility override (Feature 103). Optional in source
+      -- parquet; absent → NULL → eligible (unspecified). TRUE=eligible,
+      -- FALSE=ineligible. NULL is meaningful (kept, NOT coalesced) so the
+      -- override model can distinguish "unspecified" from explicit eligible.
+      NULL::BOOLEAN AS eligibility_override
   WHERE false
 ),
 
@@ -77,6 +82,12 @@ raw_data AS (
       -- Per-employee auto-escalation opt-out (issue #316). Defaults to FALSE
       -- (employee participates in auto-escalation) when absent from the census.
       COALESCE(CAST(auto_escalation_opt_out AS BOOLEAN), FALSE) AS auto_escalation_opt_out,
+
+      -- Per-employee plan eligibility override (Feature 103). Lenient coercion:
+      -- an unrecognized value → NULL → eligible (non-fatal, clarify 2026-06-29).
+      -- NULL is preserved (NOT defaulted to FALSE) so "unspecified" stays distinct
+      -- from an explicit eligible/ineligible flag downstream.
+      TRY_CAST(eligibility_override AS BOOLEAN) AS eligibility_override,
 
       -- **FIX**: Add row_number for deduplication - prefer most recent hire_date
       ROW_NUMBER() OVER (
@@ -183,5 +194,6 @@ SELECT
     waiting_period_days,
     current_eligibility_status,
     employee_enrollment_date,
-    auto_escalation_opt_out
+    auto_escalation_opt_out,
+    eligibility_override
 FROM eligibility_data

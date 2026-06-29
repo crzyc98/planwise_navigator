@@ -707,6 +707,8 @@ Current version: **1.0.0** ("Foundation") — managed in `_version.py` and `pypr
 - DuckDB (`dbt/simulation.duckdb`); no new tables — behavior changes flow through existing `int_voluntary_enrollment_decision`, `int_proactive_voluntary_enrollment`, `fct_yearly_events`, `fct_workforce_snapshot` (102-match-magnet-dial)
 - SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1; Python 3.11 (orchestrator); DuckDB 1.0.0 + dbt models in STATE_ACCUMULATION stage; `fct_yearly_events` as the event source (sanctioned `int_*`→`fct_yearly_events` read) (101-enroll-window-proration)
 - DuckDB (`dbt/simulation.duckdb` shared dev; validate in isolated DBs) (101-enroll-window-proration)
+- Python 3.11 (orchestrator/config), SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1; TypeScript/React (Studio UI, follow-up) + DuckDB 1.0.0 (storage/engine), Pydantic v2 (config validation), FastAPI (workspace config API), React/Vite + Tailwind (Studio) (103-new-hire-eligibility)
+- DuckDB (`dbt/simulation.duckdb` shared dev; validate in isolated DBs). No new tables — eligibility suppression flows through existing `int_*` models, `fct_yearly_events`, `fct_workforce_snapshot` (103-new-hire-eligibility)
 
 ## Recent Changes
 - 099-tenure-graded-match: Added Python 3.11 (orchestrator/config/API), SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1, TypeScript/React (Studio UI) + Pydantic v2 (config validation), DuckDB 1.0.0 (storage/engine), FastAPI (workspace config API), React/Vite + Tailwind (Studio)

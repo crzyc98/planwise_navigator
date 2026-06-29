@@ -81,6 +81,13 @@ WITH new_hire_population AS (
     AND {{ is_eligible_for_auto_enrollment('he.effective_date::DATE', 'he.simulation_year') }}
     -- Gate on auto_enrollment_enabled (Issue #246: flag was previously ignored)
     AND {{ var('auto_enrollment_enabled', true) }}
+    -- Feature 103: exclude plan-ineligible new hires
+    AND NOT EXISTS (
+      SELECT 1 FROM {{ ref('int_plan_eligibility_override') }} ov
+      WHERE ov.employee_id = he.employee_id
+        AND ov.simulation_year = {{ var('simulation_year') }}
+        AND ov.is_plan_ineligible_override
+    )
   {% else %}
   -- SQL mode: Use intermediate event model
   SELECT DISTINCT
@@ -100,6 +107,13 @@ WITH new_hire_population AS (
     AND {{ is_eligible_for_auto_enrollment('he.effective_date::DATE', 'he.simulation_year') }}
     -- Gate on auto_enrollment_enabled (Issue #246: flag was previously ignored)
     AND {{ var('auto_enrollment_enabled', true) }}
+    -- Feature 103: exclude plan-ineligible new hires
+    AND NOT EXISTS (
+      SELECT 1 FROM {{ ref('int_plan_eligibility_override') }} ov
+      WHERE ov.employee_id = he.employee_id
+        AND ov.simulation_year = {{ var('simulation_year') }}
+        AND ov.is_plan_ineligible_override
+    )
   {% endif %}
 ),
 
