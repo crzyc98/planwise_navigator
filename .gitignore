@@ -298,3 +298,5 @@ workspaces/
 
 # PlanAlign runtime lock files (transient, per-process)
 .planalign_*.lock
+
+graphify-out/

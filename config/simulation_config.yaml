@@ -137,6 +137,9 @@ plan_year:
 
 eligibility:
   waiting_period_days: 0  # Days employee must be employed before becoming eligible (0 = immediate, 365 = 1 year)
+  # Feature 103: configurable new-hire plan ineligibility (backward-compatible no-op defaults).
+  new_hire_ineligible_pct: 0.0          # Fraction (0.0-1.0) of each year's new-hire cohort marked DC-plan ineligible
+  new_hire_eligibility_match_census: false  # When true, use the census-observed ineligible rate instead of the literal pct above
   # Future: moved to Epic E026
   # minimum_age: 21
   # minimum_hours_annual: 1000

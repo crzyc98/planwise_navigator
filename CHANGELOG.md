@@ -69,6 +69,24 @@ Fidelity PlanAlign Engine follows **Semantic Versioning 2.0.0** (MAJOR.MINOR.PAT
 ## [Unreleased]
 
 ### Added
+- **Feature 103 — Configurable new-hire eligibility rate + optional per-employee census eligibility**
+  (issue #357, supersedes #283): models a DC-plan-**ineligible** sub-population whose
+  enrollment, contributions, and employer match are suppressed. Three backward-compatible
+  inputs, all defaulting to "everyone eligible":
+  (1) `eligibility.new_hire_ineligible_pct` (0.0–1.0, default 0.0) deterministically marks a
+  reproducible share of each year's new-hire cohort ineligible;
+  (2) optional nullable `eligibility_override` census column (`TRUE`/`FALSE`/blank, same
+  absent-column-defaults-to-eligible pattern as `auto_escalation_opt_out` #316; invalid values
+  are non-fatal → eligible);
+  (3) `eligibility.new_hire_eligibility_match_census` (default false) calibrates the new-hire
+  rate to the census-observed ineligible share (ineligible ÷ total census headcount).
+  Resolved once in the new `int_plan_eligibility_override` temporal-accumulator model (census
+  flag read directly from `stg_census_data` for multi-year correctness; new hires via
+  deterministic hash) and folded into the eligibility gate in `int_enrollment_events`,
+  `int_voluntary_enrollment_decision`, `int_proactive_voluntary_enrollment`, and the
+  `DC_PLAN_ELIGIBILITY` event in `int_eligibility_events` (suppressed + reason/source annotated).
+  `EligibilityPayload.reason` gains `"ineligible_override"` + optional `source`. New dbt data
+  test `assert_ineligible_no_enrollment`. Default config remains byte-for-byte unchanged.
 - **Feature 094 — Live Simulation Run Dashboard**: structured telemetry protocol
   (`PLANALIGN_TELEMETRY|{json}` stdout records from orchestrator hooks with exact
   per-event-type counts at year boundaries), per-run telemetry state with milestone
