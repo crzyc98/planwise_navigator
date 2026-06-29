@@ -17,6 +17,8 @@ import logging
 
 import pytest
 
+import json
+
 from planalign_orchestrator.dbt_runner import (
     DbtCompilationError,
     DbtDataQualityError,
@@ -25,6 +27,7 @@ from planalign_orchestrator.dbt_runner import (
     DbtResult,
     DbtRunner,
     classify_dbt_error,
+    extract_dbt_failure_detail,
     retry_with_backoff,
 )
 
@@ -118,6 +121,94 @@ class TestClassifyDbtError:
     def test_none_inputs_handled(self):
         err = classify_dbt_error(None, None, 1)
         assert isinstance(err, DbtError)
+
+    @pytest.mark.fast
+    def test_failure_detail_surfaced_in_generic_error(self):
+        err = classify_dbt_error(
+            "Done. PASS=0 WARN=0 ERROR=1 SKIP=0 TOTAL=1",
+            "",
+            1,
+            failure_detail="model.proj.dim_x: Binder Error: column missing",
+        )
+        assert type(err) is DbtError
+        assert "dim_x" in str(err)
+        assert "Binder Error" in str(err)
+        # No empty "Tail:" when we have structured detail
+        assert "Tail:" not in str(err)
+
+    @pytest.mark.fast
+    def test_failure_detail_appended_to_compilation_error(self):
+        err = classify_dbt_error(
+            "",
+            "Compilation Error in model",
+            1,
+            failure_detail="model.proj.dim_x: missing ref",
+        )
+        assert isinstance(err, DbtCompilationError)
+        assert "dim_x" in str(err)
+
+    @pytest.mark.fast
+    def test_generic_tail_includes_stderr(self):
+        err = classify_dbt_error("", "boom in stderr", 2)
+        assert "boom in stderr" in str(err)
+
+
+# ===================================================================
+# extract_dbt_failure_detail
+# ===================================================================
+
+
+class TestExtractDbtFailureDetail:
+    @pytest.mark.fast
+    def test_missing_run_results_returns_empty(self, tmp_path):
+        assert extract_dbt_failure_detail(tmp_path) == ""
+
+    @pytest.mark.fast
+    def test_malformed_json_returns_empty(self, tmp_path):
+        target = tmp_path / "target"
+        target.mkdir()
+        (target / "run_results.json").write_text("{not json")
+        assert extract_dbt_failure_detail(tmp_path) == ""
+
+    @pytest.mark.fast
+    def test_extracts_failing_node_and_message(self, tmp_path):
+        target = tmp_path / "target"
+        target.mkdir()
+        payload = {
+            "results": [
+                {
+                    "unique_id": "model.proj.dim_ok",
+                    "status": "success",
+                    "message": None,
+                },
+                {
+                    "unique_id": "model.proj.dim_promotion_hazards",
+                    "status": "error",
+                    "message": "Binder Error: Referenced column missing",
+                },
+            ]
+        }
+        (target / "run_results.json").write_text(json.dumps(payload))
+        detail = extract_dbt_failure_detail(tmp_path)
+        assert "dim_promotion_hazards" in detail
+        assert "Binder Error" in detail
+        assert "dim_ok" not in detail
+
+    @pytest.mark.fast
+    def test_joins_multiple_failures(self, tmp_path):
+        target = tmp_path / "target"
+        target.mkdir()
+        payload = {
+            "results": [
+                {"unique_id": "model.proj.a", "status": "error", "message": "e1"},
+                {"unique_id": "model.proj.b", "status": "fail", "message": "e2"},
+            ]
+        }
+        (target / "run_results.json").write_text(json.dumps(payload))
+        detail = extract_dbt_failure_detail(tmp_path)
+        assert "model.proj.a: e1" in detail
+        assert "model.proj.b: e2" in detail
+        assert " | " in detail
 
 
 # ===================================================================
