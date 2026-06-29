@@ -116,12 +116,25 @@ already_eligible AS (
 ),
 {% endif %}
 
+-- Feature 103: employees whose plan eligibility is overridden ineligible — suppress
+-- their DC_PLAN_ELIGIBILITY event entirely (no event is emitted for the period).
+plan_ineligible_override AS (
+  SELECT employee_id
+  FROM {{ ref('int_plan_eligibility_override') }}
+  WHERE simulation_year = {{ simulation_year }}
+    AND is_plan_ineligible_override
+),
+
 newly_eligible AS (
   SELECT e.*
   FROM eligible_this_year e
+  LEFT JOIN plan_ineligible_override pio ON e.employee_id = pio.employee_id
   {% if simulation_year != start_year %}
   LEFT JOIN already_eligible ae ON e.employee_id = ae.employee_id
-  WHERE ae.employee_id IS NULL
+  {% endif %}
+  WHERE pio.employee_id IS NULL  -- Feature 103: drop overridden-ineligible employees
+  {% if simulation_year != start_year %}
+    AND ae.employee_id IS NULL
   {% endif %}
 )
 
@@ -131,13 +144,16 @@ SELECT
   {{ evt_eligibility() }}                                    AS event_type,
   {{ simulation_year }}                                      AS simulation_year,
   eligibility_effective_date                                 AS effective_date,
+  -- Feature 103: annotate reason/source for parity with the Python event layer
+  -- (EligibilityPayload). Suppressed (overridden-ineligible) employees never reach
+  -- this SELECT, so emitted events always reflect normal age/service eligibility.
   '{"eligibility_date":"'
     || CAST(CAST(eligibility_effective_date AS DATE) AS VARCHAR)
     || '","waiting_period_days":'
     || CAST(waiting_period_days AS VARCHAR)
     || ',"minimum_age":'
     || CAST(minimum_age AS VARCHAR)
-    || '}'                                                   AS event_details,
+    || ',"reason":"age_and_service","source":"plan_rules"}'  AS event_details,
   NULL::DECIMAL(10, 2)                                       AS compensation_amount,
   NULL::DECIMAL(10, 2)                                       AS previous_compensation,
   NULL::DECIMAL(5, 4)                                        AS employee_deferral_rate,

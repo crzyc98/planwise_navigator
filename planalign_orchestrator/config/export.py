@@ -60,6 +60,11 @@ def _export_simulation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
         dbt_vars["minimum_service_days"] = cfg.eligibility.waiting_period_days
     if cfg.plan_eligibility.minimum_age is not None:
         dbt_vars["minimum_age"] = cfg.plan_eligibility.minimum_age
+    # Feature 103: configurable new-hire plan ineligibility (no-op defaults).
+    dbt_vars["new_hire_ineligible_pct"] = cfg.eligibility.new_hire_ineligible_pct
+    dbt_vars[
+        "new_hire_eligibility_match_census"
+    ] = cfg.eligibility.new_hire_eligibility_match_census
 
     # Random seed
     if cfg.simulation.random_seed is not None:

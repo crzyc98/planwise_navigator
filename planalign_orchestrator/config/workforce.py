@@ -141,6 +141,24 @@ class EligibilitySettings(BaseModel):
     """Basic eligibility settings."""
 
     waiting_period_days: Optional[int] = None
+    # Feature 103: configurable new-hire plan ineligibility.
+    new_hire_ineligible_pct: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Fraction of each year's new-hire cohort marked DC-plan ineligible "
+            "(deterministic, reproducible). 0.0 = everyone eligible (default)."
+        ),
+    )
+    new_hire_eligibility_match_census: bool = Field(
+        default=False,
+        description=(
+            "When True, the effective new-hire ineligible rate is the census-observed "
+            "ineligible share (ineligible / total census headcount) instead of "
+            "new_hire_ineligible_pct."
+        ),
+    )
 
 
 class PlanEligibilitySettings(BaseModel):

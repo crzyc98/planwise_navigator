@@ -67,9 +67,19 @@ new_hires_current_year AS (
 ),
 
 active_workforce AS (
-  SELECT * FROM active_workforce_base
-  UNION ALL
-  SELECT * FROM new_hires_current_year
+  -- Feature 103: fold the resolved plan-eligibility override into the population
+  -- once, so every eligibility flag below gates on `NOT is_plan_ineligible_override`.
+  SELECT
+    base.*,
+    COALESCE(ov.is_plan_ineligible_override, false) AS is_plan_ineligible_override
+  FROM (
+    SELECT * FROM active_workforce_base
+    UNION ALL
+    SELECT * FROM new_hires_current_year
+  ) base
+  LEFT JOIN {{ ref('int_plan_eligibility_override') }} ov
+    ON base.employee_id = ov.employee_id
+    AND base.simulation_year = ov.simulation_year
 ),
 
 previous_enrollment_state AS (
@@ -171,6 +181,7 @@ auto_enrollment_eligible_population AS (
     CASE
       WHEN aw.employment_status = 'active'
         AND COALESCE(pe.was_enrolled_previously, false) = false
+        AND aw.is_plan_ineligible_override = false  -- Feature 103 gate
         AND {{ is_eligible_for_auto_enrollment('aw.employee_hire_date', 'aw.simulation_year') }}
       THEN true
       ELSE false
@@ -208,6 +219,7 @@ eligible_for_enrollment AS (
     {{ is_eligible_for_auto_enrollment('aw.employee_hire_date', 'aw.simulation_year') }}
       AND aw.employment_status = 'active'
       AND COALESCE(pe.was_enrolled_previously, false) = false
+      AND aw.is_plan_ineligible_override = false  -- Feature 103 gate
     as is_eligible,
 
     -- CRITICAL: Track already enrolled status to prevent duplicates
@@ -581,6 +593,8 @@ year_over_year_enrollment_events AS (
     COALESCE(pes.was_enrolled_previously, false) = false
     -- CRITICAL: Exclude employees who have ever opted out - they made an explicit decision to not participate
     AND COALESCE(pes.ever_opted_out, false) = false
+    -- Feature 103: never convert plan-ineligible employees
+    AND aw.is_plan_ineligible_override = false
     -- Exclude recent hires (handled by new hire enrollment logic)
     AND aw.employee_hire_date < CAST(aw.simulation_year || '-01-01' AS DATE)
     -- Apply year-over-year conversion probability

@@ -143,8 +143,13 @@ eligible_employees AS (
     COALESCE(ces.ever_opted_out, false) as ever_opted_out
   FROM active_workforce aw
   LEFT JOIN current_enrollment_status ces ON aw.employee_id = ces.employee_id
+  -- Feature 103: resolved plan-eligibility override gates voluntary enrollment too
+  LEFT JOIN {{ ref('int_plan_eligibility_override') }} ov
+    ON aw.employee_id = ov.employee_id
+    AND aw.simulation_year = ov.simulation_year
   WHERE COALESCE(ces.is_currently_enrolled, false) = false  -- Not currently enrolled
     AND COALESCE(ces.ever_opted_out, false) = false  -- Never opted out
+    AND COALESCE(ov.is_plan_ineligible_override, false) = false  -- Feature 103 gate
 ),
 
 demographic_segmentation AS (

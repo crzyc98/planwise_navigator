@@ -150,6 +150,20 @@ models:
           - not_null
           - accepted_values:
               values: [true, false]
+      - name: eligibility_override
+        description: >
+          Per-employee plan eligibility override (Feature 103). TRUE = eligible,
+          FALSE = ineligible (suppress enrollment/contribution/match), NULL =
+          unspecified (default eligible). Optional in the source census; absent or
+          unrecognized values coerce to NULL (eligible). NULL is intentionally
+          preserved (nullable, not defaulted) so the override model can distinguish
+          unspecified from an explicit flag.
+        data_type: boolean
+        data_tests:
+          - accepted_values:
+              values: [true, false]
+              config:
+                where: "eligibility_override is not null"
 
   - name: stg_census_duplicates_audit
     description: >
