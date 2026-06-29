@@ -13,6 +13,11 @@ ruff==0.4.3
 black==23.9.1
 isort==5.12.0
 mypy==1.5.1
+# Type stubs for the CI `mypy` lint job. Without these, mypy reports
+# "Library stubs not installed for 'yaml'" (not suppressed by
+# --ignore-missing-imports because the stub is known to exist on PyPI),
+# keeping the lint job red. See #333.
+types-PyYAML==6.0.12.20260518
 pylint==3.0.2
 flake8==6.1.0
 pre-commit==3.3.3
