@@ -91,10 +91,10 @@ description: "Task list for fct_workforce_snapshot eligibility decorrelation (is
 **Purpose**: Suite-wide safety, deferred-finding capture, and PR hygiene.
 
 - [X] T018 [P] Run `pytest -m fast` — green (no orchestrator/config regressions)
-- [ ] T019 [P] File a follow-up GitHub issue for the deferred dead-code finding (research.md R2): the events-eligibility join is inert because no producer emits `determination_type`; decide remove-vs-activate as a business-rules call. Reference #365 and this branch
+- [X] T019 [P] File a follow-up GitHub issue for the deferred dead-code finding (research.md R2): the events-eligibility join is inert because no producer emits `determination_type`; decide remove-vs-activate as a business-rules call. Reference #365 and this branch
 - [X] T020 Update `CHANGELOG.md` with the perf entry (decorrelated `fct_workforce_snapshot` eligibility branch; behavior-preserving) per VERSIONING_GUIDE
-- [ ] T021 Open PR closing #365: summarize the decorrelation, the byte-identical evidence (T010–T013), the no-regression evidence (T015), and the deferred dead-code follow-up (T019)
-- [ ] T022 [P] Clean up scratch artifacts under `/tmp/feat104/` once the PR captures the evidence
+- [X] T021 Open PR closing #365: summarize the decorrelation, the byte-identical evidence (T010–T013), the no-regression evidence (T015), and the deferred dead-code follow-up (T019)
+- [X] T022 [P] Clean up scratch artifacts under `/tmp/feat104/` once the PR captures the evidence
 
 ---
 
