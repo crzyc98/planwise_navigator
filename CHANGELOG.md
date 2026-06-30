@@ -96,15 +96,17 @@ Fidelity PlanAlign Engine follows **Semantic Versioning 2.0.0** (MAJOR.MINOR.PAT
   PerformanceTrendChart, ConnectionStatusBadge)
 
 ### Changed
-- **Feature 104 — `fct_workforce_snapshot` eligibility decorrelation** (issue #365): the
-  subsequent-years (year 2+) eligibility branch replaced a per-employee correlated subquery
-  (`simulation_year IN (SELECT MAX(simulation_year) … WHERE ey.employee_id = …)`) with a
-  single-pass `MAX(simulation_year) OVER (PARTITION BY employee_id)` window form, collapsing
-  the eligibility CTE's two reads of `fct_yearly_events` to one. Strictly behavior-preserving:
-  output verified byte-identical across a multi-year run under both the default and an edge
-  config (broad auto-enrollment scope + early hire-date cutoff). The (currently inert — no
-  producer emits `determination_type`) `'$.determination_type' = 'initial'` predicate is
-  preserved verbatim; whether to remove or activate that dead join is deferred to a follow-up.
+- **Feature 104 — remove dead eligibility-events join in `fct_workforce_snapshot`**
+  (issues #365, #368): the subsequent-years (year 2+) eligibility branch contained a
+  per-employee correlated subquery joining "eligibility" events and overriding the baseline
+  via `COALESCE`. The join filtered on `'$.determination_type' = 'initial'`, but **no
+  producer emits a `determination_type` key** (neither the SQL `int_eligibility_events` model
+  nor the Pydantic `EligibilityPayload`), so it returned zero rows in every configuration and
+  the `COALESCE` always fell through to `int_baseline_workforce`. The dead subquery and its
+  correlated scan are removed; the three eligibility columns now read `baseline.*` directly.
+  Strictly behavior-preserving — output verified byte-identical across a multi-year run under
+  both the default and an edge config (broad auto-enrollment scope + early hire-date cutoff);
+  no new dbt-test failures. Net −16 lines in the model.
 - Simulation run screen replaces the raw per-employee event stream with a milestone
   activity feed and replaces the performance graph placeholder with a live trend chart
 - Pipeline year/stage hooks (`PRE_YEAR`/`POST_YEAR`/`PRE_STAGE`/`POST_STAGE`/

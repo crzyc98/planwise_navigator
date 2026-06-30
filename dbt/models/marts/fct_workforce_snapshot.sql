@@ -434,9 +434,14 @@ employee_eligibility AS (
     -- Subsequent years: Base on current workforce to avoid missing employees without explicit eligibility events
     SELECT DISTINCT
         fwc.employee_id AS employee_id,
-        COALESCE(events.employee_eligibility_date, baseline.employee_eligibility_date) AS employee_eligibility_date,
-        COALESCE(events.waiting_period_days, baseline.waiting_period_days) AS waiting_period_days,
-        COALESCE(events.current_eligibility_status, baseline.current_eligibility_status) AS current_eligibility_status,
+        -- Eligibility columns come from int_baseline_workforce. A prior design joined
+        -- "eligibility" events here and overrode the baseline via COALESCE, but no producer
+        -- ever emits the '$.determination_type' = "initial" key that join filtered on, so it
+        -- returned zero rows and the COALESCE always fell through to baseline (#368). The dead
+        -- events join has been removed; this reads baseline directly (behavior unchanged).
+        baseline.employee_eligibility_date AS employee_eligibility_date,
+        baseline.waiting_period_days AS waiting_period_days,
+        baseline.current_eligibility_status AS current_eligibility_status,
         -- Use enrollment state accumulator for consistent enrollment tracking
         -- Priority: 1. Current year enrollment events, 2. Enrollment state accumulator, 3. Baseline
         COALESCE(
@@ -453,38 +458,7 @@ employee_eligibility AS (
             ) IS NOT NULL THEN true ELSE false
         END AS is_enrolled_flag
     FROM final_workforce_corrected fwc
-    -- Eligibility from events (most recent determination up to current year)
-    -- feat104 (#365): decorrelated. The latest eligibility year per employee is computed
-    -- once via MAX(simulation_year) OVER (PARTITION BY employee_id), replacing a per-row
-    -- correlated subquery (one scan of fct_yearly_events instead of two). The MAX is taken
-    -- over ALL eligibility events (any determination_type), so set membership is identical
-    -- to the original correlated form. The '$.determination_type' = 'initial' predicate is
-    -- preserved verbatim — note no producer currently emits determination_type, so this
-    -- join is inert today; behavior is intentionally unchanged (see spec 104 research R2).
-    LEFT JOIN (
-        WITH eligibility_events_ranked AS (
-            SELECT
-                employee_id,
-                simulation_year,
-                event_details,
-                MAX(simulation_year) OVER (PARTITION BY employee_id) AS latest_eligibility_year
-            FROM {{ ref('fct_yearly_events') }}
-            WHERE event_type = 'eligibility'
-              AND simulation_year <= {{ simulation_year }}
-        )
-        SELECT DISTINCT
-            employee_id,
-            JSON_EXTRACT_STRING(event_details, '$.eligibility_date')::DATE AS employee_eligibility_date,
-            JSON_EXTRACT(event_details, '$.waiting_period_days')::INT AS waiting_period_days,
-            CASE
-                WHEN JSON_EXTRACT_STRING(event_details, '$.eligibility_date')::DATE <= '{{ simulation_year }}-12-31'::DATE THEN 'eligible'
-                ELSE 'pending'
-            END AS current_eligibility_status
-        FROM eligibility_events_ranked
-        WHERE simulation_year = latest_eligibility_year
-          AND JSON_EXTRACT_STRING(event_details, '$.determination_type') = 'initial'
-    ) events ON fwc.employee_id = events.employee_id
-    -- Baseline fallback for employees without eligibility events
+    -- Eligibility source of truth for subsequent years (see #368 note above).
     -- **E028 PERFORMANCE FIX**: Add simulation_year filter to reduce full table scan
     LEFT JOIN (
         SELECT employee_id, employee_eligibility_date, waiting_period_days, current_eligibility_status, employee_enrollment_date
