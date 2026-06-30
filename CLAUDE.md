@@ -551,20 +551,7 @@ planalign calibrate 2025-2029 --database iso.duckdb --target-growth 0.035
 # Override comp levers; interactive re-tune loop (adjust COLA/merit, re-run without restarting)
 planalign calibrate 2025-2029 --cola 0.025 --merit 0.04 --database iso.duckdb
 planalign calibrate 2025-2029 --interactive --database iso.duckdb
-
-# Per-level new-hire compensation multiplier (band midpoint x multiplier)
-planalign calibrate 2025-2029 --comp-mult 1.8 --database iso.duckdb            # all levels
-planalign calibrate 2025-2029 --comp-mult-level "1:1.4,5:2.5" --database iso.duckdb  # per level
 ```
-
-**New-hire compensation multiplier (Feature 105):** new-hire pay per level =
-`int_workforce_needs_by_level` band-midpoint base × a per-level multiplier, applied in
-the model **shared by the full sim and calibration** (so a value tuned in calibration
-transfers verbatim to a production run). Config: `compensation.new_hire_comp_multiplier_default`
-(applies to every level) and `compensation.new_hire_comp_multipliers` (per-level overrides),
-exported as the dbt vars `new_hire_comp_multiplier_default` / `new_hire_comp_multipliers`.
-**The default is `1.8×`** — i.e. on this branch the full simulation's new-hire compensation is
-1.8× the prior band-midpoint behavior. Set it to `1.0` to reproduce the old new-hire pay.
 
 Key invariants:
 - **Prerequisite**: the target DB must have had one full build (the DC tables `fct_workforce_snapshot`/`fct_yearly_events` `ref()` must already exist, stale-but-present). A fail-fast guard rejects DBs missing them (exit code 3).

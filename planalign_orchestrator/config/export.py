@@ -892,16 +892,6 @@ def _export_compensation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     # E082: Promotion rate multiplier
     dbt_vars["promotion_rate_multiplier"] = cfg.compensation.promotion_rate_multiplier
 
-    # Feature 105: per-level new-hire compensation multiplier (shared by full sim
-    # and calibration). `default` applies to every level; the dict overrides
-    # specific levels.
-    dbt_vars[
-        "new_hire_comp_multiplier_default"
-    ] = cfg.compensation.new_hire_comp_multiplier_default
-    dbt_vars["new_hire_comp_multipliers"] = (
-        cfg.compensation.new_hire_comp_multipliers or {}
-    )
-
     # Market adjustments
     if promotion.advanced.market_adjustments:
         dbt_vars["promotion_market_adjustments"] = promotion.advanced.market_adjustments

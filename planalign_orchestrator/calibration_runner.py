@@ -69,20 +69,6 @@ class CalibrationParameterSet(BaseModel):
     merit_budget: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     promotion_increase: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     new_hire_mix: Optional[Dict[str, float]] = None
-    # Feature 105: per-level new-hire comp multiplier (band midpoint x mult).
-    new_hire_comp_multiplier_default: Optional[float] = Field(
-        default=None, ge=0.1, le=3.0
-    )
-    new_hire_comp_multipliers: Optional[Dict[int, float]] = None
-
-    @field_validator("new_hire_comp_multipliers")
-    @classmethod
-    def _multipliers_in_range(
-        cls, value: Optional[Dict[int, float]]
-    ) -> Optional[Dict[int, float]]:
-        if value is not None and any(not 0.1 <= m <= 3.0 for m in value.values()):
-            raise ValueError("new_hire_comp_multipliers must be within 0.1-3.0")
-        return value
 
     @field_validator("new_hire_mix")
     @classmethod
@@ -289,14 +275,6 @@ class CalibrationRunner:
             self._config.compensation.merit_budget = params.merit_budget
         if params.promotion_increase is not None:
             self._config.compensation.promotion_increase = params.promotion_increase
-        if params.new_hire_comp_multiplier_default is not None:
-            self._config.compensation.new_hire_comp_multiplier_default = (
-                params.new_hire_comp_multiplier_default
-            )
-        if params.new_hire_comp_multipliers is not None:
-            self._config.compensation.new_hire_comp_multipliers = (
-                params.new_hire_comp_multipliers
-            )
 
     def _build_year(self, year: int) -> None:
         dbt_vars = to_dbt_vars(self._config)

@@ -51,16 +51,6 @@ def run_calibration(
     merit: Optional[float] = typer.Option(
         None, "--merit", help="Override merit budget"
     ),
-    comp_mult: Optional[float] = typer.Option(
-        None,
-        "--comp-mult",
-        help="New-hire comp multiplier applied to every level (0.1-3.0)",
-    ),
-    comp_mult_level: Optional[str] = typer.Option(
-        None,
-        "--comp-mult-level",
-        help="Per-level new-hire comp multipliers, e.g. '1:1.6,2:1.4'",
-    ),
     interactive: bool = typer.Option(
         False, "--interactive", help="Re-tune parameters between iterations"
     ),
@@ -82,8 +72,6 @@ def run_calibration(
             target_growth_pct=target_growth,
             cola_rate=cola,
             merit_budget=merit,
-            new_hire_comp_multiplier_default=comp_mult,
-            new_hire_comp_multipliers=_parse_level_multipliers(comp_mult_level),
         )
         run = CalibrationRun(
             start_year=start_year,
@@ -122,17 +110,6 @@ def run_calibration(
         _interactive_loop(runner)
 
     show_success_message("Calibration complete")
-
-
-def _parse_level_multipliers(spec: Optional[str]) -> Optional[dict]:
-    """Parse '1:1.6,2:1.4' into {1: 1.6, 2: 1.4}; None/empty -> None."""
-    if not spec or not spec.strip():
-        return None
-    result: dict = {}
-    for pair in spec.split(","):
-        level, _, mult = pair.partition(":")
-        result[int(level.strip())] = float(mult.strip())
-    return result
 
 
 def _render_results(results: List[PerYearCompensationResult]) -> None:

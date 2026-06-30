@@ -291,18 +291,12 @@ compensation_planning AS (
     -- New hire compensation using configurable percentiles (Epic E056)
     -- Calculate percentile-based compensation with market adjustments
     -- E082: Apply market scenario adjustment
-    -- Feature 105: per-level new-hire comp multiplier (shared by full sim and
-    -- calibration; per-level overrides fall back to the configured default).
-    {% set nh_mult = var('new_hire_comp_multipliers', {}) %}
-    {% set nh_mult_default = var('new_hire_comp_multiplier_default', 1.8) %}
-    {% if nh_mult %}{% set nh_mult_expr %}CASE jlm.level_id{% for lvl, mult in nh_mult.items() %} WHEN {{ lvl }} THEN {{ mult }}{% endfor %} ELSE {{ nh_mult_default }} END{% endset %}{% else %}{% set nh_mult_expr = nh_mult_default %}{% endif %}
     CAST((jlm.min_compensation +
      (jlm.max_compensation - jlm.min_compensation) *
      COALESCE({{ resolve_parameter('jlm.level_id', 'HIRE', 'compensation_percentile', simulation_year) }}, 0.50) *
      COALESCE({{ resolve_parameter('jlm.level_id', 'HIRE', 'market_adjustment_multiplier', simulation_year) }}, 1.0) *
      (1 + {{ var('market_scenario_adjustment', 0) }} / 100.0)
-    ) * ({{ nh_mult_expr }})
-    AS DOUBLE) AS new_hire_avg_compensation,
+    ) AS DOUBLE) AS new_hire_avg_compensation,
     -- Merit increase planning - use variable-based parameters for consistency
     CAST(wbl.total_compensation * {{ var('merit_budget', 0.035) }} AS DOUBLE) AS merit_increase_cost,
     -- COLA planning - use variable-based parameters for consistency
