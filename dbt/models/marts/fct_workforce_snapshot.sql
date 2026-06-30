@@ -434,9 +434,14 @@ employee_eligibility AS (
     -- Subsequent years: Base on current workforce to avoid missing employees without explicit eligibility events
     SELECT DISTINCT
         fwc.employee_id AS employee_id,
-        COALESCE(events.employee_eligibility_date, baseline.employee_eligibility_date) AS employee_eligibility_date,
-        COALESCE(events.waiting_period_days, baseline.waiting_period_days) AS waiting_period_days,
-        COALESCE(events.current_eligibility_status, baseline.current_eligibility_status) AS current_eligibility_status,
+        -- Eligibility columns come from int_baseline_workforce. A prior design joined
+        -- "eligibility" events here and overrode the baseline via COALESCE, but no producer
+        -- ever emits the '$.determination_type' = "initial" key that join filtered on, so it
+        -- returned zero rows and the COALESCE always fell through to baseline (#368). The dead
+        -- events join has been removed; this reads baseline directly (behavior unchanged).
+        baseline.employee_eligibility_date AS employee_eligibility_date,
+        baseline.waiting_period_days AS waiting_period_days,
+        baseline.current_eligibility_status AS current_eligibility_status,
         -- Use enrollment state accumulator for consistent enrollment tracking
         -- Priority: 1. Current year enrollment events, 2. Enrollment state accumulator, 3. Baseline
         COALESCE(
@@ -453,28 +458,7 @@ employee_eligibility AS (
             ) IS NOT NULL THEN true ELSE false
         END AS is_enrolled_flag
     FROM final_workforce_corrected fwc
-    -- Eligibility from events (most recent determination up to current year)
-    LEFT JOIN (
-        SELECT DISTINCT
-            employee_id,
-            JSON_EXTRACT_STRING(event_details, '$.eligibility_date')::DATE AS employee_eligibility_date,
-            JSON_EXTRACT(event_details, '$.waiting_period_days')::INT AS waiting_period_days,
-            CASE
-                WHEN JSON_EXTRACT_STRING(event_details, '$.eligibility_date')::DATE <= '{{ simulation_year }}-12-31'::DATE THEN 'eligible'
-                ELSE 'pending'
-            END AS current_eligibility_status
-        FROM {{ ref('fct_yearly_events') }}
-        WHERE event_type = 'eligibility'
-          AND JSON_EXTRACT_STRING(event_details, '$.determination_type') = 'initial'
-          AND simulation_year IN (
-              SELECT MAX(simulation_year)
-              FROM {{ ref('fct_yearly_events') }} ey
-              WHERE ey.event_type = 'eligibility'
-                AND ey.employee_id = fct_yearly_events.employee_id
-                AND ey.simulation_year <= {{ simulation_year }}
-          )
-    ) events ON fwc.employee_id = events.employee_id
-    -- Baseline fallback for employees without eligibility events
+    -- Eligibility source of truth for subsequent years (see #368 note above).
     -- **E028 PERFORMANCE FIX**: Add simulation_year filter to reduce full table scan
     LEFT JOIN (
         SELECT employee_id, employee_eligibility_date, waiting_period_days, current_eligibility_status, employee_enrollment_date
