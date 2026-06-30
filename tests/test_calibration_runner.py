@@ -1,0 +1,156 @@
+"""Fast unit tests for the CalibrationRunner plumbing (Feature 105).
+
+Covers year-range validation, parameter validation, first-year null growth,
+isolated-DB default resolution, and the fail-fast prerequisite guard. These
+tests do NOT run dbt -- they exercise the pure-Python logic in isolation.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import duckdb
+import pytest
+
+from planalign_orchestrator.calibration_runner import (
+    DC_PREREQUISITE_TABLES,
+    CalibrationParameterSet,
+    CalibrationRun,
+    CalibrationRunner,
+    PerYearCompensationResult,
+    resolve_calibration_database,
+    verify_dc_prerequisites,
+)
+from planalign_orchestrator.exceptions import ConfigurationError
+
+pytestmark = [pytest.mark.fast]
+
+
+# -- year range / param validation ---------------------------------------
+def test_year_range_must_be_ordered() -> None:
+    with pytest.raises(ValueError):
+        CalibrationRun(start_year=2029, end_year=2025)
+
+
+def test_valid_single_year_range() -> None:
+    run = CalibrationRun(start_year=2025, end_year=2025)
+    assert run.start_year == run.end_year == 2025
+
+
+def test_negative_cola_rejected() -> None:
+    with pytest.raises(ValueError):
+        CalibrationParameterSet(cola_rate=-0.01)
+
+
+def test_new_hire_mix_must_sum_positive() -> None:
+    with pytest.raises(ValueError):
+        CalibrationParameterSet(new_hire_mix={"1": 0.0, "2": 0.0})
+
+
+def test_new_hire_mix_rejects_negative_weight() -> None:
+    with pytest.raises(ValueError):
+        CalibrationParameterSet(new_hire_mix={"1": -0.5, "2": 1.0})
+
+
+# -- first-year null growth ----------------------------------------------
+def test_first_year_growth_and_delta_are_null() -> None:
+    row = CalibrationRunner._assemble_row(
+        2025,
+        {"avg_compensation": 92000.0, "yoy_growth_pct": None},
+        {"headcount": 100, "new_hire_avg": 80000.0, "existing_avg": 95000.0},
+        target=0.035,
+    )
+    assert row.yoy_growth_pct is None
+    assert row.growth_delta_pct is None
+    assert row.new_hire_gap == pytest.approx(-15000.0)
+
+
+def test_delta_computed_on_percentage_scale() -> None:
+    # target 0.035 (decimal) -> 3.5%; yoy 3.6% -> delta +0.1
+    row = CalibrationRunner._assemble_row(
+        2026,
+        {"avg_compensation": 95000.0, "yoy_growth_pct": 3.6},
+        {"headcount": 105, "new_hire_avg": 82000.0, "existing_avg": 96000.0},
+        target=0.035,
+    )
+    assert row.target_growth_pct == pytest.approx(3.5)
+    assert row.growth_delta_pct == pytest.approx(0.1, abs=1e-6)
+    assert isinstance(row, PerYearCompensationResult)
+
+
+# -- isolated DB default --------------------------------------------------
+def test_isolated_db_default_not_shared(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    resolved = resolve_calibration_database(None)
+    shared = Path("dbt") / "simulation.duckdb"
+    assert resolved != shared
+    assert "calibration" in str(resolved)
+
+
+def test_explicit_db_is_respected() -> None:
+    explicit = Path("/tmp/cal/iso.duckdb")
+    assert resolve_calibration_database(explicit) == explicit
+
+
+# -- prerequisite guard ---------------------------------------------------
+def test_guard_raises_when_db_missing(tmp_path) -> None:
+    with pytest.raises(ConfigurationError):
+        verify_dc_prerequisites(tmp_path / "nope.duckdb")
+
+
+def test_guard_raises_when_dc_tables_missing(tmp_path) -> None:
+    db = tmp_path / "empty.duckdb"
+    conn = duckdb.connect(str(db))
+    conn.execute("CREATE TABLE some_other_table (x INTEGER)")
+    conn.close()
+    with pytest.raises(ConfigurationError) as exc:
+        verify_dc_prerequisites(db)
+    # message should name at least one missing prerequisite
+    assert any(t in str(exc.value) for t in DC_PREREQUISITE_TABLES)
+
+
+def test_guard_passes_when_all_dc_tables_present(tmp_path) -> None:
+    db = tmp_path / "ok.duckdb"
+    conn = duckdb.connect(str(db))
+    for table in DC_PREREQUISITE_TABLES:
+        conn.execute(f"CREATE TABLE {table} (x INTEGER)")
+    conn.close()
+    verify_dc_prerequisites(db)  # must not raise
+
+
+# -- interactive re-tune param logic (US2) --------------------------------
+def _runner_with_default_config(tmp_path) -> CalibrationRunner:
+    # Explicit tmp DB path (no isolated-dir creation) + the repo's default
+    # config. __init__ builds a DbtRunner but runs no dbt, so this stays fast.
+    run = CalibrationRun(
+        start_year=2025, end_year=2026, database_path=tmp_path / "cal.duckdb"
+    )
+    return CalibrationRunner(run, threads=1)
+
+
+def test_retune_overrides_cola_and_merit_only(tmp_path) -> None:
+    runner = _runner_with_default_config(tmp_path)
+    baseline_growth = runner._config.simulation.target_growth_rate
+
+    runner._apply_param_overrides(
+        CalibrationParameterSet(
+            cola_rate=0.05, merit_budget=0.06, target_growth_pct=0.04
+        )
+    )
+
+    assert runner._config.compensation.cola_rate == 0.05
+    assert runner._config.compensation.merit_budget == 0.06
+    # CRITICAL: the compensation-growth target must NOT alter the workforce
+    # growth target that sizes E077 hiring (this was the exactness bug).
+    assert runner._config.simulation.target_growth_rate == baseline_growth
+
+
+def test_retune_leaves_unset_params_at_config_default(tmp_path) -> None:
+    runner = _runner_with_default_config(tmp_path)
+    default_cola = runner._config.compensation.cola_rate
+
+    # Only merit provided -> cola stays at the config default.
+    runner._apply_param_overrides(CalibrationParameterSet(merit_budget=0.07))
+
+    assert runner._config.compensation.merit_budget == 0.07
+    assert runner._config.compensation.cola_rate == default_cola

@@ -2086,3 +2086,51 @@ export async function applyWorkforceParams(
   );
   return handleResponse<WorkforceParamsApplyResult>(response);
 }
+
+// ============================================================================
+// Calibration Endpoints (Feature 105 - Fast Compensation Calibration)
+// ============================================================================
+
+export interface CalibrationParams {
+  target_growth_pct?: number | null;
+  cola_rate?: number | null;
+  merit_budget?: number | null;
+  promotion_increase?: number | null;
+  new_hire_mix?: Record<string, number> | null;
+}
+
+export interface CalibrationRunRequest {
+  start_year: number;
+  end_year: number;
+  config_path?: string | null;
+  database_path?: string | null;
+  params?: CalibrationParams;
+}
+
+export interface PerYearCompensationResult {
+  simulation_year: number;
+  avg_compensation: number;
+  yoy_growth_pct: number | null;
+  target_growth_pct: number | null;
+  growth_delta_pct: number | null;
+  headcount: number;
+  new_hire_avg_comp: number | null;
+  existing_avg_comp: number | null;
+  new_hire_gap: number | null;
+}
+
+export interface CalibrationRunResponse {
+  run_id: string;
+  results: PerYearCompensationResult[];
+}
+
+export async function runCalibration(
+  request: CalibrationRunRequest
+): Promise<CalibrationRunResponse> {
+  const response = await fetch(`${API_BASE}/api/calibration/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<CalibrationRunResponse>(response);
+}

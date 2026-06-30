@@ -4,7 +4,7 @@ import {
   LayoutDashboard, PlayCircle, BarChart3, Settings, Database,
   Activity, Bell, ChevronDown, Check, Search, Briefcase,
   X, Info, AlertTriangle, AlertCircle, CheckCircle, Moon, Sun, HelpCircle,
-  Plus, Loader2, Layers, PieChart, Scale, Shield, Menu, PanelLeftClose, PanelLeftOpen, ArrowLeftRight, FileUp
+  Plus, Loader2, Layers, PieChart, Scale, Shield, Menu, PanelLeftClose, PanelLeftOpen, ArrowLeftRight, FileUp, SlidersHorizontal
 } from 'lucide-react';
 import { APP_NAME, MOCK_NOTIFICATIONS, APP_VERSION } from '../constants';
 import { Workspace, Notification } from '../types';
@@ -578,6 +578,7 @@ export default function Layout() {
           <NavItem to="/" icon={<LayoutDashboard size={20} />} label="Dashboard" collapsed={sidebarCollapsed} />
           <NavItem to="/scenarios" icon={<Layers size={20} />} label="Scenarios" collapsed={sidebarCollapsed} />
           <NavItem to="/simulate" icon={<PlayCircle size={20} />} label="Simulate" collapsed={sidebarCollapsed} />
+          <NavItem to="/calibrate" icon={<SlidersHorizontal size={20} />} label="Calibration" collapsed={sidebarCollapsed} />
           <NavItem to="/analytics" icon={<BarChart3 size={20} />} label="Analytics" end collapsed={sidebarCollapsed} />
           <NavItem to="/analytics/dc-plan" icon={<PieChart size={20} />} label="DC Plan" collapsed={sidebarCollapsed} />
           <NavItem to="/analytics/vesting" icon={<Scale size={20} />} label="Vesting" collapsed={sidebarCollapsed} />
