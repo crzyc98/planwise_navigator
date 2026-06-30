@@ -79,12 +79,27 @@ def test_delta_computed_on_percentage_scale() -> None:
 
 
 # -- isolated DB default --------------------------------------------------
-def test_isolated_db_default_not_shared(tmp_path, monkeypatch) -> None:
+def test_isolated_db_default_seeds_from_shared(tmp_path, monkeypatch) -> None:
+    # With a built shared dev DB present, the default copies it to an isolated
+    # calibration DB (never returns the shared path, never mutates it).
     monkeypatch.chdir(tmp_path)
-    resolved = resolve_calibration_database(None)
     shared = Path("dbt") / "simulation.duckdb"
+    shared.parent.mkdir(parents=True, exist_ok=True)
+    shared.write_bytes(b"seed-db-contents")
+
+    resolved = resolve_calibration_database(None)
+
     assert resolved != shared
     assert "calibration" in str(resolved)
+    assert resolved.exists() and resolved.read_bytes() == b"seed-db-contents"
+    assert shared.read_bytes() == b"seed-db-contents"  # source untouched
+
+
+def test_isolated_db_default_raises_without_source(tmp_path, monkeypatch) -> None:
+    # No shared dev DB to seed from -> fail fast with actionable guidance.
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(ConfigurationError):
+        resolve_calibration_database(None)
 
 
 def test_explicit_db_is_respected() -> None:

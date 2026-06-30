@@ -131,10 +131,14 @@ export default function CalibrationPanel() {
             <input
               type="text"
               value={databasePath}
-              placeholder="isolated calibration DB"
+              placeholder="blank = copy of shared dev DB"
               onChange={(e) => setDatabasePath(e.target.value)}
               className="mt-1 w-full rounded border-gray-300 shadow-sm"
             />
+            <span className="mt-1 block text-xs text-gray-500">
+              Leave blank to calibrate an isolated copy of the shared dev database,
+              or enter a path to a database that has had one full simulation.
+            </span>
           </label>
         </div>
 

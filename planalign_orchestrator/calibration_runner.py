@@ -17,6 +17,7 @@ See ``specs/105-comp-calibration/`` for the spec, plan, and research decisions.
 from __future__ import annotations
 
 import logging
+import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -174,9 +175,16 @@ def _build_baseline_hint(database_path: Path) -> ResolutionHint:
 def resolve_calibration_database(database_path: Optional[Path]) -> Path:
     """Resolve the target DB, defaulting to an isolated calibration DB.
 
-    With an explicit path, that path is used. With no path, a timestamped
-    ``calibration_<ts>.duckdb`` under ``dbt/calibration/`` is returned so a
-    default run never touches the shared dev DB (``dbt/simulation.duckdb``).
+    With an explicit path, that path is used as-is. With no path, the shared dev
+    DB (``dbt/simulation.duckdb``) is **copied** to a timestamped
+    ``calibration_<ts>.duckdb`` under ``dbt/calibration/`` and that copy is
+    returned. Calibration reuses an existing full build's (stale-but-present) DC
+    tables, so the isolated default must be seeded from a built DB -- and the
+    copy means a default run never mutates the shared dev DB.
+
+    If no built source DB exists, a ``ConfigurationError`` is raised with an
+    actionable hint (rather than handing back an empty DB the guard would later
+    reject with a more cryptic message).
     """
     if database_path is not None:
         return Path(database_path)
@@ -188,6 +196,17 @@ def resolve_calibration_database(database_path: Optional[Path]) -> Path:
     target = cal_dir / f"calibration_{ts}.duckdb"
     if target.resolve() == shared.resolve():  # defensive; never equal in practice
         raise ConfigurationError("Refusing to calibrate against the shared dev DB")
+
+    if not shared.exists():
+        raise ConfigurationError(
+            "No source database to seed an isolated calibration run. Pass "
+            "--database pointing at a database that has had one full simulation, "
+            "or build the shared dev DB first (planalign simulate ...).",
+            resolution_hints=[_build_baseline_hint(shared)],
+        )
+
+    logger.info("Seeding isolated calibration DB from %s", shared)
+    shutil.copy(shared, target)
     return target
 
 
