@@ -49,6 +49,11 @@ export default function CalibrationPanel() {
     merit_budget: 0.035,
     new_hire_mix_senior: 0.2,
   });
+  // Feature 105: per-level new-hire comp multipliers (band midpoint x mult).
+  const JOB_LEVELS = [1, 2, 3, 4, 5];
+  const [compMult, setCompMult] = useState<Record<number, number>>(
+    Object.fromEntries(JOB_LEVELS.map((l) => [l, 1.8]))
+  );
   const [results, setResults] = useState<PerYearCompensationResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +79,9 @@ export default function CalibrationPanel() {
             '1': 1 - values.new_hire_mix_senior,
             '4': values.new_hire_mix_senior,
           },
+          new_hire_comp_multipliers: Object.fromEntries(
+            Object.entries(compMult).map(([lvl, m]) => [String(lvl), m])
+          ),
         },
       };
       const response = await runCalibration(request);
@@ -160,6 +168,36 @@ export default function CalibrationPanel() {
               />
             </div>
           ))}
+        </div>
+
+        <div>
+          <div className="text-sm font-medium text-gray-700 mb-2">
+            New-Hire Comp Multiplier by Job Level
+            <span className="ml-2 text-xs font-normal text-gray-500">
+              (band midpoint × multiplier; transfers to the real simulation)
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            {JOB_LEVELS.map((lvl) => (
+              <div key={lvl}>
+                <div className="flex justify-between text-sm font-medium text-gray-700">
+                  <span>L{lvl}</span>
+                  <span className="text-fidelity-green">{compMult[lvl].toFixed(2)}x</span>
+                </div>
+                <input
+                  type="range"
+                  min={0.1}
+                  max={3.0}
+                  step={0.05}
+                  value={compMult[lvl]}
+                  onChange={(e) =>
+                    setCompMult((prev) => ({ ...prev, [lvl]: Number(e.target.value) }))
+                  }
+                  className="w-full accent-fidelity-green"
+                />
+              </div>
+            ))}
+          </div>
         </div>
 
         <button

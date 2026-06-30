@@ -88,6 +88,14 @@ class CompensationSettings(BaseModel):
         default_factory=PromotionCompensationSettings
     )
 
+    # Feature 105: per-level new-hire compensation multiplier. New-hire pay for a
+    # level = (config_job_levels band midpoint) x multiplier. `default` applies to
+    # every level; `new_hire_comp_multipliers` overrides specific levels. Shared
+    # by the full simulation and calibration, so a value tuned in calibration
+    # transfers verbatim to a production run.
+    new_hire_comp_multiplier_default: float = Field(default=1.8, ge=0.1, le=3.0)
+    new_hire_comp_multipliers: Dict[int, float] = Field(default_factory=dict)
+
     @model_validator(mode="before")
     @classmethod
     def normalize_percent_fields(cls, data: Any) -> Any:

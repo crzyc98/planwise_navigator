@@ -169,3 +169,35 @@ def test_retune_leaves_unset_params_at_config_default(tmp_path) -> None:
 
     assert runner._config.compensation.merit_budget == 0.07
     assert runner._config.compensation.cola_rate == default_cola
+
+
+# -- per-level new-hire comp multiplier (Feature 105) ---------------------
+def test_comp_multiplier_override_applied(tmp_path) -> None:
+    runner = _runner_with_default_config(tmp_path)
+    runner._apply_param_overrides(
+        CalibrationParameterSet(
+            new_hire_comp_multiplier_default=2.1,
+            new_hire_comp_multipliers={1: 1.5, 4: 2.4},
+        )
+    )
+    assert runner._config.compensation.new_hire_comp_multiplier_default == 2.1
+    assert runner._config.compensation.new_hire_comp_multipliers == {1: 1.5, 4: 2.4}
+
+
+def test_comp_multiplier_out_of_range_rejected() -> None:
+    with pytest.raises(ValueError):
+        CalibrationParameterSet(new_hire_comp_multiplier_default=5.0)
+    with pytest.raises(ValueError):
+        CalibrationParameterSet(new_hire_comp_multipliers={1: 9.0})
+
+
+def test_comp_multiplier_exported_to_dbt_vars() -> None:
+    from planalign_orchestrator.config import load_simulation_config
+    from planalign_orchestrator.config.export import to_dbt_vars
+
+    cfg = load_simulation_config()
+    cfg.compensation.new_hire_comp_multiplier_default = 1.8
+    cfg.compensation.new_hire_comp_multipliers = {2: 1.4}
+    dbt_vars = to_dbt_vars(cfg)
+    assert dbt_vars["new_hire_comp_multiplier_default"] == 1.8
+    assert dbt_vars["new_hire_comp_multipliers"] == {2: 1.4}

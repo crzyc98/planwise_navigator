@@ -2097,6 +2097,8 @@ export interface CalibrationParams {
   merit_budget?: number | null;
   promotion_increase?: number | null;
   new_hire_mix?: Record<string, number> | null;
+  new_hire_comp_multiplier_default?: number | null;
+  new_hire_comp_multipliers?: Record<string, number> | null;
 }
 
 export interface CalibrationRunRequest {
