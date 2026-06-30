@@ -454,7 +454,24 @@ employee_eligibility AS (
         END AS is_enrolled_flag
     FROM final_workforce_corrected fwc
     -- Eligibility from events (most recent determination up to current year)
+    -- feat104 (#365): decorrelated. The latest eligibility year per employee is computed
+    -- once via MAX(simulation_year) OVER (PARTITION BY employee_id), replacing a per-row
+    -- correlated subquery (one scan of fct_yearly_events instead of two). The MAX is taken
+    -- over ALL eligibility events (any determination_type), so set membership is identical
+    -- to the original correlated form. The '$.determination_type' = 'initial' predicate is
+    -- preserved verbatim — note no producer currently emits determination_type, so this
+    -- join is inert today; behavior is intentionally unchanged (see spec 104 research R2).
     LEFT JOIN (
+        WITH eligibility_events_ranked AS (
+            SELECT
+                employee_id,
+                simulation_year,
+                event_details,
+                MAX(simulation_year) OVER (PARTITION BY employee_id) AS latest_eligibility_year
+            FROM {{ ref('fct_yearly_events') }}
+            WHERE event_type = 'eligibility'
+              AND simulation_year <= {{ simulation_year }}
+        )
         SELECT DISTINCT
             employee_id,
             JSON_EXTRACT_STRING(event_details, '$.eligibility_date')::DATE AS employee_eligibility_date,
@@ -463,16 +480,9 @@ employee_eligibility AS (
                 WHEN JSON_EXTRACT_STRING(event_details, '$.eligibility_date')::DATE <= '{{ simulation_year }}-12-31'::DATE THEN 'eligible'
                 ELSE 'pending'
             END AS current_eligibility_status
-        FROM {{ ref('fct_yearly_events') }}
-        WHERE event_type = 'eligibility'
+        FROM eligibility_events_ranked
+        WHERE simulation_year = latest_eligibility_year
           AND JSON_EXTRACT_STRING(event_details, '$.determination_type') = 'initial'
-          AND simulation_year IN (
-              SELECT MAX(simulation_year)
-              FROM {{ ref('fct_yearly_events') }} ey
-              WHERE ey.event_type = 'eligibility'
-                AND ey.employee_id = fct_yearly_events.employee_id
-                AND ey.simulation_year <= {{ simulation_year }}
-          )
     ) events ON fwc.employee_id = events.employee_id
     -- Baseline fallback for employees without eligibility events
     -- **E028 PERFORMANCE FIX**: Add simulation_year filter to reduce full table scan
