@@ -1,0 +1,4 @@
+.specify/
+*.specify
+specs/
+docs/
