@@ -411,32 +411,6 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
         if (scenario.config_overrides) {
           setFormData(prev => applyConfigToFormData(scenario.config_overrides, prev));
         }
-
-        // E089: Validate the effective census — the scenario override if present,
-        // otherwise the workspace base config. Validating the base_config census is
-        // what flips censusDataStatus to 'loaded' so the New Hire "Match Census"
-        // controls light up immediately after a fresh import (issue #325), not just
-        // when the census has been baked into the scenario overrides.
-        const censusPath = extractCensusPath(scenario.config_overrides) || extractCensusPath(freshBaseConfig);
-        if (censusPath && activeWorkspace?.id) {
-          try {
-            const validation = await validateFilePath(activeWorkspace.id, censusPath);
-            if (validation.valid && validation.row_count) {
-              setFormData(prev => ({
-                ...prev,
-                censusDataPath: prev.censusDataPath || censusPath,
-                censusDataStatus: 'loaded',
-                censusRowCount: validation.row_count || prev.censusRowCount,
-                censusLastModified: validation.last_modified?.split('T')[0] || prev.censusLastModified,
-              }));
-            } else {
-              setFormData(prev => ({ ...prev, censusDataStatus: 'error' }));
-            }
-          } catch (validationError) {
-            console.error('E089: Census file validation failed:', validationError);
-            setFormData(prev => ({ ...prev, censusDataStatus: 'error' }));
-          }
-        }
       } catch (err) {
         console.error('Failed to load scenario:', err);
         setCurrentScenario(null);
@@ -446,6 +420,45 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
     };
     loadScenario();
   }, [scenarioId, activeWorkspace?.id, freshBaseConfig]);
+
+  // --- useEffect 1b: Validate the effective census, independent of scenario load ---
+  // Owns censusDataStatus → 'loaded'. The New Hire "Match Census" buttons gate on
+  // censusDataStatus === 'loaded' (#325); Turnover/DC Plan gate on censusDataPath.
+  // Keeping this OUT of the scenario-load effect is the fix for #361: a fresh direct
+  // Parquet upload writes setup.census_parquet_path into base_config, but the
+  // 'loaded' flip previously lived inside loadScenario — which early-returns when no
+  // scenario is selected and is otherwise coupled to scenario-fetch ordering, so the
+  // buttons stayed grey. This effect runs whenever the effective census changes (the
+  // scenario override if present, else the workspace base config), so the controls
+  // light up deterministically after any import path, with or without a scenario.
+  useEffect(() => {
+    if (freshBaseConfig === null || !activeWorkspace?.id) return;
+    const censusPath = extractCensusPath(currentScenario?.config_overrides) || extractCensusPath(freshBaseConfig);
+    if (!censusPath) return;
+
+    let cancelled = false;
+    validateFilePath(activeWorkspace.id, censusPath)
+      .then((validation) => {
+        if (cancelled) return;
+        if (validation.valid && validation.row_count) {
+          setFormData(prev => ({
+            ...prev,
+            censusDataPath: prev.censusDataPath || censusPath,
+            censusDataStatus: 'loaded',
+            censusRowCount: validation.row_count || prev.censusRowCount,
+            censusLastModified: validation.last_modified?.split('T')[0] || prev.censusLastModified,
+          }));
+        } else {
+          setFormData(prev => ({ ...prev, censusDataStatus: 'error' }));
+        }
+      })
+      .catch((validationError) => {
+        if (cancelled) return;
+        console.error('E089: Census file validation failed:', validationError);
+        setFormData(prev => ({ ...prev, censusDataStatus: 'error' }));
+      });
+    return () => { cancelled = true; };
+  }, [activeWorkspace?.id, freshBaseConfig, currentScenario]);
 
   // --- useEffect 2: Load config from freshly fetched workspace base_config ---
   useEffect(() => {
