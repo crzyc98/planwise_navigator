@@ -69,6 +69,12 @@ class CalibrationParameterSet(BaseModel):
     merit_budget: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     promotion_increase: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     new_hire_mix: Optional[Dict[str, float]] = None
+    # Per-level new-hire compensation ranges derived from "Match Census" x scale,
+    # exactly as the Workforce Parameters page produces them. Each item is
+    # {"level", "min_compensation", "max_compensation"}. When provided, this
+    # overrides the job_level_compensation dbt var -- the same var the full
+    # simulation consumes -- so a calibrated scale transfers verbatim.
+    job_level_compensation: Optional[List[Dict[str, float]]] = None
 
     @field_validator("new_hire_mix")
     @classmethod
@@ -278,6 +284,11 @@ class CalibrationRunner:
 
     def _build_year(self, year: int) -> None:
         dbt_vars = to_dbt_vars(self._config)
+        # Override the per-level new-hire comp ranges with the Match-Census x
+        # scale ranges the analyst chose, using the same dbt var the full sim
+        # consumes (so the calibrated scale is directly transferable).
+        if self.run.params.job_level_compensation:
+            dbt_vars["job_level_compensation"] = self.run.params.job_level_compensation
         stages = WorkflowBuilder.build_calibration_year_workflow(
             year, self.run.start_year
         )

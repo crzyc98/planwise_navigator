@@ -169,3 +169,28 @@ def test_retune_leaves_unset_params_at_config_default(tmp_path) -> None:
 
     assert runner._config.compensation.merit_budget == 0.07
     assert runner._config.compensation.cola_rate == default_cola
+
+
+# -- Match Census job-level ranges flow into the dbt var (Feature 105) -----
+def test_job_level_compensation_injected_into_dbt_vars(tmp_path) -> None:
+    from types import SimpleNamespace
+
+    runner = _runner_with_default_config(tmp_path)
+    ranges = [
+        {"level": 1, "min_compensation": 60000, "max_compensation": 90000},
+        {"level": 5, "min_compensation": 400000, "max_compensation": 800000},
+    ]
+    runner.run = runner.run.model_copy(
+        update={"params": CalibrationParameterSet(job_level_compensation=ranges)}
+    )
+
+    captured = {}
+
+    def _fake_exec(command, **kwargs):
+        captured.update(kwargs.get("dbt_vars") or {})
+        return SimpleNamespace(success=True, return_code=0)
+
+    runner._runner.execute_command = _fake_exec  # type: ignore[assignment]
+    runner._build_year(2025)
+
+    assert captured.get("job_level_compensation") == ranges

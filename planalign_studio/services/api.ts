@@ -2097,6 +2097,12 @@ export interface CalibrationParams {
   merit_budget?: number | null;
   promotion_increase?: number | null;
   new_hire_mix?: Record<string, number> | null;
+  job_level_compensation?: Array<{
+    level: number;
+    name?: string;
+    min_compensation: number;
+    max_compensation: number;
+  }> | null;
 }
 
 export interface CalibrationRunRequest {

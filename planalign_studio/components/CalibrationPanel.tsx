@@ -1,15 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LineChart, Line, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
-import { SlidersHorizontal, Play, AlertCircle, Loader2 } from 'lucide-react';
+import { SlidersHorizontal, Play, AlertCircle, Loader2, Database } from 'lucide-react';
 import {
   runCalibration,
   CalibrationRunRequest,
   PerYearCompensationResult,
   ApiError,
+  listWorkspaces,
+  listScenarios,
+  getScenarioConfig,
+  analyzeCompensation,
+  Workspace,
+  Scenario,
 } from '../services/api';
+
+interface JobRange {
+  level: number;
+  name: string;
+  min_compensation: number;
+  max_compensation: number;
+}
 
 /**
  * Fast Compensation Calibration panel (Feature 105, US3).
@@ -53,8 +66,79 @@ export default function CalibrationPanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Workspace / scenario context (needed for Match Census + the scenario DB).
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [scenarios, setScenarios] = useState<Scenario[]>([]);
+  const [workspaceId, setWorkspaceId] = useState('');
+  const [scenarioId, setScenarioId] = useState('');
+  const [censusPath, setCensusPath] = useState('');
+
+  // Job Level Compensation Ranges via "Match Census" x scale (Feature 105) --
+  // identical to the Workforce Parameters page, so the scale transfers to the
+  // real simulation.
+  const [lookbackYears, setLookbackYears] = useState(4);
+  const [scaleFactor, setScaleFactor] = useState(1.8);
+  const [jobRanges, setJobRanges] = useState<JobRange[]>([]);
+  const [matchLoading, setMatchLoading] = useState(false);
+  const [matchError, setMatchError] = useState<string | null>(null);
+
   const setValue = (key: string, v: number) =>
     setValues((prev) => ({ ...prev, [key]: v }));
+
+  useEffect(() => {
+    listWorkspaces().then(setWorkspaces).catch(() => setWorkspaces([]));
+  }, []);
+
+  useEffect(() => {
+    if (!workspaceId) {
+      setScenarios([]);
+      return;
+    }
+    listScenarios(workspaceId).then(setScenarios).catch(() => setScenarios([]));
+  }, [workspaceId]);
+
+  // When a scenario is chosen, pull its census path for Match Census.
+  useEffect(() => {
+    if (!workspaceId || !scenarioId) return;
+    getScenarioConfig(workspaceId, scenarioId)
+      .then((cfg) => {
+        const path =
+          cfg?.setup?.census_parquet_path ??
+          cfg?.data_sources?.census_parquet_path ??
+          '';
+        setCensusPath(path);
+      })
+      .catch(() => setCensusPath(''));
+  }, [workspaceId, scenarioId]);
+
+  const handleMatchCensus = async () => {
+    if (!workspaceId || !censusPath) {
+      setMatchError('Select a workspace/scenario with a census file first.');
+      return;
+    }
+    setMatchLoading(true);
+    setMatchError(null);
+    try {
+      const result = await analyzeCompensation(workspaceId, censusPath, lookbackYears);
+      const rows = result.has_level_data ? result.levels : result.suggested_levels;
+      if (!rows || rows.length === 0) {
+        setMatchError('Census analysis returned no per-level data.');
+        return;
+      }
+      // Apply the scale exactly as the Workforce Parameters page does.
+      const ranges: JobRange[] = rows.map((r: any) => ({
+        level: r.level,
+        name: r.name,
+        min_compensation: Math.round((r.min_compensation ?? r.suggested_min) * scaleFactor),
+        max_compensation: Math.round((r.max_compensation ?? r.suggested_max) * scaleFactor),
+      }));
+      setJobRanges(ranges);
+    } catch (e) {
+      setMatchError(e instanceof ApiError ? (e.detail ?? e.statusText) : String(e));
+    } finally {
+      setMatchLoading(false);
+    }
+  };
 
   const runCalibrate = async () => {
     setLoading(true);
@@ -74,6 +158,7 @@ export default function CalibrationPanel() {
             '1': 1 - values.new_hire_mix_senior,
             '4': values.new_hire_mix_senior,
           },
+          job_level_compensation: jobRanges.length > 0 ? jobRanges : null,
         },
       };
       const response = await runCalibration(request);
@@ -107,6 +192,97 @@ export default function CalibrationPanel() {
 
       {/* Controls */}
       <div className="bg-white rounded-lg shadow p-6 space-y-5">
+        {/* Workspace / scenario context */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <label className="block">
+            <span className="text-sm font-medium text-gray-700">Workspace</span>
+            <select
+              value={workspaceId}
+              onChange={(e) => { setWorkspaceId(e.target.value); setScenarioId(''); }}
+              className="mt-1 w-full rounded border-gray-300 shadow-sm"
+            >
+              <option value="">Select workspace…</option>
+              {workspaces.map((w) => (
+                <option key={w.id} value={w.id}>{w.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-sm font-medium text-gray-700">Scenario</span>
+            <select
+              value={scenarioId}
+              onChange={(e) => setScenarioId(e.target.value)}
+              disabled={!workspaceId}
+              className="mt-1 w-full rounded border-gray-300 shadow-sm disabled:opacity-50"
+            >
+              <option value="">Select scenario…</option>
+              {scenarios.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        {/* Job Level Compensation Ranges: ratio + lookback + Match Census */}
+        <div className="rounded-md border border-gray-200 p-4">
+          <div className="text-sm font-medium text-gray-700 mb-2">
+            Job Level Compensation Ranges
+            <span className="ml-2 text-xs font-normal text-gray-500">
+              (same Match Census × scale as Workforce Parameters — transfers to the real sim)
+            </span>
+          </div>
+          <div className="flex flex-wrap items-end gap-4">
+            <label className="block">
+              <span className="text-xs text-gray-600">Scale (×)</span>
+              <input
+                type="number" step="0.1" min={0.1} max={3.0} value={scaleFactor}
+                onChange={(e) => setScaleFactor(Number(e.target.value))}
+                className="mt-1 w-24 rounded border-gray-300 shadow-sm"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs text-gray-600">Lookback (years)</span>
+              <input
+                type="number" min={0} max={20} value={lookbackYears}
+                onChange={(e) => setLookbackYears(Number(e.target.value))}
+                className="mt-1 w-28 rounded border-gray-300 shadow-sm"
+              />
+            </label>
+            <button
+              onClick={handleMatchCensus}
+              disabled={matchLoading || !censusPath}
+              className="inline-flex items-center gap-2 rounded bg-gray-700 px-3 py-2 text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
+            >
+              {matchLoading ? <Loader2 className="animate-spin" size={16} /> : <Database size={16} />}
+              Match Census
+            </button>
+          </div>
+          {matchError && (
+            <p className="mt-2 text-xs text-red-600">{matchError}</p>
+          )}
+          {jobRanges.length > 0 && (
+            <table className="mt-3 text-xs w-full max-w-md">
+              <thead className="text-gray-500">
+                <tr><th className="text-left">Level</th><th className="text-right">Min</th><th className="text-right">Max</th></tr>
+              </thead>
+              <tbody>
+                {jobRanges.map((r) => (
+                  <tr key={r.level} className="border-t">
+                    <td>{r.level} {r.name}</td>
+                    <td className="text-right">{money(r.min_compensation)}</td>
+                    <td className="text-right">{money(r.max_compensation)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {jobRanges.length === 0 && (
+            <p className="mt-2 text-xs text-gray-500">
+              No ranges set — calibration uses the scenario/config's existing ranges.
+            </p>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <label className="block">
             <span className="text-sm font-medium text-gray-700">Start Year</span>
