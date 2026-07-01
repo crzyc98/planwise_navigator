@@ -107,3 +107,31 @@ def test_negative_cola_returns_422(client) -> None:
         json={"start_year": 2025, "end_year": 2026, "params": {"cola_rate": -0.1}},
     )
     assert resp.status_code == 422
+
+
+def test_job_level_compensation_with_name_is_accepted(client, monkeypatch) -> None:
+    # Regression: ranges include a string `name`; must not 422 (was Dict[str,float]).
+    monkeypatch.setattr(
+        calibration_router.CalibrationRunner, "__init__", lambda self, run, **kw: None
+    )
+    monkeypatch.setattr(
+        calibration_router.CalibrationRunner, "run_calibration", lambda self: _SAMPLE
+    )
+    resp = client.post(
+        "/api/calibration/run",
+        json={
+            "start_year": 2025,
+            "end_year": 2026,
+            "params": {
+                "job_level_compensation": [
+                    {
+                        "level": 1,
+                        "name": "Staff",
+                        "min_compensation": 60000,
+                        "max_compensation": 90000,
+                    }
+                ]
+            },
+        },
+    )
+    assert resp.status_code == 200

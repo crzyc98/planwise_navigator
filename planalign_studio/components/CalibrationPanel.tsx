@@ -55,6 +55,25 @@ const pct = (v: number): string => `${(v * 100).toFixed(1)}%`;
 const money = (v: number | null): string =>
   v === null ? '—' : `$${Math.round(v).toLocaleString()}`;
 
+/** Coerce any error (incl. FastAPI 422 detail arrays) to a display string. */
+function errorText(e: unknown): string {
+  if (e instanceof ApiError) {
+    const d = e.detail as unknown;
+    if (Array.isArray(d)) {
+      return d
+        .map((item: any) =>
+          item?.msg
+            ? `${(item.loc ?? []).join('.')}: ${item.msg}`.replace(/^: /, '')
+            : JSON.stringify(item)
+        )
+        .join('; ');
+    }
+    if (d && typeof d === 'object') return JSON.stringify(d);
+    return (d as string) ?? `${e.status} ${e.statusText}`;
+  }
+  return e instanceof Error ? e.message : String(e);
+}
+
 export default function CalibrationPanel() {
   const [startYear, setStartYear] = useState(2025);
   const [endYear, setEndYear] = useState(2029);
@@ -121,7 +140,7 @@ export default function CalibrationPanel() {
       }));
       setJobRanges(ranges);
     } catch (e) {
-      setMatchError(e instanceof ApiError ? (e.detail ?? e.statusText) : String(e));
+      setMatchError(errorText(e));
     } finally {
       setMatchLoading(false);
     }
@@ -151,11 +170,7 @@ export default function CalibrationPanel() {
       const response = await runCalibration(request);
       setResults(response.results);
     } catch (e) {
-      if (e instanceof ApiError) {
-        setError(e.detail ?? `${e.status} ${e.statusText}`);
-      } else {
-        setError(String(e));
-      }
+      setError(errorText(e));
     } finally {
       setLoading(false);
     }

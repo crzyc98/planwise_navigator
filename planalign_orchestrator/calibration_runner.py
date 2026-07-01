@@ -74,7 +74,9 @@ class CalibrationParameterSet(BaseModel):
     # {"level", "min_compensation", "max_compensation"}. When provided, this
     # overrides the job_level_compensation dbt var -- the same var the full
     # simulation consumes -- so a calibrated scale transfers verbatim.
-    job_level_compensation: Optional[List[Dict[str, float]]] = None
+    # Items are {"level", "name"?, "min_compensation", "max_compensation"} --
+    # values are mixed (name is a str), so Dict[str, Any] not Dict[str, float].
+    job_level_compensation: Optional[List[Dict[str, Any]]] = None
 
     @field_validator("new_hire_mix")
     @classmethod
