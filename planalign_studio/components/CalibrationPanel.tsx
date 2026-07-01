@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import {
   LineChart, Line, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine,
@@ -9,13 +10,15 @@ import {
   CalibrationRunRequest,
   PerYearCompensationResult,
   ApiError,
-  listWorkspaces,
-  listScenarios,
-  getScenarioConfig,
+  getWorkspace,
   analyzeCompensation,
   Workspace,
-  Scenario,
 } from '../services/api';
+import { extractCensusPath } from './config/ConfigContext';
+
+interface CalibrationOutletContext {
+  activeWorkspace: Workspace | null;
+}
 
 interface JobRange {
   level: number;
@@ -66,11 +69,10 @@ export default function CalibrationPanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Workspace / scenario context (needed for Match Census + the scenario DB).
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [scenarios, setScenarios] = useState<Scenario[]>([]);
-  const [workspaceId, setWorkspaceId] = useState('');
-  const [scenarioId, setScenarioId] = useState('');
+  // The calibration page operates on the workspace you're already in -- it uses
+  // the workspace's census for Match Census. No scenario needed (calibration
+  // does not touch DC/scenario-specific behavior).
+  const { activeWorkspace } = useOutletContext<CalibrationOutletContext>();
   const [censusPath, setCensusPath] = useState('');
 
   // Job Level Compensation Ranges via "Match Census" x scale (Feature 105) --
@@ -85,41 +87,26 @@ export default function CalibrationPanel() {
   const setValue = (key: string, v: number) =>
     setValues((prev) => ({ ...prev, [key]: v }));
 
+  // Resolve the active workspace's census path (fresh base_config).
   useEffect(() => {
-    listWorkspaces().then(setWorkspaces).catch(() => setWorkspaces([]));
-  }, []);
-
-  useEffect(() => {
-    if (!workspaceId) {
-      setScenarios([]);
+    if (!activeWorkspace?.id) {
+      setCensusPath('');
       return;
     }
-    listScenarios(workspaceId).then(setScenarios).catch(() => setScenarios([]));
-  }, [workspaceId]);
-
-  // When a scenario is chosen, pull its census path for Match Census.
-  useEffect(() => {
-    if (!workspaceId || !scenarioId) return;
-    getScenarioConfig(workspaceId, scenarioId)
-      .then((cfg) => {
-        const path =
-          cfg?.setup?.census_parquet_path ??
-          cfg?.data_sources?.census_parquet_path ??
-          '';
-        setCensusPath(path);
-      })
-      .catch(() => setCensusPath(''));
-  }, [workspaceId, scenarioId]);
+    getWorkspace(activeWorkspace.id)
+      .then((ws) => setCensusPath(extractCensusPath(ws.base_config) ?? ''))
+      .catch(() => setCensusPath(extractCensusPath(activeWorkspace.base_config) ?? ''));
+  }, [activeWorkspace?.id]);
 
   const handleMatchCensus = async () => {
-    if (!workspaceId || !censusPath) {
-      setMatchError('Select a workspace/scenario with a census file first.');
+    if (!activeWorkspace?.id || !censusPath) {
+      setMatchError('This workspace has no census file uploaded yet.');
       return;
     }
     setMatchLoading(true);
     setMatchError(null);
     try {
-      const result = await analyzeCompensation(workspaceId, censusPath, lookbackYears);
+      const result = await analyzeCompensation(activeWorkspace.id, censusPath, lookbackYears);
       const rows = result.has_level_data ? result.levels : result.suggested_levels;
       if (!rows || rows.length === 0) {
         setMatchError('Census analysis returned no per-level data.');
@@ -192,35 +179,21 @@ export default function CalibrationPanel() {
 
       {/* Controls */}
       <div className="bg-white rounded-lg shadow p-6 space-y-5">
-        {/* Workspace / scenario context */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <label className="block">
-            <span className="text-sm font-medium text-gray-700">Workspace</span>
-            <select
-              value={workspaceId}
-              onChange={(e) => { setWorkspaceId(e.target.value); setScenarioId(''); }}
-              className="mt-1 w-full rounded border-gray-300 shadow-sm"
-            >
-              <option value="">Select workspace…</option>
-              {workspaces.map((w) => (
-                <option key={w.id} value={w.id}>{w.name}</option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="text-sm font-medium text-gray-700">Scenario</span>
-            <select
-              value={scenarioId}
-              onChange={(e) => setScenarioId(e.target.value)}
-              disabled={!workspaceId}
-              className="mt-1 w-full rounded border-gray-300 shadow-sm disabled:opacity-50"
-            >
-              <option value="">Select scenario…</option>
-              {scenarios.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </label>
+        {/* Active workspace + its census (no selection needed) */}
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <Database size={16} className="text-gray-400" />
+          <span>
+            Workspace: <span className="font-medium text-gray-800">{activeWorkspace?.name ?? '—'}</span>
+          </span>
+          <span className="text-gray-300">|</span>
+          <span>
+            Census:{' '}
+            {censusPath ? (
+              <span className="font-mono text-xs text-gray-700">{censusPath}</span>
+            ) : (
+              <span className="text-amber-600">none uploaded</span>
+            )}
+          </span>
         </div>
 
         {/* Job Level Compensation Ranges: ratio + lookback + Match Census */}
