@@ -120,6 +120,9 @@ class PerYearCompensationResult(BaseModel):
     target_growth_pct: Optional[float] = None
     growth_delta_pct: Optional[float] = None
     headcount: int
+    headcount_growth_pct: Optional[float] = None
+    total_compensation: float = 0.0
+    total_comp_growth_pct: Optional[float] = None
     new_hire_avg_comp: Optional[float] = None
     existing_avg_comp: Optional[float] = None
     new_hire_gap: Optional[float] = None
@@ -269,7 +272,23 @@ class CalibrationRunner:
         for year in range(self.run.start_year, self.run.end_year + 1):
             self._build_year(year)
             results.append(self._read_year(year))
+        self._fill_yoy_growth(results)
         return results
+
+    @staticmethod
+    def _fill_yoy_growth(results: List[PerYearCompensationResult]) -> None:
+        """Populate headcount and total-compensation YoY growth (first year null)."""
+        for prev, curr in zip(results, results[1:]):
+            if prev.headcount:
+                curr.headcount_growth_pct = (
+                    (curr.headcount - prev.headcount) / prev.headcount * 100
+                )
+            if prev.total_compensation:
+                curr.total_comp_growth_pct = (
+                    (curr.total_compensation - prev.total_compensation)
+                    / prev.total_compensation
+                    * 100
+                )
 
     def _apply_param_overrides(self, params: CalibrationParameterSet) -> None:
         # NOTE: target_growth_pct is the *compensation*-growth target the analyst
@@ -354,7 +373,10 @@ class CalibrationRunner:
                 ) AS new_hire_avg,
                 AVG(prorated_annual_compensation) FILTER (
                     WHERE detailed_status_code = 'continuous_active'
-                ) AS existing_avg
+                ) AS existing_avg,
+                SUM(prorated_annual_compensation) FILTER (
+                    WHERE detailed_status_code IN ('continuous_active', 'new_hire_active')
+                ) AS total_comp
             FROM fct_workforce_snapshot
             WHERE simulation_year = ?
             """,
@@ -364,6 +386,7 @@ class CalibrationRunner:
             "headcount": int(row[0] or 0),
             "new_hire_avg": row[1],
             "existing_avg": row[2],
+            "total_comp": float(row[3] or 0.0),
         }
 
     @staticmethod
@@ -389,6 +412,7 @@ class CalibrationRunner:
             target_growth_pct=target_pct,
             growth_delta_pct=delta,
             headcount=gap.get("headcount", 0),
+            total_compensation=gap.get("total_comp", 0.0),
             new_hire_avg_comp=nh,
             existing_avg_comp=ex,
             new_hire_gap=(nh - ex if (nh is not None and ex is not None) else None),

@@ -2120,6 +2120,9 @@ export interface PerYearCompensationResult {
   target_growth_pct: number | null;
   growth_delta_pct: number | null;
   headcount: number;
+  headcount_growth_pct: number | null;
+  total_compensation: number;
+  total_comp_growth_pct: number | null;
   new_hire_avg_comp: number | null;
   existing_avg_comp: number | null;
   new_hire_gap: number | null;

@@ -54,6 +54,14 @@ const SLIDERS: SliderConfig[] = [
 const pct = (v: number): string => `${(v * 100).toFixed(1)}%`;
 const money = (v: number | null): string =>
   v === null ? '—' : `$${Math.round(v).toLocaleString()}`;
+const growthPct = (v: number | null): string =>
+  v === null ? '—' : `${v.toFixed(1)}%`;
+const compactMoney = (v: number | null): string => {
+  if (v === null) return '—';
+  if (v >= 1e9) return `$${(v / 1e9).toFixed(2)}B`;
+  if (v >= 1e6) return `$${(v / 1e6).toFixed(1)}M`;
+  return `$${Math.round(v).toLocaleString()}`;
+};
 
 /** Coerce any error (incl. FastAPI 422 detail arrays) to a display string. */
 function errorText(e: unknown): string {
@@ -396,9 +404,12 @@ export default function CalibrationPanel() {
                 <tr>
                   <th className="px-4 py-2 text-left">Year</th>
                   <th className="px-4 py-2 text-right">Avg Comp</th>
-                  <th className="px-4 py-2 text-right">YoY Growth</th>
+                  <th className="px-4 py-2 text-right">Avg Growth</th>
                   <th className="px-4 py-2 text-right">Δ vs Target</th>
                   <th className="px-4 py-2 text-right">Headcount</th>
+                  <th className="px-4 py-2 text-right">HC Growth</th>
+                  <th className="px-4 py-2 text-right">Total Comp</th>
+                  <th className="px-4 py-2 text-right">Total Growth</th>
                   <th className="px-4 py-2 text-right">New-Hire Gap</th>
                 </tr>
               </thead>
@@ -407,15 +418,16 @@ export default function CalibrationPanel() {
                   <tr key={r.simulation_year} className="border-t">
                     <td className="px-4 py-2">{r.simulation_year}</td>
                     <td className="px-4 py-2 text-right">{money(r.avg_compensation)}</td>
-                    <td className="px-4 py-2 text-right">
-                      {r.yoy_growth_pct === null ? '—' : `${r.yoy_growth_pct.toFixed(1)}%`}
-                    </td>
+                    <td className="px-4 py-2 text-right">{growthPct(r.yoy_growth_pct)}</td>
                     <td className="px-4 py-2 text-right">
                       {r.growth_delta_pct === null
                         ? '—'
                         : `${r.growth_delta_pct >= 0 ? '+' : ''}${r.growth_delta_pct.toFixed(1)}%`}
                     </td>
                     <td className="px-4 py-2 text-right">{r.headcount.toLocaleString()}</td>
+                    <td className="px-4 py-2 text-right">{growthPct(r.headcount_growth_pct)}</td>
+                    <td className="px-4 py-2 text-right">{compactMoney(r.total_compensation)}</td>
+                    <td className="px-4 py-2 text-right">{growthPct(r.total_comp_growth_pct)}</td>
                     <td className="px-4 py-2 text-right">{money(r.new_hire_gap)}</td>
                   </tr>
                 ))}

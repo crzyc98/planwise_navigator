@@ -118,9 +118,11 @@ def _render_results(results: List[PerYearCompensationResult]) -> None:
     table.add_column("Year", justify="right")
     table.add_column("Avg Comp", justify="right")
     table.add_column("YoY Growth", justify="right")
-    table.add_column("Target", justify="right")
     table.add_column("Δ vs Target", justify="right")
     table.add_column("Headcount", justify="right")
+    table.add_column("HC Growth", justify="right")
+    table.add_column("Total Comp", justify="right")
+    table.add_column("Total Growth", justify="right")
     table.add_column("NH Gap", justify="right")
 
     for r in results:
@@ -128,12 +130,22 @@ def _render_results(results: List[PerYearCompensationResult]) -> None:
             str(r.simulation_year),
             f"${r.avg_compensation:,.0f}",
             _pct(r.yoy_growth_pct),
-            _pct(r.target_growth_pct),
             _signed_pct(r.growth_delta_pct),
             f"{r.headcount:,}",
+            _pct(r.headcount_growth_pct),
+            _compact_money(r.total_compensation),
+            _pct(r.total_comp_growth_pct),
             _signed_money(r.new_hire_gap),
         )
     console.print(table)
+
+
+def _compact_money(value: float) -> str:
+    if value >= 1_000_000_000:
+        return f"${value / 1_000_000_000:.2f}B"
+    if value >= 1_000_000:
+        return f"${value / 1_000_000:.1f}M"
+    return f"${value:,.0f}"
 
 
 def _pct(value: Optional[float]) -> str:
