@@ -76,6 +76,11 @@ from .commands.simulate import run_simulation  # noqa: E402
 from .commands.status import show_status, health_check  # noqa: E402
 from .commands.batch import run_batch  # noqa: E402
 from .commands.validate import validate_config  # noqa: E402
+from .commands.calibrate import run_calibration  # noqa: E402
+
+# Fast compensation calibration (Feature 105) -- run_calibration already carries
+# its full typer signature, so register it directly.
+app.command("calibrate")(run_calibration)
 
 
 # Main simulate command - direct access

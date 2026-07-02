@@ -43,6 +43,7 @@ uv pip install -e ".[dev]"
 # Primary workflow - PlanWise CLI (Rich interface)
 planalign health                                 # System readiness check
 planalign simulate 2025-2027                     # Multi-year simulation
+planalign calibrate 2025-2029 --database iso.duckdb  # Fast comp-only calibration (exact, ~3-5x faster)
 planalign batch --scenarios baseline high_growth # Batch processing
 planalign status --detailed                      # Full system diagnostic
 
@@ -539,6 +540,27 @@ planalign batch --export-format excel
 # - Comparison reports across scenarios
 ```
 
+### **Fast Compensation Calibration (Feature 105)**
+
+`planalign calibrate <year-range>` rebuilds **only** the compensation/workforce dbt subgraph per year and reads the S051 growth mart, skipping the entire DC-plan stack (eligibility/enrollment/deferral/vesting/contributions/match). It reuses the validated comp math verbatim (E077 solver, mid-year proration, band-aware merit/COLA/promotion, `fct_compensation_growth`), so per-year avg comp and YoY growth are **exact** vs. a full simulation — the speedup (~3–5×) comes purely from building fewer models, not from approximation.
+
+```bash
+# Calibrate against a fully-built isolated baseline DB (default: isolated calibration DB)
+planalign calibrate 2025-2029 --database iso.duckdb --target-growth 0.035
+
+# Override comp levers; interactive re-tune loop (adjust COLA/merit, re-run without restarting)
+planalign calibrate 2025-2029 --cola 0.025 --merit 0.04 --database iso.duckdb
+planalign calibrate 2025-2029 --interactive --database iso.duckdb
+```
+
+Key invariants:
+- **Prerequisite**: the target DB must have had one full build (the DC tables `fct_workforce_snapshot`/`fct_yearly_events` `ref()` must already exist, stale-but-present). A fail-fast guard rejects DBs missing them (exit code 3).
+- **Isolated by default**: with no `--database`, writes a timestamped `dbt/calibration/calibration_*.duckdb` — never the shared dev DB.
+- **`--target-growth` is the *compensation*-growth target** (the per-year delta reference only). It must NOT be confused with `simulation.target_growth_rate` (the workforce/headcount growth target that sizes E077 hiring) — conflating them changes headcount and breaks comp exactness.
+- **Studio**: a "Calibration" panel (`/calibrate`) tunes the REAL production levers — workforce-growth (`simulation.target_growth_rate`, an explicit headcount lever), COLA/merit (with the same purple-button solver as the Compensation page), new-hire age distribution (`new_hire_age_distribution` dbt var, also honored by the full sim via `to_dbt_vars`), and per-level comp ranges via Match Census × scale (`job_level_compensation` dbt var) — backed by `POST /api/calibration/run`; values match the CLI by construction (shared `CalibrationRunner`).
+
+Verify exactness in an isolated DB (per the isolated-DB rule): build a full sim, copy it, `calibrate` the copy, and confirm `fct_workforce_snapshot` per-employee prorated comp matches the baseline.
+
 ### **PlanAlign Studio (Web Interface)**
 
 Launch the modern web-based scenario management interface:
@@ -711,6 +733,8 @@ Current version: **1.0.0** ("Foundation") — managed in `_version.py` and `pypr
 - DuckDB (`dbt/simulation.duckdb` shared dev; validate in isolated DBs). No new tables — eligibility suppression flows through existing `int_*` models, `fct_yearly_events`, `fct_workforce_snapshot` (103-new-hire-eligibility)
 - SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1 (Jinja-templated `.sql`); Python 3.11 orchestrator drives the build + DuckDB 1.0.0 engine; `fct_yearly_events` (incremental, on-disk); `int_baseline_workforce`, `int_enrollment_state_accumulator`, `int_active_employees_prev_year_snapshot` (referenced, unchanged) (104-snapshot-eligibility-perf)
 - DuckDB; the single mutated artifact is `dbt/models/marts/fct_workforce_snapshot.sql` → table `fct_workforce_snapshot` (104-snapshot-eligibility-perf)
+- Python 3.11 (orchestrator/CLI/API); SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1; TypeScript/React (Studio) + Typer + Rich (CLI), Pydantic v2 (config), FastAPI (API), React/Vite + Tailwind (Studio), DuckDB 1.0.0 (105-comp-calibration)
+- DuckDB. No new tables — calibration reuses `fct_yearly_events`, `fct_workforce_snapshot`, `fct_compensation_growth`. Default target is an isolated `<calibration>.duckdb`, never the shared `dbt/simulation.duckdb`. (105-comp-calibration)
 
 ## Recent Changes
 - 099-tenure-graded-match: Added Python 3.11 (orchestrator/config/API), SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1, TypeScript/React (Studio UI) + Pydantic v2 (config validation), DuckDB 1.0.0 (storage/engine), FastAPI (workspace config API), React/Vite + Tailwind (Studio)

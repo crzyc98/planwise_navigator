@@ -37,6 +37,7 @@ from .routers import (
 )
 from .routers.vesting import router as vesting_router
 from .routers.sync import router as sync_router
+from .routers.calibration import router as calibration_router
 from .websocket.handlers import simulation_websocket, batch_websocket
 
 # Configure logging to show in console
@@ -106,6 +107,7 @@ def create_app() -> FastAPI:
     app.include_router(vesting_router, prefix="/api", tags=["Vesting"])
     app.include_router(ndt_router, prefix="/api/workspaces", tags=["NDT Testing"])
     app.include_router(imports_router, prefix="/api/workspaces", tags=["Data Import"])
+    app.include_router(calibration_router, prefix="/api", tags=["Calibration"])
 
     # WebSocket endpoints
     @app.websocket("/ws/simulation/{run_id}")

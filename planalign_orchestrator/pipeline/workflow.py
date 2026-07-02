@@ -235,3 +235,97 @@ class WorkflowBuilder:
                 validation_rules=[],
             ),
         ]
+
+    @staticmethod
+    def build_calibration_year_workflow(
+        year: int, start_year: int
+    ) -> List[StageDefinition]:
+        """Build a compensation-only workflow for fast calibration (Feature 105).
+
+        This mirrors ``build_year_workflow`` but rebuilds ONLY the
+        compensation/workforce subgraph, dropping every DC-plan model
+        (eligibility, enrollment, deferral, vesting, contributions, employer
+        match, HCE, forfeitures, and their state accumulators). The two marts
+        that comp metrics flow through -- ``fct_yearly_events`` and
+        ``fct_workforce_snapshot`` -- are kept; their stale ``ref()``s to the
+        DC tables resolve against the already-built (stale-but-present) tables
+        in the target database and never feed the comp columns. The S051 growth
+        mart ``fct_compensation_growth`` is added explicitly (it is absent from
+        the standard STATE_ACCUMULATION list).
+
+        See ``specs/105-comp-calibration/research.md`` Decision 3. The DC models
+        are intentionally excluded so the build is materially faster while the
+        comp columns remain bit-for-bit identical to a full simulation.
+        """
+        if year == start_year:
+            initialization_models = [
+                "staging.*",
+                MODEL_INT_BASELINE_WORKFORCE,
+            ]
+            foundation_models = [
+                MODEL_INT_BASELINE_WORKFORCE,
+                MODEL_INT_NEW_HIRE_COMPENSATION,
+                MODEL_INT_EMPLOYEE_COMPENSATION,
+                "int_effective_parameters",
+                MODEL_INT_WORKFORCE_NEEDS,
+                "int_workforce_needs_by_level",
+            ]
+        else:
+            initialization_models = [
+                MODEL_INT_ACTIVE_EMPLOYEES_PREV_YEAR,
+            ]
+            foundation_models = [
+                "int_prev_year_workforce_summary",
+                "int_prev_year_workforce_by_level",
+                MODEL_INT_EMPLOYEE_COMPENSATION,
+                "int_effective_parameters",
+                MODEL_INT_WORKFORCE_NEEDS,
+                "int_workforce_needs_by_level",
+            ]
+
+        return [
+            StageDefinition(
+                name=WorkflowStage.INITIALIZATION,
+                dependencies=[],
+                models=initialization_models,
+                validation_rules=["data_freshness_check"],
+            ),
+            StageDefinition(
+                name=WorkflowStage.FOUNDATION,
+                dependencies=[WorkflowStage.INITIALIZATION],
+                models=foundation_models,
+                validation_rules=["row_count_drift", "compensation_reasonableness"],
+            ),
+            StageDefinition(
+                name=WorkflowStage.EVENT_GENERATION,
+                dependencies=[WorkflowStage.FOUNDATION],
+                # Comp-only events: same ordering as the full pipeline with the
+                # DC eligibility/enrollment/deferral models removed.
+                models=[
+                    MODEL_INT_TERMINATION_EVENTS,
+                    "int_hiring_events",
+                    "int_new_hire_termination_events",
+                    "int_hazard_promotion",
+                    "int_hazard_merit",
+                    MODEL_INT_PROMOTION_EVENTS,
+                    MODEL_INT_MERIT_EVENTS,
+                ],
+                validation_rules=["hire_termination_ratio", "event_sequence"],
+                parallel_safe=False,
+            ),
+            StageDefinition(
+                name=WorkflowStage.STATE_ACCUMULATION,
+                dependencies=[WorkflowStage.EVENT_GENERATION],
+                models=[
+                    MODEL_FCT_YEARLY_EVENTS,
+                    "int_employee_state_by_year",
+                    "int_workforce_snapshot_optimized",
+                    MODEL_FCT_WORKFORCE_SNAPSHOT,
+                    # S051 calibration mart -- the per-year avg comp / YoY growth
+                    # source. Not part of the standard workflow; added here.
+                    "fct_compensation_growth",
+                ],
+                validation_rules=["state_consistency"],
+                parallel_safe=False,
+            ),
+        ]

@@ -2086,3 +2086,137 @@ export async function applyWorkforceParams(
   );
   return handleResponse<WorkforceParamsApplyResult>(response);
 }
+
+// ============================================================================
+// Calibration Endpoints (Feature 105 - Fast Compensation Calibration)
+// ============================================================================
+
+export interface CalibrationParams {
+  target_growth_pct?: number | null;
+  cola_rate?: number | null;
+  merit_budget?: number | null;
+  promotion_increase?: number | null;
+  /** Workforce/headcount growth target (simulation.target_growth_rate). */
+  workforce_growth_rate?: number | null;
+  /** New-hire age distribution; overrides the seed via the same dbt var the full sim uses. */
+  new_hire_age_distribution?: Array<{ age: number; weight: number }> | null;
+  job_level_compensation?: Array<{
+    level: number;
+    name?: string;
+    min_compensation: number;
+    max_compensation: number;
+  }> | null;
+}
+
+export interface CalibrationRunRequest {
+  start_year: number;
+  end_year: number;
+  config_path?: string | null;
+  database_path?: string | null;
+  /** Run against this workspace's base config (census, rates) so levers transfer. */
+  workspace_id?: string | null;
+  params?: CalibrationParams;
+}
+
+export interface AutoCalibrationSettings {
+  target_workforce_growth: number; // decimal, e.g. 0.03
+  target_comp_growth: number; // decimal, e.g. 0.035
+  tolerance_pct?: number; // percentage points, default 0.05
+  max_iterations?: number; // default 8
+  adjust?: 'cola' | 'merit' | 'both';
+  /** 'new_hire_scale': solve the census scale on new-hire ranges, keeping COLA/merit fixed. */
+  search_mode?: 'levers' | 'new_hire_scale';
+  /** UNSCALED (1.0×) per-level ranges; required for new_hire_scale mode. */
+  base_job_level_compensation?: Array<{
+    level: number;
+    name?: string;
+    min_compensation: number;
+    max_compensation: number;
+  }> | null;
+  initial_scale?: number;
+  scale_min?: number;
+  scale_max?: number;
+  lever_fallback?: boolean;
+}
+
+export interface AutoCalibrationRequest {
+  start_year: number;
+  end_year: number;
+  config_path?: string | null;
+  database_path?: string | null;
+  workspace_id?: string | null;
+  settings: AutoCalibrationSettings;
+  params?: CalibrationParams;
+}
+
+export interface OptimizationIteration {
+  iteration: number;
+  cola_rate: number;
+  merit_budget: number;
+  scale?: number | null;
+  achieved_growth_pct: number;
+  error_pct: number;
+}
+
+export interface AutoCalibrationOutcome {
+  converged: boolean;
+  message: string;
+  best_params: CalibrationParams;
+  best_scale?: number | null;
+  achieved_comp_growth_pct: number;
+  target_comp_growth_pct: number;
+  iterations: OptimizationIteration[];
+  results: PerYearCompensationResult[];
+}
+
+export interface AutoCalibrationResponse {
+  run_id: string;
+  outcome: AutoCalibrationOutcome;
+}
+
+export interface PerYearCompensationResult {
+  simulation_year: number;
+  avg_compensation: number;
+  yoy_growth_pct: number | null;
+  target_growth_pct: number | null;
+  growth_delta_pct: number | null;
+  headcount: number;
+  headcount_growth_pct: number | null;
+  total_compensation: number;
+  total_comp_growth_pct: number | null;
+  new_hire_avg_comp: number | null;
+  existing_avg_comp: number | null;
+  new_hire_gap: number | null;
+}
+
+export interface CalibrationRunResponse {
+  run_id: string;
+  results: PerYearCompensationResult[];
+}
+
+export async function runCalibration(
+  request: CalibrationRunRequest
+): Promise<CalibrationRunResponse> {
+  const response = await fetch(`${API_BASE}/api/calibration/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<CalibrationRunResponse>(response);
+}
+
+/**
+ * Auto-calibrate: search COLA/merit until the mean YoY avg-comp growth hits
+ * the target (workforce growth is set directly — it is deterministic).
+ * Runs several fast comp-only builds; expect a few minutes.
+ */
+export async function optimizeCalibration(
+  request: AutoCalibrationRequest
+): Promise<AutoCalibrationResponse> {
+  const response = await fetch(`${API_BASE}/api/calibration/optimize`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<AutoCalibrationResponse>(response);
+}
