@@ -42,14 +42,53 @@ def test_negative_cola_rejected() -> None:
         CalibrationParameterSet(cola_rate=-0.01)
 
 
-def test_new_hire_mix_must_sum_positive() -> None:
+def test_age_distribution_must_sum_positive() -> None:
     with pytest.raises(ValueError):
-        CalibrationParameterSet(new_hire_mix={"1": 0.0, "2": 0.0})
+        CalibrationParameterSet(
+            new_hire_age_distribution=[
+                {"age": 25, "weight": 0.0},
+                {"age": 35, "weight": 0.0},
+            ]
+        )
 
 
-def test_new_hire_mix_rejects_negative_weight() -> None:
+def test_age_distribution_rejects_negative_weight() -> None:
     with pytest.raises(ValueError):
-        CalibrationParameterSet(new_hire_mix={"1": -0.5, "2": 1.0})
+        CalibrationParameterSet(
+            new_hire_age_distribution=[
+                {"age": 25, "weight": -0.5},
+                {"age": 35, "weight": 1.0},
+            ]
+        )
+
+
+def test_age_distribution_rejects_missing_keys() -> None:
+    with pytest.raises(ValueError):
+        CalibrationParameterSet(new_hire_age_distribution=[{"age": 25}])
+
+
+def test_age_distribution_rejects_implausible_age() -> None:
+    with pytest.raises(ValueError):
+        CalibrationParameterSet(new_hire_age_distribution=[{"age": 5, "weight": 1.0}])
+
+
+def test_valid_age_distribution_accepted() -> None:
+    params = CalibrationParameterSet(
+        new_hire_age_distribution=[
+            {"age": 25, "weight": 0.4},
+            {"age": 35, "weight": 0.6},
+        ]
+    )
+    assert len(params.new_hire_age_distribution) == 2
+
+
+def test_workforce_growth_rate_bounds() -> None:
+    assert (
+        CalibrationParameterSet(workforce_growth_rate=0.03).workforce_growth_rate
+        == 0.03
+    )
+    with pytest.raises(ValueError):
+        CalibrationParameterSet(workforce_growth_rate=1.5)
 
 
 # -- first-year null growth ----------------------------------------------
@@ -194,3 +233,39 @@ def test_job_level_compensation_injected_into_dbt_vars(tmp_path) -> None:
     runner._build_year(2025)
 
     assert captured.get("job_level_compensation") == ranges
+
+
+# -- new-hire age distribution flows into the dbt var ----------------------
+def test_age_distribution_injected_into_dbt_vars(tmp_path) -> None:
+    from types import SimpleNamespace
+
+    runner = _runner_with_default_config(tmp_path)
+    dist = [{"age": 25, "weight": 0.4}, {"age": 40, "weight": 0.6}]
+    runner.run = runner.run.model_copy(
+        update={"params": CalibrationParameterSet(new_hire_age_distribution=dist)}
+    )
+
+    captured = {}
+
+    def _fake_exec(command, **kwargs):
+        captured.update(kwargs.get("dbt_vars") or {})
+        return SimpleNamespace(success=True, return_code=0)
+
+    runner._runner.execute_command = _fake_exec  # type: ignore[assignment]
+    runner._build_year(2025)
+
+    assert captured.get("new_hire_age_distribution") == dist
+
+
+# -- workforce growth is a deliberate, explicit headcount lever ------------
+def test_workforce_growth_rate_applies_to_simulation_config(tmp_path) -> None:
+    runner = _runner_with_default_config(tmp_path)
+    baseline_growth = runner._config.simulation.target_growth_rate
+
+    # target_growth_pct alone must NOT touch it...
+    runner._apply_param_overrides(CalibrationParameterSet(target_growth_pct=0.04))
+    assert runner._config.simulation.target_growth_rate == baseline_growth
+
+    # ...but the explicit workforce_growth_rate lever must.
+    runner._apply_param_overrides(CalibrationParameterSet(workforce_growth_rate=0.05))
+    assert runner._config.simulation.target_growth_rate == 0.05

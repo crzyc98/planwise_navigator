@@ -120,6 +120,32 @@ Existing web/CLI/orchestrator layout (no new top-level projects): `planalign_orc
 
 ---
 
+## Phase 7: Real-Lever Alignment (post-review rework, 2026-07-01)
+
+**Why**: Live use showed the panel didn't tune the variables the analyst actually sets for a production run. The "New-Hire Senior Mix" slider was a silent no-op (`new_hire_mix` was accepted and ignored), the workforce growth rate was locked out entirely, the new-hire age distribution had no config→dbt path anywhere (seed CSV only — even the full sim ignored the Studio value), and the analyst's purple-button COLA/merit solver wasn't available. Studio-first per user (CLI unused).
+
+- [X] T029 dbt: `new_hire_age_distribution` var override in `int_hiring_events.sql` (same VALUES pattern as `job_level_compensation`); exported from `new_hire.age_distribution` config in `to_dbt_vars` so the **full sim** honors it too — transferability by construction.
+- [X] T030 Runner: removed dead `new_hire_mix`; added `new_hire_age_distribution` (validated) injected as the dbt var, and `workforce_growth_rate` as an explicit, documented headcount lever (`simulation.target_growth_rate`) — distinct from `target_growth_pct` (delta-only).
+- [X] T031 API: `POST /api/calibration/run` accepts `workspace_id`; resolves the workspace's base config (census path made absolute) into the runner's config so calibration models the analyst's actual plan, not the repo default config.
+- [X] T032 Studio panel: workforce-growth slider (replaces fake mix slider); purple "Calculate COLA & Merit" solver (same endpoint as the Compensation page) pre-filling the sliders; editable new-hire age-distribution override; **Apply to Workspace** button writing the calibrated levers to the workspace base config (both `_percent` and decimal comp keys — the loader prefers existing decimal keys) for the calibrate → apply → full-sim workflow.
+- [X] T033 Tests: runner param/injection tests for the new levers; API tests for new fields, 404 unknown workspace, and workspace-config→runner flow.
+
+---
+
+## Phase 8: Auto-Calibration (target-seeking search, 2026-07-01)
+
+**Why**: The team's actual goal is "set a target population growth rate and a target average-comp growth rate, and have the system find the config." Population growth needs no search (E077 hits `simulation.target_growth_rate` deterministically); avg-comp growth is a 1-D search over COLA/merit where each evaluation is a fast comp-only calibration — so a secant iteration (3–6 runs) replaces the requested brute-force grid and finishes in minutes.
+
+- [X] T034 `planalign_orchestrator/calibration_optimizer.py`: `AutoCalibrator` — sets workforce growth exactly, secant-searches a uniform COLA/merit shift (adjust: cola|merit|both) until mean YoY avg-comp growth is within tolerance (default ±0.05pp, max 8 runs); reuses ONE `CalibrationRunner` (one isolated DB + guard) with the `rerun_with_params` fast path per iteration; returns best params + iteration history + the best run's per-year results even when not converged.
+- [X] T035 API: `POST /api/calibration/optimize` (workspace-aware like `/run`; single-year range → 422; guard → 409).
+- [X] T036 Studio: "Auto-Calibrate" section on the calibration panel — uses the Target Comp Growth + Workforce Growth sliders as the two targets, tolerance/max-runs inputs, renders the iteration table, loads the solved COLA/merit into the sliders (so Apply to Workspace persists them), and shows the winning run's charts.
+- [X] T037 Tests: `tests/test_calibration_optimizer.py` (4, synthetic linear response — convergence in ≤4 evals, not-converged reporting, cola-only mode, single-year error). Full calibration suite 41 passing; verified end-to-end against an isolated copy of the dev DB.
+- [X] T038 Second lever (user request 2026-07-01): `search_mode: 'new_hire_scale'` — COLA/merit stay at the analyst's policy values; the optimizer secant-searches the census scale on the per-level new-hire ranges (from unscaled `base_job_level_compensation`) so hiring dilution isn't papered over with raises. Falls back to nudging COLA/merit only if the scale clamps at its bounds (`lever_fallback`, reported in the message). Studio: "Solve for" picker (new-hire ranges default), Scale column in the run table, winning scale applied back to the Scale (×) input (base ranges now stored unscaled and derived via useMemo, so Apply-to-Workspace persists the solved ranges). Tests: 3 new scale-mode tests (solve + levers-fixed, bound + fallback, validator).
+
+> Note: this supersedes the spec's "Out of Scope: multi-scenario sweep/optimization automation" — explicitly requested by the user on 2026-07-01.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies

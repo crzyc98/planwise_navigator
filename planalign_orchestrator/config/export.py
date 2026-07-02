@@ -912,6 +912,18 @@ def _export_compensation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
             if job_level_comp and len(job_level_comp) > 0:
                 dbt_vars["job_level_compensation"] = job_level_comp
 
+            # New-hire age distribution: list of {"age": int, "weight": float}.
+            # Overrides the config_new_hire_age_distribution seed in
+            # int_hiring_events, so a distribution set in the UI (or tuned in
+            # calibration) actually reaches the run.
+            age_distribution = (
+                new_hire_config.get("age_distribution")
+                if isinstance(new_hire_config, dict)
+                else getattr(new_hire_config, "age_distribution", None)
+            )
+            if age_distribution and len(age_distribution) > 0:
+                dbt_vars["new_hire_age_distribution"] = age_distribution
+
             market_scenario = (
                 new_hire_config.get("market_scenario")
                 if isinstance(new_hire_config, dict)

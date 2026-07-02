@@ -557,7 +557,7 @@ Key invariants:
 - **Prerequisite**: the target DB must have had one full build (the DC tables `fct_workforce_snapshot`/`fct_yearly_events` `ref()` must already exist, stale-but-present). A fail-fast guard rejects DBs missing them (exit code 3).
 - **Isolated by default**: with no `--database`, writes a timestamped `dbt/calibration/calibration_*.duckdb` — never the shared dev DB.
 - **`--target-growth` is the *compensation*-growth target** (the per-year delta reference only). It must NOT be confused with `simulation.target_growth_rate` (the workforce/headcount growth target that sizes E077 hiring) — conflating them changes headcount and breaks comp exactness.
-- **Studio**: a "Calibration" panel (`/calibrate`) exposes target-growth/COLA/merit/new-hire-mix sliders backed by `POST /api/calibration/run`; values match the CLI by construction (shared `CalibrationRunner`).
+- **Studio**: a "Calibration" panel (`/calibrate`) tunes the REAL production levers — workforce-growth (`simulation.target_growth_rate`, an explicit headcount lever), COLA/merit (with the same purple-button solver as the Compensation page), new-hire age distribution (`new_hire_age_distribution` dbt var, also honored by the full sim via `to_dbt_vars`), and per-level comp ranges via Match Census × scale (`job_level_compensation` dbt var) — backed by `POST /api/calibration/run`; values match the CLI by construction (shared `CalibrationRunner`).
 
 Verify exactness in an isolated DB (per the isolated-DB rule): build a full sim, copy it, `calibrate` the copy, and confirm `fct_workforce_snapshot` per-employee prorated comp matches the baseline.
 

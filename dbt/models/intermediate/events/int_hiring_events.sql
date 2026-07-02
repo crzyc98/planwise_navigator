@@ -51,8 +51,25 @@ hire_sequence AS (
 ),
 
 -- E082: Load age distribution from configurable seed file
--- Falls back to 'default' scenario if no scenario-specific config exists
+-- Falls back to 'default' scenario if no scenario-specific config exists.
+-- The `new_hire_age_distribution` var (list of {"age": int, "weight": float})
+-- overrides the seed entirely when provided -- the same var the calibration
+-- panel and the full simulation config both flow through, so a distribution
+-- tuned in calibration transfers verbatim to a production run.
+{% set age_dist_var = var('new_hire_age_distribution', none) %}
 age_distribution AS (
+  {% if age_dist_var is not none and age_dist_var | length > 0 %}
+  SELECT
+    hire_age,
+    age_weight,
+    SUM(age_weight) OVER (ORDER BY hire_age ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cumulative_weight
+  FROM (
+    VALUES
+    {% for item in age_dist_var %}
+      ({{ item.age }}, CAST({{ item.weight }} AS DOUBLE)){% if not loop.last %},{% endif %}
+    {% endfor %}
+  ) AS ad(hire_age, age_weight)
+  {% else %}
   SELECT
     hire_age,
     age_weight,
@@ -68,6 +85,7 @@ age_distribution AS (
     WHERE scenario_id = '{{ var('scenario_id', 'default') }}'
       AND scenario_id != 'default'
   ))
+  {% endif %}
 ),
 
 -- Get total weight for normalization (should be 1.0 but normalize just in case)

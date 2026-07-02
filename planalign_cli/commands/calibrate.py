@@ -123,7 +123,7 @@ def _render_results(results: List[PerYearCompensationResult]) -> None:
     table.add_column("HC Growth", justify="right")
     table.add_column("Total Comp", justify="right")
     table.add_column("Total Growth", justify="right")
-    table.add_column("NH Gap", justify="right")
+    table.add_column("NH Rate Gap", justify="right")
 
     for r in results:
         table.add_row(

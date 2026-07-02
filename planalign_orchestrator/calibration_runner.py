@@ -68,7 +68,17 @@ class CalibrationParameterSet(BaseModel):
     cola_rate: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     merit_budget: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     promotion_increase: Optional[float] = Field(default=None, ge=0.0, le=1.0)
-    new_hire_mix: Optional[Dict[str, float]] = None
+    # Workforce/headcount growth target (simulation.target_growth_rate) -- the
+    # rate that sizes E077 hiring. This is a DELIBERATE lever, distinct from
+    # target_growth_pct (the avg-comp growth target used only for the delta
+    # column). Changing it changes headcount, exactly as it would in a full
+    # simulation with the same value.
+    workforce_growth_rate: Optional[float] = Field(default=None, ge=-1.0, le=1.0)
+    # New-hire age distribution: list of {"age": int, "weight": float}.
+    # Overrides the config_new_hire_age_distribution seed via the
+    # new_hire_age_distribution dbt var -- the same var the full simulation
+    # consumes -- so a distribution tuned here transfers verbatim.
+    new_hire_age_distribution: Optional[List[Dict[str, float]]] = None
     # Per-level new-hire compensation ranges derived from "Match Census" x scale,
     # exactly as the Workforce Parameters page produces them. Each item is
     # {"level", "min_compensation", "max_compensation"}. When provided, this
@@ -78,17 +88,26 @@ class CalibrationParameterSet(BaseModel):
     # values are mixed (name is a str), so Dict[str, Any] not Dict[str, float].
     job_level_compensation: Optional[List[Dict[str, Any]]] = None
 
-    @field_validator("new_hire_mix")
+    @field_validator("new_hire_age_distribution")
     @classmethod
-    def _mix_sums_positive(
-        cls, value: Optional[Dict[str, float]]
-    ) -> Optional[Dict[str, float]]:
+    def _age_distribution_valid(
+        cls, value: Optional[List[Dict[str, float]]]
+    ) -> Optional[List[Dict[str, float]]]:
         if value is None:
             return value
-        if any(weight < 0 for weight in value.values()):
-            raise ValueError("new_hire_mix weights must be non-negative")
-        if sum(value.values()) <= 0:
-            raise ValueError("new_hire_mix weights must sum to a positive value")
+        for item in value:
+            if "age" not in item or "weight" not in item:
+                raise ValueError(
+                    "each new_hire_age_distribution item needs 'age' and 'weight'"
+                )
+            if not 14 <= float(item["age"]) <= 100:
+                raise ValueError("new_hire_age_distribution ages must be 14-100")
+            if float(item["weight"]) < 0:
+                raise ValueError("new_hire_age_distribution weights must be >= 0")
+        if sum(float(item["weight"]) for item in value) <= 0:
+            raise ValueError(
+                "new_hire_age_distribution weights must sum to a positive value"
+            )
         return value
 
 
@@ -123,6 +142,8 @@ class PerYearCompensationResult(BaseModel):
     headcount_growth_pct: Optional[float] = None
     total_compensation: float = 0.0
     total_comp_growth_pct: Optional[float] = None
+    # Full-year-equivalent RATES (not prorated dollars): a true pay comparison,
+    # unaffected by how much of the year new hires happened to work.
     new_hire_avg_comp: Optional[float] = None
     existing_avg_comp: Optional[float] = None
     new_hire_gap: Optional[float] = None
@@ -302,6 +323,10 @@ class CalibrationRunner:
             self._config.compensation.merit_budget = params.merit_budget
         if params.promotion_increase is not None:
             self._config.compensation.promotion_increase = params.promotion_increase
+        # workforce_growth_rate IS the headcount lever, set explicitly by the
+        # analyst -- unlike target_growth_pct it is meant to change hiring.
+        if params.workforce_growth_rate is not None:
+            self._config.simulation.target_growth_rate = params.workforce_growth_rate
 
     def _build_year(self, year: int) -> None:
         dbt_vars = to_dbt_vars(self._config)
@@ -310,6 +335,12 @@ class CalibrationRunner:
         # consumes (so the calibrated scale is directly transferable).
         if self.run.params.job_level_compensation:
             dbt_vars["job_level_compensation"] = self.run.params.job_level_compensation
+        # Override the new-hire age distribution via the same dbt var the full
+        # simulation consumes (int_hiring_events), replacing the seed values.
+        if self.run.params.new_hire_age_distribution:
+            dbt_vars[
+                "new_hire_age_distribution"
+            ] = self.run.params.new_hire_age_distribution
         stages = WorkflowBuilder.build_calibration_year_workflow(
             year, self.run.start_year
         )
@@ -362,16 +393,21 @@ class CalibrationRunner:
     def _read_snapshot_gap(
         conn: duckdb.DuckDBPyConnection, year: int
     ) -> Dict[str, Any]:
+        # The new-hire vs existing comparison uses FULL-YEAR-EQUIVALENT rates:
+        # prorated comp for mid-year hires is mechanically ~half their rate, so
+        # a prorated "gap" mostly measures hire timing, not pay policy. Total
+        # comp stays prorated -- it is actual dollars paid, consistent with the
+        # growth math.
         row = conn.execute(
             """
             SELECT
                 COUNT(*) FILTER (
                     WHERE detailed_status_code IN ('continuous_active', 'new_hire_active')
                 ) AS headcount,
-                AVG(prorated_annual_compensation) FILTER (
+                AVG(full_year_equivalent_compensation) FILTER (
                     WHERE detailed_status_code = 'new_hire_active'
                 ) AS new_hire_avg,
-                AVG(prorated_annual_compensation) FILTER (
+                AVG(full_year_equivalent_compensation) FILTER (
                     WHERE detailed_status_code = 'continuous_active'
                 ) AS existing_avg,
                 SUM(prorated_annual_compensation) FILTER (
