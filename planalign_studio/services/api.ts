@@ -2098,6 +2098,9 @@ export interface CalibrationParams {
   promotion_increase?: number | null;
   /** Workforce/headcount growth target (simulation.target_growth_rate). */
   workforce_growth_rate?: number | null;
+  /** Core termination rates (workforce.*), as decimals; held fixed across the search. */
+  total_termination_rate?: number | null;
+  new_hire_termination_rate?: number | null;
   /** New-hire age distribution; overrides the seed via the same dbt var the full sim uses. */
   new_hire_age_distribution?: Array<{ age: number; weight: number }> | null;
   job_level_compensation?: Array<{

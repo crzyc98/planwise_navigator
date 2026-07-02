@@ -74,6 +74,13 @@ class CalibrationParameterSet(BaseModel):
     # column). Changing it changes headcount, exactly as it would in a full
     # simulation with the same value.
     workforce_growth_rate: Optional[float] = Field(default=None, ge=-1.0, le=1.0)
+    # Core termination rates (workforce.total_termination_rate /
+    # workforce.new_hire_termination_rate) -- deterministic workforce-dynamics
+    # inputs the analyst holds fixed. They flow through to_dbt_vars exactly as
+    # the full simulation consumes them; attrition of higher-paid tenured staff
+    # replaced by lower-paid hires materially affects avg-comp growth.
+    total_termination_rate: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    new_hire_termination_rate: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     # New-hire age distribution: list of {"age": int, "weight": float}.
     # Overrides the config_new_hire_age_distribution seed via the
     # new_hire_age_distribution dbt var -- the same var the full simulation
@@ -327,6 +334,15 @@ class CalibrationRunner:
         # analyst -- unlike target_growth_pct it is meant to change hiring.
         if params.workforce_growth_rate is not None:
             self._config.simulation.target_growth_rate = params.workforce_growth_rate
+        # Core termination rates -- deterministic workforce-dynamics inputs.
+        if params.total_termination_rate is not None:
+            self._config.workforce.total_termination_rate = (
+                params.total_termination_rate
+            )
+        if params.new_hire_termination_rate is not None:
+            self._config.workforce.new_hire_termination_rate = (
+                params.new_hire_termination_rate
+            )
 
     def _build_year(self, year: int) -> None:
         dbt_vars = to_dbt_vars(self._config)

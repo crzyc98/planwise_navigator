@@ -12,6 +12,8 @@ import {
   ApiError,
   getWorkspace,
   updateWorkspace,
+  listScenarios,
+  updateScenario,
   analyzeCompensation,
   analyzeAgeDistribution,
   Workspace,
@@ -197,6 +199,11 @@ export default function CalibrationPanel() {
     workforce_growth_rate: 0.03,
     cola_rate: 0.02,
     merit_budget: 0.035,
+    // Core termination rates (decimals) — deterministic workforce-dynamics
+    // inputs; defaults match the config schema. Loaded from the workspace
+    // base_config when a workspace is active.
+    total_termination_rate: 0.12,
+    new_hire_termination_rate: 0.25,
   });
   const [results, setResults] = useState<PerYearCompensationResult[]>([]);
 
@@ -252,15 +259,26 @@ export default function CalibrationPanel() {
   const setValue = (key: string, v: number) =>
     setValues((prev) => ({ ...prev, [key]: v }));
 
-  // Resolve the active workspace's census path (fresh base_config).
+  // Resolve the active workspace's census path + seed the termination rates
+  // from its base_config so the panel starts from the real config values.
   useEffect(() => {
     if (!activeWorkspace?.id) {
       setCensusPath('');
       return;
     }
+    const seedFromConfig = (cfg: any) => {
+      setCensusPath(extractCensusPath(cfg) ?? '');
+      const wf = (cfg?.workforce ?? {}) as Record<string, number>;
+      setValues((prev) => ({
+        ...prev,
+        total_termination_rate: wf.total_termination_rate ?? prev.total_termination_rate,
+        new_hire_termination_rate:
+          wf.new_hire_termination_rate ?? prev.new_hire_termination_rate,
+      }));
+    };
     getWorkspace(activeWorkspace.id)
-      .then((ws) => setCensusPath(extractCensusPath(ws.base_config) ?? ''))
-      .catch(() => setCensusPath(extractCensusPath(activeWorkspace.base_config) ?? ''));
+      .then((ws) => seedFromConfig(ws.base_config))
+      .catch(() => seedFromConfig(activeWorkspace.base_config));
   }, [activeWorkspace?.id]);
 
   // Derive UNSCALED per-level ranges from the workspace census; the
@@ -354,6 +372,9 @@ export default function CalibrationPanel() {
           // In scale mode the optimizer injects the ranges itself.
           job_level_compensation:
             searchMode === 'levers' && jobRanges.length > 0 ? jobRanges : null,
+          // Core termination rates are held fixed across the search.
+          total_termination_rate: values.total_termination_rate,
+          new_hire_termination_rate: values.new_hire_termination_rate,
         },
       });
       const outcome = response.outcome;
@@ -376,43 +397,78 @@ export default function CalibrationPanel() {
     }
   };
 
-  // Apply the calibrated levers to the workspace base config -- the same keys
-  // the full simulation reads -- so "calibrate, apply, run the real sim" is one
-  // click instead of re-entering values on the config pages.
+  // Apply the calibrated levers to the workspace base config AND every
+  // scenario's overrides -- scenarios override these exact keys, so writing
+  // base_config alone leaves runs on the old values. Merging the calibrated
+  // keys into each scenario (preserving its other settings) makes "calibrate,
+  // apply, run the real sim" one click.
   const [applyStatus, setApplyStatus] = useState<'idle' | 'applying' | 'applied' | 'error'>('idle');
   const [applyError, setApplyError] = useState<string | null>(null);
+  const [applySummary, setApplySummary] = useState<string | null>(null);
+
+  // Merge the calibrated levers into a config object (base_config or a
+  // scenario's config_overrides), preserving every key we didn't calibrate.
+  // Same key shapes both places: compensation uses *_percent (+ bare decimals
+  // the loader prefers), simulation/workforce use decimals.
+  const mergeCalibrated = (cfg: Record<string, any>): Record<string, any> => ({
+    ...cfg,
+    simulation: {
+      ...(cfg.simulation ?? {}),
+      target_growth_rate: values.workforce_growth_rate,
+    },
+    compensation: {
+      ...(cfg.compensation ?? {}),
+      target_compensation_growth_percent: values.target_growth_pct * 100,
+      cola_rate_percent: values.cola_rate * 100,
+      cola_rate: values.cola_rate,
+      merit_budget_percent: values.merit_budget * 100,
+      merit_budget: values.merit_budget,
+    },
+    workforce: {
+      ...(cfg.workforce ?? {}),
+      total_termination_rate: values.total_termination_rate,
+      new_hire_termination_rate: values.new_hire_termination_rate,
+    },
+    new_hire: {
+      ...(cfg.new_hire ?? {}),
+      ...(ageDistEnabled ? { age_distribution: ageDist } : {}),
+      ...(jobRanges.length > 0 ? { job_level_compensation: jobRanges } : {}),
+    },
+  });
 
   const handleApplyToWorkspace = async () => {
     if (!activeWorkspace?.id) return;
+    const workspaceId = activeWorkspace.id;
     setApplyStatus('applying');
     setApplyError(null);
+    setApplySummary(null);
     try {
-      const ws = await getWorkspace(activeWorkspace.id);
-      const base = (ws.base_config ?? {}) as Record<string, any>;
-      const merged = {
-        ...base,
-        simulation: {
-          ...(base.simulation ?? {}),
-          target_growth_rate: values.workforce_growth_rate,
-        },
-        compensation: {
-          ...(base.compensation ?? {}),
-          target_compensation_growth_percent: values.target_growth_pct * 100,
-          // Write both forms: the loader prefers the bare decimal key when it
-          // already exists, so updating only the _percent key could be ignored.
-          cola_rate_percent: values.cola_rate * 100,
-          cola_rate: values.cola_rate,
-          merit_budget_percent: values.merit_budget * 100,
-          merit_budget: values.merit_budget,
-        },
-        new_hire: {
-          ...(base.new_hire ?? {}),
-          ...(ageDistEnabled ? { age_distribution: ageDist } : {}),
-          ...(jobRanges.length > 0 ? { job_level_compensation: jobRanges } : {}),
-        },
-      };
-      await updateWorkspace(activeWorkspace.id, { base_config: merged });
-      setApplyStatus('applied');
+      // 1. Workspace base config (the fallback for scenarios that don't override).
+      const ws = await getWorkspace(workspaceId);
+      await updateWorkspace(workspaceId, {
+        base_config: mergeCalibrated((ws.base_config ?? {}) as Record<string, any>),
+      });
+
+      // 2. Every scenario's overrides -- these shadow base_config, so a run only
+      // reflects the calibration once they carry the calibrated keys too.
+      const scenarios = await listScenarios(workspaceId);
+      const outcomes = await Promise.allSettled(
+        scenarios.map((sc) =>
+          updateScenario(workspaceId, sc.id, {
+            config_overrides: mergeCalibrated(sc.config_overrides ?? {}),
+          })
+        )
+      );
+      const applied = outcomes.filter((o) => o.status === 'fulfilled').length;
+      const failed = outcomes.length - applied;
+      setApplySummary(
+        `Updated workspace base config and ${applied} scenario${applied === 1 ? '' : 's'}` +
+          (failed > 0 ? ` (${failed} failed)` : '') + '.'
+      );
+      setApplyStatus(failed > 0 ? 'error' : 'applied');
+      if (failed > 0) {
+        setApplyError(`${failed} scenario${failed === 1 ? '' : 's'} could not be updated.`);
+      }
     } catch (e) {
       setApplyError(errorText(e));
       setApplyStatus('error');
@@ -717,6 +773,52 @@ export default function CalibrationPanel() {
             )}
           </div>
 
+          {/* Core termination rates — deterministic workforce-dynamics inputs,
+              always held fixed by calibration. Higher attrition replaces tenured
+              staff with lower-paid hires, diluting avg-comp growth. */}
+          <div className="rounded-md border border-gray-200 p-4">
+            <div className="text-sm font-medium text-gray-700 mb-2 flex flex-wrap items-center gap-2">
+              Termination Rates
+              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+                Held fixed
+              </span>
+              <span className="text-xs font-normal text-gray-500">
+                attrition dilutes avg comp, so it shapes salary growth
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label className="block">
+                <span className="text-xs text-gray-600">Total (experienced) termination</span>
+                <div className="mt-1 flex items-center gap-1">
+                  <input
+                    type="number" step="0.1" min={0} max={100}
+                    value={Number((values.total_termination_rate * 100).toFixed(1))}
+                    onChange={(e) => setValue('total_termination_rate', Number(e.target.value) / 100)}
+                    className="w-24 rounded-md border border-gray-300 p-1.5 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+                  />
+                  <span className="text-xs text-gray-500">%</span>
+                </div>
+              </label>
+              <label className="block">
+                <span className="text-xs text-gray-600">New-hire termination</span>
+                <div className="mt-1 flex items-center gap-1">
+                  <input
+                    type="number" step="0.1" min={0} max={100}
+                    value={Number((values.new_hire_termination_rate * 100).toFixed(1))}
+                    onChange={(e) => setValue('new_hire_termination_rate', Number(e.target.value) / 100)}
+                    className="w-24 rounded-md border border-gray-300 p-1.5 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+                  />
+                  <span className="text-xs text-gray-500">%</span>
+                </div>
+              </label>
+            </div>
+            {values.new_hire_termination_rate < values.total_termination_rate && (
+              <p className="mt-2 text-xs text-amber-600">
+                New-hire termination is normally ≥ total termination — the engine expects this.
+              </p>
+            )}
+          </div>
+
           {/* COLA & merit: a fixed policy input when calibration is solving
               new-hire ranges; collapsed to a label when they're the chosen lever. */}
           {solvingNewHireRanges ? (
@@ -849,25 +951,37 @@ export default function CalibrationPanel() {
           )}
         </div>
 
-          {/* Apply the calibrated levers to the workspace config the full sim reads. */}
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={handleApplyToWorkspace}
-              disabled={applyStatus === 'applying' || !activeWorkspace?.id || results.length === 0}
-              title={results.length === 0 ? 'Auto-calibrate first' : 'Write these levers to the workspace config the full simulation uses'}
-              className="inline-flex items-center gap-2 rounded bg-fidelity-green px-4 py-2 text-white font-medium hover:bg-fidelity-dark disabled:opacity-50"
-            >
-              {applyStatus === 'applying' ? <Loader2 className="animate-spin" size={18} /> : <Database size={18} />}
-              {applyStatus === 'applied' ? 'Applied ✓' : 'Apply to Workspace'}
-            </button>
-            {applyStatus === 'applied' && (
-              <span className="text-xs text-gray-600">
-                Workspace config updated — run the full simulation to make it official.
-              </span>
-            )}
-            {applyStatus === 'error' && applyError && (
-              <span className="text-xs text-red-600">{applyError}</span>
-            )}
+          {/* Apply the calibrated levers to the workspace base config AND every
+              scenario's overrides (which otherwise shadow the base). */}
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={handleApplyToWorkspace}
+                disabled={applyStatus === 'applying' || !activeWorkspace?.id || results.length === 0}
+                title={results.length === 0 ? 'Auto-calibrate first' : 'Write these levers to the workspace base config and all its scenarios'}
+                className="inline-flex items-center gap-2 rounded bg-fidelity-green px-4 py-2 text-white font-medium hover:bg-fidelity-dark disabled:opacity-50"
+              >
+                {applyStatus === 'applying' ? <Loader2 className="animate-spin" size={18} /> : <Database size={18} />}
+                {applyStatus === 'applying'
+                  ? 'Applying…'
+                  : applyStatus === 'applied'
+                  ? 'Applied ✓'
+                  : 'Apply to Workspace + Scenarios'}
+              </button>
+              {applyStatus === 'applied' && (
+                <span className="text-xs text-gray-600">
+                  {applySummary ?? 'Applied.'} Run the full simulation to make it official.
+                </span>
+              )}
+              {applyStatus === 'error' && applyError && (
+                <span className="text-xs text-red-600">{applyError}</span>
+              )}
+            </div>
+            <p className="text-xs text-gray-500">
+              Writes the calibrated levers (COLA, merit, target/workforce growth, termination
+              rates, new-hire age &amp; ranges) into the workspace base config and every scenario's
+              overrides — leaving each scenario's other settings untouched.
+            </p>
           </div>
         </div>
       </div>
