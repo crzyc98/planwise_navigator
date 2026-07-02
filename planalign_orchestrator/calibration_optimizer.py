@@ -28,7 +28,7 @@ blind parameter grid would take.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Dict, List, Literal, NamedTuple, Optional, Tuple
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -127,6 +127,16 @@ def _clamp_lever(value: float) -> float:
     return min(max(value, _LEVER_MIN), _LEVER_MAX)
 
 
+class _BestCandidate(NamedTuple):
+    """The best-so-far evaluated candidate (tracked across every stage)."""
+
+    abs_error: float
+    params: CalibrationParameterSet
+    achieved_pct: float
+    results: List[PerYearCompensationResult]
+    scale: Optional[float]
+
+
 class AutoCalibrator:
     """Secant search to hit a target avg-comp growth.
 
@@ -157,12 +167,20 @@ class AutoCalibrator:
         }[settings.adjust]
         self._evals = 0
         self._iterations: List[OptimizationIteration] = []
-        # (abs_error, params, achieved, results, scale)
-        self._best: Optional[Tuple] = None
+        self._best: Optional[_BestCandidate] = None
 
     @property
     def database_path(self):
         return self._runner.database_path
+
+    def _require_best(self) -> _BestCandidate:
+        """Narrow ``self._best`` to non-None.
+
+        Safe by construction: every call site runs after at least one
+        ``_try_candidate`` evaluation, which always sets ``self._best``.
+        """
+        assert self._best is not None, "no candidate evaluated yet"
+        return self._best
 
     # -- public API ---------------------------------------------------------
     def optimize(self) -> AutoCalibrationResult:
@@ -183,8 +201,8 @@ class AutoCalibrator:
         if converged:
             message = (
                 f"{self._summary(True, target_pct)} -- solved by setting the "
-                f"new-hire range scale to {self._best[4]:.2f}x; COLA/merit "
-                f"left at their configured values"
+                f"new-hire range scale to {self._require_best().scale:.2f}x; "
+                f"COLA/merit left at their configured values"
             )
             return self._finish(True, message, target_pct)
 
@@ -219,7 +237,7 @@ class AutoCalibrator:
             if abs(error) <= self.settings.tolerance_pct:
                 return True, None
 
-            if x_prev is None or abs(error - f_prev) < 1e-9:
+            if x_prev is None or f_prev is None or abs(error - f_prev) < 1e-9:
                 x_next = x - error / _SCALE_SENSITIVITY_PP
             else:
                 x_next = x - error * (x - x_prev) / (error - f_prev)
@@ -247,7 +265,7 @@ class AutoCalibrator:
             if abs(error) <= self.settings.tolerance_pct:
                 return True
 
-            if s_prev is None or abs(error - f_prev) < 1e-9:
+            if s_prev is None or f_prev is None or abs(error - f_prev) < 1e-9:
                 s_next = s - error / _LEVER_SENSITIVITY_PP
             else:
                 s_next = s - error * (s - s_prev) / (error - f_prev)
@@ -319,8 +337,8 @@ class AutoCalibrator:
                 error_pct=error,
             )
         )
-        if self._best is None or abs(error) < self._best[0]:
-            self._best = (abs(error), params, achieved, results, scale)
+        if self._best is None or abs(error) < self._best.abs_error:
+            self._best = _BestCandidate(abs(error), params, achieved, results, scale)
         return error
 
     def _evaluate(
@@ -343,31 +361,31 @@ class AutoCalibrator:
         return self._runner.rerun_with_params(params)
 
     def _summary(self, converged: bool, target_pct: float) -> str:
-        achieved = self._best[2]
+        best = self._require_best()
         if converged:
             return (
                 f"Converged in {self._evals} run(s): mean comp growth "
-                f"{achieved:.2f}% vs target {target_pct:.2f}%"
+                f"{best.achieved_pct:.2f}% vs target {target_pct:.2f}%"
             )
         return (
             f"Stopped after {self._evals} run(s); best mean comp growth "
-            f"{achieved:.2f}% vs target {target_pct:.2f}% "
-            f"(|error| {self._best[0]:.2f}pp > tolerance "
+            f"{best.achieved_pct:.2f}% vs target {target_pct:.2f}% "
+            f"(|error| {best.abs_error:.2f}pp > tolerance "
             f"{self.settings.tolerance_pct}pp)"
         )
 
     def _finish(
         self, converged: bool, message: str, target_pct: float
     ) -> AutoCalibrationResult:
-        _, params, achieved, results, scale = self._best
+        best = self._require_best()
         logger.info("Auto-calibration finished: %s", message)
         return AutoCalibrationResult(
             converged=converged,
             message=message,
-            best_params=params,
-            best_scale=scale,
-            achieved_comp_growth_pct=achieved,
+            best_params=best.params,
+            best_scale=best.scale,
+            achieved_comp_growth_pct=best.achieved_pct,
             target_comp_growth_pct=target_pct,
             iterations=self._iterations,
-            results=results,
+            results=best.results,
         )

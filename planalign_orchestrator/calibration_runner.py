@@ -418,6 +418,8 @@ class CalibrationRunner:
             """,
             [year],
         ).fetchone()
+        # A bare-aggregate query (no GROUP BY) always returns exactly one row.
+        assert row is not None
         return {
             "headcount": int(row[0] or 0),
             "new_hire_avg": row[1],
