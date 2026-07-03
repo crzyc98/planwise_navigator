@@ -54,6 +54,43 @@ const NavItem = ({ to, icon, label, end, collapsed }: Readonly<{ to: string; ico
   </NavLink>
 );
 
+// Sidebar nav grouped by workflow: setup → run → analyze. Dashboard stands alone at top.
+const NAV_SECTIONS: ReadonlyArray<{
+  heading: string | null;
+  items: ReadonlyArray<{ to: string; icon: React.ReactNode; label: string; end?: boolean }>;
+}> = [
+  {
+    heading: null,
+    items: [{ to: '/', icon: <LayoutDashboard size={20} />, label: 'Dashboard', end: true }],
+  },
+  {
+    heading: 'Setup',
+    items: [
+      { to: '/import', icon: <FileUp size={20} />, label: 'Import Data' },
+      { to: '/scenarios', icon: <Layers size={20} />, label: 'Scenarios' },
+    ],
+  },
+  {
+    heading: 'Run',
+    items: [
+      { to: '/simulate', icon: <PlayCircle size={20} />, label: 'Simulate' },
+      { to: '/batch', icon: <Database size={20} />, label: 'Batch Processing' },
+      { to: '/calibrate', icon: <SlidersHorizontal size={20} />, label: 'Calibration' },
+    ],
+  },
+  {
+    heading: 'Analyze',
+    items: [
+      { to: '/analytics', icon: <BarChart3 size={20} />, label: 'Overview', end: true },
+      { to: '/analytics/dc-plan', icon: <PieChart size={20} />, label: 'DC Plan' },
+      { to: '/analytics/vesting', icon: <Scale size={20} />, label: 'Vesting' },
+      { to: '/analytics/ndt', icon: <Shield size={20} />, label: 'NDT Testing' },
+      { to: '/analytics/winners-losers', icon: <ArrowLeftRight size={20} />, label: 'Winners & Losers' },
+      { to: '/compare', icon: <BarChart3 size={20} />, label: 'Cost Comparison' },
+    ],
+  },
+];
+
 // Helper to convert API workspace to frontend workspace type
 const toFrontendWorkspace = (ws: ApiWorkspace): Workspace => ({
   id: ws.id,
@@ -570,23 +607,28 @@ export default function Layout() {
         </div>
 
         <nav className={`flex-1 ${sidebarCollapsed ? 'px-2' : 'px-4'} py-6 overflow-y-auto`}>
-          {!sidebarCollapsed && (
-            <div className="mb-2 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              Main
+          {NAV_SECTIONS.map((section, sectionIndex) => (
+            <div key={section.heading ?? 'top'}>
+              {sectionIndex > 0 && sidebarCollapsed && (
+                <div className="border-t border-gray-200 my-2 mx-3" />
+              )}
+              {!sidebarCollapsed && section.heading && (
+                <div className={`${sectionIndex > 0 ? 'mt-6' : ''} mb-2 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider`}>
+                  {section.heading}
+                </div>
+              )}
+              {section.items.map((item) => (
+                <NavItem
+                  key={item.to}
+                  to={item.to}
+                  icon={item.icon}
+                  label={item.label}
+                  end={item.end}
+                  collapsed={sidebarCollapsed}
+                />
+              ))}
             </div>
-          )}
-          <NavItem to="/" icon={<LayoutDashboard size={20} />} label="Dashboard" collapsed={sidebarCollapsed} />
-          <NavItem to="/scenarios" icon={<Layers size={20} />} label="Scenarios" collapsed={sidebarCollapsed} />
-          <NavItem to="/simulate" icon={<PlayCircle size={20} />} label="Simulate" collapsed={sidebarCollapsed} />
-          <NavItem to="/calibrate" icon={<SlidersHorizontal size={20} />} label="Calibration" collapsed={sidebarCollapsed} />
-          <NavItem to="/analytics" icon={<BarChart3 size={20} />} label="Analytics" end collapsed={sidebarCollapsed} />
-          <NavItem to="/analytics/dc-plan" icon={<PieChart size={20} />} label="DC Plan" collapsed={sidebarCollapsed} />
-          <NavItem to="/analytics/vesting" icon={<Scale size={20} />} label="Vesting" collapsed={sidebarCollapsed} />
-          <NavItem to="/analytics/ndt" icon={<Shield size={20} />} label="NDT Testing" collapsed={sidebarCollapsed} />
-          <NavItem to="/analytics/winners-losers" icon={<ArrowLeftRight size={20} />} label="Winners & Losers" collapsed={sidebarCollapsed} />
-          <NavItem to="/compare" icon={<BarChart3 size={20} />} label="Compare Costs" collapsed={sidebarCollapsed} />
-          <NavItem to="/batch" icon={<Database size={20} />} label="Batch Processing" collapsed={sidebarCollapsed} />
-          <NavItem to="/import" icon={<FileUp size={20} />} label="Import Data" collapsed={sidebarCollapsed} />
+          ))}
         </nav>
       </aside>
 
