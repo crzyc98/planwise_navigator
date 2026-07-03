@@ -54,6 +54,11 @@ export const MATCH_TEMPLATES: Record<string, MatchTemplate> = {
   },
 };
 
+// Simulations default to a rolling 5-year window: current year through
+// current year + 5, so the UI never drifts behind the calendar.
+const DEFAULT_START_YEAR = new Date().getFullYear();
+const DEFAULT_END_YEAR = DEFAULT_START_YEAR + 5;
+
 export const DEFAULT_FORM_DATA: FormData = {
   // Data Sources — empty until a real census path loads from workspace/scenario
   // config. A placeholder path here gets persisted into scenario overrides and
@@ -64,9 +69,9 @@ export const DEFAULT_FORM_DATA: FormData = {
   censusLastModified: '',
 
   // Simulation
-  name: 'Baseline 2025-2027',
-  startYear: 2025,
-  endYear: 2027,
+  name: `Baseline ${DEFAULT_START_YEAR}-${DEFAULT_END_YEAR}`,
+  startYear: DEFAULT_START_YEAR,
+  endYear: DEFAULT_END_YEAR,
   seed: 42,
   targetGrowthRate: 3.0,
 

@@ -4,19 +4,18 @@ import {
   LineChart, Line, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
-import { SlidersHorizontal, Play, AlertCircle, Loader2, Database, Sparkles, Plus, X } from 'lucide-react';
+import { SlidersHorizontal, Loader2, Database, Sparkles, Plus, X, Check } from 'lucide-react';
 import {
-  runCalibration,
   optimizeCalibration,
-  CalibrationRunRequest,
   AutoCalibrationOutcome,
   PerYearCompensationResult,
   ApiError,
   getWorkspace,
   updateWorkspace,
+  listScenarios,
+  updateScenario,
   analyzeCompensation,
-  solveCompensationGrowth,
-  CompensationSolverResponse,
+  analyzeAgeDistribution,
   Workspace,
 } from '../services/api';
 import { extractCensusPath } from './config/ConfigContext';
@@ -54,10 +53,35 @@ interface SliderConfig {
 }
 
 const SLIDERS: SliderConfig[] = [
-  { key: 'target_growth_pct', label: 'Target Comp Growth', hint: 'avg-comp goal (delta column only)', min: 0, max: 0.1, step: 0.005 },
-  { key: 'workforce_growth_rate', label: 'Workforce Growth', hint: 'headcount growth — sizes hiring, same as the real sim', min: -0.05, max: 0.1, step: 0.005 },
+  { key: 'target_growth_pct', label: 'Target Salary Growth', hint: 'the goal calibration solves for', min: 0, max: 0.1, step: 0.005 },
+  { key: 'workforce_growth_rate', label: 'Workforce Growth', hint: 'deterministic headcount driver — sizes hiring', min: -0.05, max: 0.1, step: 0.005 },
   { key: 'cola_rate', label: 'COLA', min: 0, max: 0.1, step: 0.005 },
   { key: 'merit_budget', label: 'Merit', min: 0, max: 0.1, step: 0.005 },
+];
+
+const GROWTH_KEYS = new Set<SliderConfig['key']>(['target_growth_pct', 'workforce_growth_rate']);
+const POLICY_KEYS = new Set<SliderConfig['key']>(['cola_rate', 'merit_budget']);
+
+type SolveMode = 'new_hire_scale' | 'levers';
+
+/**
+ * The top-level calibration decision (Step 2): which lever we solve to hit the
+ * growth target. The chosen mode is held in `searchMode`; the other lever is
+ * held fixed, and controls that only apply to the other mode are hidden.
+ */
+const SOLVE_MODES: { key: SolveMode; title: string; description: string }[] = [
+  {
+    key: 'new_hire_scale',
+    title: 'New-hire salary ranges',
+    description:
+      'Scale new-hire pay so hiring absorbs your compensation-growth target, holding COLA & merit fixed. Recommended.',
+  },
+  {
+    key: 'levers',
+    title: 'COLA & merit',
+    description:
+      'Adjust the annual COLA and merit budget to hit your target, holding new-hire salary ranges fixed.',
+  },
 ];
 
 interface AgeRow {
@@ -108,30 +132,91 @@ function errorText(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
+// Rolling 5-year default window: current year through current year + 5.
+const DEFAULT_START_YEAR = new Date().getFullYear();
+const DEFAULT_END_YEAR = DEFAULT_START_YEAR + 5;
+
+/** Numbered step heading with a short instruction line for the analyst. */
+function StepHeader({
+  n,
+  title,
+  children,
+}: {
+  n: number;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-fidelity-green text-sm font-semibold text-white">
+        {n}
+      </span>
+      <div>
+        <h2 className="text-base font-semibold text-gray-900">{title}</h2>
+        <p className="text-sm text-gray-500">{children}</p>
+      </div>
+    </div>
+  );
+}
+
+/** A single labeled percentage slider used across steps. */
+function SliderRow({
+  s,
+  value,
+  onChange,
+}: {
+  s: SliderConfig;
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div>
+      <div className="flex justify-between text-sm font-medium text-gray-700">
+        <span>
+          {s.label}
+          {s.hint && <span className="ml-2 text-xs font-normal text-gray-400">{s.hint}</span>}
+        </span>
+        <span className="text-fidelity-green">{pct(value)}</span>
+      </div>
+      <input
+        type="range"
+        min={s.min}
+        max={s.max}
+        step={s.step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full accent-fidelity-green"
+      />
+    </div>
+  );
+}
+
 export default function CalibrationPanel() {
-  const [startYear, setStartYear] = useState(2025);
-  const [endYear, setEndYear] = useState(2029);
-  const [databasePath, setDatabasePath] = useState('');
+  const [startYear, setStartYear] = useState(DEFAULT_START_YEAR);
+  const [endYear, setEndYear] = useState(DEFAULT_END_YEAR);
   const [values, setValues] = useState<Record<string, number>>({
     target_growth_pct: 0.035,
     workforce_growth_rate: 0.03,
     cola_rate: 0.02,
     merit_budget: 0.035,
+    // Core termination rates (decimals) — deterministic workforce-dynamics
+    // inputs; defaults match the config schema. Loaded from the workspace
+    // base_config when a workspace is active.
+    total_termination_rate: 0.12,
+    new_hire_termination_rate: 0.25,
   });
   const [results, setResults] = useState<PerYearCompensationResult[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  // New-hire age distribution override (real lever: flows through the same
+  // New-hire age distribution (real lever: flows through the same
   // new_hire_age_distribution dbt var the full simulation consumes).
-  const [ageDistEnabled, setAgeDistEnabled] = useState(false);
+  // 'default' = scenario/seed defaults (no override sent), 'census' = derived
+  // from the workspace census (same analyzer as the New Hire config page),
+  // 'custom' = hand-edited weights.
+  const [ageDistMode, setAgeDistMode] = useState<'default' | 'census' | 'custom'>('default');
   const [ageDist, setAgeDist] = useState<AgeRow[]>(DEFAULT_AGE_DIST);
-
-  // "Purple button" solver: suggest COLA/merit for the target comp growth,
-  // identical to the Compensation page's Calculate Settings.
-  const [solverLoading, setSolverLoading] = useState(false);
-  const [solverError, setSolverError] = useState<string | null>(null);
-  const [solverResult, setSolverResult] = useState<CompensationSolverResponse | null>(null);
+  const [ageDistLoading, setAgeDistLoading] = useState(false);
+  const [ageDistError, setAgeDistError] = useState<string | null>(null);
+  const ageDistEnabled = ageDistMode !== 'default';
 
   // Auto-calibrate: iterated comp-only runs that SOLVE for COLA/merit given
   // the two targets (workforce growth is set exactly; comp growth is searched).
@@ -142,7 +227,8 @@ export default function CalibrationPanel() {
   const [maxIterations, setMaxIterations] = useState(8);
   // 'new_hire_scale': solve the new-hire range scale so hiring dilution isn't
   // papered over with raises (COLA/merit stay as set). Needs Match Census.
-  const [searchMode, setSearchMode] = useState<'new_hire_scale' | 'levers'>('new_hire_scale');
+  const [searchMode, setSearchMode] = useState<SolveMode>('new_hire_scale');
+  const solvingNewHireRanges = searchMode === 'new_hire_scale';
 
   // The calibration page operates on the workspace you're already in -- it uses
   // the workspace's census for Match Census. No scenario needed (calibration
@@ -173,15 +259,26 @@ export default function CalibrationPanel() {
   const setValue = (key: string, v: number) =>
     setValues((prev) => ({ ...prev, [key]: v }));
 
-  // Resolve the active workspace's census path (fresh base_config).
+  // Resolve the active workspace's census path + seed the termination rates
+  // from its base_config so the panel starts from the real config values.
   useEffect(() => {
     if (!activeWorkspace?.id) {
       setCensusPath('');
       return;
     }
+    const seedFromConfig = (cfg: any) => {
+      setCensusPath(extractCensusPath(cfg) ?? '');
+      const wf = (cfg?.workforce ?? {}) as Record<string, number>;
+      setValues((prev) => ({
+        ...prev,
+        total_termination_rate: wf.total_termination_rate ?? prev.total_termination_rate,
+        new_hire_termination_rate:
+          wf.new_hire_termination_rate ?? prev.new_hire_termination_rate,
+      }));
+    };
     getWorkspace(activeWorkspace.id)
-      .then((ws) => setCensusPath(extractCensusPath(ws.base_config) ?? ''))
-      .catch(() => setCensusPath(extractCensusPath(activeWorkspace.base_config) ?? ''));
+      .then((ws) => seedFromConfig(ws.base_config))
+      .catch(() => seedFromConfig(activeWorkspace.base_config));
   }, [activeWorkspace?.id]);
 
   // Derive UNSCALED per-level ranges from the workspace census; the
@@ -218,36 +315,27 @@ export default function CalibrationPanel() {
     }
   };
 
-  const handleSolveSettings = async () => {
-    if (!activeWorkspace?.id) {
-      setSolverError('No active workspace.');
-      return;
-    }
-    setSolverLoading(true);
-    setSolverError(null);
-    try {
-      const result = await solveCompensationGrowth(activeWorkspace.id, {
-        file_path: censusPath || undefined,
-        target_growth_rate: values.target_growth_pct,
-        workforce_growth_rate: values.workforce_growth_rate,
-        new_hire_comp_ratio: 0.85,
-      });
-      setSolverResult(result);
-      // Solver returns percent units (e.g. 2.5); sliders are decimals.
-      setValues((prev) => ({
-        ...prev,
-        cola_rate: result.cola_rate / 100,
-        merit_budget: result.merit_budget / 100,
-      }));
-    } catch (e) {
-      setSolverError(errorText(e));
-    } finally {
-      setSolverLoading(false);
-    }
-  };
-
   const setAgeRow = (idx: number, patch: Partial<AgeRow>) =>
     setAgeDist((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
+
+  const handleAgeDistModeChange = async (mode: 'default' | 'census' | 'custom') => {
+    setAgeDistMode(mode);
+    setAgeDistError(null);
+    if (mode !== 'census') return;
+    if (!activeWorkspace?.id || !censusPath) {
+      setAgeDistError('This workspace has no census file uploaded yet.');
+      return;
+    }
+    setAgeDistLoading(true);
+    try {
+      const result = await analyzeAgeDistribution(activeWorkspace.id, censusPath);
+      setAgeDist(result.distribution.map((d) => ({ age: d.age, weight: d.weight })));
+    } catch (e) {
+      setAgeDistError(errorText(e));
+    } finally {
+      setAgeDistLoading(false);
+    }
+  };
 
   const runAutoCalibrate = async () => {
     setAutoLoading(true);
@@ -264,7 +352,7 @@ export default function CalibrationPanel() {
       const response = await optimizeCalibration({
         start_year: startYear,
         end_year: endYear,
-        database_path: databasePath.trim() || null,
+        database_path: null,
         workspace_id: activeWorkspace?.id ?? null,
         settings: {
           target_workforce_growth: values.workforce_growth_rate,
@@ -284,6 +372,9 @@ export default function CalibrationPanel() {
           // In scale mode the optimizer injects the ranges itself.
           job_level_compensation:
             searchMode === 'levers' && jobRanges.length > 0 ? jobRanges : null,
+          // Core termination rates are held fixed across the search.
+          total_termination_rate: values.total_termination_rate,
+          new_hire_termination_rate: values.new_hire_termination_rate,
         },
       });
       const outcome = response.outcome;
@@ -306,74 +397,81 @@ export default function CalibrationPanel() {
     }
   };
 
-  // Apply the calibrated levers to the workspace base config -- the same keys
-  // the full simulation reads -- so "calibrate, apply, run the real sim" is one
-  // click instead of re-entering values on the config pages.
+  // Apply the calibrated levers to the workspace base config AND every
+  // scenario's overrides -- scenarios override these exact keys, so writing
+  // base_config alone leaves runs on the old values. Merging the calibrated
+  // keys into each scenario (preserving its other settings) makes "calibrate,
+  // apply, run the real sim" one click.
   const [applyStatus, setApplyStatus] = useState<'idle' | 'applying' | 'applied' | 'error'>('idle');
   const [applyError, setApplyError] = useState<string | null>(null);
+  const [applySummary, setApplySummary] = useState<string | null>(null);
+
+  // Merge the calibrated levers into a config object (base_config or a
+  // scenario's config_overrides), preserving every key we didn't calibrate.
+  // Same key shapes both places: compensation uses *_percent (+ bare decimals
+  // the loader prefers), simulation/workforce use decimals.
+  const mergeCalibrated = (cfg: Record<string, any>): Record<string, any> => ({
+    ...cfg,
+    simulation: {
+      ...(cfg.simulation ?? {}),
+      target_growth_rate: values.workforce_growth_rate,
+    },
+    compensation: {
+      ...(cfg.compensation ?? {}),
+      target_compensation_growth_percent: values.target_growth_pct * 100,
+      cola_rate_percent: values.cola_rate * 100,
+      cola_rate: values.cola_rate,
+      merit_budget_percent: values.merit_budget * 100,
+      merit_budget: values.merit_budget,
+    },
+    workforce: {
+      ...(cfg.workforce ?? {}),
+      total_termination_rate: values.total_termination_rate,
+      new_hire_termination_rate: values.new_hire_termination_rate,
+    },
+    new_hire: {
+      ...(cfg.new_hire ?? {}),
+      ...(ageDistEnabled ? { age_distribution: ageDist } : {}),
+      ...(jobRanges.length > 0 ? { job_level_compensation: jobRanges } : {}),
+    },
+  });
 
   const handleApplyToWorkspace = async () => {
     if (!activeWorkspace?.id) return;
+    const workspaceId = activeWorkspace.id;
     setApplyStatus('applying');
     setApplyError(null);
+    setApplySummary(null);
     try {
-      const ws = await getWorkspace(activeWorkspace.id);
-      const base = (ws.base_config ?? {}) as Record<string, any>;
-      const merged = {
-        ...base,
-        simulation: {
-          ...(base.simulation ?? {}),
-          target_growth_rate: values.workforce_growth_rate,
-        },
-        compensation: {
-          ...(base.compensation ?? {}),
-          target_compensation_growth_percent: values.target_growth_pct * 100,
-          // Write both forms: the loader prefers the bare decimal key when it
-          // already exists, so updating only the _percent key could be ignored.
-          cola_rate_percent: values.cola_rate * 100,
-          cola_rate: values.cola_rate,
-          merit_budget_percent: values.merit_budget * 100,
-          merit_budget: values.merit_budget,
-        },
-        new_hire: {
-          ...(base.new_hire ?? {}),
-          ...(ageDistEnabled ? { age_distribution: ageDist } : {}),
-          ...(jobRanges.length > 0 ? { job_level_compensation: jobRanges } : {}),
-        },
-      };
-      await updateWorkspace(activeWorkspace.id, { base_config: merged });
-      setApplyStatus('applied');
+      // 1. Workspace base config (the fallback for scenarios that don't override).
+      const ws = await getWorkspace(workspaceId);
+      await updateWorkspace(workspaceId, {
+        base_config: mergeCalibrated((ws.base_config ?? {}) as Record<string, any>),
+      });
+
+      // 2. Every scenario's overrides -- these shadow base_config, so a run only
+      // reflects the calibration once they carry the calibrated keys too.
+      const scenarios = await listScenarios(workspaceId);
+      const outcomes = await Promise.allSettled(
+        scenarios.map((sc) =>
+          updateScenario(workspaceId, sc.id, {
+            config_overrides: mergeCalibrated(sc.config_overrides ?? {}),
+          })
+        )
+      );
+      const applied = outcomes.filter((o) => o.status === 'fulfilled').length;
+      const failed = outcomes.length - applied;
+      setApplySummary(
+        `Updated workspace base config and ${applied} scenario${applied === 1 ? '' : 's'}` +
+          (failed > 0 ? ` (${failed} failed)` : '') + '.'
+      );
+      setApplyStatus(failed > 0 ? 'error' : 'applied');
+      if (failed > 0) {
+        setApplyError(`${failed} scenario${failed === 1 ? '' : 's'} could not be updated.`);
+      }
     } catch (e) {
       setApplyError(errorText(e));
       setApplyStatus('error');
-    }
-  };
-
-  const runCalibrate = async () => {
-    setLoading(true);
-    setError(null);
-    setApplyStatus('idle');
-    try {
-      const request: CalibrationRunRequest = {
-        start_year: startYear,
-        end_year: endYear,
-        database_path: databasePath.trim() || null,
-        workspace_id: activeWorkspace?.id ?? null,
-        params: {
-          target_growth_pct: values.target_growth_pct,
-          workforce_growth_rate: values.workforce_growth_rate,
-          cola_rate: values.cola_rate,
-          merit_budget: values.merit_budget,
-          new_hire_age_distribution: ageDistEnabled ? ageDist : null,
-          job_level_compensation: jobRanges.length > 0 ? jobRanges : null,
-        },
-      };
-      const response = await runCalibration(request);
-      setResults(response.results);
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -393,228 +491,422 @@ export default function CalibrationPanel() {
         full simulation, without rebuilding the retirement-plan stack.
       </p>
 
-      {/* Controls */}
-      <div className="bg-white rounded-lg shadow p-6 space-y-5">
-        {/* Active workspace + its census (no selection needed) */}
-        <div className="flex items-center gap-2 text-sm text-gray-600">
-          <Database size={16} className="text-gray-400" />
-          <span>
-            Workspace: <span className="font-medium text-gray-800">{activeWorkspace?.name ?? '—'}</span>
-          </span>
-          <span className="text-gray-300">|</span>
-          <span>
-            Census:{' '}
-            {censusPath ? (
-              <span className="font-mono text-xs text-gray-700">{censusPath}</span>
-            ) : (
-              <span className="text-amber-600">none uploaded</span>
-            )}
-          </span>
-        </div>
+      {/* Step-by-step calibration workflow */}
+      <div className="space-y-6">
 
-        {/* Job Level Compensation Ranges: ratio + lookback + Match Census */}
-        <div className="rounded-md border border-gray-200 p-4">
-          <div className="text-sm font-medium text-gray-700 mb-2">
-            Job Level Compensation Ranges
-            <span className="ml-2 text-xs font-normal text-gray-500">
-              (same Match Census × scale as Workforce Parameters — transfers to the real sim)
+        {/* ── Step 1: Growth targets & scope ────────────────────────── */}
+        <div className="bg-white rounded-lg shadow p-6 space-y-4">
+          <StepHeader n={1} title="Set your growth targets and scope">
+            Confirm the workspace and year range, then set the two growth drivers:
+            Workforce Growth sizes hiring deterministically, and Target Salary Growth
+            is the goal calibration ultimately solves for.
+          </StepHeader>
+
+          {/* Active workspace + its census (no selection needed) */}
+          <div className="flex items-center gap-2 text-sm text-gray-600">
+            <Database size={16} className="text-gray-400" />
+            <span>
+              Workspace: <span className="font-medium text-gray-800">{activeWorkspace?.name ?? '—'}</span>
             </span>
-          </div>
-          <div className="flex flex-wrap items-end gap-4">
-            <label className="block">
-              <span className="text-xs text-gray-600">Scale (×)</span>
-              <input
-                type="number" step="0.1" min={0.1} max={3.0} value={scaleFactor}
-                onChange={(e) => setScaleFactor(Number(e.target.value))}
-                className="mt-1 w-24 rounded border-gray-300 shadow-sm"
-              />
-            </label>
-            <label className="block">
-              <span className="text-xs text-gray-600">Lookback (years)</span>
-              <input
-                type="number" min={0} max={20} value={lookbackYears}
-                onChange={(e) => setLookbackYears(Number(e.target.value))}
-                className="mt-1 w-28 rounded border-gray-300 shadow-sm"
-              />
-            </label>
-            <button
-              onClick={handleMatchCensus}
-              disabled={matchLoading || !censusPath}
-              className="inline-flex items-center gap-2 rounded bg-gray-700 px-3 py-2 text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
-            >
-              {matchLoading ? <Loader2 className="animate-spin" size={16} /> : <Database size={16} />}
-              Match Census
-            </button>
-          </div>
-          {matchError && (
-            <p className="mt-2 text-xs text-red-600">{matchError}</p>
-          )}
-          {jobRanges.length > 0 && (
-            <table className="mt-3 text-xs w-full max-w-md">
-              <thead className="text-gray-500">
-                <tr><th className="text-left">Level</th><th className="text-right">Min</th><th className="text-right">Max</th></tr>
-              </thead>
-              <tbody>
-                {jobRanges.map((r) => (
-                  <tr key={r.level} className="border-t">
-                    <td>{r.level} {r.name}</td>
-                    <td className="text-right">{money(r.min_compensation)}</td>
-                    <td className="text-right">{money(r.max_compensation)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-          {jobRanges.length === 0 && (
-            <p className="mt-2 text-xs text-gray-500">
-              No ranges set — calibration uses the scenario/config's existing ranges.
-            </p>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <label className="block">
-            <span className="text-sm font-medium text-gray-700">Start Year</span>
-            <input
-              type="number"
-              value={startYear}
-              onChange={(e) => setStartYear(Number(e.target.value))}
-              className="mt-1 w-full rounded border-gray-300 shadow-sm"
-            />
-          </label>
-          <label className="block">
-            <span className="text-sm font-medium text-gray-700">End Year</span>
-            <input
-              type="number"
-              value={endYear}
-              onChange={(e) => setEndYear(Number(e.target.value))}
-              className="mt-1 w-full rounded border-gray-300 shadow-sm"
-            />
-          </label>
-          <label className="block">
-            <span className="text-sm font-medium text-gray-700">Database (optional)</span>
-            <input
-              type="text"
-              value={databasePath}
-              placeholder="blank = copy of shared dev DB"
-              onChange={(e) => setDatabasePath(e.target.value)}
-              className="mt-1 w-full rounded border-gray-300 shadow-sm"
-            />
-            <span className="mt-1 block text-xs text-gray-500">
-              Leave blank to calibrate an isolated copy of the shared dev database,
-              or enter a path to a database that has had one full simulation.
-            </span>
-          </label>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {SLIDERS.map((s) => (
-            <div key={s.key}>
-              <div className="flex justify-between text-sm font-medium text-gray-700">
-                <span>
-                  {s.label}
-                  {s.hint && (
-                    <span className="ml-2 text-xs font-normal text-gray-400">{s.hint}</span>
-                  )}
-                </span>
-                <span className="text-fidelity-green">{pct(values[s.key])}</span>
-              </div>
-              <input
-                type="range"
-                min={s.min}
-                max={s.max}
-                step={s.step}
-                value={values[s.key]}
-                onChange={(e) => setValue(s.key, Number(e.target.value))}
-                className="w-full accent-fidelity-green"
-              />
-            </div>
-          ))}
-        </div>
-
-        {/* Purple button: solve COLA/merit from the target comp growth, same
-            solver as the Compensation page's Calculate Settings. */}
-        <div className="rounded-md border border-purple-200 bg-purple-50 p-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={handleSolveSettings}
-              disabled={solverLoading || !activeWorkspace?.id}
-              className="inline-flex items-center gap-2 rounded bg-purple-600 px-3 py-2 text-white text-sm font-medium hover:bg-purple-700 disabled:opacity-50"
-            >
-              {solverLoading ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
-              Calculate COLA & Merit
-            </button>
-            <span className="text-xs text-purple-800">
-              Solve for the COLA/merit that hit your Target Comp Growth ({pct(values.target_growth_pct)})
-              given Workforce Growth ({pct(values.workforce_growth_rate)}) — then verify with a run.
-            </span>
-          </div>
-          {solverError && <p className="mt-2 text-xs text-red-600">{solverError}</p>}
-          {solverResult && !solverError && (
-            <p className="mt-2 text-xs text-purple-900">
-              Applied COLA {solverResult.cola_rate.toFixed(1)}% + merit {solverResult.merit_budget.toFixed(1)}%
-              (est. net growth {solverResult.achieved_growth_rate.toFixed(1)}%
-              {solverResult.recommended_scale_factor > 1.05 && (
-                <> — solver suggests ~{solverResult.recommended_scale_factor.toFixed(1)}× census scale for new-hire ranges</>
+            <span className="text-gray-300">|</span>
+            <span>
+              Census:{' '}
+              {censusPath ? (
+                <span className="font-mono text-xs text-gray-700">{censusPath}</span>
+              ) : (
+                <span className="text-amber-600">none uploaded</span>
               )}
-              ). Sliders updated.
-            </p>
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <label className="block">
+              <span className="text-sm font-medium text-gray-700">Start Year</span>
+              <input
+                type="number"
+                value={startYear}
+                onChange={(e) => setStartYear(Number(e.target.value))}
+                className="mt-1 w-full rounded-md border border-gray-300 p-2 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+              />
+            </label>
+            <label className="block">
+              <span className="text-sm font-medium text-gray-700">End Year</span>
+              <input
+                type="number"
+                value={endYear}
+                onChange={(e) => setEndYear(Number(e.target.value))}
+                className="mt-1 w-full rounded-md border border-gray-300 p-2 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+              />
+            </label>
+          </div>
+          <p className="text-xs text-gray-500">
+            Calibration always runs against an isolated copy of the database — the shared dev database is never touched.
+          </p>
+
+          {/* The two growth drivers: workforce growth (deterministic) and the
+              salary-growth target calibration solves for. */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-1">
+            {SLIDERS.filter((s) => GROWTH_KEYS.has(s.key)).map((s) => (
+              <SliderRow
+                key={s.key}
+                s={s}
+                value={values[s.key]}
+                onChange={(v) => setValue(s.key, v)}
+              />
+            ))}
+          </div>
+          <div className="rounded-md bg-fidelity-green/5 border border-fidelity-green/20 px-3 py-2 text-xs text-fidelity-dark">
+            <span className="font-semibold">Target Salary Growth is the objective.</span>{' '}
+            Calibration auto-tunes your chosen lever (Step 2) until per-year salary
+            growth lands on this target.
+          </div>
+        </div>
+
+        {/* ── Step 2: Choose what to solve for ──────────────────────── */}
+        <div className="bg-white rounded-lg shadow p-6 space-y-4">
+          <StepHeader n={2} title="Choose what calibration solves for">
+            Pick the lever calibration should adjust to hit your growth target. The
+            other lever is held fixed at whatever you set below, and the options that
+            don't apply are hidden.
+          </StepHeader>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {SOLVE_MODES.map((m) => {
+              const selected = searchMode === m.key;
+              return (
+                <button
+                  key={m.key}
+                  type="button"
+                  onClick={() => setSearchMode(m.key)}
+                  className={`text-left rounded-lg border p-4 transition ${
+                    selected
+                      ? 'border-fidelity-green ring-2 ring-fidelity-green/30 bg-green-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold text-gray-900">{m.title}</span>
+                    {selected && <Check size={16} className="text-fidelity-green shrink-0" />}
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">{m.description}</p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── Step 3: Fixed inputs ──────────────────────────────────── */}
+        <div className="bg-white rounded-lg shadow p-6 space-y-4">
+          <StepHeader n={3} title="Set the levers calibration holds fixed">
+            Provide the inputs calibration keeps constant — new-hire age mix, and
+            whichever of new-hire ranges / COLA &amp; merit you're not solving for.
+            Whatever Step 2 is solving for is filled in automatically.
+          </StepHeader>
+
+          {/* Job Level Compensation Ranges. When calibration is solving these,
+              the editor is collapsed to a label — the analyst shouldn't fill in
+              something the solver derives. When held fixed, the full editor shows. */}
+          {solvingNewHireRanges ? (
+            <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4 flex items-start gap-2">
+              <Sparkles size={16} className="mt-0.5 shrink-0 text-fidelity-green" />
+              <div className="text-sm text-gray-600">
+                <span className="font-medium text-gray-800">Job Level Compensation Ranges — solved automatically.</span>{' '}
+                Calibration scales census-derived new-hire ranges to hit your target,
+                so there's nothing to set here. Switch Step 2 to “COLA &amp; merit” if you'd
+                rather set the ranges by hand.
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-md border border-gray-200 p-4">
+              <div className="text-sm font-medium text-gray-700 mb-2 flex flex-wrap items-center gap-2">
+                Job Level Compensation Ranges
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+                  Held fixed
+                </span>
+                <span className="text-xs font-normal text-gray-500">
+                  used as-is; set your starting point below
+                </span>
+              </div>
+              <div className="flex flex-wrap items-end gap-4">
+                <label className="block">
+                  <span className="text-xs text-gray-600">Scale (×)</span>
+                  <input
+                    type="number" step="0.1" min={0.1} max={3.0} value={scaleFactor}
+                    onChange={(e) => setScaleFactor(Number(e.target.value))}
+                    className="mt-1 w-24 rounded-md border border-gray-300 p-1.5 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs text-gray-600">Lookback (years)</span>
+                  <input
+                    type="number" min={0} max={20} value={lookbackYears}
+                    onChange={(e) => setLookbackYears(Number(e.target.value))}
+                    className="mt-1 w-28 rounded-md border border-gray-300 p-1.5 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+                  />
+                </label>
+                <button
+                  onClick={handleMatchCensus}
+                  disabled={matchLoading || !censusPath}
+                  className="inline-flex items-center gap-2 rounded bg-gray-700 px-3 py-2 text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
+                >
+                  {matchLoading ? <Loader2 className="animate-spin" size={16} /> : <Database size={16} />}
+                  Match Census
+                </button>
+              </div>
+              {matchError && (
+                <p className="mt-2 text-xs text-red-600">{matchError}</p>
+              )}
+              {jobRanges.length > 0 && (
+                <table className="mt-3 text-xs w-full max-w-md">
+                  <thead className="text-gray-500">
+                    <tr><th className="text-left">Level</th><th className="text-right">Min</th><th className="text-right">Max</th></tr>
+                  </thead>
+                  <tbody>
+                    {jobRanges.map((r) => (
+                      <tr key={r.level} className="border-t">
+                        <td>{r.level} {r.name}</td>
+                        <td className="text-right">{money(r.min_compensation)}</td>
+                        <td className="text-right">{money(r.max_compensation)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              {jobRanges.length === 0 && (
+                <p className="mt-2 text-xs text-gray-500">
+                  No ranges set — calibration uses the scenario/config's existing ranges.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* New-hire age distribution — flows through the same
+              new_hire_age_distribution dbt var the full simulation uses. */}
+          <div className="rounded-md border border-gray-200 p-4">
+            <div className="text-sm font-medium text-gray-700 mb-2">New-Hire Age Distribution</div>
+            <div className="flex flex-wrap gap-4">
+              <label className="flex items-center gap-1.5 text-sm text-gray-700">
+                <input
+                  type="radio"
+                  name="ageDistMode"
+                  checked={ageDistMode === 'default'}
+                  onChange={() => handleAgeDistModeChange('default')}
+                  className="accent-fidelity-green"
+                />
+                Scenario/seed defaults
+              </label>
+              <label className="flex items-center gap-1.5 text-sm text-gray-700">
+                <input
+                  type="radio"
+                  name="ageDistMode"
+                  checked={ageDistMode === 'census'}
+                  onChange={() => handleAgeDistModeChange('census')}
+                  disabled={!censusPath}
+                  className="accent-fidelity-green"
+                />
+                Match census
+                {ageDistLoading && ageDistMode === 'census' && (
+                  <Loader2 className="animate-spin text-gray-400" size={14} />
+                )}
+              </label>
+              <label className="flex items-center gap-1.5 text-sm text-gray-700">
+                <input
+                  type="radio"
+                  name="ageDistMode"
+                  checked={ageDistMode === 'custom'}
+                  onChange={() => handleAgeDistModeChange('custom')}
+                  className="accent-fidelity-green"
+                />
+                Custom
+              </label>
+            </div>
+            {!censusPath && (
+              <p className="mt-1 text-xs text-gray-500">
+                Upload a census to this workspace to enable "Match census".
+              </p>
+            )}
+            {ageDistError && <p className="mt-2 text-xs text-red-600">{ageDistError}</p>}
+            {ageDistEnabled && (
+              <div className="mt-3 space-y-2">
+                {ageDist.map((row, idx) => (
+                  <div key={idx} className="flex items-center gap-3">
+                    <label className="flex items-center gap-1 text-xs text-gray-600">
+                      Age
+                      <input
+                        type="number" min={16} max={80} value={row.age}
+                        onChange={(e) => setAgeRow(idx, { age: Number(e.target.value) })}
+                        className="w-16 rounded-md border border-gray-300 p-1 text-xs shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+                      />
+                    </label>
+                    <input
+                      type="range" min={0} max={0.5} step={0.01} value={row.weight}
+                      onChange={(e) => setAgeRow(idx, { weight: Number(e.target.value) })}
+                      className="flex-1 accent-fidelity-green"
+                    />
+                    <span className="w-12 text-right text-xs text-gray-700">{pct(row.weight)}</span>
+                    <button
+                      onClick={() => setAgeDist((prev) => prev.filter((_, i) => i !== idx))}
+                      disabled={ageDist.length <= 1}
+                      className="text-gray-400 hover:text-red-500 disabled:opacity-30"
+                      title="Remove age bucket"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() =>
+                      setAgeDist((prev) => [
+                        ...prev,
+                        { age: (prev[prev.length - 1]?.age ?? 30) + 5, weight: 0.05 },
+                      ])
+                    }
+                    className="inline-flex items-center gap-1 text-xs text-fidelity-green hover:text-fidelity-dark"
+                  >
+                    <Plus size={14} /> Add age bucket
+                  </button>
+                  <span className="text-xs text-gray-500">
+                    Total weight: {pct(ageDist.reduce((s, r) => s + r.weight, 0))}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Core termination rates — deterministic workforce-dynamics inputs,
+              always held fixed by calibration. Higher attrition replaces tenured
+              staff with lower-paid hires, diluting avg-comp growth. */}
+          <div className="rounded-md border border-gray-200 p-4">
+            <div className="text-sm font-medium text-gray-700 mb-2 flex flex-wrap items-center gap-2">
+              Termination Rates
+              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+                Held fixed
+              </span>
+              <span className="text-xs font-normal text-gray-500">
+                attrition dilutes avg comp, so it shapes salary growth
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label className="block">
+                <span className="text-xs text-gray-600">Total (experienced) termination</span>
+                <div className="mt-1 flex items-center gap-1">
+                  <input
+                    type="number" step="0.1" min={0} max={100}
+                    value={Number((values.total_termination_rate * 100).toFixed(1))}
+                    onChange={(e) => setValue('total_termination_rate', Number(e.target.value) / 100)}
+                    className="w-24 rounded-md border border-gray-300 p-1.5 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+                  />
+                  <span className="text-xs text-gray-500">%</span>
+                </div>
+              </label>
+              <label className="block">
+                <span className="text-xs text-gray-600">New-hire termination</span>
+                <div className="mt-1 flex items-center gap-1">
+                  <input
+                    type="number" step="0.1" min={0} max={100}
+                    value={Number((values.new_hire_termination_rate * 100).toFixed(1))}
+                    onChange={(e) => setValue('new_hire_termination_rate', Number(e.target.value) / 100)}
+                    className="w-24 rounded-md border border-gray-300 p-1.5 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+                  />
+                  <span className="text-xs text-gray-500">%</span>
+                </div>
+              </label>
+            </div>
+            {values.new_hire_termination_rate < values.total_termination_rate && (
+              <p className="mt-2 text-xs text-amber-600">
+                New-hire termination is normally ≥ total termination — the engine expects this.
+              </p>
+            )}
+          </div>
+
+          {/* COLA & merit: a fixed policy input when calibration is solving
+              new-hire ranges; collapsed to a label when they're the chosen lever. */}
+          {solvingNewHireRanges ? (
+            <div className="rounded-md border border-gray-200 p-4">
+              <div className="text-sm font-medium text-gray-700 mb-2 flex flex-wrap items-center gap-2">
+                COLA &amp; Merit
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+                  Held fixed
+                </span>
+                <span className="text-xs font-normal text-gray-500">
+                  the annual policy calibration keeps constant while it scales new-hire ranges
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {SLIDERS.filter((s) => POLICY_KEYS.has(s.key)).map((s) => (
+                  <SliderRow
+                    key={s.key}
+                    s={s}
+                    value={values[s.key]}
+                    onChange={(v) => setValue(s.key, v)}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4 flex items-start gap-2">
+              <Sparkles size={16} className="mt-0.5 shrink-0 text-fidelity-green" />
+              <div className="text-sm text-gray-600">
+                <span className="font-medium text-gray-800">COLA &amp; merit — solved automatically.</span>{' '}
+                Calibration finds the COLA and merit budget that hit your Target Salary
+                Growth, so there's nothing to set here.
+              </div>
+            </div>
           )}
         </div>
 
-        {/* Auto-Calibrate: iterated comp-only runs that SOLVE for COLA/merit.
-            Workforce growth is set exactly (deterministic solver); comp growth
-            is searched until within tolerance. */}
+        {/* ── Step 4: Auto-calibrate, then apply ────────────────────── */}
+        <div className="bg-white rounded-lg shadow p-6 space-y-4">
+          <StepHeader n={4} title="Auto-calibrate to your target, then apply">
+            {solvingNewHireRanges
+              ? 'Run the auto-calibration — it searches the new-hire salary scale across real comp-only simulations until per-year salary growth lands on your target. Then apply the result to the workspace.'
+              : 'Run the auto-calibration — it searches COLA & merit across real comp-only simulations until per-year salary growth lands on your target. Then apply the result to the workspace.'}
+          </StepHeader>
+
+        {/* Auto-Calibrate: the single run action. Iterated comp-only runs that
+            solve the chosen lever; workforce growth is deterministic. */}
         <div className="rounded-md border border-blue-200 bg-blue-50 p-4">
-          <div className="flex flex-wrap items-end gap-4">
-            <button
-              onClick={runAutoCalibrate}
-              disabled={autoLoading || endYear <= startYear}
-              title={endYear <= startYear ? 'Needs a multi-year range to measure YoY growth' : undefined}
-              className="inline-flex items-center gap-2 rounded bg-blue-600 px-4 py-2 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-            >
-              {autoLoading ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
-              {autoLoading ? 'Searching…' : 'Auto-Calibrate'}
-            </button>
-            <span className="text-xs text-blue-900 max-w-md">
-              Hit Target Comp Growth ({pct(values.target_growth_pct)}) at Workforce Growth
+          <div className="space-y-3">
+            <p className="text-xs text-blue-900">
+              Solving <span className="font-semibold">{solvingNewHireRanges ? 'new-hire salary ranges' : 'COLA & merit'}</span> to
+              hit Target Salary Growth ({pct(values.target_growth_pct)}) at Workforce Growth
               ({pct(values.workforce_growth_rate)}) by running real comp-only simulations.
               Typically 3–6 runs (a few minutes).
-            </span>
-            <label className="block">
-              <span className="text-xs text-blue-800">Solve for</span>
-              <select
-                value={searchMode}
-                onChange={(e) => setSearchMode(e.target.value as 'new_hire_scale' | 'levers')}
-                className="mt-1 block rounded border-blue-300 text-xs"
+            </p>
+            {solvingNewHireRanges && baseRanges.length === 0 && (
+              <p className="text-xs text-gray-600">
+                {censusPath
+                  ? 'Census ranges will be derived automatically (Match Census).'
+                  : 'Needs a census — upload one to this workspace first.'}
+              </p>
+            )}
+            <div className="flex flex-wrap items-end gap-4">
+              <button
+                onClick={runAutoCalibrate}
+                disabled={autoLoading || endYear <= startYear}
+                title={endYear <= startYear ? 'Needs a multi-year range to measure YoY growth' : undefined}
+                className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
               >
-                <option value="new_hire_scale">New-hire ranges (keep COLA/merit)</option>
-                <option value="levers">COLA/merit (keep ranges)</option>
-              </select>
-              {searchMode === 'new_hire_scale' && baseRanges.length === 0 && (
-                <span className="mt-1 block text-xs text-gray-500">
-                  {censusPath
-                    ? 'Census ranges will be derived automatically (Match Census).'
-                    : 'Needs a census — upload one to this workspace first.'}
-                </span>
-              )}
-            </label>
-            <label className="block">
-              <span className="text-xs text-blue-800">Tolerance (± pp)</span>
-              <input
-                type="number" step="0.01" min={0.01} max={1} value={tolerancePct}
-                onChange={(e) => setTolerancePct(Number(e.target.value))}
-                className="mt-1 w-24 rounded border-blue-300 text-xs"
-              />
-            </label>
-            <label className="block">
-              <span className="text-xs text-blue-800">Max runs</span>
-              <input
-                type="number" min={1} max={25} value={maxIterations}
-                onChange={(e) => setMaxIterations(Number(e.target.value))}
-                className="mt-1 w-20 rounded border-blue-300 text-xs"
-              />
-            </label>
+                {autoLoading ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
+                {autoLoading ? 'Searching…' : 'Auto-Calibrate'}
+              </button>
+              <label className="block">
+                <span className="text-xs font-medium text-blue-800">Tolerance (± pp)</span>
+                <input
+                  type="number" step="0.01" min={0.01} max={1} value={tolerancePct}
+                  onChange={(e) => setTolerancePct(Number(e.target.value))}
+                  className="mt-1 w-28 rounded-md border border-blue-300 p-1.5 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-blue-800">Max runs</span>
+                <input
+                  type="number" min={1} max={25} value={maxIterations}
+                  onChange={(e) => setMaxIterations(Number(e.target.value))}
+                  className="mt-1 w-24 rounded-md border border-blue-300 p-1.5 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                />
+              </label>
+            </div>
           </div>
           {autoError && <p className="mt-2 text-xs text-red-600">{autoError}</p>}
           {autoOutcome && (
@@ -659,104 +951,40 @@ export default function CalibrationPanel() {
           )}
         </div>
 
-        {/* New-hire age distribution override — flows through the same
-            new_hire_age_distribution dbt var the full simulation uses. */}
-        <div className="rounded-md border border-gray-200 p-4">
-          <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-            <input
-              type="checkbox"
-              checked={ageDistEnabled}
-              onChange={(e) => setAgeDistEnabled(e.target.checked)}
-              className="accent-fidelity-green"
-            />
-            Override New-Hire Age Distribution
-            <span className="text-xs font-normal text-gray-500">
-              (weights are normalized; unchecked = scenario/seed defaults)
-            </span>
-          </label>
-          {ageDistEnabled && (
-            <div className="mt-3 space-y-2">
-              {ageDist.map((row, idx) => (
-                <div key={idx} className="flex items-center gap-3">
-                  <label className="flex items-center gap-1 text-xs text-gray-600">
-                    Age
-                    <input
-                      type="number" min={16} max={80} value={row.age}
-                      onChange={(e) => setAgeRow(idx, { age: Number(e.target.value) })}
-                      className="w-16 rounded border-gray-300 text-xs"
-                    />
-                  </label>
-                  <input
-                    type="range" min={0} max={0.5} step={0.01} value={row.weight}
-                    onChange={(e) => setAgeRow(idx, { weight: Number(e.target.value) })}
-                    className="flex-1 accent-fidelity-green"
-                  />
-                  <span className="w-12 text-right text-xs text-gray-700">{pct(row.weight)}</span>
-                  <button
-                    onClick={() => setAgeDist((prev) => prev.filter((_, i) => i !== idx))}
-                    disabled={ageDist.length <= 1}
-                    className="text-gray-400 hover:text-red-500 disabled:opacity-30"
-                    title="Remove age bucket"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              ))}
-              <div className="flex items-center justify-between">
-                <button
-                  onClick={() =>
-                    setAgeDist((prev) => [
-                      ...prev,
-                      { age: (prev[prev.length - 1]?.age ?? 30) + 5, weight: 0.05 },
-                    ])
-                  }
-                  className="inline-flex items-center gap-1 text-xs text-fidelity-green hover:text-fidelity-dark"
-                >
-                  <Plus size={14} /> Add age bucket
-                </button>
-                <span className="text-xs text-gray-500">
-                  Total weight: {pct(ageDist.reduce((s, r) => s + r.weight, 0))}
+          {/* Apply the calibrated levers to the workspace base config AND every
+              scenario's overrides (which otherwise shadow the base). */}
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={handleApplyToWorkspace}
+                disabled={applyStatus === 'applying' || !activeWorkspace?.id || results.length === 0}
+                title={results.length === 0 ? 'Auto-calibrate first' : 'Write these levers to the workspace base config and all its scenarios'}
+                className="inline-flex items-center gap-2 rounded bg-fidelity-green px-4 py-2 text-white font-medium hover:bg-fidelity-dark disabled:opacity-50"
+              >
+                {applyStatus === 'applying' ? <Loader2 className="animate-spin" size={18} /> : <Database size={18} />}
+                {applyStatus === 'applying'
+                  ? 'Applying…'
+                  : applyStatus === 'applied'
+                  ? 'Applied ✓'
+                  : 'Apply to Workspace + Scenarios'}
+              </button>
+              {applyStatus === 'applied' && (
+                <span className="text-xs text-gray-600">
+                  {applySummary ?? 'Applied.'} Run the full simulation to make it official.
                 </span>
-              </div>
+              )}
+              {applyStatus === 'error' && applyError && (
+                <span className="text-xs text-red-600">{applyError}</span>
+              )}
             </div>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            onClick={runCalibrate}
-            disabled={loading}
-            className="inline-flex items-center gap-2 rounded bg-fidelity-green px-4 py-2 text-white font-medium hover:bg-fidelity-dark disabled:opacity-50"
-          >
-            {loading ? <Loader2 className="animate-spin" size={18} /> : <Play size={18} />}
-            {loading ? 'Calibrating…' : 'Run Calibration'}
-          </button>
-          <button
-            onClick={handleApplyToWorkspace}
-            disabled={applyStatus === 'applying' || !activeWorkspace?.id || results.length === 0}
-            title={results.length === 0 ? 'Run a calibration first' : 'Write these levers to the workspace config the full simulation uses'}
-            className="inline-flex items-center gap-2 rounded border border-fidelity-green px-4 py-2 text-fidelity-green font-medium hover:bg-green-50 disabled:opacity-50"
-          >
-            {applyStatus === 'applying' ? <Loader2 className="animate-spin" size={18} /> : <Database size={18} />}
-            {applyStatus === 'applied' ? 'Applied ✓' : 'Apply to Workspace'}
-          </button>
-          {applyStatus === 'applied' && (
-            <span className="text-xs text-gray-600">
-              Workspace config updated — run the full simulation to make it official.
-            </span>
-          )}
-          {applyStatus === 'error' && applyError && (
-            <span className="text-xs text-red-600">{applyError}</span>
-          )}
+            <p className="text-xs text-gray-500">
+              Writes the calibrated levers (COLA, merit, target/workforce growth, termination
+              rates, new-hire age &amp; ranges) into the workspace base config and every scenario's
+              overrides — leaving each scenario's other settings untouched.
+            </p>
+          </div>
         </div>
       </div>
-
-      {error && (
-        <div className="flex items-start gap-2 rounded bg-red-50 p-4 text-red-700">
-          <AlertCircle size={20} className="mt-0.5 shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
 
       {results.length > 0 && (
         <>
