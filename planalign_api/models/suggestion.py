@@ -1,6 +1,6 @@
 """Pydantic models for termination rate suggestion API response."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Literal, Optional
 
@@ -41,7 +41,7 @@ class TerminationRateSuggestion(BaseModel):
     )
 
     suggested_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=lambda: datetime.now(timezone.utc),
         description="Timestamp when suggestion was generated",
     )
 

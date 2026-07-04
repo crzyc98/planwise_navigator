@@ -141,11 +141,13 @@ def _render_results(results: List[PerYearCompensationResult]) -> None:
 
 
 def _compact_money(value: float) -> str:
-    if value >= 1_000_000_000:
-        return f"${value / 1_000_000_000:.2f}B"
-    if value >= 1_000_000:
-        return f"${value / 1_000_000:.1f}M"
-    return f"${value:,.0f}"
+    sign = "-" if value < 0 else ""
+    magnitude = abs(value)
+    if magnitude >= 1_000_000_000:
+        return f"{sign}${magnitude / 1_000_000_000:.2f}B"
+    if magnitude >= 1_000_000:
+        return f"{sign}${magnitude / 1_000_000:.1f}M"
+    return f"{sign}${magnitude:,.0f}"
 
 
 def _pct(value: Optional[float]) -> str:
@@ -157,7 +159,10 @@ def _signed_pct(value: Optional[float]) -> str:
 
 
 def _signed_money(value: Optional[float]) -> str:
-    return "—" if value is None else f"{value:+,.0f}"
+    if value is None:
+        return "—"
+    sign = "+" if value >= 0 else "-"
+    return f"{sign}${abs(value):,.0f}"
 
 
 def _interactive_loop(runner: CalibrationRunner) -> None:

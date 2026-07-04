@@ -1,6 +1,6 @@
 """Pydantic models for termination rate calculation."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Literal, Optional
 from uuid import UUID
@@ -46,7 +46,8 @@ class TerminationRateCalculation(BaseModel):
     )
 
     calculated_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Timestamp of calculation"
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="Timestamp of calculation",
     )
 
     class Config:
