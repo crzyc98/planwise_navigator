@@ -16,6 +16,8 @@ import {
   updateScenario,
   analyzeCompensation,
   analyzeAgeDistribution,
+  analyzeTurnoverRates,
+  TurnoverAnalysisResult,
   Workspace,
 } from '../services/api';
 import { extractCensusPath } from './config/ConfigContext';
@@ -135,6 +137,21 @@ function errorText(e: unknown): string {
 // Rolling 5-year default window: current year through current year + 5.
 const DEFAULT_START_YEAR = new Date().getFullYear();
 const DEFAULT_END_YEAR = DEFAULT_START_YEAR + 5;
+
+/** Confidence pill for census-derived rate suggestions (ported from the
+ *  Workforce config Turnover section). */
+function confidenceBadge(confidence: string) {
+  const colors: Record<string, string> = {
+    high: 'bg-green-100 text-green-800',
+    moderate: 'bg-yellow-100 text-yellow-800',
+    low: 'bg-red-100 text-red-800',
+  };
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${colors[confidence] ?? colors.low}`}>
+      {confidence} confidence
+    </span>
+  );
+}
 
 /** Numbered step heading with a short instruction line for the analyst. */
 function StepHeader({
@@ -256,6 +273,14 @@ export default function CalibrationPanel() {
   const [matchLoading, setMatchLoading] = useState(false);
   const [matchError, setMatchError] = useState<string | null>(null);
 
+  // Termination-rate "Match Census": derive experienced + new-hire termination
+  // rates from the workspace census (same analyzer as the Workforce config
+  // page's Turnover section). Rates are held fixed by calibration, but seeding
+  // them from the census keeps the comp-growth baseline honest.
+  const [termLoading, setTermLoading] = useState(false);
+  const [termError, setTermError] = useState<string | null>(null);
+  const [termAnalysis, setTermAnalysis] = useState<TurnoverAnalysisResult | null>(null);
+
   const setValue = (key: string, v: number) =>
     setValues((prev) => ({ ...prev, [key]: v }));
 
@@ -313,6 +338,36 @@ export default function CalibrationPanel() {
     } finally {
       setMatchLoading(false);
     }
+  };
+
+  const handleTermMatchCensus = async () => {
+    if (!activeWorkspace?.id || !censusPath) {
+      setTermError('This workspace has no census file uploaded yet.');
+      return;
+    }
+    setTermLoading(true);
+    setTermError(null);
+    setTermAnalysis(null);
+    try {
+      setTermAnalysis(await analyzeTurnoverRates(activeWorkspace.id, censusPath));
+    } catch (e) {
+      setTermError(errorText(e));
+    } finally {
+      setTermLoading(false);
+    }
+  };
+
+  // Apply census-suggested rates. Rates are already decimals (0.12), matching
+  // how the panel stores them — no ×100 conversion.
+  const applyTermSuggestions = () => {
+    if (!termAnalysis) return;
+    if (termAnalysis.experienced_rate) {
+      setValue('total_termination_rate', termAnalysis.experienced_rate.rate);
+    }
+    if (termAnalysis.new_hire_rate) {
+      setValue('new_hire_termination_rate', termAnalysis.new_hire_rate.rate);
+    }
+    setTermAnalysis(null);
   };
 
   const setAgeRow = (idx: number, patch: Partial<AgeRow>) =>
@@ -777,15 +832,101 @@ export default function CalibrationPanel() {
               always held fixed by calibration. Higher attrition replaces tenured
               staff with lower-paid hires, diluting avg-comp growth. */}
           <div className="rounded-md border border-gray-200 p-4">
-            <div className="text-sm font-medium text-gray-700 mb-2 flex flex-wrap items-center gap-2">
-              Termination Rates
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">Termination Rates</span>
               <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
                 Held fixed
               </span>
               <span className="text-xs font-normal text-gray-500">
                 attrition dilutes avg comp, so it shapes salary growth
               </span>
+              <button
+                onClick={handleTermMatchCensus}
+                disabled={termLoading || !censusPath}
+                title={!censusPath ? 'Upload a census to this workspace first' : 'Derive termination rates from the census'}
+                className="ml-auto inline-flex items-center gap-2 rounded bg-gray-700 px-3 py-1.5 text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
+              >
+                {termLoading ? <Loader2 className="animate-spin" size={16} /> : <Database size={16} />}
+                Match Census
+              </button>
             </div>
+            {termError && <p className="mb-2 text-xs text-red-600">{termError}</p>}
+
+            {/* Census-derived suggestion panel (suggested vs. current + confidence). */}
+            {termAnalysis && (
+              <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h4 className="text-sm font-medium text-blue-800">Suggested Termination Rates</h4>
+                    <p className="mt-0.5 text-xs text-blue-600">
+                      Based on {termAnalysis.total_employees.toLocaleString()} employees
+                      {' '}({termAnalysis.total_terminated.toLocaleString()} terminated)
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <button
+                      onClick={() => setTermAnalysis(null)}
+                      className="rounded border border-gray-300 bg-white px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                    {(termAnalysis.experienced_rate || termAnalysis.new_hire_rate) && (
+                      <button
+                        onClick={applyTermSuggestions}
+                        className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
+                      >
+                        Apply Suggestions
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {(termAnalysis.experienced_rate || termAnalysis.new_hire_rate) ? (
+                  <table className="mt-2 w-full text-xs">
+                    <thead className="text-blue-700">
+                      <tr className="border-b border-blue-200">
+                        <th className="py-1 text-left font-medium">Rate</th>
+                        <th className="py-1 text-right font-medium">Suggested</th>
+                        <th className="py-1 text-right font-medium">Current</th>
+                        <th className="py-1 text-right font-medium">Sample</th>
+                        <th className="py-1 pl-3 text-left font-medium">Confidence</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {termAnalysis.experienced_rate && (
+                        <tr className="border-b border-blue-100">
+                          <td className="py-1 text-blue-900">Experienced</td>
+                          <td className="py-1 text-right font-semibold text-blue-900">{pct(termAnalysis.experienced_rate.rate)}</td>
+                          <td className="py-1 text-right text-gray-500">{pct(values.total_termination_rate)}</td>
+                          <td className="py-1 text-right text-blue-700">
+                            {termAnalysis.experienced_rate.terminated_count} / {termAnalysis.experienced_rate.sample_size}
+                          </td>
+                          <td className="py-1 pl-3">{confidenceBadge(termAnalysis.experienced_rate.confidence)}</td>
+                        </tr>
+                      )}
+                      {termAnalysis.new_hire_rate && (
+                        <tr>
+                          <td className="py-1 text-blue-900">New Hire</td>
+                          <td className="py-1 text-right font-semibold text-blue-900">{pct(termAnalysis.new_hire_rate.rate)}</td>
+                          <td className="py-1 text-right text-gray-500">{pct(values.new_hire_termination_rate)}</td>
+                          <td className="py-1 text-right text-blue-700">
+                            {termAnalysis.new_hire_rate.terminated_count} / {termAnalysis.new_hire_rate.sample_size}
+                          </td>
+                          <td className="py-1 pl-3">{confidenceBadge(termAnalysis.new_hire_rate.confidence)}</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className="mt-2 rounded bg-yellow-50 p-2 text-xs text-yellow-800">
+                    {termAnalysis.message ?? 'The census had no termination data to derive rates from.'}
+                  </p>
+                )}
+                {termAnalysis.message && (termAnalysis.experienced_rate || termAnalysis.new_hire_rate) && (
+                  <p className="mt-2 text-xs italic text-blue-600">{termAnalysis.message}</p>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label className="block">
                 <span className="text-xs text-gray-600">Total (experienced) termination</span>
