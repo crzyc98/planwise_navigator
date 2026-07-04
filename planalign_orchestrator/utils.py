@@ -36,30 +36,46 @@ class ExecutionMutex:
     def __init__(self, lock_name: str = "simulation_execution"):
         self.lock_file = Path(f".{lock_name}.lock")
         self.acquired = False
+        self._atexit_registered = False
 
     def acquire(self, timeout: int = 30) -> bool:
         start_time = time.time()
         while time.time() - start_time < timeout:
             try:
-                if not self.lock_file.exists():
-                    with open(self.lock_file, "w") as f:
-                        f.write(f"pid:{os.getpid()}\n")
-                        f.write(f"timestamp:{time.time()}\n")
-                    self.acquired = True
-                    atexit.register(self.release)
+                if self._try_create_lock():
                     return True
                 # Remove stale lock older than 1 hour
-                if time.time() - self.lock_file.stat().st_mtime > 3600:
+                if (
+                    self.lock_file.exists()
+                    and time.time() - self.lock_file.stat().st_mtime > 3600
+                ):
                     logger.warning("Removing stale lock file")
                     self.lock_file.unlink()
                     continue
                 # Otherwise wait and retry
                 time.sleep(2)
+            except FileNotFoundError:
+                # Lock vanished between exists() and stat()/unlink(): retry.
+                continue
             except Exception as e:  # pragma: no cover - defensive
                 logger.error("Error acquiring lock: %s", e)
                 return False
         logger.error("Failed to acquire execution lock after %d seconds", timeout)
         return False
+
+    def _try_create_lock(self) -> bool:
+        """Atomically create the lock file (O_EXCL); False if already held."""
+        try:
+            with open(self.lock_file, "x") as f:
+                f.write(f"pid:{os.getpid()}\n")
+                f.write(f"timestamp:{time.time()}\n")
+        except FileExistsError:
+            return False
+        self.acquired = True
+        if not self._atexit_registered:
+            atexit.register(self.release)
+            self._atexit_registered = True
+        return True
 
     def release(self) -> None:
         if self.acquired and self.lock_file.exists():
