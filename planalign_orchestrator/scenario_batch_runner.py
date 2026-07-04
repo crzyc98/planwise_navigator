@@ -86,6 +86,15 @@ class ScenarioBatchRunner:
         """
         scenarios = self._discover_scenarios(scenario_names)
 
+        if scenario_names:
+            missing = sorted(set(scenario_names) - set(scenarios))
+            if missing:
+                raise ValueError(
+                    f"Scenario(s) not found in {self.scenarios_dir}: "
+                    f"{', '.join(missing)}. Available: "
+                    f"{', '.join(sorted(self._discover_scenarios())) or '(none)'}"
+                )
+
         if not scenarios:
             logger.error("No scenarios found in %s", self.scenarios_dir)
             return {}
