@@ -48,19 +48,36 @@ workforce_with_bands AS (
     FROM workforce_with_current_compensation
 ),
 
--- Get termination dates to prevent post-termination events (simplified for fused approach)
+-- Termination dates for the current year, to prevent post-termination raises.
+-- Both termination models build earlier in the EVENT_GENERATION stage, so this
+-- introduces no circular dependency. (Issue #383: this CTE was previously a
+-- WHERE FALSE stub, so employees terminated in e.g. March still received a
+-- July raise that then inflated their final snapshot compensation.)
 termination_dates AS (
     SELECT
-        CAST(NULL AS VARCHAR) AS employee_id,
-        CAST(NULL AS DATE) AS termination_date
-    WHERE FALSE  -- No termination filtering in simplified fused approach
+        employee_id,
+        MIN(effective_date) AS termination_date
+    FROM (
+        SELECT employee_id, effective_date
+        FROM {{ ref('int_termination_events') }}
+        WHERE simulation_year = {{ simulation_year }}
+        UNION ALL
+        SELECT employee_id, effective_date
+        FROM {{ ref('int_new_hire_termination_events') }}
+        WHERE simulation_year = {{ simulation_year }}
+    ) AS all_terminations
+    GROUP BY employee_id
 ),
 
 -- Apply merit to all eligible workforce, excluding terminated employees
-eligible_for_merit AS (
+merit_candidates AS (
     SELECT
         w.*,
-        h.merit_raise
+        h.merit_raise,
+        -- Compute the raise date once so termination filtering compares each
+        -- employee's own raise date (methodology-dependent), not a fixed day.
+        {{ get_realistic_raise_date('w.employee_id', simulation_year) }} AS raise_effective_date,
+        t.termination_date
     FROM workforce_with_bands w
     JOIN {{ ref('int_hazard_merit') }} h
         ON w.level_id = h.level_id
@@ -72,8 +89,13 @@ eligible_for_merit AS (
         -- Simple merit eligibility rules
         current_tenure >= 1 -- At least 1 year of service
         AND merit_raise > 0 -- Must have a merit increase defined
-        -- Critical fix: Exclude employees who were terminated before merit date
-        AND (t.termination_date IS NULL OR t.termination_date >= DATE '{{ simulation_year }}-07-15')
+),
+
+eligible_for_merit AS (
+    SELECT *
+    FROM merit_candidates
+    -- Exclude employees who terminate before their raise takes effect
+    WHERE termination_date IS NULL OR termination_date >= raise_effective_date
 ),
 
 -- Apply COLA adjustments using dynamic parameter system
@@ -88,8 +110,8 @@ SELECT
     e.employee_ssn,
     'raise' AS event_type,
     {{ simulation_year }} AS simulation_year,
-    -- Use macro system for raise timing (supports both legacy and realistic modes)
-    {{ get_realistic_raise_date('e.employee_id', simulation_year) }} AS effective_date,
+    -- Raise timing computed once in merit_candidates (legacy/realistic modes)
+    e.raise_effective_date AS effective_date,
     -- Event details for audit trail
     'Merit raise: ' || ROUND(e.merit_raise * 100, 1) || '%, COLA: ' || ROUND(c.cola_rate * 100, 1) || '%' AS event_details,
     -- Schema alignment for fct_yearly_events consumption
