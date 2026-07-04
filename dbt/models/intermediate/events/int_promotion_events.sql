@@ -76,7 +76,9 @@ eligible_workforce AS (
         {{ assign_age_band('current_age') }} AS age_band,
         {{ assign_tenure_band('current_tenure') }} AS tenure_band,
         -- **DETERMINISTIC RANDOM**: Consistent hash-based probability
-        (ABS(HASH(employee_id || '{{ simulation_year }}' || 'promotion')) % 1000) / 1000.0 AS random_value
+        -- Issue #385: include random_seed so seed changes reshuffle promotions
+        -- the same way they reshuffle terminations.
+        (ABS(HASH(employee_id || '{{ simulation_year }}' || 'promotion' || '{{ var('random_seed', 42) }}')) % 1000) / 1000.0 AS random_value
     FROM current_workforce
 ),
 

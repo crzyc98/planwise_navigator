@@ -109,13 +109,13 @@ valid_candidates AS (
 ),
 
 -- Assign deterministic random for selection and attach rate
+-- Issue #385: use the E077 full-width seeded hash (as in int_termination_events)
+-- instead of a 100-bucket digit formula whose massive ORDER BY ties made the
+-- selected employees unstable across runs and ignored random_seed.
 ranked_candidates AS (
     SELECT
         vc.*,
-        -- Deterministic random for ordering
-        ((CAST(SUBSTR(vc.employee_id, -2) AS INTEGER) * 17 +
-          CAST(SUBSTR(vc.employee_id, -4, 2) AS INTEGER) * 31 +
-          {{ simulation_year }} * 7) % 100) / 100.0 AS random_value,
+        (HASH(vc.employee_id || '|' || {{ simulation_year }} || '|NH_TERM|{{ var('random_seed', 42) }}') % 1000000) / 1000000.0 AS random_value,
         wn.new_hire_termination_rate AS termination_rate
     FROM valid_candidates vc
     CROSS JOIN workforce_needs wn
@@ -128,7 +128,8 @@ selected_terminations AS (
         rc.candidate_termination_date AS effective_date
     FROM ranked_candidates rc
     CROSS JOIN (SELECT expected_new_hire_terminations AS target_terminations FROM workforce_needs) tc
-    QUALIFY ROW_NUMBER() OVER (ORDER BY rc.random_value) <= tc.target_terminations
+    -- employee_id tiebreaker guarantees a stable, fully deterministic ordering
+    QUALIFY ROW_NUMBER() OVER (ORDER BY rc.random_value, rc.employee_id) <= tc.target_terminations
 )
 
 SELECT

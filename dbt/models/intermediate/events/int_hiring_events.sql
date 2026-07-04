@@ -106,7 +106,7 @@ hire_sequence_with_random AS (
     -- Generate deterministic pseudo-random value between 0 and 1
     -- Uses modulo of hash to create reproducible distribution
     -- Cast to DOUBLE first to avoid integer overflow issues
-    ABS(MOD(HASH(CONCAT(CAST(hs.hire_sequence_num AS VARCHAR), '_age_', CAST({{ simulation_year }} AS VARCHAR)))::DOUBLE, 1000000.0)) / 1000000.0 AS age_random_value
+    ABS(MOD(HASH(CONCAT(CAST(hs.hire_sequence_num AS VARCHAR), '_age_', CAST({{ simulation_year }} AS VARCHAR), '_seed_', '{{ var('random_seed', 42) }}'))::DOUBLE, 1000000.0)) / 1000000.0 AS age_random_value
   FROM hire_sequence hs
 ),
 
@@ -147,13 +147,16 @@ new_hire_assignments AS (
     -- Hire date evenly distributed throughout year using modulo for cycling
     CAST('{{ simulation_year }}-01-01' AS DATE) + INTERVAL (hwa.hire_sequence_num % 365) DAY AS hire_date,
 
-    -- Use compensation from workforce needs with small variance for realism
-    ROUND(hwa.new_hire_avg_compensation * (0.9 + (hwa.hire_sequence_num % 10) * 0.02), 2) AS compensation_amount,
+    -- Use compensation from workforce needs with small variance for realism.
+    -- Multipliers cycle 0.91..1.09 (mean exactly 1.00) so realized average
+    -- comp matches new_hire_avg_compensation; the previous 0.9..1.08 cycle
+    -- undershot the target by a systematic 1% (issue #384).
+    ROUND(hwa.new_hire_avg_compensation * (0.91 + (hwa.hire_sequence_num % 10) * 0.02), 2) AS compensation_amount,
 
     -- Part-time assignment: deterministic hash selects part_time_new_hire_pct fraction
     -- of each cohort for a 20 hrs/week schedule; NULL means full-time (40 hrs/wk)
     CASE
-      WHEN ABS(MOD(HASH(CONCAT(CAST(hwa.hire_sequence_num AS VARCHAR), '_pt_', CAST({{ simulation_year }} AS VARCHAR)))::DOUBLE, 1000000.0)) / 1000000.0
+      WHEN ABS(MOD(HASH(CONCAT(CAST(hwa.hire_sequence_num AS VARCHAR), '_pt_', CAST({{ simulation_year }} AS VARCHAR), '_seed_', '{{ var('random_seed', 42) }}'))::DOUBLE, 1000000.0)) / 1000000.0
            < {{ var('part_time_new_hire_pct', 0.0) }}
       THEN 20.0::DECIMAL(5,2)
       ELSE NULL::DECIMAL(5,2)
