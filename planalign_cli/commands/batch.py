@@ -128,8 +128,12 @@ def run_batch(
             show_error_message("No scenarios were processed")
             raise typer.Exit(1)
 
-        return _report_batch_results(results, batch_runner)
+        exit_code = _report_batch_results(results, batch_runner)
+        if exit_code:
+            raise typer.Exit(exit_code)
 
+    except typer.Exit:
+        raise
     except Exception as e:
         show_error_message(f"Batch processing failed: {e}")
         raise typer.Exit(1)

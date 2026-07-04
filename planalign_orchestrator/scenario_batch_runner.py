@@ -86,6 +86,15 @@ class ScenarioBatchRunner:
         """
         scenarios = self._discover_scenarios(scenario_names)
 
+        if scenario_names:
+            missing = sorted(set(scenario_names) - set(scenarios))
+            if missing:
+                raise ValueError(
+                    f"Scenario(s) not found in {self.scenarios_dir}: "
+                    f"{', '.join(missing)}. Available: "
+                    f"{', '.join(sorted(self._discover_scenarios())) or '(none)'}"
+                )
+
         if not scenarios:
             logger.error("No scenarios found in %s", self.scenarios_dir)
             return {}
@@ -263,17 +272,12 @@ class ScenarioBatchRunner:
         config = self._load_merged_config(config_path)
         self._validate_config(config)
 
-        # Ensure deterministic run: set/persist a random seed per scenario
-        seed_path = scenario_dir / "seed.txt"
-        if seed_path.exists():
-            seed = int(seed_path.read_text().strip())
-            logger.debug("Using existing seed: %d", seed)
-        else:
-            seed = getattr(config.simulation, "random_seed", None) or int(
-                datetime.now().timestamp()
-            )
-            seed_path.write_text(str(seed))
-            logger.debug("Generated new seed: %d", seed)
+        # Ensure deterministic run: set/persist a random seed per scenario.
+        # Seeds live under output_dir/seeds/ (NOT the timestamped batch dir)
+        # so a re-run of the same scenario reuses the same seed even when the
+        # config doesn't pin one.
+        seed = self._resolve_scenario_seed(scenario_name, config)
+        (scenario_dir / "seed.txt").write_text(str(seed))
 
         # Update config with determined seed
         config.simulation.random_seed = seed
@@ -339,6 +343,33 @@ class ScenarioBatchRunner:
                 gc.collect()  # Force garbage collection to close lingering connections
             except Exception:
                 pass  # Best effort cleanup
+
+    def _resolve_scenario_seed(
+        self, scenario_name: str, config: SimulationConfig
+    ) -> int:
+        """Resolve the random seed for a scenario, stable across batch runs.
+
+        Precedence: config ``random_seed`` > previously persisted seed
+        (``output_dir/seeds/<scenario>.txt``) > newly generated wall-clock
+        seed (persisted for future runs).
+        """
+        configured = getattr(config.simulation, "random_seed", None)
+        if configured:
+            logger.debug("Using configured seed: %d", configured)
+            return int(configured)
+
+        seed_dir = self.output_dir / "seeds"
+        seed_path = seed_dir / f"{scenario_name}.txt"
+        if seed_path.exists():
+            seed = int(seed_path.read_text().strip())
+            logger.debug("Reusing persisted seed: %d", seed)
+            return seed
+
+        seed = int(datetime.now().timestamp())
+        seed_dir.mkdir(parents=True, exist_ok=True)
+        seed_path.write_text(str(seed))
+        logger.debug("Generated and persisted new seed: %d", seed)
+        return seed
 
     def _load_merged_config(self, scenario_config_path: Path) -> SimulationConfig:
         """Load and merge scenario configuration with base configuration.

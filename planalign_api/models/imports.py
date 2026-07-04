@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 from uuid import uuid4
 
@@ -113,7 +113,7 @@ class ImportSession(BaseModel):
     detected_columns: List[DetectedColumn] = Field(default_factory=list)
     preview_rows: List[Dict[str, Any]] = Field(default_factory=list)
     status: ImportStatusLiteral = "uploaded"
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: str = "system"
     mapping_saved_at: Optional[datetime] = None
     parquet_file_id: Optional[str] = None
@@ -142,7 +142,7 @@ class ParquetFile(BaseModel):
     row_count: int = Field(default=0, ge=0)
     file_size_bytes: int = Field(default=0, ge=0)
     parquet_schema: List[ParquetColumn] = Field(default_factory=list, alias="schema")
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: str = "system"
 
     model_config = {"populate_by_name": True}
@@ -154,7 +154,7 @@ class MappingTemplate(BaseModel):
     name: str = Field(..., max_length=128)
     description: Optional[str] = Field(None, max_length=512)
     field_mappings: List[FieldMapping] = Field(..., min_length=1)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: str = "system"
 
 

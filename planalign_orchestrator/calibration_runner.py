@@ -34,6 +34,11 @@ from planalign_orchestrator.pipeline.workflow import WorkflowBuilder
 
 logger = logging.getLogger(__name__)
 
+# Retention for isolated calibration DB copies (each is a full copy of the
+# shared dev DB). Older copies beyond this count are pruned when a new default
+# run seeds its DB, so tuning sessions don't silently accumulate gigabytes.
+CALIBRATION_DB_RETENTION = 5
+
 # DC tables that fct_workforce_snapshot / fct_yearly_events ref() but calibration
 # never rebuilds. They must exist (stale-but-present) for a comp-only build to
 # compile. See research.md Decision 2.
@@ -244,9 +249,27 @@ def resolve_calibration_database(database_path: Optional[Path]) -> Path:
             resolution_hints=[_build_baseline_hint(shared)],
         )
 
+    _prune_old_calibration_dbs(cal_dir)
     logger.info("Seeding isolated calibration DB from %s", shared)
     shutil.copy(shared, target)
     return target
+
+
+def _prune_old_calibration_dbs(cal_dir: Path) -> None:
+    """Keep only the newest ``CALIBRATION_DB_RETENTION - 1`` copies.
+
+    Called just before a new copy is created, so after seeding the directory
+    holds at most ``CALIBRATION_DB_RETENTION`` databases.
+    """
+    existing = sorted(cal_dir.glob("calibration_*.duckdb"))
+    excess = existing[: max(0, len(existing) - (CALIBRATION_DB_RETENTION - 1))]
+    for stale in excess:
+        try:
+            size_mb = stale.stat().st_size / 1_000_000
+            stale.unlink()
+            logger.info("Pruned old calibration DB %s (%.0f MB)", stale.name, size_mb)
+        except OSError as e:
+            logger.warning("Could not prune calibration DB %s: %s", stale, e)
 
 
 # ---------------------------------------------------------------------------
@@ -284,11 +307,24 @@ class CalibrationRunner:
     ) -> List[PerYearCompensationResult]:
         """Re-tune fast-path: apply new params and rebuild the comp subgraph.
 
+        Tuning is cumulative with ONE consistent rule: a non-None field in
+        ``params`` overrides the previous value; a None field keeps it. This
+        applies to every lever -- config-mutating ones (COLA/merit/growth/
+        termination rates) and dbt-var ones (age distribution, comp ranges)
+        alike -- so a value set in one round carries into the next unless
+        explicitly changed. (Previously the two groups had opposite
+        persistence semantics; see issue #381.)
+
         Skips the prerequisite guard (already verified) and the isolated-DB
-        re-init -- used by the interactive loop (US2).
+        re-init -- used by the interactive loop (US2) and the auto-calibrator.
         """
-        self._apply_param_overrides(params)
-        self.run = self.run.model_copy(update={"params": params})
+        merged_fields = self.run.params.model_dump()
+        for field, value in params.model_dump().items():
+            if value is not None:
+                merged_fields[field] = value
+        merged = CalibrationParameterSet(**merged_fields)
+        self._apply_param_overrides(merged)
+        self.run = self.run.model_copy(update={"params": merged})
         return self._build_all_years()
 
     # -- internals --------------------------------------------------------

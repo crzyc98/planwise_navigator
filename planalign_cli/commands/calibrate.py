@@ -141,11 +141,13 @@ def _render_results(results: List[PerYearCompensationResult]) -> None:
 
 
 def _compact_money(value: float) -> str:
-    if value >= 1_000_000_000:
-        return f"${value / 1_000_000_000:.2f}B"
-    if value >= 1_000_000:
-        return f"${value / 1_000_000:.1f}M"
-    return f"${value:,.0f}"
+    sign = "-" if value < 0 else ""
+    magnitude = abs(value)
+    if magnitude >= 1_000_000_000:
+        return f"{sign}${magnitude / 1_000_000_000:.2f}B"
+    if magnitude >= 1_000_000:
+        return f"{sign}${magnitude / 1_000_000:.1f}M"
+    return f"{sign}${magnitude:,.0f}"
 
 
 def _pct(value: Optional[float]) -> str:
@@ -157,7 +159,10 @@ def _signed_pct(value: Optional[float]) -> str:
 
 
 def _signed_money(value: Optional[float]) -> str:
-    return "—" if value is None else f"{value:+,.0f}"
+    if value is None:
+        return "—"
+    sign = "+" if value >= 0 else "-"
+    return f"{sign}${abs(value):,.0f}"
 
 
 def _interactive_loop(runner: CalibrationRunner) -> None:
@@ -182,18 +187,39 @@ def _prompt_params(
 ) -> Optional[CalibrationParameterSet]:
     """Prompt for COLA/merit, layering changes onto the current params.
 
-    Returns the updated params, or ``None`` if the analyst quits ('q').
+    Re-prompts on invalid input (non-numeric or out of range) rather than
+    triggering a rebuild. Returns the updated params, or ``None`` if the
+    analyst quits ('q').
     """
-    merged = current.model_dump()
+    while True:
+        merged = _collect_lever_inputs(current.model_dump())
+        if merged is None:
+            return None
+        if not merged:
+            continue  # parse error already shown; re-prompt from the top
+        try:
+            # Re-construct so pydantic validates the merged values
+            # (e.g. range checks).
+            return CalibrationParameterSet(**merged)
+        except Exception as e:
+            show_error_message(f"Invalid input: {e}")
+
+
+def _collect_lever_inputs(merged: dict) -> Optional[dict]:
+    """Prompt for each lever; parse numerics safely.
+
+    Returns the merged dict, ``None`` if the analyst quit ('q'), or an empty
+    dict when an input failed to parse (caller re-prompts).
+    """
     for field, label in (("cola_rate", "COLA rate"), ("merit_budget", "Merit budget")):
         raw = typer.prompt(label, default="", show_default=False).strip()
         if raw.lower() == "q":
             return None
-        if raw:
+        if not raw:
+            continue
+        try:
             merged[field] = float(raw)
-    try:
-        # Re-construct so pydantic validates the merged values (e.g. range checks).
-        return CalibrationParameterSet(**merged)
-    except Exception as e:
-        show_error_message(f"Invalid input: {e}")
-        return current
+        except ValueError:
+            show_error_message(f"Invalid {label}: '{raw}' is not a number (e.g. 0.025)")
+            return {}
+    return merged

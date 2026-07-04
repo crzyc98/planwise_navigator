@@ -346,7 +346,7 @@ class AutoCalibrator:
     ) -> List[PerYearCompensationResult]:
         self._evals += 1
         logger.info(
-            "Auto-calibration eval %d: cola=%.4f merit=%.4f scale=%s",
+            "Auto-calibration eval %d: cola=%.4f merit=%.4f level1_min_comp=%s",
             self._evals,
             params.cola_rate,
             params.merit_budget,

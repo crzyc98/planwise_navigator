@@ -98,6 +98,16 @@ def _workspace_config_path(
     return Path(tmp.name)
 
 
+def _remove_temp_config(path: Optional[Path]) -> None:
+    """Delete a materialized workspace-config YAML once the run is done."""
+    if path is None:
+        return
+    try:
+        path.unlink(missing_ok=True)
+    except OSError as e:
+        logger.warning("Could not remove temp calibration config %s: %s", path, e)
+
+
 @router.post("/calibration/run", response_model=CalibrationRunResponse)
 def run_calibration(
     request: CalibrationRunRequest,
@@ -111,8 +121,10 @@ def run_calibration(
     config_path: Optional[Path] = (
         Path(request.config_path) if request.config_path else None
     )
+    workspace_config: Optional[Path] = None
     if config_path is None and request.workspace_id:
-        config_path = _workspace_config_path(request.workspace_id, storage)
+        workspace_config = _workspace_config_path(request.workspace_id, storage)
+        config_path = workspace_config
 
     try:
         run = CalibrationRun(
@@ -125,6 +137,7 @@ def run_calibration(
             params=request.params,
         )
     except ValueError as e:  # range ordering / param validation
+        _remove_temp_config(workspace_config)
         raise HTTPException(status_code=422, detail=str(e))
 
     try:
@@ -135,6 +148,8 @@ def run_calibration(
     except Exception as e:  # pragma: no cover - unexpected runtime failure
         logger.exception("Calibration run failed")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        _remove_temp_config(workspace_config)
 
     run_id = f"cal_{datetime.now().strftime('%Y-%m-%dT%H-%M-%S')}"
     return CalibrationRunResponse(run_id=run_id, results=results)
@@ -183,8 +198,10 @@ def optimize_calibration(
     config_path: Optional[Path] = (
         Path(request.config_path) if request.config_path else None
     )
+    workspace_config: Optional[Path] = None
     if config_path is None and request.workspace_id:
-        config_path = _workspace_config_path(request.workspace_id, storage)
+        workspace_config = _workspace_config_path(request.workspace_id, storage)
+        config_path = workspace_config
 
     try:
         run = CalibrationRun(
@@ -198,8 +215,10 @@ def optimize_calibration(
         )
         optimizer = AutoCalibrator(run, request.settings, threads=1)
     except ValueError as e:
+        _remove_temp_config(workspace_config)
         raise HTTPException(status_code=422, detail=str(e))
     except ConfigurationError as e:
+        _remove_temp_config(workspace_config)
         raise HTTPException(status_code=409, detail=str(e))
 
     try:
@@ -209,6 +228,8 @@ def optimize_calibration(
     except Exception as e:  # pragma: no cover - unexpected runtime failure
         logger.exception("Auto-calibration failed")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        _remove_temp_config(workspace_config)
 
     run_id = f"autocal_{datetime.now().strftime('%Y-%m-%dT%H-%M-%S')}"
     return AutoCalibrationResponse(run_id=run_id, outcome=outcome)
