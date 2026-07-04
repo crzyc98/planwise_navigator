@@ -183,7 +183,13 @@ def test_workspace_config_flows_to_runner(client, monkeypatch, tmp_path) -> None
     captured = {}
 
     def _fake_init(self, run, **kw):
+        # Read the materialized config NOW: the router deletes the temp file
+        # once the run completes (issue #379).
+        import yaml
+
         captured["config_path"] = run.config_path
+        with open(run.config_path) as f:
+            captured["config"] = yaml.safe_load(f)
 
     monkeypatch.setattr(calibration_router.CalibrationRunner, "__init__", _fake_init)
     monkeypatch.setattr(
@@ -197,11 +203,9 @@ def test_workspace_config_flows_to_runner(client, monkeypatch, tmp_path) -> None
         )
         assert resp.status_code == 200
         assert captured["config_path"] is not None
-        import yaml
-
-        with open(captured["config_path"]) as f:
-            written = yaml.safe_load(f)
-        assert written["simulation"]["target_growth_rate"] == 0.03
+        assert captured["config"]["simulation"]["target_growth_rate"] == 0.03
+        # Regression for #379: the materialized temp config must be cleaned up.
+        assert not captured["config_path"].exists()
     finally:
         client.app.dependency_overrides.clear()
 
