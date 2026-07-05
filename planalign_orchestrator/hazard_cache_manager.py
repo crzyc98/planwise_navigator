@@ -358,6 +358,25 @@ class HazardCacheManager:
                 # Set the parameters hash for dbt models (dbt vars)
                 extra_vars = {"hazard_params_hash": current_hash}
 
+                # The dim_*_hazards cache models all ref int_effective_parameters
+                # (a FOUNDATION int_* table). On a fresh DB it isn't built yet, and
+                # `dbt build --select <cache_model>` doesn't pull upstream, so
+                # materialize it first or the cache rebuild fails with a catalog error.
+                # Use `run` (not `build`) to match how the pipeline builds int_* models
+                # — we only need the table to exist, not to run its schema tests here.
+                dep = "int_effective_parameters"
+                self.logger.info(f"Materializing {dep} (hazard cache dependency)...")
+                result = self.dbt_runner.execute_command(
+                    ["run", "--select", dep, "--full-refresh"],
+                    dbt_vars=extra_vars,
+                )
+                if not result.success:
+                    error_msg = self._build_rebuild_error(
+                        f"Failed to build {dep}", result
+                    )
+                    self.logger.error(error_msg)
+                    raise HazardCacheError(error_msg)
+
                 # Rebuild each cache model with full refresh
                 for model in self.CACHE_MODELS:
                     self.logger.info(f"Rebuilding {model}...")
