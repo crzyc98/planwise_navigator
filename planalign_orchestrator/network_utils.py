@@ -93,7 +93,7 @@ class CorporateNetworkClient:
         """
         self.config = config or load_network_config()
         self._setup_client()
-        self._diagnostics = None
+        self._diagnostics: Optional[NetworkDiagnostics] = None
         self._session_start = time.time()
 
     def _setup_client(self):
@@ -324,13 +324,15 @@ class CorporateNetworkClient:
         Returns:
             Network diagnostics results
         """
+        diagnostics = self._diagnostics
         if (
-            not self._diagnostics or (time.time() - self._session_start) > 300
+            diagnostics is None or (time.time() - self._session_start) > 300
         ):  # Refresh every 5 minutes
-            self._diagnostics = validate_network_connectivity(self.config)
+            diagnostics = validate_network_connectivity(self.config)
+            self._diagnostics = diagnostics
             self._session_start = time.time()
 
-        return self._diagnostics
+        return diagnostics
 
     def test_dagster_connectivity(
         self, host: str = "localhost", port: int = 3000
@@ -521,7 +523,8 @@ def diagnose_network_issues() -> Dict[str, Any]:
                 socket.gethostbyname(hostname)
                 dns_resolution[hostname] = True
         except socket.gaierror:
-            dns_resolution[hostname] = False
+            if hostname:
+                dns_resolution[hostname] = False
 
     # Test port connectivity
     test_ports = [
