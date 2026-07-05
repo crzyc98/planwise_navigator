@@ -22,11 +22,11 @@ from planalign_orchestrator.generators.base import (
 )
 from planalign_orchestrator.generators.registry import EventRegistry
 
-from config.constants import EVENT_SABBATICAL
+from planalign_core.constants import EVENT_SABBATICAL
 
 if TYPE_CHECKING:
-    from config.events import SimulationEvent
-    from config.events.workforce import SabbaticalPayload
+    from planalign_core.events import SimulationEvent
+    from planalign_core.events.workforce import SabbaticalPayload
 
 logger = logging.getLogger(__name__)
 

@@ -27,7 +27,7 @@ from .results_reader import read_results
 from .run_archiver import archive_failed_run, archive_run, prune_old_runs
 from .subprocess_utils import create_subprocess, wait_subprocess
 
-from config.constants import (
+from planalign_core.constants import (
     DATABASE_FILENAME,
     STATUS_COMPLETED,
     STATUS_FAILED,

@@ -12,7 +12,7 @@ from ..models.analytics import (
     IRSLimitMetrics,
     ParticipationByMethod,
 )
-from config.constants import TABLE_FCT_WORKFORCE_SNAPSHOT
+from planalign_core.constants import TABLE_FCT_WORKFORCE_SNAPSHOT
 
 from ..storage.workspace_storage import WorkspaceStorage
 from .database_path_resolver import DatabasePathResolver

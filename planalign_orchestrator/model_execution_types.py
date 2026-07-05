@@ -12,7 +12,7 @@ from enum import Enum
 from dataclasses import dataclass
 from typing import Dict, List, Set, Optional, Any
 
-from config.constants import (
+from planalign_core.constants import (
     MODEL_FCT_WORKFORCE_SNAPSHOT,
     MODEL_FCT_YEARLY_EVENTS,
     MODEL_INT_BASELINE_WORKFORCE,

@@ -6,7 +6,7 @@ full exception context (type and message) rather than truncated output.
 
 import logging
 from decimal import Decimal
-from config.schema import SimulationConfig
+from planalign_core.schema import SimulationConfig
 
 
 class TestErrorLoggingOnDeserialization:

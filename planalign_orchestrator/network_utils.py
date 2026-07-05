@@ -30,14 +30,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union, cast
 from urllib.error import HTTPError, URLError
 
 import os
-import sys
 
-logger = logging.getLogger(__name__)
-
-# Add config directory to path for imports
-sys.path.append(str(Path(__file__).parent.parent / "config"))
-
-from network_config import (  # noqa: E402
+from planalign_core.network_config import (
     CorporateNetworkConfig,
     NetworkDiagnostics,
     build_proxy_handler,
@@ -46,6 +40,8 @@ from network_config import (  # noqa: E402
     should_bypass_proxy,
     validate_network_connectivity,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass

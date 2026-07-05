@@ -20,7 +20,7 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
-from config.constants import (
+from planalign_core.constants import (
     MODEL_FCT_YEARLY_EVENTS,
     TABLE_FCT_WORKFORCE_SNAPSHOT,
 )

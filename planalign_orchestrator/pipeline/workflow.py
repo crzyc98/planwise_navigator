@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import List
 
-from config.constants import (
+from planalign_core.constants import (
     MODEL_INT_ACTIVE_EMPLOYEES_PREV_YEAR,
     MODEL_INT_BASELINE_WORKFORCE,
     MODEL_INT_EMPLOYEE_COMPENSATION,

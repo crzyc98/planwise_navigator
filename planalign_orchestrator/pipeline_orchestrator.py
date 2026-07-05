@@ -30,7 +30,7 @@ from .reports.multi_year_reporter import MultiYearReporter
 from .observability import ObservabilityManager
 from .utils import DatabaseConnectionManager, ExecutionMutex, time_block
 from .validation import DataValidator
-from config.constants import (
+from planalign_core.constants import (
     COL_EVENT_TYPE,
     COL_SIMULATION_YEAR,
     KEY_SUCCESS,

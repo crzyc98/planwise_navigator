@@ -17,7 +17,7 @@ import logging
 from pathlib import Path
 from typing import List, Set
 
-from config.constants import (
+from planalign_core.constants import (
     TABLE_FCT_WORKFORCE_SNAPSHOT,
     TABLE_FCT_YEARLY_EVENTS,
 )

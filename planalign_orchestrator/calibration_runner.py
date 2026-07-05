@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional
 import duckdb
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from config.constants import DATABASE_FILENAME
+from planalign_core.constants import DATABASE_FILENAME
 from planalign_orchestrator.config import load_simulation_config
 from planalign_orchestrator.config.export import to_dbt_vars
 from planalign_orchestrator.dbt_runner import DbtRunner

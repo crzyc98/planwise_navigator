@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional, Sequence
 
 import pandas as pd
 
-from config.constants import (
+from planalign_core.constants import (
     COL_EMPLOYEE_ID,
     COL_EVENT_TYPE,
     COL_SIMULATION_YEAR,

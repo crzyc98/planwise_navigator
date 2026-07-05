@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional
 
 import logging
 
-from config.constants import (
+from planalign_core.constants import (
     MODEL_FCT_YEARLY_EVENTS,
     MODEL_INT_ENROLLMENT_EVENTS,
     MODEL_INT_MERIT_EVENTS,

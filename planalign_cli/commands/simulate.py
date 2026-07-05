@@ -33,7 +33,7 @@ from ..ui.progress import (
     show_success_message,
 )
 from ..utils.config_helpers import find_default_config, parse_years, validate_year_range
-from config.constants import DATABASE_FILENAME
+from planalign_core.constants import DATABASE_FILENAME
 
 console = Console()
 simulate_command = typer.Typer()

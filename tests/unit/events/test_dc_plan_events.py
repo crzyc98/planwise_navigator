@@ -7,7 +7,7 @@ from decimal import Decimal
 import pytest
 from pydantic import ValidationError
 
-from config.events import (
+from planalign_core.events import (
     AutoEnrollmentOptions,
     ContributionPayload,
     DCPlanEventFactory,

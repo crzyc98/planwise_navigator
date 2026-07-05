@@ -20,10 +20,10 @@ from planalign_orchestrator.generators.base import (
 )
 from planalign_orchestrator.generators.registry import EventRegistry
 
-from config.constants import EVENT_MERIT
+from planalign_core.constants import EVENT_MERIT
 
 if TYPE_CHECKING:
-    from config.events import SimulationEvent
+    from planalign_core.events import SimulationEvent
 
 logger = logging.getLogger(__name__)
 

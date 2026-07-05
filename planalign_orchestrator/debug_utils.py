@@ -18,7 +18,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 from rich.console import Console
 from rich.table import Table
-from config.constants import (
+from planalign_core.constants import (
     COL_EMPLOYEE_ID,
     COL_EVENT_TYPE,
     COL_EFFECTIVE_DATE,

@@ -11,7 +11,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, TYPE_CHECKING
 
-from config.constants import (
+from planalign_core.constants import (
     EVENT_HIRE,
     EVENT_TERMINATION,
     EVENT_TYPE_TERMINATION,

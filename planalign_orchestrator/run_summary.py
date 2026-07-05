@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from config.constants import (
+from planalign_core.constants import (
     KEY_ERRORS,
     KEY_WARNINGS,
     STATUS_RUNNING,

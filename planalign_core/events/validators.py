@@ -10,7 +10,7 @@ Precision Standards:
 - Rates/percentages: 4 decimal places (0.0001) - sufficient for contribution rates
 
 Usage:
-    from config.events.validators import quantize_amount, quantize_rate
+    from planalign_core.events.validators import quantize_amount, quantize_rate
 
     class MyPayload(BaseModel):
         amount: Decimal = Field(..., gt=0)

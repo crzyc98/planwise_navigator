@@ -93,7 +93,7 @@ class ProductionLogger:
         """Setup dual console + file logging with rotation"""
         # Ensure logs directory exists
         logs_dir = Path("var/logs")
-        logs_dir.mkdir(exist_ok=True)
+        logs_dir.mkdir(parents=True, exist_ok=True)
 
         # Create logger instance
         self.logger = logging.getLogger(f"navigator.{self.run_id}")

@@ -41,7 +41,7 @@ jobs:
         run: |
           black --check .
           ruff check .
-          mypy planalign_orchestrator/ planalign_cli/ config/ --ignore-missing-imports
+          mypy planalign_orchestrator/ planalign_cli/ planalign_core/ --ignore-missing-imports
 
   test:
     runs-on: ubuntu-latest

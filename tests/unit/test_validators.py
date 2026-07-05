@@ -13,7 +13,7 @@ User Story 4 (FR-007): Test shared validators independently.
 
 from decimal import Decimal
 
-from config.events.validators import (
+from planalign_core.events.validators import (
     quantize_amount,
     quantize_rate,
     quantize_amount_dict,

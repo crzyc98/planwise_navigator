@@ -36,7 +36,7 @@ from __future__ import annotations
 from .contract import StateAccumulatorContract
 from .registry import StateAccumulatorRegistry
 from .validator import YearDependencyValidator
-from config.constants import (
+from planalign_core.constants import (
     COL_SIMULATION_YEAR,
     MODEL_INT_BASELINE_WORKFORCE,
     MODEL_INT_EMPLOYEE_COMPENSATION,

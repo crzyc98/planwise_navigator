@@ -8,7 +8,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from config.constants import DATABASE_FILENAME
+from planalign_core.constants import DATABASE_FILENAME
 
 logger = logging.getLogger(__name__)
 

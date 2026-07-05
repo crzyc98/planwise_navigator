@@ -7,6 +7,7 @@ on:
       - 'dbt/**'
       - 'planalign_orchestrator/**'
       - 'config/**'
+      - 'planalign_core/**'
       - 'scripts/**'
       - '.github/workflows/e068h-validation.yml'
   push:

@@ -18,7 +18,7 @@ from ..ui.progress import (
     show_error_message,
 )
 from ..utils.config_helpers import find_default_config, find_scenarios_directory
-from config.constants import DATABASE_FILENAME, STATUS_COMPLETED, STATUS_FAILED
+from planalign_core.constants import DATABASE_FILENAME, STATUS_COMPLETED, STATUS_FAILED
 
 console = Console()
 batch_command = typer.Typer()
