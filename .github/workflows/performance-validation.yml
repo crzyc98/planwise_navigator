@@ -106,7 +106,7 @@ jobs:
         "
 
     - name: Upload schema validation artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: schema-validation-report
@@ -154,7 +154,7 @@ jobs:
         echo "Performance benchmark execution completed"
 
     - name: Upload performance artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: performance-benchmark-results
@@ -202,7 +202,7 @@ jobs:
         echo "Golden dataset validation completed"
 
     - name: Upload golden dataset artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: golden-dataset-validation-results
@@ -284,7 +284,7 @@ jobs:
 
     steps:
     - name: Download all artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
 
     - name: Evaluate quality gate criteria
       run: |
@@ -366,7 +366,7 @@ jobs:
         EOF
 
     - name: Upload final quality report
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: final-quality-report
         path: final_quality_report.md

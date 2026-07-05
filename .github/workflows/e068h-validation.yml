@@ -166,7 +166,7 @@ jobs:
             --verbose
 
       - name: Upload performance regression report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: performance-regression-report
@@ -260,7 +260,7 @@ jobs:
           fi
 
       - name: Upload scale testing reports
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: scale-testing-${{ matrix.scenario }}
@@ -384,7 +384,7 @@ jobs:
           fi
 
       - name: Upload parity testing reports
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: parity-testing-report
@@ -463,7 +463,7 @@ jobs:
           uv pip install --system -r requirements.txt
 
       - name: Download all test artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
 
       - name: Final deployment readiness assessment
         id: deployment-decision
@@ -527,7 +527,7 @@ jobs:
           EOF
 
       - name: Upload deployment decision
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: deployment-decision
           path: deployment_decision/
