@@ -168,7 +168,7 @@ class AdaptiveMemoryManager:
         config: AdaptiveConfig,
         logger: ProductionLogger,
         *,
-        reports_dir: Path = Path("reports/memory"),
+        reports_dir: Path = Path("var/reports/memory"),
     ):
         self.config = config
         self.logger = logger

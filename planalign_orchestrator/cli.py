@@ -110,7 +110,7 @@ def cmd_batch(args: argparse.Namespace) -> int:
     scenarios_dir = (
         Path(args.scenarios_dir) if args.scenarios_dir else Path("scenarios")
     )
-    output_dir = Path(args.output_dir) if args.output_dir else Path("outputs")
+    output_dir = Path(args.output_dir) if args.output_dir else Path("var/outputs")
     base_config_path = (
         Path(args.config) if args.config else Path("config/simulation_config.yaml")
     )

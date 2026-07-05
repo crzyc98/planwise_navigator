@@ -33,7 +33,7 @@ class ProductionSafetySettings(BaseModel):
 
     # Backup configuration
     backup_enabled: bool = Field(default=True, description="Enable automatic backups")
-    backup_dir: str = Field(default="backups", description="Backup directory path")
+    backup_dir: str = Field(default="var/backups", description="Backup directory path")
     backup_retention_days: int = Field(
         default=7, ge=1, description="Backup retention period"
     )
@@ -49,7 +49,7 @@ class ProductionSafetySettings(BaseModel):
 
     # Logging configuration
     log_level: str = Field(default="INFO", description="Logging level")
-    log_dir: str = Field(default="logs", description="Log directory path")
+    log_dir: str = Field(default="var/logs", description="Log directory path")
 
     # Safety checks
     require_backup_before_run: bool = Field(

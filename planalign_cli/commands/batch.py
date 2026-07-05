@@ -71,7 +71,7 @@ def run_batch(
         scenarios_path = (
             Path(scenarios_dir) if scenarios_dir else find_scenarios_directory()
         )
-        output_path = Path(output_dir) if output_dir else Path("outputs")
+        output_path = Path(output_dir) if output_dir else Path("var/outputs")
 
         if not scenarios_path.exists():
             show_error_message(f"Scenarios directory not found: {scenarios_path}")

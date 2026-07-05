@@ -83,7 +83,7 @@ class PipelineOrchestrator:
         registry_manager: RegistryManager,
         validator: DataValidator,
         *,
-        reports_dir: Path | str = Path("reports"),
+        reports_dir: Path | str = Path("var/reports"),
         verbose: bool = False,
     ):
         self.config = config

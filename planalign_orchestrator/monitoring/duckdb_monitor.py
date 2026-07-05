@@ -45,7 +45,7 @@ class DuckDBPerformanceMonitor:
         self,
         database_path: Path,
         logger: Optional[logging.Logger] = None,
-        reports_dir: Path = Path("reports/performance"),
+        reports_dir: Path = Path("var/reports/performance"),
     ):
         """
         Initialize DuckDB performance monitor

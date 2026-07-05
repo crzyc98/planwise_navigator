@@ -92,7 +92,7 @@ class ProductionLogger:
     def _setup_logging(self) -> None:
         """Setup dual console + file logging with rotation"""
         # Ensure logs directory exists
-        logs_dir = Path("logs")
+        logs_dir = Path("var/logs")
         logs_dir.mkdir(exist_ok=True)
 
         # Create logger instance

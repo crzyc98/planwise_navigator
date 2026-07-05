@@ -151,7 +151,7 @@ def ensure_directory_exists(path: Path) -> Path:
     return path
 
 
-def get_output_directory(base_name: str = "outputs") -> Path:
+def get_output_directory(base_name: str = "var/outputs") -> Path:
     """Get a timestamped output directory."""
     from datetime import datetime
 
