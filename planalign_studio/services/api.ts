@@ -2197,6 +2197,53 @@ export interface CalibrationRunResponse {
   results: PerYearCompensationResult[];
 }
 
+/** Acknowledgement returned by the (now async) calibration POST endpoints. */
+export interface CalibrationStartResponse {
+  run_id: string;
+  status: 'queued';
+}
+
+/** Background calibration job record (issue #380). */
+export interface CalibrationJob {
+  run_id: string;
+  kind: 'run' | 'optimize';
+  status: 'queued' | 'running' | 'completed' | 'failed';
+  created_at: string;
+  completed_at: string | null;
+  results: PerYearCompensationResult[] | null;
+  outcome: AutoCalibrationOutcome | null;
+  error: string | null;
+  error_status: number | null;
+}
+
+export async function getCalibrationRun(runId: string): Promise<CalibrationJob> {
+  const response = await fetch(`${API_BASE}/api/calibration/runs/${runId}`);
+  return handleResponse<CalibrationJob>(response);
+}
+
+const CALIBRATION_POLL_MS = 2000;
+
+/** Poll a calibration job until it reaches a terminal state. */
+async function awaitCalibrationJob(runId: string): Promise<CalibrationJob> {
+  for (;;) {
+    const job = await getCalibrationRun(runId);
+    if (job.status === 'completed') return job;
+    if (job.status === 'failed') {
+      throw new ApiError(
+        job.error_status ?? 500,
+        'Calibration failed',
+        job.error ?? undefined
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, CALIBRATION_POLL_MS));
+  }
+}
+
+/**
+ * Run a comp-only calibration. The backend enqueues a background job and this
+ * wrapper polls it to completion, so callers keep the old request/response
+ * shape while the HTTP requests stay short-lived (issue #380).
+ */
 export async function runCalibration(
   request: CalibrationRunRequest
 ): Promise<CalibrationRunResponse> {
@@ -2205,13 +2252,16 @@ export async function runCalibration(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request),
   });
-  return handleResponse<CalibrationRunResponse>(response);
+  const started = await handleResponse<CalibrationStartResponse>(response);
+  const job = await awaitCalibrationJob(started.run_id);
+  return { run_id: job.run_id, results: job.results ?? [] };
 }
 
 /**
  * Auto-calibrate: search COLA/merit until the mean YoY avg-comp growth hits
  * the target (workforce growth is set directly — it is deterministic).
- * Runs several fast comp-only builds; expect a few minutes.
+ * Runs several fast comp-only builds (a few minutes); enqueued as a
+ * background job and polled to completion (issue #380).
  */
 export async function optimizeCalibration(
   request: AutoCalibrationRequest
@@ -2221,5 +2271,10 @@ export async function optimizeCalibration(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request),
   });
-  return handleResponse<AutoCalibrationResponse>(response);
+  const started = await handleResponse<CalibrationStartResponse>(response);
+  const job = await awaitCalibrationJob(started.run_id);
+  if (!job.outcome) {
+    throw new ApiError(500, 'Calibration failed', 'Job completed without an outcome');
+  }
+  return { run_id: job.run_id, outcome: job.outcome };
 }

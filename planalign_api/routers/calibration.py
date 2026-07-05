@@ -1,17 +1,22 @@
 """FastAPI router for Fast Compensation Calibration (Feature 105).
 
-Backs the Studio calibration panel: a single endpoint that triggers a comp-only
-calibration run and returns the per-year results. The heavy build is offloaded
-to a worker thread (sync `def` endpoint) so the event loop stays responsive.
+Backs the Studio calibration panel. Calibration builds take minutes (optimize =
+3-6 builds), so POST endpoints enqueue a background job and return a ``run_id``
+immediately (202); clients poll ``GET /calibration/runs/{run_id}`` for status
+and results (issue #380). Jobs targeting the same explicit database serialize
+on a per-DB lock so concurrent runs queue instead of colliding on the DuckDB
+file lock; default runs each get an isolated timestamped DB and never contend.
 """
 
 from __future__ import annotations
 
 import logging
 import tempfile
+import threading
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import Callable, Dict, List, Literal, Optional
+from uuid import uuid4
 
 import yaml  # type: ignore[import]
 from fastapi import APIRouter, Depends, HTTPException
@@ -43,6 +48,138 @@ def get_storage(settings: APISettings = Depends(get_settings)) -> WorkspaceStora
     return WorkspaceStorage(settings.workspaces_root)
 
 
+# ---------------------------------------------------------------------------
+# Background job registry (issue #380)
+# ---------------------------------------------------------------------------
+
+
+class CalibrationJob(BaseModel):
+    """Status/result record for a background calibration job."""
+
+    run_id: str
+    kind: Literal["run", "optimize"]
+    status: Literal["queued", "running", "completed", "failed"]
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+    # Populated on completion: `results` for kind="run", `outcome` for "optimize".
+    results: Optional[List[PerYearCompensationResult]] = None
+    outcome: Optional[AutoCalibrationResult] = None
+    # Populated on failure; error_status carries the HTTP-equivalent code the
+    # old sync endpoints returned (409 prerequisite guard, 500 unexpected).
+    error: Optional[str] = None
+    error_status: Optional[int] = None
+
+
+_jobs: Dict[str, CalibrationJob] = {}
+_jobs_lock = threading.Lock()
+_MAX_FINISHED_JOBS = 20
+
+# One lock per explicit target DB path: a second calibration against the same
+# DuckDB file queues behind the first instead of failing on the file lock.
+_db_locks: Dict[str, threading.Lock] = {}
+_db_locks_guard = threading.Lock()
+
+
+def _register_job(kind: Literal["run", "optimize"]) -> CalibrationJob:
+    prefix = "cal" if kind == "run" else "autocal"
+    job = CalibrationJob(
+        run_id=f"{prefix}_{uuid4().hex[:12]}",
+        kind=kind,
+        status="queued",
+        created_at=datetime.now(),
+    )
+    with _jobs_lock:
+        _jobs[job.run_id] = job
+        _prune_finished_jobs_locked()
+    return job
+
+
+def _prune_finished_jobs_locked() -> None:
+    """Drop the oldest finished jobs beyond the retention cap (holds _jobs_lock)."""
+    finished = [j for j in _jobs.values() if j.status in ("completed", "failed")]
+    excess = len(finished) - _MAX_FINISHED_JOBS
+    if excess <= 0:
+        return
+    finished.sort(key=lambda j: j.created_at)
+    for job in finished[:excess]:
+        del _jobs[job.run_id]
+
+
+def _update_job(run_id: str, **updates: object) -> None:
+    with _jobs_lock:
+        job = _jobs.get(run_id)
+        if job is None:  # pruned while running — nothing to record
+            return
+        for key, value in updates.items():
+            setattr(job, key, value)
+
+
+def _db_lock_for(database_path: Optional[str]) -> Optional[threading.Lock]:
+    """Per-DB serialization lock; None when the run uses an isolated default DB."""
+    if not database_path:
+        return None
+    key = str(Path(database_path).resolve())
+    with _db_locks_guard:
+        return _db_locks.setdefault(key, threading.Lock())
+
+
+def _execute_job(
+    job: CalibrationJob,
+    build: Callable[[], None],
+    database_path: Optional[str],
+    workspace_config: Optional[Path],
+) -> None:
+    """Worker-thread body: serialize per target DB, run the build, record the outcome."""
+    db_lock = _db_lock_for(database_path)
+    try:
+        if db_lock is not None:
+            db_lock.acquire()
+        _update_job(job.run_id, status="running")
+        build()
+        _update_job(job.run_id, status="completed", completed_at=datetime.now())
+    except ConfigurationError as e:
+        # Missing prerequisite DC tables, or a build failure with a clear cause.
+        _update_job(
+            job.run_id,
+            status="failed",
+            error=str(e),
+            error_status=409,
+            completed_at=datetime.now(),
+        )
+    except Exception as e:
+        logger.exception("Calibration job %s failed", job.run_id)
+        _update_job(
+            job.run_id,
+            status="failed",
+            error=str(e),
+            error_status=500,
+            completed_at=datetime.now(),
+        )
+    finally:
+        if db_lock is not None:
+            db_lock.release()
+        _remove_temp_config(workspace_config)
+
+
+def _start_job_thread(
+    job: CalibrationJob,
+    build: Callable[[], None],
+    database_path: Optional[str],
+    workspace_config: Optional[Path],
+) -> None:
+    threading.Thread(
+        target=_execute_job,
+        args=(job, build, database_path, workspace_config),
+        name=f"calibration-{job.run_id}",
+        daemon=True,
+    ).start()
+
+
+# ---------------------------------------------------------------------------
+# Request/response models
+# ---------------------------------------------------------------------------
+
+
 class CalibrationRunRequest(BaseModel):
     """Request body for POST /api/calibration/run (contracts/api-calibration.md)."""
 
@@ -57,11 +194,34 @@ class CalibrationRunRequest(BaseModel):
     params: CalibrationParameterSet = Field(default_factory=CalibrationParameterSet)
 
 
-class CalibrationRunResponse(BaseModel):
-    """Per-year calibration results for the requested range."""
+class CalibrationStartResponse(BaseModel):
+    """Acknowledgement that a calibration job was enqueued."""
 
     run_id: str
-    results: List[PerYearCompensationResult]
+    status: Literal["queued"]
+
+
+class AutoCalibrationRequest(BaseModel):
+    """Request body for POST /api/calibration/optimize.
+
+    Set the two targets; the optimizer sets workforce growth directly (it is
+    deterministic via E077) and searches COLA/merit until the mean YoY avg-comp
+    growth is within tolerance of the comp target.
+    """
+
+    start_year: int = Field(..., ge=2000)
+    end_year: int = Field(..., ge=2000)
+    config_path: Optional[str] = None
+    database_path: Optional[str] = None
+    workspace_id: Optional[str] = None
+    settings: AutoCalibrationSettings
+    # Non-searched levers (age distribution, comp ranges) applied to every run.
+    params: CalibrationParameterSet = Field(default_factory=CalibrationParameterSet)
+
+
+# ---------------------------------------------------------------------------
+# Config materialization helpers
+# ---------------------------------------------------------------------------
 
 
 def _workspace_config_path(
@@ -108,23 +268,41 @@ def _remove_temp_config(path: Optional[Path]) -> None:
         logger.warning("Could not remove temp calibration config %s: %s", path, e)
 
 
-@router.post("/calibration/run", response_model=CalibrationRunResponse)
+def _resolve_config_path(
+    config_path: Optional[str],
+    workspace_id: Optional[str],
+    storage: WorkspaceStorage,
+) -> "tuple[Optional[Path], Optional[Path]]":
+    """Return (config_path, workspace_temp_config) for a calibration request."""
+    if config_path:
+        return Path(config_path), None
+    if workspace_id:
+        workspace_config = _workspace_config_path(workspace_id, storage)
+        return workspace_config, workspace_config
+    return None, None
+
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/calibration/run", response_model=CalibrationStartResponse, status_code=202
+)
 def run_calibration(
     request: CalibrationRunRequest,
     storage: WorkspaceStorage = Depends(get_storage),
-) -> CalibrationRunResponse:
-    """Trigger a comp-only calibration run and return per-year results.
+) -> CalibrationStartResponse:
+    """Enqueue a comp-only calibration run; poll /calibration/runs/{run_id}.
 
-    Maps the prerequisite-guard failure to 409; pydantic validation errors are
-    surfaced by FastAPI as 422 automatically.
+    Request validation still fails fast (404 unknown workspace, 422 bad
+    range/params); build-time failures surface on the job record instead
+    (409 prerequisite guard, 500 unexpected).
     """
-    config_path: Optional[Path] = (
-        Path(request.config_path) if request.config_path else None
+    config_path, workspace_config = _resolve_config_path(
+        request.config_path, request.workspace_id, storage
     )
-    workspace_config: Optional[Path] = None
-    if config_path is None and request.workspace_id:
-        workspace_config = _workspace_config_path(request.workspace_id, storage)
-        config_path = workspace_config
 
     try:
         run = CalibrationRun(
@@ -140,52 +318,26 @@ def run_calibration(
         _remove_temp_config(workspace_config)
         raise HTTPException(status_code=422, detail=str(e))
 
-    try:
+    job = _register_job("run")
+
+    def _build() -> None:
         results = CalibrationRunner(run, threads=1).run_calibration()
-    except ConfigurationError as e:
-        # Missing prerequisite DC tables, or a build failure with a clear cause.
-        raise HTTPException(status_code=409, detail=str(e))
-    except Exception as e:  # pragma: no cover - unexpected runtime failure
-        logger.exception("Calibration run failed")
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        _remove_temp_config(workspace_config)
+        _update_job(job.run_id, results=results)
 
-    run_id = f"cal_{datetime.now().strftime('%Y-%m-%dT%H-%M-%S')}"
-    return CalibrationRunResponse(run_id=run_id, results=results)
+    _start_job_thread(job, _build, request.database_path, workspace_config)
+    return CalibrationStartResponse(run_id=job.run_id, status="queued")
 
 
-class AutoCalibrationRequest(BaseModel):
-    """Request body for POST /api/calibration/optimize.
-
-    Set the two targets; the optimizer sets workforce growth directly (it is
-    deterministic via E077) and searches COLA/merit until the mean YoY avg-comp
-    growth is within tolerance of the comp target.
-    """
-
-    start_year: int = Field(..., ge=2000)
-    end_year: int = Field(..., ge=2000)
-    config_path: Optional[str] = None
-    database_path: Optional[str] = None
-    workspace_id: Optional[str] = None
-    settings: AutoCalibrationSettings
-    # Non-searched levers (age distribution, comp ranges) applied to every run.
-    params: CalibrationParameterSet = Field(default_factory=CalibrationParameterSet)
-
-
-class AutoCalibrationResponse(BaseModel):
-    run_id: str
-    outcome: AutoCalibrationResult
-
-
-@router.post("/calibration/optimize", response_model=AutoCalibrationResponse)
+@router.post(
+    "/calibration/optimize", response_model=CalibrationStartResponse, status_code=202
+)
 def optimize_calibration(
     request: AutoCalibrationRequest,
     storage: WorkspaceStorage = Depends(get_storage),
-) -> AutoCalibrationResponse:
-    """Search for the COLA/merit that hit the target avg-comp growth.
+) -> CalibrationStartResponse:
+    """Enqueue an auto-calibration search; poll /calibration/runs/{run_id}.
 
-    Runs several fast comp-only calibration builds (typically 3-6); expect a
+    The search runs several fast comp-only builds (typically 3-6); expect a
     few minutes for a multi-year range.
     """
     if request.end_year <= request.start_year:
@@ -195,13 +347,9 @@ def optimize_calibration(
             "measure year-over-year growth",
         )
 
-    config_path: Optional[Path] = (
-        Path(request.config_path) if request.config_path else None
+    config_path, workspace_config = _resolve_config_path(
+        request.config_path, request.workspace_id, storage
     )
-    workspace_config: Optional[Path] = None
-    if config_path is None and request.workspace_id:
-        workspace_config = _workspace_config_path(request.workspace_id, storage)
-        config_path = workspace_config
 
     try:
         run = CalibrationRun(
@@ -213,23 +361,27 @@ def optimize_calibration(
             ),
             params=request.params,
         )
-        optimizer = AutoCalibrator(run, request.settings, threads=1)
     except ValueError as e:
         _remove_temp_config(workspace_config)
         raise HTTPException(status_code=422, detail=str(e))
-    except ConfigurationError as e:
-        _remove_temp_config(workspace_config)
-        raise HTTPException(status_code=409, detail=str(e))
 
-    try:
-        outcome = optimizer.optimize()
-    except ConfigurationError as e:
-        raise HTTPException(status_code=409, detail=str(e))
-    except Exception as e:  # pragma: no cover - unexpected runtime failure
-        logger.exception("Auto-calibration failed")
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        _remove_temp_config(workspace_config)
+    job = _register_job("optimize")
 
-    run_id = f"autocal_{datetime.now().strftime('%Y-%m-%dT%H-%M-%S')}"
-    return AutoCalibrationResponse(run_id=run_id, outcome=outcome)
+    def _build() -> None:
+        outcome = AutoCalibrator(run, request.settings, threads=1).optimize()
+        _update_job(job.run_id, outcome=outcome)
+
+    _start_job_thread(job, _build, request.database_path, workspace_config)
+    return CalibrationStartResponse(run_id=job.run_id, status="queued")
+
+
+@router.get("/calibration/runs/{run_id}", response_model=CalibrationJob)
+def get_calibration_run(run_id: str) -> CalibrationJob:
+    """Poll a calibration job: status, then results/outcome or error."""
+    with _jobs_lock:
+        job = _jobs.get(run_id)
+        if job is None:
+            raise HTTPException(
+                status_code=404, detail=f"Calibration run {run_id} not found"
+            )
+        return job.model_copy(deep=True)
