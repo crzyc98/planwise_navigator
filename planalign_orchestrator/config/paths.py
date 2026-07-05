@@ -8,7 +8,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from config.constants import DATABASE_FILENAME
+from planalign_core.constants import DATABASE_FILENAME
 
 
 def get_project_root() -> Path:

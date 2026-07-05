@@ -18,7 +18,7 @@ from ..ui.progress import (
     show_error_message,
 )
 from ..utils.config_helpers import find_default_config, find_scenarios_directory
-from config.constants import DATABASE_FILENAME, STATUS_COMPLETED, STATUS_FAILED
+from planalign_core.constants import DATABASE_FILENAME, STATUS_COMPLETED, STATUS_FAILED
 
 console = Console()
 batch_command = typer.Typer()
@@ -71,7 +71,7 @@ def run_batch(
         scenarios_path = (
             Path(scenarios_dir) if scenarios_dir else find_scenarios_directory()
         )
-        output_path = Path(output_dir) if output_dir else Path("outputs")
+        output_path = Path(output_dir) if output_dir else Path("var/outputs")
 
         if not scenarios_path.exists():
             show_error_message(f"Scenarios directory not found: {scenarios_path}")

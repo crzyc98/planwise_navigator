@@ -98,7 +98,7 @@ Fidelity PlanAlign Engine implements enterprise-grade event sourcing with immuta
 **Event Creation Pattern (Pydantic v2)**:
 
 ```python
-from config.events import WorkforceEventFactory, DCPlanEventFactory
+from planalign_core.events import WorkforceEventFactory, DCPlanEventFactory
 from decimal import Decimal
 from datetime import date
 
@@ -194,9 +194,11 @@ planalign_engine/
 │  │  └─ marts/                     # Final outputs (fct_*, dim_*) - 27 models
 │  ├─ seeds/                        # Configuration data (CSV)
 │  └─ macros/                       # Reusable SQL functions
-├─ config/                           # Configuration management
-│  ├─ simulation_config.yaml        # Simulation parameters
-│  └─ events.py                     # Unified event model (Pydantic v2, 971 lines)
+├─ planalign_core/                   # Shared domain package (events, schema, constants)
+│  └─ events/                       # Unified event model (Pydantic v2)
+├─ config/                           # Configuration files only (YAML)
+│  └─ simulation_config.yaml        # Simulation parameters
+├─ var/                              # Runtime outputs (git-ignored): artifacts, reports, logs, outputs, backups
 ├─ tests/                            # Comprehensive testing (256 tests)
 │  ├─ fixtures/                     # Centralized fixture library (E075)
 │  │  ├─ database.py               # In-memory, populated, isolated databases
@@ -720,7 +722,7 @@ Project is feature-complete for MVP. All simulations use dbt/SQL-only path (Pola
 
 ## **13. Versioning**
 
-Current version: **1.0.0** ("Foundation") — managed in `_version.py` and `pyproject.toml`. See `/docs/VERSIONING_GUIDE.md` for the full update process and `/CHANGELOG.md` for history.
+Current version: **2.1.0** ("Studio & Compliance") — managed in `_version.py` and `pyproject.toml`. See `/docs/VERSIONING_GUIDE.md` for the full update process and `/CHANGELOG.md` for history.
 
 ## Active Technologies
 - Python 3.11 (orchestrator/config/API), SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1, TypeScript/React (Studio UI) + Pydantic v2 (config validation), DuckDB 1.0.0 (storage/engine), FastAPI (workspace config API), React/Vite + Tailwind (Studio) (099-tenure-graded-match)

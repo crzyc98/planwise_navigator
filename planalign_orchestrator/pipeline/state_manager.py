@@ -13,7 +13,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-from config.constants import (  # noqa: E402
+from planalign_core.constants import (  # noqa: E402
     MODEL_FCT_WORKFORCE_SNAPSHOT,
     TABLE_FCT_WORKFORCE_SNAPSHOT,
     TABLE_FCT_YEARLY_EVENTS,

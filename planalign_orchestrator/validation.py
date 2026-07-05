@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from config.constants import (
+from planalign_core.constants import (
     COL_EVENT_TYPE,
     COL_SIMULATION_YEAR,
     TABLE_FCT_YEARLY_EVENTS,

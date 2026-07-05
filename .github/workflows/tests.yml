@@ -39,7 +39,7 @@ jobs:
 
       - name: Lint with ruff
         run: |
-          ruff check planalign_orchestrator/ planalign_cli/ config/
+          ruff check planalign_orchestrator/ planalign_cli/ planalign_core/
 
       - name: Run fast tests
         run: |

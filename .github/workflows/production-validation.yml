@@ -100,7 +100,7 @@ jobs:
           ./run_production_tests.sh ${{ matrix.test-category }} true
 
       - name: Upload test results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: test-results-${{ matrix.test-category }}-${{ matrix.python-version }}
@@ -188,7 +188,7 @@ jobs:
           ./run_production_tests.sh performance true
 
       - name: Upload performance results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: performance-test-results
@@ -226,7 +226,7 @@ jobs:
           ./validate_production.sh
 
       - name: Upload validation report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: full-validation-report
@@ -302,7 +302,7 @@ jobs:
           bandit -r planalign_orchestrator/ -f json -o bandit-report.json || true
 
       - name: Upload security reports
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: security-reports

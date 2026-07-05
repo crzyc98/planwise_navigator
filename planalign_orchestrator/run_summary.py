@@ -7,12 +7,13 @@ and audit trail generation for production observability.
 
 import json
 import logging
+import shutil
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from config.constants import (
+from planalign_core.constants import (
     KEY_ERRORS,
     KEY_WARNINGS,
     STATUS_RUNNING,
@@ -335,11 +336,29 @@ class RunSummaryGenerator:
 
         return summary
 
+    #: Maximum number of per-run artifact directories retained on disk.
+    ARTIFACT_RUNS_RETAINED = 50
+
+    def _prune_old_run_artifacts(self, runs_root: Path) -> None:
+        """Keep only the newest ARTIFACT_RUNS_RETAINED run directories."""
+        try:
+            run_dirs = sorted(
+                (d for d in runs_root.iterdir() if d.is_dir()),
+                key=lambda d: d.stat().st_mtime,
+                reverse=True,
+            )
+            for stale_dir in run_dirs[self.ARTIFACT_RUNS_RETAINED :]:
+                shutil.rmtree(stale_dir, ignore_errors=True)
+        except OSError as e:
+            self.prod_logger.warning("Could not prune old run artifacts", error=str(e))
+
     def _save_summary_artifacts(self, summary: Dict[str, Any]) -> None:
         """Save summary artifacts to disk"""
         # Create run-specific artifact directory
-        artifacts_dir = Path(f"artifacts/runs/{self.run_id}")
+        runs_root = Path("var/artifacts/runs")
+        artifacts_dir = runs_root / self.run_id
         artifacts_dir.mkdir(parents=True, exist_ok=True)
+        self._prune_old_run_artifacts(runs_root)
 
         # Save complete summary as JSON
         with open(artifacts_dir / "summary.json", "w") as f:

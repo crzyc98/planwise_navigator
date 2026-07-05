@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 
 import yaml  # type: ignore[import]  # types-PyYAML not in CI deps
 
-from config.constants import DATABASE_FILENAME, STATUS_RUNNING
+from planalign_core.constants import DATABASE_FILENAME, STATUS_RUNNING
 
 from ..config import get_settings
 from ..models.workspace import (

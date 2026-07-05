@@ -19,7 +19,7 @@ from _version import __version__, get_version_dict
 from ..integration.orchestrator_wrapper import OrchestratorWrapper
 from ..ui.progress import create_status_spinner
 from ..utils.config_helpers import find_default_config
-from config.constants import DATABASE_FILENAME
+from planalign_core.constants import DATABASE_FILENAME
 
 console = Console()
 status_command = typer.Typer()

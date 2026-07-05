@@ -523,7 +523,7 @@ def _export_workforce_analysis(
 
         # Create output directory
         output_dir = (
-            Path("outputs")
+            Path("var/outputs")
             / f"workforce_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         )
         output_dir.mkdir(parents=True, exist_ok=True)

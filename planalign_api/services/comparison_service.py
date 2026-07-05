@@ -12,7 +12,7 @@ from ..models.comparison import (
     WorkforceComparisonYear,
     WorkforceMetrics,
 )
-from config.constants import (
+from planalign_core.constants import (
     EVENT_TYPE_HIRE,
     EVENT_TYPE_PROMOTION,
     EVENT_TYPE_RAISE,

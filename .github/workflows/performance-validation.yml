@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [ main, develop ]
     paths:
-      - 'config/events.py'
+      - 'planalign_core/events/**'
       - 'tests/performance/**'
       - 'tests/validation/**'
       - 'dbt/models/**'
@@ -51,16 +51,16 @@ jobs:
     - name: Validate event schema structure
       run: |
         python -c "
-        from config.events import SimulationEvent, EventFactory
-        from config.events import EligibilityEventFactory, EnrollmentEventFactory
-        from config.events import ContributionEventFactory, VestingEventFactory
-        from config.events import PlanAdministrationEventFactory
+        from planalign_core.events import SimulationEvent, EventFactory
+        from planalign_core.events import EligibilityEventFactory, EnrollmentEventFactory
+        from planalign_core.events import ContributionEventFactory, VestingEventFactory
+        from planalign_core.events import PlanAdministrationEventFactory
         print('✅ All event schema imports successful')
 
         # Test discriminated union validation
-        from config.events import HirePayload, PromotionPayload, TerminationPayload, MeritPayload
-        from config.events import EligibilityPayload, EnrollmentPayload, ContributionPayload, VestingPayload
-        from config.events import ForfeiturePayload, HCEStatusPayload, ComplianceEventPayload
+        from planalign_core.events import HirePayload, PromotionPayload, TerminationPayload, MeritPayload
+        from planalign_core.events import EligibilityPayload, EnrollmentPayload, ContributionPayload, VestingPayload
+        from planalign_core.events import ForfeiturePayload, HCEStatusPayload, ComplianceEventPayload
         print('✅ All 11 payload types importable')
 
         # Verify Pydantic v2 features
@@ -82,7 +82,7 @@ jobs:
         python -c "
         import json
         from datetime import datetime
-        from config.events import *
+        from planalign_core.events import *
 
         # Collect schema metadata
         payload_types = [
@@ -106,7 +106,7 @@ jobs:
         "
 
     - name: Upload schema validation artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: schema-validation-report
@@ -154,7 +154,7 @@ jobs:
         echo "Performance benchmark execution completed"
 
     - name: Upload performance artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: performance-benchmark-results
@@ -202,7 +202,7 @@ jobs:
         echo "Golden dataset validation completed"
 
     - name: Upload golden dataset artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: golden-dataset-validation-results
@@ -284,7 +284,7 @@ jobs:
 
     steps:
     - name: Download all artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
 
     - name: Evaluate quality gate criteria
       run: |
@@ -366,7 +366,7 @@ jobs:
         EOF
 
     - name: Upload final quality report
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: final-quality-report
         path: final_quality_report.md

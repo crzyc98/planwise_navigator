@@ -97,13 +97,13 @@ packages = [
     "planalign_api.services",
     "planalign_api.storage",
     "planalign_api.websocket",
-    "config",
+    "planalign_core",
+    "planalign_core.events",
 ]
 py-modules = ["_version"]
 
 [tool.setuptools.package-data]
 planalign_orchestrator = ["py.typed"]
-config = ["*.yaml", "*.yml"]
 
 [tool.pytest.ini_options]
 # Exclude third-party packages and non-test directories
@@ -172,7 +172,7 @@ markers = [
 
 # Coverage options (when using pytest-cov)
 [tool.coverage.run]
-source = ["planalign_orchestrator", "planalign_cli", "planalign_api", "config"]
+source = ["planalign_orchestrator", "planalign_cli", "planalign_api", "planalign_core"]
 omit = [
     "*/tests/*",
     "*/venv/*",
@@ -197,7 +197,7 @@ exclude_lines = [
 output = "coverage.xml"
 
 [tool.mypy]
-# The CI lint job runs `mypy planalign_orchestrator/ planalign_cli/ config/
+# The CI lint job runs `mypy planalign_orchestrator/ planalign_cli/ planalign_core/
 # --ignore-missing-imports`; mypy auto-loads this section. The Pydantic v2 plugin
 # teaches mypy about model-synthesized __init__ (field defaults, default_factory),
 # eliminating false-positive [call-arg] "Missing named argument" errors on valid

@@ -18,7 +18,7 @@ from typing import Literal, Optional, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict
 
-from config.constants import DATABASE_FILENAME as _DEFAULT_DATABASE_FILENAME
+from planalign_core.constants import DATABASE_FILENAME as _DEFAULT_DATABASE_FILENAME
 
 logger = logging.getLogger(__name__)
 

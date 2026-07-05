@@ -12,7 +12,7 @@ from planalign_orchestrator.generators.base import (
     EventContext,
 )
 from planalign_orchestrator.generators.registry import EventRegistry
-from config.constants import EVENT_ELIGIBILITY
+from planalign_core.constants import EVENT_ELIGIBILITY
 
 
 @pytest.fixture(autouse=True)

@@ -4,7 +4,7 @@ This module tests that configs survive the complete serialization cycle:
 creation → serialization → archiving → deserialization
 """
 
-from config.schema import SimulationConfig
+from planalign_core.schema import SimulationConfig
 
 
 class TestConfigSerializationRoundtrip:

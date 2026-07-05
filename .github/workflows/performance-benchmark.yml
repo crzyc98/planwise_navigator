@@ -229,7 +229,7 @@ jobs:
         fi
 
     - name: Upload benchmark artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: benchmark-results-${{ github.run_number }}
@@ -381,7 +381,7 @@ jobs:
         ./scripts/benchmark_automation.sh stress-test --runs 5 --verbose
 
     - name: Upload stress test results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: stress-test-results-${{ github.run_number }}

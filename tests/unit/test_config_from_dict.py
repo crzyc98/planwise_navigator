@@ -6,7 +6,7 @@ unknown keys (from scenario overrides) and missing optional fields.
 
 import pytest
 from pydantic import ValidationError
-from config.schema import SimulationConfig
+from planalign_core.schema import SimulationConfig
 
 
 class TestFromDictRobustness:

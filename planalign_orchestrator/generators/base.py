@@ -21,10 +21,10 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from config.constants import COL_EMPLOYEE_ID, COL_AGE_BAND, COL_TENURE_BAND
+from planalign_core.constants import COL_EMPLOYEE_ID, COL_AGE_BAND, COL_TENURE_BAND
 
 if TYPE_CHECKING:
-    from config.events import SimulationEvent
+    from planalign_core.events import SimulationEvent
     from planalign_orchestrator.config import SimulationConfig
     from planalign_orchestrator.dbt_runner import DbtRunner
     from planalign_orchestrator.utils import DatabaseConnectionManager

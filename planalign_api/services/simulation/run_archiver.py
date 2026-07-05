@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional
 
 import yaml  # type: ignore[import]  # types-PyYAML not in CI deps
 
-from config.constants import DATABASE_FILENAME, STATUS_COMPLETED
+from planalign_core.constants import DATABASE_FILENAME, STATUS_COMPLETED
 
 from ...constants import DEFAULT_MAX_RUNS_PER_SCENARIO
 from ...storage.workspace_storage import WorkspaceStorage
