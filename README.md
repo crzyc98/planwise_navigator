@@ -832,7 +832,7 @@ pip install -r requirements.txt
 ## Further Reading
 
 - `CHANGELOG.md` - Version history and release notes
-- `docs/EPIC_STATUS_SUMMARY.md` - Epic status and roadmap
+- `docs/README.md` - Documentation index (overview, architecture, data model, development)
 - `tests/TEST_INFRASTRUCTURE.md` - Testing guide
 - `tests/QUICK_START.md` - Testing quick reference
 - `CLAUDE.md` - Claude Code generation playbook

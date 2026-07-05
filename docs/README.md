@@ -1,23 +1,16 @@
-# Fidelity PlanAlign Engine Documentation
+# Fidelity PlanAlign Engine — Documentation
 
-Minimal documentation set. Historical epic/story/session documents were removed in the
-2026-07 docs cleanup (issue #392) — they remain available in git history.
+Documentation for the PlanAlign workforce-simulation platform, rewritten from the
+current codebase in July 2026 (v2.1.0). Older generated/session docs were removed;
+they remain in git history.
 
-## Structure
+| Document | What it covers |
+|----------|----------------|
+| [overview.md](overview.md) | What the platform does, for whom, and the technology stack |
+| [architecture.md](architecture.md) | Packages, pipeline stages, event sourcing, dbt layers |
+| [data-model.md](data-model.md) | Event types, payloads, and the key DuckDB tables |
+| [development.md](development.md) | Setup, testing, dbt workflow, and validation rules |
+| [VERSIONING_GUIDE.md](VERSIONING_GUIDE.md) | Release/version bump process |
+| [PATENTABILITY.md](PATENTABILITY.md) | IP/patentability analysis (Feb 2026) |
 
-| Location | Contents |
-|----------|----------|
-| [architecture/](architecture/) | System architecture, dbt/DuckDB patterns, technical design |
-| [guides/](guides/) | How-to guides (compensation tuning, troubleshooting, deployment, migration) |
-| [reference/](reference/) | Codebase reference and file tree |
-| [deployment/](deployment/) | Deployment guides |
-
-## Key documents
-
-- [BUSINESS_OVERVIEW.md](BUSINESS_OVERVIEW.md) — what the platform does and for whom
-- [TECHNOLOGY_OVERVIEW.md](TECHNOLOGY_OVERVIEW.md) — stack and architecture summary
-- [DATA_MODEL.md](DATA_MODEL.md) — event-sourced data model
-- [VERSIONING_GUIDE.md](VERSIONING_GUIDE.md) — release/version update process
-- [EPIC_STATUS_SUMMARY.md](EPIC_STATUS_SUMMARY.md) — historical epic status snapshot
-
-For day-to-day development guidance, see the repo-root [CLAUDE.md](../CLAUDE.md).
+Day-to-day agent/developer guidance lives in the repo-root [CLAUDE.md](../CLAUDE.md).
