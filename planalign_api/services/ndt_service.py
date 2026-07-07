@@ -397,49 +397,91 @@ class NDTService:
                 prior_year_count_row is not None and prior_year_count_row[0] > 0
             )
 
-            # Main ACP query with HCE determination
+            after_tax_expression = "0.0"
+            after_tax_columns = (
+                "employee_after_tax_contributions",
+                "employee_after_tax_contribution",
+                "after_tax_contributions",
+                "after_tax_contribution",
+            )
+            for column_name in after_tax_columns:
+                has_column = conn.execute(
+                    """
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_schema = 'main'
+                      AND table_name = 'fct_workforce_snapshot'
+                      AND column_name = ?
+                    LIMIT 1
+                    """,
+                    [column_name],
+                ).fetchone()
+                if has_column:
+                    after_tax_expression = f"COALESCE(s.{column_name}, 0)"
+                    break
+
+            # Main ACP query with HCE determination. prorated_annual_compensation
+            # is the project's uncapped 414(s) testing compensation proxy; cap it
+            # at query time for ACP. After-tax defaults explicitly to zero until
+            # that contribution type is propagated to fct_workforce_snapshot.
             query = """
             WITH prior_year AS (
                 SELECT employee_id, current_compensation AS prior_year_comp
                 FROM fct_workforce_snapshot
                 WHERE simulation_year = ?
             ),
+            irs_limits AS (
+                SELECT compensation_limit
+                FROM config_irs_limits
+                WHERE limit_year = ?
+            ),
             current_year AS (
                 SELECT
                     s.employee_id,
                     s.current_eligibility_status,
                     s.is_enrolled_flag,
-                    s.employer_match_amount,
-                    s.prorated_annual_compensation,
+                    COALESCE(s.employer_match_amount, 0) AS employer_match_amount,
+                    {after_tax_expression} AS employee_after_tax_contributions,
+                    CASE WHEN s.prorated_annual_compensation IS NULL
+                         THEN NULL
+                         ELSE LEAST(
+                             s.prorated_annual_compensation,
+                             il.compensation_limit
+                         ) END AS testing_comp_414s_capped,
                     COALESCE(p.prior_year_comp, s.current_compensation) AS prior_year_comp,
                     CASE WHEN COALESCE(p.prior_year_comp, s.current_compensation) > ?
                          THEN TRUE ELSE FALSE END AS is_hce
                 FROM fct_workforce_snapshot s
                 LEFT JOIN prior_year p ON s.employee_id = p.employee_id
+                CROSS JOIN irs_limits il
                 WHERE s.simulation_year = ?
                   AND (s.current_eligibility_status = 'eligible' OR s.current_eligibility_status IS NULL)
-                  AND s.prorated_annual_compensation > 0
             ),
             per_employee AS (
                 SELECT *,
-                    COALESCE(employer_match_amount, 0) / prorated_annual_compensation AS individual_acp
+                    CASE WHEN testing_comp_414s_capped > 0
+                         THEN (employer_match_amount + employee_after_tax_contributions)
+                              / testing_comp_414s_capped
+                         ELSE 0 END AS individual_acp
                 FROM current_year
             )
             SELECT
                 employee_id,
                 is_hce,
                 is_enrolled_flag,
-                COALESCE(employer_match_amount, 0) AS employer_match_amount,
-                prorated_annual_compensation AS eligible_compensation,
+                employer_match_amount,
+                testing_comp_414s_capped AS eligible_compensation,
                 individual_acp,
                 prior_year_comp
             FROM per_employee
             ORDER BY is_hce DESC, individual_acp DESC
-            """
+            """.format(
+                after_tax_expression=after_tax_expression
+            )
 
             prior_year_param = year - 1 if prior_year_exists else year
             rows = conn.execute(
-                query, [prior_year_param, hce_threshold, year]
+                query, [prior_year_param, year, hce_threshold, year]
             ).fetchall()
             conn.close()
 
@@ -457,9 +499,14 @@ class NDTService:
             nhce_acps = []
             employees = []
             eligible_not_enrolled = 0
+            excluded_count = 0
 
             for row in rows:
                 emp_id, is_hce, is_enrolled, match_amt, comp, acp, prior_comp = row
+                if comp is None or comp <= 0:
+                    excluded_count += 1
+                    continue
+
                 if is_hce:
                     hce_acps.append(acp)
                 else:
@@ -522,7 +569,7 @@ class NDTService:
                 nhce_acps=nhce_acps,
                 hce_threshold=hce_threshold,
                 eligible_not_enrolled=eligible_not_enrolled,
-                excluded_count=0,
+                excluded_count=excluded_count,
                 employees=employees if include_employees else None,
             )
 
@@ -654,18 +701,29 @@ class NDTService:
 
             prior_year_param = year - 1 if prior_year_exists else year
 
-            # Main query for 401(a)(4) test
+            # Main query for 401(a)(4) test. prorated_annual_compensation is the
+            # uncapped 414(s) testing compensation proxy; cap it at query time.
             query = """
             WITH prior_year AS (
                 SELECT employee_id, current_compensation AS prior_year_comp
                 FROM fct_workforce_snapshot
                 WHERE simulation_year = ?
             ),
+            irs_limits AS (
+                SELECT compensation_limit
+                FROM config_irs_limits
+                WHERE limit_year = ?
+            ),
             current_year AS (
                 SELECT
                     s.employee_id,
                     s.current_eligibility_status,
-                    s.prorated_annual_compensation,
+                    CASE WHEN s.prorated_annual_compensation IS NULL
+                         THEN NULL
+                         ELSE LEAST(
+                             s.prorated_annual_compensation,
+                             il.compensation_limit
+                         ) END AS testing_comp_414s_capped,
                     COALESCE(s.employer_core_amount, 0) AS employer_core_amount,
                     COALESCE(s.employer_match_amount, 0) AS employer_match_amount,
                     s.current_tenure,
@@ -674,6 +732,7 @@ class NDTService:
                          THEN TRUE ELSE FALSE END AS is_hce
                 FROM fct_workforce_snapshot s
                 LEFT JOIN prior_year p ON s.employee_id = p.employee_id
+                CROSS JOIN irs_limits il
                 WHERE s.simulation_year = ?
                   AND (s.current_eligibility_status = 'eligible' OR s.current_eligibility_status IS NULL)
             )
@@ -682,7 +741,7 @@ class NDTService:
                 is_hce,
                 employer_core_amount,
                 employer_match_amount,
-                prorated_annual_compensation,
+                testing_comp_414s_capped,
                 current_tenure
             FROM current_year
             WHERE (employer_core_amount > 0 OR employer_match_amount > 0)
@@ -690,7 +749,7 @@ class NDTService:
             """
 
             rows = conn.execute(
-                query, [prior_year_param, hce_threshold, year]
+                query, [prior_year_param, year, hce_threshold, year]
             ).fetchall()
             conn.close()
 
@@ -1167,22 +1226,36 @@ class NDTService:
                         FROM fct_workforce_snapshot
                         WHERE simulation_year = ?
                     ),
+                    irs_limits AS (
+                        SELECT compensation_limit, base_limit
+                        FROM config_irs_limits
+                        WHERE limit_year = ?
+                    ),
                     prior_data AS (
                         SELECT
                             s.employee_id,
-                            COALESCE(s.prorated_annual_contributions, 0) AS deferrals,
-                            s.prorated_annual_compensation AS comp,
+                            LEAST(
+                                COALESCE(s.prorated_annual_contributions, 0),
+                                il.base_limit
+                            ) AS deferrals,
+                            CASE WHEN s.prorated_annual_compensation IS NULL
+                                 THEN NULL
+                                 ELSE LEAST(
+                                     s.prorated_annual_compensation,
+                                     il.compensation_limit
+                                 ) END AS comp,
                             CASE WHEN COALESCE(h.comp, s.current_compensation) > ?
                                  THEN TRUE ELSE FALSE END AS is_hce
                         FROM fct_workforce_snapshot s
                         LEFT JOIN prior_hce h ON s.employee_id = h.employee_id
+                        CROSS JOIN irs_limits il
                         WHERE s.simulation_year = ?
                           AND (s.current_eligibility_status = 'eligible' OR s.current_eligibility_status IS NULL)
-                          AND s.prorated_annual_compensation > 0
                     )
                     SELECT deferrals / comp AS adp
                     FROM prior_data
                     WHERE is_hce = FALSE
+                      AND comp > 0
                     """
                     # For prior year NHCE baseline, use year-2 for HCE determination of year-1
                     year_minus_2_count_row = conn.execute(
@@ -1196,7 +1269,8 @@ class NDTService:
                     prior_hce_year = year - 2 if year_minus_2_exists else year - 1
 
                     prior_nhce_rows = conn.execute(
-                        prior_nhce_query, [prior_hce_year, hce_threshold, year - 1]
+                        prior_nhce_query,
+                        [prior_hce_year, year - 1, hce_threshold, year - 1],
                     ).fetchall()
 
                     if prior_nhce_rows:
@@ -1208,39 +1282,55 @@ class NDTService:
                 else:
                     actual_testing_method = "current"
 
-            # Main ADP query with HCE determination
+            # Main ADP query with HCE determination. ADP uses capped 414(s)
+            # testing compensation as denominator and 402(g) base-limit-capped
+            # deferrals as numerator, excluding catch-up.
             query = """
             WITH prior_year AS (
                 SELECT employee_id, current_compensation AS prior_year_comp
                 FROM fct_workforce_snapshot
                 WHERE simulation_year = ?
             ),
+            irs_limits AS (
+                SELECT compensation_limit, base_limit
+                FROM config_irs_limits
+                WHERE limit_year = ?
+            ),
             current_year AS (
                 SELECT
                     s.employee_id,
                     s.current_eligibility_status,
-                    COALESCE(s.prorated_annual_contributions, 0) AS deferrals,
-                    s.prorated_annual_compensation,
+                    LEAST(
+                        COALESCE(s.prorated_annual_contributions, 0),
+                        il.base_limit
+                    ) AS adp_base_deferrals,
+                    CASE WHEN s.prorated_annual_compensation IS NULL
+                         THEN NULL
+                         ELSE LEAST(
+                             s.prorated_annual_compensation,
+                             il.compensation_limit
+                         ) END AS testing_comp_414s_capped,
                     COALESCE(p.prior_year_comp, s.current_compensation) AS prior_year_comp,
                     CASE WHEN COALESCE(p.prior_year_comp, s.current_compensation) > ?
                          THEN TRUE ELSE FALSE END AS is_hce
                 FROM fct_workforce_snapshot s
                 LEFT JOIN prior_year p ON s.employee_id = p.employee_id
+                CROSS JOIN irs_limits il
                 WHERE s.simulation_year = ?
                   AND (s.current_eligibility_status = 'eligible' OR s.current_eligibility_status IS NULL)
             ),
             per_employee AS (
                 SELECT *,
-                    CASE WHEN prorated_annual_compensation > 0
-                         THEN deferrals / prorated_annual_compensation
+                    CASE WHEN testing_comp_414s_capped > 0
+                         THEN adp_base_deferrals / testing_comp_414s_capped
                          ELSE 0 END AS individual_adp
                 FROM current_year
             )
             SELECT
                 employee_id,
                 is_hce,
-                deferrals,
-                prorated_annual_compensation,
+                adp_base_deferrals,
+                testing_comp_414s_capped,
                 individual_adp,
                 prior_year_comp
             FROM per_employee
@@ -1249,7 +1339,7 @@ class NDTService:
 
             prior_year_param = year - 1 if prior_year_exists else year
             rows = conn.execute(
-                query, [prior_year_param, hce_threshold, year]
+                query, [prior_year_param, year, hce_threshold, year]
             ).fetchall()
             conn.close()
 

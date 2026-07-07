@@ -4,12 +4,12 @@
 
 ## R1: ADP Calculation Data Source
 
-**Decision**: Use `prorated_annual_contributions` from `fct_workforce_snapshot` as the numerator for individual ADP calculations, and `prorated_annual_compensation` as the denominator.
+**Decision**: Use `prorated_annual_contributions` from `fct_workforce_snapshot` as the numerator source for individual ADP calculations, capped at the 402(g) `base_limit` to exclude catch-up contributions. Use `prorated_annual_compensation` as the uncapped 414(s) testing compensation proxy, capped at `config_irs_limits.compensation_limit` at query time for the denominator.
 
-**Rationale**: The existing ACP test uses `employer_match_amount / prorated_annual_compensation`. ADP mirrors this structure but measures employee elective deferrals instead of employer match. The `prorated_annual_contributions` column already represents employee deferrals (pre-tax + Roth combined) and handles mid-year proration automatically via the simulation engine. This column is also used by the 415 test for employee deferrals.
+**Rationale**: ADP mirrors the NDT suite's 414(s) compensation basis but measures employee elective deferrals instead of employer match. The `prorated_annual_contributions` column represents employee deferrals (pre-tax + Roth combined) and handles mid-year proration automatically via the simulation engine; capping it at `base_limit` excludes catch-up from ADP. Section 415 remains intentionally different: it uses uncapped `current_compensation` for the 100% compensation limit and only caps deferrals at `base_limit` for annual additions.
 
 **Alternatives considered**:
-- `current_compensation` as denominator: Rejected because `prorated_annual_compensation` is the plan compensation that accounts for mid-year entrants and the 401(a)(17) compensation limit, consistent with ACP and 401(a)(4).
+- `current_compensation` as denominator: Rejected because `prorated_annual_compensation` is the 414(s) testing compensation proxy that accounts for mid-year entrants; ADP caps it at the 401(a)(17) compensation limit at query time, consistent with ACP and 401(a)(4).
 - Separate pre-tax and Roth columns: Not available in current schema; combined `prorated_annual_contributions` is sufficient since ADP treats both identically.
 
 ## R2: Two-Prong Test Implementation
