@@ -390,6 +390,86 @@ class TestNECPlusMatchMode:
         assert result.include_match is True
 
 
+class Test401a4CompensationBasis:
+    """401(a)(4) rates use capped 414(s) testing compensation."""
+
+    def test_high_earner_rate_uses_capped_testing_comp(self, service_with_db):
+        service, conn, mock_resolver = service_with_db
+
+        _insert_employee(conn, "HCE1", 2024, 500000.0, 500000.0, 0.0)
+        _insert_employee(
+            conn,
+            "HCE1",
+            2025,
+            500000.0,
+            500000.0,
+            core_amount=35000.0,
+            tenure=10.0,
+        )
+        _insert_employee(conn, "NHCE1", 2024, 100000.0, 100000.0, 0.0)
+        _insert_employee(
+            conn,
+            "NHCE1",
+            2025,
+            100000.0,
+            100000.0,
+            core_amount=6000.0,
+            tenure=5.0,
+        )
+
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
+
+        with patch("duckdb.connect", return_value=conn):
+            result = service.run_401a4_test(
+                "ws1", "sc1", "Test", 2025, include_employees=True
+            )
+
+        hce_emp = next(e for e in result.employees if e.employee_id == "HCE1")
+        assert abs(hce_emp.plan_compensation - 350000.0) < 1.0
+        assert abs(hce_emp.contribution_rate - 0.10) < 0.001
+
+    def test_include_match_still_adds_match_to_nec_numerator(self, service_with_db):
+        service, conn, mock_resolver = service_with_db
+
+        _insert_employee(conn, "HCE1", 2024, 500000.0, 500000.0, 0.0)
+        _insert_employee(
+            conn,
+            "HCE1",
+            2025,
+            500000.0,
+            500000.0,
+            match_amount=10000.0,
+            core_amount=25000.0,
+            tenure=10.0,
+        )
+        _insert_employee(conn, "NHCE1", 2024, 100000.0, 100000.0, 0.0)
+        _insert_employee(
+            conn,
+            "NHCE1",
+            2025,
+            100000.0,
+            100000.0,
+            match_amount=3000.0,
+            core_amount=3000.0,
+            tenure=5.0,
+        )
+
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
+
+        with patch("duckdb.connect", return_value=conn):
+            result = service.run_401a4_test(
+                "ws1", "sc1", "Test", 2025, include_employees=True, include_match=True
+            )
+
+        hce_emp = next(e for e in result.employees if e.employee_id == "HCE1")
+        assert abs(hce_emp.total_employer_amount - 35000.0) < 0.01
+        assert abs(hce_emp.contribution_rate - 0.10) < 0.001
+
+
 # ==============================================================================
 # Test 7: Edge case - all HCE
 # ==============================================================================

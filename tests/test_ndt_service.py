@@ -246,6 +246,102 @@ class TestACPCalculation:
         assert result.eligible_not_enrolled_count == 1
 
 
+class TestACPCompensationBasis:
+    """ACP uses capped 414(s) compensation and match plus after-tax numerator."""
+
+    def test_below_401a17_uses_prorated_compensation(self, service_with_db):
+        service, conn, mock_resolver = service_with_db
+
+        _insert_employee(conn, "HCE1", 2024, 200000.0, 200000.0, 0.0)
+        _insert_employee(conn, "HCE1", 2025, 200000.0, 200000.0, 10000.0)
+        _insert_employee(conn, "NHCE1", 2024, 100000.0, 100000.0, 0.0)
+        _insert_employee(conn, "NHCE1", 2025, 100000.0, 100000.0, 3000.0)
+
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
+
+        with patch("duckdb.connect", return_value=conn):
+            result = service.run_acp_test(
+                "ws1", "sc1", "Test", 2025, include_employees=True
+            )
+
+        hce_emp = next(e for e in result.employees if e.employee_id == "HCE1")
+        assert abs(hce_emp.eligible_compensation - 200000.0) < 1.0
+        assert abs(hce_emp.individual_acp - 0.05) < 0.001
+
+    def test_above_401a17_uses_compensation_limit(self, service_with_db):
+        service, conn, mock_resolver = service_with_db
+
+        _insert_employee(conn, "HCE1", 2024, 500000.0, 500000.0, 0.0)
+        _insert_employee(conn, "HCE1", 2025, 500000.0, 500000.0, 17500.0)
+        _insert_employee(conn, "NHCE1", 2024, 100000.0, 100000.0, 0.0)
+        _insert_employee(conn, "NHCE1", 2025, 100000.0, 100000.0, 3000.0)
+
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
+
+        with patch("duckdb.connect", return_value=conn):
+            result = service.run_acp_test(
+                "ws1", "sc1", "Test", 2025, include_employees=True
+            )
+
+        hce_emp = next(e for e in result.employees if e.employee_id == "HCE1")
+        assert abs(hce_emp.eligible_compensation - 350000.0) < 1.0
+        assert abs(hce_emp.individual_acp - 0.05) < 0.001
+
+    def test_match_only_when_after_tax_unavailable(self, service_with_db):
+        service, conn, mock_resolver = service_with_db
+
+        _insert_employee(conn, "HCE1", 2024, 200000.0, 200000.0, 0.0)
+        _insert_employee(conn, "HCE1", 2025, 200000.0, 200000.0, 10000.0)
+        _insert_employee(conn, "NHCE1", 2024, 100000.0, 100000.0, 0.0)
+        _insert_employee(conn, "NHCE1", 2025, 100000.0, 100000.0, 3000.0)
+
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
+
+        with patch("duckdb.connect", return_value=conn):
+            result = service.run_acp_test(
+                "ws1", "sc1", "Test", 2025, include_employees=True
+            )
+
+        hce_emp = next(e for e in result.employees if e.employee_id == "HCE1")
+        assert abs(hce_emp.individual_acp - 0.05) < 0.001
+
+    def test_after_tax_included_when_snapshot_column_exists(self, service_with_db):
+        service, conn, mock_resolver = service_with_db
+
+        _insert_employee(conn, "HCE1", 2024, 200000.0, 200000.0, 0.0)
+        _insert_employee(conn, "HCE1", 2025, 200000.0, 200000.0, 10000.0)
+        _insert_employee(conn, "NHCE1", 2024, 100000.0, 100000.0, 0.0)
+        _insert_employee(conn, "NHCE1", 2025, 100000.0, 100000.0, 3000.0)
+        conn.execute(
+            "ALTER TABLE fct_workforce_snapshot ADD COLUMN after_tax_contribution DOUBLE"
+        )
+        conn.execute(
+            """
+            UPDATE fct_workforce_snapshot
+            SET after_tax_contribution = 2000.0
+            WHERE employee_id = 'HCE1' AND simulation_year = 2025
+            """
+        )
+
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
+
+        with patch("duckdb.connect", return_value=conn):
+            result = service.run_acp_test(
+                "ws1", "sc1", "Test", 2025, include_employees=True
+            )
+
+        hce_emp = next(e for e in result.employees if e.employee_id == "HCE1")
+        assert abs(hce_emp.individual_acp - 0.06) < 0.001
+
+
 # ==============================================================================
 # Test: Group Averages
 # ==============================================================================

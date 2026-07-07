@@ -423,6 +423,46 @@ class TestCatchUpExclusion:
         assert abs(emp.total_annual_additions - 31500.0) < 0.01
 
 
+class Test415CompensationBasis:
+    """415 keeps using uncapped current compensation for the 100% comp rule."""
+
+    def test_high_earner_uses_uncapped_current_compensation(self, service_with_db):
+        service, conn, mock_resolver = service_with_db
+
+        conn.execute(
+            """
+            INSERT INTO config_irs_limits VALUES
+            (2026, 24000, 32000, 50, 360000, 165000, 32000, 60, 63, false, 500000)
+            """
+        )
+        _insert_employee(
+            conn,
+            "HIGH_COMP1",
+            2026,
+            400000.0,
+            400000.0,
+            contributions=24000.0,
+            match_amount=176000.0,
+            core_amount=175000.0,
+            tenure=10.0,
+        )
+
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
+
+        with patch("duckdb.connect", return_value=conn):
+            result = service.run_415_test(
+                "ws1", "sc1", "Test", 2026, include_employees=True
+            )
+
+        emp = result.employees[0]
+        assert result.test_result == "pass"
+        assert emp.gross_compensation == 400000.0
+        assert emp.applicable_limit == 400000.0
+        assert emp.total_annual_additions == 375000.0
+
+
 # ==============================================================================
 # Test 8: Plan-level summary
 # ==============================================================================

@@ -101,9 +101,9 @@ A plan administrator wants to compare ACP test results across multiple scenarios
 ## Assumptions
 
 - HCE determination uses only the prior-year compensation method. The 5% owner test is out of scope for this MVP.
-- "Eligible compensation" is the annual compensation field from the workforce snapshot (the Section 415 compensation limit from `config_irs_limits.csv` is already applied upstream).
+- `fct_workforce_snapshot.prorated_annual_compensation` is the project's uncapped 414(s) testing compensation proxy. ACP derives capped testing compensation at query time as the lesser of this value and `config_irs_limits.compensation_limit`.
 - "Employer matching contributions" corresponds to the employer match amount already calculated in the simulation.
-- "Employee after-tax contributions" are currently not modeled in the simulation; for MVP, ACP will be calculated using employer matching contributions only. After-tax contribution support can be added when that contribution type is modeled.
+- "Employee after-tax contributions" are currently not propagated to `fct_workforce_snapshot`; until that column is available, ACP explicitly falls back to zero after-tax contributions and is match-only.
 - The IRS HCE compensation threshold for 2024 is $155,000 and for 2025 is $160,000. These will be added to the `config_irs_limits.csv` seed.
 - Employees who terminated before the end of the plan year are still included in the ACP test if they were eligible participants during the year (consistent with IRS rules).
 - The test population includes all plan-eligible employees (enrolled or not). Non-participants have 0% ACP, which lowers group averages consistent with IRS methodology.

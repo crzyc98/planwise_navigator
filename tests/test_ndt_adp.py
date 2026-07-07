@@ -472,6 +472,103 @@ class TestADPZeroCompExcluded:
 
 
 # ==============================================================================
+# Compensation basis and catch-up treatment
+# ==============================================================================
+
+
+class TestADPCompensationBasis:
+    """ADP uses capped 414(s) testing compensation and base-limit deferrals."""
+
+    def test_below_401a17_uses_prorated_compensation(self, adp_service_with_db):
+        service, conn, mock_resolver = adp_service_with_db
+
+        _insert_employee(conn, "HCE1", 2024, 200000.0, 200000.0, 0.0)
+        _insert_employee(conn, "HCE1", 2025, 200000.0, 200000.0, 10000.0)
+        _insert_employee(conn, "NHCE1", 2024, 100000.0, 100000.0, 0.0)
+        _insert_employee(conn, "NHCE1", 2025, 100000.0, 100000.0, 4000.0)
+
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
+
+        with patch("duckdb.connect", return_value=conn):
+            result = service.run_adp_test(
+                "ws1", "sc1", "Test", 2025, include_employees=True
+            )
+
+        hce_emp = next(e for e in result.employees if e.employee_id == "HCE1")
+        assert abs(hce_emp.plan_compensation - 200000.0) < 1.0
+        assert abs(hce_emp.individual_adp - 0.05) < 0.001
+
+    def test_above_401a17_uses_compensation_limit(self, adp_service_with_db):
+        service, conn, mock_resolver = adp_service_with_db
+
+        _insert_employee(conn, "HCE1", 2024, 500000.0, 500000.0, 0.0)
+        _insert_employee(conn, "HCE1", 2025, 500000.0, 500000.0, 17500.0)
+        _insert_employee(conn, "NHCE1", 2024, 100000.0, 100000.0, 0.0)
+        _insert_employee(conn, "NHCE1", 2025, 100000.0, 100000.0, 4000.0)
+
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
+
+        with patch("duckdb.connect", return_value=conn):
+            result = service.run_adp_test(
+                "ws1", "sc1", "Test", 2025, include_employees=True
+            )
+
+        hce_emp = next(e for e in result.employees if e.employee_id == "HCE1")
+        assert abs(hce_emp.plan_compensation - 350000.0) < 1.0
+        assert abs(hce_emp.individual_adp - 0.05) < 0.001
+
+    def test_catch_up_deferrals_capped_at_base_limit(self, adp_service_with_db):
+        service, conn, mock_resolver = adp_service_with_db
+
+        _insert_employee(conn, "HCE1", 2024, 200000.0, 200000.0, 0.0)
+        _insert_employee(conn, "HCE1", 2025, 200000.0, 200000.0, 31000.0)
+        _insert_employee(conn, "NHCE1", 2024, 100000.0, 100000.0, 0.0)
+        _insert_employee(conn, "NHCE1", 2025, 100000.0, 100000.0, 4000.0)
+
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
+
+        with patch("duckdb.connect", return_value=conn):
+            result = service.run_adp_test(
+                "ws1", "sc1", "Test", 2025, include_employees=True
+            )
+
+        hce_emp = next(e for e in result.employees if e.employee_id == "HCE1")
+        assert abs(hce_emp.employee_deferrals - 23500.0) < 1.0
+        assert abs(hce_emp.individual_adp - (23500.0 / 200000.0)) < 0.001
+
+    def test_zero_or_missing_capped_testing_comp_excluded(self, adp_service_with_db):
+        service, conn, mock_resolver = adp_service_with_db
+
+        _insert_employee(conn, "HCE1", 2024, 200000.0, 200000.0, 0.0)
+        _insert_employee(conn, "HCE1", 2025, 200000.0, 200000.0, 10000.0)
+        _insert_employee(conn, "NHCE1", 2024, 100000.0, 100000.0, 0.0)
+        _insert_employee(conn, "NHCE1", 2025, 100000.0, 100000.0, 4000.0)
+        _insert_employee(conn, "ZERO1", 2024, 50000.0, 50000.0, 0.0)
+        _insert_employee(conn, "ZERO1", 2025, 50000.0, 0.0, 1000.0)
+        _insert_employee(conn, "NULL1", 2024, 50000.0, 50000.0, 0.0)
+        _insert_employee(conn, "NULL1", 2025, 50000.0, None, 1000.0)
+
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
+
+        with patch("duckdb.connect", return_value=conn):
+            result = service.run_adp_test(
+                "ws1", "sc1", "Test", 2025, include_employees=True
+            )
+
+        assert result.excluded_count == 2
+        assert result.hce_count + result.nhce_count == 2
+        assert {e.employee_id for e in result.employees} == {"HCE1", "NHCE1"}
+
+
+# ==============================================================================
 # T026: test_adp_missing_irs_limits_error
 # ==============================================================================
 
