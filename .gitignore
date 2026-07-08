@@ -297,3 +297,4 @@ workspaces/
 .planalign_*.lock
 
 graphify-out/
+.agents/
