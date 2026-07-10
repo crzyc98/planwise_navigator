@@ -6,6 +6,9 @@ Test coverage target: 95%+ (SC-006)
 Performance target: <100ms for all unit tests (SC-003)
 """
 
+import logging
+from types import SimpleNamespace
+
 import pytest
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -15,6 +18,7 @@ from planalign_api.services.database_path_resolver import (
     ResolvedDatabasePath,
     IsolationMode,
     WorkspaceStorageProtocol,
+    create_api_database_path_resolver,
 )
 
 
@@ -445,6 +449,71 @@ class TestMultiTenantIsolation:
         """Test default isolation mode is SINGLE_TENANT."""
         resolver = DatabasePathResolver(storage=mock_storage, project_root=tmp_path)
         assert resolver._isolation_mode == IsolationMode.SINGLE_TENANT
+
+
+@pytest.mark.fast
+class TestApiResolverIsolation:
+    """Tests for the API-specific safe resolver configuration."""
+
+    def test_default_api_mode_does_not_use_project_database(
+        self, mock_storage, tmp_path, monkeypatch, caplog
+    ):
+        """A missing scenario/workspace database cannot expose project data."""
+        scenario_path = tmp_path / "scenarios" / "sc1"
+        workspace_path = tmp_path / "workspace"
+        scenario_path.mkdir(parents=True)
+        workspace_path.mkdir()
+        project_db = tmp_path / "dbt" / "simulation.duckdb"
+        project_db.parent.mkdir()
+        project_db.touch()
+        mock_storage._scenario_path.return_value = scenario_path
+        mock_storage._workspace_path.return_value = workspace_path
+        monkeypatch.setattr(
+            "planalign_api.services.database_path_resolver.get_settings",
+            lambda: SimpleNamespace(allow_project_db_fallback=False),
+        )
+
+        resolver = create_api_database_path_resolver(mock_storage)
+        resolver._project_root = tmp_path
+        resolver._project_db_path = project_db
+        with caplog.at_level(logging.WARNING):
+            result = resolver.resolve("ws1", "sc1")
+
+        assert resolver._isolation_mode == IsolationMode.MULTI_TENANT
+        assert result.exists is False
+        assert result.path is None
+        assert "fallback is disabled" in result.warning
+        assert "fallback is disabled" in caplog.text
+
+    def test_api_dev_flag_allows_project_database_fallback(
+        self, mock_storage, tmp_path, monkeypatch, caplog
+    ):
+        """The explicit development flag preserves the legacy local fallback."""
+        scenario_path = tmp_path / "scenarios" / "sc1"
+        workspace_path = tmp_path / "workspace"
+        scenario_path.mkdir(parents=True)
+        workspace_path.mkdir()
+        project_db = tmp_path / "dbt" / "simulation.duckdb"
+        project_db.parent.mkdir()
+        project_db.touch()
+        mock_storage._scenario_path.return_value = scenario_path
+        mock_storage._workspace_path.return_value = workspace_path
+        monkeypatch.setattr(
+            "planalign_api.services.database_path_resolver.get_settings",
+            lambda: SimpleNamespace(allow_project_db_fallback=True),
+        )
+
+        resolver = create_api_database_path_resolver(mock_storage)
+        resolver._project_root = tmp_path
+        resolver._project_db_path = project_db
+        with caplog.at_level(logging.WARNING):
+            result = resolver.resolve("ws1", "sc1")
+
+        assert resolver._isolation_mode == IsolationMode.SINGLE_TENANT
+        assert result.path == project_db
+        assert result.source == "project"
+        assert "DEVELOPMENT-ONLY" in result.warning
+        assert "DEVELOPMENT-ONLY" in caplog.text
 
 
 # ==============================================================================

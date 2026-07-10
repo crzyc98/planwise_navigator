@@ -12,7 +12,10 @@ from ..models.winners_losers import (
     WinnersLosersResponse,
 )
 from ..storage.workspace_storage import WorkspaceStorage
-from .database_path_resolver import DatabasePathResolver
+from .database_path_resolver import (
+    DatabasePathResolver,
+    create_api_database_path_resolver,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +29,7 @@ class WinnersLosersService:
         db_resolver: Optional[DatabasePathResolver] = None,
     ):
         self.storage = storage
-        self.db_resolver = db_resolver or DatabasePathResolver(storage)
+        self.db_resolver = db_resolver or create_api_database_path_resolver(storage)
 
     def analyze(
         self,

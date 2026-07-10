@@ -18,7 +18,10 @@ from ...models.simulation import (
 )
 from ...storage.workspace_storage import WorkspaceStorage
 from ..telemetry_service import get_telemetry_service
-from ..database_path_resolver import DatabasePathResolver
+from ..database_path_resolver import (
+    DatabasePathResolver,
+    create_api_database_path_resolver,
+)
 
 from .db_cleanup import cleanup_years_outside_range
 from .log_writer import SimulationLogWriter
@@ -58,7 +61,7 @@ class SimulationService:
         db_resolver: Optional[DatabasePathResolver] = None,
     ):
         self.storage = storage
-        self.db_resolver = db_resolver or DatabasePathResolver(storage)
+        self.db_resolver = db_resolver or create_api_database_path_resolver(storage)
         self._cancelled_runs: set = set()
         self._active_runs: Dict[str, Any] = {}
         self._active_processes: Dict[str, Any] = {}

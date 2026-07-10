@@ -20,6 +20,9 @@ class APISettings(BaseSettings):
         default_factory=lambda: Path(__file__).parent.parent / "workspaces"
     )
     storage_limit_gb: float = 10.0
+    # Development-only escape hatch for legacy local databases. Production API
+    # requests must resolve to scenario or workspace storage.
+    allow_project_db_fallback: bool = False
 
     # CORS (for React dev server and remote access)
     cors_origins: List[str] = ["*"]

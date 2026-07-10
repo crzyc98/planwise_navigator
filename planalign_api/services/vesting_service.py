@@ -19,7 +19,10 @@ from ..models.vesting import (
     VestingScheduleType,
 )
 from ..storage.workspace_storage import WorkspaceStorage
-from .database_path_resolver import DatabasePathResolver
+from .database_path_resolver import (
+    DatabasePathResolver,
+    create_api_database_path_resolver,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -155,7 +158,7 @@ class VestingService:
     ):
         """Initialize with storage and database resolver (T023)."""
         self.storage = storage
-        self.db_resolver = db_resolver or DatabasePathResolver(storage)
+        self.db_resolver = db_resolver or create_api_database_path_resolver(storage)
 
     def _get_final_year(self, conn) -> int:
         """Get the maximum simulation year from the database (T024)."""
