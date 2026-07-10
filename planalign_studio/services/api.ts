@@ -5,6 +5,21 @@
  */
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
+const API_TOKEN = import.meta.env.VITE_PLANALIGN_API_TOKEN as string | undefined;
+
+function authHeaders(): Record<string, string> {
+  return API_TOKEN ? { Authorization: `Bearer ${API_TOKEN}` } : {};
+}
+
+function fetchWithAuth(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  return fetch(input, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      ...authHeaders(),
+    },
+  });
+}
 
 // ============================================================================
 // Types (aligned with backend Pydantic models)
@@ -302,17 +317,17 @@ async function handleResponse<T>(response: Response): Promise<T> {
 // ============================================================================
 
 export async function getHealth(): Promise<HealthResponse> {
-  const response = await fetch(`${API_BASE}/api/health`);
+  const response = await fetchWithAuth(`${API_BASE}/api/health`);
   return handleResponse<HealthResponse>(response);
 }
 
 export async function getSystemStatus(): Promise<SystemStatus> {
-  const response = await fetch(`${API_BASE}/api/system/status`);
+  const response = await fetchWithAuth(`${API_BASE}/api/system/status`);
   return handleResponse<SystemStatus>(response);
 }
 
 export async function getDefaultConfig(): Promise<Record<string, any>> {
-  const response = await fetch(`${API_BASE}/api/config/defaults`);
+  const response = await fetchWithAuth(`${API_BASE}/api/config/defaults`);
   return handleResponse<Record<string, any>>(response);
 }
 
@@ -321,17 +336,17 @@ export async function getDefaultConfig(): Promise<Record<string, any>> {
 // ============================================================================
 
 export async function listWorkspaces(): Promise<Workspace[]> {
-  const response = await fetch(`${API_BASE}/api/workspaces`);
+  const response = await fetchWithAuth(`${API_BASE}/api/workspaces`);
   return handleResponse<Workspace[]>(response);
 }
 
 export async function getWorkspace(workspaceId: string): Promise<Workspace> {
-  const response = await fetch(`${API_BASE}/api/workspaces/${workspaceId}`);
+  const response = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}`);
   return handleResponse<Workspace>(response);
 }
 
 export async function createWorkspace(data: WorkspaceCreate): Promise<Workspace> {
-  const response = await fetch(`${API_BASE}/api/workspaces`, {
+  const response = await fetchWithAuth(`${API_BASE}/api/workspaces`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -343,7 +358,7 @@ export async function updateWorkspace(
   workspaceId: string,
   data: Partial<WorkspaceCreate>
 ): Promise<Workspace> {
-  const response = await fetch(`${API_BASE}/api/workspaces/${workspaceId}`, {
+  const response = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -352,7 +367,7 @@ export async function updateWorkspace(
 }
 
 export async function deleteWorkspace(workspaceId: string): Promise<{ success: boolean }> {
-  const response = await fetch(`${API_BASE}/api/workspaces/${workspaceId}`, {
+  const response = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}`, {
     method: 'DELETE',
   });
   return handleResponse<{ success: boolean }>(response);
@@ -363,12 +378,12 @@ export async function deleteWorkspace(workspaceId: string): Promise<{ success: b
 // ============================================================================
 
 export async function listScenarios(workspaceId: string): Promise<Scenario[]> {
-  const response = await fetch(`${API_BASE}/api/workspaces/${workspaceId}/scenarios`);
+  const response = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/scenarios`);
   return handleResponse<Scenario[]>(response);
 }
 
 export async function getScenario(workspaceId: string, scenarioId: string): Promise<Scenario> {
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}`
   );
   return handleResponse<Scenario>(response);
@@ -378,7 +393,7 @@ export async function getScenarioConfig(
   workspaceId: string,
   scenarioId: string
 ): Promise<Record<string, any>> {
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}/config`
   );
   return handleResponse<Record<string, any>>(response);
@@ -388,7 +403,7 @@ export async function createScenario(
   workspaceId: string,
   data: ScenarioCreate
 ): Promise<Scenario> {
-  const response = await fetch(`${API_BASE}/api/workspaces/${workspaceId}/scenarios`, {
+  const response = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/scenarios`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -401,7 +416,7 @@ export async function updateScenario(
   scenarioId: string,
   data: Partial<ScenarioCreate>
 ): Promise<Scenario> {
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}`,
     {
       method: 'PUT',
@@ -416,7 +431,7 @@ export async function deleteScenario(
   workspaceId: string,
   scenarioId: string
 ): Promise<{ success: boolean }> {
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}`,
     { method: 'DELETE' }
   );
@@ -427,7 +442,7 @@ export async function deleteScenarioDatabase(
   workspaceId: string,
   scenarioId: string
 ): Promise<{ success: boolean; deleted: boolean; message: string }> {
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}/database`,
     { method: 'DELETE' }
   );
@@ -456,7 +471,7 @@ export interface ActiveSimulationsResponse {
 }
 
 export async function getActiveSimulations(): Promise<ActiveSimulationsResponse> {
-  const response = await fetch(`${API_BASE}/api/scenarios/active`);
+  const response = await fetchWithAuth(`${API_BASE}/api/scenarios/active`);
   return handleResponse<ActiveSimulationsResponse>(response);
 }
 
@@ -464,7 +479,7 @@ export async function startSimulation(
   scenarioId: string,
   options?: { resume_from_checkpoint?: boolean }
 ): Promise<SimulationRun> {
-  const response = await fetch(`${API_BASE}/api/scenarios/${scenarioId}/run`, {
+  const response = await fetchWithAuth(`${API_BASE}/api/scenarios/${scenarioId}/run`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(options || {}),
@@ -473,7 +488,7 @@ export async function startSimulation(
 }
 
 export async function getSimulationStatus(scenarioId: string): Promise<SimulationRun> {
-  const response = await fetch(`${API_BASE}/api/scenarios/${scenarioId}/run/status`);
+  const response = await fetchWithAuth(`${API_BASE}/api/scenarios/${scenarioId}/run/status`);
   return handleResponse<SimulationRun>(response);
 }
 
@@ -481,12 +496,12 @@ export async function getSimulationStatus(scenarioId: string): Promise<Simulatio
 export async function fetchRunTelemetrySnapshot(
   scenarioId: string
 ): Promise<RunTelemetryResponse> {
-  const response = await fetch(`${API_BASE}/api/scenarios/${scenarioId}/run/telemetry`);
+  const response = await fetchWithAuth(`${API_BASE}/api/scenarios/${scenarioId}/run/telemetry`);
   return handleResponse<RunTelemetryResponse>(response);
 }
 
 export async function cancelSimulation(scenarioId: string): Promise<{ success: boolean }> {
-  const response = await fetch(`${API_BASE}/api/scenarios/${scenarioId}/run/cancel`, {
+  const response = await fetchWithAuth(`${API_BASE}/api/scenarios/${scenarioId}/run/cancel`, {
     method: 'POST',
   });
   return handleResponse<{ success: boolean }>(response);
@@ -499,14 +514,14 @@ export async function resetSimulation(scenarioId: string): Promise<{
   new_status: string;
   message: string;
 }> {
-  const response = await fetch(`${API_BASE}/api/scenarios/${scenarioId}/run/reset`, {
+  const response = await fetchWithAuth(`${API_BASE}/api/scenarios/${scenarioId}/run/reset`, {
     method: 'POST',
   });
   return handleResponse(response);
 }
 
 export async function getSimulationResults(scenarioId: string, population: string = 'all'): Promise<SimulationResults> {
-  const response = await fetch(`${API_BASE}/api/scenarios/${scenarioId}/results?population=${population}`);
+  const response = await fetchWithAuth(`${API_BASE}/api/scenarios/${scenarioId}/results?population=${population}`);
   return handleResponse<SimulationResults>(response);
 }
 
@@ -528,7 +543,7 @@ export async function runAllScenarios(
     export_format?: 'excel' | 'csv';
   }
 ): Promise<BatchJob> {
-  const response = await fetch(`${API_BASE}/api/workspaces/${workspaceId}/run-all`, {
+  const response = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/run-all`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(options || {}),
@@ -537,12 +552,12 @@ export async function runAllScenarios(
 }
 
 export async function getBatchStatus(batchId: string): Promise<BatchJob> {
-  const response = await fetch(`${API_BASE}/api/batches/${batchId}/status`);
+  const response = await fetchWithAuth(`${API_BASE}/api/batches/${batchId}/status`);
   return handleResponse<BatchJob>(response);
 }
 
 export async function listBatchJobs(workspaceId: string): Promise<BatchJob[]> {
-  const response = await fetch(`${API_BASE}/api/workspaces/${workspaceId}/batches`);
+  const response = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/batches`);
   return handleResponse<BatchJob[]>(response);
 }
 
@@ -559,7 +574,7 @@ export async function compareScenarios(
     scenarios: scenarioIds.join(','),
     baseline: baselineId,
   });
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/comparison?${params}`
   );
   return handleResponse<ComparisonResponse>(response);
@@ -614,7 +629,7 @@ export interface RunDetails {
 }
 
 export async function getRunDetails(scenarioId: string): Promise<RunDetails> {
-  const response = await fetch(`${API_BASE}/api/scenarios/${scenarioId}/details`);
+  const response = await fetchWithAuth(`${API_BASE}/api/scenarios/${scenarioId}/details`);
   return handleResponse<RunDetails>(response);
 }
 
@@ -641,12 +656,12 @@ export interface RunSummary {
 }
 
 export async function listRuns(scenarioId: string): Promise<RunSummary[]> {
-  const response = await fetch(`${API_BASE}/api/scenarios/${scenarioId}/runs`);
+  const response = await fetchWithAuth(`${API_BASE}/api/scenarios/${scenarioId}/runs`);
   return handleResponse<RunSummary[]>(response);
 }
 
 export async function getRunById(scenarioId: string, runId: string): Promise<RunDetails> {
-  const response = await fetch(`${API_BASE}/api/scenarios/${scenarioId}/runs/${runId}`);
+  const response = await fetchWithAuth(`${API_BASE}/api/scenarios/${scenarioId}/runs/${runId}`);
   return handleResponse<RunDetails>(response);
 }
 
@@ -684,7 +699,7 @@ export async function fetchRunLogs(
     page_size: pageSize.toString(),
   });
   if (severity) params.set('severity', severity);
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/scenarios/${scenarioId}/runs/${runId}/logs?${params}`
   );
   return handleResponse<LogPage>(response);
@@ -761,7 +776,7 @@ export async function uploadCensusFile(
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/upload`,
     {
       method: 'POST',
@@ -775,7 +790,7 @@ export async function validateFilePath(
   workspaceId: string,
   filePath: string
 ): Promise<FileValidationResponse> {
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/validate-path`,
     {
       method: 'POST',
@@ -790,7 +805,7 @@ export async function setCensusPath(
   workspaceId: string,
   filePath: string
 ): Promise<{ success: boolean; file_path: string; row_count: number }> {
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/set-census-path`,
     {
       method: 'POST',
@@ -819,7 +834,7 @@ export async function analyzeAgeDistribution(
   workspaceId: string,
   filePath: string
 ): Promise<AgeDistributionAnalysis> {
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/analyze-age-distribution`,
     {
       method: 'POST',
@@ -842,7 +857,7 @@ export async function analyzePartTimePct(
   workspaceId: string,
   filePath: string
 ): Promise<PartTimePctAnalysis> {
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/analyze-part-time-pct`,
     {
       method: 'POST',
@@ -905,7 +920,7 @@ export async function analyzeCompensation(
   filePath: string,
   lookbackYears: number = 4
 ): Promise<CompensationAnalysis> {
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/analyze-compensation-by-level`,
     {
       method: 'POST',
@@ -979,7 +994,7 @@ export async function solveCompensationGrowth(
   workspaceId: string,
   request: CompensationSolverRequest
 ): Promise<CompensationSolverResponse> {
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/solve-compensation-growth`,
     {
       method: 'POST',
@@ -1007,12 +1022,12 @@ export interface TemplateListResponse {
 }
 
 export async function listTemplates(): Promise<TemplateListResponse> {
-  const response = await fetch(`${API_BASE}/api/templates`);
+  const response = await fetchWithAuth(`${API_BASE}/api/templates`);
   return handleResponse<TemplateListResponse>(response);
 }
 
 export async function getTemplate(templateId: string): Promise<Template> {
-  const response = await fetch(`${API_BASE}/api/templates/${templateId}`);
+  const response = await fetchWithAuth(`${API_BASE}/api/templates/${templateId}`);
   return handleResponse<Template>(response);
 }
 
@@ -1115,7 +1130,7 @@ export async function getDCPlanAnalytics(
   if (activeOnly) params.set('active_only', 'true');
   if (effectiveRate) params.set('effective_rate', 'true');
   const qs = params.toString() ? `?${params}` : '';
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}/analytics/dc-plan${qs}`
   );
   return handleResponse<DCPlanAnalytics>(response);
@@ -1132,7 +1147,7 @@ export async function compareDCPlanAnalytics(
   });
   if (activeOnly) params.set('active_only', 'true');
   if (effectiveRate) params.set('effective_rate', 'true');
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/analytics/dc-plan/compare?${params}`
   );
   return handleResponse<DCPlanComparisonResponse>(response);
@@ -1144,7 +1159,7 @@ export async function getWinnersLosersComparison(
   planB: string
 ): Promise<WinnersLosersResponse> {
   const params = new URLSearchParams({ plan_a: planA, plan_b: planB });
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/analytics/winners-losers?${params}`
   );
   return handleResponse<WinnersLosersResponse>(response);
@@ -1209,7 +1224,7 @@ export interface BandAnalysisResult {
  * Get band configurations (age and tenure bands) from dbt seed files.
  */
 export async function getBandConfigs(workspaceId: string): Promise<BandConfig> {
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/config/bands`
   );
   return handleResponse<BandConfig>(response);
@@ -1223,7 +1238,7 @@ export async function analyzeAgeBands(
   workspaceId: string,
   filePath: string
 ): Promise<BandAnalysisResult> {
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/analyze-age-bands`,
     {
       method: 'POST',
@@ -1242,7 +1257,7 @@ export async function analyzeTenureBands(
   workspaceId: string,
   filePath: string
 ): Promise<BandAnalysisResult> {
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/analyze-tenure-bands`,
     {
       method: 'POST',
@@ -1282,7 +1297,7 @@ export async function analyzeTurnoverRates(
   workspaceId: string,
   filePath: string
 ): Promise<TurnoverAnalysisResult> {
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/analyze-turnover`,
     {
       method: 'POST',
@@ -1323,7 +1338,7 @@ export async function analyzeOptOutRate(
   workspaceId: string,
   request: OptOutRateAnalysisRequest
 ): Promise<OptOutRateAnalysisResult> {
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/analyze-opt-out-rate`,
     {
       method: 'POST',
@@ -1372,7 +1387,7 @@ export interface PromotionHazardSaveResponse {
  * Get promotion hazard configuration from dbt seed files.
  */
 export async function getPromotionHazardConfig(workspaceId: string): Promise<PromotionHazardConfig> {
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/config/promotion-hazards`
   );
   return handleResponse<PromotionHazardConfig>(response);
@@ -1504,7 +1519,7 @@ export interface ScenarioYearsResponse {
  * Get list of all available vesting schedules.
  */
 export async function listVestingSchedules(): Promise<VestingScheduleListResponse> {
-  const response = await fetch(`${API_BASE}/api/vesting/schedules`);
+  const response = await fetchWithAuth(`${API_BASE}/api/vesting/schedules`);
   return handleResponse<VestingScheduleListResponse>(response);
 }
 
@@ -1518,7 +1533,7 @@ export async function analyzeVesting(
   scenarioId: string,
   request: VestingAnalysisRequest
 ): Promise<VestingAnalysisResponse> {
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}/analytics/vesting`,
     {
       method: 'POST',
@@ -1536,7 +1551,7 @@ export async function getScenarioYears(
   workspaceId: string,
   scenarioId: string
 ): Promise<ScenarioYearsResponse> {
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}/analytics/vesting/years`
   );
   return handleResponse<ScenarioYearsResponse>(response);
@@ -1625,7 +1640,7 @@ export function getExportWorkspaceUrl(workspaceId: string): string {
  * Export a single workspace and trigger browser download.
  */
 export async function exportWorkspace(workspaceId: string): Promise<void> {
-  const response = await fetch(`${API_BASE}/api/workspaces/${workspaceId}/export`, {
+  const response = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/export`, {
     method: 'POST',
   });
 
@@ -1668,7 +1683,7 @@ export async function exportWorkspace(workspaceId: string): Promise<void> {
 export async function bulkExportWorkspaces(
   workspaceIds: string[]
 ): Promise<BulkExportStatus> {
-  const response = await fetch(`${API_BASE}/api/workspaces/bulk-export`, {
+  const response = await fetchWithAuth(`${API_BASE}/api/workspaces/bulk-export`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ workspace_ids: workspaceIds }),
@@ -1682,7 +1697,7 @@ export async function bulkExportWorkspaces(
 export async function getBulkExportStatus(
   operationId: string
 ): Promise<BulkExportStatus> {
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/bulk-export/${operationId}`
   );
   return handleResponse<BulkExportStatus>(response);
@@ -1708,7 +1723,7 @@ export async function validateImport(
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await fetch(`${API_BASE}/api/workspaces/import/validate`, {
+  const response = await fetchWithAuth(`${API_BASE}/api/workspaces/import/validate`, {
     method: 'POST',
     body: formData,
   });
@@ -1732,7 +1747,7 @@ export async function importWorkspace(
     formData.append('new_name', newName);
   }
 
-  const response = await fetch(`${API_BASE}/api/workspaces/import`, {
+  const response = await fetchWithAuth(`${API_BASE}/api/workspaces/import`, {
     method: 'POST',
     body: formData,
   });
@@ -1752,7 +1767,7 @@ export async function bulkImportWorkspaces(
   });
   formData.append('default_resolution', defaultResolution);
 
-  const response = await fetch(`${API_BASE}/api/workspaces/bulk-import`, {
+  const response = await fetchWithAuth(`${API_BASE}/api/workspaces/bulk-import`, {
     method: 'POST',
     body: formData,
   });
@@ -1765,7 +1780,7 @@ export async function bulkImportWorkspaces(
 export async function getBulkImportStatus(
   operationId: string
 ): Promise<BulkImportStatus> {
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/bulk-import/${operationId}`
   );
   return handleResponse<BulkImportStatus>(response);
@@ -1833,7 +1848,7 @@ export async function runACPTest(
     year: year.toString(),
     include_employees: includeEmployees.toString(),
   });
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/analytics/ndt/acp?${params}`
   );
   return handleResponse<ACPTestResponse>(response);
@@ -1847,7 +1862,7 @@ export async function getNDTAvailableYears(
   scenarioId: string
 ): Promise<NDTAvailableYearsResponse> {
   const params = new URLSearchParams({ scenario_id: scenarioId });
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/analytics/ndt/available-years?${params}`
   );
   return handleResponse<NDTAvailableYearsResponse>(response);
@@ -1914,7 +1929,7 @@ export async function run401a4Test(
     include_employees: includeEmployees.toString(),
     include_match: includeMatch.toString(),
   });
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/analytics/ndt/401a4?${params}`
   );
   return handleResponse<Section401a4TestResponse>(response);
@@ -2020,7 +2035,7 @@ export async function runADPTest(
     safe_harbor: safeHarbor.toString(),
     testing_method: testingMethod,
   });
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/analytics/ndt/adp?${params}`
   );
   return handleResponse<ADPTestResponse>(response);
@@ -2042,7 +2057,7 @@ export async function run415Test(
     include_employees: includeEmployees.toString(),
     warning_threshold: warningThreshold.toString(),
   });
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/analytics/ndt/415?${params}`
   );
   return handleResponse<Section415TestResponse>(response);
@@ -2076,7 +2091,7 @@ export async function applyWorkforceParams(
   sourceScenarioId: string,
   targetScenarioIds: string[]
 ): Promise<WorkforceParamsApplyResult> {
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${sourceScenarioId}/apply-workforce-params`,
     {
       method: 'POST',
@@ -2217,7 +2232,7 @@ export interface CalibrationJob {
 }
 
 export async function getCalibrationRun(runId: string): Promise<CalibrationJob> {
-  const response = await fetch(`${API_BASE}/api/calibration/runs/${runId}`);
+  const response = await fetchWithAuth(`${API_BASE}/api/calibration/runs/${runId}`);
   return handleResponse<CalibrationJob>(response);
 }
 
@@ -2247,7 +2262,7 @@ async function awaitCalibrationJob(runId: string): Promise<CalibrationJob> {
 export async function runCalibration(
   request: CalibrationRunRequest
 ): Promise<CalibrationRunResponse> {
-  const response = await fetch(`${API_BASE}/api/calibration/run`, {
+  const response = await fetchWithAuth(`${API_BASE}/api/calibration/run`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request),
@@ -2266,7 +2281,7 @@ export async function runCalibration(
 export async function optimizeCalibration(
   request: AutoCalibrationRequest
 ): Promise<AutoCalibrationResponse> {
-  const response = await fetch(`${API_BASE}/api/calibration/optimize`, {
+  const response = await fetchWithAuth(`${API_BASE}/api/calibration/optimize`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request),

@@ -16,10 +16,11 @@ from contextlib import asynccontextmanager
 if platform.system() == "Windows":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
-from fastapi import FastAPI, WebSocket
+from fastapi import Depends, FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
+from .auth import require_api_token
 from .routers import (
     system_router,
     workspaces_router,
@@ -87,34 +88,111 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Include routers
+    # Include routers. The system router keeps /health public; its non-health
+    # endpoints declare require_api_token directly because they expose system data.
     app.include_router(system_router, prefix="/api", tags=["System"])
-    app.include_router(workspaces_router, prefix="/api/workspaces", tags=["Workspaces"])
-    app.include_router(scenarios_router, prefix="/api/workspaces", tags=["Scenarios"])
+    protected_dependencies = [Depends(require_api_token)]
     app.include_router(
-        simulations_router, prefix="/api/scenarios", tags=["Simulations"]
+        workspaces_router,
+        prefix="/api/workspaces",
+        tags=["Workspaces"],
+        dependencies=protected_dependencies,
     )
-    app.include_router(batch_router, prefix="/api", tags=["Batch Processing"])
-    app.include_router(comparison_router, prefix="/api/workspaces", tags=["Comparison"])
-    app.include_router(files_router, prefix="/api/workspaces", tags=["Files"])
-    app.include_router(templates_router, prefix="/api/templates", tags=["Templates"])
-    app.include_router(sync_router, prefix="/api", tags=["Sync"])
-    app.include_router(analytics_router, prefix="/api/workspaces", tags=["Analytics"])
-    app.include_router(bands_router, prefix="/api/workspaces", tags=["Bands"])
     app.include_router(
-        promotion_hazard_router, prefix="/api/workspaces", tags=["Promotion Hazard"]
+        scenarios_router,
+        prefix="/api/workspaces",
+        tags=["Scenarios"],
+        dependencies=protected_dependencies,
     )
-    app.include_router(vesting_router, prefix="/api", tags=["Vesting"])
-    app.include_router(ndt_router, prefix="/api/workspaces", tags=["NDT Testing"])
-    app.include_router(imports_router, prefix="/api/workspaces", tags=["Data Import"])
-    app.include_router(calibration_router, prefix="/api", tags=["Calibration"])
+    app.include_router(
+        simulations_router,
+        prefix="/api/scenarios",
+        tags=["Simulations"],
+        dependencies=protected_dependencies,
+    )
+    app.include_router(
+        batch_router,
+        prefix="/api",
+        tags=["Batch Processing"],
+        dependencies=protected_dependencies,
+    )
+    app.include_router(
+        comparison_router,
+        prefix="/api/workspaces",
+        tags=["Comparison"],
+        dependencies=protected_dependencies,
+    )
+    app.include_router(
+        files_router,
+        prefix="/api/workspaces",
+        tags=["Files"],
+        dependencies=protected_dependencies,
+    )
+    app.include_router(
+        templates_router,
+        prefix="/api/templates",
+        tags=["Templates"],
+        dependencies=protected_dependencies,
+    )
+    app.include_router(
+        sync_router,
+        prefix="/api",
+        tags=["Sync"],
+        dependencies=protected_dependencies,
+    )
+    app.include_router(
+        analytics_router,
+        prefix="/api/workspaces",
+        tags=["Analytics"],
+        dependencies=protected_dependencies,
+    )
+    app.include_router(
+        bands_router,
+        prefix="/api/workspaces",
+        tags=["Bands"],
+        dependencies=protected_dependencies,
+    )
+    app.include_router(
+        promotion_hazard_router,
+        prefix="/api/workspaces",
+        tags=["Promotion Hazard"],
+        dependencies=protected_dependencies,
+    )
+    app.include_router(
+        vesting_router,
+        prefix="/api",
+        tags=["Vesting"],
+        dependencies=protected_dependencies,
+    )
+    app.include_router(
+        ndt_router,
+        prefix="/api/workspaces",
+        tags=["NDT Testing"],
+        dependencies=protected_dependencies,
+    )
+    app.include_router(
+        imports_router,
+        prefix="/api/workspaces",
+        tags=["Data Import"],
+        dependencies=protected_dependencies,
+    )
+    app.include_router(
+        calibration_router,
+        prefix="/api",
+        tags=["Calibration"],
+        dependencies=protected_dependencies,
+    )
 
     # WebSocket endpoints
+    # NOTE: FastAPI HTTP dependencies do not apply to WebSocket endpoints. These
+    # endpoints remain unauthenticated when PLANALIGN_API_TOKEN is set; WebSocket
+    # token query/header support is intentionally out of scope for this change.
     @app.websocket("/ws/simulation/{run_id}")
     async def websocket_simulation(websocket: WebSocket, run_id: str):
         """WebSocket endpoint for simulation telemetry."""
         await simulation_websocket(websocket, run_id)
 
+    # NOTE: See the simulation WebSocket note above about the current auth gap.
     @app.websocket("/ws/batch/{batch_id}")
     async def websocket_batch(websocket: WebSocket, batch_id: str):
         """WebSocket endpoint for batch processing updates."""

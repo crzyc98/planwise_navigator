@@ -8,6 +8,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, Depends
 import yaml  # type: ignore[import]  # types-PyYAML not in CI deps
 
+from ..auth import require_api_token
 from ..config import APISettings, get_settings
 from ..models.system import HealthResponse, SystemStatus
 
@@ -85,7 +86,11 @@ async def health_check(settings: APISettings = Depends(get_settings)) -> HealthR
     )
 
 
-@router.get("/system/status", response_model=SystemStatus)
+@router.get(
+    "/system/status",
+    response_model=SystemStatus,
+    dependencies=[Depends(require_api_token)],
+)
 async def system_status(settings: APISettings = Depends(get_settings)) -> SystemStatus:
     """
     Get detailed system status.
@@ -125,7 +130,11 @@ async def system_status(settings: APISettings = Depends(get_settings)) -> System
     )
 
 
-@router.get("/config/defaults", response_model=Dict[str, Any])
+@router.get(
+    "/config/defaults",
+    response_model=Dict[str, Any],
+    dependencies=[Depends(require_api_token)],
+)
 async def get_default_config(
     settings: APISettings = Depends(get_settings),
 ) -> Dict[str, Any]:
