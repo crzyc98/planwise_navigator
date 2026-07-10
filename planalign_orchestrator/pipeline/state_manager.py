@@ -150,7 +150,7 @@ class StateManager:
         if not setup.get("clear_tables"):
             return
         # Respect clear_mode setting; skip year-level clears if full reset is requested
-        clear_mode = setup.get("clear_mode", "all").lower()
+        clear_mode = setup.get("clear_mode", "year").lower()
         if clear_mode == "all":
             return
         patterns = setup.get("clear_table_patterns", ["int_", "fct_"])
@@ -206,7 +206,7 @@ class StateManager:
 
         Controlled by:
           setup.clear_tables: true/false - Master switch for clearing
-          setup.clear_mode: 'all' (default) or 'year' - Full vs. incremental clearing
+          setup.clear_mode: 'all' (explicit run reset) or 'year' (default)
           setup.clear_table_patterns: list of prefixes - Tables to clear (default ['int_', 'fct_'])
 
         This method enables clean-slate simulation runs by removing all data from
@@ -221,7 +221,7 @@ class StateManager:
         setup = getattr(self.config, "setup", None)
         if not isinstance(setup, dict) or not setup.get("clear_tables"):
             return
-        clear_mode = setup.get("clear_mode", "all").lower()
+        clear_mode = setup.get("clear_mode", "year").lower()
         if clear_mode != "all":
             return
         patterns = setup.get("clear_table_patterns", ["int_", "fct_"])

@@ -28,6 +28,7 @@ from .workforce_data import (
     baseline_workforce_df,
     sample_yearly_events,
 )
+from .census_enrollment import census_enrollment_rows, enrollment_history_rows
 
 __all__ = [
     # Database fixtures
@@ -46,4 +47,6 @@ __all__ = [
     "sample_employees",
     "baseline_workforce_df",
     "sample_yearly_events",
+    "census_enrollment_rows",
+    "enrollment_history_rows",
 ]

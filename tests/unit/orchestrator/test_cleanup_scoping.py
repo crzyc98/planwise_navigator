@@ -113,6 +113,27 @@ def test_state_manager_year_cleanup_keeps_other_scenario_critical_fact_rows(
 
 @pytest.mark.fast
 @pytest.mark.unit
+def test_omitted_clear_mode_defaults_to_year_scoped_cleanup(in_memory_db):
+    _insert_scenario_rows(in_memory_db, "scenario-a")
+    _insert_scenario_rows(in_memory_db, "scenario-b")
+    manager = StateManager(
+        DirectConnectionManager(in_memory_db),
+        MagicMock(),
+        SimpleNamespace(
+            scenario_id="scenario-a",
+            plan_design_id="plan-a",
+            setup={"clear_tables": True, "clear_table_patterns": ["fct_"]},
+        ),
+    )
+
+    manager.maybe_clear_year_data(2025)
+
+    assert _scenario_counts(in_memory_db, "scenario-a") == (0, 0, 0)
+    assert _scenario_counts(in_memory_db, "scenario-b") == (1, 1, 1)
+
+
+@pytest.mark.fast
+@pytest.mark.unit
 @pytest.mark.parametrize("manager_type", ["data_cleanup", "state_manager"])
 def test_critical_fact_cleanup_falls_back_to_default_scenario_when_unconfigured(
     in_memory_db, manager_type

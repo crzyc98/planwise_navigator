@@ -50,6 +50,7 @@ from .pipeline.hooks import HookManager, HookType
 from .pipeline.telemetry_emitter import TelemetryEmitter
 from .pipeline.year_executor import YearExecutor
 from .pipeline.event_generation_executor import EventGenerationExecutor
+from .pipeline.enrollment_projection import EnrollmentDecisionProjection
 from .pipeline.stage_validator import StageValidator
 
 # Import model parallelization components
@@ -201,6 +202,7 @@ class PipelineOrchestrator:
             event_shards=self.event_shards,
             verbose=verbose,
         )
+        self.enrollment_projection = EnrollmentDecisionProjection(db_manager)
 
         # Initialize year executor with optional parallelization support
         self.year_executor = YearExecutor(
@@ -286,6 +288,8 @@ class PipelineOrchestrator:
             logger.debug("Acquiring execution lock: %s (db: %s)", lock_name, db_path)
             with ExecutionMutex(lock_name):
                 self.state_manager.maybe_full_reset()
+                # The dbt source must exist even before the first FOUNDATION run.
+                self.enrollment_projection.ensure_table()
                 self._initialize_registries(start)
                 completed_years: List[int] = []
                 simulation_start_time = time.time()
@@ -574,7 +578,7 @@ class PipelineOrchestrator:
             self._record_performance_checkpoint(stage.name.value, year, "start")
 
             # Specialized stage handlers that skip generic execution
-            if not self._execute_specialized_stage(stage, year):
+            if not self._execute_specialized_stage(stage, year, dry_run=dry_run):
                 # Generic stage execution with resource/memory management
                 self._execute_stage_with_monitoring(stage, year)
 
@@ -656,9 +660,13 @@ class PipelineOrchestrator:
                 f"{stage_name}_{year}_{suffix}"
             )
 
-    def _execute_specialized_stage(self, stage: "StageDefinition", year: int) -> bool:
+    def _execute_specialized_stage(
+        self, stage: "StageDefinition", year: int, *, dry_run: bool = False
+    ) -> bool:
         """Handle EVENT_GENERATION and STATE_ACCUMULATION stages. Returns True if handled."""
         if stage.name == WorkflowStage.EVENT_GENERATION:
+            if not dry_run:
+                self._prepare_enrollment_decision_state(year)
             self._execute_event_generation_stage(stage, year)
             return True
 
@@ -669,6 +677,15 @@ class PipelineOrchestrator:
             return True
 
         return False
+
+    def _prepare_enrollment_decision_state(self, year: int) -> None:
+        """Validate prior state and rebuild the dbt enrollment input for this year."""
+        self.year_executor.validate_year_dependencies(year)
+        self.enrollment_projection.rebuild(
+            year,
+            scenario_id=self.config.scenario_id or "default",
+            plan_design_id=self.config.plan_design_id or "default",
+        )
 
     def _execute_event_generation_stage(
         self, stage: "StageDefinition", year: int
