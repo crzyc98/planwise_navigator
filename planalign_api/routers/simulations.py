@@ -3,6 +3,7 @@
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from threading import Lock
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
@@ -49,6 +50,8 @@ def get_simulation_service(
 
 # In-memory store for active runs (would use Redis in production)
 _active_runs: Dict[str, SimulationRun] = {}
+_active_runs_lock = Lock()
+_NON_TERMINAL_RUN_STATUSES = {"pending", "queued", "running"}
 
 
 def _find_scenario_and_workspace(
@@ -92,13 +95,6 @@ async def start_simulation(
         )
     workspace_id = workspace.id
 
-    # Check if already running
-    if scenario.status == "running":
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Scenario {scenario_id} is already running",
-        )
-
     # Get merged config
     config = storage.get_merged_config(workspace_id, scenario_id)
     if not config:
@@ -128,10 +124,28 @@ async def start_simulation(
         started_at=datetime.now(),
     )
 
-    _active_runs[run_id] = run
+    # Check and reserve together so concurrent requests cannot queue duplicate
+    # runs for the same scenario. Refresh the scenario while holding the lock;
+    # the object fetched above may predate another request's status transition.
+    with _active_runs_lock:
+        workspace, scenario = _find_scenario_and_workspace(storage, scenario_id)
+        if not scenario or not workspace:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Scenario {scenario_id} not found",
+            )
+        if scenario.status in _NON_TERMINAL_RUN_STATUSES or any(
+            active_run.scenario_id == scenario_id
+            and active_run.status in _NON_TERMINAL_RUN_STATUSES
+            for active_run in _active_runs.values()
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Scenario {scenario_id} already has an active run",
+            )
 
-    # Update scenario status
-    storage.update_scenario_status(workspace_id, scenario_id, "queued", run_id)
+        _active_runs[run_id] = run
+        storage.update_scenario_status(workspace.id, scenario_id, "queued", run_id)
 
     # Start simulation in background
     background_tasks.add_task(
