@@ -287,6 +287,8 @@ export function useRunTelemetry(
       setState(retryCountRef.current > 0 ? 'reconnecting' : 'connecting');
     }
 
+    // NOTE: WebSocket token authentication is out of scope; this matches the
+    // backend's current WebSocket auth gap when an API token is configured.
     const ws = new WebSocket(`${WS_BASE}/ws/simulation/${runId}`);
     wsRef.current = ws;
 
@@ -419,6 +421,8 @@ export function useBatchSocket(batchId: string | null): UseBatchSocketResult {
 
     setStatus(prev => ({ ...prev, isConnecting: true, error: null }));
 
+    // NOTE: WebSocket token authentication is out of scope; see the simulation
+    // WebSocket connection above and the backend endpoint notes.
     const ws = new WebSocket(`${WS_BASE}/ws/batch/${batchId}`);
     wsRef.current = ws;
 
