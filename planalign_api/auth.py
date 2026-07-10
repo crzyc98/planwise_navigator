@@ -1,5 +1,7 @@
 """Optional shared-token authentication for the PlanAlign API."""
 
+import secrets
+
 from fastapi import HTTPException, Request, status
 
 from .config import get_settings
@@ -19,7 +21,9 @@ async def require_api_token(request: Request) -> None:
     )
     supplied_token = bearer_token or request.headers.get("X-API-Token")
 
-    if supplied_token != expected_token:
+    if supplied_token is None or not secrets.compare_digest(
+        supplied_token, expected_token
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="A valid PlanAlign API token is required.",
