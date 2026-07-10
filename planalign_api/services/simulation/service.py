@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import shutil
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -39,6 +40,88 @@ from planalign_core.constants import (
 
 logger = logging.getLogger(__name__)
 
+CANCEL_GRACE_SECONDS = 5.0
+
+
+class ActiveProcessRegistry:
+    """Process-local ownership of active simulation subprocesses.
+
+    ``SimulationService`` instances are request-scoped, so subprocess handles
+    must live outside an individual service instance for cancellation requests
+    to reach processes started by earlier requests.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+        self.processes: Dict[str, Any] = {}
+        self.cancelled_runs: set[str] = set()
+
+    def register(self, run_id: str, process: Any) -> None:
+        with self._lock:
+            self.processes[run_id] = process
+
+    def remove(self, run_id: str, process: Optional[Any] = None) -> None:
+        with self._lock:
+            if process is None or self.processes.get(run_id) is process:
+                self.processes.pop(run_id, None)
+
+    def is_cancelled(self, run_id: str) -> bool:
+        with self._lock:
+            return run_id in self.cancelled_runs
+
+    async def cancel(self, run_id: str) -> bool:
+        """Terminate a registered process, escalating to kill after a grace period."""
+        with self._lock:
+            process = self.processes.get(run_id)
+        if process is None:
+            return False
+
+        try:
+            process.terminate()
+        except ProcessLookupError:
+            # The process has already exited; it is safe to record cancellation.
+            pass
+        except OSError as exc:
+            logger.warning("Could not terminate simulation %s: %s", run_id, exc)
+            return False
+        else:
+            try:
+                await asyncio.wait_for(
+                    wait_subprocess(process), timeout=CANCEL_GRACE_SECONDS
+                )
+            except asyncio.TimeoutError:
+                try:
+                    process.kill()
+                except ProcessLookupError:
+                    pass
+                except OSError as exc:
+                    logger.warning("Could not kill simulation %s: %s", run_id, exc)
+                    return False
+                try:
+                    await wait_subprocess(process)
+                except (OSError, ProcessLookupError) as exc:
+                    logger.warning(
+                        "Could not confirm simulation %s exited: %s", run_id, exc
+                    )
+                    return False
+            except (OSError, ProcessLookupError) as exc:
+                logger.warning(
+                    "Could not confirm simulation %s exited: %s", run_id, exc
+                )
+                return False
+
+        with self._lock:
+            self.cancelled_runs.add(run_id)
+            if self.processes.get(run_id) is process:
+                self.processes.pop(run_id, None)
+        return True
+
+
+# Request dependencies construct a new SimulationService each time. Keep this
+# registry module-scoped, like the telemetry service, so those instances share
+# ownership of subprocess handles within the API process.
+_active_process_registry = ActiveProcessRegistry()
+
 
 def _get_memory_mb() -> float:
     """Get current process memory usage in MB."""
@@ -62,9 +145,11 @@ class SimulationService:
     ):
         self.storage = storage
         self.db_resolver = db_resolver or create_api_database_path_resolver(storage)
-        self._cancelled_runs: set = set()
+        self._process_registry = _active_process_registry
+        # Kept as aliases for existing callers and backwards-compatible tests.
+        self._cancelled_runs = self._process_registry.cancelled_runs
         self._active_runs: Dict[str, Any] = {}
-        self._active_processes: Dict[str, Any] = {}
+        self._active_processes = self._process_registry.processes
 
     # ------------------------------------------------------------------
     # Execution
@@ -240,7 +325,7 @@ class SimulationService:
         process, line_iterator = await create_subprocess(
             cmd=cmd, cwd=str(project_root), env=env
         )
-        self._active_processes[run_id] = process
+        self._process_registry.register(run_id, process)
 
         # Telemetry state was created at execute_simulation start (feature 094)
         start_time = datetime.now()
@@ -271,8 +356,11 @@ class SimulationService:
 
         # Await exit code
         return_code = await wait_subprocess(process)
-        self._active_processes.pop(run_id, None)
+        self._process_registry.remove(run_id, process)
         final_elapsed = (datetime.now() - start_time).total_seconds()
+
+        if self._process_registry.is_cancelled(run_id):
+            raise RuntimeError("Simulation cancelled by user")
 
         if return_code != 0:
             self._raise_subprocess_error(return_code, output_buffer)
@@ -368,7 +456,7 @@ class SimulationService:
     ) -> None:
         """Log failure (or cancellation), update status, send terminal telemetry,
         and archive run metadata so the run (and its logs) appear in run history."""
-        was_cancelled = run_id in self._cancelled_runs
+        was_cancelled = self._process_registry.is_cancelled(run_id)
         terminal_status = "cancelled" if was_cancelled else STATUS_FAILED
         error_message = None if was_cancelled else str(error)
         if was_cancelled:
@@ -421,17 +509,9 @@ class SimulationService:
     # Cancel / Results / Telemetry
     # ------------------------------------------------------------------
 
-    def cancel_simulation(self, run_id: str) -> bool:
-        """Signal a running simulation to cancel and terminate subprocess."""
-        self._cancelled_runs.add(run_id)
-        if run_id in self._active_processes:
-            process = self._active_processes[run_id]
-            try:
-                process.terminate()
-            except ProcessLookupError:
-                pass
-            del self._active_processes[run_id]
-        return True
+    async def cancel_simulation(self, run_id: str) -> bool:
+        """Cancel a registered simulation subprocess shared by all service instances."""
+        return await self._process_registry.cancel(run_id)
 
     def get_results(
         self, workspace_id: str, scenario_id: str, population: str = "active"
@@ -722,8 +802,7 @@ class SimulationService:
         MAX_OUTPUT_BUFFER = 50
 
         async for line in line_iterator:
-            if run_id in self._cancelled_runs:
-                process.terminate()
+            if self._process_registry.is_cancelled(run_id):
                 logger.info(f"Simulation {run_id} cancelled")
                 return output_buffer
 
