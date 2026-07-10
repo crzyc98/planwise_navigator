@@ -252,7 +252,15 @@ async def cancel_simulation(
     for run_id, run in _active_runs.items():
         if run.scenario_id == scenario_id and run.status == "running":
             # Signal cancellation
-            simulation_service.cancel_simulation(run_id)
+            cancelled = await simulation_service.cancel_simulation(run_id)
+            if not cancelled:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=(
+                        f"No active subprocess found for run {run_id}; it may have "
+                        "finished or the API was restarted"
+                    ),
+                )
 
             run.status = "cancelled"
             run.completed_at = datetime.now(timezone.utc)
@@ -262,11 +270,16 @@ async def cancel_simulation(
             if workspace and scenario:
                 storage.update_scenario_status(workspace.id, scenario_id, "cancelled")
 
+            get_telemetry_service().set_terminal(run_id, "cancelled")
+
             return {"success": True}
 
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
-        detail=f"No running simulation found for scenario {scenario_id}",
+        detail=(
+            f"No running simulation found for scenario {scenario_id}; it may have "
+            "finished or the API was restarted"
+        ),
     )
 
 

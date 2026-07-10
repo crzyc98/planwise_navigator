@@ -1,11 +1,15 @@
 """Tests for SimulationService class."""
 
+import asyncio
 from unittest.mock import MagicMock, patch
 from pathlib import Path
 
 import pytest
 
-from planalign_api.services.simulation.service import SimulationService
+from planalign_api.services.simulation.service import (
+    SimulationService,
+    _active_process_registry,
+)
 from planalign_api.services.simulation import (
     SimulationService as PackageSimulationService,
 )
@@ -48,40 +52,76 @@ class TestSimulationServiceInit:
 class TestSimulationServiceCancelSimulation:
     """Test cancel_simulation method."""
 
-    def test_cancel_adds_to_cancelled_set(self):
-        """Should add run_id to cancelled set."""
+    @pytest.fixture(autouse=True)
+    def clear_process_registry(self):
+        """Isolate module-scoped process ownership between tests."""
+        _active_process_registry.processes.clear()
+        _active_process_registry.cancelled_runs.clear()
+        yield
+        _active_process_registry.processes.clear()
+        _active_process_registry.cancelled_runs.clear()
+
+    def test_cancel_from_different_service_terminates_registered_process(self):
+        """A request-scoped service can cancel another instance's process."""
         mock_storage = MagicMock()
-        service = SimulationService(storage=mock_storage)
-
-        result = service.cancel_simulation("run-123")
-
-        assert result is True
-        assert "run-123" in service._cancelled_runs
-
-    def test_cancel_terminates_active_process(self):
-        """Should terminate active process if running."""
-        mock_storage = MagicMock()
+        first_service = SimulationService(storage=mock_storage)
+        second_service = SimulationService(storage=mock_storage)
         mock_process = MagicMock()
-        service = SimulationService(storage=mock_storage)
-        service._active_processes["run-123"] = mock_process
 
-        result = service.cancel_simulation("run-123")
+        async def wait():
+            return -15
+
+        mock_process.wait.side_effect = wait
+        first_service._process_registry.register("run-123", mock_process)
+
+        result = asyncio.run(second_service.cancel_simulation("run-123"))
 
         assert result is True
         mock_process.terminate.assert_called_once()
-        assert "run-123" not in service._active_processes
+        assert "run-123" not in first_service._active_processes
+        assert "run-123" in second_service._cancelled_runs
 
-    def test_cancel_handles_missing_process(self):
-        """Should handle gracefully if process already exited."""
+    def test_cancel_unknown_run_returns_false(self):
+        """An unregistered process cannot be safely marked cancelled."""
         mock_storage = MagicMock()
-        mock_process = MagicMock()
-        mock_process.terminate.side_effect = ProcessLookupError()
         service = SimulationService(storage=mock_storage)
-        service._active_processes["run-123"] = mock_process
 
-        result = service.cancel_simulation("run-123")
+        result = asyncio.run(service.cancel_simulation("run-123"))
+
+        assert result is False
+        assert "run-123" not in service._cancelled_runs
+
+    def test_cancel_kills_process_after_grace_period(self):
+        """A process that ignores terminate is killed before cancellation succeeds."""
+
+        class SlowProcess:
+            def __init__(self):
+                self.actions = []
+                self.killed = False
+
+            def terminate(self):
+                self.actions.append("terminate")
+
+            def kill(self):
+                self.actions.append("kill")
+                self.killed = True
+
+            async def wait(self):
+                if not self.killed:
+                    await asyncio.Event().wait()
+                return -9
+
+        service = SimulationService(storage=MagicMock())
+        process = SlowProcess()
+        service._process_registry.register("run-123", process)
+
+        with patch(
+            "planalign_api.services.simulation.service.CANCEL_GRACE_SECONDS", 0.01
+        ):
+            result = asyncio.run(service.cancel_simulation("run-123"))
 
         assert result is True
+        assert process.actions == ["terminate", "kill"]
         assert "run-123" not in service._active_processes
 
 
