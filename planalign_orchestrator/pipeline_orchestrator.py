@@ -11,6 +11,7 @@ Refactored to use modular pipeline components (Story S072-06).
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -660,10 +661,7 @@ class PipelineOrchestrator:
 
         if stage.name == WorkflowStage.STATE_ACCUMULATION:
             stage_result = self.year_executor.execute_workflow_stage(stage, year)
-            if not stage_result[KEY_SUCCESS]:
-                raise PipelineStageError(
-                    f"Stage {stage.name.value} failed: {stage_result.get('error', 'Unknown error')}"
-                )
+            self._raise_for_failed_stage_result(stage, year, stage_result)
             self._record_performance_checkpoint(stage.name.value, year, "complete")
             return True
 
@@ -677,7 +675,10 @@ class PipelineOrchestrator:
             hybrid_result = (
                 self.event_generation_executor.execute_hybrid_event_generation([year])
             )
-            if not hybrid_result[KEY_SUCCESS]:
+            if (
+                not isinstance(hybrid_result, Mapping)
+                or hybrid_result.get(KEY_SUCCESS) is not True
+            ):
                 raise PipelineStageError(
                     f"Hybrid event generation failed: {hybrid_result}"
                 )
@@ -809,10 +810,38 @@ class PipelineOrchestrator:
                 year=year,
             ):
                 with time_block(f"stage:{stage.name.value}"):
-                    self.year_executor.execute_workflow_stage(stage, year)
+                    stage_result = self.year_executor.execute_workflow_stage(
+                        stage, year
+                    )
         else:
             with time_block(f"stage:{stage.name.value}"):
-                self.year_executor.execute_workflow_stage(stage, year)
+                stage_result = self.year_executor.execute_workflow_stage(stage, year)
+
+        self._raise_for_failed_stage_result(stage, year, stage_result)
+
+    @staticmethod
+    def _raise_for_failed_stage_result(
+        stage: "StageDefinition", year: int, stage_result: Any
+    ) -> None:
+        """Fail closed unless the stage result explicitly reports success."""
+        stage_name = stage.name.value
+        context = f"Stage {stage_name} failed for year {year}"
+
+        if not isinstance(stage_result, Mapping):
+            raise PipelineStageError(f"{context}: missing or malformed stage outcome")
+
+        success = stage_result.get(KEY_SUCCESS)
+        if success is True:
+            return
+
+        error = stage_result.get("error")
+        if not error:
+            if success is False:
+                error = "unsuccessful stage outcome"
+            else:
+                error = "missing or ambiguous stage outcome"
+
+        raise PipelineStageError(f"{context}: {error}")
 
     def get_adaptive_batch_size(self) -> int:
         """Get current adaptive batch size from memory manager"""

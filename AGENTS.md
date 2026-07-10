@@ -151,3 +151,10 @@ Python change checklist:
 ---
 
 By following this playbook, the Codex CLI assistant produces high-quality, auditable changes that align with the event-sourced architecture and enterprise standards documented in CLAUDE.md.
+
+## Active Technologies
+- Python >=3.11 + dbt Core/dbt DuckDB execution via the existing orchestrator, Pydantic configuration models, DuckDB-backed simulation state, pytest for tests (106-fail-dbt-stage)
+- No schema or persisted data-model changes; existing DuckDB run outputs may be partially present for failed runs and must remain clearly associated with failed status (106-fail-dbt-stage)
+
+## Recent Changes
+- 106-fail-dbt-stage: Added Python >=3.11 + dbt Core/dbt DuckDB execution via the existing orchestrator, Pydantic configuration models, DuckDB-backed simulation state, pytest for tests
