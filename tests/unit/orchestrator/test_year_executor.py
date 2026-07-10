@@ -176,6 +176,16 @@ class TestYearExecutorInit:
         executor = _make_executor()
         assert executor._year_validator is not None
 
+    def test_validate_year_dependencies_delegates_to_validator(self):
+        executor = _make_executor()
+        executor._year_validator.validate_year_dependencies = MagicMock()
+
+        executor.validate_year_dependencies(2026)
+
+        executor._year_validator.validate_year_dependencies.assert_called_once_with(
+            2026
+        )
+
 
 # ---------------------------------------------------------------------------
 # execute_workflow_stage
@@ -685,14 +695,14 @@ class TestRunSequentialEventModels:
             executor._run_sequential_event_models(stage, 2025)
             mock_clear.assert_called_once_with("fct_workforce_snapshot", 2025)
 
-    def test_full_refresh_appended_when_forced(self):
+    def test_run_reset_does_not_full_refresh_temporal_models(self):
         executor = _make_executor(setup={"clear_tables": True, "clear_mode": "all"})
         stage = _event_stage(models=["some_model"])
 
         executor._run_sequential_event_models(stage, 2025)
 
         cmd_args = executor.dbt_runner.execute_command.call_args[0][0]
-        assert "--full-refresh" in cmd_args
+        assert "--full-refresh" not in cmd_args
 
     def test_full_refresh_for_specific_models(self):
         executor = _make_executor()
@@ -719,9 +729,9 @@ class TestRunSequentialEventModels:
 
 
 class TestIsForceFullRefresh:
-    def test_true_when_clear_tables_and_clear_mode_all(self):
+    def test_run_reset_never_forces_later_model_refreshes(self):
         executor = _make_executor(setup={"clear_tables": True, "clear_mode": "all"})
-        assert executor._is_force_full_refresh() is True
+        assert executor._is_force_full_refresh() is False
 
     def test_false_when_no_setup(self):
         executor = _make_executor(setup=None)
@@ -742,9 +752,9 @@ class TestIsForceFullRefresh:
         )
         assert executor._is_force_full_refresh() is False
 
-    def test_true_with_uppercase_clear_mode(self):
+    def test_uppercase_run_reset_never_forces_later_model_refreshes(self):
         executor = _make_executor(setup={"clear_tables": True, "clear_mode": "ALL"})
-        assert executor._is_force_full_refresh() is True
+        assert executor._is_force_full_refresh() is False
 
 
 # ---------------------------------------------------------------------------
@@ -959,7 +969,7 @@ class TestShouldFullRefreshFoundation:
         )
         assert executor._should_full_refresh_foundation(stage, 2025) is True
 
-    def test_non_first_year_with_clear_mode_all_returns_true(self):
+    def test_non_first_year_with_clear_mode_all_returns_false(self):
         executor = _make_executor(
             simulation_start_year=2025,
             setup={"clear_mode": "all"},
@@ -970,7 +980,7 @@ class TestShouldFullRefreshFoundation:
             models=["m1"],
             validation_rules=[],
         )
-        assert executor._should_full_refresh_foundation(stage, 2026) is True
+        assert executor._should_full_refresh_foundation(stage, 2026) is False
 
     def test_non_first_year_with_clear_mode_incremental_returns_false(self):
         executor = _make_executor(
@@ -985,7 +995,7 @@ class TestShouldFullRefreshFoundation:
         )
         assert executor._should_full_refresh_foundation(stage, 2026) is False
 
-    def test_no_setup_defaults_to_all(self):
+    def test_no_setup_preserves_later_year_history(self):
         executor = _make_executor(simulation_start_year=2025, setup=None)
         stage = StageDefinition(
             name=WorkflowStage.FOUNDATION,
@@ -993,8 +1003,7 @@ class TestShouldFullRefreshFoundation:
             models=["m1"],
             validation_rules=[],
         )
-        # No setup -> clear_mode defaults to "all"
-        assert executor._should_full_refresh_foundation(stage, 2026) is True
+        assert executor._should_full_refresh_foundation(stage, 2026) is False
 
     def test_verbose_prints_reason(self, caplog):
         caplog.set_level(logging.DEBUG)

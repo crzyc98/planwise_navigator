@@ -213,11 +213,21 @@ class StageValidator:
                 "SELECT COALESCE(SUM(hires_needed),0) FROM int_workforce_needs_by_level WHERE simulation_year = ?",
                 [year],
             ).fetchone()[0]
-            return int(hires), int(demand)
+            try:
+                projection = conn.execute(
+                    "SELECT COUNT(*) FROM enrollment_decision_projection WHERE decision_year = ?",
+                    [year],
+                ).fetchone()[0]
+            except Exception:
+                projection = 0
+            return int(hires), int(demand), int(projection)
 
-        hires_cnt, demand_cnt = self.db_manager.execute_with_retry(_ev_chk)
+        hires_cnt, demand_cnt, projection_cnt = self.db_manager.execute_with_retry(
+            _ev_chk
+        )
         logger.info("Event generation validation for year %d:", year)
         logger.info("  int_hiring_events: %d rows", hires_cnt)
+        logger.info("  enrollment_decision_projection: %d rows", projection_cnt)
         logger.info("  hiring_demand (sum_by_level): %d", demand_cnt)
         if hires_cnt == 0 and demand_cnt > 0:
             raise PipelineStageError(

@@ -27,6 +27,8 @@ from tests.fixtures import (  # noqa: F401
     mock_dbt_runner,
     sample_employees,
     baseline_workforce_df,
+    census_enrollment_rows,
+    enrollment_history_rows,
 )
 
 

@@ -106,32 +106,12 @@ active_workforce AS (
 ),
 
 current_enrollment_status AS (
-  -- CRITICAL FIX: Use enrollment_state_accumulator from previous year to account for opt-outs
-  -- This replaces enrollment_registry which doesn't properly track opt-out events
-  {% set start_year = var('start_year', 2025) | int %}
-  {% set current_year = var('simulation_year') | int %}
-
-  {% if current_year == start_year %}
-    -- Year 1: Use baseline workforce enrollment status
-    SELECT
-      employee_id,
-      is_enrolled_at_census as is_currently_enrolled,
-      false as ever_opted_out  -- Year 1: no one has opted out yet
-    FROM {{ ref('int_baseline_workforce') }}
-    WHERE employee_id IS NOT NULL
-  {% else %}
-    -- Year 2+: Use enrollment_state_accumulator from previous year
-    -- This correctly accounts for opt-outs (is_enrolled = false after opt-out)
-    -- Note: Using direct table reference to avoid circular dependency in dbt DAG
-    -- The previous year's accumulator was already built in the prior iteration
-    SELECT
-      employee_id,
-      is_enrolled as is_currently_enrolled,
-      ever_opted_out  -- Track opt-out history to exclude from voluntary enrollment
-    FROM int_enrollment_state_accumulator
-    WHERE simulation_year = {{ current_year - 1 }}
-      AND employee_id IS NOT NULL
-  {% endif %}
+  SELECT
+    employee_id,
+    is_enrolled AS is_currently_enrolled,
+    ever_opted_out
+  FROM {{ ref('stg_prior_enrollment_state') }}
+  WHERE employee_id IS NOT NULL
 ),
 
 eligible_employees AS (

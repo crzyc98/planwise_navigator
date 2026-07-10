@@ -1,6 +1,13 @@
 version: 2
 
 sources:
+  - name: orchestrator_state
+    description: "Disposable, scenario-scoped projections rebuilt by the orchestrator."
+    schema: main
+    tables:
+      - name: enrollment_decision_projection
+        description: "Prior enrollment decision state derived from census and fct_yearly_events."
+
   - name: snapshots
     description: "dbt snapshots schema containing historical workforce state"
     schema: main

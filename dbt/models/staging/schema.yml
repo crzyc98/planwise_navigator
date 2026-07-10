@@ -1,6 +1,23 @@
 version: 2
 
 models:
+  - name: stg_prior_enrollment_state
+    description: "Scenario-scoped prior enrollment state rebuilt from census and immutable event facts."
+    columns:
+      - name: employee_id
+        description: "Unique employee identifier."
+        data_tests: [not_null, unique]
+      - name: is_enrolled
+        description: "Enrollment status immediately before the decision year."
+        data_tests: [not_null]
+      - name: ever_opted_out
+        description: "Whether the employee has made a prior explicit opt-out."
+        data_tests: [not_null]
+      - name: latest_event_id
+        description: "Authoritative prior fact establishing the projected state, when present."
+      - name: current_deferral_rate
+        description: "Latest fact-derived or census deferral rate before the decision year."
+
   - name: stg_census_data
     description: >
       LOCKED CONTRACT: Primary census data foundation model.

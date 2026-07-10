@@ -223,7 +223,7 @@ class YearExecutor:
         if stage.name == WorkflowStage.STATE_ACCUMULATION:
             # Validate year dependencies before state accumulation
             # This prevents silent data corruption from out-of-order year execution
-            self._year_validator.validate_year_dependencies(year)
+            self.validate_year_dependencies(year)
             if self.verbose:
                 logger.debug("Running STATE_ACCUMULATION with dbt (sequential)")
 
@@ -597,14 +597,17 @@ class YearExecutor:
                 groups.append(([model], needs_refresh))
         return groups
 
+    def validate_year_dependencies(self, year: int) -> None:
+        """Validate prior-year state before any consumer reads it."""
+        self._year_validator.validate_year_dependencies(year)
+
     def _is_force_full_refresh(self) -> bool:
-        """Check if setup config requires forced full refresh for all models."""
-        setup = getattr(self.config, "setup", None)
-        return bool(
-            isinstance(setup, dict)
-            and setup.get("clear_tables")
-            and setup.get("clear_mode", "all").lower() == "all"
-        )
+        """Keep temporal models incremental after the start year.
+
+        ``clear_mode=all`` resets a run before it starts; it must not erase prior
+        years while processing a later year in that run.
+        """
+        return False
 
     def _clear_snapshot_rows_if_needed(self, model: str, year: int) -> None:
         """Clear fct_workforce_snapshot rows for the year before rebuild.
@@ -711,7 +714,7 @@ class YearExecutor:
     ) -> bool:
         """Determine if the FOUNDATION stage should use --full-refresh.
 
-        Full refresh is used on the first simulation year or when clear_mode is 'all'.
+        Full refresh is used only on the first simulation year.
 
         Args:
             stage: Stage definition to check
@@ -723,20 +726,13 @@ class YearExecutor:
         if stage.name != WorkflowStage.FOUNDATION:
             return False
 
-        setup = getattr(self.config, "setup", None)
-        clear_mode = (
-            isinstance(setup, dict) and setup.get("clear_mode", "all").lower()
-        ) or "all"
-        should_refresh = (
-            year == self.config.simulation.start_year or clear_mode == "all"
-        )
+        should_refresh = year == self.config.simulation.start_year
 
         if should_refresh and self.verbose:
             logger.debug(
-                "Running %s with --full-refresh (year=%d, clear_mode=%s)",
+                "Running %s with --full-refresh (start year=%d)",
                 stage.name.value,
                 year,
-                clear_mode,
             )
 
         return should_refresh

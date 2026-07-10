@@ -155,6 +155,10 @@ By following this playbook, the Codex CLI assistant produces high-quality, audit
 ## Active Technologies
 - Python >=3.11 + dbt Core/dbt DuckDB execution via the existing orchestrator, Pydantic configuration models, DuckDB-backed simulation state, pytest for tests (106-fail-dbt-stage)
 - No schema or persisted data-model changes; existing DuckDB run outputs may be partially present for failed runs and must remain clearly associated with failed status (106-fail-dbt-stage)
+- Python >=3.11; dbt SQL/Jinja compatible with dbt Core 1.8.8 + Existing PlanAlign orchestrator, Pydantic v2 configuration, dbt Core 1.8.8, dbt DuckDB 1.8.1, DuckDB 1.0.0 (107-preserve-census-enrollment)
+- Existing scenario-isolated DuckDB tables; no schema or persisted contract changes; incremental yearly rows must be retained (107-preserve-census-enrollment)
+- Python >=3.11; dbt SQL/Jinja compatible with dbt Core 1.8.8 + PlanAlign orchestrator, Pydantic v2 configuration, dbt Core 1.8.8, dbt DuckDB 1.8.1, DuckDB 1.0.0, pytest 7.4, psutil (107-preserve-census-enrollment)
+- Existing scenario-isolated DuckDB outputs plus one disposable internal `enrollment_decision_projection` table rebuilt from census and immutable fact events; no public mart, API, or configuration schema change (107-preserve-census-enrollment)
 
 ## Recent Changes
 - 106-fail-dbt-stage: Added Python >=3.11 + dbt Core/dbt DuckDB execution via the existing orchestrator, Pydantic configuration models, DuckDB-backed simulation state, pytest for tests

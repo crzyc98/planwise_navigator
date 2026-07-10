@@ -1,0 +1,6 @@
+{
+  "employee_count": 100000,
+  "history_rows": 200000,
+  "runtime_seconds": 30.0,
+  "rss_mib": 1024.0
+}
