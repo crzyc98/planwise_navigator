@@ -135,8 +135,8 @@ final_events AS (
     ROW_NUMBER() OVER (
       PARTITION BY scenario_id, plan_design_id, employee_id, simulation_year
       ORDER BY
-        {{ event_priority('event_type') }},
         effective_date,
+        {{ event_priority('event_type') }},
         event_type
     ) AS event_sequence,
     created_at,
@@ -422,8 +422,8 @@ final_events AS (
     ROW_NUMBER() OVER (
       PARTITION BY scenario_id, plan_design_id, employee_id, simulation_year
       ORDER BY
-        {{ event_priority('event_type') }},
         effective_date,
+        {{ event_priority('event_type') }},
         event_type
     ) AS event_sequence,
     -- Add metadata for audit trail
