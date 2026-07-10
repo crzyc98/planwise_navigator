@@ -32,7 +32,6 @@ _DC_MODELS = {
     "int_plan_eligibility_determination",
     "int_workforce_pre_enrollment",
     "int_workforce_active_for_events",
-    "dq_employee_contributions_validation",
 }
 
 # Comp models that MUST be built.

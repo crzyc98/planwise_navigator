@@ -119,7 +119,7 @@ The PipelineOrchestrator executes models per year in this sequence (see `planali
 2. **FOUNDATION**: `int_baseline_workforce`, `int_employee_compensation_by_year`, workforce needs
 3. **EVENT_GENERATION**: termination → hiring → new-hire termination → promotion → merit → eligibility → enrollment → deferral events
 4. **STATE_ACCUMULATION**: `fct_yearly_events` → state accumulators → contributions/match → `fct_workforce_snapshot` (batched dbt invocations; ordering comes from the dbt DAG)
-5. **VALIDATION**: `dq_employee_contributions_validation`
+5. **VALIDATION**: on-demand data-quality dbt tests
 6. **REPORTING**: Audit reports
 
 `int_workforce_snapshot_optimized` and `int_deferral_rate_escalation_events` always run with `--full-refresh`; the orchestrator isolates them so the flag never touches the temporal accumulators.

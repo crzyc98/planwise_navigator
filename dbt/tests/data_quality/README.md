@@ -376,7 +376,7 @@ dbt compile --select test_name
 
 **Before** (validation models in build):
 ```bash
-dbt run --select dq_employee_contributions_validation
+dbt run --select <validation_model>
 # Model runs on every build, takes time
 ```
 

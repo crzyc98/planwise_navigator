@@ -88,23 +88,6 @@ deferral_rate_changes AS (
         AND employee_deferral_rate IS NOT NULL
 ),
 
-validation_results AS (
-    SELECT
-        validation_rule,
-        validation_source,
-        severity,
-        violation_count,
-        validation_message,
-        violation_details,
-        validation_timestamp,
-        scenario_id AS validation_scenario_id,
-        audit_record_id AS validation_audit_id,
-        risk_level,
-        regulatory_impact
-    FROM {{ ref('dq_employee_contributions_validation') }}
-    WHERE simulation_year = {{ simulation_year }}
-),
-
 irs_limits AS (
     SELECT
         limit_year,
@@ -256,85 +239,6 @@ WHERE cc.employee_id IS NOT NULL
             AND existing.simulation_year = cc.simulation_year
             AND existing.scenario_id = cc.scenario_id
             AND existing.parameter_scenario_id = cc.parameter_scenario_id
-    )
-{% endif %}
-
-UNION ALL
-
--- Generate audit records for data quality validation events
-SELECT
-    -- Immutable audit identifiers for validation events
-    CONCAT('VALIDATION-AUDIT-', vr.validation_rule, '-', {{ simulation_year }}, '-',
-           EXTRACT(EPOCH FROM CURRENT_TIMESTAMP)::BIGINT, '-',
-           SUBSTR(MD5(RANDOM()::TEXT), 1, 8)) AS audit_record_id,
-
-    -- Validation event audit metadata
-    'DATA_QUALITY_VALIDATION' AS audit_event_type,
-    CURRENT_TIMESTAMP AS audit_timestamp,
-    {{ simulation_year }} AS simulation_year,
-    NULL AS employee_id,  -- System-level validation
-    vr.validation_scenario_id AS scenario_id,
-    '{{ var("parameter_scenario_id", "default") }}' AS parameter_scenario_id,
-
-    -- Validation-specific audit data (using NULL for non-applicable fields)
-    NULL AS contribution_audit_data,
-    NULL AS employee_context_data,
-    NULL AS period_audit_data,
-    NULL AS irs_compliance_audit,
-    NULL AS deferral_rate_changes_audit,
-
-    -- Validation audit data
-    ARRAY[STRUCT(
-        vr.validation_rule AS rule_code,
-        vr.validation_source AS rule_source,
-        vr.severity AS severity_level,
-        vr.violation_count AS violations_found,
-        vr.risk_level AS risk_assessment,
-        vr.regulatory_impact AS regulatory_flag
-    )] AS validation_audit_data,
-
-    -- System audit for validation (basic JSON)
-    JSON_OBJECT(
-        'calculation_timestamp', vr.validation_timestamp,
-        'audit_delay_seconds', 0,
-        'processing_complexity', 'SYSTEM_VALIDATION',
-        'dbt_version', '{{ var("dbt_version", "unknown") }}',
-        'source_model', 'dq_employee_contributions_validation'
-    ) AS system_audit_data,
-
-    NULL AS cross_year_audit_data,
-
-    -- Validation audit trail metadata
-    CASE
-        WHEN vr.severity = 'CRITICAL' AND vr.violation_count > 0 THEN 'FAILED'
-        WHEN vr.severity = 'ERROR' AND vr.violation_count > 0 THEN 'WARNING'
-        ELSE 'PASSED'
-    END AS audit_record_status,
-    CURRENT_TIMESTAMP AS audit_record_created_at,
-    'dq_employee_contributions_validation' AS audit_source_model,
-    MD5(CONCAT(vr.validation_rule, vr.validation_source, vr.violation_count,
-               vr.validation_timestamp)) AS calculation_fingerprint,
-
-    -- Regulatory attestation for validations
-    'SOX_COMPLIANT' AS regulatory_framework,
-    'AUTOMATED_VALIDATION' AS calculation_method,
-    'IMMUTABLE_AUDIT_TRAIL' AS audit_trail_type,
-    CASE
-        WHEN vr.severity = 'CRITICAL' AND vr.violation_count > 0 THEN 'CRITICAL_ISSUE'
-        WHEN vr.severity = 'ERROR' AND vr.violation_count > 0 THEN 'REQUIRES_REVIEW'
-        ELSE 'ATTESTATION_READY'
-    END AS attestation_status
-
-FROM validation_results vr
-WHERE vr.regulatory_impact = true
-   OR vr.severity IN ('CRITICAL', 'ERROR')
-
-{% if is_incremental() %}
-    -- For incremental runs, only add new validation records
-    AND NOT EXISTS (
-        SELECT 1 FROM {{ this }} existing
-        WHERE existing.audit_event_type = 'DATA_QUALITY_VALIDATION'
-            AND existing.calculation_fingerprint = MD5(CONCAT(vr.validation_rule, vr.validation_source, vr.violation_count, vr.validation_timestamp))
     )
 {% endif %}
 

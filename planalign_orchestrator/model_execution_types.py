@@ -116,8 +116,7 @@ class ModelClassifier:
             "int_new_hire_compensation_staging": "New hire compensation calculation",
             "int_employer_eligibility": "Eligibility determination based on static rules",
             "int_plan_eligibility_determination": "Plan eligibility calculation",
-            # Data quality and validation models
-            "dq_employee_contributions_validation": "Independent data validation",
+            # Data quality and monitoring models
             "dq_performance_monitoring": "Performance metrics calculation",
             "dq_compliance_monitoring": "Compliance checking",
             # Reporting models
