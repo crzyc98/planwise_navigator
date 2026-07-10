@@ -11,6 +11,7 @@ from .database_path_resolver import (
     ResolvedDatabasePath,
     IsolationMode,
     WorkspaceStorageProtocol,
+    create_api_database_path_resolver,
 )
 
 __all__ = [
@@ -25,4 +26,5 @@ __all__ = [
     "ResolvedDatabasePath",
     "IsolationMode",
     "WorkspaceStorageProtocol",
+    "create_api_database_path_resolver",
 ]

@@ -9,7 +9,10 @@ from typing import Dict, List, Optional, Set
 from pydantic import BaseModel
 
 from ..storage.workspace_storage import WorkspaceStorage
-from .database_path_resolver import DatabasePathResolver, IsolationMode
+from .database_path_resolver import (
+    DatabasePathResolver,
+    create_api_database_path_resolver,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -213,9 +216,7 @@ class NDTService:
         db_resolver: Optional[DatabasePathResolver] = None,
     ):
         self.storage = storage
-        self.db_resolver = db_resolver or DatabasePathResolver(
-            storage, isolation_mode=IsolationMode.MULTI_TENANT
-        )
+        self.db_resolver = db_resolver or create_api_database_path_resolver(storage)
 
     @staticmethod
     def _get_seed_lock(db_path: Path) -> threading.Lock:

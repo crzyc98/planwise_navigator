@@ -36,10 +36,10 @@ class TestSimulationServiceInit:
         mock_storage = MagicMock()
 
         with patch(
-            "planalign_api.services.simulation.service.DatabasePathResolver"
-        ) as MockResolver:
+            "planalign_api.services.simulation.service.create_api_database_path_resolver"
+        ) as mock_resolver_factory:
             SimulationService(storage=mock_storage)
-            MockResolver.assert_called_once_with(mock_storage)
+            mock_resolver_factory.assert_called_once_with(mock_storage)
 
 
 @pytest.mark.fast

@@ -18,6 +18,7 @@ from typing import Literal, Optional, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict
 
+from planalign_api.config import get_settings
 from planalign_core.constants import DATABASE_FILENAME as _DEFAULT_DATABASE_FILENAME
 
 logger = logging.getLogger(__name__)
@@ -290,22 +291,23 @@ class DatabasePathResolver:
 
         # Step 4: Check isolation mode before project fallback
         if self._isolation_mode == IsolationMode.MULTI_TENANT:
-            logger.debug(
-                f"Multi-tenant mode: no project fallback for workspace={workspace_id}, "
-                f"scenario={scenario_id}"
+            warning_msg = (
+                f"No scenario or workspace database found for workspace={workspace_id}, "
+                f"scenario={scenario_id}; project database fallback is disabled."
             )
+            logger.warning(warning_msg)
             return ResolvedDatabasePath(
                 path=None,
                 source=None,
-                warning=None,
+                warning=warning_msg,
             )
 
         # Step 5: Try project default database (SINGLE_TENANT only)
         if self._project_db_path.exists():
             warning_msg = (
-                f"Using global project database for workspace={workspace_id}, "
-                f"scenario={scenario_id}. This database may contain data from "
-                f"other scenarios."
+                "DEVELOPMENT-ONLY project database fallback is active for "
+                f"workspace={workspace_id}, scenario={scenario_id}. This database "
+                "may contain data from other scenarios."
             )
             logger.warning(warning_msg)
             return ResolvedDatabasePath(
@@ -323,3 +325,21 @@ class DatabasePathResolver:
             source=None,
             warning=None,
         )
+
+
+def create_api_database_path_resolver(
+    storage: WorkspaceStorageProtocol,
+) -> DatabasePathResolver:
+    """Create a resolver with the API's safe-by-default isolation policy.
+
+    The global project database is intended only for local development. API
+    deployments therefore require an explicit ``PLANALIGN_API_ALLOW_PROJECT_DB_FALLBACK``
+    opt-in before using it.
+    """
+    settings = get_settings()
+    isolation_mode = (
+        IsolationMode.SINGLE_TENANT
+        if settings.allow_project_db_fallback
+        else IsolationMode.MULTI_TENANT
+    )
+    return DatabasePathResolver(storage, isolation_mode=isolation_mode)
