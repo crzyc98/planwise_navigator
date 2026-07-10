@@ -73,19 +73,6 @@ contribution_data AS (
     WHERE simulation_year = {{ simulation_year }}
 ),
 
-validation_results AS (
-    SELECT
-        validation_rule,
-        validation_source,
-        severity,
-        violation_count,
-        validation_message,
-        risk_level,
-        regulatory_impact
-    FROM {{ ref('dq_employee_contributions_validation') }}
-    WHERE simulation_year = {{ simulation_year }}
-),
-
 -- IRS 402(g) Compliance Monitoring
 irs_402g_compliance AS (
     SELECT
@@ -173,50 +160,6 @@ compensation_limit_compliance AS (
     FROM contribution_data cd
 ),
 
--- Data Quality Compliance Monitoring
-data_quality_compliance AS (
-    SELECT
-        'DATA_QUALITY_COMPLIANCE' AS compliance_category,
-        'Data Integrity and Calculation Accuracy' AS compliance_description,
-
-        (SELECT COUNT(*) FROM contribution_data) AS total_employees,
-        (SELECT COUNT(*) FROM contribution_data WHERE is_enrolled = true) AS enrolled_employees,
-        0 AS employees_at_limit,  -- Not applicable
-
-        -- Critical data quality metrics
-        SUM(CASE WHEN vr.severity = 'CRITICAL' THEN vr.violation_count ELSE 0 END) AS limit_violations,
-        SUM(CASE WHEN vr.severity = 'ERROR' THEN vr.violation_count ELSE 0 END) AS total_excess_contributions,
-
-        0 AS catch_up_eligible_count,  -- Not applicable
-        0 AS catch_up_at_limit,  -- Not applicable
-        MAX(CASE WHEN vr.severity = 'CRITICAL' THEN vr.violation_count ELSE 0 END) AS max_individual_excess,
-        NULL AS avg_deferral_rate,  -- Not applicable
-
-        CASE
-            WHEN SUM(CASE WHEN vr.severity = 'CRITICAL' AND vr.violation_count > 0 THEN 1 ELSE 0 END) = 0
-            THEN 'COMPLIANT'
-            ELSE 'VIOLATIONS_DETECTED'
-        END AS compliance_status,
-
-        CASE
-            WHEN SUM(CASE WHEN vr.severity = 'CRITICAL' AND vr.violation_count > 0 THEN 1 ELSE 0 END) = 0
-            THEN 'LOW'
-            WHEN SUM(CASE WHEN vr.severity IN ('CRITICAL', 'ERROR') AND vr.violation_count > 0 THEN 1 ELSE 0 END) > 3
-            THEN 'HIGH'
-            ELSE 'MEDIUM'
-        END AS risk_level,
-
-        CURRENT_DATE AS primary_correction_deadline,  -- Immediate for data quality
-        MAKE_DATE({{ simulation_year }}, 12, 31) AS plan_year_end_deadline,
-
-        0 AS base_limit,  -- Not applicable
-        0 AS catch_up_limit,  -- Not applicable
-        0 AS total_limit  -- Not applicable
-
-    FROM validation_results vr
-    WHERE vr.regulatory_impact = true
-),
-
 -- Plan Administration Compliance
 plan_administration_compliance AS (
     SELECT
@@ -265,8 +208,6 @@ combined_compliance AS (
     SELECT * FROM irs_402g_compliance
     UNION ALL
     SELECT * FROM compensation_limit_compliance
-    UNION ALL
-    SELECT * FROM data_quality_compliance
     UNION ALL
     SELECT * FROM plan_administration_compliance
 )

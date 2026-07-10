@@ -252,18 +252,9 @@ class YearAuditor:
                     avg_rate,
                 )
 
-            # Check for contribution data quality issues
-            dq_query = """
-            SELECT COUNT(*) as validation_failures
-            FROM dq_employee_contributions_validation
-            WHERE simulation_year = ?
-            """
-            dq_result = conn.execute(dq_query, [year]).fetchone()
-            if dq_result and dq_result[0] > 0:
-                failures = dq_result[0]
-                logger.warning("Data quality issues: %d validation failures", failures)
-            else:
-                logger.info("Data quality: All validations passed")
+            logger.info(
+                "Contribution data quality is validated by the on-demand dbt test suite"
+            )
 
         except Exception as contrib_error:
             logger.warning(

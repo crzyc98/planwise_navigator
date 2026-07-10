@@ -114,8 +114,7 @@ database_performance_metrics AS (
         -- Optimization metrics
         (SELECT COUNT(*) FROM {{ ref('int_employee_contributions') }}
          WHERE simulation_year = {{ simulation_year }} AND data_quality_flag = 'VALID') AS clean_records_processed,
-        (SELECT COUNT(*) FROM {{ ref('dq_employee_contributions_validation') }}
-         WHERE simulation_year = {{ simulation_year }} AND severity = 'CRITICAL') AS flagged_records_processed,
+        0 AS flagged_records_processed,  -- Validation results are emitted by on-demand dbt tests
 
         -- Database efficiency indicators
         1000000 AS estimated_memory_usage,  -- Placeholder for actual memory usage
@@ -136,10 +135,8 @@ integration_performance_metrics AS (
         (SELECT COUNT(*) FROM {{ ref('int_enrollment_state_accumulator') }} WHERE simulation_year = {{ simulation_year }}) AS enrolled_records_processed,
 
         -- Model dependency efficiency
-        COALESCE((SELECT COUNT(*) FROM {{ ref('dq_employee_contributions_validation') }}
-                  WHERE simulation_year = {{ simulation_year }} AND severity = 'ERROR'), 0) AS complex_calculations,
-        COALESCE((SELECT COUNT(*) FROM {{ ref('dq_employee_contributions_validation') }}
-                  WHERE simulation_year = {{ simulation_year }} AND severity = 'INFO'), 0) AS simple_calculations,
+        0 AS complex_calculations,  -- Validation results are not persisted as a model
+        0 AS simple_calculations,
 
         -- Cross-model consistency metrics
         1.0 AS avg_periods_per_employee,  -- Model integration ratio
@@ -149,13 +146,11 @@ integration_performance_metrics AS (
         -- Data flow efficiency
         (SELECT COUNT(*) FROM {{ ref('int_employee_contributions') }}
          WHERE simulation_year = {{ simulation_year }} AND is_enrolled = true) AS clean_records_processed,
-        COALESCE((SELECT SUM(violation_count) FROM {{ ref('dq_employee_contributions_validation') }}
-                  WHERE simulation_year = {{ simulation_year }} AND severity IN ('CRITICAL', 'ERROR')), 0) AS flagged_records_processed,
+        0 AS flagged_records_processed,
 
         -- Integration overhead
         500000 AS estimated_memory_usage,  -- Integration memory overhead
-        (SELECT COUNT(DISTINCT validation_source) FROM {{ ref('dq_employee_contributions_validation') }}
-         WHERE simulation_year = {{ simulation_year }}) AS cross_year_lookups,
+        0 AS cross_year_lookups,
 
         'MULTI_MODEL_INTEGRATION' AS processing_scale,
         'EVENT_SOURCING_OPTIMIZED' AS computational_complexity
@@ -368,8 +363,7 @@ SELECT
     ARRAY[
         'int_employee_contributions',
         'fct_yearly_events',
-        'int_enrollment_state_accumulator',
-        'dq_employee_contributions_validation'
+        'int_enrollment_state_accumulator'
     ] AS monitored_models
 
 FROM performance_analysis pa

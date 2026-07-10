@@ -221,9 +221,8 @@ class WorkflowBuilder:
             StageDefinition(
                 name=WorkflowStage.VALIDATION,
                 dependencies=[WorkflowStage.STATE_ACCUMULATION],
-                models=[
-                    "dq_employee_contributions_validation",
-                ],
+                # Data quality validations run on demand as dbt tests rather than models.
+                models=[],
                 validation_rules=["dq_suite"],
             ),
             StageDefinition(
