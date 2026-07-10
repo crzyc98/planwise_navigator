@@ -97,6 +97,8 @@ def test_multi_year_workflow_coordination(tmp_path: Path):
     _seed_minimal(dbp, [2025, 2026])
 
     cfg = SimulationConfig(
+        scenario_id="test-scenario",
+        plan_design_id="test-plan",
         simulation=SimulationSettings(start_year=2025, end_year=2026),
         compensation=CompensationSettings(),
         enrollment=EnrollmentSettings(),

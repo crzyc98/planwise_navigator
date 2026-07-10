@@ -55,6 +55,78 @@ class StateManager:
         self.config = config
         self.verbose = verbose
 
+    def _year_scope(
+        self, conn, table: str, year: int, *, critical: bool = False
+    ) -> tuple[str, list[object]]:
+        """Build a year filter scoped to the active scenario when supported.
+
+        Falls back to ``"default"`` for unset scenario_id/plan_design_id, matching
+        the same fallback dbt uses (``{{ var('scenario_id', 'default') }}``, see
+        ``dbt/models/marts/fct_yearly_events.sql``) and the CLI export path
+        (``planalign_orchestrator/config/export.py``). This keeps ordinary
+        single-scenario runs (config.scenario_id is None) scoped consistently
+        with what was actually written to the table, instead of treating the
+        common case as "identifiers unavailable".
+        """
+        columns = {
+            row[0]
+            for row in conn.execute(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'main' AND table_name = ?
+                """,
+                [table],
+            ).fetchall()
+        }
+        scenario_id = self.config.scenario_id or "default"
+        plan_design_id = self.config.plan_design_id or "default"
+
+        predicates = ["simulation_year = ?"]
+        parameters: list[object] = [year]
+        has_scenario_column = "scenario_id" in columns
+        has_plan_design_column = "plan_design_id" in columns
+        if has_scenario_column:
+            predicates.append("scenario_id = ?")
+            parameters.append(scenario_id)
+        if has_plan_design_column:
+            predicates.append("plan_design_id = ?")
+            parameters.append(plan_design_id)
+
+        if critical and not (has_scenario_column and has_plan_design_column):
+            logger.warning(
+                "%s has no scenario_id/plan_design_id columns; year-only cleanup "
+                "for simulation_year=%s may remove rows belonging to other "
+                "scenarios/plan designs sharing this database. Schema migration "
+                "is required to fully scope this table.",
+                table,
+                year,
+            )
+
+        return " AND ".join(predicates), parameters
+
+    def _delete_year_rows(
+        self, conn, table: str, year: int, *, critical: bool = False
+    ) -> bool:
+        """Delete year rows when the target table exists."""
+        table_exists = conn.execute(
+            """
+            SELECT 1
+            FROM information_schema.tables
+            WHERE table_schema = 'main' AND table_name = ?
+            LIMIT 1
+            """,
+            [table],
+        ).fetchone()
+        if not table_exists:
+            return False
+
+        where_clause, parameters = self._year_scope(
+            conn, table, year, critical=critical
+        )
+        conn.execute(f"DELETE FROM {table} WHERE {where_clause}", parameters)
+        return True
+
     def maybe_clear_year_data(self, year: int) -> None:
         """Clear year-scoped data for idempotent re-runs when configured.
 
@@ -111,8 +183,13 @@ class StateManager:
                     """,
                     [t],
                 ).fetchone()
-                if has_col:
-                    conn.execute(f"DELETE FROM {t} WHERE simulation_year = ?", [year])
+                if has_col and self._delete_year_rows(
+                    conn,
+                    t,
+                    year,
+                    critical=t
+                    in (TABLE_FCT_YEARLY_EVENTS, TABLE_FCT_WORKFORCE_SNAPSHOT),
+                ):
                     cleared += 1
             return cleared
 
@@ -205,8 +282,12 @@ class StateManager:
                 "fct_employer_match_events",
             ):
                 try:
-                    conn.execute(
-                        f"DELETE FROM {table} WHERE simulation_year = ?", [year]
+                    self._delete_year_rows(
+                        conn,
+                        table,
+                        year,
+                        critical=table
+                        in (TABLE_FCT_YEARLY_EVENTS, TABLE_FCT_WORKFORCE_SNAPSHOT),
                     )
                 except Exception:
                     # Table may not exist yet; ignore
@@ -243,13 +324,25 @@ class StateManager:
         """
 
         def _counts(conn):
+            snapshot_where, snapshot_parameters = self._year_scope(
+                conn,
+                TABLE_FCT_WORKFORCE_SNAPSHOT,
+                year,
+                critical=True,
+            )
+            events_where, events_parameters = self._year_scope(
+                conn,
+                TABLE_FCT_YEARLY_EVENTS,
+                year,
+                critical=True,
+            )
             snap = conn.execute(
-                f"SELECT COUNT(*) FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} WHERE simulation_year = ?",
-                [year],
+                f"SELECT COUNT(*) FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} WHERE {snapshot_where}",
+                snapshot_parameters,
             ).fetchone()[0]
             events = conn.execute(
-                f"SELECT COUNT(*) FROM {TABLE_FCT_YEARLY_EVENTS} WHERE simulation_year = ?",
-                [year],
+                f"SELECT COUNT(*) FROM {TABLE_FCT_YEARLY_EVENTS} WHERE {events_where}",
+                events_parameters,
             ).fetchone()[0]
             return int(snap), int(events)
 
@@ -259,9 +352,11 @@ class StateManager:
             try:
 
                 def _clear(conn):
-                    conn.execute(
-                        f"DELETE FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} WHERE simulation_year = ?",
-                        [year],
+                    self._delete_year_rows(
+                        conn,
+                        TABLE_FCT_WORKFORCE_SNAPSHOT,
+                        year,
+                        critical=True,
                     )
                     return True
 

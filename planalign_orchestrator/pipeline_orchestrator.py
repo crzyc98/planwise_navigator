@@ -172,7 +172,10 @@ class PipelineOrchestrator:
             db_manager=db_manager, dbt_runner=dbt_runner, config=config, verbose=verbose
         )
         self.cleanup_manager = DataCleanupManager(
-            db_manager=db_manager, verbose=verbose
+            db_manager=db_manager,
+            verbose=verbose,
+            scenario_id=config.scenario_id,
+            plan_design_id=config.plan_design_id,
         )
         self.hook_manager = HookManager(verbose=verbose)
 
