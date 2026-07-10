@@ -33,10 +33,12 @@ class OrchestratorWrapper:
         config_path: Path,
         db_path: Path,
         verbose: bool = False,
+        dbt_project_dir: Optional[Path] = None,
     ):
         self.config_path = config_path
         self.db_path = db_path
         self.verbose = verbose
+        self.dbt_project_dir = dbt_project_dir
 
         # Lazy initialization
         self._config = None
@@ -227,6 +229,7 @@ class OrchestratorWrapper:
             threading_mode=threading_mode,
             db_manager=self.db,  # Pass db_manager for connection cleanup before dbt subprocess
             database_path=str(self.db_path),  # Use scenario-specific database path
+            project_dir=self.dbt_project_dir,
         )
 
         registries = RegistryManager(self.db)

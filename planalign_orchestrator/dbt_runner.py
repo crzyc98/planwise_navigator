@@ -170,6 +170,7 @@ class DbtRunner:
         *,
         verbose: bool = False,
         database_path: Optional[str] = None,
+        project_dir: Optional[Path] = None,
         threading_enabled: bool = True,
         threading_mode: str = "selective",
         enable_model_parallelization: bool = False,
@@ -182,6 +183,7 @@ class DbtRunner:
         self.executable = executable
         self.verbose = verbose
         self.database_path = database_path
+        self.project_dir = project_dir
         self.threading_enabled = threading_enabled
         self.threading_mode = threading_mode
         self.db_manager = db_manager
@@ -284,6 +286,9 @@ class DbtRunner:
         threads: Optional[int] = None,
     ) -> List[str]:
         cmd: List[str] = [self.executable, *command_args]
+        # dbt 1.8's CLI only accepts --project-dir after the subcommand.
+        if self.project_dir is not None:
+            cmd.extend(["--project-dir", str(self.project_dir)])
 
         vars_dict: Dict[str, Any] = {}
         if simulation_year is not None:

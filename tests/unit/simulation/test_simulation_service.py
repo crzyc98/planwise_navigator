@@ -1,6 +1,8 @@
 """Tests for SimulationService class."""
 
 from unittest.mock import MagicMock, patch
+from pathlib import Path
+
 import pytest
 
 from planalign_api.services.simulation.service import SimulationService
@@ -144,3 +146,51 @@ class TestSimulationServiceBackwardCompatibility:
         )
 
         assert OldSimulationService is NewSimulationService
+
+
+@pytest.mark.fast
+class TestScenarioSeedIsolation:
+    """Regression coverage for Studio's scenario-local dbt seed project."""
+
+    @staticmethod
+    def _age_bands(label: str) -> dict:
+        return {
+            "age_bands": [
+                {
+                    "band_id": "custom",
+                    "band_label": label,
+                    "min_value": 18,
+                    "max_value": 65,
+                    "display_order": 1,
+                }
+            ]
+        }
+
+    def test_seed_overrides_are_private_to_each_scenario(self, tmp_path):
+        """Neither scenario's overrides may mutate or leak through dbt/seeds."""
+        repo_seed = Path(__file__).parents[3] / "dbt" / "seeds" / "config_age_bands.csv"
+        original_global_seed = repo_seed.read_bytes()
+        scenario_a = tmp_path / "scenario-a"
+        scenario_b = tmp_path / "scenario-b"
+
+        SimulationService._write_seeds(self._age_bands("Scenario A"), scenario_a)
+        SimulationService._write_seeds({}, scenario_b)
+        project_a = SimulationService._prepare_dbt_project(scenario_a)
+        project_b = SimulationService._prepare_dbt_project(scenario_b)
+
+        assert repo_seed.read_bytes() == original_global_seed
+        assert "Scenario A" in (scenario_a / "seeds" / repo_seed.name).read_text()
+        assert (
+            scenario_b / "seeds" / repo_seed.name
+        ).read_bytes() == original_global_seed
+        assert (project_a / "seeds").resolve() == (scenario_a / "seeds").resolve()
+        assert (project_b / "seeds").resolve() == (scenario_b / "seeds").resolve()
+
+        command = SimulationService._build_command(
+            scenario_a / "config.yaml",
+            scenario_a / "simulation.duckdb",
+            2025,
+            2025,
+            project_a,
+        )
+        assert command[command.index("--dbt-project-dir") + 1] == str(project_a)
