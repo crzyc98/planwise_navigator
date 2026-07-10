@@ -969,7 +969,16 @@ async def download_artifact(
         )
 
     scenario_path = storage._scenario_path(workspace.id, scenario_id)
-    file_path = scenario_path / artifact_path
+    resolved_scenario_path = scenario_path.resolve()
+    file_path = (scenario_path / artifact_path).resolve()
+
+    try:
+        file_path.relative_to(resolved_scenario_path)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Artifact {artifact_path} not found",
+        )
 
     if file_path.exists() and file_path.is_file():
         # Determine media type
