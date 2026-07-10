@@ -61,15 +61,97 @@ class DataCleanupManager:
     # Table prefixes to preserve (seeds and staging data)
     PRESERVE_PATTERNS = ["seed_", "stg_"]
 
-    def __init__(self, db_manager: DatabaseConnectionManager, verbose: bool = False):
+    def __init__(
+        self,
+        db_manager: DatabaseConnectionManager,
+        verbose: bool = False,
+        scenario_id: str | None = None,
+        plan_design_id: str | None = None,
+    ):
         """Initialize DataCleanupManager with database connection manager.
 
         Args:
             db_manager: Database connection manager for executing cleanup operations
             verbose: Enable verbose logging for cleanup operations
+            scenario_id: Active scenario identifier for scoped cleanup
+            plan_design_id: Active plan design identifier for scoped cleanup
         """
         self.db_manager = db_manager
         self.verbose = verbose
+        self.scenario_id = scenario_id
+        self.plan_design_id = plan_design_id
+
+    def _year_scope(
+        self, conn, table: str, year: int, *, critical: bool = False
+    ) -> tuple[str, list[object]]:
+        """Build a year filter scoped to the active scenario when supported.
+
+        Falls back to ``"default"`` for unset scenario_id/plan_design_id, matching
+        the same fallback dbt uses (``{{ var('scenario_id', 'default') }}``, see
+        ``dbt/models/marts/fct_yearly_events.sql``) and the CLI export path
+        (``planalign_orchestrator/config/export.py``). This keeps ordinary
+        single-scenario runs (no explicit scenario_id) scoped consistently with
+        what was actually written to the table, instead of treating the common
+        case as "identifiers unavailable".
+        """
+        columns = {
+            row[0]
+            for row in conn.execute(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'main' AND table_name = ?
+                """,
+                [table],
+            ).fetchall()
+        }
+        scenario_id = self.scenario_id or "default"
+        plan_design_id = self.plan_design_id or "default"
+
+        predicates = ["simulation_year = ?"]
+        parameters: list[object] = [year]
+        has_scenario_column = "scenario_id" in columns
+        has_plan_design_column = "plan_design_id" in columns
+        if has_scenario_column:
+            predicates.append("scenario_id = ?")
+            parameters.append(scenario_id)
+        if has_plan_design_column:
+            predicates.append("plan_design_id = ?")
+            parameters.append(plan_design_id)
+
+        if critical and not (has_scenario_column and has_plan_design_column):
+            logger.warning(
+                "%s has no scenario_id/plan_design_id columns; year-only cleanup "
+                "for simulation_year=%s may remove rows belonging to other "
+                "scenarios/plan designs sharing this database. Schema migration "
+                "is required to fully scope this table.",
+                table,
+                year,
+            )
+
+        return " AND ".join(predicates), parameters
+
+    def _delete_year_rows(
+        self, conn, table: str, year: int, *, critical: bool = False
+    ) -> bool:
+        """Delete year rows when the target table exists."""
+        table_exists = conn.execute(
+            """
+            SELECT 1
+            FROM information_schema.tables
+            WHERE table_schema = 'main' AND table_name = ?
+            LIMIT 1
+            """,
+            [table],
+        ).fetchone()
+        if not table_exists:
+            return False
+
+        where_clause, parameters = self._year_scope(
+            conn, table, year, critical=critical
+        )
+        conn.execute(f"DELETE FROM {table} WHERE {where_clause}", parameters)
+        return True
 
     def clear_year_fact_rows(self, year: int) -> None:
         """Clear current-year rows from core fact tables for idempotent re-runs.
@@ -92,15 +174,15 @@ class DataCleanupManager:
             cleared_count = 0
             for table in self.FACT_TABLES:
                 try:
-                    result = conn.execute(
-                        f"DELETE FROM {table} WHERE simulation_year = ?", [year]
+                    table_cleared = self._delete_year_rows(
+                        conn,
+                        table,
+                        year,
+                        critical=table
+                        in (TABLE_FCT_YEARLY_EVENTS, TABLE_FCT_WORKFORCE_SNAPSHOT),
                     )
-                    # Get row count if available
-                    if hasattr(result, "fetchone"):
-                        row_count = result.fetchone()
-                        if row_count and self.verbose:
-                            logger.info("Cleared %s rows from %s", row_count[0], table)
-                    cleared_count += 1
+                    if table_cleared:
+                        cleared_count += 1
                 except Exception:
                     # Table may not exist yet; silently continue
                     pass
@@ -169,12 +251,14 @@ class DataCleanupManager:
                 ).fetchone()
 
                 if has_year_col:
-                    rows_deleted = conn.execute(
-                        f"DELETE FROM {table} WHERE simulation_year = ?", [year]
-                    ).fetchone()
-                    cleared += 1
-                    if self.verbose and rows_deleted:
-                        logger.info("Cleared %s rows from %s", rows_deleted[0], table)
+                    if self._delete_year_rows(
+                        conn,
+                        table,
+                        year,
+                        critical=table
+                        in (TABLE_FCT_YEARLY_EVENTS, TABLE_FCT_WORKFORCE_SNAPSHOT),
+                    ):
+                        cleared += 1
 
             return cleared
 
