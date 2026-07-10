@@ -415,13 +415,14 @@ class TestThreadManagement:
 
 class TestBuildCommand:
     @pytest.mark.fast
-    def test_project_dir_is_passed_as_a_dbt_global_option(self, tmp_path):
+    def test_project_dir_is_passed_after_the_dbt_subcommand(self, tmp_path):
+        # dbt 1.8 rejects --project-dir before the subcommand.
         project_dir = tmp_path / "scenario-dbt-project"
         runner = DbtRunner(project_dir=project_dir)
 
         cmd = runner._build_command(["seed"])
 
-        assert cmd[:4] == ["dbt", "--project-dir", str(project_dir), "seed"]
+        assert cmd[:4] == ["dbt", "seed", "--project-dir", str(project_dir)]
 
     @pytest.mark.fast
     def test_basic_run(self):

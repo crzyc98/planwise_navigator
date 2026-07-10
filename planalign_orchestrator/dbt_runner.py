@@ -285,10 +285,10 @@ class DbtRunner:
         dbt_vars: Optional[Dict[str, Any]] = None,
         threads: Optional[int] = None,
     ) -> List[str]:
-        cmd: List[str] = [self.executable]
+        cmd: List[str] = [self.executable, *command_args]
+        # dbt 1.8's CLI only accepts --project-dir after the subcommand.
         if self.project_dir is not None:
             cmd.extend(["--project-dir", str(self.project_dir)])
-        cmd.extend(command_args)
 
         vars_dict: Dict[str, Any] = {}
         if simulation_year is not None:
