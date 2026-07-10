@@ -54,6 +54,9 @@ def run_simulation(
     database: Optional[str] = typer.Option(
         None, "--database", help="Path to DuckDB database file"
     ),
+    dbt_project_dir: Optional[str] = typer.Option(
+        None, "--dbt-project-dir", help="Path to an isolated dbt project directory"
+    ),
     threads: Optional[int] = typer.Option(
         None, "--threads", help="Number of dbt threads"
     ),
@@ -98,6 +101,7 @@ def run_simulation(
             config_path,
             db_path,
             verbose=verbose,
+            dbt_project_dir=Path(dbt_project_dir) if dbt_project_dir else None,
         )
 
         _print_config_summary(config_path, console, verbose)
@@ -374,6 +378,7 @@ def default(
     years: str = typer.Argument(..., help="Year range (e.g., '2025-2027' or '2025')"),
     config: Optional[str] = typer.Option(None, "--config", "-c"),
     database: Optional[str] = typer.Option(None, "--database"),
+    dbt_project_dir: Optional[str] = typer.Option(None, "--dbt-project-dir"),
     threads: Optional[int] = typer.Option(None, "--threads"),
     dry_run: bool = typer.Option(False, "--dry-run"),
     fail_on_validation_error: bool = typer.Option(False, "--fail-on-validation-error"),
@@ -387,6 +392,7 @@ def default(
         years=years,
         config=config,
         database=database,
+        dbt_project_dir=dbt_project_dir,
         threads=threads,
         dry_run=dry_run,
         fail_on_validation_error=fail_on_validation_error,

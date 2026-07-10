@@ -415,6 +415,15 @@ class TestThreadManagement:
 
 class TestBuildCommand:
     @pytest.mark.fast
+    def test_project_dir_is_passed_as_a_dbt_global_option(self, tmp_path):
+        project_dir = tmp_path / "scenario-dbt-project"
+        runner = DbtRunner(project_dir=project_dir)
+
+        cmd = runner._build_command(["seed"])
+
+        assert cmd[:4] == ["dbt", "--project-dir", str(project_dir), "seed"]
+
+    @pytest.mark.fast
     def test_basic_run(self):
         runner = DbtRunner(threads=2)
         cmd = runner._build_command(["run", "--select", "my_model"])

@@ -223,8 +223,15 @@ class SimulationService:
         """
         config_path = scenario_path / "config.yaml"
         scenario_db_path = scenario_path / DATABASE_FILENAME
+        dbt_project_dir = self._prepare_dbt_project(scenario_path)
 
-        cmd = self._build_command(config_path, scenario_db_path, start_year, end_year)
+        cmd = self._build_command(
+            config_path,
+            scenario_db_path,
+            start_year,
+            end_year,
+            dbt_project_dir,
+        )
         project_root = Path(__file__).parent.parent.parent.parent
         env = self._build_env(project_root)
 
@@ -562,29 +569,83 @@ class SimulationService:
 
     @staticmethod
     def _write_seeds(config: Dict[str, Any], scenario_path: Path) -> None:
+        """Create a complete, scenario-local dbt seed directory.
+
+        dbt resolves seed files relative to its project directory. Studio runs
+        therefore receive a private copy of the repository defaults before any
+        scenario overrides are written. The repository's ``dbt/seeds`` folder
+        remains an immutable input to every scenario run.
+        """
         try:
             from planalign_orchestrator.pipeline.seed_writer import write_all_seed_csvs
 
             scenario_seeds_dir = scenario_path / "seeds"
+            dbt_seeds_dir = Path(__file__).parent.parent.parent.parent / "dbt" / "seeds"
+            if scenario_seeds_dir.exists():
+                shutil.rmtree(scenario_seeds_dir)
+            shutil.copytree(dbt_seeds_dir, scenario_seeds_dir)
             written = write_all_seed_csvs(config, scenario_seeds_dir)
             written_sections = [k for k, v in written.items() if v]
 
             if written_sections:
-                dbt_seeds_dir = (
-                    Path(__file__).parent.parent.parent.parent / "dbt" / "seeds"
-                )
-                for csv_file in scenario_seeds_dir.glob("config_*.csv"):
-                    shutil.copy2(csv_file, dbt_seeds_dir / csv_file.name)
                 logger.info(
-                    f"313: Wrote scenario seeds to {scenario_seeds_dir} "
-                    f"and copied to dbt/seeds/: {', '.join(written_sections)}"
+                    f"313: Wrote scenario-local seeds to {scenario_seeds_dir}: "
+                    f"{', '.join(written_sections)}"
                 )
             else:
-                logger.info("313: No seed config overrides — using global CSV defaults")
+                logger.info(
+                    "313: Copied default seeds into scenario-local seed directory"
+                )
         except Exception as e:
-            logger.warning(
-                f"313: Failed to write seed CSVs (using global defaults): {e}"
-            )
+            logger.warning(f"313: Failed to prepare scenario-local seed CSVs: {e}")
+
+    @staticmethod
+    def _prepare_dbt_project(scenario_path: Path) -> Path:
+        """Create a dbt overlay that uses the scenario's private seed files."""
+        dbt_root = Path(__file__).parent.parent.parent.parent / "dbt"
+        overlay_dir = scenario_path / "dbt_project"
+        overlay_dir.mkdir(parents=True, exist_ok=True)
+
+        # dbt requires a project file at its project root. The copied file keeps
+        # its normal ``seed-paths: [\"seeds\"]`` setting, which is linked below
+        # to this scenario's complete private seed snapshot.
+        shutil.copy2(dbt_root / "dbt_project.yml", overlay_dir / "dbt_project.yml")
+
+        for entry in (
+            "analyses",
+            "macros",
+            "models",
+            "snapshots",
+            "tests",
+            "packages.yml",
+            "package-lock.yml",
+            "dbt_packages",
+        ):
+            source = dbt_root / entry
+            if not source.exists():
+                continue
+            destination = overlay_dir / entry
+            if destination.is_symlink() and destination.resolve() == source.resolve():
+                continue
+            if destination.is_symlink() or destination.is_file():
+                destination.unlink()
+            elif destination.exists():
+                shutil.rmtree(destination)
+            destination.symlink_to(source, target_is_directory=source.is_dir())
+
+        scenario_seeds_dir = scenario_path / "seeds"
+        seeds_link = overlay_dir / "seeds"
+        if (
+            seeds_link.is_symlink()
+            and seeds_link.resolve() == scenario_seeds_dir.resolve()
+        ):
+            return overlay_dir
+        if seeds_link.is_symlink() or seeds_link.is_file():
+            seeds_link.unlink()
+        elif seeds_link.exists():
+            shutil.rmtree(seeds_link)
+        seeds_link.symlink_to(scenario_seeds_dir, target_is_directory=True)
+        return overlay_dir
 
     @staticmethod
     def _build_command(
@@ -592,6 +653,7 @@ class SimulationService:
         scenario_db_path: Path,
         start_year: int,
         end_year: int,
+        dbt_project_dir: Path,
     ) -> List[str]:
         year_range = (
             f"{start_year}-{end_year}" if start_year != end_year else str(start_year)
@@ -604,6 +666,8 @@ class SimulationService:
             os.fspath(config_path),
             "--database",
             os.fspath(scenario_db_path),
+            "--dbt-project-dir",
+            os.fspath(dbt_project_dir),
             "--verbose",
         ]
 
