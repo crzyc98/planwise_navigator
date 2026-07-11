@@ -128,26 +128,35 @@ class StateManager:
         return True
 
     def maybe_clear_year_data(self, year: int) -> None:
-        """Clear year-scoped data for idempotent re-runs when configured.
+        """Clear year-scoped data before each simulated year rebuilds (default on).
 
-        Respects config.setup.clear_tables and config.setup.clear_table_patterns.
-        Only deletes rows for the given simulation_year when the column exists.
-
-        This method enables idempotent pipeline execution by removing stale data
-        from previous runs while preserving data from other simulation years.
+        Purging every ``simulation_year`` row for the year being rebuilt —
+        regardless of whether the run regenerates the same keys — is required
+        for correctness: sparse ``delete+insert`` accumulators (e.g.
+        ``int_deferral_rate_state_accumulator``) emit no rows for employees
+        absent from the new run, so rows left by a prior run of the same
+        scenario survive and propagate forward (issue #419). Studio scenario
+        configs carry no ``setup`` block, so an omitted directive must mean
+        "purge", not "skip".
 
         Args:
             year: Simulation year to clear data for
 
-        Configuration:
-            setup.clear_tables: bool - Enable/disable clearing
-            setup.clear_mode: str - 'year' for per-year, 'all' for full reset
+        Configuration (``config.setup``):
+            setup.clear_tables: unset -> purge (default); explicit false -> opt out
+            setup.clear_mode: 'year' (default) for per-year purge; 'all' defers to
+                the one-time full reset in maybe_full_reset()
             setup.clear_table_patterns: list - Table prefixes to clear (default: ['int_', 'fct_'])
         """
         setup = getattr(self.config, "setup", None)
         if not isinstance(setup, dict):
-            return
-        if not setup.get("clear_tables"):
+            setup = {}
+        clear_tables = setup.get("clear_tables")
+        if clear_tables is not None and not clear_tables:
+            logger.debug(
+                "Year-scoped cleanup for %d explicitly disabled via setup.clear_tables",
+                year,
+            )
             return
         # Respect clear_mode setting; skip year-level clears if full reset is requested
         clear_mode = setup.get("clear_mode", "year").lower()
@@ -254,6 +263,60 @@ class StateManager:
             logger.info(
                 "Full reset: cleared all rows in %d table(s) per setup.clear_table_patterns",
                 cleared,
+            )
+
+    def warn_if_stale_years_beyond(self, end_year: int) -> None:
+        """Warn when this scenario has rows beyond the run's final year.
+
+        A shorter re-run (e.g. 2026-2028 after a 2026-2030 run) never visits
+        the trailing years, so rows there are stale prior-run output that
+        exports reading the whole database would still include. Deleting them
+        automatically would be destructive, so this only warns and recommends
+        an explicit full reset. Years before the run's start are never
+        inspected: mid-range runs legitimately consume prior-year state.
+
+        Args:
+            end_year: Final simulation year of the run about to execute
+        """
+
+        def _stale_years(conn) -> list[int]:
+            years: set[int] = set()
+            for table in (TABLE_FCT_YEARLY_EVENTS, TABLE_FCT_WORKFORCE_SNAPSHOT):
+                table_exists = conn.execute(
+                    """
+                    SELECT 1 FROM information_schema.tables
+                    WHERE table_schema = 'main' AND table_name = ?
+                    LIMIT 1
+                    """,
+                    [table],
+                ).fetchone()
+                if not table_exists:
+                    continue
+                where_clause, parameters = self._year_scope(conn, table, end_year)
+                # _year_scope binds simulation_year = ?; widen it to > ?
+                where_clause = where_clause.replace(
+                    "simulation_year = ?", "simulation_year > ?", 1
+                )
+                rows = conn.execute(
+                    f"SELECT DISTINCT simulation_year FROM {table} WHERE {where_clause}",
+                    parameters,
+                ).fetchall()
+                years.update(int(r[0]) for r in rows)
+            return sorted(years)
+
+        try:
+            stale_years = self.db_manager.execute_with_retry(_stale_years)
+        except Exception as exc:
+            logger.debug("Stale-year detection skipped (non-critical): %s", exc)
+            return
+        if stale_years:
+            logger.warning(
+                "Scenario has stale rows for year(s) %s beyond this run's final "
+                "year %d; they will not be rebuilt or purged by this run. For a "
+                "clean slate, set setup.clear_tables: true with "
+                "setup.clear_mode: 'all'.",
+                ", ".join(str(y) for y in stale_years),
+                end_year,
             )
 
     def clear_year_fact_rows(self, year: int) -> None:

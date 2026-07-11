@@ -19,9 +19,27 @@ employee as unenrolled.
 
 ## Safe reruns
 
-`setup.clear_mode: all` clears configured tables once before a new simulation
-run. It does not authorize a later-year full refresh. Omit `clear_mode` or use
-`year` for idempotent year-scoped cleanup that preserves earlier years.
+Year-scoped cleanup is the default: before each simulated year rebuilds, all
+of that year's rows are purged from `int_*`/`fct_*` tables (scoped to the
+active scenario and plan design), even when the config has no `setup` block.
+This prevents stale prior-run rows from surviving a re-run — sparse
+accumulators such as `int_deferral_rate_state_accumulator` emit no rows for
+never-enrolled employees, so `delete+insert` alone cannot remove a prior run's
+rows for those keys (issue #419's phantom "census enrollment" participants).
+
+- To opt out (e.g., a harness that seeds tables in lieu of dbt builds), set
+  `setup.clear_tables: false` explicitly. Unset does NOT mean disabled.
+- `setup.clear_mode: all` clears configured tables once before a new
+  simulation run and requires explicit `clear_tables: true`. It does not
+  authorize a later-year full refresh.
+- Re-running a shorter year range leaves the prior run's later years in
+  place; the run logs a warning naming those years. For a clean slate, use
+  `setup.clear_tables: true` with `setup.clear_mode: 'all'`.
+
+If a snapshot shows participants labeled `participating - unknown source`,
+the deferral state claims participation that the enrollment state history
+cannot explain — usually stale prior-run state. Re-run the scenario; the
+default purge produces clean results.
 
 ## Audit trace
 

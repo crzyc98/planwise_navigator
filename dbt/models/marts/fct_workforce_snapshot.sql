@@ -710,7 +710,16 @@ final_workforce AS (
                 CASE
                     WHEN esa.enrollment_method = 'auto' THEN 'participating - auto enrollment'
                     WHEN esa.enrollment_method = 'voluntary' THEN 'participating - voluntary enrollment'
-                    WHEN esa.enrollment_method IS NULL THEN 'participating - census enrollment'
+                    -- Census enrollments carry a NULL method by design; require the
+                    -- baseline source so unexplained participation (e.g. stale
+                    -- prior-run deferral state, issue #419) is never disguised as
+                    -- legitimate census enrollment. Event-sourced enrollments with
+                    -- no recorded method take the same voluntary fallback as other
+                    -- unrecognized methods; 'unknown source' is reserved for
+                    -- participation with no enrollment lineage at all.
+                    WHEN esa.enrollment_method IS NULL AND esa.enrollment_source = 'baseline' THEN 'participating - census enrollment'
+                    WHEN esa.enrollment_method IS NULL AND esa.enrollment_source LIKE 'event_%' THEN 'participating - voluntary enrollment'
+                    WHEN esa.enrollment_method IS NULL THEN 'participating - unknown source'
                     ELSE 'participating - voluntary enrollment'  -- fallback for other values
                 END
             ELSE -- not participating

@@ -288,6 +288,7 @@ class PipelineOrchestrator:
             logger.debug("Acquiring execution lock: %s (db: %s)", lock_name, db_path)
             with ExecutionMutex(lock_name):
                 self.state_manager.maybe_full_reset()
+                self.state_manager.warn_if_stale_years_beyond(end)
                 # The dbt source must exist even before the first FOUNDATION run.
                 self.enrollment_projection.ensure_table()
                 self._initialize_registries(start)

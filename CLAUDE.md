@@ -737,6 +737,8 @@ Current version: **2.1.0** ("Studio & Compliance") — managed in `_version.py` 
 - DuckDB; the single mutated artifact is `dbt/models/marts/fct_workforce_snapshot.sql` → table `fct_workforce_snapshot` (104-snapshot-eligibility-perf)
 - Python 3.11 (orchestrator/CLI/API); SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1; TypeScript/React (Studio) + Typer + Rich (CLI), Pydantic v2 (config), FastAPI (API), React/Vite + Tailwind (Studio), DuckDB 1.0.0 (105-comp-calibration)
 - DuckDB. No new tables — calibration reuses `fct_yearly_events`, `fct_workforce_snapshot`, `fct_compensation_growth`. Default target is an isolated `<calibration>.duckdb`, never the shared `dbt/simulation.duckdb`. (105-comp-calibration)
+- Python 3.11 (orchestrator), SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1 (Jinja-templated `.sql`) + `planalign_orchestrator` (StateManager, PipelineOrchestrator), DuckDB 1.0.0, dbt incremental models (`delete+insert`) (108-clear-stale-rerun-state)
+- DuckDB — one `.duckdb` per scenario (Studio/batch); shared `dbt/simulation.duckdb` for dev only. Mutated stores: `int_deferral_rate_state_accumulator`, `int_enrollment_state_accumulator`, and all `int_*`/`fct_*` tables with a `simulation_year` column; `fct_workforce_snapshot` label logic (108-clear-stale-rerun-state)
 
 ## Recent Changes
 - 099-tenure-graded-match: Added Python 3.11 (orchestrator/config/API), SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1, TypeScript/React (Studio UI) + Pydantic v2 (config validation), DuckDB 1.0.0 (storage/engine), FastAPI (workspace config API), React/Vite + Tailwind (Studio)

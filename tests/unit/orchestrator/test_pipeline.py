@@ -102,6 +102,9 @@ def test_multi_year_workflow_coordination(tmp_path: Path):
         simulation=SimulationSettings(start_year=2025, end_year=2026),
         compensation=CompensationSettings(),
         enrollment=EnrollmentSettings(),
+        # Seeded rows stand in for dbt builds (DummyRunner rebuilds nothing),
+        # so opt out of the default year-scoped purge (feature 108).
+        setup={"clear_tables": False},
     )
     mgr = DatabaseConnectionManager(db_path=dbp)
     registries = RegistryManager(mgr)
@@ -124,3 +127,48 @@ def test_multi_year_workflow_coordination(tmp_path: Path):
     assert summary.start_year == 2025 and summary.end_year == 2026
     csv_path = tmp_path / "reports" / "multi_year_summary_2025_2026.csv"
     assert csv_path.exists()
+
+
+def test_run_start_warns_about_stale_years_beyond_end_year(tmp_path: Path, caplog):
+    """Feature 108: a shorter re-run must surface stale later-year rows (warn-only)."""
+    import logging
+
+    dbp = tmp_path / "p.duckdb"
+    # Prior "run" reached 2027; the new run only simulates 2025-2026.
+    _seed_minimal(dbp, [2025, 2026, 2027])
+
+    cfg = SimulationConfig(
+        scenario_id="test-scenario",
+        plan_design_id="test-plan",
+        simulation=SimulationSettings(start_year=2025, end_year=2026),
+        compensation=CompensationSettings(),
+        enrollment=EnrollmentSettings(),
+        # Seeded rows stand in for dbt builds (DummyRunner rebuilds nothing),
+        # so opt out of the default year-scoped purge (feature 108).
+        setup={"clear_tables": False},
+    )
+    mgr = DatabaseConnectionManager(db_path=dbp)
+    orchestrator = PipelineOrchestrator(
+        cfg,
+        mgr,
+        DummyRunner(working_dir=tmp_path),
+        RegistryManager(mgr),
+        DataValidator(mgr),
+        reports_dir=tmp_path / "reports",
+    )
+
+    with caplog.at_level(
+        logging.WARNING, logger="planalign_orchestrator.pipeline.state_manager"
+    ):
+        orchestrator.execute_multi_year_simulation(dry_run=True)
+
+    stale_warnings = [r for r in caplog.records if "2027" in r.message]
+    assert stale_warnings, "expected a warning naming stale year 2027"
+
+    # Warn-only: out-of-range rows are never deleted.
+    conn = duckdb.connect(str(dbp))
+    remaining_2027 = conn.execute(
+        "SELECT COUNT(*) FROM fct_yearly_events WHERE simulation_year = 2027"
+    ).fetchone()[0]
+    conn.close()
+    assert remaining_2027 > 0
