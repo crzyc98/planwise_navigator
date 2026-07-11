@@ -6,7 +6,7 @@ version: 2
 # These tests validate data quality, business logic, and compliance without
 # materializing tables (90% faster than previous validation models)
 
-tests:
+data_tests:
   # Global defaults for all tests
   +severity: warn  # Don't fail pipeline on validation errors (allows pipeline to complete)
   +store_failures: true  # Store failure details for debugging in test_failures schema

@@ -124,15 +124,6 @@ seeds:
         effective_date: date
         category: varchar
 
-    census_data:
-      +column_types:
-        employee_id: varchar
-        hire_date: date
-        salary: decimal(10,2)
-        level: varchar
-        department: varchar
-        age: integer
-
     # E082: New hire demographics configuration
     config_new_hire_age_distribution:
       +column_types:
@@ -148,23 +139,6 @@ seeds:
         level_name: varchar
         distribution_pct: decimal(5,4)
         use_fixed_distribution: boolean
-
-    baseline_workforce:
-      +column_types:
-        employee_id: varchar
-        scenario_id: varchar
-        plan_design_id: varchar
-        simulation_year: integer
-        status: varchar
-
-    plan_designs:
-      +column_types:
-        plan_design_id: varchar
-        plan_name: varchar
-        plan_type: varchar
-        effective_date: date
-        employer_match_rate: decimal(5,4)
-        vesting_schedule: varchar
 
 # Snapshot configuration
 snapshots:
