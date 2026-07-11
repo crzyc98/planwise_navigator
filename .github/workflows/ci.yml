@@ -81,11 +81,11 @@ jobs:
       # validate-models job; behavioral dbt tests run locally against
       # isolated databases per the CLAUDE.md validation rule.
 
-      - name: Upload coverage
-        uses: codecov/codecov-action@v3
+      - name: Archive coverage report
+        uses: actions/upload-artifact@v4
         with:
-          file: ./coverage.xml
-          fail_ci_if_error: true
+          name: coverage-xml
+          path: coverage.xml
 
   build:
     runs-on: ubuntu-latest
