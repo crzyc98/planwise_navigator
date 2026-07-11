@@ -35,7 +35,7 @@ repos:
     hooks:
       - id: ci-reminder
         name: ci-validation-reminder
-        entry: bash -c 'echo "💡 Remember to run ./scripts/run_ci_tests.sh before pushing for full validation"'
+        entry: "bash -c 'echo \"💡 Before pushing: pytest -m fast && (cd dbt && dbt compile)\"'"
         language: system
         files: '(dbt/.*\.(sql|yml|yaml)|orchestrator/.*\.py)$'
         pass_filenames: false

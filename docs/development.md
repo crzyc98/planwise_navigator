@@ -35,7 +35,7 @@ pytest --cov=planalign_orchestrator --cov=planalign_cli --cov-report=html
 
 Fixtures live in `tests/fixtures/` (in-memory/populated/isolated databases, mock dbt
 runners, sample workforce data). Pre-commit runs black + ruff; CI additionally runs
-mypy. Run `./scripts/run_ci_tests.sh` before pushing.
+mypy. Before pushing: `pytest -m fast && (cd dbt && dbt compile)`.
 
 ## Validating behavioral changes — the isolated-DB rule
 

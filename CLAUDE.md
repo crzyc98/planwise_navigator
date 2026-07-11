@@ -40,12 +40,15 @@ uv venv .venv --python python3.11
 source .venv/bin/activate
 uv pip install -e ".[dev]"
 
-# Primary workflow - PlanWise CLI (Rich interface)
+# Primary workflow - PlanAlign CLI (Rich interface)
 planalign health                                 # System readiness check
 planalign simulate 2025-2027                     # Multi-year simulation
 planalign calibrate 2025-2029 --database iso.duckdb  # Fast comp-only calibration (exact, ~3-5x faster)
 planalign batch --scenarios baseline high_growth # Batch processing
 planalign status --detailed                      # Full system diagnostic
+planalign validate                               # Validate simulation configuration
+planalign analyze                                # Analyze results in the terminal
+planalign sync status                            # Git-based workspace cloud sync (E083)
 
 # Development workflow
 planalign simulate 2025 --dry-run               # Preview execution plan
@@ -186,12 +189,12 @@ planalign_engine/
 │  └─ package.json                   # Frontend dependencies
 ├─ dbt/                              # dbt project
 │  ├─ models/                        # SQL transformation models
-│  │  ├─ staging/                   # Raw data cleaning (stg_*) - 17 models
-│  │  ├─ intermediate/              # Business logic (int_*) - 62 models
+│  │  ├─ staging/                   # Raw data cleaning (stg_*) - 20 models
+│  │  ├─ intermediate/              # Business logic (int_*) - 61 models
 │  │  │  ├─ events/                # Event generation models
 │  │  │  ├─ int_enrollment_state_accumulator.sql
 │  │  │  └─ int_deferral_rate_state_accumulator.sql
-│  │  └─ marts/                     # Final outputs (fct_*, dim_*) - 27 models
+│  │  └─ marts/                     # Final outputs (fct_*, dim_*) - 22 models
 │  ├─ seeds/                        # Configuration data (CSV)
 │  └─ macros/                       # Reusable SQL functions
 ├─ planalign_core/                   # Shared domain package (events, schema, constants)
@@ -199,7 +202,7 @@ planalign_engine/
 ├─ config/                           # Configuration files only (YAML)
 │  └─ simulation_config.yaml        # Simulation parameters
 ├─ var/                              # Runtime outputs (git-ignored): artifacts, reports, logs, outputs, backups
-├─ tests/                            # Comprehensive testing (256 tests)
+├─ tests/                            # Comprehensive testing (~2,200 tests)
 │  ├─ fixtures/                     # Centralized fixture library (E075)
 │  │  ├─ database.py               # In-memory, populated, isolated databases
 │  │  ├─ config.py                 # Test configurations
@@ -260,7 +263,7 @@ except DbtError as e:
 ### **Testing Infrastructure (E075 - Fixture Library)**
 
 ```bash
-# Fast unit tests (TDD workflow) - 87 tests in ~5 seconds
+# Fast unit tests (TDD workflow) — ~1,500 tests, marker auto-applied
 pytest -m fast
 
 # Component-specific tests
@@ -592,6 +595,8 @@ planalign studio --verbose              # Show detailed server output
 
 **Stopping**: Press `Ctrl+C` to gracefully stop all services.
 
+**Security**: The API binds to `127.0.0.1` by default. Non-loopback deployments require `PLANALIGN_API_TOKEN` (shared-token auth on API routes) and explicit `PLANALIGN_API_CORS_ORIGINS`; wildcard CORS on a non-loopback bind is rejected at startup. See `SECURITY.md` for the full policy.
+
 ### **Frontend Styling (Tailwind CSS v4)**
 
 Styles are bundled locally by Vite — **never use CDN scripts for CSS frameworks**.
@@ -722,7 +727,7 @@ Project is feature-complete for MVP. All simulations use dbt/SQL-only path (Pola
 
 ## **13. Versioning**
 
-Current version: **2.1.0** ("Studio & Compliance") — managed in `_version.py` and `pyproject.toml`. See `/docs/VERSIONING_GUIDE.md` for the full update process and `/CHANGELOG.md` for history.
+Current version: **2.2.0** ("Calibration") — managed in `_version.py` and `pyproject.toml`. See `/docs/VERSIONING_GUIDE.md` for the full update process and `/CHANGELOG.md` for history.
 
 ## Active Technologies
 - Python 3.11 (orchestrator/config/API), SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1, TypeScript/React (Studio UI) + Pydantic v2 (config validation), DuckDB 1.0.0 (storage/engine), FastAPI (workspace config API), React/Vite + Tailwind (Studio) (099-tenure-graded-match)

@@ -5,131 +5,85 @@ All notable changes to Fidelity PlanAlign Engine will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Version Numbering
+## Release Process
 
-Fidelity PlanAlign Engine follows **Semantic Versioning 2.0.0** (MAJOR.MINOR.PATCH):
+This changelog is **generated at release time, not hand-curated per PR**. Commit messages follow conventional commits (`feat:`/`fix:`/`chore:` with PR numbers), so a release section is drafted from git history and then lightly grouped/condensed:
 
-- **MAJOR** version: Incompatible API changes or major architectural changes
-- **MINOR** version: New features in a backwards-compatible manner (e.g., completed epics)
-- **PATCH** version: Backwards-compatible bug fixes
+```bash
+# Draft the next release section from commits since the last release tag
+git log --no-merges --format='- %s' v2.1.0..HEAD
 
-### When to Increment Versions
+# Then: bump _version.py + pyproject.toml, fold the draft into a new
+# ## [X.Y.Z] section below, commit, and tag:
+git tag -a vX.Y.Z -m "Release X.Y.Z"
+git push origin vX.Y.Z
+```
 
-**MAJOR (X.0.0):**
-- Breaking changes to configuration schema
-- Incompatible changes to database schema requiring migration
-- Removal of deprecated features
-- Major architectural overhauls
+Versioning semantics (SemVer) and the full bump procedure live in [docs/VERSIONING_GUIDE.md](docs/VERSIONING_GUIDE.md).
 
-**MINOR (x.Y.0):**
-- New epic features (E068, E069, E072, etc.)
-- New CLI commands
-- New dbt models or transformations
-- New configuration options (backwards-compatible)
-- Performance improvements without breaking changes
+## [2.2.0] - 2026-07-11 "Calibration"
 
-**PATCH (x.y.Z):**
-- Bug fixes
-- Documentation updates
-- Internal code refactoring without API changes
-- Test improvements
-
-### Version Update Process
-
-1. **Update `_version.py`** in the project root:
-   ```python
-   __version__ = "1.1.0"  # Update version number
-   __version_info__ = tuple(int(x) for x in __version__.split("."))
-   __release_date__ = "2025-01-24"  # Update release date
-   __release_name__ = "Performance"  # Optional release name
-   ```
-
-2. **Update `CHANGELOG.md`** with changes:
-   - Add new version section under "## [Unreleased]"
-   - Document all changes under appropriate categories
-   - Move changes from [Unreleased] to new version section
-
-3. **Update `pyproject.toml`** (line 3):
-   ```toml
-   version = "1.1.0"
-   ```
-
-4. **Commit changes**:
-   ```bash
-   git add _version.py CHANGELOG.md pyproject.toml
-   git commit -m "chore: Bump version to 1.1.0"
-   ```
-
-5. **Create git tag**:
-   ```bash
-   git tag -a v1.1.0 -m "Release version 1.1.0: Performance improvements"
-   git push origin v1.1.0
-   ```
-
-## [Unreleased]
+_Consolidates all work since 2.1.0 (March–July 2026, ~258 commits), reconstructed from git history._
 
 ### Added
-- **Feature 103 — Configurable new-hire eligibility rate + optional per-employee census eligibility**
-  (issue #357, supersedes #283): models a DC-plan-**ineligible** sub-population whose
-  enrollment, contributions, and employer match are suppressed. Three backward-compatible
-  inputs, all defaulting to "everyone eligible":
-  (1) `eligibility.new_hire_ineligible_pct` (0.0–1.0, default 0.0) deterministically marks a
-  reproducible share of each year's new-hire cohort ineligible;
-  (2) optional nullable `eligibility_override` census column (`TRUE`/`FALSE`/blank, same
-  absent-column-defaults-to-eligible pattern as `auto_escalation_opt_out` #316; invalid values
-  are non-fatal → eligible);
-  (3) `eligibility.new_hire_eligibility_match_census` (default false) calibrates the new-hire
-  rate to the census-observed ineligible share (ineligible ÷ total census headcount).
-  Resolved once in the new `int_plan_eligibility_override` temporal-accumulator model (census
-  flag read directly from `stg_census_data` for multi-year correctness; new hires via
-  deterministic hash) and folded into the eligibility gate in `int_enrollment_events`,
-  `int_voluntary_enrollment_decision`, `int_proactive_voluntary_enrollment`, and the
-  `DC_PLAN_ELIGIBILITY` event in `int_eligibility_events` (suppressed + reason/source annotated).
-  `EligibilityPayload.reason` gains `"ineligible_override"` + optional `source`. New dbt data
-  test `assert_ineligible_no_enrollment`. Default config remains byte-for-byte unchanged.
-- **Feature 094 — Live Simulation Run Dashboard**: structured telemetry protocol
-  (`PLANALIGN_TELEMETRY|{json}` stdout records from orchestrator hooks with exact
-  per-event-type counts at year boundaries), per-run telemetry state with milestone
-  history and snapshot-on-connect WebSocket resync, REST snapshot endpoint
-  (`GET /api/scenarios/{id}/run/telemetry`) for refresh restore and polling fallback,
-  and new Studio run-screen components (LiveStatsPanel, ActivityFeed,
-  PerformanceTrendChart, ConnectionStatusBadge)
+
+**Fast Compensation Calibration (Feature 105, #280)**
+- `planalign calibrate <year-range>` — rebuilds only the compensation/workforce dbt subgraph per year; per-year avg comp and YoY growth are exact vs. a full simulation, ~3–5× faster
+- Interactive re-tune loop (`--interactive`), COLA/merit overrides, isolated calibration databases by default
+- Target-seeking auto-calibration against real production levers: workforce growth, COLA/merit, new-hire age distribution, per-level comp ranges via Match Census × scale
+- Termination-rate tuning with Match Census; population and total-compensation growth in output
+- Studio "Calibration" panel (`/calibrate`) reworked into guided steps, backed by `POST /api/calibration/run` (shared `CalibrationRunner` with the CLI); calibration runs as background jobs with polling (#380)
+
+**Simulation Engine & DC Plan Modeling**
+- **Feature 103** (#357): configurable new-hire DC-plan ineligibility — `eligibility.new_hire_ineligible_pct`, optional `eligibility_override` census column, and census-calibrated mode; resolved in the new `int_plan_eligibility_override` temporal accumulator and enforced across enrollment/contribution/match models. Defaults leave behavior byte-for-byte unchanged
+- **Feature 102** (#328, #335): match-magnet dial exposed in Studio; fixed match-ceiling not driving deferral selection; `points_based` DMR corrected
+- **Feature 101** (#307, #332): contributions and employer match prorated for same-year enroll→opt-out windows
+- **Feature 099** (#317): tenure-graded multi-tier employer match formulas (`employer_match_status: 'tenure_graded'`)
+- **Feature 093**: `scheduled_hours_per_week` census field with part-time eligibility hours handling
+- **Feature 086**: DC plan eligibility audit trail with prerequisite chain enforcement
+- **Feature 085**: opt-out rate configuration with census analysis
+- Per-employee auto-escalation opt-out census flag (#316)
+
+**Studio & Data Import**
+- **Features 087–091**: census data import overhaul — CSV/Excel → Parquet wizard with schema-aware predictive field mapping, sheet re-selection, soft-validated field mappings (#350), and stg_census_data contract fixes
+- **Feature 094**: live simulation run dashboard — structured telemetry protocol, milestone activity feed, live trend chart, WebSocket resync with REST snapshot fallback
+- **Feature 088** (#291): per-run simulation log capture for analyst access
+- Curated "Workforce Parameters" tab with advanced settings tucked away (#358); sidebar nav grouped into Setup/Run/Analyze
+- Year selector on DC plan comparison summary and contribution mix (#322); deferral distribution toggle and year filter on analytics pages (#312, #315)
 
 ### Changed
-- **Feature 104 — remove dead eligibility-events join in `fct_workforce_snapshot`**
-  (issues #365, #368): the subsequent-years (year 2+) eligibility branch contained a
-  per-employee correlated subquery joining "eligibility" events and overriding the baseline
-  via `COALESCE`. The join filtered on `'$.determination_type' = 'initial'`, but **no
-  producer emits a `determination_type` key** (neither the SQL `int_eligibility_events` model
-  nor the Pydantic `EligibilityPayload`), so it returned zero rows in every configuration and
-  the `COALESCE` always fell through to `int_baseline_workforce`. The dead subquery and its
-  correlated scan are removed; the three eligibility columns now read `baseline.*` directly.
-  Strictly behavior-preserving — output verified byte-identical across a multi-year run under
-  both the default and an edge config (broad auto-enrollment scope + early hire-date cutoff);
-  no new dbt-test failures. Net −16 lines in the model.
-- Simulation run screen replaces the raw per-employee event stream with a milestone
-  activity feed and replaces the performance graph placeholder with a live trend chart
-- Pipeline year/stage hooks (`PRE_YEAR`/`POST_YEAR`/`PRE_STAGE`/`POST_STAGE`/
-  `POST_SIMULATION`) now fire during `execute_multi_year_simulation`
-- Run progress is computed from year + workflow-stage position instead of year alone
+- **Feature 092**: consolidated dbt invocations per stage for simulation performance; multi-threading and checkpointing disabled by default
+- Runtime outputs consolidated under `var/` with run-artifact retention (#391)
+- Python domain code moved from `config/` into the `planalign_core` package (#390)
+- **Feature 104** (#365, #367): removed dead eligibility-events join in `fct_workforce_snapshot` (returned zero rows in every configuration); verified byte-identical output
+- Lint debt driven to zero: ruff 387→0 (#331), mypy clean across all packages with pydantic plugin (#333), black formatting enforced via pre-commit hooks (#330)
+- Docs: pruned ~430 stale epic/story/session docs (#392); documentation rewritten from the current codebase
 
 ### Fixed
-- WebSocket telemetry reliability: reconnect backoff used stale state (retries never
-  escalated), missed updates were lost on reconnect, and the UI could stay stuck on
-  "running" after a disconnect; cancelled runs are now reported as cancelled (not failed),
-  and `GET .../run/status` no longer fabricates completed/100% for failed or never-run scenarios
-- Failed and cancelled runs now persist `run_metadata.json` (status + error message),
-  so they appear in run history with their `simulation.log` available; the run screen
-  navigates to the scenario detail page on failure (error banner + logs) instead of
-  staying on the live view, and telemetry state is created before config/census
-  validation so early failures reach the dashboard as a terminal status
-- End-of-simulation cleanup no longer calls nonexistent methods
-  (`ParallelExecutionEngine.shutdown` / `ResourceManager.cleanup`), which surfaced as
-  error milestones in the run activity feed; resource monitoring is now stopped via
-  `ResourceManager.stop_monitoring()`
+- **Feature 108** (#419): purge stale prior-run state before each simulated year
+- **Feature 107** (#418): preserve census enrollment state across simulation years
+- **Feature 106** (#406): stop the simulation when a workflow stage reports failure
+- Duplicate simulation starts rejected for queued scenarios (#417); cancel now stops the real subprocess across service instances (#416)
+- `event_sequence` ordered chronologically with priority as same-day tiebreaker (#412)
+- Year-cleanup deletes scoped to scenario and plan design (#410)
+- Studio scenario seed overrides no longer leak into global dbt seeds (#413); per-scenario seeds persist across batch runs
+- dbt correctness: merit raises no longer granted to already-terminated employees; zero-mean new-hire comp variance with seeded stable event RNGs; new-hire-termination contribution proration (#334); 414(s) testing compensation capped at IRS limit in ACP/401(a)(4) tests
+- **Feature 095**: voluntary enrollees missing from snapshot participation/deferral/match
+- WebSocket telemetry reliability (reconnect backoff, missed updates, stuck "running" states); failed/cancelled runs persist `run_metadata.json` and appear in run history
+- Census handling: placeholder default no longer shadows workspace census; relative `census_parquet_path` resolved against workspace dir; wizard-generated census wired into workspace config
+- Batch: failure exit codes propagate; unknown scenario names rejected
+- `ExecutionMutex` acquired atomically (O_EXCL); `int_effective_parameters` built before hazard cache rebuild
+
+### Security
+- API authentication boundary and safe network defaults (#414): loopback bind by default, optional shared-token auth via `PLANALIGN_API_TOKEN` (constant-time comparison), wildcard-CORS-on-non-loopback rejected at startup
+- Path traversal prevented in the artifact download route (#407)
+- API defaults to multi-tenant DB resolution; legacy project-DB fallback gated behind a dev-mode flag (#409)
+- New `SECURITY.md` documenting the deployment security model, hardening checklist, and vulnerability reporting
 
 ### Removed
-- Dead frontend mock telemetry service and unused `_simulate_progress` dev helper
+- Orphaned auto-enrollment decision-matrix model chain (#319); 5 duplicate dbt models (v2 models renamed to canonical)
+- Stale `dq_employee_contributions_validation` references (#408)
+- Dead frontend mock telemetry service and unused dev helpers
 
 ---
 
@@ -364,6 +318,7 @@ Fidelity PlanAlign Engine follows **Semantic Versioning 2.0.0** (MAJOR.MINOR.PAT
 
 ## Version History
 
+- **2.2.0** (2026-07-11): Calibration - Fast compensation calibration, new-hire eligibility modeling, tenure-graded match, census import wizard, API security hardening
 - **2.1.0** (2026-03-03): Studio & Compliance - PlanAlign Studio, NDT testing, DC plan modeling, SQL-only mode, 60+ features/fixes
 - **2.0.0** (2025-11-24): PlanAlign Engine - Project rename from PlanWise Navigator
 - **1.0.0** (2025-01-15): Foundation - Initial production release with event sourcing, pipeline modularization, and comprehensive testing

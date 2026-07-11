@@ -1,156 +1,122 @@
 # Fidelity PlanAlign Engine – AGENTS.md (Codex CLI Assistant Playbook)
 
-This playbook defines how the Codex CLI assistant operates in this repository to produce precise, production-ready changes aligned to the project's architecture and standards described in CLAUDE.md.
+This playbook defines how the Codex CLI assistant operates in this repository to produce precise, production-ready changes aligned to the architecture and standards in CLAUDE.md. When this file and CLAUDE.md disagree, CLAUDE.md wins.
 
 ---
 
 ## 1) Mission & Scope
 
-- Generate or modify code, SQL models, and docs that fit the Fidelity PlanAlign Engine architecture.
-- Favor surgical, minimal diffs that solve the user's request at the root cause.
-- Preserve event-sourced design, auditability, and reproducibility at all times.
+- Generate or modify code, dbt SQL models, and docs that fit the Fidelity PlanAlign Engine architecture.
+- Favor surgical, minimal diffs that solve the request at the root cause.
+- Preserve event-sourced design, auditability, and deterministic reproducibility at all times.
 
 ---
 
 ## 2) Operating Environment
 
-- Filesystem: workspace-write (only edit within this repo). Use `apply_patch` for all edits.
-- Network: restricted. Avoid installs or remote fetches unless explicitly approved.
-- Approvals: on-request. Ask for escalation only when necessary (e.g., networked installs, writing outside workspace).
-
----
-
-## 3) Interaction Style
-
-- Default tone: concise, direct, friendly; focus on actionable steps.
-- Before running tools, send a brief 1-2 sentence preamble describing what's next.
-- Use the `update_plan` tool for multi-step or ambiguous tasks; keep one step in progress.
-- Provide short progress updates during longer work; avoid unnecessary verbosity.
-
----
-
-## 4) Core Workflow
-
-1) Clarify scope: restate the request; call out unknowns/assumptions.
-2) Plan: outline concise steps (use `update_plan` when multi-phase work).
-3) Implement: edit files via `apply_patch`; keep changes localized and consistent with style.
-4) Validate: where possible, run targeted checks/tests with `functions.shell` (no network). Start specific, broaden as needed.
-5) Document: update README/docs/dbt docs where relevant; add clear docstrings/comments when helpful.
-6) Handoff: summarize what changed, how to run/verify, and next steps.
-
-Constraints:
+- Filesystem: workspace-write (edit only within this repo) via `apply_patch`.
+- Network: restricted. No installs or remote fetches unless explicitly approved.
+- Approvals: on-request; escalate only when necessary with a one-sentence justification.
 - Do not commit or create branches unless the user requests it.
-- Do not add licenses/headers; avoid broad refactors unrelated to the task.
 
 ---
 
-## 5) Architecture Alignment (from CLAUDE.md)
+## 3) Core Workflow
 
-- Event Sourcing: maintain immutable, auditable events; ensure reproducibility and type safety.
-- Unified Event Model: respect `SimulationEvent` (Pydantic v2) and required context (`scenario_id`, `plan_design_id`).
-- Modular Engines: keep logic separable (compensation, termination, hiring, promotion, DC plan, admin).
-- Snapshot Reconstruction: avoid breaking the event->state lineage used by marts and accumulators.
+1) **Clarify scope**: restate the request; call out unknowns and assumptions.
+2) **Plan**: use `update_plan` for multi-step work; keep exactly one step in progress.
+3) **Implement**: minimal, localized patches via `apply_patch`, consistent with surrounding style.
+4) **Validate**: targeted checks first, broaden as needed — and always in an **isolated database** for behavioral changes (Section 5).
+5) **Document**: update README/docs/schema.yml where relevant.
+6) **Handoff**: summarize what changed, how to verify, assumptions, and follow-ups.
+
+---
+
+## 4) Architecture Alignment (from CLAUDE.md)
+
+- **Event sourcing**: immutable, UUID-stamped events; identical seed + inputs ⇒ identical outputs.
+- **Unified event model**: Pydantic v2 events in `planalign_core/events` with required context (`scenario_id`, `plan_design_id`).
+- **Pipeline**: `PipelineOrchestrator` runs six stages per year — INITIALIZATION → FOUNDATION → EVENT_GENERATION → STATE_ACCUMULATION → VALIDATION → REPORTING.
+- **Temporal state accumulators**: Year N reads Year N−1 accumulator state + Year N events (e.g., `int_enrollment_state_accumulator`, `int_deferral_rate_state_accumulator`). Never create circular dependencies.
+- **Build order**: accumulators → `int_*` → `fct_yearly_events` → `fct_workforce_snapshot`.
+- **`int_*` models never read `fct_*` tables** — sanctioned exceptions: `fct_yearly_events` (built first in STATE_ACCUMULATION) and prior-year reads of `fct_workforce_snapshot`.
+- **Event generators**: new event types implement `EventGenerator` in `planalign_orchestrator/generators/`, registered via `@EventRegistry.register("name")` (see `generators/sabbatical.py`).
+
+---
+
+## 5) Validation: Isolated Databases Only
+
+`dbt/simulation.duckdb` is the **shared dev database** — fine for quick reads, never for validating a behavioral change. Do not `dbt run`/`dbt build` into it to "check" a change, and do not treat its current contents as ground truth.
+
+```bash
+# Preferred: isolated per-scenario databases
+planalign batch --scenarios my_edge_case --clean
+
+# Or: one-off isolated run with an explicit config + database path
+DATABASE_PATH=/tmp/run/iso.duckdb \
+  planalign simulate 2025-2027 --config /tmp/run/cfg.yaml --database /tmp/run/iso.duckdb
+
+# Point tests at the isolated DB (get_database_path() honors DATABASE_PATH)
+DATABASE_PATH=/tmp/run/iso.duckdb pytest tests/test_my_feature.py -v
+```
+
+- Cover **edge configs**, not just defaults (e.g., `auto_enrollment_scope: all_eligible_employees` with an early hire-date cutoff).
+- For multi-year invariants, run a full `planalign simulate <start>-<end>`; a single-year `dbt run` of a few models can hide cross-year issues.
+- Confirm a model actually feeds `fct_yearly_events`/`fct_workforce_snapshot` before trusting it — some `int_*` models are orphaned and never built by the pipeline.
 
 ---
 
 ## 6) Naming & Coding Standards
 
-- dbt models: `tier_entity_purpose` (e.g., `int_*`, `fct_*`, `stg_*`). Avoid `SELECT *`; uppercase SQL keywords; 2-space indents; use CTEs and `{{ ref() }}`.
-- Event tables: `fct_yearly_events` immutable; `fct_workforce_snapshot` point-in-time.
-- Python: PEP8, type hints, functions < ~40 lines when practical; explicit exceptions; Pydantic for config/models.
-- Config: YAML `snake_case`, hierarchical.
-- File edits: minimal, focused patches consistent with surrounding style.
+- **dbt models**: `tier_entity_purpose` (`stg_*`, `int_*`, `fct_*`, `dim_*`). Uppercase keywords, 2-space indents, CTEs, `{{ ref() }}`, no `SELECT *`. Incremental models use `incremental_strategy='delete+insert'` keyed on `(scenario_id, plan_design_id, employee_id, simulation_year)`; filter heavy models by `{{ var('simulation_year') }}`.
+- **Python**: PEP 8, mandatory type hints, functions < ~40 lines, explicit exceptions (never bare `except:`), Pydantic v2 for config/models.
+- **SonarQube gates**: cognitive complexity ≤ 15 (guard clauses, extracted helpers, dictionary dispatch), ≤ 13 parameters per function, no dead/commented-out code, no mutable default arguments.
+- **Config**: YAML `snake_case`, hierarchical; validated by Pydantic.
+- **Bands**: age/tenure bands live in seeds (`config_age_bands.csv`, `config_tenure_bands.csv`); use the `assign_age_band`/`assign_tenure_band` macros; `[min, max)` interval convention.
 
 ---
 
 ## 7) Development & Testing
 
-- Local commands to favor (no network):
-  - Python: `source .venv/bin/activate` then `python` within the activated venv.
-  - dbt: run from `/dbt` directory only (e.g., `dbt run --threads 1`, `dbt test --threads 1`).
-  - CLI: `planalign simulate 2025-2027`, `planalign health`, `planalign batch`.
-  - Orchestrator: `python -m planalign_orchestrator run --years 2025 --threads 1`.
-- Data-quality gates to respect:
-  - Row counts drift <= 0.5% from raw->staged.
-  - Primary-key uniqueness on every model.
-  - Distribution drift checks (KS) should maintain p-value expectations per CLAUDE.md.
-- When adding/changing models:
-  - Provide/adjust `schema.yml` tests.
-  - Ensure types/contracts align; avoid breaking dbt model contracts.
+Local commands to favor (no network):
 
-Note: This sandbox may prevent package installs or long-running jobs; prefer targeted checks. If a command needs elevated permissions (e.g., network), request approval with a brief justification.
+- **Environment**: `source .venv/bin/activate` first — `ModuleNotFoundError` almost always means the venv is inactive.
+- **dbt**: run from the `dbt/` directory only, always `--threads 1`; prefer `--select` for targeted runs.
+- **CLI**: `planalign health`, `planalign simulate 2025-2027`, `planalign batch`, `planalign validate`, `planalign calibrate` (comp-only, isolated DB by default).
+- **Tests**: `pytest -m fast` for the TDD loop; `pytest -m integration` against an isolated `DATABASE_PATH` DB; full suite is ~2,200 tests.
+- **Lint/type**: `ruff check`, `mypy planalign_orchestrator/ planalign_cli/ planalign_core/ --ignore-missing-imports`.
+
+When adding or changing dbt models: add/adjust `schema.yml` tests, keep types and contracts aligned, and document columns.
 
 ---
 
-## 8) Paths, Tools, and Gotchas
+## 8) Paths & Gotchas
 
-- DuckDB location: `dbt/simulation.duckdb` (standardized); avoid IDE locks during runs.
-- Database access: use `get_database_path()` from `planalign_orchestrator.config` in Python code.
-- Always run dbt from `/dbt`; prefer `--select` for targeted runs; always use `--threads 1`.
-- Enrollment architecture: respect the temporal accumulator (`int_enrollment_state_accumulator`) and avoid circular dependencies.
-- Band configuration: age/tenure bands defined in dbt seeds (`config_age_bands.csv`, `config_tenure_bands.csv`); use `assign_age_band`/`assign_tenure_band` macros.
+- **Database access in Python**: always `get_database_path()` from `planalign_orchestrator.config`; it honors the `DATABASE_PATH` env var.
+- **Database locks**: IDE/DBeaver connections cause `Conflicting lock is held`; `planalign health` detects them.
+- **sqlparse token limit**: multi-year runs auto-install a `.pth` fix on first `import planalign_orchestrator` — don't hand-patch sqlparse.
+- **Frontend**: Tailwind v4 bundled via `@tailwindcss/vite`; never add CDN scripts, external stylesheets, or import maps to `planalign_studio/index.html`.
+- **API security**: loopback bind by default; `PLANALIGN_API_TOKEN` gates non-local deployments (see SECURITY.md). Don't weaken these defaults.
+- **Sensitive data**: census inputs (`data/`), runtime outputs (`var/`), and `*.duckdb` files are git-ignored PII-bearing artifacts — never commit or expose their contents unnecessarily.
 
 ---
 
 ## 9) Edit & Review Guidelines
 
-- Keep diffs minimal and scoped to the request.
-- Prefer adding small utilities over entangling existing modules.
-- Update or add inline documentation where it clarifies intent; do not over-comment.
-- If you detect unrelated issues, note them in the final message but do not change them unless asked.
+- Keep diffs minimal and scoped to the request; avoid broad refactors and license headers.
+- Prefer small utilities over entangling existing modules.
+- Note unrelated issues in the final message; don't fix them unasked.
+- Avoid destructive actions (`rm -rf`, resets, overwriting the shared dev DB) unless explicitly requested with risks called out.
 
 ---
 
-## 10) Tooling Protocols (Codex CLI)
-
-- `apply_patch`: the only way to create/modify/delete files.
-- `functions.shell`: run read or test commands; batch related reads; avoid destructive commands without explicit user direction.
-- `update_plan`: maintain a lightweight, living plan when work spans multiple steps; one `in_progress` step at any time.
-- Preambles: short, friendly description before tool calls (e.g., "Checking dbt model contracts next.").
-
----
-
-## 11) Final Message Expectations
+## 10) Final Message Expectations
 
 - Concise summary of what changed and why.
-- Commands to validate changes locally (dbt run/test, scripts) if applicable.
-- Any assumptions, limitations, or follow-ups.
-- Offer next logical steps (e.g., run tests, open PR) without overstepping.
+- Exact commands to validate locally (isolated-DB runs, targeted pytest/dbt selections).
+- Assumptions, limitations, and sensible next steps — without overstepping.
 
 ---
-
-## 12) Escalation & Safety
-
-- Request elevated permissions only when required (e.g., install deps, network access, writing outside workspace). Include a one-sentence justification.
-- Avoid destructive actions (e.g., `rm -rf`, resets) unless the user explicitly requests them and risks are called out.
-- Treat sensitive data and large binaries (DuckDB files) with care; do not expose contents unless necessary.
-
----
-
-## 13) Quick Checklists
-
-Feature/change checklist:
-- Clarified scope and constraints
-- Minimal, targeted patch created via `apply_patch`
-- Style and naming match project norms
-- dbt/Python tests or checks adjusted as needed
-- Docs updated if relevant
-- Short verification steps provided
-
-dbt change checklist:
-- Model lives in correct tier (`stg/`, `int/`, `marts/`)
-- Inputs use `{{ ref() }}` and have tests in `schema.yml`
-- No `SELECT *`; columns typed and documented
-- Contracts/constraints updated to reflect schema changes
-
-Python change checklist:
-- Types and docstrings present where useful
-- Clear exceptions and small functions
-- Config via Pydantic when applicable
-
----
-
-By following this playbook, the Codex CLI assistant produces high-quality, auditable changes that align with the event-sourced architecture and enterprise standards documented in CLAUDE.md.
 
 ## Active Technologies
 - Python >=3.11 + dbt Core/dbt DuckDB execution via the existing orchestrator, Pydantic configuration models, DuckDB-backed simulation state, pytest for tests (106-fail-dbt-stage)

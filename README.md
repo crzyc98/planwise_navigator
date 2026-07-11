@@ -1,57 +1,28 @@
 # Fidelity PlanAlign Engine
 
-**An enterprise-grade, on-premises workforce simulation platform with immutable event sourcing, built on DuckDB, dbt, FastAPI, and React.**
+**An enterprise-grade, on-premises workforce and DC-plan simulation platform with immutable event sourcing — built on DuckDB, dbt, FastAPI, and React.**
+
+Current version: **2.2.0** ("Calibration") — see [CHANGELOG.md](CHANGELOG.md).
 
 ## Overview
 
-Fidelity PlanAlign Engine represents a paradigm shift from rigid spreadsheets to a dynamic, fully transparent simulation engine—essentially a workforce "time machine" that captures every employee lifecycle event with UUID-stamped precision and enables instant scenario replay.
+Fidelity PlanAlign Engine replaces rigid spreadsheet projections with a transparent, reproducible simulation engine — a workforce "time machine" that records every modeled employee lifecycle and retirement-plan event with UUID-stamped precision and enables instant scenario replay and comparison.
 
-This enterprise-grade platform uses an immutable event-sourced architecture optimized for analytical workloads, audit trails, and regulatory compliance.
+Plan sponsors and their advisors use it to estimate the multi-year financial impact of retirement plan design changes — match formulas, auto-enrollment strategies, vesting schedules, eligibility rules — against projected workforce demographics. See [METHODOLOGY.md](METHODOLOGY.md) for the full modeling methodology, assumptions, and limitations.
 
 ### Key Features
 
-- **Immutable Event Sourcing**: Every workforce event permanently recorded with UUID and timestamp
-- **Enhanced Multi-year Simulation**: True multi-year workforce transitions with data persistence
-- **Data Persistence Architecture**: Table-based materialization prevents data loss across years
-- **Selective Data Management**: Preserve existing data or selectively clear specific years
-- **Modular Architecture**: Single-responsibility engines for compensation, termination, hiring, and promotions
-- **Interactive Analytics**: Sub-2-second dashboard queries for scenario analysis
-- **Audit Trail Transparency**: Complete workforce history reconstruction from event logs
-- **Scenario Time Machine**: Instantly replay and compare multiple simulation scenarios
-- **Enhanced Validation**: Comprehensive data quality checks and fallback mechanisms
-- **Enterprise Security**: Zero cloud dependencies, comprehensive audit logging
-- **Reproducible Results**: Random seed control for identical simulation outcomes
-- **Scalable Performance**: Handle 100K+ employee records with minimal memory footprint
-- **Workspace Cloud Sync**: Git-based synchronization for cross-device access and team collaboration
-- **Per-Scenario Seed Config**: Workspace-level and scenario-level overrides for bands, promotion hazards, and other seed parameters
-- **Dynamic Band Assignment**: Age/tenure band macros read from configurable seed tables, not hardcoded values
-- **DC Plan Modeling**: Retirement plan contribution, vesting, enrollment, and forfeiture simulation
-
-### PlanAlign Orchestrator
-
-Enterprise-grade orchestration engine with modular architecture:
-
-**Core Components:**
-- `pipeline_orchestrator.py`: Main coordinator (1,220 lines)
-- `pipeline/`: Modular pipeline package (E072 - 6 focused modules)
-  - `workflow.py`: Workflow stage definitions and builders
-  - `year_executor.py`: Year-by-year execution logic
-  - `state_manager.py`: State management and checkpointing
-  - `event_generation_executor.py`: SQL-based event generation
-  - `hooks.py`: Extensible hook system
-  - `data_cleanup.py`: Data cleanup utilities
-  - `seed_writer.py`: Atomic seed CSV writer with directory safety
-- `config.py`: Type-safe configuration management
-- `dbt_runner.py`: Streaming dbt execution with retry/backoff
-- `registries.py`: State registries across simulation years
-- `validation.py`: Rule-based data quality validation
-- `exceptions.py` & `error_catalog.py`: Comprehensive error handling (E074)
-
-**Testing Infrastructure (E075):**
-- 256 tests with 87 fast unit tests (4.7s execution)
-- Shared fixture library in `tests/fixtures/`
-- 92.91% coverage on event schema
-- Enterprise-grade test organization
+- **Immutable event sourcing** — every modeled event recorded with UUID, timestamp, and provenance keys (`scenario_id`, `plan_design_id`, `simulation_year`)
+- **Multi-year simulation** — sequential year-by-year execution with temporal state accumulators (no circular dependencies)
+- **Deterministic reproducibility** — identical inputs + random seed produce identical outputs
+- **Modular engines** — compensation, termination, hiring, promotion, DC plan, and plan administration
+- **Fast compensation calibration** — comp-only rebuilds that are exact vs. a full simulation, ~3–5× faster (`planalign calibrate`)
+- **Scenario isolation** — one DuckDB database per scenario for batch and Studio runs
+- **Batch processing** — multi-scenario runs with Excel export, comparison reports, and traceability metadata (git SHA, seed, config)
+- **PlanAlign Studio** — web-based scenario management with real-time simulation telemetry
+- **Workspace cloud sync** — Git-based workspace synchronization across devices (`planalign sync`)
+- **Configurable everything** — age/tenure bands, hazard multipliers, match formulas (including tenure-graded multi-tier), new-hire demographics, IRS limits — all via seeds, YAML, or the Studio UI
+- **On-premises only** — zero cloud dependencies; see [SECURITY.md](SECURITY.md)
 
 ## Technology Stack
 
@@ -60,205 +31,144 @@ Enterprise-grade orchestration engine with modular architecture:
 | **Storage** | DuckDB | 1.0.0 | Immutable event store; in-process OLAP engine |
 | **Transformation** | dbt-core | 1.8.8 | SQL-based data modeling and testing |
 | **Adapter** | dbt-duckdb | 1.8.1 | Stable DuckDB integration |
-| **Orchestration** | planalign_orchestrator | Custom | Multi-year pipeline orchestration with checkpoints |
-| **CLI Interface** | planwise (Rich + Typer) | 1.0.0 | Beautiful terminal interface with progress tracking |
-| **Web Studio** | FastAPI + React/Vite | 0.1.0 | Modern web-based scenario management |
-| **Frontend Styling** | Tailwind CSS | 4.x | Utility-first CSS bundled via `@tailwindcss/vite` |
+| **Orchestration** | planalign_orchestrator | 2.2.0 | Staged multi-year pipeline execution |
+| **CLI** | planalign (Rich + Typer) | 2.2.0 | Terminal interface with progress tracking |
+| **Web Studio** | FastAPI + React/Vite | 2.2.0 | Web-based scenario management |
+| **Frontend Styling** | Tailwind CSS | 4.x | Bundled via `@tailwindcss/vite` — never CDN |
 | **Configuration** | Pydantic | 2.7.4 | Type-safe parameter management |
 | **Git Sync** | GitPython | 3.1.0+ | Workspace cloud synchronization |
-| **Python** | CPython | 3.11.x | Long-term support version |
+| **Python** | CPython | 3.11 / 3.12 | 3.13+ not yet supported (pydantic-core wheels) |
 
 ## Architecture
 
 ### Event-Sourced Data Flow
+
 ```
-Raw Census Data → Staging Models → Event Generation → Immutable Event Store → Snapshots → Dashboard
-                     (stg_*)         (Modular Engines)   (fct_yearly_events)   (point-in-time)
+Raw Census Data → Staging Models → Event Generation → Immutable Event Store → Snapshots → Analytics
+                     (stg_*)        (modular engines)   (fct_yearly_events)   (point-in-time)
 ```
 
-### Data Flow
-1. **Staging Layer**: Clean and validate raw employee master data
-2. **Event Generation**: Modular engines create immutable workforce events (UUID-stamped)
-3. **Event Store**: Permanent, tamper-proof audit trail in `fct_yearly_events`
-4. **Snapshot Layer**: Point-in-time workforce states reconstructed from events
-5. **Analytics Layer**: Scenario comparison, cost metrics, and vesting analysis via PlanAlign Studio
+1. **Staging layer** (`stg_*`, 20 models): clean and validate raw census data
+2. **Event generation** (`int_*`, 61 models): modular engines create UUID-stamped workforce and DC-plan events
+3. **Event store**: audit trail in `fct_yearly_events` (delete+insert by year)
+4. **Snapshot layer** (`fct_*`/`dim_*`, 22 mart models): point-in-time workforce states reconstructed from events
+5. **Analytics**: scenario comparison, cost projection, and vesting analysis via PlanAlign Studio and batch exports
+
+### Pipeline Stages (per simulation year)
+
+`PipelineOrchestrator` executes six sequential stages per year:
+**INITIALIZATION → FOUNDATION → EVENT_GENERATION → STATE_ACCUMULATION → VALIDATION → REPORTING**
+
+### Modular Engines
+
+- **Compensation**: COLA, merit, and promotion-based adjustments with band-aware math and the E077 deterministic growth solver
+- **Termination**: hazard-based turnover with age/tenure multipliers
+- **Hiring**: growth-driven recruitment with configurable demographic sampling
+- **Promotion**: band-aware advancement with level dampening
+- **DC Plan**: eligibility, enrollment (auto/voluntary), deferral escalation, contributions, match, vesting
+- **Plan Administration**: forfeitures, HCE determination, IRS limit application
 
 ### Seed Configuration Fallback Chain
-Seed-based parameters (bands, promotion hazards) follow a strict override hierarchy:
-1. **Scenario overrides** (`config_overrides`) — highest priority
-2. **Workspace base config** (`base_config.yaml`) — workspace defaults
-3. **Global CSV seeds** (`dbt/seeds/config_*.csv`) — project defaults
 
-### Modular Engine Architecture
-- **Compensation Engine**: COLA, merit, and promotion-based salary adjustments
-- **Termination Engine**: Hazard-based turnover modeling with age/tenure factors
-- **Hiring Engine**: Growth-driven recruitment with realistic demographic sampling
-- **Promotion Engine**: Band-aware advancement with configurable probabilities
-- **DC Plan Engine**: Retirement plan contribution, vesting, and distribution modeling
-- **Plan Administration Engine**: Forfeiture processing, HCE determination, IRS compliance
+Seed-based parameters (bands, hazards, IRS limits, match tiers) follow a strict override hierarchy:
+
+1. **Scenario overrides** (`config_overrides`) — highest priority
+2. **Workspace base config** (`base_config.yaml`)
+3. **Global CSV seeds** (`dbt/seeds/config_*.csv`) — project defaults
 
 ## Directory Structure
 
 ```
-planalign_engine/
-├── planalign_orchestrator/           # Production orchestration engine
-│   ├── pipeline_orchestrator.py      # PipelineOrchestrator coordinator (1,220 lines)
-│   ├── pipeline/                     # Modular pipeline components (E072 ✅)
-│   │   ├── __init__.py              # Public API exports
-│   │   ├── workflow.py              # Workflow stage definitions (212 lines)
-│   │   ├── year_executor.py         # Year execution logic (555 lines)
-│   │   ├── state_manager.py         # State management across years (406 lines)
-│   │   ├── event_generation_executor.py  # Event generation (491 lines)
-│   │   ├── hooks.py                 # Hook system (219 lines)
-│   │   └── data_cleanup.py          # Data cleanup utilities (322 lines)
-│   ├── config.py                     # SimulationConfig management
-│   ├── dbt_runner.py                 # DbtRunner with streaming output
-│   ├── registries.py                 # Registry management
-│   ├── validation.py                 # Data quality validation
-│   ├── reports.py                    # Multi-year reporting
-│   ├── exceptions.py                 # Error handling (E074 ✅ - 548 lines)
-│   └── error_catalog.py              # Error catalog (E074 ✅ - 224 lines)
-├── planalign_cli/                     # CLI interface (Rich + Typer)
-│   ├── main.py                       # planwise command entry point
-│   ├── commands/                     # CLI commands
-│   │   ├── studio.py                # Launch API + frontend servers
-│   │   └── sync.py                  # Workspace cloud sync commands (E083)
-│   └── integration/                  # Orchestrator integration
-├── planalign_api/                     # FastAPI backend for PlanAlign Studio
-│   ├── main.py                       # FastAPI application entry point
-│   ├── routers/                      # API route handlers
-│   │   └── sync.py                  # Sync API endpoints (E083)
-│   ├── services/                     # Business logic services
-│   │   └── sync_service.py          # Git-based sync service (E083)
-│   └── websocket/                    # Real-time telemetry handlers
-├── planalign_studio/                  # React/Vite frontend
-│   ├── index.html                   # HTML entry point (no CDN scripts)
-│   ├── index.css                    # Tailwind CSS v4 entry point + Fidelity theme
-│   ├── index.tsx                    # React entry point (imports index.css)
-│   ├── vite.config.ts               # Vite config with @tailwindcss/vite plugin
-│   ├── components/                   # React components (Tailwind utility classes)
-│   ├── services/                     # API client services
-│   └── package.json                  # Frontend dependencies
-├── dbt/                              # dbt project
-│   ├── models/                       # SQL transformation models
-│   │   ├── staging/                  # Raw data cleaning (stg_*)
-│   │   ├── intermediate/             # Business logic (int_*)
-│   │   │   ├── events/               # Event generation models
-│   │   │   └── accumulators/         # State accumulators
-│   │   └── marts/                    # Final outputs (fct_*, dim_*)
-│   ├── seeds/                        # Configuration data (CSV)
-│   ├── macros/                       # Reusable SQL functions
-│   └── simulation.duckdb             # DuckDB database (standardized location)
-├── config/                           # Configuration management
-│   ├── simulation_config.yaml        # Simulation parameters
-│   ├── schema.py                     # Legacy event schema (Pydantic v1)
-│   └── events.py                     # Unified event model (Pydantic v2)
-├── tests/                            # Enterprise-grade testing (E075 ✅)
-│   ├── fixtures/                     # Shared fixture library (11 reusable fixtures)
-│   │   ├── __init__.py              # Centralized exports
-│   │   ├── database.py              # In-memory database fixtures (3 fixtures)
-│   │   ├── config.py                # Configuration fixtures (3 fixtures)
-│   │   ├── mock_dbt.py              # Mock dbt runners (3 fixtures)
-│   │   └── workforce_data.py        # Test data generators (3 fixtures)
-│   ├── unit/                        # Fast unit tests (87 tests, 4.7s)
-│   │   ├── orchestrator/            # Orchestrator tests
-│   │   └── test_fixtures_integration.py  # Fixture validation (7 tests)
-│   ├── integration/                 # Integration tests (~120 tests)
-│   ├── performance/                 # Performance benchmarks
-│   ├── conftest.py                  # Auto-marker configuration (743 lines)
-│   ├── test_exceptions.py           # Exception tests (21 tests, E074 ✅)
-│   ├── test_error_catalog.py        # Error catalog tests (30 tests, E074 ✅)
-│   ├── TEST_INFRASTRUCTURE.md       # Complete testing guide (500+ lines)
-│   └── QUICK_START.md               # Developer quick reference
-├── scripts/                          # Utility scripts
-├── docs/                             # Documentation
-│   ├── epics/                       # Epic documentation
-│   └── EPIC_STATUS_SUMMARY.md       # Current epic status
-└── data/                             # Raw input files (git-ignored)
+fidelity_planalign/
+├── planalign_orchestrator/        # Production orchestration engine
+│   ├── pipeline/                  # Modular pipeline (workflow, year_executor,
+│   │                              #   state_manager, event_generation_executor,
+│   │                              #   hooks, data_cleanup, seed_writer)
+│   ├── generators/                # EventGenerator abstraction + registry
+│   ├── pipeline_orchestrator.py   # Main coordinator
+│   ├── config.py                  # SimulationConfig management (+ get_database_path)
+│   ├── dbt_runner.py              # Streaming dbt execution with retry/backoff
+│   ├── validation.py              # Rule-based data quality validation
+│   └── exceptions.py              # Context-rich error handling + error_catalog.py
+├── planalign_cli/                 # `planalign` CLI (Rich + Typer)
+├── planalign_api/                 # FastAPI backend for PlanAlign Studio
+│   ├── auth.py                    # Optional shared-token auth (PLANALIGN_API_TOKEN)
+│   ├── routers/  services/        # Route handlers and business logic
+│   └── websocket/                 # Real-time telemetry
+├── planalign_studio/              # React/Vite frontend (Tailwind v4, no CDN)
+├── planalign_core/                # Shared domain package (Pydantic v2 event model)
+├── dbt/                           # dbt project
+│   ├── models/staging/            # 20 stg_* models
+│   ├── models/intermediate/       # 61 int_* models (events, accumulators)
+│   ├── models/marts/              # 22 fct_*/dim_* models
+│   ├── seeds/                     # config_*.csv parameter seeds
+│   ├── macros/                    # Reusable SQL (band assignment, etc.)
+│   └── simulation.duckdb          # Shared dev database (see warning below)
+├── config/                        # simulation_config.yaml + templates
+├── scenarios/                     # Batch scenario definitions
+├── workspaces/                    # Studio workspaces (per-scenario databases)
+├── tests/                         # ~2,200 tests with shared fixture library
+├── docs/                          # Architecture, data model, guides
+├── var/                           # Runtime outputs (git-ignored)
+└── data/                          # Raw census inputs (git-ignored)
 ```
 
 ## Getting Started
 
 ### Prerequisites
 
-- **Python 3.11 or 3.12** (3.12 recommended)
-- **Node.js 18+** (required for PlanAlign Studio frontend)
-- Access to raw employee census data
+- **Python 3.11 or 3.12** (3.13+ not yet supported — pydantic-core wheels unavailable)
+- **Node.js 18+** (for the PlanAlign Studio frontend)
+- Employee census data
 - On-premises deployment environment
 
-**Important:** Python 3.13+ is not yet supported due to missing pre-built wheels for `pydantic-core`.
+### Installation
 
-### Installation (Windows)
-
-1. **Install Python 3.12** using Windows Package Manager (winget):
-
-```powershell
-winget install --id Python.Python.3.12 -e
-```
-
-After installation, restart your terminal and verify with `python --version`.
-
-2. **Clone and setup environment**:
-
-```powershell
-git clone <repository-url> planalign_engine
-cd planalign_engine
-
-# Create virtual environment
-python -m venv .venv
-
-# Activate virtual environment (PowerShell)
-.venv\Scripts\Activate.ps1
-# Or for CMD:
-# .venv\Scripts\activate.bat
-
-# Upgrade pip and install dependencies
-pip install --upgrade pip
-pip install -e ".[dev]"
-```
-
-3. **Install dbt dependencies**:
-
-```powershell
-cd dbt
-dbt deps
-cd ..
-```
-
-4. **Install frontend dependencies** (required for PlanAlign Studio):
-
-```powershell
-cd planalign_studio
-npm install
-cd ..
-```
-
-#### Alternative: macOS/Linux Installation
+**macOS/Linux (uv, recommended):**
 
 ```bash
-# Create virtual environment
-python3.12 -m venv .venv
+git clone <repository-url> fidelity_planalign
+cd fidelity_planalign
 
-# Activate virtual environment
+uv venv .venv --python 3.11
 source .venv/bin/activate
+uv pip install -e ".[dev]"
+```
 
-# Install all dependencies in editable mode
+**macOS/Linux (pip):**
+
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
 pip install --upgrade pip
 pip install -e ".[dev]"
 ```
 
-# Create venv and install in one shot
-uv venv --python 3.12
-source .venv/bin/activate
-uv pip install -e ".[dev]"
+**Windows (PowerShell):**
 
-#### Post-Installation Configuration
+```powershell
+winget install --id Python.Python.3.12 -e   # then restart the terminal
+git clone <repository-url> fidelity_planalign
+cd fidelity_planalign
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install --upgrade pip
+pip install -e ".[dev]"
+```
 
-5. **Configure dbt profile**:
+**Then, for all platforms:**
 
-Create or edit the profiles file:
-- **macOS/Linux**: `~/.dbt/profiles.yml`
-- **Windows**: `%USERPROFILE%\.dbt\profiles.yml`
+```bash
+# dbt packages
+cd dbt && dbt deps && cd ..
+
+# Frontend dependencies (required for PlanAlign Studio)
+cd planalign_studio && npm install && cd ..
+```
+
+### Configuration
+
+1. **dbt profile** — `~/.dbt/profiles.yml` (Windows: `%USERPROFILE%\.dbt\profiles.yml`):
 
 ```yaml
 planalign_engine:
@@ -266,19 +176,12 @@ planalign_engine:
   outputs:
     dev:
       type: duckdb
-      path: /absolute/path/to/planalign_engine/dbt/simulation.duckdb  # Use absolute path
-      threads: 1  # Single-threaded for work laptop stability
+      path: /absolute/path/to/fidelity_planalign/dbt/simulation.duckdb
+      threads: 1
 ```
 
-**Note**: On Windows, use forward slashes or escaped backslashes in the path:
-```yaml
-# Windows example:
-path: C:/Users/YourName/planalign_engine/dbt/simulation.duckdb
-# Or:
-path: C:\\Users\\YourName\\planalign_engine\\dbt\\simulation.duckdb
-```
+2. **Simulation parameters** — `config/simulation_config.yaml`:
 
-6. **Configure simulation parameters** in `config/simulation_config.yaml`:
 ```yaml
 start_year: 2025
 end_year: 2029
@@ -286,555 +189,204 @@ target_growth_rate: 0.03
 total_termination_rate: 0.12
 new_hire_termination_rate: 0.25
 random_seed: 42
-
-multi_year:
-  optimization:
-    level: "medium"        # For work laptops
-    max_workers: 1         # Single-threaded
-    batch_size: 500
 ```
 
-7. **Verify installation**:
-```bash
-# Test Python imports
-python -c "import duckdb, dbt, pydantic, rich, typer, fastapi, uvicorn; print('✅ Installation successful!')"
+3. **Verify the installation**:
 
-# Verify planwise CLI is available
+```bash
 planalign --version
-planalign health
-
-# Check dbt connection
-cd dbt && dbt debug
+planalign health          # system readiness check
+planalign validate        # configuration validation
+cd dbt && dbt debug       # database connection check
 ```
 
-### Running the Platform
+## Running the Platform
 
-#### Option 1: Using planwise CLI (Recommended)
-
-The **planwise** CLI provides a beautiful, user-friendly interface with progress bars and enhanced feedback.
+### CLI (primary interface)
 
 ```bash
-# Quick system health check
-planalign health
+planalign health                                  # Quick system diagnostic
+planalign status --detailed                       # Full system status
+planalign simulate 2025-2027                      # Multi-year simulation
+planalign simulate 2025 --dry-run                 # Preview execution plan
+planalign simulate 2025 --verbose                 # Detailed logging
+planalign calibrate 2025-2029 --database iso.duckdb   # Fast comp-only calibration
+planalign batch --scenarios baseline high_growth  # Batch scenarios with isolation
+planalign batch --export-format excel --clean     # Excel export with metadata
+planalign analyze                                 # Results analysis in the terminal
+planalign validate                                # Validate configuration
+planalign studio                                  # Launch web interface
 
-# Run multi-year simulation with progress tracking
-planalign simulate 2025-2027 --verbose
-
-# Resume from checkpoint after interruption
-planalign simulate 2025-2027 --resume
-
-# Preview execution plan (dry run)
-planalign simulate 2025-2026 --dry-run
-
-# Run batch scenarios with Excel export
-planalign batch --scenarios baseline high_growth
-planalign batch --export-format excel --clean
-
-# Validate configuration
-planwise validate
-
-# Manage checkpoints
-planalign checkpoints list
-planalign checkpoints status
-planalign checkpoints cleanup --keep 3
-
-# Launch PlanAlign Studio (web interface)
-planalign studio                      # Start API + frontend, opens browser
-planalign studio --no-browser         # Start without opening browser
-planalign studio --api-only           # Start only the API backend
-planalign studio --frontend-only      # Start only the frontend
-planalign studio -v                   # Verbose output from servers
-
-# Workspace cloud sync (E083) - sync workspaces across devices via Git
+# Workspace cloud sync (Git-based)
 planalign sync init git@github.com:user/planalign-workspaces.git
 planalign sync push -m "Added Q4 projections"
 planalign sync pull
 planalign sync status
-planalign sync log
 ```
 
-#### Option 2: Launch PlanAlign Studio (Web Interface)
-
-**PlanAlign Studio** provides a modern web-based interface for scenario management, simulation execution, and results visualization.
+### PlanAlign Studio (web interface)
 
 ```bash
-# Launch both API and frontend (opens browser automatically)
-planalign studio
-
-# Custom ports
+planalign studio                        # API + frontend, opens browser
 planalign studio --api-port 8001 --frontend-port 3000
-
-# Development mode with verbose output
-planalign studio --verbose
-
-# Start components separately
-planalign studio --api-only           # API at http://localhost:8000
-planalign studio --frontend-only      # Frontend at http://localhost:5173
+planalign studio --api-only             # API backend only
+planalign studio --frontend-only       # Frontend only
+planalign studio --no-browser --verbose
 ```
 
-**Features:**
-- **API Backend** (FastAPI): http://localhost:8000
-  - REST API for workspaces, scenarios, and simulations
-  - WebSocket support for real-time telemetry
-  - Interactive API docs at http://localhost:8000/api/docs
-- **Frontend** (React/Vite): http://localhost:5173
-  - Modern scenario management interface
-  - Real-time simulation progress tracking
-  - Scenario comparison tools
+- **API** (FastAPI): http://localhost:8000 — REST + WebSocket telemetry; docs at `/api/docs`
+- **Frontend** (React/Vite): http://localhost:5173 — scenario management, real-time progress, comparison tools, calibration panel
 
-**Note**: Press `Ctrl+C` to stop all services gracefully.
+The API binds to `127.0.0.1` by default. For any non-loopback deployment, set `PLANALIGN_API_TOKEN` and explicit CORS origins — see [SECURITY.md](SECURITY.md).
 
-#### Frontend Styling Architecture
+### Fast Compensation Calibration
 
-The frontend uses **Tailwind CSS v4** bundled locally via Vite — **not** a CDN.
-
-**Key files:**
-- `planalign_studio/index.css` — Tailwind entry point (`@import "tailwindcss"`) with Fidelity theme via `@theme`
-- `planalign_studio/index.tsx` — Imports `index.css` so Vite processes it
-- `planalign_studio/vite.config.ts` — Includes `@tailwindcss/vite` plugin
-
-**Do/Don't:**
-- **DO** add all styles via Tailwind utility classes in JSX (`className="..."`)
-- **DO** add custom theme tokens (colors, fonts) in `index.css` under `@theme`
-- **DON'T** add CDN `<script>` tags for Tailwind or other CSS frameworks in `index.html`
-- **DON'T** use `<link rel="stylesheet">` for CSS files that don't exist
-- **DON'T** use importmaps to load dependencies from external CDNs — Vite bundles everything
-
-#### Option 3: Using Python API directly
-
-For programmatic access or advanced control:
+`planalign calibrate` rebuilds only the compensation/workforce dbt subgraph per year, skipping the entire DC-plan stack. Per-year average compensation and YoY growth are **exact** versus a full simulation (~3–5× faster).
 
 ```bash
-# Single-year simulation
-python -m planalign_orchestrator run --years 2025 --threads 1 --verbose
-
-# Multi-year simulation (work laptop optimized)
-python -m planalign_orchestrator run --years 2025 2026 2027 --threads 1 --optimization medium
-
-# Batch scenario processing
-python -m planalign_orchestrator batch --scenarios baseline high_growth cost_control
-python -m planalign_orchestrator batch --clean --export-format excel
+planalign calibrate 2025-2029 --database iso.duckdb --target-growth 0.035
+planalign calibrate 2025-2029 --cola 0.025 --merit 0.04 --database iso.duckdb
+planalign calibrate 2025-2029 --interactive --database iso.duckdb
 ```
 
-#### Option 4: Using dbt directly (Development)
+The target database must have had one prior full build. With no `--database`, an isolated `dbt/calibration/calibration_*.duckdb` is created — the shared dev DB is never touched.
 
-For testing specific models or debugging:
+### dbt Directly (development)
 
 ```bash
-cd dbt
+cd dbt   # always run dbt from the dbt/ directory, always --threads 1
 
-# Build foundation models for a specific year
+dbt build --threads 1 --fail-fast
 dbt run --select tag:foundation --vars '{simulation_year: 2025}' --threads 1
-
-# Generate events for a specific year
 dbt run --select tag:EVENT_GENERATION --vars '{simulation_year: 2025}' --threads 1
-
-# Build complete pipeline for a year
-dbt build --vars '{simulation_year: 2025}' --threads 1
+dbt test --select tag:data_quality --threads 1
+dbt docs generate && dbt docs serve
 ```
 
-### Development Workflow
+> **⚠️ Shared dev database warning:** `dbt/simulation.duckdb` is the shared dev database. Never validate behavioral changes by running `dbt run`/`dbt build` into it — use an isolated database instead:
+>
+> ```bash
+> # Preferred: isolated per-scenario databases
+> planalign batch --scenarios my_edge_case --clean
+>
+> # Or: one-off isolated run
+> DATABASE_PATH=/tmp/run/iso.duckdb \
+>   planalign simulate 2025-2027 --config /tmp/run/cfg.yaml --database /tmp/run/iso.duckdb
+>
+> # Point tests at the isolated DB (get_database_path() honors DATABASE_PATH)
+> DATABASE_PATH=/tmp/run/iso.duckdb pytest tests/test_my_feature.py -v
+> ```
 
-#### Testing (E075 ✅ - Enterprise-Grade Infrastructure)
+## Development
 
-**Fast Unit Tests** (TDD workflow - 4.7s execution):
+### Testing
+
+The suite contains **~2,200 tests** organized with auto-applied markers and a shared fixture library (`tests/fixtures/`).
+
 ```bash
-# Run fast tests - optimal for development
-pytest -m fast                    # 87 tests in 4.7s (2× faster than target)
-
-# Specific component tests
-pytest -m "fast and orchestrator" # Orchestrator unit tests
-pytest -m "fast and events"       # Event schema tests (92.91% coverage)
-pytest -m "fast and config"       # Configuration tests
-
-# With coverage
-pytest -m fast --cov=planalign_orchestrator --cov-report=term
+pytest -m fast                          # Fast unit tests — TDD loop
+pytest -m "fast and orchestrator"       # Component-scoped
+pytest -m integration                   # Integration tests (database, dbt)
+pytest -m e2e                           # End-to-end workflow tests
+pytest tests/                           # Everything
 ```
 
-**Full Test Suite** (256 tests total):
-```bash
-# All tests (37% more than baseline)
-pytest tests/                     # 256 tests in ~2 minutes
+**Fixtures:**
 
-# Integration tests only
-pytest -m integration             # ~120 tests
-
-# End-to-end tests
-pytest -m e2e                     # ~49 tests
-
-# With HTML coverage report
-pytest --cov=planalign_orchestrator --cov-report=html
-open htmlcov/index.html
-
-# Specific module coverage (example: config.events at 92.91%)
-pytest --cov=config.events --cov-report=term-missing
-```
-
-**Using Fixture Library** (11 reusable fixtures):
 ```python
 from tests.fixtures import (
-    in_memory_db,           # Clean DuckDB (<0.01s setup)
-    populated_test_db,      # Pre-loaded with 100 employees + 50 events
-    minimal_config,         # Lightweight config for unit tests
-    mock_dbt_runner,        # Successful dbt execution mock
-    sample_employees,       # 100 test employee records
+    in_memory_db,        # Clean DuckDB, <0.01s setup
+    populated_test_db,   # Pre-loaded employees + events
+    minimal_config,      # Lightweight config for unit tests
+    mock_dbt_runner,     # Successful dbt execution mock
+    sample_employees,    # Test employee records
 )
 
 @pytest.mark.fast
 @pytest.mark.unit
 def test_my_feature(in_memory_db, sample_employees):
-    # Test implementation with fixtures
-    pass
+    ...
 ```
 
-**Test Organization**:
-- **Fast tests** (`@pytest.mark.fast`): 87 tests, <5s - For TDD workflow
-- **Integration tests** (`@pytest.mark.integration`): ~120 tests, ~45s - For component integration
-- **E2E tests** (`@pytest.mark.e2e`): ~49 tests, >10s - For full workflow validation
-- **Auto-markers**: Tests automatically marked by file location and feature area
+### Coverage (SonarQube)
 
-**Test Documentation**:
-- `tests/TEST_INFRASTRUCTURE.md` - Complete testing guide (500+ lines)
-- `tests/QUICK_START.md` - Quick reference for developers
-- `tests/fixtures/` - Centralized fixture library with 11 fixtures
-
-#### Pre-Commit Validation
-
-**Always run the CI script before committing changes:**
-```bash
-# Run comprehensive validation suite
-./scripts/run_ci_tests.sh
-
-# Expected output:
-# ✅ Python import validation passed
-# ✅ Ruff linting (critical errors only) passed
-# ✅ dbt compilation passed
-# ✅ dbt fast tests passed
-# ✅ All CI tests passed! 🎉
-```
-
-The CI script performs:
-- **Python validation**: Import checks and critical error linting
-- **dbt compilation**: Ensures all models compile successfully
-- **Fast tests**: Runs dbt tests (excluding slow/long-running ones)
-- **Critical model validation**: Tests core business models
-- **Configuration validation**: Checks YAML configuration files
-
-**Performance**: Completes in under 2 minutes for optimal developer productivity.
-
-#### dbt Development
-```bash
-cd dbt
-
-# Run all models for a year
-dbt run --vars '{simulation_year: 2025}' --threads 1
-
-# Run specific layer
-dbt run --select staging --threads 1
-dbt run --select tag:foundation --vars '{simulation_year: 2025}' --threads 1
-
-# Run tests
-dbt test --threads 1
-dbt test --select tag:data_quality
-
-# Generate and serve documentation
-dbt docs generate
-dbt docs serve
-```
-
-#### Orchestrator Development
-```bash
-# Test single-year execution
-python -m planalign_orchestrator run --years 2025 --threads 1 --verbose
-
-# Test multi-year execution with checkpoints
-python -m planalign_orchestrator run --years 2025 2026 --threads 1 --optimization medium
-
-# Validate configuration
-python -c "
-from planalign_orchestrator.config import load_simulation_config
-config = load_simulation_config('config/simulation_config.yaml')
-print('✅ Configuration valid!')
-"
-
-# Test batch processing
-python -m planalign_orchestrator batch --scenarios baseline --verbose
-```
-
-## Key Components
-
-### Event Sourcing Engine
-- **Immutable Events**: UUID-stamped workforce transitions (HIRE, TERMINATION, PROMOTION, RAISE)
-- **Audit Trail**: Complete historical record for regulatory compliance and auditing
-- **Snapshot Reconstruction**: Any point-in-time workforce state rebuilt from event log
-- **Reproducible Scenarios**: Identical results with same random seed for validation
-
-### Modular Simulation Architecture
-- **Compensation Engine**: Multi-tier salary adjustments (COLA, merit, promotion-based)
-- **Termination Engine**: Sophisticated hazard modeling with age/tenure/level factors
-- **Hiring Engine**: Growth-driven recruitment with realistic demographic sampling
-- **Promotion Engine**: Band-aware advancement with configurable transition matrices
-
-### Data Models
-- **Staging**: `stg_census_data` - Clean employee master data with schema validation
-- **Events**: `fct_yearly_events` - Immutable event store with UUID and timestamp
-- **Snapshots**: `fct_workforce_snapshot` - Point-in-time reconstructed workforce states
-- **Analytics**: Derived metrics and trend analysis for strategic planning
-
-### Analytics
-- **PlanAlign Studio**: Web-based scenario management, comparison, and visualization
-- **Comparative Analysis**: Multi-scenario cost comparison with anchor-first ordering
-- **Vesting Analysis**: Service-year vesting schedule visualization
-- **Export Capabilities**: Excel export with metadata, TSV clipboard copy
-
-## Configuration
-
-### Simulation Parameters
-Key configuration options in `config/simulation_config.yaml`:
-
-- `start_year`, `end_year`: Simulation time range
-- `target_growth_rate`: Annual workforce growth target
-- `total_termination_rate`: Overall termination rate
-- `new_hire_termination_rate`: First-year termination rate
-- `random_seed`: For reproducible results
-
-### Advanced Configuration
-- **Hazard Multipliers**: Age and tenure-based risk adjustments (configurable via UI or seed CSVs)
-- **Promotion Hazards**: Base rate, level dampener, and per-band multipliers
-- **Age/Tenure Bands**: Configurable band boundaries read dynamically by dbt macros
-- **Compensation Models**: Merit raise and promotion increase rules
-- **DC Plan Design**: Match formulas, core contributions, vesting schedules, IRS limits
-- **Per-Scenario Overrides**: Each scenario can override any seed parameter independently
-
-## Data Quality & Testing
-
-### dbt Tests
-- **Schema Tests**: Data type and constraint validation (90% coverage target)
-- **Custom Tests**: Business rule validation
-- **Relationship Tests**: Referential integrity checks
-- **Data Quality Tags**: Models tagged with `tag:data_quality`
-
-### PlanAlign Orchestrator Validation
-- **Built-in Validation**: Automatic data quality checks during pipeline execution
-- **Rule-based Validation**: Configurable validation rules with thresholds
-- **Row Count Validation**: Detect unexpected data loss or duplication
-- **Distribution Validation**: Statistical tests for data drift detection
-- **Event Consistency**: Verify event sequences and state transitions
-
-### Python Testing (pytest)
-- **Unit Tests**: Individual component testing (95% line coverage target)
-- **Integration Tests**: End-to-end simulation validation
-- **Performance Tests**: Runtime and resource usage benchmarks
-- **Validation Framework**: Golden dataset testing for regression detection
-
-### Coverage Reports (SonarQube)
-
-Coverage reports are generated by `pytest-cov` in Cobertura XML format for SonarQube ingestion.
-Each `--cov` flag adds a source folder to measure. They all merge into one `coverage.xml`.
+`pytest-cov` writes Cobertura XML to `coverage.xml` for SonarQube ingestion. Stack `--cov` flags to select packages:
 
 ```bash
-# Full coverage across all source packages → coverage.xml
 pytest tests/ \
   --cov=planalign_orchestrator \
   --cov=planalign_cli \
   --cov=planalign_api \
-  --cov=config \
-  --cov-report=xml \
-  --cov-report=term
-
-# Fast tests only (same coverage output)
-pytest tests/ -m "not slow" \
-  --cov=planalign_orchestrator \
-  --cov=planalign_cli \
-  --cov=planalign_api \
-  --cov=config \
+  --cov=planalign_core \
   --cov-report=xml \
   --cov-report=term
 ```
 
-**Single module** — use one `--cov` to measure just that module:
+Configuration lives in the `[tool.coverage.*]` sections of `pyproject.toml`.
+
+### Continuous Integration
+
+GitHub Actions workflows (`.github/workflows/`) run linting (ruff, mypy), the Python test suite, dbt compilation checks, and performance/production validation. Before pushing:
+
 ```bash
-# Orchestrator only
-pytest tests/ --cov=planalign_orchestrator --cov-report=xml --cov-report=term-missing
-
-# API only
-pytest tests/ --cov=planalign_api --cov-report=xml --cov-report=term-missing
-
-# Config only
-pytest tests/ --cov=config --cov-report=xml --cov-report=term-missing
+ruff check planalign_orchestrator/ planalign_cli/ planalign_api/ planalign_core/
+mypy planalign_orchestrator/ planalign_cli/ planalign_core/ --ignore-missing-imports
+pytest -m fast
+cd dbt && dbt compile
 ```
 
-**Subset of modules** — stack multiple `--cov` flags:
-```bash
-# Backend packages only (no CLI)
-pytest tests/ \
-  --cov=planalign_orchestrator \
-  --cov=planalign_api \
-  --cov-report=xml \
-  --cov-report=term-missing
-```
+### Contribution Standards
 
-All commands above write to the same `coverage.xml` in the project root.
+- **Python**: PEP 8, mandatory type hints, functions under ~40 lines, explicit exceptions, Pydantic v2 for config/models, SonarQube cognitive-complexity ≤ 15
+- **SQL (dbt)**: 2-space indents, uppercase keywords, CTEs, `{{ ref() }}`, no `SELECT *`; models named `tier_entity_purpose`
+- **Event sourcing**: immutable events with UUIDs; `int_*` models never read `fct_*` tables (sanctioned exceptions: `fct_yearly_events` and prior-year `fct_workforce_snapshot`)
+- **State management**: temporal accumulators (Year N reads Year N−1 state + Year N events)
+- **Testing**: schema + custom tests for every dbt model; pytest coverage for all new Python code
 
-| Option | What it does |
-|--------|-------------|
-| `--cov=<package>` | Measure coverage for that package (repeat for multiple) |
-| `--cov-report=xml` | Write Cobertura XML to `coverage.xml` |
-| `--cov-report=term` | Print summary table to terminal |
-| `--cov-report=term-missing` | Print summary with missing line numbers |
-| `-m "not slow"` | Skip slow tests for faster feedback |
+## Key Data Models
 
-- **Report location**: `coverage.xml` (project root)
-- **Coverage sources**: `planalign_orchestrator`, `planalign_cli`, `planalign_api`, `config`
-- **Configuration**: `[tool.coverage.*]` sections in `pyproject.toml`
-
-## Deployment
-
-### Local Development
-- Single-machine deployment with file-based DuckDB
-- planwise CLI for interactive simulation execution
-- PlanAlign Studio (web UI) for scenario management and visualization
-- Checkpoint-based resumability for long-running simulations
-
-### Production Deployment
-- **On-premises Linux server** deployment (no cloud dependencies)
-- **Persistent DuckDB database** with automated backup procedures
-- **Process monitoring**: systemd services or supervisor for automated restarts
-- **CLI-based automation**: Cron jobs or scheduled tasks using planwise CLI
-- **Batch processing**: Multi-scenario execution with Excel export for reporting
-- **Access control**: File-system permissions and audit logging
-- **Resource optimization**: Single-threaded execution for stability on work laptops
+| Model | Purpose |
+|-------|---------|
+| `stg_census_data` | Cleaned employee master data with schema validation |
+| `fct_yearly_events` | Immutable event store (UUID, timestamp, provenance keys) |
+| `fct_workforce_snapshot` | Point-in-time workforce state as of Dec 31 each year |
+| `fct_employer_match_events` | Per-employee annual match calculations |
+| `fct_compensation_growth` | YoY comp analysis (current / continuous / incumbent methodologies) |
+| `int_enrollment_state_accumulator` | Temporal enrollment state across years |
+| `int_deferral_rate_state_accumulator` | Temporal deferral rate state across years |
 
 ## Performance Characteristics
 
-### Scalability
-- **Dataset Size**: Handle 100K+ employee records without memory errors
-- **Simulation Runtime**: 5-year simulation in < 5 minutes for 10K employees
-- **Query Performance**: < 2 seconds response time (95th percentile)
-- **Concurrent Users**: Support 10 analysts simultaneously
-
-### Resource Requirements
+- **Scale**: 100K+ employee records without memory errors
+- **Runtime**: 5-year simulation in < 5 minutes for 10K employees
 - **Memory**: < 8GB RAM peak during simulation
 - **Storage**: ~1GB per 50,000 employees per simulation year
-- **CPU**: Multi-threaded processing with configurable thread counts
-- **Uptime**: 99.5% during business hours target
+- **Stability**: single-threaded dbt execution (`--threads 1`) recommended on work laptops
 
-## Security & Compliance
+## Deployment
 
-### Data Security
-- **On-premises Only**: No cloud data transfer
-- **File-system Security**: Database access controls
-- **PII Handling**: Configurable data masking and anonymization
-
-### Audit & Compliance
-- **Processing Logs**: Complete audit trail of all operations
-- **Configuration Versioning**: Git-based parameter change tracking
-- **Validation Records**: Data quality and business rule compliance
-
-## Contributing
-
-### Development Standards
-- **Code Quality**: Type hints, comprehensive testing, docstrings
-- **SQL Style**: 2-space indentation, uppercase keywords, CTEs for readability
-- **Python Style**: PEP 8, keep functions under 40 lines, explicit exceptions
-- **Configuration**: Pydantic v2 models for type-safe parameter validation
-- **Event Sourcing**: Immutable events with UUID and timestamp, discriminated unions
-- **State Management**: Use state accumulators, avoid circular dependencies
-
-### Testing Requirements
-- **dbt Models**: 90% test coverage with schema and custom tests
-- **Python Code**: 95% line coverage with pytest
-- **Integration Tests**: End-to-end simulation validation
+- **On-premises only** — no cloud data transfer; Studio and API default to loopback binding
+- **Production**: on-premises Linux server, persistent DuckDB with backups, systemd/supervisor process management, cron-driven `planalign batch` automation
+- **Security posture**: see [SECURITY.md](SECURITY.md) for the API auth boundary, network defaults, data handling, and vulnerability reporting
 
 ## Troubleshooting
 
-### Common Issues
+| Problem | Fix |
+|---------|-----|
+| `ModuleNotFoundError` | Activate the venv: `source .venv/bin/activate` |
+| `Conflicting lock is held` | Close IDE/DBeaver database connections; `planalign health` detects locks |
+| Duplicate enrollment events | Use the temporal accumulator models; never create `int_*` → `fct_*` circular reads |
+| `Maximum number of tokens exceeded (10000)` on Year 2+ | Auto-fixed on first `import planalign_orchestrator` (installs a sqlparse `.pth` override) |
+| Confusing query results from `dbt/simulation.duckdb` | The shared dev DB may be half-built; validate in an isolated database instead |
+| Database path confusion | `python -c "from planalign_orchestrator.config import get_database_path; print(get_database_path())"` |
 
-#### DuckDB Connection Management
-```python
-# ✅ CORRECT: Use get_database_path helper
-from planalign_orchestrator.config import get_database_path
-import duckdb
-
-conn = duckdb.connect(str(get_database_path()))
-try:
-    result = conn.execute("SELECT * FROM fct_yearly_events").df()
-    # Process result
-finally:
-    conn.close()
-
-# Or use context manager (if available)
-with duckdb.connect(str(get_database_path())) as conn:
-    result = conn.execute(query).df()
-```
-
-#### Multi-Year State Management
-```python
-# ✅ CORRECT: Use state accumulators for cross-year data
-# Year N reads Year N-1 accumulator + Year N events
-# Example: int_enrollment_state_accumulator, int_deferral_rate_state_accumulator
-
-# ❌ WRONG: Don't create circular dependencies
-# int_* models should NEVER read from fct_* models
-```
-
-#### Configuration Validation
-```python
-# Use Pydantic for type safety
-class SimulationConfig(BaseModel):
-    start_year: int = Field(..., ge=2020, le=2050)
-    target_growth_rate: float = Field(0.03, ge=-0.5, le=0.5)
-```
-
-#### Version Compatibility Issues
-```bash
-# CRITICAL: Use only proven stable versions
-# DuckDB 1.0.0, dbt-core 1.8.8, dbt-duckdb 1.8.1
-# Streamlit 1.39.0, Pydantic 2.7.4
-# Rich 13.0.0+, Typer 0.9.0+
-# All versions locked in requirements.txt and pyproject.toml
-```
-
-#### CI Script Issues
-```bash
-# If CI script fails, common fixes:
-# 1. Install development tools
-pip install -r requirements-dev.txt
-
-# 2. Fix Python linting errors
-ruff check planalign_orchestrator/
-# Fix imports and syntax issues
-
-# 3. Fix dbt compilation errors
-cd dbt && dbt compile
-# Check model syntax and dependencies
-
-# 4. dbt test failures
-dbt test --exclude tag:slow
-# Review test failures and fix data issues
-
-# 5. Missing virtual environment
-python3.11 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-### Getting Help
-- Run `planalign health` for system diagnostics
-- Run `planalign status --detailed` for full system status
-- Check `dbt debug` for database connection issues
-- Validate configuration: `planalign validate`
-- Review orchestrator logs in terminal output with `--verbose` flag
-- Check checkpoint status: `planalign checkpoints status`
-- **CI Issues**: Run `./scripts/run_ci_tests.sh` for detailed error messages
-- **Database Issues**: Verify database path with `python -c "from planalign_orchestrator.config import get_database_path; print(get_database_path())"`
+For diagnostics: `planalign health`, `planalign status --detailed`, `planalign validate`, `dbt debug`, and `--verbose` on any command.
 
 ## Further Reading
 
-- `CHANGELOG.md` - Version history and release notes
-- `docs/README.md` - Documentation index (overview, architecture, data model, development)
-- `tests/TEST_INFRASTRUCTURE.md` - Testing guide
-- `tests/QUICK_START.md` - Testing quick reference
-- `CLAUDE.md` - Claude Code generation playbook
-- [dbt Documentation](https://docs.getdbt.com/)
-- [DuckDB Documentation](https://duckdb.org/docs/)
+- [METHODOLOGY.md](METHODOLOGY.md) — modeling methodology, assumptions, and limitations
+- [SECURITY.md](SECURITY.md) — security policy and deployment hardening
+- [CHANGELOG.md](CHANGELOG.md) — version history
+- [CLAUDE.md](CLAUDE.md) / [AGENTS.md](AGENTS.md) — AI-assistant playbooks
+- `docs/` — architecture, data model, development guides
+- [dbt Documentation](https://docs.getdbt.com/) · [DuckDB Documentation](https://duckdb.org/docs/)

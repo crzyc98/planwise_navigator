@@ -17,14 +17,18 @@ This dbt project implements a workforce simulation system with:
 ```
 dbt/
 ├── dbt_project.yml            # dbt configuration and variables
-├── profiles.yml               # DuckDB connection settings
-├── simulation.duckdb          # DuckDB database (standardized location)
+├── profiles.yml               # DuckDB connection (honors DATABASE_PATH env var)
+├── simulation.duckdb          # Shared dev database (see isolated-DB rule below)
 ├── models/
 │   ├── staging/               # Raw data cleaning (stg_*)
 │   ├── intermediate/          # Business logic (int_*)
 │   ├── marts/                 # Final outputs (fct_*, dim_*)
-│   ├── analysis/              # Ad-hoc analysis and debug models
-│   └── monitoring/            # Data quality and performance monitoring
+│   ├── dimensions/            # Dimension models (dim_*)
+│   ├── data_quality/          # Validation models (dq_*)
+│   ├── monitoring/            # Performance/operational metrics (mon_*)
+│   ├── analysis/              # Ad-hoc analysis models
+│   ├── debug/                 # Debug models gated by enable_debug_models
+│   └── meta/                  # Metadata models
 ├── seeds/                     # Configuration data (CSV files)
 ├── macros/                    # Reusable SQL functions
 └── snapshots/                 # Slowly changing dimensions (SCD)
@@ -236,9 +240,27 @@ summary = orchestrator.execute_multi_year_simulation(start_year=2025, end_year=2
 "
 ```
 
+### Validating Changes: Isolated Databases Only
+
+`simulation.duckdb` in this directory is the **shared dev database** — fine for quick reads, never for validating a behavioral change. Don't `dbt run`/`dbt build` into it to "check" a change, and don't treat its current contents (possibly half-built, single-year, or single-config) as ground truth.
+
+`profiles.yml` honors the `DATABASE_PATH` env var, as do `get_database_path()` and the integration-test fixtures:
+
+```bash
+# Preferred: isolated per-scenario databases
+planalign batch --scenarios my_edge_case --clean
+
+# Or: one-off isolated run, then point tests at the same DB
+DATABASE_PATH=/tmp/run/iso.duckdb \
+  planalign simulate 2025-2027 --config /tmp/run/cfg.yaml --database /tmp/run/iso.duckdb
+DATABASE_PATH=/tmp/run/iso.duckdb pytest tests/test_my_feature.py -v
+```
+
+Cover edge configs (not just defaults), run full multi-year simulations for cross-year invariants, and confirm a model actually feeds `fct_yearly_events`/`fct_workforce_snapshot` before trusting it — some `int_*` models are orphaned and never built by the pipeline.
+
 ### Database Interaction (Claude Capabilities)
 
-Claude can directly query the simulation database at `dbt/simulation.duckdb`:
+Claude can directly query the shared dev database for exploration (reads are fine):
 
 ```bash
 duckdb dbt/simulation.duckdb "SELECT COUNT(*) FROM fct_yearly_events"
@@ -318,7 +340,7 @@ FROM hazard_calculation
 
 **Key Reminders**:
 - Always run dbt commands from the `dbt/` directory
-- Database file is `dbt/simulation.duckdb` (standardized location)
+- `dbt/simulation.duckdb` is the **shared dev DB** — read freely, but validate behavioral changes in an isolated `DATABASE_PATH`/scenario database
 - Default to `--threads 1`; DuckDB parallelizes queries internally regardless
 - Never `--full-refresh` the temporal state accumulators mid-simulation
 - `int_*` models may read `fct_yearly_events` (sanctioned exception) but no other `fct_*` tables in the same year

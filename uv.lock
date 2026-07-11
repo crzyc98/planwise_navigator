@@ -1128,7 +1128,7 @@ wheels = [
 
 [[package]]
 name = "fidelity-planalign-engine"
-version = "2.1.0"
+version = "2.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "dbt-core" },
@@ -1182,6 +1182,7 @@ dev = [
     { name = "pytest-mock" },
     { name = "pytest-xdist" },
     { name = "ruff" },
+    { name = "types-pyyaml" },
 ]
 
 [package.metadata]
@@ -1213,7 +1214,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.0.0" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = "==3.3.3" },
     { name = "psutil", specifier = ">=5.9.0" },
-    { name = "py7zr", extras = ["all"], specifier = ">=1.0.0" },
+    { name = "py7zr", specifier = ">=1.0.0" },
     { name = "pydantic", specifier = "==2.7.4" },
     { name = "pydantic-settings", specifier = ">=2.1.0" },
     { name = "pylint", marker = "extra == 'dev'", specifier = "==3.0.2" },
@@ -1230,6 +1231,7 @@ requires-dist = [
     { name = "scikit-learn", specifier = ">=1.3.0" },
     { name = "scipy", specifier = ">=1.10.0" },
     { name = "typer", specifier = ">=0.9.0" },
+    { name = "types-pyyaml", marker = "extra == 'dev'", specifier = "==6.0.12.20260518" },
     { name = "urllib3", specifier = ">=1.26.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.27.0" },
     { name = "websockets", specifier = ">=12.0" },
@@ -2981,7 +2983,7 @@ name = "pexpect"
 version = "4.9.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "ptyprocess" },
+    { name = "ptyprocess", marker = "sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/42/92/cc564bf6381ff43ce1f4d06852fc19a2f11d180f23dc32d9588bee2f149d/pexpect-4.9.0.tar.gz", hash = "sha256:ee7d41123f3c9911050ea2c2dac107568dc43b2d3b0c7557a33212c398ead30f", size = 166450, upload-time = "2023-11-25T09:07:26.339Z" }
 wheels = [
@@ -4483,6 +4485,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/8e/d3/90c1ee19209cb59f6ad185883fd4ccfcf72f8f0bfd549d5a8b70474611d0/typer-0.26.4.tar.gz", hash = "sha256:25b128964de66c5ea36d5ac82adc579e5e113509b17469edf9f5a4a1864ff2a9", size = 201191, upload-time = "2026-05-30T17:05:04.213Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f0/6d/5a525c69df4a90892135e5d490b00e9e46402491f3416d4395fcb0d0201e/typer-0.26.4-py3-none-any.whl", hash = "sha256:11bfd7b43557137e373c2b10f6967a555f9678a61ed72c808968b011d95534d6", size = 122436, upload-time = "2026-05-30T17:05:05.812Z" },
+]
+
+[[package]]
+name = "types-pyyaml"
+version = "6.0.12.20260518"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b8/83/4a1afc3fbfcf5b8d46fc390cd95ed6b0dc9010a265f4e9f46314efffa37a/types_pyyaml-6.0.12.20260518.tar.gz", hash = "sha256:d917f83fb38462550338c1297faedd860b3ec83912b96b1e3d73255f7473e466", size = 17850, upload-time = "2026-05-18T06:01:58.675Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/06/a2/c01db32be2ae7d6a1689972f3c492b149ee4e164b12fdfd9f64b50888215/types_pyyaml-6.0.12.20260518-py3-none-any.whl", hash = "sha256:d2150f75a231c9fe9c7463bd29487d93e60bac90400287351384bc2284eba7cd", size = 20312, upload-time = "2026-05-18T06:01:57.368Z" },
 ]
 
 [[package]]

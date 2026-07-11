@@ -1,17 +1,18 @@
 # Fidelity PlanAlign Engine — Methodology Documentation
 
 **Prepared for**: Legal and Compliance Review (FINRA e-Review Submission)
-**System Version**: 1.0.0 ("Foundation")
-**Document Date**: March 2026
+**System Version**: 2.2.0 ("Calibration")
+**Document Date**: July 2026
 **Classification**: Methodology Reference — Confidential
 
 ---
 
 ## Document Version History
 
-| Version | Date       | Author        | Summary of Changes                                         |
-| ------- | ---------- | ------------- | ---------------------------------------------------------- |
-| 1.0     | March 2026 | [Author Name] | Initial methodology document for FINRA e-review submission |
+| Version | Date       | Author        | Summary of Changes                                                                                                                                            |
+| ------- | ---------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1.0     | March 2026 | [Author Name] | Initial methodology document for FINRA e-review submission                                                                                                    |
+| 1.1     | July 2026  | [Author Name] | Updated for system version 2.2.0: tenure-graded employer match formulas, configurable new-hire eligibility and demographics, and compensation calibration tooling (Section 9.5) |
 
 ---
 
@@ -154,6 +155,8 @@ The system supports five match formula types:
 | QACA Safe Harbor  | 100% on first 1%, 50% on 1–6%    | 3.5% of compensation |
 
 Match tier rates, boundaries, and caps are fully configurable per plan design.
+
+**Tenure-Graded Match** (system version 2.2.0): In addition to a single formula applied to the full population, the system supports tenure-graded match schedules (`employer_match_status: 'tenure_graded'`), in which each configured tenure band receives its own multi-tier match formula. Tenure band boundaries follow the same lower-bound-inclusive, upper-bound-exclusive convention used throughout the system.
 
 #### Match Eligibility Requirements
 
@@ -568,6 +571,10 @@ The system includes automated data quality checks designed to detect internal in
 - Match eligibility rule application per configured parameters
 
 These are internal consistency checks on modeled data. They do not validate the accuracy of user-supplied inputs, the appropriateness of configured assumptions, or compliance with any legal or regulatory requirement.
+
+### 9.5 Compensation Calibration Mode
+
+The system provides a calibration mode that rebuilds only the compensation and workforce portion of the model (skipping the defined contribution plan calculations) to allow rapid tuning of compensation assumptions (COLA, merit, growth targets). Calibration mode reuses the identical compensation calculations as a full simulation; for a given configuration and seed, per-year average compensation and year-over-year growth produced in calibration mode are identical to those of a full simulation run. Calibration runs write to isolated databases and do not modify prior simulation outputs.
 
 ---
 
