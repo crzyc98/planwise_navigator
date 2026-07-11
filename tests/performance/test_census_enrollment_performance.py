@@ -23,8 +23,10 @@ class DirectConnectionManager:
         return callback(self.connection)
 
 
-BASELINE_PATH = Path(
-    "benchmark_baselines/census_enrollment_projection_sql_baseline.json"
+BASELINE_PATH = (
+    Path(__file__).parent
+    / "baselines"
+    / "census_enrollment_projection_sql_baseline.json"
 )
 EMPLOYEES = 100_000
 HISTORY_ROWS = 200_000
