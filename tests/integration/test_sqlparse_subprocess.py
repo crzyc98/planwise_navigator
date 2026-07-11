@@ -14,6 +14,9 @@ from pathlib import Path
 import pytest
 
 
+DBT_DIR = Path(__file__).resolve().parents[2] / "dbt"
+
+
 class TestSubprocessSqlparseConfiguration:
     """Tests for sqlparse configuration in subprocess environments."""
 
@@ -125,7 +128,7 @@ class TestDbtRunnerSubprocessIntegration:
     """Tests for DbtRunner subprocess integration with sqlparse config."""
 
     @pytest.mark.skipif(
-        not Path("/workspace/dbt").exists(),
+        not DBT_DIR.exists(),
         reason="dbt directory not found",
     )
     def test_dbt_runner_subprocess_environment(self):
@@ -133,8 +136,7 @@ class TestDbtRunnerSubprocessIntegration:
         from planalign_orchestrator.dbt_runner import DbtRunner
 
         # Create a runner with the dbt directory
-        dbt_dir = Path("/workspace/dbt")
-        DbtRunner(working_dir=dbt_dir)
+        DbtRunner(working_dir=DBT_DIR)
 
         # Use python to check sqlparse config (simulating dbt's Python environment)
         result = subprocess.run(
@@ -143,7 +145,7 @@ class TestDbtRunnerSubprocessIntegration:
                 "-c",
                 "import sqlparse.engine.grouping; print(sqlparse.engine.grouping.MAX_GROUPING_TOKENS)",
             ],
-            cwd=dbt_dir,
+            cwd=DBT_DIR,
             capture_output=True,
             text=True,
             timeout=30,
@@ -153,16 +155,15 @@ class TestDbtRunnerSubprocessIntegration:
         assert "50000" in result.stdout
 
     @pytest.mark.skipif(
-        not Path("/workspace/dbt").exists(),
+        not DBT_DIR.exists(),
         reason="dbt directory not found",
     )
     def test_dbt_debug_command_succeeds(self):
         """Test that dbt debug command works with configured sqlparse."""
-        dbt_dir = Path("/workspace/dbt")
 
         result = subprocess.run(
             [sys.executable, "-m", "dbt", "debug"],
-            cwd=dbt_dir,
+            cwd=DBT_DIR,
             capture_output=True,
             text=True,
             timeout=60,
