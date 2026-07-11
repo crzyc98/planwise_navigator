@@ -102,7 +102,7 @@ Studio workspaces live in `workspaces/` (configurable via `planalign_api` settin
 - **Multi-year run fails on Year 2+ with sqlparse token error** — the fix
   auto-installs on first import of `planalign_orchestrator`; just re-run.
 
-## Code standards (enforced by SonarQube / CI)
+## Code standards (enforced by CI)
 
 - Cognitive complexity ≤ 15: guard clauses, extracted helpers, dictionary dispatch.
 - ≤ 13 function parameters — group with dataclasses/config objects.

@@ -70,7 +70,7 @@ DATABASE_PATH=/tmp/run/iso.duckdb pytest tests/test_my_feature.py -v
 
 - **dbt models**: `tier_entity_purpose` (`stg_*`, `int_*`, `fct_*`, `dim_*`). Uppercase keywords, 2-space indents, CTEs, `{{ ref() }}`, no `SELECT *`. Incremental models use `incremental_strategy='delete+insert'` keyed on `(scenario_id, plan_design_id, employee_id, simulation_year)`; filter heavy models by `{{ var('simulation_year') }}`.
 - **Python**: PEP 8, mandatory type hints, functions < ~40 lines, explicit exceptions (never bare `except:`), Pydantic v2 for config/models.
-- **SonarQube gates**: cognitive complexity ≤ 15 (guard clauses, extracted helpers, dictionary dispatch), ≤ 13 parameters per function, no dead/commented-out code, no mutable default arguments.
+- **Quality gates**: cognitive complexity ≤ 15 (guard clauses, extracted helpers, dictionary dispatch), ≤ 13 parameters per function, no dead/commented-out code, no mutable default arguments.
 - **Config**: YAML `snake_case`, hierarchical; validated by Pydantic.
 - **Bands**: age/tenure bands live in seeds (`config_age_bands.csv`, `config_tenure_bands.csv`); use the `assign_age_band`/`assign_tenure_band` macros; `[min, max)` interval convention.
 

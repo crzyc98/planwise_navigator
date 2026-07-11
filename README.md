@@ -308,9 +308,9 @@ def test_my_feature(in_memory_db, sample_employees):
     ...
 ```
 
-### Coverage (SonarQube)
+### Coverage
 
-`pytest-cov` writes Cobertura XML to `coverage.xml` for SonarQube ingestion. Stack `--cov` flags to select packages:
+`pytest-cov` writes Cobertura XML to `coverage.xml`. Stack `--cov` flags to select packages:
 
 ```bash
 pytest tests/ \
@@ -337,7 +337,7 @@ cd dbt && dbt compile
 
 ### Contribution Standards
 
-- **Python**: PEP 8, mandatory type hints, functions under ~40 lines, explicit exceptions, Pydantic v2 for config/models, SonarQube cognitive-complexity ≤ 15
+- **Python**: PEP 8, mandatory type hints, functions under ~40 lines, explicit exceptions, Pydantic v2 for config/models, cognitive complexity ≤ 15
 - **SQL (dbt)**: 2-space indents, uppercase keywords, CTEs, `{{ ref() }}`, no `SELECT *`; models named `tier_entity_purpose`
 - **Event sourcing**: immutable events with UUIDs; `int_*` models never read `fct_*` tables (sanctioned exceptions: `fct_yearly_events` and prior-year `fct_workforce_snapshot`)
 - **State management**: temporal accumulators (Year N reads Year N−1 state + Year N events)

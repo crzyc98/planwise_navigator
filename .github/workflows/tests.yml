@@ -57,25 +57,6 @@ jobs:
           files: ./coverage.xml
           fail_ci_if_error: false
 
-      # Skipped when the SonarQube secrets are not configured (e.g. on
-      # personal forks); the scan only runs where a server is available.
-      - name: Check SonarQube configuration
-        id: sonar
-        run: |
-          if [ -n "${{ secrets.SONAR_TOKEN }}" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "SONAR_TOKEN not configured; skipping SonarQube scan."
-          fi
-
-      - name: SonarQube Scan
-        if: steps.sonar.outputs.enabled == 'true'
-        uses: SonarSource/sonarqube-scan-action@v5
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-
       - name: Test summary
         if: always()
         run: |

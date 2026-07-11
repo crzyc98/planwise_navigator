@@ -403,9 +403,9 @@ WHERE simulation_year = {{ var('simulation_year') }}
   * **SQL (dbt)**: Use 2-space indents, uppercase keywords, one clause per line. Avoid `SELECT *`. Use `{{ ref() }}` and CTEs for readability.
   * **Python**: Keep functions under 40 lines. Raise explicit exceptions. Use Pydantic v2 for data modeling.
 
-### **Code Quality Standards (SonarQube)**
+### **Code Quality Standards**
 
-This repo is scanned by SonarQube. All code MUST comply with these rules:
+All code MUST comply with these rules:
 
 **Cognitive Complexity (max 15)**:
 - **Early returns over nesting.** Use guard clauses at the top of functions. Never nest more than 3 levels deep.
