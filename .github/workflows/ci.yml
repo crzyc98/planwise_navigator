@@ -75,13 +75,11 @@ jobs:
           # threshold up as coverage improves, never down.
           pytest tests/ -v --cov=planalign_orchestrator --cov=planalign_cli --cov=planalign_api --cov=planalign_core --cov-fail-under=60 --cov-report=xml
 
-      - name: Run dbt tests
-        run: |
-          cd dbt
-          dbt deps
-          dbt seed --profiles-dir .
-          dbt run --profiles-dir .
-          dbt test --profiles-dir .
+      # NOTE: no raw `dbt run` here — a full build requires a census parquet
+      # (git-ignored) and orchestrator-created tables (e.g.
+      # enrollment_decision_projection). dbt compilation is validated in the
+      # validate-models job; behavioral dbt tests run locally against
+      # isolated databases per the CLAUDE.md validation rule.
 
       - name: Upload coverage
         uses: codecov/codecov-action@v3
