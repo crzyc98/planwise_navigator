@@ -9,7 +9,7 @@ on:
 
 env:
   PYTHON_VERSION: '3.11'
-  DATABASE_PATH: 'dbt/simulation.duckdb'
+  DATABASE_PATH: '${{ github.workspace }}/dbt/simulation.duckdb'
 
 jobs:
   lint:

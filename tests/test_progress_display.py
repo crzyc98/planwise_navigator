@@ -76,6 +76,7 @@ class TestProgressCallbackWiring:
         wrapper.db = MagicMock()
         wrapper.db_path = MagicMock()
         wrapper.verbose = False
+        wrapper.dbt_project_dir = None
 
         callback = MagicMock()
         result = OrchestratorWrapper.create_orchestrator(
@@ -99,6 +100,7 @@ class TestProgressCallbackWiring:
         wrapper.db = MagicMock()
         wrapper.db_path = MagicMock()
         wrapper.verbose = False
+        wrapper.dbt_project_dir = None
 
         result = OrchestratorWrapper.create_orchestrator(
             wrapper, threads=1, progress_callback=None
