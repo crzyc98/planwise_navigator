@@ -1,3 +1,4 @@
+-- depends_on: {{ ref('int_voluntary_enrollment_decision') }}
 {{ config(severity='error', tags=['enrollment', 'data_quality']) }}
 
 -- Projected already-enrolled or opted-out employees are not eligible for a
