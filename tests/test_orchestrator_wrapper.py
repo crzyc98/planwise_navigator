@@ -9,7 +9,7 @@ from __future__ import annotations
 import io
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
 
@@ -375,13 +375,25 @@ class TestOrchestratorWrapper:
         mock_config = MagicMock()
         mock_config.optimization = None
         mock_load.return_value = mock_config
+        connection = MagicMock()
+        db_manager = MagicMock()
+        db_manager.get_connection.return_value.__enter__.return_value = connection
         wrapper = OrchestratorWrapper(
             config_path=Path("config.yaml"),
             db_path=Path("dbt/simulation.duckdb"),
         )
-        with patch.object(Path, "exists", return_value=True):
+        with (
+            patch.object(Path, "exists", return_value=True),
+            patch.object(
+                OrchestratorWrapper,
+                "db",
+                new_callable=PropertyMock,
+                return_value=db_manager,
+            ),
+        ):
             health = wrapper.check_system_health()
         assert health["healthy"]
+        connection.execute.assert_called_once_with("SELECT 1")
 
     def test_check_system_health_missing_config(self):
         wrapper = OrchestratorWrapper(
