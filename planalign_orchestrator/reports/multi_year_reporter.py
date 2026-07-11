@@ -167,6 +167,7 @@ class MultiYearReporter:
             COUNT(CASE WHEN employment_status = 'active' AND participation_status_detail = 'participating - auto enrollment' THEN 1 END) as auto_enrolled,
             COUNT(CASE WHEN employment_status = 'active' AND participation_status_detail = 'participating - voluntary enrollment' THEN 1 END) as voluntary,
             COUNT(CASE WHEN employment_status = 'active' AND participation_status_detail = 'participating - census enrollment' THEN 1 END) as census,
+            COUNT(CASE WHEN employment_status = 'active' AND participation_status_detail = 'participating - unknown source' THEN 1 END) as unknown_source,
             COUNT(CASE WHEN employment_status = 'active' AND participation_status_detail = 'not_participating - opted out of AE' THEN 1 END) as opted_out,
             COUNT(CASE WHEN employment_status = 'active' AND participation_status_detail = 'not_participating - not auto enrolled' THEN 1 END) as not_auto,
             COUNT(CASE WHEN employment_status = 'active' AND participation_status_detail = 'not_participating - proactively unenrolled' THEN 1 END) as unenrolled
@@ -183,25 +184,27 @@ class MultiYearReporter:
         if results:
             lines = [
                 "Participation Breakdown by Method (Active EOY):",
-                "   Year  | Auto Enroll | Voluntary  | Census     | Opted Out  | Not Auto   | Unenrolled",
-                "   ------|-------------|------------|------------|------------|------------|------------",
+                "   Year  | Auto Enroll | Voluntary  | Census     | Unknown    | Opted Out  | Not Auto   | Unenrolled",
+                "   ------|-------------|------------|------------|------------|------------|------------|------------",
             ]
             for (
                 year,
                 auto,
                 voluntary,
                 census,
+                unknown_source,
                 opted_out,
                 not_auto,
                 unenrolled,
             ) in results:
                 lines.append(
-                    "   %d | %11s | %10s | %10s | %10s | %10s | %10s"
+                    "   %d | %11s | %10s | %10s | %10s | %10s | %10s | %10s"
                     % (
                         year,
                         f"{auto:,}",
                         f"{voluntary:,}",
                         f"{census:,}",
+                        f"{unknown_source:,}",
                         f"{opted_out:,}",
                         f"{not_auto:,}",
                         f"{unenrolled:,}",
