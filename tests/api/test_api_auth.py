@@ -7,6 +7,7 @@ import logging
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
+from starlette.websockets import WebSocketDisconnect
 
 import planalign_api.config as api_config
 from planalign_api.main import create_app
@@ -58,6 +59,49 @@ def test_protected_router_allows_requests_without_configured_token(
     response = client.get("/api/workspaces")
 
     assert response.status_code == 200
+
+
+@pytest.mark.parametrize("path", ["/ws/simulation/run-1", "/ws/batch/batch-1"])
+def test_websocket_requires_configured_token(client_factory, path: str) -> None:
+    client = client_factory("shared-secret")
+
+    with pytest.raises(WebSocketDisconnect) as error:
+        with client.websocket_connect(path):
+            pass
+
+    assert error.value.code == 1008
+
+
+@pytest.mark.parametrize("path", ["/ws/simulation/run-1", "/ws/batch/batch-1"])
+def test_websocket_accepts_query_token(client_factory, path: str) -> None:
+    client = client_factory("shared-secret")
+
+    with client.websocket_connect(f"{path}?token=shared-secret"):
+        pass
+
+
+@pytest.mark.parametrize("path", ["/ws/simulation/run-1", "/ws/batch/batch-1"])
+@pytest.mark.parametrize("bad_token", ["wrong-secret", "café"])
+def test_websocket_rejects_wrong_token(
+    client_factory, path: str, bad_token: str
+) -> None:
+    client = client_factory("shared-secret")
+
+    with pytest.raises(WebSocketDisconnect) as error:
+        with client.websocket_connect(f"{path}?token={bad_token}"):
+            pass
+
+    assert error.value.code == 1008
+
+
+@pytest.mark.parametrize("path", ["/ws/simulation/run-1", "/ws/batch/batch-1"])
+def test_websocket_allows_connections_without_configured_token(
+    client_factory, path: str
+) -> None:
+    client = client_factory(None)
+
+    with client.websocket_connect(path):
+        pass
 
 
 def test_non_loopback_wildcard_cors_is_rejected(monkeypatch) -> None:

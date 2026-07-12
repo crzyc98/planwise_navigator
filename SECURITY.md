@@ -29,7 +29,7 @@ The FastAPI backend ships with safe-by-default network settings:
 - **CORS validation** — wildcard CORS (`*`) combined with a non-loopback bind is rejected at startup. Configure explicit origins via `PLANALIGN_API_CORS_ORIGINS` (default: the local Studio dev server on port 5173).
 - **Scoped storage resolution** — API requests resolve databases to scenario/workspace storage; the legacy project-database fallback is disabled unless the development-only `PLANALIGN_API_ALLOW_PROJECT_DB_FALLBACK` flag is set. Artifact download routes validate paths against traversal.
 
-Known limitation: WebSocket telemetry endpoints are not yet covered by the shared-token auth boundary. Do not expose the API port beyond trusted hosts if this matters for your deployment.
+WebSocket telemetry endpoints (`/ws/simulation/{run_id}`, `/ws/batch/{batch_id}`) are covered by the same shared-token boundary: when `PLANALIGN_API_TOKEN` is set, connections must supply the token as a `?token=<token>` query parameter or they are closed with policy-violation code 1008. The Studio frontend sends this automatically when built with `VITE_PLANALIGN_API_TOKEN` — a token-protected deployment must set both variables (backend env at runtime, frontend env at build time) or telemetry will not connect. Note that query parameters may appear in reverse-proxy access logs; scrub or restrict access to those logs in token-protected deployments.
 
 ### Hardening checklist for non-local deployments
 

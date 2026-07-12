@@ -20,7 +20,7 @@ from fastapi import Depends, FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
-from .auth import require_api_token
+from .auth import require_api_token, require_websocket_api_token
 from .routers import (
     system_router,
     workspaces_router,
@@ -183,19 +183,20 @@ def create_app() -> FastAPI:
         dependencies=protected_dependencies,
     )
 
-    # WebSocket endpoints
-    # NOTE: FastAPI HTTP dependencies do not apply to WebSocket endpoints. These
-    # endpoints remain unauthenticated when PLANALIGN_API_TOKEN is set; WebSocket
-    # token query/header support is intentionally out of scope for this change.
+    # WebSocket endpoints use an explicit check because HTTP dependencies do not
+    # apply to WebSocket routes.
     @app.websocket("/ws/simulation/{run_id}")
     async def websocket_simulation(websocket: WebSocket, run_id: str):
         """WebSocket endpoint for simulation telemetry."""
+        if not await require_websocket_api_token(websocket):
+            return
         await simulation_websocket(websocket, run_id)
 
-    # NOTE: See the simulation WebSocket note above about the current auth gap.
     @app.websocket("/ws/batch/{batch_id}")
     async def websocket_batch(websocket: WebSocket, batch_id: str):
         """WebSocket endpoint for batch processing updates."""
+        if not await require_websocket_api_token(websocket):
+            return
         await batch_websocket(websocket, batch_id)
 
     return app

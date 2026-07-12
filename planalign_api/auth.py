@@ -2,7 +2,7 @@
 
 import secrets
 
-from fastapi import HTTPException, Request, status
+from fastapi import HTTPException, Request, WebSocket, status
 
 from .config import get_settings
 
@@ -29,3 +29,22 @@ async def require_api_token(request: Request) -> None:
             detail="A valid PlanAlign API token is required.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+async def require_websocket_api_token(websocket: WebSocket) -> bool:
+    """Authorize a WebSocket before it is accepted by an endpoint handler."""
+    expected_token = get_settings().api_token
+    if expected_token is None:
+        return True
+
+    supplied_token = websocket.query_params.get("token")
+    if (
+        supplied_token is not None
+        # compare_digest raises TypeError on non-ASCII str inputs
+        and supplied_token.isascii()
+        and secrets.compare_digest(supplied_token, expected_token)
+    ):
+        return True
+
+    await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+    return False
