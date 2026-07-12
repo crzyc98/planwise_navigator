@@ -27,6 +27,13 @@ function getWebSocketBase(): string {
 }
 
 const WS_BASE = getWebSocketBase();
+const API_TOKEN = import.meta.env.VITE_PLANALIGN_API_TOKEN as string | undefined;
+
+function websocketUrl(path: string): string {
+  const url = new URL(`${WS_BASE}${path}`);
+  if (API_TOKEN) url.searchParams.set('token', API_TOKEN);
+  return url.toString();
+}
 
 // ============================================================================
 // Run telemetry hook (feature 094)
@@ -287,9 +294,7 @@ export function useRunTelemetry(
       setState(retryCountRef.current > 0 ? 'reconnecting' : 'connecting');
     }
 
-    // NOTE: WebSocket token authentication is out of scope; this matches the
-    // backend's current WebSocket auth gap when an API token is configured.
-    const ws = new WebSocket(`${WS_BASE}/ws/simulation/${runId}`);
+    const ws = new WebSocket(websocketUrl(`/ws/simulation/${runId}`));
     wsRef.current = ws;
 
     ws.onopen = () => {
@@ -421,9 +426,7 @@ export function useBatchSocket(batchId: string | null): UseBatchSocketResult {
 
     setStatus(prev => ({ ...prev, isConnecting: true, error: null }));
 
-    // NOTE: WebSocket token authentication is out of scope; see the simulation
-    // WebSocket connection above and the backend endpoint notes.
-    const ws = new WebSocket(`${WS_BASE}/ws/batch/${batchId}`);
+    const ws = new WebSocket(websocketUrl(`/ws/batch/${batchId}`));
     wsRef.current = ws;
 
     ws.onopen = () => {
