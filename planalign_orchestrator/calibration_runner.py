@@ -29,6 +29,8 @@ from planalign_core.constants import DATABASE_FILENAME
 from planalign_orchestrator.config import load_simulation_config
 from planalign_orchestrator.config.export import to_dbt_vars
 from planalign_orchestrator.dbt_runner import DbtRunner
+from planalign_orchestrator.run_metadata import check_and_record_run
+from planalign_orchestrator.utils import DatabaseConnectionManager
 from planalign_orchestrator.exceptions import ConfigurationError, ResolutionHint
 from planalign_orchestrator.pipeline.workflow import WorkflowBuilder
 
@@ -300,7 +302,27 @@ class CalibrationRunner:
     def run_calibration(self) -> List[PerYearCompensationResult]:
         """Validate, guard, build the comp subgraph per year, return results."""
         verify_dc_prerequisites(self.database_path)
+        self._record_run_provenance()
         return self._build_all_years()
+
+    def _record_run_provenance(self) -> None:
+        """Stamp this calibration into run_metadata (Feature 109, run_type='calibration').
+
+        Uses a short-lived connection manager closed before dbt builds so the
+        file lock is released; drift messaging is informational for calibration
+        (diverging comp levers and stale DC tables are inherent to it).
+        """
+        db_manager = DatabaseConnectionManager(db_path=self.database_path)
+        try:
+            check_and_record_run(
+                db_manager,
+                self._config,
+                start_year=self.run.start_year,
+                end_year=self.run.end_year,
+                run_type="calibration",
+            )
+        finally:
+            db_manager.close_all()
 
     def rerun_with_params(
         self, params: CalibrationParameterSet
