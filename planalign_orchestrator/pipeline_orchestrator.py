@@ -29,6 +29,7 @@ from .registries import RegistryManager
 from .reports.data_models import MultiYearSummary
 from .reports.multi_year_reporter import MultiYearReporter
 from .observability import ObservabilityManager
+from .run_metadata import check_and_record_run
 from .utils import DatabaseConnectionManager, ExecutionMutex, time_block
 from .validation import DataValidator
 from planalign_core.constants import (
@@ -289,6 +290,17 @@ class PipelineOrchestrator:
             with ExecutionMutex(lock_name):
                 self.state_manager.maybe_full_reset()
                 self.state_manager.warn_if_stale_years_beyond(end)
+                if not dry_run:
+                    # Dry runs write nothing, so stamping one would record
+                    # false provenance (Feature 109).
+                    check_and_record_run(
+                        self.db_manager,
+                        self.config,
+                        start_year=start,
+                        end_year=end,
+                        run_type="simulate",
+                        full_reset=self._full_reset_active(),
+                    )
                 # The dbt source must exist even before the first FOUNDATION run.
                 self.enrollment_projection.ensure_table()
                 self._initialize_registries(start)
@@ -340,6 +352,18 @@ class PipelineOrchestrator:
 
         summary = self._build_multi_year_summary(completed_years)
         return self._finalize_simulation(summary, completed_years)
+
+    def _full_reset_active(self) -> bool:
+        """Whether this run performs a clear_mode='all' full reset.
+
+        Mirrors the keys StateManager.maybe_full_reset reads: a full reset
+        wipes prior results, so drift detection downgrades its warning
+        (mixed generations are impossible).
+        """
+        setup = getattr(self.config, "setup", None)
+        if not isinstance(setup, Mapping) or not setup.get("clear_tables"):
+            return False
+        return str(setup.get("clear_mode", "year")).lower() == "all"
 
     def _setup_monitoring(self) -> None:
         """Start adaptive memory and DuckDB performance monitoring."""

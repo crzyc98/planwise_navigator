@@ -41,6 +41,38 @@ the deferral state claims participation that the enrollment state history
 cannot explain — usually stale prior-run state. Re-run the scenario; the
 default purge produces clean results.
 
+## Config drift ("CONFIG DRIFT DETECTED" warning)
+
+Every run stamps its effective-config fingerprint, random seed, and year range
+into an append-only `run_metadata` table inside the target database. At run
+start the engine compares against the most recent record and warns — without
+blocking — when the database was last written under a different configuration
+or seed, since existing results may then be mixed-generation.
+
+- The warning names what drifted: configuration (fingerprint short-hashes),
+  random seed (old → new values), or both.
+- Remedies: re-run into a fresh or isolated database (`planalign batch
+  --clean` or `--database <new>.duckdb`), or do a clean rerun with
+  `setup.clear_tables: true` and `setup.clear_mode: all` (which downgrades the
+  message to informational — a full reset makes mixed generations impossible).
+- Calibration runs record with `run_type='calibration'` and log
+  informationally; diverging comp levers and stale DC tables are inherent to
+  calibration.
+- Databases created before this feature simply have no history yet; their
+  next run records one (no warning, no migration).
+
+Audit a database's provenance directly:
+
+```sql
+SELECT run_timestamp, run_type, substr(config_fingerprint, 1, 12) AS fingerprint,
+       random_seed, start_year, end_year, full_reset
+FROM run_metadata
+ORDER BY run_timestamp DESC;
+```
+
+Two different fingerprints in the history mean the database has held
+mixed-generation results at some point.
+
 ## Audit trace
 
 To audit an employee, compare the census row, prior `fct_yearly_events`, the

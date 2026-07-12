@@ -47,9 +47,9 @@ class Scenario(BaseModel):
     config_overrides: Dict[str, Any] = Field(
         default_factory=dict, description="Configuration overrides"
     )
-    status: Literal["not_run", "queued", "running", "completed", "failed"] = Field(
-        default="not_run", description="Scenario execution status"
-    )
+    status: Literal[
+        "not_run", "queued", "running", "completed", "failed", "cancelled"
+    ] = Field(default="not_run", description="Scenario execution status")
     created_at: datetime = Field(..., description="Creation timestamp")
     last_run_at: Optional[datetime] = Field(None, description="Last run timestamp")
     last_run_id: Optional[str] = Field(None, description="Last run ID")

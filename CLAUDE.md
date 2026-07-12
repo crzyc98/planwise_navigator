@@ -659,6 +659,12 @@ conn.close()
   * **Solution**: Close all database connections in other tools before running simulation
   * **Check**: `planalign health` will detect active locks
 
+### **Config Drift ("CONFIG DRIFT DETECTED" warning)**
+
+  * **Meaning**: The target DB was last written under a different config or random seed — every run stamps its effective-config fingerprint + seed into an append-only `run_metadata` table at run start, and mismatches warn (never block); existing results may be mixed-generation
+  * **Audit**: `duckdb <db> "SELECT run_timestamp, run_type, substr(config_fingerprint,1,12) AS fp, random_seed, start_year, end_year FROM run_metadata ORDER BY run_timestamp DESC"`
+  * **Remedy**: fresh/isolated DB (see §8), or clean rerun via `setup.clear_tables: true` + `setup.clear_mode: all` (downgrades the message — a full reset makes mixed generations impossible). Details: `docs/guides/error_troubleshooting.md`
+
 ### **Enrollment Architecture**
 
   * **Problem**: Duplicate enrollment events across years or missing enrollment dates
@@ -744,6 +750,8 @@ Current version: **2.2.0** ("Calibration") — managed in `_version.py` and `pyp
 - DuckDB. No new tables — calibration reuses `fct_yearly_events`, `fct_workforce_snapshot`, `fct_compensation_growth`. Default target is an isolated `<calibration>.duckdb`, never the shared `dbt/simulation.duckdb`. (105-comp-calibration)
 - Python 3.11 (orchestrator), SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1 (Jinja-templated `.sql`) + `planalign_orchestrator` (StateManager, PipelineOrchestrator), DuckDB 1.0.0, dbt incremental models (`delete+insert`) (108-clear-stale-rerun-state)
 - DuckDB — one `.duckdb` per scenario (Studio/batch); shared `dbt/simulation.duckdb` for dev only. Mutated stores: `int_deferral_rate_state_accumulator`, `int_enrollment_state_accumulator`, and all `int_*`/`fct_*` tables with a `simulation_year` column; `fct_workforce_snapshot` label logic (108-clear-stale-rerun-state)
+- Python 3.11 (orchestrator); no dbt model changes — the metadata table is orchestrator-managed DDL, like the hazard-cache registry + existing `planalign_orchestrator` internals only — `to_dbt_vars()` (`config/export.py`), `DatabaseConnectionManager` (`utils.py`), `hashlib` (stdlib); Rich already available for CLI presentation (109-config-drift-detection)
+- DuckDB — new append-only `run_metadata` table created lazily in each target database (shared dev DB, per-scenario batch DBs, calibration DBs) (109-config-drift-detection)
 
 ## Recent Changes
 - 099-tenure-graded-match: Added Python 3.11 (orchestrator/config/API), SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1, TypeScript/React (Studio UI) + Pydantic v2 (config validation), DuckDB 1.0.0 (storage/engine), FastAPI (workspace config API), React/Vite + Tailwind (Studio)
