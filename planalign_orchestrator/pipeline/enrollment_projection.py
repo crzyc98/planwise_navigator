@@ -30,28 +30,63 @@ class EnrollmentDecisionProjection:
 
     table_name = "enrollment_decision_projection"
 
+    _columns: dict[str, str] = {
+        "employee_id": "VARCHAR",
+        "decision_year": "INTEGER NOT NULL",
+        "scenario_id": "VARCHAR NOT NULL",
+        "plan_design_id": "VARCHAR NOT NULL",
+        "enrollment_date": "DATE",
+        "is_enrolled": "BOOLEAN NOT NULL",
+        "ever_opted_out": "BOOLEAN NOT NULL",
+        "enrollment_source": "VARCHAR NOT NULL",
+        "current_deferral_rate": "DECIMAL(9, 6)",
+        "latest_event_id": "VARCHAR",
+        "latest_event_year": "INTEGER",
+        "latest_event_effective_date": "DATE",
+    }
+
     def __init__(self, db_manager: DatabaseConnectionManager) -> None:
         self.db_manager = db_manager
 
     def ensure_table(self) -> None:
-        """Create the empty dbt source relation before any model can resolve it."""
+        """Create the dbt source relation, recreating it on schema mismatch.
+
+        Databases built under older code can hold this table with a stale
+        column set (e.g. pre-#420 without current_deferral_rate), which the
+        stg_prior_enrollment_state view then fails to bind against. The
+        projection is disposable — rebuilt before every event-generation
+        year — so a mismatched table is dropped and recreated rather than
+        migrated.
+        """
+        column_defs = ",\n                  ".join(
+            f"{name} {type_}" for name, type_ in self._columns.items()
+        )
 
         def _create(conn) -> None:
+            existing = {
+                row[0]
+                for row in conn.execute(
+                    """
+                    SELECT column_name FROM information_schema.columns
+                    WHERE table_schema = 'main' AND table_name = ?
+                    """,
+                    [self.table_name],
+                ).fetchall()
+            }
+            if existing and existing != set(self._columns):
+                logger.warning(
+                    "%s has a stale schema (missing: %s; unexpected: %s) — "
+                    "dropping and recreating. The projection is disposable and "
+                    "is rebuilt before each event-generation year.",
+                    self.table_name,
+                    sorted(set(self._columns) - existing) or "none",
+                    sorted(existing - set(self._columns)) or "none",
+                )
+                conn.execute(f"DROP TABLE {self.table_name}")
             conn.execute(
                 f"""
                 CREATE TABLE IF NOT EXISTS {self.table_name} (
-                  employee_id VARCHAR,
-                  decision_year INTEGER NOT NULL,
-                  scenario_id VARCHAR NOT NULL,
-                  plan_design_id VARCHAR NOT NULL,
-                  enrollment_date DATE,
-                  is_enrolled BOOLEAN NOT NULL,
-                  ever_opted_out BOOLEAN NOT NULL,
-                  enrollment_source VARCHAR NOT NULL,
-                  current_deferral_rate DECIMAL(9, 6),
-                  latest_event_id VARCHAR,
-                  latest_event_year INTEGER,
-                  latest_event_effective_date DATE
+                  {column_defs}
                 )
                 """
             )

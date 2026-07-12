@@ -122,3 +122,91 @@ def test_ensure_table_creates_empty_dbt_source_relation():
         ).fetchone() == (0,)
     finally:
         conn.close()
+
+
+EXPECTED_PROJECTION_COLUMNS = {
+    "employee_id",
+    "decision_year",
+    "scenario_id",
+    "plan_design_id",
+    "enrollment_date",
+    "is_enrolled",
+    "ever_opted_out",
+    "enrollment_source",
+    "current_deferral_rate",
+    "latest_event_id",
+    "latest_event_year",
+    "latest_event_effective_date",
+}
+
+
+def _projection_columns(conn) -> set[str]:
+    return {
+        row[0]
+        for row in conn.execute(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema = 'main' "
+            "AND table_name = 'enrollment_decision_projection'"
+        ).fetchall()
+    }
+
+
+@pytest.mark.fast
+@pytest.mark.unit
+def test_ensure_table_recreates_stale_pre_420_schema():
+    """A DB built before PR #420 has the 8-column projection; ensure_table
+    must drop and recreate it (the table is disposable) instead of leaving a
+    schema that stg_prior_enrollment_state cannot bind against."""
+    conn = duckdb.connect(":memory:")
+    try:
+        conn.execute(
+            """CREATE TABLE enrollment_decision_projection (
+              employee_id VARCHAR,
+              decision_year INTEGER,
+              scenario_id VARCHAR,
+              plan_design_id VARCHAR,
+              enrollment_date TIMESTAMP,
+              is_enrolled BOOLEAN,
+              ever_opted_out BOOLEAN,
+              enrollment_source VARCHAR
+            )"""
+        )
+        conn.execute(
+            "INSERT INTO enrollment_decision_projection VALUES "
+            "('stale', 2025, 'default', 'default', TIMESTAMP '2020-01-01', "
+            "true, false, 'baseline_census')"
+        )
+
+        EnrollmentDecisionProjection(DirectConnectionManager(conn)).ensure_table()
+
+        assert _projection_columns(conn) == EXPECTED_PROJECTION_COLUMNS
+        # Stale rows are discarded with the stale schema; the orchestrator
+        # rebuilds the projection before each event-generation year anyway.
+        assert conn.execute(
+            "SELECT COUNT(*) FROM enrollment_decision_projection"
+        ).fetchone() == (0,)
+    finally:
+        conn.close()
+
+
+@pytest.mark.fast
+@pytest.mark.unit
+def test_ensure_table_preserves_current_schema_table_and_rows():
+    conn = duckdb.connect(":memory:")
+    try:
+        projection = EnrollmentDecisionProjection(DirectConnectionManager(conn))
+        projection.ensure_table()
+        conn.execute(
+            "INSERT INTO enrollment_decision_projection VALUES "
+            "('kept', 2025, 'default', 'default', DATE '2020-01-01', true, "
+            "false, 'baseline_census', 0.05, NULL, NULL, NULL)"
+        )
+
+        projection.ensure_table()
+
+        assert _projection_columns(conn) == EXPECTED_PROJECTION_COLUMNS
+        assert conn.execute(
+            "SELECT COUNT(*) FROM enrollment_decision_projection"
+        ).fetchone() == (1,)
+    finally:
+        conn.close()
