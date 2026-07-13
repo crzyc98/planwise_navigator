@@ -11,6 +11,7 @@ Covers:
 from __future__ import annotations
 
 import logging
+import uuid
 from pathlib import Path
 
 import duckdb
@@ -139,6 +140,22 @@ def _metadata_rows(db_path: Path) -> list[tuple]:
 
 
 class TestOrchestratorWiring:
+    def test_execution_context_run_id_is_stamped(self, tmp_path, monkeypatch):
+        dbp = tmp_path / "p.duckdb"
+        _seed_minimal(dbp, [2025, 2026])
+        run_id = str(uuid.uuid4())
+        monkeypatch.setenv("PLANALIGN_RUN_ID", run_id)
+        orchestrator, manager = _make_orchestrator(_make_config(), dbp, tmp_path)
+        _run(orchestrator, monkeypatch)
+        manager.close_all()
+        with duckdb.connect(str(dbp), read_only=True) as connection:
+            assert (
+                connection.execute(
+                    f"SELECT run_id FROM {RUN_METADATA_TABLE}"
+                ).fetchone()[0]
+                == run_id
+            )
+
     def test_second_run_with_changed_config_warns_and_completes(
         self, tmp_path, monkeypatch, caplog
     ):

@@ -23,8 +23,10 @@ import {
   Play,
   FolderOpen,
   ScrollText,
+  ShieldCheck,
+  Loader2,
 } from 'lucide-react';
-import { getRunDetails, getArtifactDownloadUrl, getResultsExportUrl, listRuns, getRunById, RunDetails, Artifact, RunSummary } from '../services/api';
+import { downloadRunProvenanceBundle, getRunDetails, getArtifactDownloadUrl, getResultsExportUrl, listRuns, getRunById, RunDetails, Artifact, RunSummary } from '../services/api';
 import LogViewer from './simulation/LogViewer';
 
 const formatBytes = (bytes: number): string => {
@@ -45,6 +47,11 @@ const formatDuration = (seconds: number | null): string => {
   const remainMins = mins % 60;
   return `${hours}h ${remainMins}m`;
 };
+
+const isArchivedProvenanceRun = (run: RunSummary): boolean => (
+  !['pending', 'queued', 'running'].includes(run.status)
+  && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(run.id)
+);
 
 const getStatusColor = (status: string) => {
   switch (status) {
@@ -105,6 +112,8 @@ export default function SimulationDetail() {
   const [error, setError] = useState<string | null>(null);
   const [configExpanded, setConfigExpanded] = useState(false);
   const [copiedConfig, setCopiedConfig] = useState(false);
+  const [provenanceDownloadRun, setProvenanceDownloadRun] = useState<string | null>(null);
+  const [provenanceError, setProvenanceError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadDetails = async () => {
@@ -168,6 +177,18 @@ export default function SimulationDetail() {
       navigator.clipboard.writeText(JSON.stringify(details.config, null, 2));
       setCopiedConfig(true);
       setTimeout(() => setCopiedConfig(false), 2000);
+    }
+  };
+
+  const handleProvenanceDownload = async (runId: string) => {
+    try {
+      setProvenanceDownloadRun(runId);
+      setProvenanceError(null);
+      await downloadRunProvenanceBundle(runId);
+    } catch (err) {
+      setProvenanceError(err instanceof Error ? err.message : 'Failed to download audit report');
+    } finally {
+      setProvenanceDownloadRun(null);
     }
   };
 
@@ -428,6 +449,38 @@ export default function SimulationDetail() {
                     </div>
 
                     <div className="p-4">
+                      {isArchivedProvenanceRun(run) && (
+                        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                          <ShieldCheck size={18} className="text-fidelity-green" />
+                          <span className="mr-auto text-sm text-emerald-900">
+                            Review the execution evidence and integrity digest for this archived run.
+                          </span>
+                          <Link
+                            to={`/simulate/${details.scenario_id}/runs/${run.id}/provenance`}
+                            className="flex items-center rounded-lg border border-fidelity-green bg-white px-3 py-2 text-sm font-medium text-fidelity-green hover:bg-emerald-50"
+                          >
+                            <ShieldCheck size={15} className="mr-1.5" />
+                            View Provenance
+                          </Link>
+                          <button
+                            onClick={() => void handleProvenanceDownload(run.id)}
+                            disabled={provenanceDownloadRun !== null}
+                            className="flex items-center rounded-lg bg-fidelity-green px-3 py-2 text-sm font-medium text-white hover:bg-fidelity-dark disabled:opacity-60"
+                          >
+                            {provenanceDownloadRun === run.id ? (
+                              <Loader2 size={15} className="mr-1.5 animate-spin" />
+                            ) : (
+                              <Download size={15} className="mr-1.5" />
+                            )}
+                            Download Audit Report
+                          </button>
+                        </div>
+                      )}
+                      {provenanceError && (
+                        <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+                          {provenanceError}
+                        </p>
+                      )}
                       {(activeRunTab[run.id] ?? 'artifacts') === 'artifacts' ? (
                         <>
                           {runArtifacts[run.id] ? (

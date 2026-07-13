@@ -35,6 +35,7 @@ from .routers import (
     promotion_hazard_router,
     ndt_router,
     imports_router,
+    provenance_router,
 )
 from .routers.vesting import router as vesting_router
 from .routers.sync import router as sync_router
@@ -180,6 +181,12 @@ def create_app() -> FastAPI:
         calibration_router,
         prefix="/api",
         tags=["Calibration"],
+        dependencies=protected_dependencies,
+    )
+    app.include_router(
+        provenance_router,
+        prefix="/api",
+        tags=["Run Provenance"],
         dependencies=protected_dependencies,
     )
 

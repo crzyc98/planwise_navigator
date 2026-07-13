@@ -234,3 +234,8 @@ class TestScenarioSeedIsolation:
             project_a,
         )
         assert command[command.index("--dbt-project-dir") + 1] == str(project_a)
+
+    def test_subprocess_environment_carries_authoritative_run_id(self, tmp_path):
+        run_id = "12345678-1234-5678-9234-567812345678"
+        env = SimulationService._build_env(tmp_path, run_id)
+        assert env["PLANALIGN_RUN_ID"] == run_id

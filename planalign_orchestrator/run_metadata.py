@@ -108,12 +108,14 @@ def check_and_record_run(
     end_year: int,
     run_type: RunType,
     full_reset: bool = False,
+    run_id: Optional[str] = None,
 ) -> DriftCheckResult:
     """Compare current config/seed to the latest run record, log, and append.
 
     Never raises for database errors (FR-005): any ``duckdb.Error`` degrades
     to a single logged note and a ``DriftStatus.UNKNOWN`` result.
     """
+    authoritative_run_id = _validated_run_id(run_id)
     current_fingerprint = compute_config_fingerprint(config)
     current_seed = getattr(config.simulation, "random_seed", None)
 
@@ -145,6 +147,7 @@ def check_and_record_run(
                 end_year=end_year,
                 run_type=run_type,
                 full_reset=full_reset,
+                run_id=authoritative_run_id,
             )
         return result
     except duckdb.Error as exc:
@@ -272,12 +275,13 @@ def _append_record(
     end_year: int,
     run_type: RunType,
     full_reset: bool,
+    run_id: str,
 ) -> None:
     """Append this run's record (FR-008: append-only; no update/delete exists)."""
     conn.execute(
         f"INSERT INTO {RUN_METADATA_TABLE} VALUES (?,?,?,?,?,?,?,?,?,?,?)",
         [
-            str(uuid.uuid4()),
+            run_id,
             datetime.now(timezone.utc),
             run_type,
             fingerprint,
@@ -290,3 +294,16 @@ def _append_record(
             full_reset,
         ],
     )
+
+
+def _validated_run_id(run_id: Optional[str]) -> str:
+    """Use a caller's UUID exactly, retaining generated IDs for direct runs."""
+    if run_id is None:
+        return str(uuid.uuid4())
+    try:
+        parsed = uuid.UUID(run_id)
+    except (ValueError, AttributeError) as exc:
+        raise ValueError("run_id must be a UUID") from exc
+    if str(parsed) != run_id.lower():
+        raise ValueError("run_id must use canonical UUID form")
+    return str(parsed)

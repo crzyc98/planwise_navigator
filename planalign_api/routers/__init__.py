@@ -13,6 +13,7 @@ from .bands import router as bands_router
 from .promotion_hazard import router as promotion_hazard_router
 from .ndt import router as ndt_router
 from .imports import router as imports_router
+from .provenance import router as provenance_router
 
 __all__ = [
     "system_router",
@@ -28,4 +29,5 @@ __all__ = [
     "promotion_hazard_router",
     "ndt_router",
     "imports_router",
+    "provenance_router",
 ]

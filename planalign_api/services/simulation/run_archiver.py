@@ -133,7 +133,7 @@ def archive_failed_run(
         start_year=start_year,
         end_year=end_year,
         events_generated=0,
-        seed=config.get("simulation", {}).get("seed"),
+        seed=config.get("simulation", {}).get("random_seed"),
         run_status=run_status,
         error_message=error_message,
     )

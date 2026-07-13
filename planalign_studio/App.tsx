@@ -18,6 +18,7 @@ import NDTTesting from './components/NDTTesting';
 import WinnersLosersTab from './components/WinnersLosersTab';
 import DataImportWizard from './components/DataImportWizard';
 import CalibrationPanel from './components/CalibrationPanel';
+import RunProvenanceReport from './components/RunProvenanceReport';
 
 // Error boundary to catch and display React errors
 interface ErrorBoundaryProps {
@@ -85,6 +86,7 @@ export default function App() {
             <Route index element={<Dashboard />} />
             <Route path="simulate" element={<SimulationControl />} />
             <Route path="simulate/:scenarioId" element={<SimulationDetail />} />
+            <Route path="simulate/:scenarioId/runs/:runId/provenance" element={<RunProvenanceReport />} />
             <Route path="scenarios" element={<ScenariosPage />} />
             <Route path="config" element={<ConfigStudio />} />
             <Route path="calibrate" element={<CalibrationPanel />} />

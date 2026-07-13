@@ -1,0 +1,332 @@
+openapi: 3.1.0
+info:
+  title: PlanAlign Run Provenance Report API
+  version: 1.0.0
+  description: >-
+    Read-only retrieval of a human-readable and machine-readable provenance
+    report for one exact archived run. The endpoint never falls back to current
+    scenario state or a latest run.
+paths:
+  /api/runs/{run_id}/provenance:
+    get:
+      summary: Generate the provenance report for one archived run
+      operationId: getRunProvenance
+      security:
+        - bearerToken: []
+        - apiTokenHeader: []
+      parameters:
+        - name: run_id
+          in: path
+          required: true
+          description: Exact authoritative archived run UUID.
+          schema:
+            type: string
+            format: uuid
+        - name: Accept
+          in: header
+          required: false
+          description: >-
+            application/json (default) returns an envelope containing both the
+            report object and Markdown audit sheet. application/zip returns a
+            two-file attachment containing JSON and Markdown.
+          schema:
+            type: string
+            enum: [application/json, application/zip]
+            default: application/json
+      responses:
+        '200':
+          description: >-
+            Report generated. Incomplete and unverifiable reports are valid 200
+            responses when the archive identity is established.
+          headers:
+            ETag:
+              description: Strong ETag equal to the quoted report SHA-256 digest.
+              schema: { type: string }
+            Cache-Control:
+              description: Prevent stale provenance reuse across archive retention changes.
+              schema: { type: string, example: no-store }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProvenanceReportEnvelope'
+            application/zip:
+              schema:
+                type: string
+                contentEncoding: binary
+              examples:
+                twoFiles:
+                  summary: ZIP contains only `<run_id>-provenance.json` and `<run_id>-provenance.md`
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/RunNotFound'
+        '406':
+          $ref: '#/components/responses/NotAcceptable'
+        '409':
+          $ref: '#/components/responses/ArchiveUnstable'
+        '422':
+          $ref: '#/components/responses/IdentityConflict'
+components:
+  securitySchemes:
+    bearerToken:
+      type: http
+      scheme: bearer
+    apiTokenHeader:
+      type: apiKey
+      in: header
+      name: X-API-Token
+  responses:
+    Unauthorized:
+      description: Missing or invalid API token under existing PlanAlign security rules.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    RunNotFound:
+      description: No exact terminal archive exists for the requested run ID.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotAcceptable:
+      description: Requested representation is not application/json or application/zip.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ArchiveUnstable:
+      description: Archive changed during the read or cannot provide a consistent view.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    IdentityConflict:
+      description: >-
+        Duplicate run directories exist, or directory/metadata/manifest run IDs
+        conflict. No report is emitted.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    ProvenanceReportEnvelope:
+      type: object
+      additionalProperties: false
+      required: [report, audit_sheet]
+      properties:
+        report:
+          $ref: '#/components/schemas/ProvenanceReport'
+        audit_sheet:
+          type: string
+          description: Markdown rendered from the exact same report evidence.
+    ProvenanceReport:
+      type: object
+      additionalProperties: false
+      required:
+        - report_schema_version
+        - evidence
+        - missing_evidence
+        - verification_disposition
+        - digest
+        - sign_off
+      properties:
+        report_schema_version: { type: string, example: '1.0' }
+        evidence: { $ref: '#/components/schemas/ReportEvidence' }
+        missing_evidence:
+          type: array
+          items: { $ref: '#/components/schemas/EvidenceFinding' }
+        verification_disposition:
+          type: string
+          enum: [fully_verified, incomplete, unverifiable]
+        digest: { $ref: '#/components/schemas/ReportDigest' }
+        sign_off: { $ref: '#/components/schemas/ReviewSignOff' }
+    ReportEvidence:
+      type: object
+      additionalProperties: false
+      required:
+        - run
+        - timing
+        - software
+        - configuration
+        - random_seed
+        - census_input
+        - seed_files
+        - event_counts
+        - workforce_reconciliations
+        - validation_results
+        - validation_disposition
+      properties:
+        run: { $ref: '#/components/schemas/RunEvidence' }
+        timing: { type: object, additionalProperties: true }
+        software: { $ref: '#/components/schemas/SoftwareEvidence' }
+        configuration: { $ref: '#/components/schemas/ConfigurationEvidence' }
+        random_seed: { type: [integer, 'null'] }
+        census_input:
+          oneOf:
+            - { $ref: '#/components/schemas/InputFingerprint' }
+            - { type: 'null' }
+        seed_files:
+          type: array
+          items: { $ref: '#/components/schemas/SeedFingerprint' }
+        event_counts:
+          type: array
+          items: { $ref: '#/components/schemas/AnnualEventCount' }
+        workforce_reconciliations:
+          type: array
+          items: { $ref: '#/components/schemas/AnnualReconciliation' }
+        validation_results:
+          type: array
+          items: { $ref: '#/components/schemas/ValidationResult' }
+        validation_disposition:
+          type: string
+          enum: [passed, passed_with_warnings, failed, incomplete, unavailable]
+    RunEvidence:
+      type: object
+      additionalProperties: false
+      required:
+        - run_id
+        - status
+        - workspace_id
+        - scenario_id
+        - plan_design_id
+        - intended_start_year
+        - intended_end_year
+        - completed_years
+      properties:
+        run_id: { type: string, format: uuid }
+        status: { type: string }
+        workspace_id: { type: [string, 'null'] }
+        scenario_id: { type: [string, 'null'] }
+        plan_design_id: { type: [string, 'null'] }
+        intended_start_year: { type: [integer, 'null'] }
+        intended_end_year: { type: [integer, 'null'] }
+        completed_years:
+          type: array
+          items: { type: integer }
+    SoftwareEvidence:
+      type: object
+      additionalProperties: false
+      required:
+        - planalign_version
+        - git_commit_sha
+        - working_tree_state
+        - working_tree_fingerprint
+      properties:
+        planalign_version: { type: [string, 'null'] }
+        git_commit_sha:
+          type: [string, 'null']
+          pattern: '^[0-9a-f]{40}$'
+        working_tree_state:
+          type: string
+          enum: [clean, dirty, unavailable]
+        working_tree_fingerprint:
+          type: [string, 'null']
+          pattern: '^[0-9a-f]{64}$'
+    ConfigurationEvidence:
+      type: object
+      additionalProperties: false
+      required: [effective, fingerprint, fingerprint_method, redactions]
+      properties:
+        effective: { type: [object, 'null'] }
+        fingerprint:
+          type: [string, 'null']
+          pattern: '^[0-9a-f]{64}$'
+        fingerprint_method: { type: [string, 'null'] }
+        redactions:
+          type: array
+          items: { type: string }
+    InputFingerprint:
+      type: object
+      additionalProperties: false
+      required: [logical_name, sha256, size_bytes, record_count, format]
+      properties:
+        logical_name: { type: string }
+        sha256: { type: string, pattern: '^[0-9a-f]{64}$' }
+        size_bytes: { type: [integer, 'null'], minimum: 0 }
+        record_count: { type: [integer, 'null'], minimum: 0 }
+        format: { type: [string, 'null'] }
+    SeedFingerprint:
+      type: object
+      additionalProperties: false
+      required: [logical_name, sha256, size_bytes]
+      properties:
+        logical_name: { type: string }
+        sha256: { type: string, pattern: '^[0-9a-f]{64}$' }
+        size_bytes: { type: integer, minimum: 0 }
+    AnnualEventCount:
+      type: object
+      additionalProperties: false
+      required: [simulation_year, event_type, count]
+      properties:
+        simulation_year: { type: integer }
+        event_type: { type: string }
+        count: { type: integer, minimum: 0 }
+    AnnualReconciliation:
+      type: object
+      additionalProperties: false
+      required:
+        - simulation_year
+        - opening_workforce
+        - hires
+        - terminations
+        - expected_closing_workforce
+        - actual_closing_workforce
+        - variance
+        - opening_source
+      properties:
+        simulation_year: { type: integer }
+        opening_workforce: { type: [integer, 'null'], minimum: 0 }
+        hires: { type: [integer, 'null'], minimum: 0 }
+        terminations: { type: [integer, 'null'], minimum: 0 }
+        expected_closing_workforce: { type: [integer, 'null'] }
+        actual_closing_workforce: { type: [integer, 'null'], minimum: 0 }
+        variance: { type: [integer, 'null'] }
+        opening_source:
+          type: [string, 'null']
+          enum: [baseline, prior_year_snapshot, unavailable, null]
+    ValidationResult:
+      type: object
+      additionalProperties: false
+      required: [simulation_year, check_name, severity, passed, affected_record_count]
+      properties:
+        simulation_year: { type: integer }
+        check_name: { type: string }
+        severity: { type: string }
+        passed: { type: boolean }
+        affected_record_count: { type: [integer, 'null'], minimum: 0 }
+    EvidenceFinding:
+      type: object
+      additionalProperties: false
+      required: [field_path, code, reason, required]
+      properties:
+        field_path: { type: string }
+        code:
+          type: string
+          enum:
+            - unavailable
+            - malformed
+            - unbound
+            - identity_conflict
+            - integrity_mismatch
+            - unsafe_metadata
+            - incomplete_capture
+        reason: { type: string, maxLength: 500 }
+        required: { type: boolean }
+    ReportDigest:
+      type: object
+      additionalProperties: false
+      required: [algorithm, canonicalization, value]
+      properties:
+        algorithm: { const: SHA-256 }
+        canonicalization: { const: planalign-provenance-json-v1 }
+        value: { type: string, pattern: '^[0-9a-f]{64}$' }
+    ReviewSignOff:
+      type: object
+      additionalProperties: false
+      required: [report_digest, reviewer_name, decision, timestamp, comments]
+      properties:
+        report_digest: { type: string, pattern: '^[0-9a-f]{64}$' }
+        reviewer_name: { type: [string, 'null'] }
+        decision: { type: [string, 'null'] }
+        timestamp: { type: [string, 'null'], format: date-time }
+        comments: { type: [string, 'null'] }
+    Error:
+      type: object
+      required: [detail]
+      properties:
+        detail: { type: string }

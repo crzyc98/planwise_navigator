@@ -79,9 +79,52 @@ class DataValidator:
                             passed=False,
                             message=f"Validation rule failed: {e}",
                             details={"error": str(e)},
+                            affected_records=None,
                         )
                     )
         return results
+
+    @staticmethod
+    def disposition(results: List[ValidationResult]) -> str:
+        """Return a deterministic severity-aware overall disposition."""
+        if any(
+            not result.passed and result.severity == ValidationSeverity.ERROR
+            for result in results
+        ):
+            return "failed"
+        if any(not result.passed for result in results):
+            return "passed_with_warnings"
+        return "passed"
+
+    @classmethod
+    def to_safe_results(cls, results: List[ValidationResult]) -> Dict[str, Any]:
+        """Project exact outcomes without messages, paths, or raw details."""
+
+        def severity_value(result: ValidationResult) -> str:
+            return getattr(result.severity, "value", str(result.severity))
+
+        ordered = sorted(
+            results,
+            key=lambda result: (
+                result.rule_name,
+                severity_value(result),
+                result.passed,
+            ),
+        )
+        return {
+            "disposition": cls.disposition(ordered),
+            "results": [
+                {
+                    "check_name": result.rule_name,
+                    "severity": severity_value(result),
+                    "passed": result.passed,
+                    "affected_record_count": 0
+                    if result.passed
+                    else result.affected_records,
+                }
+                for result in ordered
+            ],
+        }
 
     @staticmethod
     def to_report_dict(results: List[ValidationResult]) -> Dict[str, Any]:
@@ -210,6 +253,7 @@ class HireTerminationRatioRule(ValidationRule):
                 "min_ratio": self.min_ratio,
                 "max_ratio": self.max_ratio,
             },
+            affected_records=0 if passed else hires + terms,
         )
 
 
@@ -221,7 +265,7 @@ class EventSequenceRule(ValidationRule):
         *,
         table: str = TABLE_FCT_YEARLY_EVENTS,
         event_col: str = COL_EVENT_TYPE,
-        date_col: str = "event_date",
+        date_col: str = "effective_date",
         year_col: str = COL_SIMULATION_YEAR,
         severity: ValidationSeverity = ValidationSeverity.ERROR,
         name: str = "event_sequence_validation",
@@ -302,4 +346,5 @@ class EventSpikeRule(ValidationRule):
                 "ratio": ratio,
                 "threshold": self.spike_ratio,
             },
+            affected_records=0 if passed else cur,
         )
