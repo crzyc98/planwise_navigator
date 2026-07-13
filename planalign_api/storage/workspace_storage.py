@@ -525,6 +525,25 @@ class WorkspaceStorage:
         if not workspace or not scenario:
             return None
 
+        return self._merge_config(workspace, scenario)
+
+    def get_merged_config_for(
+        self, workspace: Workspace, scenario_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """Merge an already-loaded workspace with one of its scenarios.
+
+        Callers that need the merged config for multiple scenarios of the
+        same workspace (e.g. a two-scenario diff) can fetch the workspace
+        once and reuse it here, instead of re-reading workspace.json/
+        base_config.yaml from disk on every call like get_merged_config does.
+        """
+        scenario = self.get_scenario(workspace.id, scenario_id)
+        if not scenario:
+            return None
+        return self._merge_config(workspace, scenario)
+
+    def _merge_config(self, workspace: Workspace, scenario: Scenario) -> Dict[str, Any]:
+        """Pure merge of a loaded workspace + scenario (no I/O)."""
         # E091: Debug logging for year range tracking
         base_sim = workspace.base_config.get("simulation", {})
         override_sim = scenario.config_overrides.get("simulation", {})

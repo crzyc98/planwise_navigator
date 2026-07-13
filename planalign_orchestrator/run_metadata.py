@@ -124,8 +124,16 @@ def check_and_record_run(
                 f"SELECT config_fingerprint, random_seed, run_timestamp "
                 f"FROM {RUN_METADATA_TABLE} ORDER BY run_timestamp DESC LIMIT 1"
             ).fetchone()
-            result = _evaluate(
-                prior, current_fingerprint, current_seed, full_reset=full_reset
+            prior_fingerprint, prior_seed, prior_timestamp = (
+                prior if prior is not None else (None, None, None)
+            )
+            result = evaluate_drift(
+                prior_fingerprint,
+                prior_seed,
+                current_fingerprint,
+                current_seed,
+                full_reset=full_reset,
+                prior_timestamp=prior_timestamp,
             )
             _log_result(result, run_type)
             _append_record(
@@ -158,15 +166,23 @@ def check_and_record_run(
         )
 
 
-def _evaluate(
-    prior: Optional[tuple],
+def evaluate_drift(
+    prior_fingerprint: Optional[str],
+    prior_seed: Optional[int],
     current_fingerprint: str,
     current_seed: Optional[int],
     *,
-    full_reset: bool,
+    full_reset: bool = False,
+    prior_timestamp: Optional[datetime] = None,
 ) -> DriftCheckResult:
-    """Classify this run against the latest recorded run (if any)."""
-    if prior is None:
+    """Classify a fingerprint/seed pair against a prior recorded run (if any).
+
+    Pure comparison primitive with no I/O — shared by ``check_and_record_run``
+    (the write path, called with a freshly-read prior row) and read-only
+    consumers that already hold prior/current fingerprints (e.g. the scenario
+    config-diff view), so drift semantics live in exactly one place.
+    """
+    if prior_fingerprint is None:
         return DriftCheckResult(
             status=DriftStatus.NO_HISTORY,
             config_changed=False,
@@ -179,7 +195,6 @@ def _evaluate(
             suppressed_by_full_reset=False,
         )
 
-    prior_fingerprint, prior_seed, prior_timestamp = prior
     config_changed = prior_fingerprint != current_fingerprint
     seed_changed = prior_seed != current_seed
     status = (

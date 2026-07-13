@@ -170,6 +170,8 @@ export const COLORS = {
   charts: ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#E91E63']
 };
 
+export const COMPARISON_COLORS = ['#00853F', '#2563EB'] as const;
+
 export const MOCK_BATCH_JOBS: BatchJob[] = [
   {
     id: 'batch_001',

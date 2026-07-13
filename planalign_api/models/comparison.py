@@ -1,6 +1,7 @@
 """Comparison models for scenario analysis."""
 
-from typing import Dict, List
+from datetime import datetime
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -13,6 +14,50 @@ class WorkforceMetrics(BaseModel):
     terminated: int = Field(description="Terminated employees")
     new_hires: int = Field(description="New hires")
     growth_pct: float = Field(description="Growth percentage")
+    avg_compensation: float = Field(
+        default=0.0, description="Average prorated compensation for active employees"
+    )
+
+
+class ConfigDelta(BaseModel):
+    """One effective configuration difference between two scenarios."""
+
+    path: str = Field(description="Stable dotted configuration path")
+    a: Any = Field(default=None, description="Scenario A value")
+    b: Any = Field(default=None, description="Scenario B value")
+    status: Literal["changed", "only_a", "only_b"]
+
+
+class ScenarioProvenance(BaseModel):
+    """Latest available run provenance for a scenario."""
+
+    available: bool
+    config_fingerprint: Optional[str] = Field(
+        default=None, min_length=12, max_length=12
+    )
+    random_seed: Optional[int] = None
+    run_timestamp: Optional[datetime] = None
+    drift_warning: bool = False
+    drift_reasons: List[
+        Literal[
+            "current_config_mismatch",
+            "current_seed_mismatch",
+            "mixed_generation",
+        ]
+    ] = Field(default_factory=list)
+
+
+class ConfigDiffResponse(BaseModel):
+    """Effective configuration diff and provenance for exactly two scenarios."""
+
+    scenario_a: str
+    scenario_b: str
+    scenario_names: Dict[str, str]
+    differences: List[ConfigDelta]
+    unchanged_count: int = Field(ge=0)
+    provenance: Dict[str, ScenarioProvenance]
+    seeds_match: Optional[bool]
+    drift_warning: bool
 
 
 class WorkforceComparisonYear(BaseModel):

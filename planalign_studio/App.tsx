@@ -8,6 +8,7 @@ import ConfigStudio from './components/ConfigStudio';
 import ScenariosPage from './components/ScenariosPage';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import ScenarioComparison from './components/ScenarioComparison';
+import ScenarioDiff from './components/ScenarioDiff';
 import BatchProcessing from './components/BatchProcessing';
 import WorkspaceManager from './components/WorkspaceManager';
 import DCPlanAnalytics from './components/DCPlanAnalytics';
@@ -90,6 +91,7 @@ export default function App() {
             <Route path="config/:scenarioId" element={<ConfigStudio />} />
             <Route path="analytics" element={<AnalyticsDashboard />} />
             <Route path="analytics/compare" element={<ScenarioComparison />} />
+            <Route path="analytics/diff" element={<ScenarioDiff />} />
             <Route path="analytics/dc-plan" element={<DCPlanAnalytics />} />
             <Route path="analytics/vesting" element={<VestingAnalysis />} />
             <Route path="analytics/ndt" element={<NDTTesting />} />

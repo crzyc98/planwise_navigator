@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
-import { Plus, Play, Trash2, Pencil, Check, X, Layers, Settings, Clock, AlertCircle, CheckSquare, Square, PlayCircle, Eye, Loader2 } from 'lucide-react';
+import { Plus, Play, Trash2, Pencil, Check, X, Layers, Settings, Clock, AlertCircle, CheckSquare, Square, PlayCircle, Eye, Loader2, ArrowLeftRight } from 'lucide-react';
 import { LayoutContextType } from './Layout';
 import { listScenarios, createScenario, updateScenario, deleteScenario, Scenario } from '../services/api';
 
@@ -147,6 +147,17 @@ export default function ScenariosPage() {
     navigate(`/batch?scenarios=${scenarioParam}`);
   };
 
+  const selectedScenarios = [...selectedIds]
+    .map(id => scenarios.find(scenario => scenario.id === id))
+    .filter((scenario): scenario is Scenario => scenario !== undefined);
+  const canDiff = selectedScenarios.length === 2
+    && selectedScenarios.every(scenario => scenario.status === 'completed');
+
+  const handleDiff = () => {
+    if (!canDiff) return;
+    navigate(`/analytics/diff?a=${selectedScenarios[0].id}&b=${selectedScenarios[1].id}`);
+  };
+
   const exitSelectMode = () => {
     setSelectMode(false);
     setSelectedIds(new Set());
@@ -180,6 +191,15 @@ export default function ScenariosPage() {
               <span className="text-sm text-gray-600">
                 {selectedIds.size} selected
               </span>
+              <button
+                onClick={handleDiff}
+                disabled={!canDiff}
+                title={canDiff ? 'Open focused scenario diff' : 'Select exactly two completed scenarios'}
+                className={`px-4 py-2 rounded-lg flex items-center font-medium shadow-sm transition-colors ${canDiff ? 'bg-fidelity-green text-white hover:bg-fidelity-dark' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+              >
+                <ArrowLeftRight size={18} className="mr-2" />
+                Diff A vs B
+              </button>
               <button
                 onClick={handleRunBatch}
                 disabled={selectedIds.size === 0}
