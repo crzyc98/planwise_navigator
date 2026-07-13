@@ -106,24 +106,53 @@ class ComparisonService:
             summary_deltas=summary_deltas,
         )
 
-    @staticmethod
-    def _query_workforce(conn) -> List[Dict[str, Any]]:
-        """Query workforce snapshots grouped by simulation year."""
+    _WORKFORCE_COUNTS_CTE = """
+            simulation_year,
+            COUNT(DISTINCT employee_id) as headcount,
+            COUNT(DISTINCT CASE WHEN UPPER(employment_status) = 'ACTIVE' THEN employee_id END) as active,
+            COUNT(DISTINCT CASE WHEN UPPER(employment_status) = 'TERMINATED' THEN employee_id END) as terminated"""
+
+    @classmethod
+    def _query_workforce(cls, conn) -> List[Dict[str, Any]]:
+        """Query workforce snapshots grouped by simulation year.
+
+        avg_compensation is queried separately from headcount/active/
+        terminated: an older scenario database whose fct_workforce_snapshot
+        predates the prorated_annual_compensation column must still return
+        headcount data, not blank the whole comparison.
+        """
         try:
             df = conn.execute(
                 f"""
-                SELECT
-                    simulation_year,
-                    COUNT(DISTINCT employee_id) as headcount,
-                    COUNT(DISTINCT CASE WHEN UPPER(employment_status) = 'ACTIVE' THEN employee_id END) as active,
-                    COUNT(DISTINCT CASE WHEN UPPER(employment_status) = 'TERMINATED' THEN employee_id END) as terminated
+                SELECT{cls._WORKFORCE_COUNTS_CTE},
+                    ROUND(COALESCE(AVG(CASE
+                        WHEN UPPER(employment_status) = 'ACTIVE'
+                        THEN prorated_annual_compensation
+                    END), 0.0), 2) AS avg_compensation
                 FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
                 GROUP BY simulation_year
                 ORDER BY simulation_year
             """
             ).fetchdf()
             return df.to_dict("records")
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "Workforce+compensation query failed (%s); retrying without "
+                "avg_compensation for older scenario databases.",
+                exc,
+            )
+        try:
+            df = conn.execute(
+                f"""
+                SELECT{cls._WORKFORCE_COUNTS_CTE}
+                FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
+                GROUP BY simulation_year
+                ORDER BY simulation_year
+            """
+            ).fetchdf()
+            return df.to_dict("records")
+        except Exception as exc:
+            logger.error("Workforce comparison query failed: %s", exc)
             return []
 
     @staticmethod
@@ -282,6 +311,7 @@ class ComparisonService:
             baseline_headcount = baseline_workforce.get("headcount", 0)
             baseline_active = baseline_workforce.get("active", 0)
             baseline_terminated = baseline_workforce.get("terminated", 0)
+            baseline_avg_compensation = baseline_workforce.get("avg_compensation", 0.0)
             baseline_prev = prev_headcounts.get(baseline_id, baseline_headcount)
             baseline_growth = (
                 ((baseline_headcount - baseline_prev) / baseline_prev * 100)
@@ -295,6 +325,7 @@ class ComparisonService:
                 terminated=baseline_terminated,
                 new_hires=baseline_hires,
                 growth_pct=baseline_growth,
+                avg_compensation=baseline_avg_compensation,
             )
             values[baseline_id] = baseline_metrics
             deltas[baseline_id] = WorkforceMetrics(
@@ -303,6 +334,7 @@ class ComparisonService:
                 terminated=0,
                 new_hires=0,
                 growth_pct=0.0,
+                avg_compensation=0.0,
             )
 
             # Calculate for each non-baseline scenario
@@ -326,6 +358,7 @@ class ComparisonService:
                 headcount = workforce.get("headcount", 0)
                 active = workforce.get("active", 0)
                 terminated = workforce.get("terminated", 0)
+                avg_compensation = workforce.get("avg_compensation", 0.0)
                 prev = prev_headcounts.get(scenario_id, headcount)
                 growth = ((headcount - prev) / prev * 100) if prev > 0 else 0
 
@@ -335,6 +368,7 @@ class ComparisonService:
                     terminated=terminated,
                     new_hires=hires,
                     growth_pct=growth,
+                    avg_compensation=avg_compensation,
                 )
 
                 deltas[scenario_id] = WorkforceMetrics(
@@ -343,6 +377,7 @@ class ComparisonService:
                     terminated=terminated - baseline_terminated,
                     new_hires=hires - baseline_hires,
                     growth_pct=growth - baseline_growth,
+                    avg_compensation=avg_compensation - baseline_avg_compensation,
                 )
 
                 prev_headcounts[scenario_id] = headcount

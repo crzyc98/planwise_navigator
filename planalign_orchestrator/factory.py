@@ -104,6 +104,7 @@ class OrchestratorBuilder:
             threads=thread_count,
             executable=self._dbt_executable,
             database_path=str(self._db.db_path),
+            db_manager=self._db,
             threading_enabled=threading_enabled,
             threading_mode=threading_mode,
             verbose=True,  # Enable verbose mode for threading performance logging

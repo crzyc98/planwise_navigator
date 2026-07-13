@@ -4,6 +4,7 @@ from .workspace_service import WorkspaceService
 from .scenario_service import ScenarioService
 from .simulation_service import SimulationService
 from .comparison_service import ComparisonService
+from .config_diff_service import ConfigDiffService
 from .telemetry_service import TelemetryService, get_telemetry_service
 from .analytics_service import AnalyticsService
 from .database_path_resolver import (
@@ -19,6 +20,7 @@ __all__ = [
     "ScenarioService",
     "SimulationService",
     "ComparisonService",
+    "ConfigDiffService",
     "TelemetryService",
     "get_telemetry_service",
     "AnalyticsService",

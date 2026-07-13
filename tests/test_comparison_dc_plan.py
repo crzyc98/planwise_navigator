@@ -724,3 +724,125 @@ class TestDCPlanSummaryDeltas:
         ec_delta = result.summary_deltas["final_employer_cost"]
         assert ec_delta.baseline == 0.0
         assert ec_delta.delta_pcts["alternative"] == 0.0  # No division by zero
+
+
+@pytest.mark.fast
+class TestWorkforceAverageCompensation:
+    """Average compensation uses active employees and wires annual deltas."""
+
+    def test_active_only_average_and_delta(self, tmp_path):
+        baseline_rows = [
+            {
+                "employee_id": "A",
+                "year": 2025,
+                "status": "Active",
+                "enrolled": False,
+                "compensation": 100000,
+            },
+            {
+                "employee_id": "B",
+                "year": 2025,
+                "status": "Active",
+                "enrolled": False,
+                "compensation": 120000,
+            },
+            {
+                "employee_id": "T",
+                "year": 2025,
+                "status": "Terminated",
+                "enrolled": False,
+                "compensation": 10000,
+            },
+        ]
+        alternative_rows = [
+            {
+                "employee_id": "A",
+                "year": 2025,
+                "status": "Active",
+                "enrolled": False,
+                "compensation": 110000,
+            },
+            {
+                "employee_id": "B",
+                "year": 2025,
+                "status": "Active",
+                "enrolled": False,
+                "compensation": 130000,
+            },
+            {
+                "employee_id": "T",
+                "year": 2025,
+                "status": "Terminated",
+                "enrolled": False,
+                "compensation": 999999,
+            },
+        ]
+        baseline_path = _create_scenario_db(tmp_path, "baseline", baseline_rows)
+        alternative_path = _create_scenario_db(
+            tmp_path, "alternative", alternative_rows
+        )
+        service = _build_service_with_dbs(
+            {"baseline": baseline_path, "alternative": alternative_path}
+        )
+
+        result = service.compare_scenarios(
+            "ws", ["baseline", "alternative"], "baseline"
+        )
+
+        year = result.workforce_comparison[0]
+        assert year.values["baseline"].avg_compensation == pytest.approx(110000)
+        assert year.values["alternative"].avg_compensation == pytest.approx(120000)
+        assert year.deltas["alternative"].avg_compensation == pytest.approx(10000)
+
+    def test_no_active_employees_returns_zero(self, tmp_path):
+        rows = [
+            {
+                "employee_id": "T",
+                "year": 2025,
+                "status": "Terminated",
+                "enrolled": False,
+                "compensation": 50000,
+            },
+        ]
+        baseline_path = _create_scenario_db(tmp_path, "baseline", rows)
+        alternative_path = _create_scenario_db(tmp_path, "alternative", rows)
+        service = _build_service_with_dbs(
+            {"baseline": baseline_path, "alternative": alternative_path}
+        )
+
+        result = service.compare_scenarios(
+            "ws", ["baseline", "alternative"], "baseline"
+        )
+
+        assert result.workforce_comparison[0].values["baseline"].avg_compensation == 0
+
+    def test_missing_compensation_column_falls_back_to_headcount_only(self, tmp_path):
+        """A scenario DB whose snapshot predates prorated_annual_compensation
+        must still return headcount/active/terminated instead of the whole
+        workforce comparison silently going blank."""
+        db_path = str(tmp_path / "legacy.duckdb")
+        conn = duckdb.connect(db_path)
+        conn.execute(
+            """
+            CREATE TABLE fct_workforce_snapshot (
+                employee_id VARCHAR,
+                simulation_year INTEGER,
+                employment_status VARCHAR
+            )
+            """
+        )
+        _create_events_table(conn)
+        conn.execute(
+            "INSERT INTO fct_workforce_snapshot VALUES ('A', 2025, 'Active'), "
+            "('B', 2025, 'Active'), ('T', 2025, 'Terminated')"
+        )
+        conn.close()
+        service = _build_service_with_dbs({"legacy": db_path, "other": db_path})
+
+        result = service.compare_scenarios("ws", ["legacy", "other"], "legacy")
+
+        year = result.workforce_comparison[0]
+        assert year.values["legacy"].headcount == 3
+        assert year.values["legacy"].active == 2
+        assert year.values["legacy"].terminated == 1
+        assert year.values["legacy"].avg_compensation == 0

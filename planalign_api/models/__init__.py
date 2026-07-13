@@ -24,6 +24,9 @@ from .system import (
 )
 from .comparison import (
     ComparisonResponse,
+    ConfigDelta,
+    ConfigDiffResponse,
+    ScenarioProvenance,
     WorkforceComparisonYear,
     DeltaValue,
 )
@@ -72,6 +75,9 @@ __all__ = [
     "SystemStatus",
     # Comparison
     "ComparisonResponse",
+    "ConfigDelta",
+    "ConfigDiffResponse",
+    "ScenarioProvenance",
     "WorkforceComparisonYear",
     "DeltaValue",
     # Batch

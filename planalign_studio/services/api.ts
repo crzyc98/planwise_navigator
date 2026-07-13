@@ -258,29 +258,85 @@ export interface SystemStatus {
   recommendations: string[];
 }
 
+export interface WorkforceMetrics {
+  headcount: number;
+  active: number;
+  terminated: number;
+  new_hires: number;
+  growth_pct: number;
+  avg_compensation: number;
+}
+
+export interface EventComparisonMetric {
+  metric: string;
+  year: number;
+  baseline: number;
+  scenarios: Record<string, number>;
+  deltas: Record<string, number>;
+  delta_pcts: Record<string, number>;
+}
+
+export interface DCPlanMetrics {
+  participation_rate: number;
+  avg_deferral_rate: number;
+  total_employee_contributions: number;
+  total_employer_match: number;
+  total_employer_core: number;
+  total_employer_cost: number;
+  employer_cost_rate: number;
+  participant_count: number;
+}
+
+export interface DeltaValue {
+  baseline: number;
+  scenarios: Record<string, number>;
+  deltas: Record<string, number>;
+  delta_pcts: Record<string, number>;
+}
+
 export interface ComparisonResponse {
   scenarios: string[];
   scenario_names: Record<string, string>;
   baseline_scenario: string;
   workforce_comparison: Array<{
     year: number;
-    values: Record<string, any>;
-    deltas: Record<string, any>;
+    values: Record<string, WorkforceMetrics>;
+    deltas: Record<string, WorkforceMetrics>;
   }>;
-  event_comparison: Array<{
-    metric: string;
+  event_comparison: EventComparisonMetric[];
+  dc_plan_comparison: Array<{
     year: number;
-    baseline: number;
-    scenarios: Record<string, number>;
-    deltas: Record<string, number>;
-    delta_pcts: Record<string, number>;
+    values: Record<string, DCPlanMetrics>;
+    deltas: Record<string, DCPlanMetrics>;
   }>;
-  summary_deltas: Record<string, {
-    baseline: number;
-    scenarios: Record<string, number>;
-    deltas: Record<string, number>;
-    delta_pcts: Record<string, number>;
-  }>;
+  summary_deltas: Record<string, DeltaValue>;
+}
+
+export interface ConfigDelta {
+  path: string;
+  a: unknown;
+  b: unknown;
+  status: 'changed' | 'only_a' | 'only_b';
+}
+
+export interface ScenarioProvenance {
+  available: boolean;
+  config_fingerprint: string | null;
+  random_seed: number | null;
+  run_timestamp: string | null;
+  drift_warning: boolean;
+  drift_reasons: Array<'current_config_mismatch' | 'current_seed_mismatch' | 'mixed_generation'>;
+}
+
+export interface ConfigDiffResponse {
+  scenario_a: string;
+  scenario_b: string;
+  scenario_names: Record<string, string>;
+  differences: ConfigDelta[];
+  unchanged_count: number;
+  provenance: Record<string, ScenarioProvenance>;
+  seeds_match: boolean | null;
+  drift_warning: boolean;
 }
 
 // ============================================================================
@@ -578,6 +634,18 @@ export async function compareScenarios(
     `${API_BASE}/api/workspaces/${workspaceId}/comparison?${params}`
   );
   return handleResponse<ComparisonResponse>(response);
+}
+
+export async function getScenarioConfigDiff(
+  workspaceId: string,
+  scenarioA: string,
+  scenarioB: string
+): Promise<ConfigDiffResponse> {
+  const params = new URLSearchParams({ scenario_a: scenarioA, scenario_b: scenarioB });
+  const response = await fetchWithAuth(
+    `${API_BASE}/api/workspaces/${workspaceId}/comparison/config-diff?${params}`
+  );
+  return handleResponse<ConfigDiffResponse>(response);
 }
 
 // ============================================================================

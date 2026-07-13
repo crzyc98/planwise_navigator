@@ -1,0 +1,231 @@
+openapi: 3.1.0
+info:
+  title: PlanAlign Two-Scenario Diff Contract
+  version: 1.0.0
+paths:
+  /api/workspaces/{workspace_id}/comparison:
+    get:
+      summary: Return annual scenario metrics and baseline deltas
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - name: scenarios
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Comma-separated scenario IDs; the diff view sends A,B.
+        - name: baseline
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Scenario A for the focused diff.
+      responses:
+        '200':
+          description: Existing comparison response with additive average compensation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComparisonResponse'
+        '400':
+          $ref: '#/components/responses/InvalidComparison'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/workspaces/{workspace_id}/comparison/config-diff:
+    get:
+      summary: Return effective configuration differences and run provenance for A and B
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - name: scenario_a
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: scenario_b
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Read-only configuration diff and provenance.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigDiffResponse'
+        '400':
+          $ref: '#/components/responses/InvalidComparison'
+        '404':
+          $ref: '#/components/responses/NotFound'
+components:
+  parameters:
+    WorkspaceId:
+      name: workspace_id
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    InvalidComparison:
+      description: Scenarios are duplicate, incomplete, or otherwise invalid for comparison.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Workspace or scenario was not found within the workspace.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    WorkforceMetrics:
+      type: object
+      required: [headcount, active, terminated, new_hires, growth_pct, avg_compensation]
+      properties:
+        headcount: { type: integer }
+        active: { type: integer }
+        terminated: { type: integer }
+        new_hires: { type: integer }
+        growth_pct: { type: number }
+        avg_compensation: { type: number }
+    WorkforceComparisonYear:
+      type: object
+      required: [year, values, deltas]
+      properties:
+        year: { type: integer }
+        values:
+          type: object
+          additionalProperties: { $ref: '#/components/schemas/WorkforceMetrics' }
+        deltas:
+          type: object
+          additionalProperties: { $ref: '#/components/schemas/WorkforceMetrics' }
+    DCPlanMetrics:
+      type: object
+      required:
+        - participation_rate
+        - avg_deferral_rate
+        - total_employee_contributions
+        - total_employer_match
+        - total_employer_core
+        - total_employer_cost
+        - employer_cost_rate
+        - participant_count
+      properties:
+        participation_rate: { type: number }
+        avg_deferral_rate: { type: number }
+        total_employee_contributions: { type: number }
+        total_employer_match: { type: number }
+        total_employer_core: { type: number }
+        total_employer_cost: { type: number }
+        employer_cost_rate: { type: number }
+        participant_count: { type: integer }
+    DCPlanComparisonYear:
+      type: object
+      required: [year, values, deltas]
+      properties:
+        year: { type: integer }
+        values:
+          type: object
+          additionalProperties: { $ref: '#/components/schemas/DCPlanMetrics' }
+        deltas:
+          type: object
+          additionalProperties: { $ref: '#/components/schemas/DCPlanMetrics' }
+    ComparisonResponse:
+      type: object
+      required:
+        - scenarios
+        - scenario_names
+        - baseline_scenario
+        - workforce_comparison
+        - event_comparison
+        - dc_plan_comparison
+        - summary_deltas
+      properties:
+        scenarios:
+          type: array
+          items: { type: string }
+        scenario_names:
+          type: object
+          additionalProperties: { type: string }
+        baseline_scenario: { type: string }
+        workforce_comparison:
+          type: array
+          items: { $ref: '#/components/schemas/WorkforceComparisonYear' }
+        event_comparison:
+          type: array
+          items: { type: object }
+        dc_plan_comparison:
+          type: array
+          items: { $ref: '#/components/schemas/DCPlanComparisonYear' }
+        summary_deltas:
+          type: object
+          additionalProperties: { type: object }
+    ConfigDelta:
+      type: object
+      required: [path, a, b, status]
+      properties:
+        path: { type: string }
+        a: {}
+        b: {}
+        status:
+          type: string
+          enum: [changed, only_a, only_b]
+    ScenarioProvenance:
+      type: object
+      required:
+        - available
+        - config_fingerprint
+        - random_seed
+        - run_timestamp
+        - drift_warning
+        - drift_reasons
+      properties:
+        available: { type: boolean }
+        config_fingerprint:
+          type: [string, 'null']
+          minLength: 12
+          maxLength: 12
+        random_seed: { type: [integer, 'null'] }
+        run_timestamp:
+          type: [string, 'null']
+          format: date-time
+        drift_warning: { type: boolean }
+        drift_reasons:
+          type: array
+          items:
+            type: string
+            enum: [current_config_mismatch, current_seed_mismatch, mixed_generation]
+    ConfigDiffResponse:
+      type: object
+      required:
+        - scenario_a
+        - scenario_b
+        - scenario_names
+        - differences
+        - unchanged_count
+        - provenance
+        - seeds_match
+        - drift_warning
+      properties:
+        scenario_a: { type: string }
+        scenario_b: { type: string }
+        scenario_names:
+          type: object
+          additionalProperties: { type: string }
+        differences:
+          type: array
+          items: { $ref: '#/components/schemas/ConfigDelta' }
+        unchanged_count:
+          type: integer
+          minimum: 0
+        provenance:
+          type: object
+          additionalProperties: { $ref: '#/components/schemas/ScenarioProvenance' }
+        seeds_match: { type: [boolean, 'null'] }
+        drift_warning: { type: boolean }
+    Error:
+      type: object
+      required: [detail]
+      properties:
+        detail: { type: string }

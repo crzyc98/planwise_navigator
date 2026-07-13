@@ -275,13 +275,23 @@ export default function ScenarioComparison() {
             </p>
           </div>
         </div>
-        <Link
-          to="/analytics"
-          className="flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-        >
-          <LayoutGrid size={16} className="mr-2" />
-          Full Analytics
-        </Link>
+        <div className="flex items-center gap-2">
+          {scenarioIds.length === 2 && (
+            <Link
+              to={`/analytics/diff?a=${scenarioIds[0]}&b=${scenarioIds[1]}`}
+              className="flex items-center px-4 py-2 bg-fidelity-green rounded-lg text-white hover:bg-fidelity-dark"
+            >
+              Diff A vs B
+            </Link>
+          )}
+          <Link
+            to="/analytics"
+            className="flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+          >
+            <LayoutGrid size={16} className="mr-2" />
+            Full Analytics
+          </Link>
+        </div>
       </div>
 
       {/* Scenario Legend */}

@@ -249,3 +249,19 @@ class TestSelfHealingIntegration:
             "pre_simulation" not in hooks
             or "self_healing_initializer" not in hooks.get("pre_simulation", [])
         ), "self_healing_initializer hook should NOT be registered when auto_initialize=False"
+
+    def test_create_orchestrator_shares_db_manager_with_dbt_runner(self, tmp_path):
+        """Dbt subprocess setup must close the orchestrator's pooled connections."""
+        from planalign_orchestrator.config import load_simulation_config
+        from planalign_orchestrator.factory import create_orchestrator
+        from planalign_orchestrator.utils import DatabaseConnectionManager
+
+        config = load_simulation_config("config/simulation_config.yaml")
+        db_manager = DatabaseConnectionManager(tmp_path / "test.duckdb")
+        orchestrator = create_orchestrator(
+            config,
+            db_manager=db_manager,
+            auto_initialize=False,
+        )
+
+        assert orchestrator.dbt_runner.db_manager is db_manager
