@@ -22,6 +22,9 @@ from planalign_orchestrator.calibration_runner import (
     verify_dc_prerequisites,
 )
 from planalign_orchestrator.exceptions import ConfigurationError
+from planalign_orchestrator.pipeline.enrollment_projection import (
+    EnrollmentDecisionProjection,
+)
 
 pytestmark = [pytest.mark.fast]
 
@@ -170,6 +173,33 @@ def test_guard_passes_when_all_dc_tables_present(tmp_path) -> None:
         conn.execute(f"CREATE TABLE {table} (x INTEGER)")
     conn.close()
     verify_dc_prerequisites(db)  # must not raise
+
+
+def test_calibration_self_heals_missing_enrollment_projection(
+    tmp_path, monkeypatch
+) -> None:
+    runner = _runner_with_default_config(tmp_path)
+    conn = duckdb.connect(str(runner.database_path))
+    for table in DC_PREREQUISITE_TABLES:
+        conn.execute(f"CREATE TABLE {table} (x INTEGER)")
+    conn.close()
+
+    monkeypatch.setattr(runner, "_record_run_provenance", lambda: None)
+    monkeypatch.setattr(runner, "_build_all_years", lambda: [])
+
+    assert runner.run_calibration() == []
+
+    conn = duckdb.connect(str(runner.database_path), read_only=True)
+    columns = {
+        row[0]
+        for row in conn.execute(
+            """SELECT column_name FROM information_schema.columns
+               WHERE table_schema = 'main'
+                 AND table_name = 'enrollment_decision_projection'"""
+        ).fetchall()
+    }
+    conn.close()
+    assert columns == set(EnrollmentDecisionProjection._columns)
 
 
 # -- interactive re-tune param logic (US2) --------------------------------
