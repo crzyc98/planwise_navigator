@@ -29,10 +29,13 @@ from planalign_core.constants import DATABASE_FILENAME
 from planalign_orchestrator.config import load_simulation_config
 from planalign_orchestrator.config.export import to_dbt_vars
 from planalign_orchestrator.dbt_runner import DbtRunner
+from planalign_orchestrator.exceptions import ConfigurationError, ResolutionHint
+from planalign_orchestrator.pipeline.enrollment_projection import (
+    EnrollmentDecisionProjection,
+)
+from planalign_orchestrator.pipeline.workflow import WorkflowBuilder
 from planalign_orchestrator.run_metadata import check_and_record_run
 from planalign_orchestrator.utils import DatabaseConnectionManager
-from planalign_orchestrator.exceptions import ConfigurationError, ResolutionHint
-from planalign_orchestrator.pipeline.workflow import WorkflowBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -302,8 +305,17 @@ class CalibrationRunner:
     def run_calibration(self) -> List[PerYearCompensationResult]:
         """Validate, guard, build the comp subgraph per year, return results."""
         verify_dc_prerequisites(self.database_path)
+        self._ensure_enrollment_projection()
         self._record_run_provenance()
         return self._build_all_years()
+
+    def _ensure_enrollment_projection(self) -> None:
+        """Create or repair the disposable dbt source used by staging models."""
+        db_manager = DatabaseConnectionManager(db_path=self.database_path)
+        try:
+            EnrollmentDecisionProjection(db_manager).ensure_table()
+        finally:
+            db_manager.close_all()
 
     def _record_run_provenance(self) -> None:
         """Stamp this calibration into run_metadata (Feature 109, run_type='calibration').

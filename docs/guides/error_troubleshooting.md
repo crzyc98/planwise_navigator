@@ -7,10 +7,11 @@ Before every event-generation year, PlanAlign rebuilds the disposable
 scenario/plan-scoped `fct_yearly_events`. This is the only supported source of
 post-census enrollment history for enrollment decision models.
 
-If dbt reports that `enrollment_decision_projection` is missing, rerun through
-the orchestrator. It creates the empty source relation immediately after reset
-and replaces it atomically before event generation. Do not manually create or
-edit the relation.
+Full simulations and comp-only calibration both create the empty source
+relation before dbt runs, repairing its schema when necessary. The full
+orchestrator replaces it atomically before event generation. If an older
+PlanAlign release reports that the relation is missing during calibration,
+upgrade and retry; do not manually create or edit the relation.
 
 If a later year fails dependency validation, the prior year's accumulator state
 is absent or incomplete. Rerun the simulation from its configured start year,
