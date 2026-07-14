@@ -313,6 +313,21 @@ def _finding(field: str, code: str, reason: str) -> EvidenceFinding:
     return EvidenceFinding(field_path=field, code=code, reason=safe_reason, required=True)  # type: ignore[arg-type]
 
 
+def _validation_disposition(
+    results: list[CapturedValidationResult],
+) -> str:
+    """Aggregate all captured yearly outcomes with failure precedence."""
+    if not results:
+        return "incomplete"
+    if any(
+        not result.passed and result.severity.lower() == "error" for result in results
+    ):
+        return "failed"
+    if any(not result.passed for result in results):
+        return "passed_with_warnings"
+    return "passed"
+
+
 class ProvenanceRecorder:
     """Atomic execution-only updater for a run's provenance manifest."""
 
@@ -405,7 +420,9 @@ class ProvenanceRecorder:
                         affected_record_count=result.get("affected_record_count"),
                     )
                 )
-            manifest.validation_disposition = str(record.get("disposition", "unavailable"))  # type: ignore[assignment]
+            manifest.validation_disposition = _validation_disposition(  # type: ignore[assignment]
+                manifest.validation_results
+            )
         elif kind == "stage_completed":
             manifest.execution_timing.terminal_stage = str(record.get("stage"))
             completion = StageCompletion(

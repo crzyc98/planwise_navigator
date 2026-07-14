@@ -180,6 +180,7 @@ class WorkflowBuilder:
                     MODEL_INT_TERMINATION_EVENTS,
                     "int_hiring_events",
                     "int_new_hire_termination_events",
+                    "int_employee_termination_dates",
                     # Build employer eligibility after new-hire terminations to ensure flags are available
                     "int_employer_eligibility",
                     "int_hazard_promotion",
@@ -187,6 +188,7 @@ class WorkflowBuilder:
                     MODEL_INT_PROMOTION_EVENTS,
                     MODEL_INT_MERIT_EVENTS,
                     "int_eligibility_determination",
+                    "int_eligibility_events",
                     "int_voluntary_enrollment_decision",
                     "int_proactive_voluntary_enrollment",
                     MODEL_INT_ENROLLMENT_EVENTS,
@@ -304,6 +306,7 @@ class WorkflowBuilder:
                     MODEL_INT_TERMINATION_EVENTS,
                     "int_hiring_events",
                     "int_new_hire_termination_events",
+                    "int_employee_termination_dates",
                     "int_hazard_promotion",
                     "int_hazard_merit",
                     MODEL_INT_PROMOTION_EVENTS,

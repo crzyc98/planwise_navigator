@@ -836,6 +836,12 @@ class TestExportThreadingVars:
         assert "max_parallel_years" in result
         assert result["event_generation_mode"] == "sql"
 
+    def test_legacy_polars_mode_exports_supported_sql_mode(self):
+        cfg = _make_config()
+        cfg.optimization.event_generation.mode = "polars"
+        result = to_dbt_vars(cfg)
+        assert result["event_generation_mode"] == "sql"
+
 
 # ===========================================================================
 # _export_core_contribution_vars

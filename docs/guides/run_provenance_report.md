@@ -31,6 +31,12 @@ Studio uses its existing API authentication headers for every report request and
 
 Legacy, failed, cancelled, and partial archives remain reportable when their identity is sound. Missing fields are listed individually; report generation never fills them from current configuration, Git state, inputs, validators, or databases.
 
+### Validation failures and recovery
+
+A completed capture with a failed error-severity validation is `incomplete`, not `unverifiable`. The evidence is present, bound to the correct run, and digest-verifiable, but the run has not satisfied the integrity criteria required for full verification. `unverifiable` is reserved for missing, malformed, unbound, or internally conflicting evidence.
+
+For `event_sequence_validation`, a failure means one or more non-termination events occur strictly after the employee's earliest termination date. Keep the error severity and exact affected count intact. Correct the producing eligibility, enrollment, promotion, merit, or deferral path; run the complete affected period into a fresh isolated database; then create a new Studio run archive. A resolved report shows PASS with zero affected records for every completed year. Historical failed archives are immutable and remain available as the before-change evidence.
+
 ## Integrity and sign-off
 
 The report digest is SHA-256 over the canonical four-field payload described by `planalign-provenance-json-v1`: schema version, evidence, missing-evidence findings, and disposition. An independent verifier can remove `digest` and `sign_off`, apply the documented canonicalization, and recompute SHA-256. The API also returns the digest as a strong `ETag`.

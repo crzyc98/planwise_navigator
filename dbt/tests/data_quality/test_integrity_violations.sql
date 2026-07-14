@@ -37,22 +37,29 @@ WITH duplicate_raise_violations AS (
 
 post_termination_violations AS (
     SELECT
-        e.employee_id,
+        NULL::VARCHAR AS employee_id,
         e.simulation_year,
-        e.effective_date,
-        t.term_date as termination_date,
-        e.event_type,
-        'post_termination_events' as violation_type,
-        'CRITICAL' as severity,
-        CONCAT('Event (', e.event_type, ') after termination on ', t.term_date) as description
+        NULL::DATE AS effective_date,
+        'post_termination_events' AS violation_type,
+        'CRITICAL' AS severity,
+        CONCAT('Post-termination ', LOWER(e.event_type), ' event') AS description
     FROM {{ ref('fct_yearly_events') }} e
     JOIN (
-        SELECT employee_id, effective_date as term_date
+        SELECT
+            scenario_id,
+            plan_design_id,
+            employee_id,
+            MIN(effective_date) AS term_date
         FROM {{ ref('fct_yearly_events') }}
-        WHERE event_type = 'termination'
-    ) t ON e.employee_id = t.employee_id
+        WHERE LOWER(event_type) = 'termination'
+          AND effective_date IS NOT NULL
+        GROUP BY scenario_id, plan_design_id, employee_id
+    ) t
+        ON e.scenario_id = t.scenario_id
+        AND e.plan_design_id = t.plan_design_id
+        AND e.employee_id = t.employee_id
     WHERE e.effective_date > t.term_date
-    AND e.event_type != 'termination'
+      AND LOWER(e.event_type) != 'termination'
 ),
 
 enrollment_consistency_violations AS (

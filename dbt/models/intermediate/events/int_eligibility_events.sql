@@ -129,10 +129,17 @@ newly_eligible AS (
   SELECT e.*
   FROM eligible_this_year e
   LEFT JOIN plan_ineligible_override pio ON e.employee_id = pio.employee_id
+  LEFT JOIN {{ ref('int_employee_termination_dates') }} t
+    ON e.employee_id = t.employee_id
+    AND e.simulation_year = t.simulation_year
   {% if simulation_year != start_year %}
   LEFT JOIN already_eligible ae ON e.employee_id = ae.employee_id
   {% endif %}
   WHERE pio.employee_id IS NULL  -- Feature 103: drop overridden-ineligible employees
+    AND (
+      t.termination_date IS NULL
+      OR CAST(e.eligibility_effective_date AS DATE) <= t.termination_date
+    )
   {% if simulation_year != start_year %}
     AND ae.employee_id IS NULL
   {% endif %}

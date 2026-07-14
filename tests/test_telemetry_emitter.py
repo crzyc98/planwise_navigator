@@ -140,6 +140,43 @@ class TestRecordShapes:
         assert records(stream)[1]["record"] == "validation_results"
         assert records(stream)[1]["results"][0]["affected_record_count"] == 0
 
+    @pytest.mark.parametrize(
+        ("passed", "affected_count", "disposition"),
+        [(True, 0, "passed"), (False, 9, "failed")],
+    )
+    def test_event_sequence_telemetry_preserves_safe_exact_count(
+        self, emitter, stream, passed, affected_count, disposition
+    ):
+        emitter.on_stage_completed(
+            {
+                "year": 2026,
+                "stage": "VALIDATION",
+                "duration_seconds": 1,
+                "validation_evidence": {
+                    "disposition": disposition,
+                    "results": [
+                        {
+                            "check_name": "event_sequence_validation",
+                            "severity": "error",
+                            "passed": passed,
+                            "affected_record_count": affected_count,
+                        }
+                    ],
+                },
+            }
+        )
+        validation = records(stream)[1]
+        assert validation["results"] == [
+            {
+                "check_name": "event_sequence_validation",
+                "severity": "error",
+                "passed": passed,
+                "affected_record_count": affected_count,
+            }
+        ]
+        assert "employee_id" not in json.dumps(validation)
+        assert "details" not in json.dumps(validation)
+
     def test_cumulative_counts_accumulate_across_years(self, emitter, stream):
         emitter.on_year_completed({"year": 2025, "duration_seconds": 1.0})
         emitter.on_year_completed({"year": 2026, "duration_seconds": 1.0})

@@ -13,6 +13,7 @@ from planalign_api.services.provenance.capture import (
     sha256_file,
 )
 from tests.fixtures.run_provenance import RUN_ID
+from tests.fixtures.run_provenance import build_archive
 
 pytestmark = pytest.mark.fast
 
@@ -140,3 +141,55 @@ def test_git_dirty_fingerprint_tracks_content_and_unavailable_state(tmp_path: Pa
     second = capture_source_state(tmp_path)
     assert first.working_tree_state == "dirty"
     assert first.working_tree_fingerprint != second.working_tree_fingerprint
+
+
+@pytest.mark.parametrize(
+    ("first_severity", "first_disposition", "expected_disposition"),
+    [
+        ("error", "failed", "failed"),
+        ("warning", "passed_with_warnings", "passed_with_warnings"),
+    ],
+)
+def test_later_pass_cannot_overwrite_prior_failed_disposition(
+    tmp_path: Path,
+    first_severity: str,
+    first_disposition: str,
+    expected_disposition: str,
+):
+    run_dir = build_archive(tmp_path)
+    recorder = ProvenanceRecorder(run_dir)
+    recorder.ingest(
+        {
+            "record": "validation_results",
+            "run_id": RUN_ID,
+            "year": 2025,
+            "disposition": first_disposition,
+            "results": [
+                {
+                    "check_name": "event_sequence_validation",
+                    "severity": first_severity,
+                    "passed": False,
+                    "affected_record_count": 7,
+                }
+            ],
+        }
+    )
+    recorder.ingest(
+        {
+            "record": "validation_results",
+            "run_id": RUN_ID,
+            "year": 2026,
+            "disposition": "passed",
+            "results": [
+                {
+                    "check_name": "event_sequence_validation",
+                    "severity": "error",
+                    "passed": True,
+                    "affected_record_count": 0,
+                }
+            ],
+        }
+    )
+    manifest = recorder.read()
+    assert manifest.validation_disposition == expected_disposition
+    assert [row.affected_record_count for row in manifest.validation_results] == [7, 0]

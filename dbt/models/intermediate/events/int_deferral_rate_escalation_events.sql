@@ -264,6 +264,9 @@ escalation_events AS (
         'deferral_escalation' AS event_category
 
     FROM eligible_employees e
+    LEFT JOIN {{ ref('int_employee_termination_dates') }} t
+        ON e.employee_id = t.employee_id
+        AND t.simulation_year = {{ simulation_year }}
     WHERE
         -- All eligibility criteria must be met
         -- Must be enrolled in program (registry) OR newly enrolling (baseline allows auto-escalate and no prior escalations)
@@ -275,6 +278,10 @@ escalation_events AS (
         AND e.under_rate_cap_check
         AND e.timing_check
         AND e.enrollment_maturity_check
+        AND (
+            t.termination_date IS NULL
+            OR '{{ simulation_year }}-{{ esc_mmdd }}'::DATE <= t.termination_date
+        )
         -- Ensure meaningful increase (prevent tiny escalations and cap violations)
         AND (e.new_deferral_rate - e.current_deferral_rate) >= 0.001
 )

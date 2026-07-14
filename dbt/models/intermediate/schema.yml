@@ -1311,6 +1311,34 @@ models:
         data_tests:
           - not_null
 
+  - name: int_employee_termination_dates
+    description: >
+      Ephemeral current-year employment boundary shared by event generators.
+      Selects the earliest non-null termination date across experienced and
+      same-year new-hire sources, with experienced cohort precedence on ties.
+    config:
+      materialized: ephemeral
+      tags: ["EVENT_GENERATION", "event_sourcing"]
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [employee_id, simulation_year]
+    columns:
+      - name: employee_id
+        description: Internal employee identifier used only within simulation processing
+        data_tests: [not_null]
+      - name: simulation_year
+        description: Current generator year
+        data_tests: [not_null]
+      - name: termination_date
+        description: Earliest effective termination date across both source cohorts
+        data_tests: [not_null]
+      - name: termination_cohort
+        description: Source selected for the earliest boundary
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['experienced', 'new_hire']
+
   # int_merit_events and int_promotion_events are ephemeral models (E068A optimization)
   # and cannot be tested directly. Data quality validation occurs at fct_yearly_events level.
 
