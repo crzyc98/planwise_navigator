@@ -48,27 +48,6 @@ workforce_with_bands AS (
     FROM workforce_with_current_compensation
 ),
 
--- Termination dates for the current year, to prevent post-termination raises.
--- Both termination models build earlier in the EVENT_GENERATION stage, so this
--- introduces no circular dependency. (Issue #383: this CTE was previously a
--- WHERE FALSE stub, so employees terminated in e.g. March still received a
--- July raise that then inflated their final snapshot compensation.)
-termination_dates AS (
-    SELECT
-        employee_id,
-        MIN(effective_date) AS termination_date
-    FROM (
-        SELECT employee_id, effective_date
-        FROM {{ ref('int_termination_events') }}
-        WHERE simulation_year = {{ simulation_year }}
-        UNION ALL
-        SELECT employee_id, effective_date
-        FROM {{ ref('int_new_hire_termination_events') }}
-        WHERE simulation_year = {{ simulation_year }}
-    ) AS all_terminations
-    GROUP BY employee_id
-),
-
 -- Apply merit to all eligible workforce, excluding terminated employees
 merit_candidates AS (
     SELECT
@@ -84,7 +63,9 @@ merit_candidates AS (
         AND w.age_band = h.age_band
         AND w.tenure_band = h.tenure_band
         AND h.year = {{ simulation_year }}
-    LEFT JOIN termination_dates t ON w.employee_id = t.employee_id
+    LEFT JOIN {{ ref('int_employee_termination_dates') }} t
+        ON w.employee_id = t.employee_id
+        AND t.simulation_year = {{ simulation_year }}
     WHERE
         -- Simple merit eligibility rules
         current_tenure >= 1 -- At least 1 year of service

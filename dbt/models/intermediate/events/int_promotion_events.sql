@@ -95,8 +95,15 @@ promotion_candidates AS (
         AND ew.age_band = h.age_band
         AND ew.tenure_band = h.tenure_band
         AND h.year = {{ simulation_year }}
+    LEFT JOIN {{ ref('int_employee_termination_dates') }} t
+        ON ew.employee_id = t.employee_id
+        AND t.simulation_year = {{ simulation_year }}
     -- E082: Compare against scaled promotion rate (capped at 1.0)
     WHERE ew.random_value < LEAST(h.promotion_rate * {{ promotion_rate_multiplier }}, 1.0)
+      AND (
+        t.termination_date IS NULL
+        OR CAST('{{ simulation_year }}-02-01' AS DATE) <= t.termination_date
+      )
 ),
 
 -- **OPTIMIZATION 4**: Vectorized salary calculation with business rules

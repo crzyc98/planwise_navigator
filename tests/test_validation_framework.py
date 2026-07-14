@@ -70,23 +70,102 @@ def test_rule_exception_becomes_failed_error_with_unknown_count():
     assert result.affected_records is None
 
 
-def test_event_sequence_rule_uses_fact_effective_date_and_counts_failures():
+@pytest.mark.parametrize(
+    ("employee_id", "event_date", "expected_count"),
+    [
+        ("before", "2026-05-31", 0),
+        ("same-day", "2026-06-01", 0),
+        ("after", "2026-06-02", 1),
+    ],
+)
+def test_event_sequence_rule_applies_strict_date_boundary(
+    employee_id, event_date, expected_count
+):
+    connection = _event_connection()
+    try:
+        connection.execute(
+            "INSERT INTO fct_yearly_events VALUES "
+            "('scenario-a', 'plan-a', ?, 'termination', 2026, DATE '2026-06-01'), "
+            "('scenario-a', 'plan-a', ?, 'raise', 2026, ?::DATE)",
+            [employee_id, employee_id, event_date],
+        )
+        result = EventSequenceRule().validate(connection, 2026)
+    finally:
+        connection.close()
+    assert result.affected_records == expected_count
+
+
+def _event_connection():
+    import duckdb
+
+    connection = duckdb.connect(":memory:")
+    connection.execute(
+        "CREATE TABLE fct_yearly_events ("
+        "scenario_id VARCHAR, plan_design_id VARCHAR, employee_id VARCHAR, "
+        "event_type VARCHAR, simulation_year INTEGER, effective_date DATE)"
+    )
+    return connection
+
+
+def test_event_sequence_rule_uses_lifetime_earliest_scoped_termination():
+    connection = _event_connection()
+    try:
+        connection.execute(
+            "INSERT INTO fct_yearly_events VALUES "
+            "('scenario-a', 'plan-a', 'duplicate', 'termination', 2025, DATE '2025-09-01'), "
+            "('scenario-a', 'plan-a', 'duplicate', 'TERMINATION', 2026, DATE '2026-08-01'), "
+            "('scenario-a', 'plan-a', 'duplicate', 'promotion', 2026, DATE '2026-01-01'), "
+            "('scenario-b', 'plan-a', 'duplicate', 'raise', 2026, DATE '2026-07-01'), "
+            "('scenario-a', 'plan-b', 'duplicate', 'raise', 2026, DATE '2026-07-01')"
+        )
+        result = EventSequenceRule().validate(connection, 2026)
+    finally:
+        connection.close()
+    assert result.severity == ValidationSeverity.ERROR
+    assert result.passed is False
+    assert result.affected_records == 1
+    assert result.details == {"invalid_events": 1}
+
+
+def test_event_sequence_rule_excludes_termination_and_null_dates():
+    connection = _event_connection()
+    try:
+        connection.execute(
+            "INSERT INTO fct_yearly_events VALUES "
+            "('scenario-a', 'plan-a', 'employee', 'termination', 2025, DATE '2025-09-01'), "
+            "('scenario-a', 'plan-a', 'employee', 'TeRmInAtIoN', 2026, DATE '2026-09-01'), "
+            "('scenario-a', 'plan-a', 'employee', 'raise', 2026, NULL)"
+        )
+        result = EventSequenceRule().validate(connection, 2026)
+    finally:
+        connection.close()
+    assert result.passed is True
+    assert result.affected_records == 0
+
+
+def test_event_sequence_rule_preserves_configurable_column_names():
     import duckdb
 
     connection = duckdb.connect(":memory:")
     try:
         connection.execute(
-            "CREATE TABLE fct_yearly_events ("
-            "employee_id VARCHAR, event_type VARCHAR, simulation_year INTEGER, "
-            "effective_date DATE)"
+            "CREATE TABLE custom_events (sid VARCHAR, pid VARCHAR, person VARCHAR, "
+            "kind VARCHAR, yr INTEGER, happened DATE)"
         )
         connection.execute(
-            "INSERT INTO fct_yearly_events VALUES "
-            "('E1', 'termination', 2026, DATE '2026-06-01'), "
-            "('E1', 'raise', 2026, DATE '2026-07-01')"
+            "INSERT INTO custom_events VALUES "
+            "('s', 'p', 'e', 'termination', 2025, DATE '2025-01-01'), "
+            "('s', 'p', 'e', 'raise', 2026, DATE '2026-01-01')"
         )
-        result = EventSequenceRule().validate(connection, 2026)
+        result = EventSequenceRule(
+            table="custom_events",
+            event_col="kind",
+            date_col="happened",
+            year_col="yr",
+            scenario_col="sid",
+            plan_design_col="pid",
+            employee_col="person",
+        ).validate(connection, 2026)
     finally:
         connection.close()
-    assert result.passed is False
     assert result.affected_records == 1

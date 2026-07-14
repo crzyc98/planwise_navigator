@@ -410,15 +410,18 @@ class EventGenerationExecutor:
             MODEL_INT_TERMINATION_EVENTS,
             "int_hiring_events",
             "int_new_hire_termination_events",
+            "int_employee_termination_dates",
             "int_employer_eligibility",
             "int_hazard_promotion",
             "int_hazard_merit",
             MODEL_INT_PROMOTION_EVENTS,
             MODEL_INT_MERIT_EVENTS,
             "int_eligibility_determination",
+            "int_eligibility_events",
             "int_voluntary_enrollment_decision",
             "int_proactive_voluntary_enrollment",
             MODEL_INT_ENROLLMENT_EVENTS,
+            "int_deferral_match_response_events",
             "int_deferral_rate_escalation_events",
         ]
         return models

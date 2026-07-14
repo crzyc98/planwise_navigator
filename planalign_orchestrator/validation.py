@@ -258,7 +258,7 @@ class HireTerminationRatioRule(ValidationRule):
 
 
 class EventSequenceRule(ValidationRule):
-    """Validate that no events occur after termination within the same year."""
+    """Validate that no events occur after the earliest scoped termination."""
 
     def __init__(
         self,
@@ -267,6 +267,9 @@ class EventSequenceRule(ValidationRule):
         event_col: str = COL_EVENT_TYPE,
         date_col: str = "effective_date",
         year_col: str = COL_SIMULATION_YEAR,
+        scenario_col: str = "scenario_id",
+        plan_design_col: str = "plan_design_id",
+        employee_col: str = "employee_id",
         severity: ValidationSeverity = ValidationSeverity.ERROR,
         name: str = "event_sequence_validation",
     ):
@@ -274,24 +277,39 @@ class EventSequenceRule(ValidationRule):
         self.event_col = event_col
         self.date_col = date_col
         self.year_col = year_col
+        self.scenario_col = scenario_col
+        self.plan_design_col = plan_design_col
+        self.employee_col = employee_col
         self.severity = severity
         self.name = name
 
     def validate(self, conn, year: int) -> ValidationResult:
         invalid_sql = f"""
         WITH terms AS (
-            SELECT employee_id, MIN({self.date_col}) AS term_date
+            SELECT
+                {self.scenario_col},
+                {self.plan_design_col},
+                {self.employee_col},
+                MIN({self.date_col}) AS term_date
             FROM {self.table}
-            WHERE lower({self.event_col}) = 'termination' AND {self.year_col} = ?
-            GROUP BY employee_id
+            WHERE LOWER({self.event_col}) = 'termination'
+              AND {self.date_col} IS NOT NULL
+            GROUP BY
+                {self.scenario_col},
+                {self.plan_design_col},
+                {self.employee_col}
         )
         SELECT COUNT(*) FROM {self.table} e
-        JOIN terms t ON e.employee_id = t.employee_id
+        JOIN terms t
+          ON e.{self.scenario_col} = t.{self.scenario_col}
+         AND e.{self.plan_design_col} = t.{self.plan_design_col}
+         AND e.{self.employee_col} = t.{self.employee_col}
         WHERE e.{self.year_col} = ?
-          AND lower(e.{self.event_col}) <> 'termination'
+          AND LOWER(e.{self.event_col}) <> 'termination'
+          AND e.{self.date_col} IS NOT NULL
           AND e.{self.date_col} > t.term_date
         """
-        count = conn.execute(invalid_sql, [year, year]).fetchone()[0]
+        count = conn.execute(invalid_sql, [year]).fetchone()[0]
         passed = count == 0
         return ValidationResult(
             rule_name=self.name,

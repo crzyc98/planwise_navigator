@@ -663,6 +663,36 @@ all_enrollment_events AS (
   FROM year_over_year_enrollment_events
 ),
 
+-- Apply the employment boundary before category priority. If a later,
+-- higher-priority voluntary candidate is invalid, an earlier valid auto
+-- candidate remains available for deterministic selection.
+sequence_eligible_events AS (
+  SELECT
+    a.employee_id,
+    a.employee_ssn,
+    a.event_type,
+    a.simulation_year,
+    a.effective_date,
+    a.event_details,
+    a.compensation_amount,
+    a.previous_compensation,
+    a.employee_deferral_rate,
+    a.prev_employee_deferral_rate,
+    a.employee_age,
+    a.employee_tenure,
+    a.level_id,
+    a.age_band,
+    a.tenure_band,
+    a.event_probability,
+    a.event_category
+  FROM all_enrollment_events a
+  LEFT JOIN {{ ref('int_employee_termination_dates') }} t
+    ON a.employee_id = t.employee_id
+    AND a.simulation_year = t.simulation_year
+  WHERE t.termination_date IS NULL
+    OR a.effective_date <= t.termination_date
+),
+
 -- Deduplication with event category prioritization
 -- Prevent duplicate enrollments per employee per year
 deduplicated_events AS (
@@ -687,7 +717,7 @@ deduplicated_events AS (
         END,
         effective_date
     ) as priority_rank
-  FROM all_enrollment_events
+  FROM sequence_eligible_events
   -- DEFENSIVE: Exclude employees who already enrolled in prior years
   WHERE event_type != 'enrollment'
     OR employee_id NOT IN (

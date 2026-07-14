@@ -129,6 +129,8 @@ When adding or changing dbt models: add/adjust `schema.yml` tests, keep types an
 - Existing workspace `base_config.yaml` and scenario overrides plus existing scenario-isolated DuckDB outputs and append-only `run_metadata`; no new tables or persisted fields (110-scenario-diff-view)
 - Python >=3.11 + Existing FastAPI, Pydantic v2, Typer, Rich, DuckDB 1.0.0, PyYAML, and Python standard-library `hashlib`/`json`/`zipfile`/`subprocess`; no new dependency (111-run-provenance-report)
 - Existing `workspaces/<workspace>/scenarios/<scenario>/runs/<run_id>/` archives plus one versioned `provenance.json` sidecar created during execution; existing append-only DuckDB `run_metadata` reuses its schema with the authoritative run ID; no public mart or new database table (111-run-provenance-report)
+- Python >=3.11; SQL/Jinja compatible with dbt Core 1.8.8 + Existing PlanAlign orchestrator, dbt Core 1.8.8, dbt DuckDB 1.8.1, DuckDB 1.0.0, Pydantic v2 provenance models, and pytest 7.4; no new dependency (112-post-termination-integrity)
+- Existing scenario-isolated DuckDB event tables plus one ephemeral intermediate termination-boundary relation; no new persisted table, public mart, archive format, or configuration field (112-post-termination-integrity)
 
 ## Recent Changes
 - 106-fail-dbt-stage: Added Python >=3.11 + dbt Core/dbt DuckDB execution via the existing orchestrator, Pydantic configuration models, DuckDB-backed simulation state, pytest for tests
