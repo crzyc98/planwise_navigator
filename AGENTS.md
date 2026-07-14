@@ -127,6 +127,8 @@ When adding or changing dbt models: add/adjust `schema.yml` tests, keep types an
 - Existing scenario-isolated DuckDB outputs plus one disposable internal `enrollment_decision_projection` table rebuilt from census and immutable fact events; no public mart, API, or configuration schema change (107-preserve-census-enrollment)
 - Python >=3.11; TypeScript 5.8; SQL compatible with DuckDB 1.0.0 + FastAPI, Pydantic v2, DuckDB; React 19, React Router 7, Recharts 3.5, Tailwind CSS 4, Lucide React (110-scenario-diff-view)
 - Existing workspace `base_config.yaml` and scenario overrides plus existing scenario-isolated DuckDB outputs and append-only `run_metadata`; no new tables or persisted fields (110-scenario-diff-view)
+- Python >=3.11 + Existing FastAPI, Pydantic v2, Typer, Rich, DuckDB 1.0.0, PyYAML, and Python standard-library `hashlib`/`json`/`zipfile`/`subprocess`; no new dependency (111-run-provenance-report)
+- Existing `workspaces/<workspace>/scenarios/<scenario>/runs/<run_id>/` archives plus one versioned `provenance.json` sidecar created during execution; existing append-only DuckDB `run_metadata` reuses its schema with the authoritative run ID; no public mart or new database table (111-run-provenance-report)
 
 ## Recent Changes
 - 106-fail-dbt-stage: Added Python >=3.11 + dbt Core/dbt DuckDB execution via the existing orchestrator, Pydantic configuration models, DuckDB-backed simulation state, pytest for tests

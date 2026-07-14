@@ -11,6 +11,7 @@ Covers:
 from __future__ import annotations
 
 import logging
+import uuid
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -109,6 +110,15 @@ class TestConfigFingerprint:
 
 
 class TestTableLifecycle:
+    def test_caller_supplied_run_id_is_preserved(self, db_manager, minimal_config):
+        run_id = str(uuid.uuid4())
+        _stamp(db_manager, minimal_config, run_id=run_id)
+        assert _rows(db_manager)[0][0] == run_id
+
+    def test_invalid_caller_run_id_is_rejected(self, db_manager, minimal_config):
+        with pytest.raises(ValueError, match="UUID"):
+            _stamp(db_manager, minimal_config, run_id="not-a-run-id")
+
     def test_table_created_lazily_on_first_stamp(self, db_manager, minimal_config):
         _stamp(db_manager, minimal_config)
         with db_manager.get_connection() as conn:

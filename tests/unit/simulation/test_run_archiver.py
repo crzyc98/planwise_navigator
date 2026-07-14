@@ -182,7 +182,7 @@ class TestArchiveFailedRun:
             scenario_id="sc-1",
             scenario_name="Test Scenario",
             workspace_id="ws-1",
-            config={"simulation": {"start_year": 2025, "seed": 42}},
+            config={"simulation": {"start_year": 2025, "random_seed": 42}},
             start_time=datetime(2026, 6, 11, 8, 0, 0),
             run_status="failed",
             error_message="census file not found",
@@ -201,6 +201,7 @@ class TestArchiveFailedRun:
         assert metadata["error_message"] == "census file not found"
         assert metadata["start_year"] == 2025
         assert metadata["run_id"] == "run-fail-1"
+        assert metadata["seed"] == 42
 
     def test_creates_run_dir_when_missing(self, tmp_path):
         """Preparation failures happen before the run dir exists."""

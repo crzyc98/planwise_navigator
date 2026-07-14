@@ -734,6 +734,168 @@ export async function getRunById(scenarioId: string, runId: string): Promise<Run
 }
 
 // ============================================================================
+// Run Provenance Report Endpoints (111-run-provenance-report)
+// ============================================================================
+
+export interface ProvenanceFinding {
+  field_path: string;
+  code: string;
+  reason: string;
+  required: boolean;
+}
+
+export interface ProvenanceInputFingerprint {
+  logical_name: string;
+  sha256: string;
+  size_bytes: number | null;
+  record_count: number | null;
+  format: string | null;
+}
+
+export interface ProvenanceSeedFingerprint {
+  logical_name: string;
+  sha256: string;
+  size_bytes: number;
+}
+
+export interface ProvenanceEventCount {
+  simulation_year: number;
+  event_type: string;
+  count: number;
+}
+
+export interface ProvenanceReconciliation {
+  simulation_year: number;
+  opening_workforce: number | null;
+  hires: number | null;
+  terminations: number | null;
+  expected_closing_workforce: number | null;
+  actual_closing_workforce: number | null;
+  variance: number | null;
+  opening_source: string | null;
+}
+
+export interface ProvenanceValidationResult {
+  simulation_year: number;
+  check_name: string;
+  severity: string;
+  passed: boolean;
+  affected_record_count: number | null;
+}
+
+export interface ProvenanceStageCompletion {
+  simulation_year: number | null;
+  stage: string;
+  started_at: string | null;
+  completed_at: string | null;
+  duration_seconds: number | null;
+  outcome: string;
+}
+
+export interface ProvenanceReport {
+  report_schema_version: string;
+  evidence: {
+    run: {
+      run_id: string;
+      workspace_id: string | null;
+      scenario_id: string | null;
+      plan_design_id: string | null;
+      status: string;
+      intended_start_year: number | null;
+      intended_end_year: number | null;
+      completed_years: number[];
+    };
+    timing: {
+      started_at: string | null;
+      completed_at: string | null;
+      duration_seconds: number | null;
+      terminal_stage: string | null;
+      stage_completions: ProvenanceStageCompletion[];
+    };
+    software: {
+      planalign_version: string | null;
+      git_commit_sha: string | null;
+      working_tree_state: 'clean' | 'dirty' | 'unavailable';
+      working_tree_fingerprint: string | null;
+    };
+    configuration: {
+      effective: Record<string, unknown> | null;
+      fingerprint: string | null;
+      fingerprint_method: string | null;
+      redactions: string[];
+    };
+    random_seed: number | null;
+    census_input: ProvenanceInputFingerprint | null;
+    seed_files: ProvenanceSeedFingerprint[];
+    event_counts: ProvenanceEventCount[];
+    workforce_reconciliations: ProvenanceReconciliation[];
+    validation_results: ProvenanceValidationResult[];
+    validation_disposition: string;
+  };
+  missing_evidence: ProvenanceFinding[];
+  verification_disposition: 'fully_verified' | 'incomplete' | 'unverifiable';
+  digest: {
+    algorithm: 'SHA-256';
+    canonicalization: string;
+    value: string;
+  };
+  sign_off: {
+    report_digest: string;
+    reviewer_name: string | null;
+    decision: string | null;
+    timestamp: string | null;
+    comments: string | null;
+  };
+}
+
+export interface ProvenanceReportEnvelope {
+  report: ProvenanceReport;
+  audit_sheet: string;
+}
+
+export async function getRunProvenance(runId: string): Promise<ProvenanceReportEnvelope> {
+  const response = await fetchWithAuth(`${API_BASE}/api/runs/${runId}/provenance`, {
+    headers: { Accept: 'application/json' },
+  });
+  return handleResponse<ProvenanceReportEnvelope>(response);
+}
+
+function saveBrowserDownload(blob: Blob, filename: string): void {
+  const url = window.URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  window.URL.revokeObjectURL(url);
+  document.body.removeChild(anchor);
+}
+
+export async function downloadRunProvenanceBundle(runId: string): Promise<void> {
+  const response = await fetchWithAuth(`${API_BASE}/api/runs/${runId}/provenance`, {
+    headers: { Accept: 'application/zip' },
+  });
+  if (!response.ok) await handleResponse<never>(response);
+  saveBrowserDownload(await response.blob(), `${runId}-provenance.zip`);
+}
+
+export async function downloadRunProvenanceFile(
+  runId: string,
+  format: 'json' | 'markdown',
+): Promise<void> {
+  const envelope = await getRunProvenance(runId);
+  const content = format === 'json'
+    ? `${JSON.stringify(envelope.report, null, 2)}\n`
+    : envelope.audit_sheet;
+  const mediaType = format === 'json' ? 'application/json' : 'text/markdown';
+  const extension = format === 'json' ? 'json' : 'md';
+  saveBrowserDownload(
+    new Blob([content], { type: `${mediaType};charset=utf-8` }),
+    `${runId}-provenance.${extension}`,
+  );
+}
+
+// ============================================================================
 // Simulation Log Endpoints (001-sim-job-logs)
 // ============================================================================
 

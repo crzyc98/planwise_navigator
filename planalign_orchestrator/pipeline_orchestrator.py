@@ -11,6 +11,7 @@ Refactored to use modular pipeline components (Story S072-06).
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
@@ -300,6 +301,7 @@ class PipelineOrchestrator:
                         end_year=end,
                         run_type="simulate",
                         full_reset=self._full_reset_active(),
+                        run_id=os.environ.get("PLANALIGN_RUN_ID"),
                     )
                 # The dbt source must exist even before the first FOUNDATION run.
                 self.enrollment_projection.ensure_table()
@@ -614,12 +616,25 @@ class PipelineOrchestrator:
                         stage, year, fail_on_validation_error
                     )
 
+            validation_evidence = None
+            if stage.name == WorkflowStage.VALIDATION and not dry_run:
+                validation_results = self.validator.validate_year_results(year)
+                validation_evidence = self.validator.to_safe_results(validation_results)
+                if (
+                    fail_on_validation_error
+                    and validation_evidence["disposition"] == "failed"
+                ):
+                    raise PipelineStageError(
+                        f"Validation failed for simulation year {year}"
+                    )
+
             self.hook_manager.execute_hooks(
                 HookType.POST_STAGE,
                 {
                     "year": year,
                     "stage": stage.name,
                     "duration_seconds": time.time() - stage_start_time,
+                    "validation_evidence": validation_evidence,
                 },
             )
 

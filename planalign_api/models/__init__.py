@@ -53,6 +53,7 @@ from .analytics import (
     EscalationMetrics,
     IRSLimitMetrics,
 )
+from .provenance import ProvenanceReport, ProvenanceReportEnvelope
 
 __all__ = [
     # Workspace
@@ -100,4 +101,7 @@ __all__ = [
     "ParticipationByMethod",
     "EscalationMetrics",
     "IRSLimitMetrics",
+    # Run provenance
+    "ProvenanceReport",
+    "ProvenanceReportEnvelope",
 ]

@@ -30,6 +30,7 @@ from .output_parser import SimulationOutputParser
 from .results_reader import read_results
 from .run_archiver import archive_failed_run, archive_run, prune_old_runs
 from .subprocess_utils import create_subprocess, wait_subprocess
+from ..provenance.capture import ProvenanceRecorder, initialize_manifest
 
 from planalign_core.constants import (
     DATABASE_FILENAME,
@@ -177,6 +178,7 @@ class SimulationService:
 
         log_writer: Optional[SimulationLogWriter] = None
         run_dir: Optional[Path] = None
+        provenance_recorder: Optional[ProvenanceRecorder] = None
         run_start_time = datetime.now()
 
         # Feature 094: create telemetry state before any preparation work so
@@ -209,6 +211,15 @@ class SimulationService:
             run_dir = scenario_path / "runs" / run_id
             run_dir.mkdir(parents=True, exist_ok=True)
             log_writer = SimulationLogWriter(run_dir)
+            provenance_recorder = initialize_manifest(
+                run_dir=run_dir,
+                run_id=run_id,
+                workspace_id=workspace_id,
+                scenario_id=scenario_id,
+                config=config,
+                seed_root=scenario_path / "seeds",
+                project_root=Path(__file__).parent.parent.parent.parent,
+            )
 
             # Run the simulation subprocess loop
             parser, start_time, final_elapsed = await self._run_simulation_loop(
@@ -220,6 +231,7 @@ class SimulationService:
                 config,
                 update_run_status,
                 log_writer,
+                provenance_recorder,
             )
 
             # Handle successful completion
@@ -237,6 +249,7 @@ class SimulationService:
                 final_elapsed,
                 update_run_status,
                 run_dir=run_dir,
+                provenance_recorder=provenance_recorder,
             )
 
         except Exception as e:
@@ -251,6 +264,7 @@ class SimulationService:
                 start_time=run_start_time,
                 start_year=start_year,
                 end_year=end_year,
+                provenance_recorder=provenance_recorder,
             )
         finally:
             if log_writer is not None:
@@ -301,6 +315,7 @@ class SimulationService:
         config: Dict[str, Any],
         update_run_status,
         log_writer: Optional["SimulationLogWriter"] = None,
+        provenance_recorder: Optional[ProvenanceRecorder] = None,
     ) -> tuple:
         """Launch subprocess, stream output, and await completion.
 
@@ -318,7 +333,7 @@ class SimulationService:
             dbt_project_dir,
         )
         project_root = Path(__file__).parent.parent.parent.parent
-        env = self._build_env(project_root)
+        env = self._build_env(project_root, run_id)
 
         logger.info(f"Command: {' '.join(cmd)}")
 
@@ -352,6 +367,7 @@ class SimulationService:
             telemetry_service,
             update_run_status,
             log_writer,
+            provenance_recorder,
         )
 
         # Await exit code
@@ -382,6 +398,7 @@ class SimulationService:
         final_elapsed: float,
         update_run_status,
         run_dir: Optional[Path] = None,
+        provenance_recorder: Optional[ProvenanceRecorder] = None,
     ) -> None:
         """Mark simulation completed, send final telemetry, archive artifacts."""
         update_run_status(
@@ -419,7 +436,7 @@ class SimulationService:
         # Archive run artifacts
         scenario = self.storage.get_scenario(workspace_id, scenario_id)
         scenario_name = scenario.name if scenario else scenario_id
-        seed = config.get("simulation", {}).get("seed", 42)
+        seed = config.get("simulation", {}).get("random_seed")
 
         archive_run(
             scenario_path=scenario_path,
@@ -436,6 +453,12 @@ class SimulationService:
             seed=seed,
             run_dir=run_dir,
         )
+        if provenance_recorder is not None:
+            provenance_recorder.finalize(
+                STATUS_COMPLETED,
+                completed_at=datetime.now().astimezone(),
+                duration_seconds=final_elapsed,
+            )
 
         # Prune old runs
         prune_old_runs(self.storage, workspace_id, scenario_id, config)
@@ -453,6 +476,7 @@ class SimulationService:
         start_time: Optional[datetime] = None,
         start_year: Optional[int] = None,
         end_year: Optional[int] = None,
+        provenance_recorder: Optional[ProvenanceRecorder] = None,
     ) -> None:
         """Log failure (or cancellation), update status, send terminal telemetry,
         and archive run metadata so the run (and its logs) appear in run history."""
@@ -504,6 +528,20 @@ class SimulationService:
             )
         except Exception as e:
             logger.warning(f"Failed to archive failed run {run_id}: {e}")
+        if provenance_recorder is not None:
+            try:
+                provenance_recorder.finalize(
+                    terminal_status,
+                    completed_at=datetime.now().astimezone(),
+                    duration_seconds=max(
+                        0.0,
+                        (
+                            datetime.now() - (start_time or datetime.now())
+                        ).total_seconds(),
+                    ),
+                )
+            except Exception as e:
+                logger.warning("Failed to finalize provenance for %s: %s", run_id, e)
 
     # ------------------------------------------------------------------
     # Cancel / Results / Telemetry
@@ -752,8 +790,8 @@ class SimulationService:
         ]
 
     @staticmethod
-    def _build_env(project_root: Path) -> Dict[str, str]:
-        return {
+    def _build_env(project_root: Path, run_id: Optional[str] = None) -> Dict[str, str]:
+        env = {
             **os.environ,
             "PYTHONPATH": str(project_root),
             "PYTHONIOENCODING": "utf-8",
@@ -764,6 +802,9 @@ class SimulationService:
             "FORCE_COLOR": "0",
             "COLUMNS": "200",
         }
+        if run_id is not None:
+            env["PLANALIGN_RUN_ID"] = run_id
+        return env
 
     @staticmethod
     async def _wait_for_ws_listener(telemetry_service, run_id: str) -> None:
@@ -793,6 +834,7 @@ class SimulationService:
         telemetry_service,
         update_run_status,
         log_writer: Optional["SimulationLogWriter"] = None,
+        provenance_recorder: Optional[ProvenanceRecorder] = None,
     ) -> List[str]:
         """Read subprocess output, parse progress, broadcast telemetry.
 
@@ -830,6 +872,7 @@ class SimulationService:
                 start_time,
                 telemetry_service,
                 update_run_status,
+                provenance_recorder,
             )
 
         return output_buffer
@@ -843,6 +886,7 @@ class SimulationService:
         start_time: datetime,
         telemetry_service,
         update_run_status,
+        provenance_recorder: Optional[ProvenanceRecorder] = None,
     ) -> None:
         """Classify, parse, and broadcast a single output line."""
         # Route to appropriate log level
@@ -857,6 +901,8 @@ class SimulationService:
         # Parse progress from line (structured sentinel records take precedence)
         changes = parser.parse_line(line_text)
         if changes.get("structured_record"):
+            if provenance_recorder is not None:
+                provenance_recorder.ingest(changes["structured_record"])
             telemetry_service.apply_structured_record(
                 run_id, changes["structured_record"]
             )

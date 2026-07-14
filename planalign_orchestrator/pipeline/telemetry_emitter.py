@@ -43,6 +43,7 @@ class TelemetryEmitter:
         self.db_manager = db_manager
         self.stream = stream if stream is not None else sys.stdout
         self._cumulative_counts: Dict[str, int] = {}
+        self._start_year: Optional[int] = None
 
     # ------------------------------------------------------------------
     # Hook registration
@@ -72,6 +73,7 @@ class TelemetryEmitter:
 
     def on_run_started(self, context: Dict[str, Any]) -> None:
         start_year = context.get("start_year")
+        self._start_year = start_year if isinstance(start_year, int) else None
         end_year = context.get("end_year")
         total_years = None
         if start_year is not None and end_year is not None:
@@ -103,6 +105,16 @@ class TelemetryEmitter:
                 "duration_seconds": context.get("duration_seconds"),
             }
         )
+        validation = context.get("validation_evidence")
+        if isinstance(validation, dict):
+            self._emit(
+                {
+                    "record": "validation_results",
+                    "year": context.get("year"),
+                    "disposition": validation.get("disposition", "unavailable"),
+                    "results": validation.get("results", []),
+                }
+            )
 
     def on_year_completed(self, context: Dict[str, Any]) -> None:
         if not self.enabled:
@@ -120,6 +132,9 @@ class TelemetryEmitter:
                 "duration_seconds": context.get("duration_seconds"),
                 "event_counts": year_counts,
                 "cumulative_counts": dict(self._cumulative_counts),
+                "workforce_reconciliation": self._query_reconciliation(
+                    year, year_counts
+                ),
             }
         )
 
@@ -167,12 +182,66 @@ class TelemetryEmitter:
             logger.warning("Telemetry year-count query failed for %s: %s", year, e)
             return {}
 
+    def _query_reconciliation(
+        self, year: Optional[int], event_counts: Dict[str, int]
+    ) -> Dict[str, Any]:
+        """Return aggregate workforce equation components for a completed year."""
+        unavailable = {
+            "opening_workforce": None,
+            "hires": event_counts.get("HIRE", 0),
+            "terminations": event_counts.get("TERMINATION", 0),
+            "expected_closing_workforce": None,
+            "actual_closing_workforce": None,
+            "variance": None,
+            "opening_source": "unavailable",
+        }
+        if self.db_manager is None or year is None:
+            return unavailable
+        try:
+            with self.db_manager.get_connection() as conn:
+                actual = conn.execute(
+                    "SELECT COUNT(*) FROM fct_workforce_snapshot "
+                    "WHERE simulation_year = ? AND lower(employment_status) = 'active'",
+                    [year],
+                ).fetchone()[0]
+                if year == self._start_year:
+                    opening = conn.execute(
+                        "SELECT COUNT(*) FROM int_baseline_workforce "
+                        "WHERE simulation_year = ? AND lower(employment_status) = 'active'",
+                        [year],
+                    ).fetchone()[0]
+                    opening_source = "baseline"
+                else:
+                    opening = conn.execute(
+                        "SELECT COUNT(*) FROM fct_workforce_snapshot "
+                        "WHERE simulation_year = ? AND lower(employment_status) = 'active'",
+                        [year - 1],
+                    ).fetchone()[0]
+                    opening_source = "prior_year_snapshot"
+            hires = event_counts.get("HIRE", 0)
+            terms = event_counts.get("TERMINATION", 0)
+            opening = int(opening)
+            expected = opening + hires - terms
+            return {
+                "opening_workforce": opening,
+                "hires": hires,
+                "terminations": terms,
+                "expected_closing_workforce": expected,
+                "actual_closing_workforce": int(actual),
+                "variance": int(actual) - expected,
+                "opening_source": opening_source,
+            }
+        except Exception as e:
+            logger.warning("Telemetry reconciliation query failed for %s: %s", year, e)
+            return unavailable
+
     def _emit(self, payload: Dict[str, Any]) -> None:
         if not self.enabled:
             return
         record = {
             "v": PROTOCOL_VERSION,
             "ts": datetime.now(timezone.utc).isoformat(),
+            "run_id": os.environ.get("PLANALIGN_RUN_ID"),
             **payload,
         }
         try:

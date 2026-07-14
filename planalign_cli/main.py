@@ -9,6 +9,7 @@ Wraps existing planalign_orchestrator functionality with beautiful terminal inte
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from typing import Optional
 
 import typer
@@ -77,10 +78,28 @@ from .commands.status import show_status, health_check  # noqa: E402
 from .commands.batch import run_batch  # noqa: E402
 from .commands.validate import validate_config  # noqa: E402
 from .commands.calibrate import run_calibration  # noqa: E402
+from .commands.provenance import generate_provenance_report  # noqa: E402
 
 # Fast compensation calibration (Feature 105) -- run_calibration already carries
 # its full typer signature, so register it directly.
 app.command("calibrate")(run_calibration)
+
+
+@app.command("provenance")
+def provenance(
+    run_id: str = typer.Argument(..., help="Exact archived run UUID"),
+    output_dir: Path = typer.Option(
+        ..., "--output-dir", help="Report destination directory"
+    ),
+    workspaces_root: Optional[Path] = typer.Option(
+        None, "--workspaces-root", help="Studio workspace root"
+    ),
+    force: bool = typer.Option(
+        False, "--force", help="Replace an existing report pair"
+    ),
+):
+    """Generate a tamper-evident audit report without rerunning a simulation."""
+    generate_provenance_report(run_id, output_dir, workspaces_root, force)
 
 
 # Main simulate command - direct access

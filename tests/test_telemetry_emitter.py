@@ -109,6 +109,36 @@ class TestRecordShapes:
         assert rec["year"] == 2025
         assert rec["event_counts"] == {"HIRE": 142, "TERMINATION": 98}
         assert rec["cumulative_counts"] == {"HIRE": 142, "TERMINATION": 98}
+        assert "workforce_reconciliation" in rec
+
+    def test_run_id_is_propagated_from_execution_context(
+        self, emitter, stream, monkeypatch
+    ):
+        monkeypatch.setenv("PLANALIGN_RUN_ID", "12345678-1234-5678-9234-567812345678")
+        emitter.on_run_started({"start_year": 2025, "end_year": 2025})
+        assert records(stream)[0]["run_id"] == "12345678-1234-5678-9234-567812345678"
+
+    def test_validation_result_projection_is_emitted(self, emitter, stream):
+        emitter.on_stage_completed(
+            {
+                "year": 2025,
+                "stage": "VALIDATION",
+                "duration_seconds": 1,
+                "validation_evidence": {
+                    "disposition": "passed",
+                    "results": [
+                        {
+                            "check_name": "safe",
+                            "severity": "error",
+                            "passed": True,
+                            "affected_record_count": 0,
+                        }
+                    ],
+                },
+            }
+        )
+        assert records(stream)[1]["record"] == "validation_results"
+        assert records(stream)[1]["results"][0]["affected_record_count"] == 0
 
     def test_cumulative_counts_accumulate_across_years(self, emitter, stream):
         emitter.on_year_completed({"year": 2025, "duration_seconds": 1.0})
