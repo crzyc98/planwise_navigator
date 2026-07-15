@@ -73,7 +73,10 @@ jobs:
         run: |
           # Coverage gate: actual coverage is ~63% (2026-07); ratchet the
           # threshold up as coverage improves, never down.
-          pytest tests/ -v --cov=planalign_orchestrator --cov=planalign_cli --cov=planalign_api --cov=planalign_core --cov-fail-under=60 --cov-report=xml
+          # multi_year_invariants is excluded here: those tests drive real
+          # dbt/orchestrator simulations and run in the dedicated
+          # multi-year-invariants job, which installs dbt packages first.
+          pytest tests/ -v -m "not multi_year_invariants" --cov=planalign_orchestrator --cov=planalign_cli --cov=planalign_api --cov=planalign_core --cov-fail-under=60 --cov-report=xml
 
       # NOTE: no raw `dbt run` here — a full build requires a census parquet
       # (git-ignored) and orchestrator-created tables (e.g.
