@@ -111,6 +111,20 @@ def _execute(database: Path, census_parquet: Path) -> SimulationRun:
     return SimulationRun(database=database)
 
 
+def _seed_stale_snapshot(database: Path) -> None:
+    """Add a prior-run row that correct per-year cleanup must remove."""
+    with duckdb.connect(str(database)) as connection:
+        connection.execute(
+            """
+            INSERT INTO fct_workforce_snapshot
+            SELECT * REPLACE ('STALE_PRIOR_RUN' AS employee_id)
+            FROM fct_workforce_snapshot
+            WHERE simulation_year = 2027
+            LIMIT 1
+            """
+        )
+
+
 def _preserve_on_failure(run: SimulationRun, request: pytest.FixtureRequest) -> None:
     if request.session.testsfailed == 0 or not run.database.exists():
         return
@@ -178,6 +192,7 @@ def invariant_run_b_result(
         run = SimulationRun(database=database, error=invariant_run_a_result.error)
     else:
         shutil.copy2(invariant_run_a_result.database, database)
+        _seed_stale_snapshot(database)
         run = _execute(database, invariant_census_parquet)
     yield run
     _preserve_on_failure(run, request)
