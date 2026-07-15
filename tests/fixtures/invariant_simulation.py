@@ -168,14 +168,17 @@ def invariant_run_db(invariant_run_a_result: SimulationRun) -> Path:
 def invariant_run_b_result(
     tmp_path_factory: pytest.TempPathFactory,
     invariant_census_parquet: Path,
+    invariant_run_a_result: SimulationRun,
     shared_dev_db_signature: tuple[int, str] | None,
     request: pytest.FixtureRequest,
 ) -> Iterator[SimulationRun]:
     del shared_dev_db_signature
-    run = _execute(
-        tmp_path_factory.mktemp("invariant-run-b") / "run_b.duckdb",
-        invariant_census_parquet,
-    )
+    database = tmp_path_factory.mktemp("invariant-run-b") / "run_b.duckdb"
+    if invariant_run_a_result.error is not None:
+        run = SimulationRun(database=database, error=invariant_run_a_result.error)
+    else:
+        shutil.copy2(invariant_run_a_result.database, database)
+        run = _execute(database, invariant_census_parquet)
     yield run
     _preserve_on_failure(run, request)
 

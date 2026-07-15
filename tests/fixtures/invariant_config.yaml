@@ -9,7 +9,7 @@ simulation:
 
 setup:
   clear_tables: true
-  clear_mode: all
+  clear_mode: year
   load_seeds: true
   run_staging_models: true
   validate_results: false

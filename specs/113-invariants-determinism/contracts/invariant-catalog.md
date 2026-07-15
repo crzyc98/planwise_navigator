@@ -37,7 +37,7 @@ Implementation MAY split a family into additional numbered checks; names are app
 | Table | Column | Justification |
 |---|---|---|
 | fct_yearly_events | created_at | Build-time `CURRENT_TIMESTAMP` (fct_yearly_events.sql:430); wall-clock bookkeeping, not simulation state |
-| fct_workforce_snapshot | (snapshot build-timestamp column, exact name confirmed at implementation) | Same wall-clock rationale |
+| fct_workforce_snapshot | snapshot_created_at | Build-time `CURRENT_TIMESTAMP`; wall-clock bookkeeping, not simulation state |
 | run_metadata (whole table) | — | Records run timestamps/fingerprints by design (feature 109) |
 
 - `event_id` is NOT exempt. If runs produce differing ids, that is a bug (or requires an argued exemption added to this table in the same PR).
