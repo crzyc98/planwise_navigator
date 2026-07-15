@@ -8,8 +8,6 @@ simulation:
   target_growth_rate: 0.02
 
 setup:
-  clear_tables: true
-  clear_mode: year
   load_seeds: true
   run_staging_models: true
   validate_results: false
