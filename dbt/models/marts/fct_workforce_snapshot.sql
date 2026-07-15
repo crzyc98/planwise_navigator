@@ -363,16 +363,8 @@ employee_eligibility AS (
             accumulator.enrollment_date,
             baseline.employee_enrollment_date
         ) AS employee_enrollment_date,
-        -- Calculate enrollment flag for year 1
-        CASE
-            WHEN COALESCE(
-                CASE WHEN ec.has_enrollment THEN ec.enrollment_date END,
-                accumulator.enrollment_date,
-                baseline.employee_enrollment_date
-            ) IS NOT NULL
-            THEN true
-            ELSE false
-        END AS is_enrolled_flag
+        -- Enrollment date is historical; current status comes from the accumulator.
+        COALESCE(accumulator.is_enrolled, false) AS is_enrolled_flag
     FROM {{ ref('int_baseline_workforce') }} baseline
     LEFT JOIN (
         -- Get enrollment status from enrollment state accumulator
@@ -401,11 +393,8 @@ employee_eligibility AS (
         'eligible' AS current_eligibility_status,
         -- Use enrollment state accumulator as source of truth for new hire enrollments
         accumulator.enrollment_date AS employee_enrollment_date,
-        -- New hires with enrollment data are enrolled
-        CASE
-            WHEN accumulator.enrollment_date IS NOT NULL THEN true
-            ELSE false
-        END AS is_enrolled_flag
+        -- Enrollment date is historical; current status comes from the accumulator.
+        COALESCE(accumulator.is_enrolled, false) AS is_enrolled_flag
     FROM (
         -- E096 FIX: Start from hire events (source of truth for new hires)
         SELECT employee_id, effective_date
@@ -449,14 +438,8 @@ employee_eligibility AS (
             accumulator.enrollment_date,
             baseline.employee_enrollment_date
         ) AS employee_enrollment_date,
-        -- Calculate enrollment flag based on enrollment date
-        CASE
-            WHEN COALESCE(
-                CASE WHEN ec.has_enrollment THEN ec.enrollment_date END,
-                accumulator.enrollment_date,
-                baseline.employee_enrollment_date
-            ) IS NOT NULL THEN true ELSE false
-        END AS is_enrolled_flag
+        -- Enrollment date is historical; current status comes from the accumulator.
+        COALESCE(accumulator.is_enrolled, false) AS is_enrolled_flag
     FROM final_workforce_corrected fwc
     -- Eligibility source of truth for subsequent years (see #368 note above).
     -- **E028 PERFORMANCE FIX**: Add simulation_year filter to reduce full table scan

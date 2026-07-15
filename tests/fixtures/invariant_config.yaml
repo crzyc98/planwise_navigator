@@ -1,0 +1,85 @@
+scenario_id: invariant_reference
+plan_design_id: invariant_tiered_401k
+
+simulation:
+  start_year: 2025
+  end_year: 2027
+  random_seed: 113435436
+  target_growth_rate: 0.02
+
+setup:
+  load_seeds: true
+  run_staging_models: true
+  validate_results: false
+  fail_on_validation_error: true
+  census_parquet_path: injected_by_invariant_fixture
+  plan_year_start_date: "2024-01-01"
+  plan_year_end_date: "2024-12-31"
+  eligibility_waiting_period_days: 0
+
+workforce:
+  total_termination_rate: 0.10
+  new_hire_termination_rate: 0.15
+
+compensation:
+  cola_rate: 0.02
+  merit_budget: 0.035
+  promotion_increase: 0.125
+
+eligibility:
+  waiting_period_days: 0
+
+plan_eligibility:
+  minimum_age: 18
+
+enrollment:
+  auto_enrollment:
+    enabled: true
+    scope: all_eligible_employees
+    hire_date_cutoff: "2015-01-01"
+    window_days: 45
+    default_deferral_rate: 0.04
+    opt_out_grace_period: 30
+    opt_out_rates:
+      target: 0.05
+  proactive_enrollment:
+    enabled: true
+  match_magnet:
+    enabled: true
+    snap_probability: 0.45
+    max_deferral_rate: 0.10
+
+deferral_auto_escalation:
+  enabled: true
+  effective_day: "01-01"
+  increment_amount: 0.01
+  maximum_rate: 0.06
+  hire_date_cutoff: "2000-01-01"
+  require_active_enrollment: true
+  first_escalation_delay_years: 1
+
+deferral_rates:
+  use_census_rates: true
+  plan_deferral_cap: 0.75
+  generate_synthetic_events: true
+
+employer_match:
+  active_formula: tiered_match
+  apply_eligibility: false
+  formulas:
+    tiered_match:
+      name: Tiered Match
+      type: tiered
+      tiers:
+        - tier: 1
+          employee_min: 0.00
+          employee_max: 0.03
+          match_rate: 1.00
+        - tier: 2
+          employee_min: 0.03
+          employee_max: 0.05
+          match_rate: 0.50
+      max_match_percentage: 0.04
+
+optimization:
+  max_workers: 1

@@ -73,7 +73,10 @@ jobs:
         run: |
           # Coverage gate: actual coverage is ~63% (2026-07); ratchet the
           # threshold up as coverage improves, never down.
-          pytest tests/ -v --cov=planalign_orchestrator --cov=planalign_cli --cov=planalign_api --cov=planalign_core --cov-fail-under=60 --cov-report=xml
+          # multi_year_invariants is excluded here: those tests drive real
+          # dbt/orchestrator simulations and run in the dedicated
+          # multi-year-invariants job, which installs dbt packages first.
+          pytest tests/ -v -m "not multi_year_invariants" --cov=planalign_orchestrator --cov=planalign_cli --cov=planalign_api --cov=planalign_core --cov-fail-under=60 --cov-report=xml
 
       # NOTE: no raw `dbt run` here — a full build requires a census parquet
       # (git-ignored) and orchestrator-created tables (e.g.
@@ -86,6 +89,56 @@ jobs:
         with:
           name: coverage-xml
           path: coverage.xml
+
+  multi-year-invariants:
+    runs-on: ubuntu-latest
+    needs: lint
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Cache uv dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('requirements*.txt', 'pyproject.toml') }}
+
+      - name: Install dependencies
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          uv pip install --system -r requirements.txt
+          uv pip install --system -r requirements-dev.txt
+          # Trigger the sqlparse MAX_GROUPING_TOKENS auto-patch (see
+          # planalign_orchestrator.sqlparse_config) so dbt subprocesses in
+          # this job don't hit sqlparse's 10,000-token DoS-protection limit.
+          python -c "import planalign_orchestrator"
+
+      - name: Install dbt packages
+        run: |
+          cd dbt
+          dbt deps
+
+      - name: Run multi-year invariant suite
+        run: |
+          mkdir -p var/test-artifacts/113
+          set -o pipefail
+          pytest -m multi_year_invariants -v 2>&1 | tee var/test-artifacts/113/diagnostics.log
+
+      - name: Preserve failed invariant databases
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: multi-year-invariants
+          path: var/test-artifacts/113/
+          retention-days: 7
 
   validate-models:
     runs-on: ubuntu-latest
