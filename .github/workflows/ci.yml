@@ -87,6 +87,47 @@ jobs:
           name: coverage-xml
           path: coverage.xml
 
+  multi-year-invariants:
+    runs-on: ubuntu-latest
+    needs: lint
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Cache uv dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('requirements*.txt', 'pyproject.toml') }}
+
+      - name: Install dependencies
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          uv pip install --system -r requirements.txt
+          uv pip install --system -r requirements-dev.txt
+
+      - name: Run multi-year invariant suite
+        run: |
+          mkdir -p var/test-artifacts/113
+          set -o pipefail
+          pytest -m multi_year_invariants -v 2>&1 | tee var/test-artifacts/113/diagnostics.log
+
+      - name: Preserve failed invariant databases
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: multi-year-invariants
+          path: var/test-artifacts/113/
+          retention-days: 7
+
   validate-models:
     runs-on: ubuntu-latest
     needs: lint

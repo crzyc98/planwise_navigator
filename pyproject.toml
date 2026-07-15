@@ -149,6 +149,7 @@ markers = [
     # Test type markers
     "unit: Pure unit tests (no I/O)",
     "integration: Integration tests (database, dbt)",
+    "multi_year_invariants: Three-year invariant and determinism suite",
     "e2e: End-to-end workflow tests",
 
     # Feature area markers
