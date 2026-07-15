@@ -113,6 +113,15 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           uv pip install --system -r requirements.txt
           uv pip install --system -r requirements-dev.txt
+          # Trigger the sqlparse MAX_GROUPING_TOKENS auto-patch (see
+          # planalign_orchestrator.sqlparse_config) so dbt subprocesses in
+          # this job don't hit sqlparse's 10,000-token DoS-protection limit.
+          python -c "import planalign_orchestrator"
+
+      - name: Install dbt packages
+        run: |
+          cd dbt
+          dbt deps
 
       - name: Run multi-year invariant suite
         run: |
