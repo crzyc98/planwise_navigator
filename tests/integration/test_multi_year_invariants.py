@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
@@ -13,6 +15,7 @@ from tests.fixtures.invariant_simulation import (
     assert_census_coverage,
 )
 from tests.invariants.catalog import CATALOG, Invariant
+from planalign_orchestrator.pipeline.state_manager import StateManager
 
 pytest_plugins = ("tests.fixtures.invariant_simulation",)
 pytestmark = [pytest.mark.integration, pytest.mark.multi_year_invariants]
@@ -26,6 +29,45 @@ def test_invariant_simulation_completed(invariant_run_a_result: SimulationRun) -
     assert invariant_run_a_result.error is None, (
         "reference simulation failed before invariant evaluation: "
         f"{invariant_run_a_result.error!r}"
+    )
+
+
+class _DirectConnectionManager:
+    def __init__(self, connection: duckdb.DuckDBPyConnection) -> None:
+        self.connection = connection
+
+    def execute_with_retry(self, callback, **_kwargs):
+        return callback(self.connection)
+
+
+def test_snapshot_no_foreign_rows_cleanup_defaults_on() -> None:
+    with duckdb.connect() as connection:
+        connection.execute(
+            """CREATE TABLE fct_workforce_snapshot (
+              employee_id VARCHAR, simulation_year INTEGER,
+              scenario_id VARCHAR, plan_design_id VARCHAR
+            )"""
+        )
+        connection.execute(
+            "INSERT INTO fct_workforce_snapshot VALUES "
+            "('STALE_PRIOR_RUN', 2027, 'invariant_reference', 'invariant_tiered_401k')"
+        )
+        manager = StateManager(
+            _DirectConnectionManager(connection),
+            MagicMock(),
+            SimpleNamespace(
+                scenario_id="invariant_reference",
+                plan_design_id="invariant_tiered_401k",
+            ),
+        )
+        manager.maybe_clear_year_data(2027)
+        violations = connection.execute(
+            "SELECT employee_id, simulation_year FROM fct_workforce_snapshot"
+        ).fetchall()
+    assert not violations, (
+        "Invariant: snapshot-no-foreign-rows\n"
+        "Description: default rerun cleanup must purge stale current-year rows.\n"
+        f"Sample rows ({len(violations)}): {violations!r}"
     )
 
 
