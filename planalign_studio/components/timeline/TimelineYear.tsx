@@ -21,7 +21,9 @@ export default function TimelineYear({ year }: Readonly<{ year: TimelineYearData
                   <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-semibold text-fidelity-green">{event.event_type.replaceAll('_', ' ')}</span>
                   <time className="text-xs text-gray-500">{event.effective_date}</time>
                 </div>
-                {event.event_details && <p className="mt-1 text-sm text-gray-700">{event.event_details}</p>}
+                {event.event_details && (
+                  <p className="mt-1 break-all text-sm text-gray-700">{event.event_details}</p>
+                )}
                 <div className="mt-1 flex flex-wrap gap-x-4 text-xs text-gray-500">
                   {event.compensation_amount != null && <span>Amount {money(event.compensation_amount)}</span>}
                   {event.previous_compensation != null && <span>Previous {money(event.previous_compensation)}</span>}
