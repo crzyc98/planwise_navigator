@@ -85,7 +85,7 @@ class TimelineService:
             states = self._query_states(connection, canonical, page_years)
             identity = self._query_identity(connection, canonical)
 
-        grouped = {year: [] for year in page_years}
+        grouped: dict[int, list[TimelineEvent]] = {year: [] for year in page_years}
         for event in events:
             grouped[event.simulation_year].append(event)
         return EmployeeTimelineResponse(
@@ -119,12 +119,10 @@ class TimelineService:
     ) -> EmployeeSearchResponse:
         """Search snapshot employees using composable, bound predicates."""
         with self._connect(workspace_id, scenario_id) as connection:
-            selected_year = (
-                year
-                or connection.execute(
-                    "SELECT MAX(simulation_year) FROM fct_workforce_snapshot"
-                ).fetchone()[0]
-            )
+            max_year_row = connection.execute(
+                "SELECT MAX(simulation_year) FROM fct_workforce_snapshot"
+            ).fetchone()
+            selected_year = year or (max_year_row[0] if max_year_row else None)
             predicates = ["simulation_year = ?"]
             parameters: list[object] = [selected_year]
             filters = [
@@ -147,10 +145,11 @@ class TimelineService:
                     predicates.append(clause)
                     parameters.append(value)
             where = " AND ".join(predicates)
-            total = connection.execute(
+            total_row = connection.execute(
                 f"SELECT COUNT(DISTINCT employee_id) FROM fct_workforce_snapshot WHERE {where}",
                 parameters,
-            ).fetchone()[0]
+            ).fetchone()
+            total = total_row[0] if total_row else 0
             result_limit = (
                 min(page_size, 20)
                 if q is not None
