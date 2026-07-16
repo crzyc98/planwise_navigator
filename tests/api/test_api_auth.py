@@ -5,28 +5,12 @@ from __future__ import annotations
 import logging
 
 import pytest
-from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from starlette.websockets import WebSocketDisconnect
 
 import planalign_api.config as api_config
-from planalign_api.main import create_app
 
-
-@pytest.fixture()
-def client_factory(tmp_path, monkeypatch):
-    """Build an app with per-test settings without reloading application modules."""
-
-    def _create(api_token: str | None) -> TestClient:
-        monkeypatch.delenv("PLANALIGN_API_TOKEN", raising=False)
-        if api_token is not None:
-            monkeypatch.setenv("PLANALIGN_API_TOKEN", api_token)
-
-        settings = api_config.APISettings(workspaces_root=tmp_path / "workspaces")
-        monkeypatch.setattr(api_config, "settings", settings)
-        return TestClient(create_app())
-
-    return _create
+pytestmark = [pytest.mark.fast]
 
 
 def test_protected_router_requires_configured_bearer_token(client_factory) -> None:
@@ -109,6 +93,25 @@ def test_non_loopback_wildcard_cors_is_rejected(monkeypatch) -> None:
 
     with pytest.raises(ValidationError, match="must not use wildcard CORS"):
         api_config.APISettings(host="0.0.0.0", cors_origins=["*"])
+
+
+def test_non_loopback_explicit_cors_succeeds(monkeypatch) -> None:
+    monkeypatch.delenv("PLANALIGN_API_TOKEN", raising=False)
+
+    settings = api_config.APISettings(
+        host="0.0.0.0",
+        cors_origins=["https://studio.example.test"],
+    )
+
+    assert settings.cors_origins == ["https://studio.example.test"]
+
+
+def test_loopback_wildcard_cors_succeeds(monkeypatch) -> None:
+    monkeypatch.delenv("PLANALIGN_API_TOKEN", raising=False)
+
+    settings = api_config.APISettings(host="127.0.0.1", cors_origins=["*"])
+
+    assert settings.cors_origins == ["*"]
 
 
 def test_non_loopback_without_token_logs_security_warning(monkeypatch, caplog) -> None:
