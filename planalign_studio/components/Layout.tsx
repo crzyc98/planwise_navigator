@@ -4,7 +4,7 @@ import {
   LayoutDashboard, PlayCircle, BarChart3, Settings, Database,
   Activity, Bell, ChevronDown, Check, Search, Briefcase,
   X, Info, AlertTriangle, AlertCircle, CheckCircle, Moon, Sun, HelpCircle,
-  Plus, Loader2, Layers, PieChart, Scale, Shield, Menu, PanelLeftClose, PanelLeftOpen, ArrowLeftRight, FileUp, SlidersHorizontal
+  Plus, Loader2, Layers, PieChart, Scale, Shield, Menu, PanelLeftClose, PanelLeftOpen, ArrowLeftRight, FileUp, SlidersHorizontal, Users
 } from 'lucide-react';
 import { APP_NAME, MOCK_NOTIFICATIONS, APP_VERSION } from '../constants';
 import { Workspace, Notification } from '../types';
@@ -75,6 +75,7 @@ const NAV_SECTIONS: ReadonlyArray<{
     items: [
       { to: '/simulate', icon: <PlayCircle size={20} />, label: 'Simulate' },
       { to: '/batch', icon: <Database size={20} />, label: 'Batch Processing' },
+      { to: '/timeline', icon: <Users size={20} />, label: 'Timeline' },
       { to: '/calibrate', icon: <SlidersHorizontal size={20} />, label: 'Calibration' },
     ],
   },

@@ -36,6 +36,7 @@ from .routers import (
     ndt_router,
     imports_router,
     provenance_router,
+    timeline_router,
 )
 from .routers.vesting import router as vesting_router
 from .routers.sync import router as sync_router
@@ -187,6 +188,12 @@ def create_app() -> FastAPI:
         provenance_router,
         prefix="/api",
         tags=["Run Provenance"],
+        dependencies=protected_dependencies,
+    )
+    app.include_router(
+        timeline_router,
+        prefix="/api/workspaces",
+        tags=["Timeline"],
         dependencies=protected_dependencies,
     )
 
