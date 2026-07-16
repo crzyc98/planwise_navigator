@@ -754,6 +754,8 @@ Current version: **2.2.0** ("Calibration") — managed in `_version.py` and `pyp
 - DuckDB — new append-only `run_metadata` table created lazily in each target database (shared dev DB, per-scenario batch DBs, calibration DBs) (109-config-drift-detection)
 - Python 3.11 (pytest harness, invariant runner); SQL via DuckDB 1.0.0 (invariant queries, diff queries); simulation itself via dbt-core 1.8.8 / dbt-duckdb 1.8.1 driven by `planalign_orchestrator` + `planalign_orchestrator` (`create_orchestrator`, `execute_multi_year_simulation`, `load_simulation_config`), `duckdb` Python client, pytest + existing markers/fixture library (E075), pandas/pyarrow (CSV→parquet census conversion, already dependencies) (113-invariants-determinism)
 - Two per-run isolated DuckDB files under pytest `tmp_path_factory` (never `dbt/simulation.duckdb`); reference census checked in as CSV, converted to parquet at session setup and passed via the `census_parquet_path` dbt var (113-invariants-determinism)
+- Python 3.11 (API service/router), TypeScript/React (Studio UI) + FastAPI + Pydantic v2 (existing `planalign_api`), duckdb Python client (read-only connections), React 18 + react-router-dom (HashRouter) + Tailwind CSS v4 (existing `planalign_studio`) (114-employee-event-timeline)
+- DuckDB — reads `fct_yearly_events`, `fct_employer_match_events`, `fct_workforce_snapshot` from per-scenario databases resolved via `DatabasePathResolver`. No new tables, no writes. (114-employee-event-timeline)
 
 ## Recent Changes
 - 099-tenure-graded-match: Added Python 3.11 (orchestrator/config/API), SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1, TypeScript/React (Studio UI) + Pydantic v2 (config validation), DuckDB 1.0.0 (storage/engine), FastAPI (workspace config API), React/Vite + Tailwind (Studio)

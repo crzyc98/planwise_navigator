@@ -60,6 +60,94 @@ export interface ScenarioCreate {
   config_overrides?: Record<string, any>;
 }
 
+export interface TimelineEvent {
+  event_id: string;
+  source: 'yearly' | 'employer_match';
+  event_type: string;
+  simulation_year: number;
+  effective_date: string;
+  event_details: string | null;
+  compensation_amount: number | null;
+  previous_compensation: number | null;
+  deferral_rate: number | null;
+  prev_deferral_rate: number | null;
+  level_id: number | null;
+}
+
+export interface YearState {
+  simulation_year: number;
+  employment_status: string | null;
+  detailed_status_code: string | null;
+  current_compensation: number | null;
+  prorated_annual_compensation: number | null;
+  level_id: number | null;
+  current_age: number | null;
+  current_tenure: number | null;
+  eligibility_status: string | null;
+  is_enrolled: boolean | null;
+  enrollment_date: string | null;
+  current_deferral_rate: number | null;
+  participation_status: string | null;
+  total_deferral_escalations: number | null;
+  ytd_contributions: number | null;
+  pre_tax_contributions: number | null;
+  roth_contributions: number | null;
+  employer_match_amount: number | null;
+  employer_core_amount: number | null;
+  total_employer_contributions: number | null;
+  irs_limit_reached: boolean | null;
+}
+
+export interface TimelineYearData {
+  simulation_year: number;
+  events: TimelineEvent[];
+  state: YearState | null;
+}
+
+export interface EmployeeIdentity {
+  employee_id: string;
+  employee_ssn: string | null;
+  employee_birth_date: string | null;
+  employee_hire_date: string | null;
+}
+
+export interface EmployeeTimelineResponse {
+  workspace_id: string;
+  scenario_id: string;
+  employee_id: string;
+  employee: EmployeeIdentity | null;
+  available_years: number[];
+  years: TimelineYearData[];
+  start_year: number;
+  years_requested: number;
+}
+
+export interface EmployeeSearchResult {
+  employee_id: string;
+  employment_status: string | null;
+  level_id: number | null;
+  current_compensation: number | null;
+  simulation_year: number;
+}
+
+export interface EmployeeSearchResponse {
+  results: EmployeeSearchResult[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface EmployeeSearchParams {
+  q?: string;
+  status?: string;
+  level?: number;
+  year?: number;
+  enrolled?: boolean;
+  has_escalations?: boolean;
+  page?: number;
+  page_size?: number;
+}
+
 export interface SimulationRun {
   id: string;
   scenario_id: string;
@@ -436,6 +524,49 @@ export async function deleteWorkspace(workspaceId: string): Promise<{ success: b
 export async function listScenarios(workspaceId: string): Promise<Scenario[]> {
   const response = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/scenarios`);
   return handleResponse<Scenario[]>(response);
+}
+
+export async function searchEmployees(
+  workspaceId: string,
+  scenarioId: string,
+  params: EmployeeSearchParams,
+): Promise<EmployeeSearchResponse> {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') query.set(key, String(value));
+  });
+  const response = await fetchWithAuth(
+    `${API_BASE}/api/workspaces/${encodeURIComponent(workspaceId)}/scenarios/${encodeURIComponent(scenarioId)}/employees?${query}`,
+  );
+  if (!response.ok) throw new Error(`Employee search failed: ${response.statusText}`);
+  return response.json();
+}
+
+export async function getEmployeeTimeline(
+  workspaceId: string,
+  scenarioId: string,
+  employeeId: string,
+  params: { start_year?: number; years?: number } = {},
+): Promise<EmployeeTimelineResponse> {
+  const query = new URLSearchParams();
+  if (params.start_year !== undefined) query.set('start_year', String(params.start_year));
+  if (params.years !== undefined) query.set('years', String(params.years));
+  const suffix = query.size ? `?${query}` : '';
+  const response = await fetchWithAuth(
+    `${API_BASE}/api/workspaces/${encodeURIComponent(workspaceId)}/scenarios/${encodeURIComponent(scenarioId)}/employees/${encodeURIComponent(employeeId.trim())}/timeline${suffix}`,
+  );
+  if (!response.ok) throw new Error(`Employee timeline failed: ${response.statusText}`);
+  return response.json();
+}
+
+export function timelineUrl(
+  workspaceId: string,
+  scenarioId: string,
+  employeeId: string,
+  compare?: string,
+): string {
+  const path = `/timeline/${encodeURIComponent(workspaceId)}/${encodeURIComponent(scenarioId)}/${encodeURIComponent(employeeId.trim())}`;
+  return compare ? `${path}?compare=${encodeURIComponent(compare)}` : path;
 }
 
 export async function getScenario(workspaceId: string, scenarioId: string): Promise<Scenario> {

@@ -19,6 +19,7 @@ import WinnersLosersTab from './components/WinnersLosersTab';
 import DataImportWizard from './components/DataImportWizard';
 import CalibrationPanel from './components/CalibrationPanel';
 import RunProvenanceReport from './components/RunProvenanceReport';
+import EmployeeTimelinePage from './components/timeline/EmployeeTimelinePage';
 
 // Error boundary to catch and display React errors
 interface ErrorBoundaryProps {
@@ -102,6 +103,8 @@ export default function App() {
             <Route path="batch" element={<BatchProcessing />} />
             <Route path="workspaces" element={<WorkspaceManager />} />
             <Route path="import" element={<DataImportWizard />} />
+            <Route path="timeline" element={<EmployeeTimelinePage />} />
+            <Route path="timeline/:workspaceId/:scenarioId/:employeeId" element={<EmployeeTimelinePage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
