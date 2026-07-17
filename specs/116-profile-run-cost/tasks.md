@@ -58,8 +58,8 @@
 - [X] T012 [US2] Extend `scripts/perf_profile/run_matrix.py` to full matrix mode: `--sizes tiny,dev,large --reps N --horizon 2025-2027` where `--reps N` = N **warm** repetitions and the harness always prepends one extra cold run per size saved as `{size}-0.json` (`repetition: 0, warm: false`), failed runs captured as `completed=false` samples with `error` (never dropped), per-size census resolution (tiny→fixture parquet, dev→`data/census_preprocessed.parquet`, large→T011 output)
 - [X] T013 [US2] Implement the M3 fixed-cost cross-check in `scripts/perf_profile/run_matrix.py` (flag `--measure-floor`): count invocations per simulated year from sample data, time a genuinely trivial `dbt run --select stg_config_age_bands` (config-seed staging model — NOT `stg_census_data`, whose parquet scan would contaminate the fixed floor) against an already-built isolated DB ≥5 times, subtract its dbt-reported execute time from each measurement, store floor stats + invocation count in `campaign.json` for the report's section 6
 - [X] T014 [US2] Execute the campaign for tiny + dev: `run_matrix --sizes tiny,dev --reps 3` (plus automatic cold run each) and `--measure-floor`; spot-validate samples against the T002 schema
-- [ ] T015 [US2] Execute the campaign for large: `run_matrix --sizes large --reps 3` (long-running — accept 2 warm reps if the time budget bites, per spec edge case; the label must say so); confirm SC-007 hash check passed at campaign end
-- [ ] T016 [US2] Validate FR-003/FR-004 across all samples: decomposition residue ≤ 10% at every size and cross-check ratio in 0.3×–3×; if either fails, diagnose (e.g., missed invocation site, unattributed orchestrator time), fix the harness (not the product), and re-run the affected size
+- [X] T015 [US2] Execute the campaign for large: `run_matrix --sizes large --reps 3` (long-running — accept 2 warm reps if the time budget bites, per spec edge case; the label must say so); confirm SC-007 hash check passed at campaign end
+- [X] T016 [US2] Validate FR-003/FR-004 across all samples: decomposition residue ≤ 10% at every size and cross-check ratio in 0.3×–3×; if either fails, diagnose (e.g., missed invocation site, unattributed orchestrator time), fix the harness (not the product), and re-run the affected size
 
 **Checkpoint**: Decision-grade data exists — the overhead-share-vs-size curve is renderable
 
@@ -84,10 +84,10 @@
 
 **Purpose**: The final report, the decision, and roadmap bookkeeping
 
-- [ ] T021 Generate the final report: `python -m scripts.perf_profile.build_report --out docs/perf/run_cost_profile.md`; walk the quickstart.md sanity checklist (SC-007 line, warm-rep counts, residue ≤ 10%, cross-check ratio, probe verdict); author the projection-assumptions prose (GO path) or top-3 hotspot list (NO-GO path) in the report where tables alone don't speak
-- [ ] T022 Read the report cold against spec SC-001…SC-007 and User Story 1 acceptance scenarios; fix any gap by regenerating (never hand-editing tables)
-- [ ] T023 Commit `scripts/perf_profile/`, `docs/perf/run_cost_profile.md`, and spec artifacts on branch `116-profile-run-cost` and open a PR (repo convention; never commit `var/perf_profile/`)
-- [ ] T024 Close the loop on GitHub: comment the recommendation + report link on issue #455, check off the #455 item in tracking issue #463, and if GO, paste the projection baseline into issue #456 (per contract §4); if NO-GO, open the redirect issue naming the top-3 hotspots
+- [X] T021 Generate the final report: `python -m scripts.perf_profile.build_report --out docs/perf/run_cost_profile.md`; walk the quickstart.md sanity checklist (SC-007 line, warm-rep counts, residue ≤ 10%, cross-check ratio, probe verdict); author the projection-assumptions prose (GO path) or top-3 hotspot list (NO-GO path) in the report where tables alone don't speak
+- [X] T022 Read the report cold against spec SC-001…SC-007 and User Story 1 acceptance scenarios; fix any gap by regenerating (never hand-editing tables)
+- [X] T023 Commit `scripts/perf_profile/`, `docs/perf/run_cost_profile.md`, and spec artifacts on branch `116-profile-run-cost` and open a PR (repo convention; never commit `var/perf_profile/`)
+- [X] T024 Close the loop on GitHub: comment the recommendation + report link on issue #455, check off the #455 item in tracking issue #463, and if GO, paste the projection baseline into issue #456 (per contract §4); if NO-GO, open the redirect issue naming the top-3 hotspots
 
 ---
 
