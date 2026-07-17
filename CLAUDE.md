@@ -758,6 +758,8 @@ Current version: **2.2.0** ("Calibration") — managed in `_version.py` and `pyp
 - DuckDB — reads `fct_yearly_events`, `fct_employer_match_events`, `fct_workforce_snapshot` from per-scenario databases resolved via `DatabasePathResolver`. No new tables, no writes. (114-employee-event-timeline)
 - Python 3.11 + FastAPI, Starlette `TestClient` (httpx-based), Pydantic v2, pytest (115-api-contract-tests)
 - N/A (no database involved; tests exercise the FastAPI app in-process) (115-api-contract-tests)
+- Python 3.11 (harness scripts); SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1 (measured system, unmodified) + `planalign_orchestrator` (`create_orchestrator`, `execute_multi_year_simulation`, `DbtRunner`), `duckdb` Python client, pandas/pyarrow (census scaling) — all already installed (116-profile-run-cost)
+- isolated per-run DuckDB files under `var/perf_profile/` (git-ignored); timing samples as JSON/CSV next to them; report in `docs/perf/` (116-profile-run-cost)
 
 ## Recent Changes
 - 099-tenure-graded-match: Added Python 3.11 (orchestrator/config/API), SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1, TypeScript/React (Studio UI) + Pydantic v2 (config validation), DuckDB 1.0.0 (storage/engine), FastAPI (workspace config API), React/Vite + Tailwind (Studio)
