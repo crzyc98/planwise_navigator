@@ -8,11 +8,19 @@
 
 {{ config(
   materialized='incremental',
-  unique_key=['scenario_id', 'plan_design_id', 'simulation_year'],
-  incremental_strategy='delete+insert',
+  incremental_strategy='append',
+  pre_hook=[
+    "{% if is_incremental() %}DELETE FROM {{ this }} WHERE scenario_id = '{{ var('scenario_id', 'default') }}' AND plan_design_id = '{{ var('plan_design_id', 'default') }}' AND simulation_year = {{ var('simulation_year', 2025) }}{% endif %}"
+  ],
   on_schema_change='sync_all_columns',
   tags=['EVENT_GENERATION']
 ) }}
+
+-- Issue #465: append + predicate pre-hook replaces delete+insert. The old
+-- unique_key (scenario_id, plan_design_id, simulation_year) is constant within
+-- a run, so dbt's delete-by-join matched every tmp row against every same-year
+-- target row — O(events_per_year²), ~140s per year at a 60K census. The
+-- predicate DELETE is the same semantics at O(events_per_year).
 
 {% set simulation_year = var('simulation_year', 2025) %}
 {% set event_mode = var('event_generation_mode', 'sql') %}
