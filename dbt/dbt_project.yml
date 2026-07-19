@@ -64,10 +64,13 @@ models:
         node_color: "#D5E8D4"
 
       # Specific event models configuration
+      # Issue #465: strategy/hook live in the model file (append + predicate
+      # pre-hook); the old 5-column unique_key here was dead config (the model
+      # file's config always won) and delete+insert on a constant key was
+      # quadratic in events-per-year.
       fct_yearly_events:
         +materialized: incremental
-        +incremental_strategy: 'delete+insert'
-        +unique_key: ['scenario_id', 'plan_design_id', 'employee_id', 'simulation_year', 'event_type']
+        +incremental_strategy: 'append'
         +tags: ["events", "critical"]
 
       fct_workforce_snapshot:
