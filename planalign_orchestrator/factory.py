@@ -181,6 +181,18 @@ def create_orchestrator(
         def init_hook(context: dict) -> None:
             """Pre-simulation hook that ensures database is initialized."""
             result = auto_initializer.ensure_initialized()
+            # If the initializer's load_seeds step ran successfully, seeds are
+            # freshly loaded (`dbt seed --full-refresh` + schema-mismatch drop)
+            # and the pipeline's own `dbt seed` would be redundant. Judged from
+            # the step, not overall success: on fresh DBs the later
+            # build_foundation step can fail after seeding succeeded. An
+            # already-initialized DB skips load_seeds entirely, so the pipeline
+            # still seeds and picks up CSV edits.
+            seeds_loaded = any(
+                step.name == "load_seeds" and step.success for step in result.steps
+            )
+            if seeds_loaded:
+                orchestrator.mark_seeds_loaded()
             if not result.success:
                 from planalign_orchestrator.exceptions import InitializationError
 

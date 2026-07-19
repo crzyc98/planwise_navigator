@@ -651,6 +651,15 @@ class PipelineOrchestrator:
                 "Hazard cache check skipped (will rebuild if needed during execution)"
             )
 
+    def mark_seeds_loaded(self) -> None:
+        """Record that seeds are already loaded (e.g. by self-healing init).
+
+        The auto-initializer runs ``dbt seed --full-refresh`` (with the same
+        schema-mismatch drop) when it initializes a fresh database; calling
+        this lets ``_ensure_seeds_loaded`` skip a redundant ``dbt seed``.
+        """
+        self._seeded = True
+
     def _ensure_seeds_loaded(self) -> None:
         """Ensure dbt seeds are loaded once, dropping stale schema tables first."""
         if self._seeded:

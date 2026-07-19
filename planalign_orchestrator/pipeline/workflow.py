@@ -110,10 +110,12 @@ class WorkflowBuilder:
             - Year 2+ uses incremental preservation and helper models
             - Workflow ensures proper dependency ordering and validation
         """
-        # Align initialization with working runner: broader staging on first year
+        # staging.* is intentionally absent here: for the start year the
+        # orchestrator's _run_start_year_setup builds staging.* (with the same
+        # dbt vars) immediately before this stage runs, so re-selecting it
+        # only re-ran identical models (issue #465 tier-1 dedup).
         if year == start_year:
             initialization_models = [
-                "staging.*",
                 MODEL_INT_BASELINE_WORKFORCE,
             ]
         else:
