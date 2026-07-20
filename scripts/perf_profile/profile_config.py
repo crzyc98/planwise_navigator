@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Literal, Optional, Tuple
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -24,13 +24,26 @@ DEV_CENSUS_PARQUET = ROOT / "data" / "census_preprocessed.parquet"
 LARGE_CENSUS_PARQUET = OUTPUT_DIR / "census_large.parquet"
 
 DECOMPOSITION_TOLERANCE = 0.10  # FR-003: components must cover total within 10%
-MIN_WARM_REPS = {"tiny": 3, "dev": 3, "large": 2}  # spec FR-002 + large edge case
+MIN_WARM_REPS = {
+    "tiny": 3,
+    "dev": 3,
+    "large": 2,
+    "custom": 3,
+}  # spec FR-002 + large edge case; 'custom' = arbitrary census/config (#455 rework)
+
+# Which orchestrator-construction seam a sample was measured through.
+#   wrapper — planalign_cli.integration.OrchestratorWrapper, the real product
+#             path used by `planalign simulate` and (via subprocess) Studio.
+#   factory — planalign_orchestrator.create_orchestrator, the historical
+#             Feature 116 path (kept only for reconciliation; #455 rework).
+Construction = Literal["wrapper", "factory"]
 
 
 class CensusSize(str, Enum):
     TINY = "tiny"
     DEV = "dev"
     LARGE = "large"
+    CUSTOM = "custom"
 
 
 class ModelTiming(BaseModel):
@@ -78,6 +91,13 @@ class TimingSample(BaseModel):
     env: EnvNote
     completed: bool = True
     error: Optional[str] = None
+    # #455 rework: which construction seam + which config this sample measured.
+    # Defaults keep historical Feature 116 (factory-path) samples valid.
+    construction: Construction = "factory"
+    config_label: str = "reference"
+    config_path: Optional[str] = None
+    cpu_s: Optional[float] = Field(default=None, ge=0)
+    peak_rss_mb: Optional[float] = Field(default=None, ge=0)
 
     @property
     def invocation_wall_s(self) -> float:
@@ -152,6 +172,10 @@ class CampaignSummary(BaseModel):
     shared_db_unchanged: Optional[bool] = None
     sizes_run: List[str] = Field(default_factory=list)
     floor: Optional[FloorStats] = None
+    # #455 rework: production-path campaign provenance.
+    campaign_id: str = "legacy"
+    constructions_run: List[str] = Field(default_factory=list)
+    config_labels_run: List[str] = Field(default_factory=list)
 
 
 class ProbeResult(BaseModel):
