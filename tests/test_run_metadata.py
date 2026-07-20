@@ -81,6 +81,12 @@ class TestConfigFingerprint:
         reseeded.simulation.random_seed = 99999
         assert compute_config_fingerprint(reseeded) == baseline
 
+    def test_execution_engine_does_not_change_hash(self, minimal_config):
+        baseline = compute_config_fingerprint(minimal_config)
+        compiled = minimal_config.model_copy(deep=True)
+        compiled.optimization.execution_engine = "compiled"
+        assert compute_config_fingerprint(compiled) == baseline
+
     def test_non_result_affecting_setup_change_does_not_change_hash(
         self, minimal_config
     ):

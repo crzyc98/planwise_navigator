@@ -26,6 +26,7 @@ from .profile_config import (
     ProbeResult,
     REPORT_PATH,
     SAMPLES_DIR,
+    OUTPUT_DIR,
     TimingSample,
 )
 
@@ -48,14 +49,15 @@ explicitly and recommends per scale. Deviating from these thresholds requires
 written justification in this report."""
 
 
-def load_inputs() -> (
-    tuple[
-        List[TimingSample], Optional[CampaignSummary], Optional[ProbeResult], List[str]
-    ]
-):
+def load_inputs(
+    samples_dir: Path = SAMPLES_DIR,
+    campaign_path: Optional[Path] = None,
+) -> tuple[
+    List[TimingSample], Optional[CampaignSummary], Optional[ProbeResult], List[str]
+]:
     samples: List[TimingSample] = []
     excluded: List[str] = []
-    for path in sorted(SAMPLES_DIR.glob("*.json")):
+    for path in sorted(samples_dir.glob("*.json")):
         if path.name in ("probe.json",):
             continue
         try:
@@ -67,13 +69,13 @@ def load_inputs() -> (
         else:
             excluded.append(f"{path.name} (completed=false: {sample.error})")
 
-    campaign_path = SAMPLES_DIR.parent / "campaign.json"
+    campaign_path = campaign_path or samples_dir.parent / "campaign.json"
     campaign = (
         CampaignSummary.model_validate_json(campaign_path.read_text())
         if campaign_path.exists()
         else None
     )
-    probe_path = SAMPLES_DIR / "probe.json"
+    probe_path = samples_dir / "probe.json"
     probe = (
         ProbeResult.model_validate_json(probe_path.read_text())
         if probe_path.exists()
@@ -208,6 +210,38 @@ def _fmt(seconds: float) -> str:
     return f"{seconds:.1f}s"
 
 
+def _paired_engine_lines(samples: List[TimingSample]) -> List[str]:
+    grouped: Dict[tuple[CensusSize, str], List[TimingSample]] = {}
+    for sample in samples:
+        if sample.warm:
+            grouped.setdefault((sample.census_size, sample.engine), []).append(sample)
+    if not any(engine == "compiled" for _, engine in grouped):
+        return []
+    lines = [
+        "## Paired engine evidence",
+        "",
+        "| Size | dbt median | compiled median | Speedup | Compiled peak RSS | Delegated / unexpected |",
+        "|---|---:|---:|---:|---:|---:|",
+    ]
+    for size in SIZE_ORDER:
+        baseline = grouped.get((size, "dbt"), [])
+        candidate = grouped.get((size, "compiled"), [])
+        if not baseline or not candidate:
+            lines.append(f"| {size.value} | — | — | — | — | — |")
+            continue
+        dbt_median = _median([sample.total_wall_s for sample in baseline])
+        compiled_median = _median([sample.total_wall_s for sample in candidate])
+        rss = _median([sample.peak_rss_mb or 0.0 for sample in candidate])
+        delegated = sum(sample.delegated_invocation_count for sample in candidate)
+        unexpected = sum(sample.unexpected_fallback_count for sample in candidate)
+        lines.append(
+            f"| {size.value} | {_fmt(dbt_median)} | {_fmt(compiled_median)} | "
+            f"{dbt_median / compiled_median:.2f}x | {rss:.1f} MiB | "
+            f"{delegated} / {unexpected} |"
+        )
+    return [*lines, ""]
+
+
 def render(
     samples: List[TimingSample],
     campaign: Optional[CampaignSummary],
@@ -238,6 +272,8 @@ def render(
         ]
     else:
         lines += [NOT_MEASURED, ""]
+
+    lines += _paired_engine_lines(samples)
 
     lines += ["## 3. Wall-time by census size", ""]
     if grouped:
@@ -420,8 +456,8 @@ def render(
         "## 10. Reproduction",
         "",
         "```bash",
-        "python -m scripts.perf_profile.make_large_census --factor 8",
-        "python -m scripts.perf_profile.run_matrix --sizes tiny,dev,large --reps 3 --measure-floor",
+        "python -m scripts.perf_profile.make_large_census --factor 14 --out var/perf_profile/census_100k.parquet",
+        "python -m scripts.perf_profile.run_matrix --campaign-id feature119-final --engines dbt,compiled --sizes tiny,dev,large --reps 3",
         "python -m scripts.perf_profile.probe_direct_execution --year 2025",
         "python -m scripts.perf_profile.build_report",
         "```",
@@ -466,14 +502,24 @@ def _top_hotspots(group: List[TimingSample], n: int = 3) -> List[Tuple[str, floa
 
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--out", type=Path, default=REPORT_PATH)
+    parser.add_argument("--campaign-id")
+    parser.add_argument("--out", type=Path)
     args = parser.parse_args(argv)
 
-    samples, campaign, probe, excluded = load_inputs()
+    if args.campaign_id:
+        campaign_root = OUTPUT_DIR / args.campaign_id
+        samples_dir = campaign_root / "samples"
+        campaign_path = campaign_root / "campaign.json"
+        output_path = args.out or campaign_root / "report.md"
+    else:
+        samples_dir = SAMPLES_DIR
+        campaign_path = SAMPLES_DIR.parent / "campaign.json"
+        output_path = args.out or REPORT_PATH
+    samples, campaign, probe, excluded = load_inputs(samples_dir, campaign_path)
     report = render(samples, campaign, probe, excluded)
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(report)
-    print(f"[build_report] wrote {args.out} ({len(samples)} samples consumed)")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(report)
+    print(f"[build_report] wrote {output_path} ({len(samples)} samples consumed)")
     return 0
 
 

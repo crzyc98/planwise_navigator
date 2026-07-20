@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import time
+import uuid
 
 from .config import SimulationConfig, to_dbt_vars
 from .orchestrator_setup import (
@@ -31,6 +32,7 @@ from .reports.data_models import MultiYearSummary
 from .reports.multi_year_reporter import MultiYearReporter
 from .observability import ObservabilityManager
 from .run_metadata import check_and_record_run
+from .run_execution_metadata import append_run_execution_metadata
 from .utils import DatabaseConnectionManager, ExecutionMutex, time_block
 from .validation import DataValidator
 from planalign_core.constants import (
@@ -96,6 +98,9 @@ class PipelineOrchestrator:
         self.registry_manager = registry_manager
         self.validator = validator
         self.verbose = verbose
+        self.run_id = os.environ.get("PLANALIGN_RUN_ID") or str(uuid.uuid4())
+        setattr(self.dbt_runner, "run_id", self.run_id)
+        self._execution_summary_recorded = False
         self._dbt_vars = to_dbt_vars(config)
 
         # E068C: Extract threading configuration from new structured config
@@ -126,7 +131,9 @@ class PipelineOrchestrator:
         # Initialize observability (structured logs + performance metrics + run summary)
         self.observability: Optional[ObservabilityManager]
         try:
-            self.observability = ObservabilityManager(log_level="INFO")
+            self.observability = ObservabilityManager(
+                run_id=self.run_id, log_level="INFO"
+            )
             # Record configuration for audit trail
             # BUG FIX #235: Use mode='json' to convert Decimal values to floats for JSON serialization
             # Without this, json.dumps() fails with: TypeError: Object of type Decimal is not JSON serializable
@@ -269,6 +276,29 @@ class PipelineOrchestrator:
         fail_on_validation_error: bool = False,
         dry_run: bool = False,
     ) -> MultiYearSummary:
+        status = "failed"
+        try:
+            result = self._execute_multi_year_simulation(
+                start_year=start_year,
+                end_year=end_year,
+                fail_on_validation_error=fail_on_validation_error,
+                dry_run=dry_run,
+            )
+            status = "success"
+            return result
+        finally:
+            if not dry_run:
+                self._surface_execution_summary()
+                self._append_terminal_execution_metadata(status)
+
+    def _execute_multi_year_simulation(
+        self,
+        *,
+        start_year: Optional[int] = None,
+        end_year: Optional[int] = None,
+        fail_on_validation_error: bool = False,
+        dry_run: bool = False,
+    ) -> MultiYearSummary:
         start = start_year or self.config.simulation.start_year
         end = end_year or self.config.simulation.end_year
 
@@ -301,7 +331,7 @@ class PipelineOrchestrator:
                         end_year=end,
                         run_type="simulate",
                         full_reset=self._full_reset_active(),
-                        run_id=os.environ.get("PLANALIGN_RUN_ID"),
+                        run_id=self.run_id,
                     )
                 # The dbt source must exist even before the first FOUNDATION run.
                 self.enrollment_projection.ensure_table()
@@ -353,7 +383,51 @@ class PipelineOrchestrator:
         )
 
         summary = self._build_multi_year_summary(completed_years)
+        self._surface_execution_summary()
         return self._finalize_simulation(summary, completed_years)
+
+    def _surface_execution_summary(self) -> None:
+        if self._execution_summary_recorded or not hasattr(
+            self.dbt_runner, "execution_records"
+        ):
+            return
+        from .run_summary import aggregate_execution_records
+
+        summary = aggregate_execution_records(self.dbt_runner.execution_records)
+        logger.info(
+            "Compiled execution: %d direct, %d delegated, %d planned nodes",
+            summary["direct_invocations"],
+            summary["delegated_invocations"],
+            summary["planned_nodes"],
+        )
+        logger.info("%d unexpected fallbacks", summary["unexpected_fallbacks"])
+        if summary["reason_counts"]:
+            logger.info("Delegation reasons: %s", summary["reason_counts"])
+        if self.observability:
+            self.observability.add_metric(
+                "compiled_execution",
+                summary,
+                "Direct/delegated invocation and fallback evidence",
+            )
+        self._execution_summary_recorded = True
+
+    def _append_terminal_execution_metadata(self, status: str) -> None:
+        """Persist final engine counts without mutating startup provenance."""
+        records = getattr(self.dbt_runner, "execution_records", ())
+        engine = getattr(
+            getattr(self.config, "optimization", None), "execution_engine", "dbt"
+        )
+        engine_name = getattr(engine, "value", engine)
+        try:
+            append_run_execution_metadata(
+                self.db_manager,
+                run_id=self.run_id,
+                status=status,
+                execution_engine=str(engine_name),
+                records=records,
+            )
+        finally:
+            self.db_manager.close_all()
 
     def _full_reset_active(self) -> bool:
         """Whether this run performs a clear_mode='all' full reset.

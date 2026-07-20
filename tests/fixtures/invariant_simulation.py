@@ -99,12 +99,14 @@ def _simulation_config(census_parquet: Path) -> SimulationConfig:
     return config
 
 
-def _execute(database: Path, census_parquet: Path) -> SimulationRun:
+def _execute(
+    database: Path, census_parquet: Path, execution_engine: str
+) -> SimulationRun:
     try:
         with _database_environment(database):
-            orchestrator = create_orchestrator(
-                _simulation_config(census_parquet), db_path=database, threads=1
-            )
+            config = _simulation_config(census_parquet)
+            config.optimization.execution_engine = execution_engine
+            orchestrator = create_orchestrator(config, db_path=database, threads=1)
             orchestrator.execute_multi_year_simulation(start_year=2025, end_year=2027)
     except BaseException as error:  # preserve full orchestrator context for pytest
         return SimulationRun(database=database, error=error)
@@ -143,17 +145,26 @@ def shared_dev_db_signature() -> tuple[int, str] | None:
     return file_signature(SHARED_DEV_DB)
 
 
+@pytest.fixture(scope="session", params=("dbt", "compiled"))
+def invariant_execution_engine(request: pytest.FixtureRequest) -> str:
+    """Run the Feature 113 invariant and rerun suites under both engines."""
+    return str(request.param)
+
+
 @pytest.fixture(scope="session")
 def invariant_run_a_result(
     tmp_path_factory: pytest.TempPathFactory,
     invariant_census_parquet: Path,
     shared_dev_db_signature: tuple[int, str] | None,
+    invariant_execution_engine: str,
     request: pytest.FixtureRequest,
 ) -> Iterator[SimulationRun]:
     del shared_dev_db_signature
     run = _execute(
-        tmp_path_factory.mktemp("invariant-run-a") / "run_a.duckdb",
+        tmp_path_factory.mktemp(f"invariant-{invariant_execution_engine}-run-a")
+        / "run_a.duckdb",
         invariant_census_parquet,
+        invariant_execution_engine,
     )
     yield run
     _preserve_on_failure(run, request)
@@ -170,15 +181,19 @@ def invariant_run_b_result(
     invariant_census_parquet: Path,
     invariant_run_a_result: SimulationRun,
     shared_dev_db_signature: tuple[int, str] | None,
+    invariant_execution_engine: str,
     request: pytest.FixtureRequest,
 ) -> Iterator[SimulationRun]:
     del shared_dev_db_signature
-    database = tmp_path_factory.mktemp("invariant-run-b") / "run_b.duckdb"
+    database = (
+        tmp_path_factory.mktemp(f"invariant-{invariant_execution_engine}-run-b")
+        / "run_b.duckdb"
+    )
     if invariant_run_a_result.error is not None:
         run = SimulationRun(database=database, error=invariant_run_a_result.error)
     else:
         shutil.copy2(invariant_run_a_result.database, database)
-        run = _execute(database, invariant_census_parquet)
+        run = _execute(database, invariant_census_parquet, invariant_execution_engine)
     yield run
     _preserve_on_failure(run, request)
 

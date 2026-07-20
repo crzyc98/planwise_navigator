@@ -345,3 +345,4 @@ FROM hazard_calculation
 - Never `--full-refresh` the temporal state accumulators mid-simulation
 - `int_*` models may read `fct_yearly_events` (sanctioned exception) but no other `fct_*` tables in the same year
 - Use the PlanAlign Orchestrator (`planalign simulate`) for production multi-year runs
+- `--engine compiled` (opt-in, Feature 119) executes dbt-compiled SQL directly with exact-parity guarantees; `planalign parity` verifies both engines byte-equal — dbt remains the default engine and the sole author of model SQL

@@ -66,12 +66,12 @@ def _diff_sql(table: str, projection: str) -> str:
     return f"""
 WITH a_only AS (
   SELECT {projection} FROM run_a.{qualified}
-  EXCEPT
+  EXCEPT ALL
   SELECT {projection} FROM run_b.{qualified}
 ),
 b_only AS (
   SELECT {projection} FROM run_b.{qualified}
-  EXCEPT
+  EXCEPT ALL
   SELECT {projection} FROM run_a.{qualified}
 )
 SELECT 'a_only' AS difference_source, * FROM a_only
@@ -86,7 +86,7 @@ def compare_tables(
     table: str,
     exempt: Iterable[ExemptField] = EXEMPT_FIELDS,
 ) -> tuple[int, int, int, list[tuple[object, ...]]]:
-    """Compare one table using counts plus symmetric EXCEPT and bounded samples."""
+    """Compare one table using counts plus symmetric EXCEPT ALL samples."""
     if table not in COMPARED_TABLES:
         raise ValueError(f"Unsupported deterministic comparison table: {table}")
     with duckdb.connect() as connection:

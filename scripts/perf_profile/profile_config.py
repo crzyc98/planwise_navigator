@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Literal, Optional, Tuple
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -22,15 +22,22 @@ REPORT_PATH = ROOT / "docs" / "perf" / "run_cost_profile.md"
 TINY_CENSUS_CSV = ROOT / "tests" / "fixtures" / "invariant_census.csv"
 DEV_CENSUS_PARQUET = ROOT / "data" / "census_preprocessed.parquet"
 LARGE_CENSUS_PARQUET = OUTPUT_DIR / "census_large.parquet"
+MEMORY_CENSUS_PARQUET = OUTPUT_DIR / "census_100k.parquet"
 
 DECOMPOSITION_TOLERANCE = 0.10  # FR-003: components must cover total within 10%
-MIN_WARM_REPS = {"tiny": 3, "dev": 3, "large": 2}  # spec FR-002 + large edge case
+MIN_WARM_REPS = {
+    "tiny": 3,
+    "dev": 3,
+    "large": 2,
+    "memory": 1,
+}  # spec FR-002 + acceptance-only memory edge case
 
 
 class CensusSize(str, Enum):
     TINY = "tiny"
     DEV = "dev"
     LARGE = "large"
+    MEMORY = "memory"
 
 
 class ModelTiming(BaseModel):
@@ -66,9 +73,13 @@ class EnvNote(BaseModel):
 
 class TimingSample(BaseModel):
     sample_id: str
+    campaign_id: str = "legacy"
+    engine: Literal["dbt", "compiled"] = "dbt"
     census_size: CensusSize
     census_rows: int = Field(gt=0)
     census_parquet: str
+    census_fingerprint: Optional[str] = None
+    config_fingerprint: Optional[str] = None
     horizon: Tuple[int, int]
     repetition: int = Field(ge=0)
     warm: bool
@@ -78,6 +89,9 @@ class TimingSample(BaseModel):
     env: EnvNote
     completed: bool = True
     error: Optional[str] = None
+    delegated_invocation_count: int = Field(default=0, ge=0)
+    unexpected_fallback_count: int = Field(default=0, ge=0)
+    peak_rss_mb: Optional[float] = Field(default=None, ge=0)
 
     @property
     def invocation_wall_s(self) -> float:
@@ -146,11 +160,13 @@ class CampaignSummary(BaseModel):
     """Campaign-level record (campaign.json): SC-007 evidence + floor stats."""
 
     started_at: str
+    campaign_id: str = "legacy"
     finished_at: Optional[str] = None
     shared_db_sha256_before: Optional[str] = None
     shared_db_sha256_after: Optional[str] = None
     shared_db_unchanged: Optional[bool] = None
     sizes_run: List[str] = Field(default_factory=list)
+    engines_run: List[str] = Field(default_factory=list)
     floor: Optional[FloorStats] = None
 
 

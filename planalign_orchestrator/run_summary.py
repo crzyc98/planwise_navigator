@@ -8,6 +8,7 @@ and audit trail generation for production observability.
 import json
 import logging
 import shutil
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -22,6 +23,27 @@ from .logger import ProductionLogger
 from .performance_monitor import PerformanceMonitor
 
 logger = logging.getLogger(__name__)
+
+
+def aggregate_execution_records(records: List[Any]) -> Dict[str, Any]:
+    """Aggregate immutable invocation records for CLI and provenance output."""
+    direct = sum(record.mode == "direct" for record in records)
+    delegated = sum(record.mode == "dbt_delegation" for record in records)
+    unexpected = sum(
+        record.mode == "dbt_delegation" and record.rollback_attempted
+        for record in records
+    )
+    reasons = Counter(
+        record.reason_code for record in records if record.reason_code is not None
+    )
+    return {
+        "direct_invocations": direct,
+        "delegated_invocations": delegated,
+        "unexpected_fallbacks": unexpected,
+        "reason_counts": dict(sorted(reasons.items())),
+        "planned_nodes": sum(len(record.planned_nodes) for record in records),
+        "elapsed_seconds": round(sum(record.elapsed_seconds for record in records), 3),
+    }
 
 
 @dataclass
@@ -388,6 +410,7 @@ class RunSummaryGenerator:
         metadata = summary["run_metadata"]
         exec_summary = summary["execution_summary"]
         perf_summary = summary["performance_metrics"]
+        engine_summary = self.custom_metrics.get("compiled_execution", {}).get("value")
 
         # Basic run info
         lines = ["Run %s Complete" % self.run_id]
@@ -403,6 +426,22 @@ class RunSummaryGenerator:
             lines.append("Warnings: %d" % exec_summary["total_warnings"])
         if exec_summary["total_errors"] == 0 and exec_summary["total_warnings"] == 0:
             lines.append("No issues detected")
+
+        if engine_summary:
+            lines.append("")
+            lines.append("Compiled execution:")
+            lines.append(
+                "  Direct/delegated invocations: %s/%s"
+                % (
+                    engine_summary["direct_invocations"],
+                    engine_summary["delegated_invocations"],
+                )
+            )
+            lines.append(
+                "  %s unexpected fallbacks" % engine_summary["unexpected_fallbacks"]
+            )
+            if engine_summary["reason_counts"]:
+                lines.append("  Reasons: %s" % engine_summary["reason_counts"])
 
         # Performance summary
         if perf_summary.get("total_operations", 0) > 0:

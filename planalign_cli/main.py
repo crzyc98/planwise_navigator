@@ -79,10 +79,23 @@ from .commands.batch import run_batch  # noqa: E402
 from .commands.validate import validate_config  # noqa: E402
 from .commands.calibrate import run_calibration  # noqa: E402
 from .commands.provenance import generate_provenance_report  # noqa: E402
+from .commands.parity import run_parity_command  # noqa: E402
 
 # Fast compensation calibration (Feature 105) -- run_calibration already carries
 # its full typer signature, so register it directly.
 app.command("calibrate")(run_calibration)
+
+
+@app.command("parity")
+def parity(
+    years: str = typer.Argument(..., help="Year range, for example 2025-2027"),
+    config: Path = typer.Option(..., "--config", "-c", help="Simulation config YAML"),
+    census: Path = typer.Option(..., "--census", help="Census CSV or Parquet"),
+    seed: int = typer.Option(..., "--seed", help="Deterministic random seed"),
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON report"),
+) -> None:
+    """Compare standard dbt and compiled execution in isolated databases."""
+    run_parity_command(years, config, census, seed, json_output)
 
 
 @app.command("provenance")

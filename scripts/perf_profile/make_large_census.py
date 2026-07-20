@@ -8,6 +8,8 @@ Dates are preserved, so the demographic mix matches the source exactly.
 
 Usage:
     python -m scripts.perf_profile.make_large_census --factor 8
+    python -m scripts.perf_profile.make_large_census --factor 14 \
+      --out var/perf_profile/census_100k.parquet  # 105,070 rows
 """
 
 from __future__ import annotations

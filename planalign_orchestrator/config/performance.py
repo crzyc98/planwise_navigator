@@ -5,7 +5,7 @@ E073: Config Module Refactoring - performance module.
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -433,6 +433,15 @@ class E068CThreadingSettings(BaseModel):
 class OptimizationSettings(BaseModel):
     """Performance optimization configuration."""
 
+    execution_engine: Literal["dbt", "compiled"] = Field(
+        default="dbt",
+        description=(
+            "Simulation execution engine (Feature 119): 'dbt' runs every "
+            "invocation as a dbt subprocess; 'compiled' executes dbt-compiled "
+            "SQL directly against DuckDB, delegating seed/build/full-refresh "
+            "invocations to an in-process dbt runner."
+        ),
+    )
     level: str = Field(
         default="high", description="Optimization level: low, medium, high, fallback"
     )

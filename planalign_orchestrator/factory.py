@@ -99,7 +99,19 @@ class OrchestratorBuilder:
         for r in self._rules:
             dv.register_rule(r)
 
-        runner = DbtRunner(
+        # Feature 119: engine selection — CompiledRunner is a drop-in DbtRunner
+        # subclass executing dbt-compiled SQL directly (delegating seed/build/
+        # full-refresh invocations to in-process dbt).
+        engine = "dbt"
+        if self._config is not None and self._config.optimization is not None:
+            engine = getattr(self._config.optimization, "execution_engine", "dbt")
+        if engine == "compiled":
+            from planalign_orchestrator.engine import CompiledRunner
+
+            runner_cls: type[DbtRunner] = CompiledRunner
+        else:
+            runner_cls = DbtRunner
+        runner = runner_cls(
             working_dir=Path("dbt"),  # Use relative dbt path
             threads=thread_count,
             executable=self._dbt_executable,
