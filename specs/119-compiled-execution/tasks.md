@@ -95,7 +95,7 @@
 - [X] T029 Gate 5 — Paired performance: fresh paired baseline/candidate campaigns (tiny/dev/60K, ≥3 warm reps, same environment) including ALL compilation/preflight/delegation cost → compiled ≥1.8× end-to-end on the 60K benchmark (2.0× target), tiny/dev reported; store paired samples + report
 - [X] T030 Gate 6 — Zero unexpected fallbacks across the entire supported acceptance matrix (gates 1–5 runs' terminal metadata audited); assemble the ordered `GateEvidence` set proving gates 1–6
 - [X] T031 ~~Default flip~~ CANCELLED per Session 2026-07-19 Gate-5 decision (close-as-oracle): default remains `dbt`; compiled ships opt-in. Documentation pass done in lieu of flip. Original text: `optimization.execution_engine` default → `compiled` in `planalign_orchestrator/config/performance.py` + `config/simulation_config.yaml` docs; rerun Gate 1 tiny parity on the new default plus an explicit `--engine dbt` compatibility smoke; documentation pass (CLAUDE.md, dbt/CLAUDE.md engine section, changelog)
-- [ ] T032 Close-out: commit sequence + PR (stacked on `118-dedupe-init-invocations`) with the gate-evidence table; closes #456 and #470 on merge; comment evidence on #470, update epic #469 and roadmap tracker #463; note #471 (native-kernel spike) as next, #472–#475 remain blocked pending #471 GO
+- [X] T032 Close-out: commit sequence + PR (stacked on `118-dedupe-init-invocations`) with the gate-evidence table; closes #456 and #470 on merge; comment evidence on #470, update epic #469 and roadmap tracker #463; note #471 (native-kernel spike) as next, #472–#475 remain blocked pending #471 GO
 
 ---
 
