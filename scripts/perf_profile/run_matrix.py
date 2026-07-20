@@ -1,13 +1,29 @@
-"""Measurement campaign driver for the run-cost profile (Feature 116).
+"""Measurement campaign driver for the run-cost profile (Feature 116, #455).
 
-Runs the same multi-year simulation against each census size in a fresh,
-isolated DuckDB (never ``dbt/simulation.duckdb``), recording one TimingSample
-JSON per repetition plus a campaign-level summary (SC-007 hash evidence and
-the FR-004 minimal-invocation floor).
+Runs the same multi-year simulation against a census in a fresh, isolated
+DuckDB (never ``dbt/simulation.duckdb``), recording one TimingSample JSON per
+repetition plus a campaign-level summary (SC-007 hash evidence and the FR-004
+minimal-invocation floor).
+
+#455 rework — production-path correction: the original Feature 116 campaign
+constructed the orchestrator through ``planalign_orchestrator.create_orchestrator``
+(the ``factory`` seam), which no real user touches. ``planalign simulate`` and
+Studio (via subprocess) build through ``OrchestratorWrapper`` (the ``wrapper``
+seam). This driver defaults to ``--construction wrapper`` and accepts arbitrary
+config / census / database / dbt-project paths so the accepted baseline is
+measured on the real product path, against both the minimal reference config and
+the Studio-realistic DC-plan config.
 
 Usage:
-    python -m scripts.perf_profile.run_matrix --sizes tiny,dev,large --reps 3
-    python -m scripts.perf_profile.run_matrix --sizes tiny --reps 1   # smoke
+    # Historical factory-path matrix (reconciliation only):
+    python -m scripts.perf_profile.run_matrix \
+        --construction factory --sizes tiny,dev,large --reps 3
+
+    # Corrected production-path baseline (wrapper seam, one config):
+    python -m scripts.perf_profile.run_matrix \
+        --campaign-id prod-studio --construction wrapper \
+        --config workspaces/.../config.yaml --config-label studio \
+        --census workspaces/.../census.parquet --horizon 2025-2029 --reps 3
 """
 
 from __future__ import annotations
@@ -18,6 +34,7 @@ import os
 import platform
 import subprocess
 import sys
+import threading
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -26,25 +43,27 @@ from pathlib import Path
 from typing import Iterator, List, Optional
 
 import duckdb
+import psutil
+import yaml
 
 from .dbt_timing import InvocationRecorder, attach_stage_tracking
 from .profile_config import (
-    DB_DIR,
     DEV_CENSUS_PARQUET,
     LARGE_CENSUS_PARQUET,
+    OUTPUT_DIR,
     ROOT,
-    SAMPLES_DIR,
     SHARED_DEV_DB,
     TINY_CENSUS_CSV,
     CampaignSummary,
     CensusSize,
+    Construction,
     EnvNote,
     FloorStats,
     TimingSample,
 )
 
 CONFIG_YAML = ROOT / "config" / "simulation_config.yaml"
-CAMPAIGN_PATH = SAMPLES_DIR.parent / "campaign.json"
+DBT_PROJECT_DIR = ROOT / "dbt"
 FLOOR_SELECTOR = "stg_config_age_bands"  # trivial config-seed model (analysis U2)
 
 
@@ -98,7 +117,7 @@ def database_environment(database: Path) -> Iterator[None]:
 
 
 def ensure_tiny_parquet() -> Path:
-    path = SAMPLES_DIR.parent / "census_tiny.parquet"
+    path = OUTPUT_DIR / "census_tiny.parquet"
     if not path.exists():
         with duckdb.connect() as conn:
             conn.read_csv(str(TINY_CENSUS_CSV)).write_parquet(str(path))
@@ -111,7 +130,9 @@ def resolve_census(size: CensusSize) -> Path:
         CensusSize.DEV: DEV_CENSUS_PARQUET,
         CensusSize.LARGE: LARGE_CENSUS_PARQUET,
     }
-    path = paths[size]
+    path = paths.get(size)
+    if path is None:
+        raise ValueError(f"size '{size.value}' has no built-in census; pass --census")
     if not path.exists():
         raise FileNotFoundError(
             f"census for size '{size.value}' missing: {path} "
@@ -125,14 +146,94 @@ def _census_rows(parquet: Path) -> int:
         return conn.sql(f"SELECT COUNT(*) FROM read_parquet('{parquet}')").fetchone()[0]
 
 
-def _load_config(census_parquet: Path, horizon: tuple[int, int]):
+def _load_config(config_source: Path, census_parquet: Path, horizon: tuple[int, int]):
+    """Load a config object with the census + horizon overridden (factory seam)."""
     from planalign_orchestrator.config import load_simulation_config
 
-    config = load_simulation_config(CONFIG_YAML, env_overrides=False)
+    config = load_simulation_config(config_source, env_overrides=False)
     config.setup["census_parquet_path"] = str(census_parquet)
     config.simulation.start_year = horizon[0]
     config.simulation.end_year = horizon[1]
     return config
+
+
+def _write_effective_config(
+    config_source: Path,
+    census_parquet: Path,
+    horizon: tuple[int, int],
+    dest: Path,
+) -> Path:
+    """Materialize an on-disk config YAML with census + horizon injected.
+
+    The wrapper seam loads config from a path (exactly as ``planalign simulate
+    --config`` does), so the production benchmark points it at this file rather
+    than mutating a config object. Written as data (safe_load/safe_dump) so both
+    the minimal reference config and the Studio config round-trip identically to
+    what the real loader will read.
+    """
+    data = yaml.safe_load(config_source.read_text()) or {}
+    setup = data.setdefault("setup", {})
+    setup["census_parquet_path"] = str(census_parquet)
+    simulation = data.setdefault("simulation", {})
+    simulation["start_year"] = horizon[0]
+    simulation["end_year"] = horizon[1]
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(yaml.safe_dump(data, sort_keys=False))
+    return dest
+
+
+def _build_wrapper_orchestrator(
+    effective_config: Path, db_path: Path, dbt_project_dir: Optional[Path]
+):
+    """Construct via the real product seam (OrchestratorWrapper), like the CLI."""
+    from planalign_cli.integration.orchestrator_wrapper import OrchestratorWrapper
+
+    wrapper = OrchestratorWrapper(
+        config_path=effective_config,
+        db_path=db_path,
+        verbose=False,
+        dbt_project_dir=dbt_project_dir,
+    )
+    return wrapper.create_orchestrator(threads=1)
+
+
+class _PeakRssMonitor:
+    """Sample recursive process-tree RSS while one campaign run executes."""
+
+    def __init__(self) -> None:
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._sample, daemon=True)
+        self.peak_bytes = 0
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def stop(self) -> float:
+        self._stop.set()
+        self._thread.join(timeout=2)
+        return self.peak_bytes / (1024 * 1024)
+
+    def _sample(self) -> None:
+        process = psutil.Process()
+        while not self._stop.wait(0.1):
+            processes = [process, *process.children(recursive=True)]
+            total = 0
+            for item in processes:
+                try:
+                    total += item.memory_info().rss
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+            self.peak_bytes = max(self.peak_bytes, total)
+
+
+def _cpu_delta(before: os.times_result, after: os.times_result) -> float:
+    """Total CPU seconds (this process + reaped dbt subprocesses) for a run."""
+    return (
+        (after.user - before.user)
+        + (after.system - before.system)
+        + (after.children_user - before.children_user)
+        + (after.children_system - before.children_system)
+    )
 
 
 def run_single(
@@ -142,26 +243,47 @@ def run_single(
     warm: bool,
     horizon: tuple[int, int],
     shared_db_sha: Optional[str],
+    construction: Construction,
+    config_source: Path,
+    config_label: str,
+    census_override: Optional[Path],
+    dbt_project_dir: Optional[Path],
+    campaign_root: Path,
 ) -> TimingSample:
     """Execute one isolated simulation and return its TimingSample."""
-    from planalign_orchestrator import create_orchestrator
-
-    census = resolve_census(size)
+    census = census_override if census_override is not None else resolve_census(size)
+    stem = f"{config_label}_{construction}_{size.value}_{repetition}"
     # Underscore only: the file stem becomes the DuckDB database alias, and
     # dbt-duckdb references it unquoted — a hyphen breaks every dbt statement.
-    db_path = DB_DIR / f"{size.value}_{repetition}.duckdb"
+    db_path = campaign_root / "db" / f"{stem}.duckdb"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
     if db_path.exists():
         db_path.unlink()
     if db_path.resolve() == SHARED_DEV_DB.resolve():
         raise RuntimeError("guardrail: refusing to run against the shared dev DB")
 
-    config = _load_config(census, horizon)
+    effective_config = _write_effective_config(
+        config_source, census, horizon, campaign_root / "configs" / f"{stem}.yaml"
+    )
+
     error: Optional[str] = None
     recorder: Optional[InvocationRecorder] = None
+    orchestrator = None
+    memory = _PeakRssMonitor()
+    memory.start()
+    cpu_before = os.times()
     start = time.perf_counter()
     try:
         with database_environment(db_path):
-            orchestrator = create_orchestrator(config, db_path=db_path, threads=1)
+            if construction == "wrapper":
+                orchestrator = _build_wrapper_orchestrator(
+                    effective_config, db_path, dbt_project_dir
+                )
+            else:
+                from planalign_orchestrator import create_orchestrator
+
+                config = _load_config(config_source, census, horizon)
+                orchestrator = create_orchestrator(config, db_path=db_path, threads=1)
             recorder = InvocationRecorder(orchestrator.dbt_runner)
             attach_stage_tracking(orchestrator, recorder)
             orchestrator.execute_multi_year_simulation(
@@ -171,11 +293,13 @@ def run_single(
         error = f"{type(exc).__name__}: {exc}"
     finally:
         total_wall = time.perf_counter() - start
+        cpu_s = _cpu_delta(cpu_before, os.times())
+        peak_rss_mb = memory.stop()
         if recorder is not None:
             recorder.unwrap()
 
     return TimingSample(
-        sample_id=f"{size.value}-{repetition}",
+        sample_id=f"{config_label}-{construction}-{size.value}-{repetition}",
         census_size=size,
         census_rows=_census_rows(census),
         census_parquet=str(census),
@@ -188,24 +312,35 @@ def run_single(
         env=build_env_note(shared_db_sha),
         completed=error is None,
         error=error,
+        construction=construction,
+        config_label=config_label,
+        config_path=str(effective_config),
+        cpu_s=max(cpu_s, 0.0),
+        peak_rss_mb=peak_rss_mb,
     )
 
 
-def write_sample(sample: TimingSample) -> Path:
-    SAMPLES_DIR.mkdir(parents=True, exist_ok=True)
-    path = SAMPLES_DIR / f"{sample.sample_id}.json"
+def write_sample(sample: TimingSample, samples_dir: Path) -> Path:
+    samples_dir.mkdir(parents=True, exist_ok=True)
+    path = samples_dir / f"{sample.sample_id}.json"
     path.write_text(sample.model_dump_json(indent=2))
     return path
 
 
-def measure_floor(built_db: Path, census_parquet: Path, reps: int = 5) -> FloorStats:
+def measure_floor(
+    built_db: Path,
+    census_parquet: Path,
+    samples_dir: Path,
+    config_source: Path,
+    reps: int = 5,
+) -> FloorStats:
     """Time a minimal dbt invocation against an already-built DB (FR-004)."""
     from planalign_orchestrator.config.export import to_dbt_vars
     from planalign_orchestrator.dbt_runner import DbtRunner
 
-    config = _load_config(census_parquet, (2025, 2027))
+    config = _load_config(config_source, census_parquet, (2025, 2027))
     dbt_vars = to_dbt_vars(config)
-    runner = DbtRunner(working_dir=ROOT / "dbt", threads=1, verbose=False)
+    runner = DbtRunner(working_dir=DBT_PROJECT_DIR, threads=1, verbose=False)
     walls: List[float] = []
     executes: List[float] = []
     with database_environment(built_db):
@@ -223,21 +358,21 @@ def measure_floor(built_db: Path, census_parquet: Path, reps: int = 5) -> FloorS
                 raise RuntimeError(f"floor measurement failed: {result.stderr[-500:]}")
             from .dbt_timing import _parse_run_results
 
-            models = _parse_run_results(ROOT / "dbt" / "target")
+            models = _parse_run_results(DBT_PROJECT_DIR / "target")
             executes.append(sum(m.execute_s for m in models))
     return FloorStats(
         selector=FLOOR_SELECTOR,
         reps=reps,
         wall_s=walls,
         execute_s=executes,
-        invocations_per_year=_invocations_per_year(),
+        invocations_per_year=_invocations_per_year(samples_dir),
     )
 
 
-def _invocations_per_year() -> int:
+def _invocations_per_year(samples_dir: Path) -> int:
     """Median invocation count per simulated year across completed samples."""
     counts: List[int] = []
-    for path in sorted(SAMPLES_DIR.glob("*-*.json")):
+    for path in sorted(samples_dir.glob("*.json")):
         sample = TimingSample.model_validate_json(path.read_text())
         if not sample.completed or not sample.invocations:
             continue
@@ -253,9 +388,48 @@ def _parse_horizon(text: str) -> tuple[int, int]:
     return int(start), int(end)
 
 
+def _resolve_paths(args) -> tuple[Path, Path, Path, Path]:
+    """Resolve (campaign_root, samples_dir, db_dir, campaign_path) from args."""
+    campaign_root = OUTPUT_DIR / args.campaign_id if args.campaign_id else OUTPUT_DIR
+    samples_dir = campaign_root / "samples"
+    db_dir = campaign_root / "db"
+    campaign_path = campaign_root / "campaign.json"
+    return campaign_root, samples_dir, db_dir, campaign_path
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--campaign-id", default="")
+    parser.add_argument(
+        "--construction",
+        choices=("wrapper", "factory"),
+        default="wrapper",
+        help="orchestrator-construction seam (default: wrapper = real product path)",
+    )
     parser.add_argument("--sizes", default="tiny,dev,large")
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=CONFIG_YAML,
+        help="source simulation config YAML (default: repo minimal reference config)",
+    )
+    parser.add_argument(
+        "--config-label",
+        default="reference",
+        help="human label for this config (e.g. reference, studio)",
+    )
+    parser.add_argument(
+        "--census",
+        type=Path,
+        default=None,
+        help="explicit census parquet; when set, runs a single 'custom' size",
+    )
+    parser.add_argument(
+        "--dbt-project-dir",
+        type=Path,
+        default=None,
+        help="dbt project dir (default: none => shared dbt/, like a bare CLI run)",
+    )
     parser.add_argument(
         "--reps",
         type=int,
@@ -271,22 +445,45 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    sizes = [CensusSize(s.strip()) for s in args.sizes.split(",") if s.strip()]
+    construction: Construction = args.construction
+    config_source: Path = args.config
+    if not config_source.exists():
+        parser.error(f"config not found: {config_source}")
+    census_override: Optional[Path] = args.census
+    if census_override is not None and not census_override.exists():
+        parser.error(f"census not found: {census_override}")
+    dbt_project_dir: Optional[Path] = args.dbt_project_dir
+
+    if census_override is not None:
+        sizes = [CensusSize.CUSTOM]
+    else:
+        sizes = [CensusSize(s.strip()) for s in args.sizes.split(",") if s.strip()]
     horizon = _parse_horizon(args.horizon)
-    SAMPLES_DIR.mkdir(parents=True, exist_ok=True)
-    DB_DIR.mkdir(parents=True, exist_ok=True)
+
+    campaign_root, samples_dir, db_dir, campaign_path = _resolve_paths(args)
+    samples_dir.mkdir(parents=True, exist_ok=True)
+    db_dir.mkdir(parents=True, exist_ok=True)
 
     sha_before = _sha256(SHARED_DEV_DB)
-    if CAMPAIGN_PATH.exists():
+    if campaign_path.exists():
         # Continue the existing campaign: keep its start, before-hash, and floor.
-        campaign = CampaignSummary.model_validate_json(CAMPAIGN_PATH.read_text())
+        campaign = CampaignSummary.model_validate_json(campaign_path.read_text())
         campaign.sizes_run = sorted(set(campaign.sizes_run) | {s.value for s in sizes})
+        campaign.constructions_run = sorted(
+            set(campaign.constructions_run) | {construction}
+        )
+        campaign.config_labels_run = sorted(
+            set(campaign.config_labels_run) | {args.config_label}
+        )
         sha_before = campaign.shared_db_sha256_before
     else:
         campaign = CampaignSummary(
             started_at=datetime.now(timezone.utc).isoformat(),
+            campaign_id=args.campaign_id or "legacy",
             shared_db_sha256_before=sha_before,
             sizes_run=[s.value for s in sizes],
+            constructions_run=[construction],
+            config_labels_run=[args.config_label],
         )
 
     exit_code = 0
@@ -297,15 +494,33 @@ def main(argv: Optional[List[str]] = None) -> int:
         for repetition, warm in reps:
             label = "warm" if warm else "cold"
             print(
-                f"[run_matrix] {size.value} rep {repetition} ({label}) ...", flush=True
+                f"[run_matrix] {construction}/{args.config_label} {size.value} "
+                f"rep {repetition} ({label}) ...",
+                flush=True,
             )
             sample = run_single(
-                size, repetition, warm=warm, horizon=horizon, shared_db_sha=sha_before
+                size,
+                repetition,
+                warm=warm,
+                horizon=horizon,
+                shared_db_sha=sha_before,
+                construction=construction,
+                config_source=config_source,
+                config_label=args.config_label,
+                census_override=census_override,
+                dbt_project_dir=dbt_project_dir,
+                campaign_root=campaign_root,
             )
-            path = write_sample(sample)
+            path = write_sample(sample, samples_dir)
             status = "ok" if sample.completed else f"FAILED: {sample.error}"
+            cpu = f"{sample.cpu_s:.1f}s cpu" if sample.cpu_s is not None else "cpu n/a"
+            rss = (
+                f"{sample.peak_rss_mb:.0f} MiB peak"
+                if sample.peak_rss_mb is not None
+                else "rss n/a"
+            )
             print(
-                f"[run_matrix]   {sample.total_wall_s:.1f}s total, "
+                f"[run_matrix]   {sample.total_wall_s:.1f}s total, {cpu}, {rss}, "
                 f"{len(sample.invocations)} invocations -> {path.name} [{status}]",
                 flush=True,
             )
@@ -324,7 +539,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 f"[run_matrix] measuring invocation floor against {db.name} ...",
                 flush=True,
             )
-            campaign.floor = measure_floor(db, census)
+            campaign.floor = measure_floor(db, census, samples_dir, config_source)
             print(
                 f"[run_matrix]   floor median {campaign.floor.median_floor_s:.1f}s x "
                 f"{campaign.floor.invocations_per_year} invocations/year",
@@ -335,7 +550,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     campaign.finished_at = datetime.now(timezone.utc).isoformat()
     campaign.shared_db_sha256_after = sha_after
     campaign.shared_db_unchanged = sha_before == sha_after
-    CAMPAIGN_PATH.write_text(campaign.model_dump_json(indent=2))
+    campaign_path.write_text(campaign.model_dump_json(indent=2))
 
     if campaign.shared_db_unchanged:
         print("[run_matrix] shared dev DB unchanged (sha256 verified)")
