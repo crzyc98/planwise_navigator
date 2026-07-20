@@ -149,6 +149,11 @@ def _config_delta_rows() -> List[str]:
         from planalign_orchestrator.config import load_simulation_config
     except ImportError:
         return ["_(config loader unavailable; delta omitted)_"]
+    if not (REFERENCE_CONFIG.exists() and STUDIO_CONFIG.exists()):
+        return [
+            "_(one or both source configs are not present on this machine; "
+            "regenerate where the Studio workspace exists to render the delta)_"
+        ]
     ref = load_simulation_config(REFERENCE_CONFIG, env_overrides=False).model_dump(
         mode="json"
     )
