@@ -156,6 +156,21 @@ class WorkflowBuilder:
                 "int_workforce_needs_by_level",
             ]
 
+        # Feature 121 (Tier B): for later years, fold the FOUNDATION models into the
+        # INITIALIZATION selection so the two stages share ONE dbt invocation instead
+        # of two. Safe by construction: neither stage uses --full-refresh after the
+        # start year (see YearExecutor._should_full_refresh_foundation, which only
+        # full-refreshes FOUNDATION on the start year), and dbt resolves intra-selection
+        # build order from the ref() DAG, so every table is byte-identical to the
+        # two-invocation form. The FOUNDATION stage is retained with no models so its
+        # validation rules and stage telemetry still run against the built tables. The
+        # start year is intentionally left split, because FOUNDATION full-refreshes
+        # there and --full-refresh applies to a whole invocation.
+        # See specs/121-reduce-dbt-invocations/research.md Decision 4.
+        if year != start_year:
+            initialization_models = [*initialization_models, *foundation_models]
+            foundation_models = []
+
         return [
             StageDefinition(
                 name=WorkflowStage.INITIALIZATION,
