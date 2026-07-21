@@ -155,6 +155,13 @@ def build_orchestrator(spec: ConstructionSpec) -> ConstructionResult:
             verbose=spec.verbose,
             start_year=spec.config.simulation.start_year,
             dbt_vars=to_dbt_vars(spec.config),
+            # The canonical seam runs self-healing against a potentially EMPTY
+            # database (the fresh-DB initialization contract), so it performs a
+            # full cold seed+staging+FOUNDATION build, not the quick missing-table
+            # repair the 60s default was sized for. A cold build legitimately
+            # exceeds 60s on slower hardware/CI; use a generous ceiling that still
+            # catches a genuine hang.
+            timeout_seconds=600.0,
         )
 
     orchestrator = PipelineOrchestrator(
