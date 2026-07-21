@@ -24,11 +24,9 @@ from planalign_orchestrator.config import (
     SimulationSettings,
 )
 from planalign_orchestrator.dbt_runner import DbtResult, DbtRunner
-from planalign_orchestrator.pipeline_orchestrator import PipelineOrchestrator
-from planalign_orchestrator.registries import RegistryManager
+from planalign_orchestrator.construction import ConstructionSpec, build_orchestrator
 from planalign_orchestrator.run_metadata import RUN_METADATA_TABLE
 from planalign_orchestrator.utils import DatabaseConnectionManager
-from planalign_orchestrator.validation import DataValidator
 
 pytestmark = [pytest.mark.integration, pytest.mark.slow]
 
@@ -95,15 +93,17 @@ def _make_config(
 
 def _make_orchestrator(cfg: SimulationConfig, db_path: Path, tmp_path: Path):
     mgr = DatabaseConnectionManager(db_path=db_path)
-    return (
-        PipelineOrchestrator(
-            cfg,
-            mgr,
-            DummyRunner(working_dir=tmp_path),
-            RegistryManager(mgr),
-            DataValidator(mgr),
+    result = build_orchestrator(
+        ConstructionSpec(
+            config=cfg,
+            database=mgr,
+            runner_override=DummyRunner(working_dir=tmp_path),
             reports_dir=tmp_path / "reports",
-        ),
+            entry_point="invariant_test",
+        )
+    )
+    return (
+        result.orchestrator,
         mgr,
     )
 

@@ -79,7 +79,7 @@ class ProbeCapture:
 
 def run_standard(year: int) -> List:
     """Run the standard path, capturing copies + per-invocation run SQL."""
-    from planalign_orchestrator import create_orchestrator
+    from planalign_orchestrator import ConstructionSpec, build_orchestrator
     from planalign_orchestrator.pipeline.hooks import Hook, HookType
 
     if PROBE_DIR.exists():
@@ -89,7 +89,15 @@ def run_standard(year: int) -> List:
 
     config = _load_config(DEV_CENSUS_PARQUET, (year, year))
     with database_environment(STD_DB):
-        orchestrator = create_orchestrator(config, db_path=STD_DB, threads=1)
+        orchestrator = build_orchestrator(
+            ConstructionSpec(
+                config=config,
+                database=STD_DB,
+                threads=1,
+                entry_point="perf_harness",
+                validation_mode=True,
+            )
+        ).orchestrator
         recorder = InvocationRecorder(
             orchestrator.dbt_runner, snapshot_run_sql_to=RUN_SQL_DIR
         )

@@ -189,6 +189,18 @@ class SimulationOutputParser:
     @staticmethod
     def classify_line(line_text: str) -> str:
         """Return ``'error'``, ``'warning'``, or ``'debug'`` for log routing."""
+        if line_text.startswith(STRUCTURED_SENTINEL):
+            try:
+                record = json.loads(line_text[len(STRUCTURED_SENTINEL) :])
+            except (json.JSONDecodeError, ValueError):
+                return "debug"
+            disposition = record.get("disposition")
+            if disposition == "failed":
+                return "error"
+            if disposition == "warning":
+                return "warning"
+            return "debug"
+
         lower = line_text[:_MAX_LINE_LENGTH].lower()
         if any(kw in lower for kw in ERROR_KEYWORDS):
             return "error"

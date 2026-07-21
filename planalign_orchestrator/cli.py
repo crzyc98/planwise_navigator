@@ -14,12 +14,9 @@ from pathlib import Path
 from typing import Optional
 
 from .config import load_simulation_config
-from .dbt_runner import DbtRunner
-from .pipeline_orchestrator import PipelineOrchestrator
-from .registries import RegistryManager
+from .construction import ConstructionSpec, build_orchestrator
 from .scenario_batch_runner import ScenarioBatchRunner
 from .utils import DatabaseConnectionManager
-from .validation import DataValidator, EventSequenceRule, HireTerminationRatioRule
 
 logger = logging.getLogger(__name__)
 
@@ -32,13 +29,6 @@ def _parse_years(s: str) -> tuple[int, int]:
         raise argparse.ArgumentTypeError("Expected YEAR-YEAR format, e.g., 2025-2027")
 
 
-def _build_validator(db: DatabaseConnectionManager) -> DataValidator:
-    dv = DataValidator(db)
-    dv.register_rule(HireTerminationRatioRule())
-    dv.register_rule(EventSequenceRule())
-    return dv
-
-
 def cmd_run(args: argparse.Namespace) -> int:
     config_path = (
         Path(args.config) if args.config else Path("config/simulation_config.yaml")
@@ -47,31 +37,19 @@ def cmd_run(args: argparse.Namespace) -> int:
     db_path = Path(args.database) if args.database else Path("dbt/simulation.duckdb")
     db = DatabaseConnectionManager(db_path)
 
-    # Extract threading configuration from config (with CLI override)
-    if cfg.orchestrator:
-        cfg.validate_threading_configuration()
-    cfg.validate_eligibility_configuration()
-
     thread_count = args.threads if args.threads is not None else cfg.get_thread_count()
-    threading_enabled = True
-    threading_mode = "selective"
-
-    if cfg.orchestrator and cfg.orchestrator.threading:
-        threading_enabled = cfg.orchestrator.threading.enabled
-        threading_mode = cfg.orchestrator.threading.mode
-
-    runner = DbtRunner(
-        threads=thread_count,
-        executable=("echo" if args.dry_run else "dbt"),
-        verbose=bool(args.verbose),
-        threading_enabled=threading_enabled,
-        threading_mode=threading_mode,
+    result = build_orchestrator(
+        ConstructionSpec(
+            config=cfg,
+            database=db,
+            threads=thread_count,
+            entry_point="cli.simulate",
+            verbose=bool(args.verbose),
+            dry_run=args.dry_run,
+        )
     )
-    registries = RegistryManager(db)
-    dv = _build_validator(db)
-    orch = PipelineOrchestrator(
-        cfg, db, runner, registries, dv, verbose=bool(args.verbose)
-    )
+    orch = result.orchestrator
+    orch.construction_signature = result.signature
 
     start_year = args.start_year or (
         cfg.simulation.start_year if not args.years else _parse_years(args.years)[0]

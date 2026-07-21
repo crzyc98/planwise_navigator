@@ -13,16 +13,14 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 from planalign_orchestrator.config import load_simulation_config
-from planalign_orchestrator.dbt_runner import DbtRunner
+from planalign_orchestrator.construction import (
+    ConstructionSpec,
+    InitializationPolicy,
+    build_orchestrator,
+)
 from planalign_orchestrator.pipeline_orchestrator import PipelineOrchestrator
-from planalign_orchestrator.registries import RegistryManager
 from planalign_orchestrator.scenario_batch_runner import ScenarioBatchRunner
 from planalign_orchestrator.utils import DatabaseConnectionManager
-from planalign_orchestrator.validation import (
-    DataValidator,
-    EventSequenceRule,
-    HireTerminationRatioRule,
-)
 
 
 class OrchestratorWrapper:
@@ -34,11 +32,13 @@ class OrchestratorWrapper:
         db_path: Path,
         verbose: bool = False,
         dbt_project_dir: Optional[Path] = None,
+        entry_point: str = "cli.simulate",
     ):
         self.config_path = config_path
         self.db_path = db_path
         self.verbose = verbose
         self.dbt_project_dir = dbt_project_dir
+        self.entry_point = entry_point
 
         # Lazy initialization
         self._config = None
@@ -205,43 +205,23 @@ class OrchestratorWrapper:
         if verbose is None:
             verbose = self.verbose
 
-        # Get threading configuration
-        if self.config.orchestrator:
-            self.config.validate_threading_configuration()
-        self.config.validate_eligibility_configuration()
-
         thread_count = (
             threads if threads is not None else self.config.get_thread_count()
         )
-        threading_enabled = True
-        threading_mode = "selective"
-
-        if self.config.orchestrator and self.config.orchestrator.threading:
-            threading_enabled = self.config.orchestrator.threading.enabled
-            threading_mode = self.config.orchestrator.threading.mode
-
-        # Create components
-        runner = DbtRunner(
-            threads=thread_count,
-            executable=("echo" if dry_run else "dbt"),
-            verbose=verbose,
-            threading_enabled=threading_enabled,
-            threading_mode=threading_mode,
-            db_manager=self.db,  # Pass db_manager for connection cleanup before dbt subprocess
-            database_path=str(self.db_path),  # Use scenario-specific database path
-            project_dir=self.dbt_project_dir,
+        result = build_orchestrator(
+            ConstructionSpec(
+                config=self.config,
+                database=self.db,
+                threads=thread_count,
+                dbt_project_dir=self.dbt_project_dir,
+                initialization=InitializationPolicy.NONE,
+                entry_point=self.entry_point,
+                verbose=verbose,
+                dry_run=dry_run,
+            )
         )
-
-        registries = RegistryManager(self.db)
-
-        # Create validator
-        validator = DataValidator(self.db)
-        validator.register_rule(HireTerminationRatioRule())
-        validator.register_rule(EventSequenceRule())
-
-        orchestrator = PipelineOrchestrator(
-            self.config, self.db, runner, registries, validator, verbose=verbose
-        )
+        orchestrator = result.orchestrator
+        orchestrator.construction_signature = result.signature
 
         # If progress callback provided, wrap with progress monitoring
         if progress_callback:

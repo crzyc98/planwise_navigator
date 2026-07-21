@@ -21,7 +21,16 @@ from .config import (
     load_simulation_config,
     to_dbt_vars,
 )
-from .factory import OrchestratorBuilder, create_orchestrator
+from .construction import (
+    ConstructionResult,
+    ConstructionSignature,
+    ConstructionSpec,
+    ExecutionEngineOption,
+    InitializationPolicy,
+    ScheduleStep,
+    WorkSchedule,
+    build_orchestrator,
+)
 from .logger import JSONFormatter, ProductionLogger, get_logger
 from .migration import MigrationManager, MigrationResult
 from .observability import (
@@ -76,6 +85,15 @@ __all__ = [
     "EnrollmentSettings",
     "load_simulation_config",
     "to_dbt_vars",
+    # Canonical construction
+    "ConstructionResult",
+    "ConstructionSignature",
+    "ConstructionSpec",
+    "ExecutionEngineOption",
+    "InitializationPolicy",
+    "ScheduleStep",
+    "WorkSchedule",
+    "build_orchestrator",
     # Utils
     "ExecutionMutex",
     "DatabaseConnectionManager",
@@ -106,9 +124,6 @@ __all__ = [
     "ReportTemplate",
     "EXECUTIVE_SUMMARY_TEMPLATE",
     "DETAILED_AUDIT_TEMPLATE",
-    # Factory
-    "OrchestratorBuilder",
-    "create_orchestrator",
     # Migration
     "MigrationManager",
     "MigrationResult",

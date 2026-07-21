@@ -115,3 +115,22 @@ class TestRegexSuppression:
         assert SimulationOutputParser.classify_line("ERROR: boom") == "error"
         assert SimulationOutputParser.classify_line("Warning: check") == "warning"
         assert SimulationOutputParser.classify_line("building model") == "debug"
+
+    def test_structured_validation_uses_disposition_not_rule_severity(self):
+        passed = sentinel_line(
+            {
+                "record": "validation_results",
+                "disposition": "passed",
+                "results": [{"severity": "error", "passed": True}],
+            }
+        )
+        failed = sentinel_line(
+            {
+                "record": "validation_results",
+                "disposition": "failed",
+                "results": [{"severity": "error", "passed": False}],
+            }
+        )
+
+        assert SimulationOutputParser.classify_line(passed) == "debug"
+        assert SimulationOutputParser.classify_line(failed) == "error"

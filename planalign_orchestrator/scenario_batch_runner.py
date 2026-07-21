@@ -285,11 +285,20 @@ class ScenarioBatchRunner:
         # Setup isolated database connection manager
         db_manager = DatabaseConnectionManager(scenario_db)
 
-        # Setup PipelineOrchestrator (importing here to avoid circular imports)
-        from .factory import create_orchestrator
+        # Setup PipelineOrchestrator through the canonical construction seam.
+        from .construction import ConstructionSpec, build_orchestrator
 
         try:
-            orchestrator = create_orchestrator(config, db_manager, threads=threads)
+            result = build_orchestrator(
+                ConstructionSpec(
+                    config=config,
+                    database=db_manager,
+                    threads=threads,
+                    entry_point="batch",
+                )
+            )
+            orchestrator = result.orchestrator
+            orchestrator.construction_signature = result.signature
 
             # Execute multi-year simulation
             logger.info(

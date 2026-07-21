@@ -25,7 +25,7 @@ Typical uses:
 |-----------|-------------|----------|
 | **CLI** (`planalign`) | Rich + Typer terminal app | Analysts, day-to-day runs |
 | **PlanAlign Studio** | `planalign studio` — FastAPI backend (:8000) + React/Vite frontend (:5173) | Scenario management via web UI |
-| **Python API** | `planalign_orchestrator.PipelineOrchestrator` | Programmatic / test use |
+| **Python API** | `build_orchestrator(ConstructionSpec(...))` | Programmatic / test use through the canonical seam |
 
 CLI commands: `simulate`, `calibrate`, `batch`, `analyze`, `validate`, `status`,
 `health`, `studio`, `sync`.

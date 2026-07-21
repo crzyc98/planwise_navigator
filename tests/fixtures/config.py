@@ -44,7 +44,7 @@ def single_threaded_config(minimal_config) -> SimulationConfig:
     Usage:
         @pytest.mark.integration
         def test_sequential_execution(single_threaded_config):
-            orchestrator = PipelineOrchestrator(single_threaded_config)
+            result = build_orchestrator(ConstructionSpec(config=single_threaded_config, ...))
             assert orchestrator.config.optimization.max_workers == 1
     """
     from planalign_orchestrator.config import OptimizationSettings
@@ -68,7 +68,7 @@ def multi_threaded_config(minimal_config) -> SimulationConfig:
     Usage:
         @pytest.mark.performance
         def test_parallel_speedup(multi_threaded_config):
-            orchestrator = PipelineOrchestrator(multi_threaded_config)
+            result = build_orchestrator(ConstructionSpec(config=multi_threaded_config, ...))
             assert orchestrator.config.optimization.max_workers == 4
     """
     from planalign_orchestrator.config import OptimizationSettings

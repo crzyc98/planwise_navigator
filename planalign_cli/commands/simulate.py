@@ -6,6 +6,7 @@ Multi-year workforce simulation with Rich progress bars and enhanced user experi
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Optional, Union
 from datetime import datetime
@@ -37,6 +38,13 @@ from planalign_core.constants import DATABASE_FILENAME
 
 console = Console()
 simulate_command = typer.Typer()
+
+_ALLOWED_SUBPROCESS_ENTRY_POINTS = {"studio"}
+
+
+def _resolve_entry_point() -> str:
+    origin = os.environ.get("PLANALIGN_ENTRY_POINT", "")
+    return origin if origin in _ALLOWED_SUBPROCESS_ENTRY_POINTS else "cli.simulate"
 
 
 @simulate_command.callback()
@@ -74,6 +82,9 @@ def run_simulation(
     """
     Run multi-year workforce simulation with Rich progress tracking.
 
+    All runs use the canonical dbt execution engine. Configuration values other
+    than ``optimization.execution_engine: dbt`` are rejected before construction.
+
     [dim]Examples:[/dim]
         planwise simulate run 2025-2027          # Run 3-year simulation
         planwise simulate run 2025 --resume      # Resume single year
@@ -102,6 +113,7 @@ def run_simulation(
             db_path,
             verbose=verbose,
             dbt_project_dir=Path(dbt_project_dir) if dbt_project_dir else None,
+            entry_point=_resolve_entry_point(),
         )
 
         _print_config_summary(config_path, console, verbose)

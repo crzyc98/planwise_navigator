@@ -105,6 +105,25 @@ def _stats(group: List[TimingSample]) -> dict:
         "n": len(group),
         "rows": group[0].census_rows,
         "invocations": round(_median([float(len(s.invocations)) for s in group])),
+        "product_invocations": round(
+            _median(
+                [
+                    float(s.product_invocation_count)
+                    for s in group
+                    if s.product_invocation_count is not None
+                ]
+            )
+        )
+        if any(s.product_invocation_count is not None for s in group)
+        else None,
+        "signature_hashes": sorted(
+            {
+                str(s.construction_signature["signature_hash"])
+                for s in group
+                if s.construction_signature
+                and s.construction_signature.get("signature_hash")
+            }
+        ),
         "wall_min": min(totals),
         "wall_med": _median(totals),
         "wall_max": max(totals),
@@ -270,24 +289,37 @@ def render(
         "",
         "Warm-rep medians (a cold rep 0 is discarded):",
         "",
-        "| Config | Warm reps | Events | Invocations | Wall median (min–max) | "
+        "| Config | Warm reps | Events | Timed wrapper calls | Product schedule calls | Wall median (min–max) | "
         "CPU | Peak RSS |",
-        "|---|---|---:|---:|---|---:|---:|",
+        "|---|---|---:|---:|---:|---|---:|---:|",
     ]
     for key, label in ((ref_wrap, "reference"), (stu_wrap, "studio")):
         st = stats.get(key)
         if not st:
-            lines.append(f"| {label} | 0 | — | — | **not measured** | — | — |")
+            lines.append(f"| {label} | 0 | — | — | — | **not measured** | — | — |")
             continue
         events = f"{st['events']:,}" if st["events"] is not None else "n/a"
         cpu = _fmt(st["cpu"]) if st["cpu"] is not None else "n/a"
         rss = f"{st['rss']:.0f} MiB" if st["rss"] is not None else "n/a"
+        product_calls = (
+            str(st["product_invocations"])
+            if st["product_invocations"] is not None
+            else "n/a"
+        )
         lines.append(
             f"| {label} | {st['n']} | {events} | {st['invocations']} | "
+            f"{product_calls} | "
             f"{_fmt(st['wall_med'])} ({_fmt(st['wall_min'])}–{_fmt(st['wall_max'])}) | "
             f"{cpu} | {rss} |"
         )
     lines.append("")
+    lines += [
+        "The timed-wrapper count is retained for model timing decomposition. The "
+        "product schedule is captured independently at the canonical runner "
+        "boundary and persisted at completion; neither is inferred from dbt log "
+        "line counts.",
+        "",
+    ]
 
     # Decomposition
     lines += [

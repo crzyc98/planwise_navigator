@@ -200,10 +200,14 @@ class TestSelfHealingIntegration:
         # Verify hook was called
         assert hook_executed[0], "Pre-simulation hook should have been called"
 
-    def test_create_orchestrator_registers_self_healing_hook(self, tmp_path):
-        """T022: create_orchestrator should register self-healing hook when auto_initialize=True."""
-        from planalign_orchestrator.factory import create_orchestrator
+    def test_canonical_builder_routes_self_healing_outside_hooks(self, tmp_path):
+        """Explicit self-healing uses the fail-loud pre-simulation callback."""
         from planalign_orchestrator.config import load_simulation_config
+        from planalign_orchestrator.construction import (
+            ConstructionSpec,
+            InitializationPolicy,
+            build_orchestrator,
+        )
 
         # Load a real config
         config = load_simulation_config("config/simulation_config.yaml")
@@ -212,23 +216,29 @@ class TestSelfHealingIntegration:
         db_path = tmp_path / "test.duckdb"
 
         # Create orchestrator with auto_initialize=True (default)
-        orchestrator = create_orchestrator(
-            config,
-            db_path=db_path,
-            auto_initialize=True,
-        )
+        orchestrator = build_orchestrator(
+            ConstructionSpec(
+                config=config,
+                database=db_path,
+                initialization=InitializationPolicy.SELF_HEALING,
+                entry_point="invariant_test",
+            )
+        ).orchestrator
 
-        # Verify self-healing hook is registered
+        # Critical initialization must not use the hook manager's error isolation.
         hooks = orchestrator.hook_manager.list_hooks()
-        assert "pre_simulation" in hooks, "PRE_SIMULATION hooks should be registered"
-        assert (
-            "self_healing_initializer" in hooks["pre_simulation"]
-        ), "self_healing_initializer hook should be registered"
+        assert "self_healing_initializer" not in hooks.get(
+            "pre_simulation", []
+        ), "critical initialization must not be registered as an optional hook"
+        assert orchestrator._initialization_callback is not None
 
-    def test_create_orchestrator_skips_hook_when_disabled(self, tmp_path):
-        """create_orchestrator should NOT register hook when auto_initialize=False."""
-        from planalign_orchestrator.factory import create_orchestrator
+    def test_canonical_builder_skips_hook_under_none_policy(self, tmp_path):
+        """The canonical NONE policy does not register a self-healing hook."""
         from planalign_orchestrator.config import load_simulation_config
+        from planalign_orchestrator.construction import (
+            ConstructionSpec,
+            build_orchestrator,
+        )
 
         # Load a real config
         config = load_simulation_config("config/simulation_config.yaml")
@@ -237,11 +247,13 @@ class TestSelfHealingIntegration:
         db_path = tmp_path / "test.duckdb"
 
         # Create orchestrator with auto_initialize=False
-        orchestrator = create_orchestrator(
-            config,
-            db_path=db_path,
-            auto_initialize=False,
-        )
+        orchestrator = build_orchestrator(
+            ConstructionSpec(
+                config=config,
+                database=db_path,
+                entry_point="invariant_test",
+            )
+        ).orchestrator
 
         # Verify no hooks are registered
         hooks = orchestrator.hook_manager.list_hooks()
@@ -250,18 +262,23 @@ class TestSelfHealingIntegration:
             or "self_healing_initializer" not in hooks.get("pre_simulation", [])
         ), "self_healing_initializer hook should NOT be registered when auto_initialize=False"
 
-    def test_create_orchestrator_shares_db_manager_with_dbt_runner(self, tmp_path):
+    def test_canonical_builder_shares_db_manager_with_dbt_runner(self, tmp_path):
         """Dbt subprocess setup must close the orchestrator's pooled connections."""
         from planalign_orchestrator.config import load_simulation_config
-        from planalign_orchestrator.factory import create_orchestrator
+        from planalign_orchestrator.construction import (
+            ConstructionSpec,
+            build_orchestrator,
+        )
         from planalign_orchestrator.utils import DatabaseConnectionManager
 
         config = load_simulation_config("config/simulation_config.yaml")
         db_manager = DatabaseConnectionManager(tmp_path / "test.duckdb")
-        orchestrator = create_orchestrator(
-            config,
-            db_manager=db_manager,
-            auto_initialize=False,
-        )
+        orchestrator = build_orchestrator(
+            ConstructionSpec(
+                config=config,
+                database=db_manager,
+                entry_point="invariant_test",
+            )
+        ).orchestrator
 
         assert orchestrator.dbt_runner.db_manager is db_manager

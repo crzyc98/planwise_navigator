@@ -57,12 +57,9 @@ class TestLiveProgressTrackerState:
 class TestProgressCallbackWiring:
     """Test that create_orchestrator wires progress callback correctly."""
 
-    @patch("planalign_cli.integration.orchestrator_wrapper.PipelineOrchestrator")
-    @patch("planalign_cli.integration.orchestrator_wrapper.DbtRunner")
-    @patch("planalign_cli.integration.orchestrator_wrapper.DataValidator")
-    @patch("planalign_cli.integration.orchestrator_wrapper.RegistryManager")
+    @patch("planalign_cli.integration.orchestrator_wrapper.build_orchestrator")
     def test_create_orchestrator_returns_wrapper_when_callback_provided(
-        self, mock_registries, mock_validator, mock_runner, mock_orchestrator
+        self, mock_build, tmp_path
     ):
         from planalign_cli.integration.orchestrator_wrapper import (
             OrchestratorWrapper,
@@ -70,13 +67,17 @@ class TestProgressCallbackWiring:
         )
 
         wrapper = MagicMock(spec=OrchestratorWrapper)
-        wrapper.config = MagicMock()
-        wrapper.config.orchestrator = None
-        wrapper.config.get_thread_count.return_value = 1
-        wrapper.db = MagicMock()
-        wrapper.db_path = MagicMock()
+        from planalign_orchestrator.config import load_simulation_config
+        from planalign_orchestrator.utils import DatabaseConnectionManager
+
+        wrapper.config = load_simulation_config("tests/fixtures/invariant_config.yaml")
+        wrapper.db = DatabaseConnectionManager(tmp_path / "progress.duckdb")
+        wrapper.db_path = tmp_path / "progress.duckdb"
         wrapper.verbose = False
         wrapper.dbt_project_dir = None
+        wrapper.entry_point = "cli.simulate"
+        mock_build.return_value.orchestrator = MagicMock()
+        mock_build.return_value.signature = MagicMock()
 
         callback = MagicMock()
         result = OrchestratorWrapper.create_orchestrator(
@@ -84,29 +85,30 @@ class TestProgressCallbackWiring:
         )
         assert isinstance(result, ProgressAwareOrchestrator)
 
-    @patch("planalign_cli.integration.orchestrator_wrapper.PipelineOrchestrator")
-    @patch("planalign_cli.integration.orchestrator_wrapper.DbtRunner")
-    @patch("planalign_cli.integration.orchestrator_wrapper.DataValidator")
-    @patch("planalign_cli.integration.orchestrator_wrapper.RegistryManager")
+    @patch("planalign_cli.integration.orchestrator_wrapper.build_orchestrator")
     def test_create_orchestrator_returns_plain_when_no_callback(
-        self, mock_registries, mock_validator, mock_runner, mock_orchestrator
+        self, mock_build, tmp_path
     ):
         from planalign_cli.integration.orchestrator_wrapper import OrchestratorWrapper
 
         wrapper = MagicMock(spec=OrchestratorWrapper)
-        wrapper.config = MagicMock()
-        wrapper.config.orchestrator = None
-        wrapper.config.get_thread_count.return_value = 1
-        wrapper.db = MagicMock()
-        wrapper.db_path = MagicMock()
+        from planalign_orchestrator.config import load_simulation_config
+        from planalign_orchestrator.utils import DatabaseConnectionManager
+
+        wrapper.config = load_simulation_config("tests/fixtures/invariant_config.yaml")
+        wrapper.db = DatabaseConnectionManager(tmp_path / "progress.duckdb")
+        wrapper.db_path = tmp_path / "progress.duckdb"
         wrapper.verbose = False
         wrapper.dbt_project_dir = None
+        wrapper.entry_point = "cli.simulate"
+        mock_build.return_value.orchestrator = MagicMock()
+        mock_build.return_value.signature = MagicMock()
 
         result = OrchestratorWrapper.create_orchestrator(
             wrapper, threads=1, progress_callback=None
         )
         # Should return the raw orchestrator, not wrapped
-        assert not isinstance(result, object.__class__)  # not ProgressAwareOrchestrator
+        assert result is mock_build.return_value.orchestrator
 
 
 class TestLiveProgressTrackerOnDbtLine:

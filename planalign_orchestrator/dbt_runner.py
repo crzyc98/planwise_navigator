@@ -25,8 +25,12 @@ from typing import (
     List,
     Optional,
     Sequence,
+    TYPE_CHECKING,
     Tuple,
 )
+
+if TYPE_CHECKING:
+    from .construction.signature import WorkSchedule
 
 logger = logging.getLogger(__name__)
 
@@ -187,6 +191,10 @@ class DbtRunner:
         self.threading_enabled = threading_enabled
         self.threading_mode = threading_mode
         self.db_manager = db_manager
+        self._work_schedule: Optional[WorkSchedule] = None
+        self._schedule_runner_kind = "dbt"
+        self._schedule_stage: Optional[str] = None
+        self._schedule_year: Optional[int] = None
 
         # Model-level parallelization settings
         self.enable_model_parallelization = enable_model_parallelization
@@ -337,6 +345,17 @@ class DbtRunner:
         log_performance: bool = True,
     ) -> DbtResult:
         """Execute a dbt command with enhanced error handling and optional retry."""
+        if self._work_schedule is not None:
+            self._work_schedule.record(
+                command=" ".join(str(part) for part in command_args),
+                stage=self._schedule_stage,
+                year=(
+                    simulation_year
+                    if simulation_year is not None
+                    else self._schedule_year
+                ),
+                runner_kind=self._schedule_runner_kind,
+            )
 
         def _run_once() -> DbtResult:
             return self._execute_once(
@@ -352,6 +371,20 @@ class DbtRunner:
         return self._execute_with_retry(
             _run_once, retry=retry, max_attempts=max_attempts
         )
+
+    def configure_work_schedule(
+        self, schedule: "WorkSchedule", *, runner_kind: str = "dbt"
+    ) -> None:
+        """Attach the per-run executed-work recorder."""
+        self._work_schedule = schedule
+        self._schedule_runner_kind = runner_kind
+
+    def set_schedule_context(
+        self, *, stage: Optional[str], year: Optional[int]
+    ) -> None:
+        """Attribute subsequent invocations to the active workflow context."""
+        self._schedule_stage = stage
+        self._schedule_year = year
 
     def _execute_with_retry(
         self,
