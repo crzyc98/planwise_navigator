@@ -5,9 +5,9 @@ E073: Config Module Refactoring - performance module.
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Any, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # =============================================================================
@@ -432,6 +432,21 @@ class E068CThreadingSettings(BaseModel):
 
 class OptimizationSettings(BaseModel):
     """Performance optimization configuration."""
+
+    execution_engine: Literal["dbt"] = Field(
+        default="dbt",
+        description="Supported transformation execution engine",
+    )
+
+    @field_validator("execution_engine", mode="before")
+    @classmethod
+    def reject_unsupported_execution_engine(cls, value: Any) -> Any:
+        if value != "dbt":
+            raise ValueError(
+                "optimization.execution_engine supports only 'dbt'; "
+                f"received {value!r}"
+            )
+        return value
 
     level: str = Field(
         default="high", description="Optimization level: low, medium, high, fallback"

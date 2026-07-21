@@ -4,6 +4,8 @@ PlanAlign Orchestrator
 Lightweight core package providing config, utility, dbt orchestration, registry management, and validation helpers for the Fidelity PlanAlign Engine pipeline.
 
 Modules
+- `construction`: The sole supported `PipelineOrchestrator` construction seam,
+  including typed policy validation, construction signatures, and work schedules.
 - `config`: Typed config models and loader with env overrides; `to_dbt_vars` for dbt.
 - `utils`: `ExecutionMutex`, `DatabaseConnectionManager`, and `time_block` timing.
 - `dbt_runner`: `DbtRunner` with streaming, retry/backoff, and parallel execution.
@@ -11,6 +13,21 @@ Modules
 - `validation`: Rule-based validation engine and built-in rules.
 
 Quickstart
+- Construct a simulation orchestrator:
+  ```python
+  from pathlib import Path
+  from planalign_orchestrator import ConstructionSpec, build_orchestrator
+
+  result = build_orchestrator(
+      ConstructionSpec(
+          config=cfg,
+          database=Path("/tmp/planalign/run.duckdb"),
+          entry_point="cli.simulate",
+          validation_mode=True,
+      )
+  )
+  orchestrator = result.orchestrator
+  ```
 - Load config and map to dbt vars:
   ```python
   from planalign_orchestrator.config import load_simulation_config, to_dbt_vars

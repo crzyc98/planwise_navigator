@@ -14,7 +14,7 @@ import pandas as pd
 import pytest
 import duckdb
 
-from planalign_orchestrator import create_orchestrator
+from planalign_orchestrator import ConstructionSpec, build_orchestrator
 from planalign_orchestrator.config import SimulationConfig, load_simulation_config
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -102,9 +102,15 @@ def _simulation_config(census_parquet: Path) -> SimulationConfig:
 def _execute(database: Path, census_parquet: Path) -> SimulationRun:
     try:
         with _database_environment(database):
-            orchestrator = create_orchestrator(
-                _simulation_config(census_parquet), db_path=database, threads=1
-            )
+            orchestrator = build_orchestrator(
+                ConstructionSpec(
+                    config=_simulation_config(census_parquet),
+                    database=database,
+                    threads=1,
+                    entry_point="invariant_test",
+                    validation_mode=True,
+                )
+            ).orchestrator
             orchestrator.execute_multi_year_simulation(start_year=2025, end_year=2027)
     except BaseException as error:  # preserve full orchestrator context for pytest
         return SimulationRun(database=database, error=error)

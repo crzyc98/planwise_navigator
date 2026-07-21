@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from enum import Enum
 from pathlib import Path
-from typing import List, Literal, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -98,6 +98,9 @@ class TimingSample(BaseModel):
     config_path: Optional[str] = None
     cpu_s: Optional[float] = Field(default=None, ge=0)
     peak_rss_mb: Optional[float] = Field(default=None, ge=0)
+    construction_signature: Optional[Dict[str, Any]] = None
+    executed_schedule: List[Dict[str, Any]] = Field(default_factory=list)
+    product_invocation_count: Optional[int] = Field(default=None, ge=0)
 
     @property
     def invocation_wall_s(self) -> float:

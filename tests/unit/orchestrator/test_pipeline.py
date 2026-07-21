@@ -9,10 +9,9 @@ from planalign_orchestrator.config import (
     SimulationSettings,
 )
 from planalign_orchestrator.dbt_runner import DbtResult, DbtRunner
-from planalign_orchestrator.pipeline_orchestrator import PipelineOrchestrator
-from planalign_orchestrator.registries import RegistryManager
+from planalign_orchestrator.construction import ConstructionSpec, build_orchestrator
 from planalign_orchestrator.utils import DatabaseConnectionManager
-from planalign_orchestrator.validation import DataValidator, HireTerminationRatioRule
+from planalign_orchestrator.validation import HireTerminationRatioRule
 
 
 class DummyRunner(DbtRunner):
@@ -107,19 +106,17 @@ def test_multi_year_workflow_coordination(tmp_path: Path):
         setup={"clear_tables": False},
     )
     mgr = DatabaseConnectionManager(db_path=dbp)
-    registries = RegistryManager(mgr)
     runner = DummyRunner(working_dir=tmp_path)
-    dv = DataValidator(mgr)
-    dv.register_rule(HireTerminationRatioRule())
-
-    orchestrator = PipelineOrchestrator(
-        cfg,
-        mgr,
-        runner,
-        registries,
-        dv,
-        reports_dir=tmp_path / "reports",
-    )
+    orchestrator = build_orchestrator(
+        ConstructionSpec(
+            config=cfg,
+            database=mgr,
+            runner_override=runner,
+            validation_rules=(HireTerminationRatioRule(),),
+            reports_dir=tmp_path / "reports",
+            entry_point="invariant_test",
+        )
+    ).orchestrator
     # Use dry_run=True since DummyRunner echoes commands instead of running dbt
     summary = orchestrator.execute_multi_year_simulation(dry_run=True)
 
@@ -148,14 +145,15 @@ def test_run_start_warns_about_stale_years_beyond_end_year(tmp_path: Path, caplo
         setup={"clear_tables": False},
     )
     mgr = DatabaseConnectionManager(db_path=dbp)
-    orchestrator = PipelineOrchestrator(
-        cfg,
-        mgr,
-        DummyRunner(working_dir=tmp_path),
-        RegistryManager(mgr),
-        DataValidator(mgr),
-        reports_dir=tmp_path / "reports",
-    )
+    orchestrator = build_orchestrator(
+        ConstructionSpec(
+            config=cfg,
+            database=mgr,
+            runner_override=DummyRunner(working_dir=tmp_path),
+            reports_dir=tmp_path / "reports",
+            entry_point="invariant_test",
+        )
+    ).orchestrator
 
     with caplog.at_level(
         logging.WARNING, logger="planalign_orchestrator.pipeline.state_manager"

@@ -152,6 +152,10 @@ class TestTableLifecycle:
             "plan_design_id",
             "planalign_version",
             "full_reset",
+            "construction_signature_hash",
+            "initialization_policy",
+            "entry_point",
+            "runner_kind",
         }
 
     def test_second_stamp_appends_and_retains_first(self, db_manager, minimal_config):

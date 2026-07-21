@@ -797,6 +797,7 @@ class SimulationService:
             "PYTHONIOENCODING": "utf-8",
             # Feature 094: deterministic stage/year/count telemetry on stdout
             "PLANALIGN_STRUCTURED_TELEMETRY": "1",
+            "PLANALIGN_ENTRY_POINT": "studio",
             "TERM": "dumb",
             "NO_COLOR": "1",
             "FORCE_COLOR": "0",

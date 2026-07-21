@@ -409,7 +409,7 @@ class AutoInitializer:
                 step="build_foundation",
             )
         result = self.dbt_runner.execute_command(
-            ["run", "--select", "tag:FOUNDATION", "--threads", "1"],
+            ["run", "--select", "+tag:FOUNDATION", "--threads", "1"],
             stream_output=self.verbose,
             simulation_year=self.start_year,
         )

@@ -284,13 +284,23 @@ pytest --cov=planalign_orchestrator \
 
 ```python
 # tests/test_my_feature.py
+from pathlib import Path
+
+from planalign_orchestrator import ConstructionSpec, build_orchestrator
 from tests.fixtures.database import in_memory_db, populated_db
 from tests.fixtures.config import minimal_config
 from tests.fixtures.workforce_data import sample_employees
 
 def test_hire_event_generation(populated_db, minimal_config):
     """Test hire event generation with pre-populated database."""
-    orchestrator = PipelineOrchestrator(minimal_config)
+    orchestrator = build_orchestrator(
+        ConstructionSpec(
+            config=minimal_config,
+            database=Path("/tmp/test.duckdb"),
+            entry_point="invariant_test",
+            validation_mode=True,
+        )
+    ).orchestrator
     result = orchestrator.execute_year(2025)
     assert result.success
 ```
@@ -758,8 +768,10 @@ Current version: **2.2.0** ("Calibration") — managed in `_version.py` and `pyp
 - DuckDB — reads `fct_yearly_events`, `fct_employer_match_events`, `fct_workforce_snapshot` from per-scenario databases resolved via `DatabasePathResolver`. No new tables, no writes. (114-employee-event-timeline)
 - Python 3.11 + FastAPI, Starlette `TestClient` (httpx-based), Pydantic v2, pytest (115-api-contract-tests)
 - N/A (no database involved; tests exercise the FastAPI app in-process) (115-api-contract-tests)
-- Python 3.11 (harness scripts); SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1 (measured system, unmodified) + `planalign_orchestrator` (`create_orchestrator`, `execute_multi_year_simulation`, `DbtRunner`), `duckdb` Python client, pandas/pyarrow (census scaling) — all already installed (116-profile-run-cost)
+- Python 3.11 (harness scripts); SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1 (measured system, unmodified) + `planalign_orchestrator` (`build_orchestrator`, `ConstructionSpec`, `execute_multi_year_simulation`, `DbtRunner`), `duckdb` Python client, pandas/pyarrow (census scaling) — all already installed (116-profile-run-cost)
 - isolated per-run DuckDB files under `var/perf_profile/` (git-ignored); timing samples as JSON/CSV next to them; report in `docs/perf/` (116-profile-run-cost)
+- Python 3.11 (orchestrator, CLI, API). No SQL/dbt model changes. + Pydantic v2 (typed construction spec + config validation); existing `planalign_orchestrator` internals — `DbtRunner`, `PipelineOrchestrator`, `RegistryManager`, `DataValidator`, `HookManager`, `AutoInitializer`, `DatabaseConnectionManager`, `run_metadata`; Typer/Rich (CLI). FastAPI/Studio unchanged (stays a CLI subprocess). (120-unify-orchestrator-construction)
+- DuckDB. **No schema migration to fct/int models.** Construction signature fields persist on `run_metadata`; the finalized schedule is appended to `run_execution_metadata`. All validation uses isolated per-run DBs; shared `dbt/simulation.duckdb` is never built into. (120-unify-orchestrator-construction)
 
 ## Recent Changes
 - 099-tenure-graded-match: Added Python 3.11 (orchestrator/config/API), SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1, TypeScript/React (Studio UI) + Pydantic v2 (config validation), DuckDB 1.0.0 (storage/engine), FastAPI (workspace config API), React/Vite + Tailwind (Studio)

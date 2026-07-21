@@ -42,6 +42,27 @@ the deferral state claims participation that the enrollment state history
 cannot explain — usually stale prior-run state. Re-run the scenario; the
 default purge produces clean results.
 
+## Fresh-database initialization
+
+CLI, batch, and Studio use one default initialization contract: no implicit
+self-healing hook is installed. The pipeline creates required disposable
+sources, loads seeds, and builds start-year staging before the yearly workflow.
+Any critical setup failure aborts the run; it is never swallowed as an optional
+hook error.
+
+Diagnostic callers may explicitly request `SELF_HEALING`. That policy runs
+before the simulation and fails loudly with a correlation ID, failed-step
+context, missing-table details, and resolution hints. When it fails:
+
+- keep the correlation ID from the error output;
+- run `planalign health` and close any process holding the DuckDB file;
+- verify the configured census path and dbt project are available;
+- retry in a fresh isolated database after correcting the reported step.
+
+Do not manually create fact tables or continue from a partially initialized
+database. Optional telemetry and reporting hooks remain error-isolated, but
+critical initialization never uses that hook path.
+
 ## Config drift ("CONFIG DRIFT DETECTED" warning)
 
 Every run stamps its effective-config fingerprint, random seed, and year range

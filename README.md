@@ -57,6 +57,11 @@ Raw Census Data → Staging Models → Event Generation → Immutable Event Stor
 ### Pipeline Stages (per simulation year)
 
 `PipelineOrchestrator` executes six sequential stages per year:
+
+All product, Studio, batch, test, and performance callers construct it through
+`planalign_orchestrator.build_orchestrator(ConstructionSpec(...))`. The builder
+is the only supported programmatic construction seam; it emits the comparable
+construction signature and records the executed dbt work schedule.
 **INITIALIZATION → FOUNDATION → EVENT_GENERATION → STATE_ACCUMULATION → VALIDATION → REPORTING**
 
 ### Modular Engines

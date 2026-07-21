@@ -105,9 +105,9 @@ REQUIRED_TABLES: List[RequiredTable] = [
     ),
     RequiredTable(name="comp_levers", tier=TableTier.SEED, dbt_selector="comp_levers"),
     RequiredTable(
-        name="irs_contribution_limits",
+        name="config_irs_limits",
         tier=TableTier.SEED,
-        dbt_selector="irs_contribution_limits",
+        dbt_selector="config_irs_limits",
     ),
     # Tier 2: Foundation models (dbt run --select tag:FOUNDATION)
     # These models already have tags=['FOUNDATION'] in their config

@@ -12,10 +12,11 @@ from __future__ import annotations
 
 import logging
 import os
+import uuid
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 import time
 
 from .config import SimulationConfig, to_dbt_vars
@@ -30,7 +31,7 @@ from .registries import RegistryManager
 from .reports.data_models import MultiYearSummary
 from .reports.multi_year_reporter import MultiYearReporter
 from .observability import ObservabilityManager
-from .run_metadata import check_and_record_run
+from .run_metadata import append_execution_record, check_and_record_run
 from .utils import DatabaseConnectionManager, ExecutionMutex, time_block
 from .validation import DataValidator
 from planalign_core.constants import (
@@ -89,6 +90,7 @@ class PipelineOrchestrator:
         *,
         reports_dir: Path | str = Path("var/reports"),
         verbose: bool = False,
+        initialization_callback: Optional[Callable[[], None]] = None,
     ):
         self.config = config
         self.db_manager = db_manager
@@ -96,6 +98,9 @@ class PipelineOrchestrator:
         self.registry_manager = registry_manager
         self.validator = validator
         self.verbose = verbose
+        self._initialization_callback = initialization_callback
+        self.construction_signature = None
+        self.work_schedule = None
         self._dbt_vars = to_dbt_vars(config)
 
         # E068C: Extract threading configuration from new structured config
@@ -271,8 +276,12 @@ class PipelineOrchestrator:
     ) -> MultiYearSummary:
         start = start_year or self.config.simulation.start_year
         end = end_year or self.config.simulation.end_year
+        authoritative_run_id: Optional[str] = None
 
-        # Execute PRE_SIMULATION hooks (e.g., self-healing database initialization)
+        if self._initialization_callback is not None:
+            self._initialization_callback()
+
+        # Optional extension hooks run only after critical initialization succeeds.
         self.hook_manager.execute_hooks(
             HookType.PRE_SIMULATION,
             {"start_year": start, "end_year": end, "dry_run": dry_run},
@@ -294,6 +303,9 @@ class PipelineOrchestrator:
                 if not dry_run:
                     # Dry runs write nothing, so stamping one would record
                     # false provenance (Feature 109).
+                    authoritative_run_id = os.environ.get("PLANALIGN_RUN_ID") or str(
+                        uuid.uuid4()
+                    )
                     check_and_record_run(
                         self.db_manager,
                         self.config,
@@ -301,7 +313,8 @@ class PipelineOrchestrator:
                         end_year=end,
                         run_type="simulate",
                         full_reset=self._full_reset_active(),
-                        run_id=os.environ.get("PLANALIGN_RUN_ID"),
+                        run_id=authoritative_run_id,
+                        construction_signature=self.construction_signature,
                     )
                 # The dbt source must exist even before the first FOUNDATION run.
                 self.enrollment_projection.ensure_table()
@@ -351,6 +364,14 @@ class PipelineOrchestrator:
                 "duration_seconds": time.time() - simulation_start_time,
             },
         )
+
+        if authoritative_run_id is not None and self.work_schedule is not None:
+            append_execution_record(
+                self.db_manager,
+                run_id=authoritative_run_id,
+                schedule=self.work_schedule,
+                execution_engine=self.construction_signature.execution_engine,
+            )
 
         summary = self._build_multi_year_summary(completed_years)
         return self._finalize_simulation(summary, completed_years)
@@ -581,6 +602,7 @@ class PipelineOrchestrator:
             year=year, start_year=self.config.simulation.start_year
         )
 
+        self.dbt_runner.set_schedule_context(stage="INITIALIZATION", year=year)
         self.state_manager.maybe_clear_year_data(year)
         self.state_manager.clear_year_fact_rows(year)
         self._ensure_seeds_loaded()
@@ -597,6 +619,7 @@ class PipelineOrchestrator:
         self._ensure_hazard_caches_current()
 
         for stage in workflow:
+            self.dbt_runner.set_schedule_context(stage=stage.name.value, year=year)
             logger.info("Executing stage: %s", stage.name.value)
             stage_start_time = time.time()
             self.hook_manager.execute_hooks(
@@ -637,6 +660,8 @@ class PipelineOrchestrator:
                     "validation_evidence": validation_evidence,
                 },
             )
+
+        self.dbt_runner.set_schedule_context(stage=None, year=None)
 
     def _ensure_hazard_caches_current(self) -> None:
         """E068D: Ensure hazard caches are current before workflow execution."""

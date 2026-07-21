@@ -17,7 +17,7 @@ import hashlib
 import json
 import logging
 import uuid
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from typing import TYPE_CHECKING, Literal, Optional
@@ -29,11 +29,13 @@ from planalign_orchestrator.config import to_dbt_vars
 
 if TYPE_CHECKING:
     from planalign_orchestrator.config import SimulationConfig
+    from planalign_orchestrator.construction import ConstructionSignature, WorkSchedule
     from planalign_orchestrator.utils import DatabaseConnectionManager
 
 logger = logging.getLogger(__name__)
 
 RUN_METADATA_TABLE = "run_metadata"
+RUN_EXECUTION_METADATA_TABLE = "run_execution_metadata"
 
 RunType = Literal["simulate", "batch", "calibration"]
 
@@ -55,6 +57,24 @@ CREATE TABLE IF NOT EXISTS {RUN_METADATA_TABLE} (
 )
 """
 
+_CREATE_EXECUTION_TABLE_SQL = f"""
+CREATE TABLE IF NOT EXISTS {RUN_EXECUTION_METADATA_TABLE} (
+    run_id                       VARCHAR   NOT NULL,
+    recorded_at                  TIMESTAMP NOT NULL,
+    status                       VARCHAR   NOT NULL,
+    execution_engine             VARCHAR   NOT NULL,
+    direct_invocation_count      INTEGER   NOT NULL,
+    delegated_invocation_count   INTEGER   NOT NULL,
+    unexpected_fallback_count    INTEGER   NOT NULL,
+    reason_counts_json           VARCHAR   NOT NULL,
+    render_context_digests_json  VARCHAR   NOT NULL,
+    parity_status                VARCHAR   NOT NULL,
+    peak_rss_mb                  DOUBLE,
+    invocation_count             INTEGER,
+    schedule_steps               VARCHAR
+)
+"""
+
 _REMEDIES = (
     "If this drift is unintentional, obtain clean results by re-running into a "
     "fresh or isolated database (e.g. planalign batch --clean, or "
@@ -70,6 +90,10 @@ class DriftStatus(Enum):
     MATCH = "match"
     DRIFT = "drift"
     UNKNOWN = "unknown"
+
+
+class RunMetadataError(RuntimeError):
+    """Required construction provenance could not be persisted."""
 
 
 @dataclass(frozen=True)
@@ -109,11 +133,13 @@ def check_and_record_run(
     run_type: RunType,
     full_reset: bool = False,
     run_id: Optional[str] = None,
+    construction_signature: Optional["ConstructionSignature"] = None,
 ) -> DriftCheckResult:
     """Compare current config/seed to the latest run record, log, and append.
 
-    Never raises for database errors (FR-005): any ``duckdb.Error`` degrades
-    to a single logged note and a ``DriftStatus.UNKNOWN`` result.
+    Legacy drift-only calls degrade ``duckdb.Error`` to ``UNKNOWN``. When a
+    construction signature is supplied, provenance is required and database or
+    schema errors raise ``RunMetadataError`` with the authoritative run ID.
     """
     authoritative_run_id = _validated_run_id(run_id)
     current_fingerprint = compute_config_fingerprint(config)
@@ -122,6 +148,7 @@ def check_and_record_run(
     try:
         with db_manager.get_connection() as conn:
             conn.execute(_CREATE_TABLE_SQL)
+            _evolve_provenance_schema(conn)
             prior = conn.execute(
                 f"SELECT config_fingerprint, random_seed, run_timestamp "
                 f"FROM {RUN_METADATA_TABLE} ORDER BY run_timestamp DESC LIMIT 1"
@@ -148,9 +175,15 @@ def check_and_record_run(
                 run_type=run_type,
                 full_reset=full_reset,
                 run_id=authoritative_run_id,
+                construction_signature=construction_signature,
             )
         return result
     except duckdb.Error as exc:
+        if construction_signature is not None:
+            raise RunMetadataError(
+                "Required construction provenance failed for "
+                f"run_id={authoritative_run_id}: {exc}"
+            ) from exc
         logger.info(
             "Config drift detection skipped for this run (run metadata "
             "unavailable: %s). The simulation proceeds normally.",
@@ -276,10 +309,18 @@ def _append_record(
     run_type: RunType,
     full_reset: bool,
     run_id: str,
+    construction_signature: Optional["ConstructionSignature"],
 ) -> None:
     """Append this run's record (FR-008: append-only; no update/delete exists)."""
     conn.execute(
-        f"INSERT INTO {RUN_METADATA_TABLE} VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        f"""
+        INSERT INTO {RUN_METADATA_TABLE} (
+            run_id, run_timestamp, run_type, config_fingerprint, random_seed,
+            start_year, end_year, scenario_id, plan_design_id,
+            planalign_version, full_reset, construction_signature_hash,
+            initialization_policy, entry_point, runner_kind
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        """,
         [
             run_id,
             datetime.now(timezone.utc),
@@ -292,8 +333,106 @@ def _append_record(
             config.plan_design_id,
             __version__,
             full_reset,
+            construction_signature.signature_hash
+            if construction_signature is not None
+            else None,
+            construction_signature.initialization_policy
+            if construction_signature is not None
+            else None,
+            construction_signature.entry_point
+            if construction_signature is not None
+            else None,
+            construction_signature.runner_kind
+            if construction_signature is not None
+            else None,
         ],
     )
+
+
+def _evolve_provenance_schema(conn) -> None:
+    """Idempotently add construction columns and the terminal record table."""
+    for name in (
+        "construction_signature_hash",
+        "initialization_policy",
+        "entry_point",
+        "runner_kind",
+    ):
+        conn.execute(
+            f"ALTER TABLE {RUN_METADATA_TABLE} ADD COLUMN IF NOT EXISTS {name} VARCHAR"
+        )
+    conn.execute(_CREATE_EXECUTION_TABLE_SQL)
+    # Feature 119 deployed the first eleven fields. Early Feature 120 builds
+    # could create only the final two. Converge either historical shape to the
+    # combined contract without rewriting append-only rows.
+    execution_columns = (
+        ("status", "VARCHAR DEFAULT 'success'"),
+        ("execution_engine", "VARCHAR DEFAULT 'dbt'"),
+        ("direct_invocation_count", "INTEGER DEFAULT 0"),
+        ("delegated_invocation_count", "INTEGER DEFAULT 0"),
+        ("unexpected_fallback_count", "INTEGER DEFAULT 0"),
+        ("reason_counts_json", "VARCHAR DEFAULT '{}'"),
+        ("render_context_digests_json", "VARCHAR DEFAULT '[]'"),
+        ("parity_status", "VARCHAR DEFAULT 'not_run'"),
+        ("peak_rss_mb", "DOUBLE"),
+        ("invocation_count", "INTEGER"),
+        ("schedule_steps", "VARCHAR"),
+    )
+    for name, column_type in execution_columns:
+        conn.execute(
+            f"ALTER TABLE {RUN_EXECUTION_METADATA_TABLE} "
+            f"ADD COLUMN IF NOT EXISTS {name} {column_type}"
+        )
+
+
+def append_execution_record(
+    db_manager: "DatabaseConnectionManager",
+    *,
+    run_id: str,
+    schedule: "WorkSchedule",
+    execution_engine: str = "dbt",
+) -> None:
+    """Append the finalized schedule to the existing terminal record shape."""
+    authoritative_run_id = _validated_run_id(run_id)
+    steps_json = json.dumps(
+        [asdict(step) for step in schedule.steps],
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    try:
+        with db_manager.get_connection() as conn:
+            conn.execute(_CREATE_TABLE_SQL)
+            _evolve_provenance_schema(conn)
+            conn.execute(
+                f"""
+                INSERT INTO {RUN_EXECUTION_METADATA_TABLE} (
+                    run_id, recorded_at, status, execution_engine,
+                    direct_invocation_count, delegated_invocation_count,
+                    unexpected_fallback_count, reason_counts_json,
+                    render_context_digests_json, parity_status, peak_rss_mb,
+                    invocation_count, schedule_steps
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    authoritative_run_id,
+                    datetime.now(timezone.utc),
+                    "success",
+                    execution_engine,
+                    0,
+                    0,
+                    0,
+                    "{}",
+                    "[]",
+                    "not_run",
+                    None,
+                    schedule.invocation_count,
+                    steps_json,
+                ],
+            )
+    except duckdb.Error as exc:
+        raise RunMetadataError(
+            "Required terminal execution provenance failed for "
+            f"run_id={authoritative_run_id}: {exc}"
+        ) from exc
 
 
 def _validated_run_id(run_id: Optional[str]) -> str:

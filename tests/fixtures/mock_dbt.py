@@ -37,7 +37,7 @@ def mock_dbt_runner() -> Mock:
         @pytest.mark.fast
         @pytest.mark.unit
         def test_orchestrator_integration(mock_dbt_runner):
-            orchestrator = PipelineOrchestrator(config, dbt_runner=mock_dbt_runner)
+            result = build_orchestrator(ConstructionSpec(config=config, runner_override=mock_dbt_runner, ...))
             orchestrator.run_single_year(2025)
             mock_dbt_runner.execute_command.assert_called()
     """
@@ -64,7 +64,7 @@ def failing_dbt_runner() -> Mock:
         @pytest.mark.fast
         @pytest.mark.unit
         def test_error_handling(failing_dbt_runner):
-            orchestrator = PipelineOrchestrator(config, dbt_runner=failing_dbt_runner)
+            result = build_orchestrator(ConstructionSpec(config=config, runner_override=failing_dbt_runner, ...))
             with pytest.raises(RuntimeError):
                 orchestrator.run_single_year(2025)
     """

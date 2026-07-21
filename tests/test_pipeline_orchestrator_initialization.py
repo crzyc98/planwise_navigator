@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from planalign_orchestrator.pipeline_orchestrator import PipelineOrchestrator
+from planalign_orchestrator.construction import ConstructionSpec, build_orchestrator
 from tests.utils.json_validators import assert_no_decimals_in_structure
 
 
@@ -31,13 +31,15 @@ def test_orchestrator_records_json_safe_configuration(
     monkeypatch.setattr(f"{module}.setup_hazard_cache", MagicMock())
     monkeypatch.setattr(f"{module}.setup_performance_monitor", MagicMock())
 
-    PipelineOrchestrator(
-        config_with_decimal_fields,
-        MagicMock(),
-        MagicMock(),
-        MagicMock(),
-        MagicMock(),
-        reports_dir=tmp_path,
+    build_orchestrator(
+        ConstructionSpec(
+            config=config_with_decimal_fields,
+            database=tmp_path / "run.duckdb",
+            runner_override=MagicMock(),
+            reports_dir=tmp_path,
+            entry_point="invariant_test",
+            validation_mode=True,
+        )
     )
 
     recorded_config = observability.set_configuration.call_args.args[0]

@@ -37,6 +37,7 @@ import sys
 import threading
 import time
 from contextlib import contextmanager
+from dataclasses import asdict
 from datetime import datetime, timezone
 from importlib import metadata
 from pathlib import Path
@@ -193,6 +194,7 @@ def _build_wrapper_orchestrator(
         db_path=db_path,
         verbose=False,
         dbt_project_dir=dbt_project_dir,
+        entry_point="perf_harness",
     )
     return wrapper.create_orchestrator(threads=1)
 
@@ -280,10 +282,18 @@ def run_single(
                     effective_config, db_path, dbt_project_dir
                 )
             else:
-                from planalign_orchestrator import create_orchestrator
+                from planalign_orchestrator import ConstructionSpec, build_orchestrator
 
                 config = _load_config(config_source, census, horizon)
-                orchestrator = create_orchestrator(config, db_path=db_path, threads=1)
+                orchestrator = build_orchestrator(
+                    ConstructionSpec(
+                        config=config,
+                        database=db_path,
+                        threads=1,
+                        entry_point="perf_harness",
+                        validation_mode=True,
+                    )
+                ).orchestrator
             recorder = InvocationRecorder(orchestrator.dbt_runner)
             attach_stage_tracking(orchestrator, recorder)
             orchestrator.execute_multi_year_simulation(
@@ -317,6 +327,25 @@ def run_single(
         config_path=str(effective_config),
         cpu_s=max(cpu_s, 0.0),
         peak_rss_mb=peak_rss_mb,
+        construction_signature=(
+            {
+                **asdict(orchestrator.construction_signature),
+                "signature_hash": orchestrator.construction_signature.signature_hash,
+            }
+            if orchestrator is not None
+            and orchestrator.construction_signature is not None
+            else None
+        ),
+        executed_schedule=(
+            [asdict(step) for step in orchestrator.work_schedule.steps]
+            if orchestrator is not None and orchestrator.work_schedule is not None
+            else []
+        ),
+        product_invocation_count=(
+            orchestrator.work_schedule.invocation_count
+            if orchestrator is not None and orchestrator.work_schedule is not None
+            else None
+        ),
     )
 
 
