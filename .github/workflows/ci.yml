@@ -68,14 +68,27 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           uv pip install --system -r requirements.txt
           uv pip install --system -r requirements-dev.txt
+          # Trigger the sqlparse MAX_GROUPING_TOKENS auto-patch (see
+          # planalign_orchestrator.sqlparse_config) so dbt subprocesses spawned
+          # by integration tests don't hit sqlparse's 10,000-token limit.
+          python -c "import planalign_orchestrator"
+
+      - name: Install dbt packages
+        run: |
+          # A few integration tests (e.g. the fresh-vs-preinitialized parity
+          # contract) drive a real single-year dbt simulation, which needs the
+          # dbt packages from packages.yml installed.
+          cd dbt
+          dbt deps
 
       - name: Run Python tests
         run: |
           # Coverage gate: actual coverage is ~63% (2026-07); ratchet the
           # threshold up as coverage improves, never down.
-          # multi_year_invariants is excluded here: those tests drive real
-          # dbt/orchestrator simulations and run in the dedicated
-          # multi-year-invariants job, which installs dbt packages first.
+          # multi_year_invariants is excluded here: those multi-year suites run
+          # in the dedicated multi-year-invariants job (with failure-artifact
+          # capture and a longer timeout). Lighter integration tests that drive
+          # a real dbt run stay here and rely on the dbt deps installed above.
           pytest tests/ -v -m "not multi_year_invariants" --cov=planalign_orchestrator --cov=planalign_cli --cov=planalign_api --cov=planalign_core --cov-fail-under=60 --cov-report=xml
 
       # NOTE: no raw `dbt run` here — a full build requires a census parquet
