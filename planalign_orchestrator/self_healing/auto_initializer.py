@@ -22,7 +22,7 @@ from __future__ import annotations
 import logging
 import time
 from datetime import datetime
-from typing import Callable, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from planalign_orchestrator.dbt_runner import DbtRunner
 from planalign_orchestrator.exceptions import (
@@ -79,6 +79,7 @@ class AutoInitializer:
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
         use_lock: bool = True,
         start_year: int = 2025,
+        dbt_vars: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Initialize auto-initializer with dependencies.
 
@@ -89,6 +90,9 @@ class AutoInitializer:
             timeout_seconds: Maximum time for initialization (default: 60s per SC-003)
             use_lock: Use file-based mutex to prevent concurrent initialization
             start_year: Simulation start year for foundation model initialization
+            dbt_vars: Config-derived dbt vars (e.g. census_parquet_path) so the
+                seed/staging/foundation builds honor the configured census rather
+                than the hardcoded default source.
         """
         self.db_manager = db_manager
         self.dbt_runner = dbt_runner
@@ -96,6 +100,7 @@ class AutoInitializer:
         self.timeout_seconds = timeout_seconds
         self.use_lock = use_lock
         self.start_year = start_year
+        self._dbt_vars = dbt_vars or {}
         self._checker = TableExistenceChecker(db_manager)
         self._start_time: Optional[float] = None
         self._lock: Optional[ExecutionMutex] = None
@@ -387,6 +392,7 @@ class AutoInitializer:
         result = self.dbt_runner.execute_command(
             ["seed", "--full-refresh", "--threads", "1"],
             stream_output=self.verbose,
+            dbt_vars=self._dbt_vars,
         )
         if not result.success:
             raise InitializationError(
@@ -402,6 +408,7 @@ class AutoInitializer:
             ["run", "--select", "staging.*", "--threads", "1"],
             stream_output=self.verbose,
             simulation_year=self.start_year,
+            dbt_vars=self._dbt_vars,
         )
         if not staging_result.success:
             raise InitializationError(
@@ -412,6 +419,7 @@ class AutoInitializer:
             ["run", "--select", "+tag:FOUNDATION", "--threads", "1"],
             stream_output=self.verbose,
             simulation_year=self.start_year,
+            dbt_vars=self._dbt_vars,
         )
         if not result.success:
             raise InitializationError(

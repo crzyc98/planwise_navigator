@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from planalign_orchestrator.config import OptimizationSettings
+from planalign_orchestrator.config import OptimizationSettings, to_dbt_vars
 from planalign_orchestrator.dbt_runner import DbtRunner
 from planalign_orchestrator.exceptions import (
     ExecutionContext,
@@ -154,6 +154,7 @@ def build_orchestrator(spec: ConstructionSpec) -> ConstructionResult:
             dbt_runner=runner,
             verbose=spec.verbose,
             start_year=spec.config.simulation.start_year,
+            dbt_vars=to_dbt_vars(spec.config),
         )
 
     orchestrator = PipelineOrchestrator(
