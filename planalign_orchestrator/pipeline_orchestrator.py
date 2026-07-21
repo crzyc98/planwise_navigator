@@ -16,8 +16,11 @@ import uuid
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 import time
+
+if TYPE_CHECKING:
+    from .construction.signature import ConstructionSignature, WorkSchedule
 
 from .config import SimulationConfig, to_dbt_vars
 from .orchestrator_setup import (
@@ -99,8 +102,8 @@ class PipelineOrchestrator:
         self.validator = validator
         self.verbose = verbose
         self._initialization_callback = initialization_callback
-        self.construction_signature = None
-        self.work_schedule = None
+        self.construction_signature: Optional["ConstructionSignature"] = None
+        self.work_schedule: Optional["WorkSchedule"] = None
         self._dbt_vars = to_dbt_vars(config)
 
         # E068C: Extract threading configuration from new structured config
@@ -365,7 +368,11 @@ class PipelineOrchestrator:
             },
         )
 
-        if authoritative_run_id is not None and self.work_schedule is not None:
+        if (
+            authoritative_run_id is not None
+            and self.work_schedule is not None
+            and self.construction_signature is not None
+        ):
             append_execution_record(
                 self.db_manager,
                 run_id=authoritative_run_id,
