@@ -125,12 +125,47 @@ the classic scale-dependent trap (§8 of CLAUDE.md):
 | fct_employer_match_events | 260,784 | 234,807 | −25,977 ❌ |
 | fct_workforce_snapshot parity | — | 50,315 rows differ | **content mismatch** ❌ |
 
-**Root cause:** the `--full-refresh` is **load-bearing, not redundant.** Without it,
-`int_workforce_snapshot_optimized` (incremental `delete+insert`) *accumulates prior-year
-rows* instead of being wiped to the current year. Downstream multi-year state/event logic
-reads the bloated table, changing generated events at scale (and bloating compute + RSS).
-The 7.5k census didn't exercise the pathological multi-year pattern, giving a false pass.
+**Initial root-cause finding:** the `--full-refresh` is **load-bearing, not redundant.**
+Without it, `int_workforce_snapshot_optimized` (incremental `delete+insert`)
+*accumulates prior-year rows* instead of being wiped to the current year. That explains
+the severe compute/RSS regression. Follow-up experiments below show that this was a
+contributing cause, not the complete explanation for the correctness regression.
 
 **Decision: Tier C reverted; NOT shipped.** Final feature = **A+B (38→30, byte-identical,
 −9.4% warm, memory-neutral)**. The gate (T028) worked exactly as designed — the multi-scale
 isolated-DB validation caught a correctness regression that a single-scale check missed.
+
+### Tier C follow-up — model-scoped refresh is insufficient (2026-07-21)
+
+The obvious dbt-native alternative was tested after the rejection: move refresh scope
+from the command line onto `int_workforce_snapshot_optimized` itself with
+`full_refresh=true`. This preserves dbt's incremental full-refresh materialization for
+that model while leaving neighboring temporal accumulators incremental. A plain table
+materialization was also tested as a control.
+
+Neither approach restores correctness when the command split is collapsed:
+
+| Candidate | Commands | Wall (one 60k run) | Working snapshot years | Core-mart parity vs A+B |
+|---|---:|---:|---|---|
+| table materialization, 3→1 | 20 | 106.8 s | 2029 only | FAIL |
+| table materialization, 3→2 | 25 | 118.2 s | 2029 only | FAIL |
+| table materialization, original 3 boundaries | 30 | 126.2 s | 2029 only | FAIL |
+| resource `full_refresh=true`, 3→1 | 20 | 106.1 s | 2029 only | FAIL |
+
+Every candidate produced the same rejected outputs: 617,382 yearly events (−27,748),
+234,807 employer-match events (−25,977), and 50,315 rows differing in each direction
+for `fct_workforce_snapshot`. The model-scoped variants successfully kept
+`int_workforce_snapshot_optimized` pruned to 2029, proving stale-year accumulation is
+not the cause of the remaining parity failure.
+
+**Correct conclusion:** command-level `--full-refresh` and the isolated invocation are
+part of the current execution semantics, not merely a way to clear one relation. Tier C
+cannot safely be implemented by regrouping the existing selections or by changing only
+this model's materialization. Keep the three logical transactions.
+
+If the launch overhead is still worth pursuing, the next design should preserve those
+three commands and their exact flags while avoiding repeated OS/Python startup—for
+example, a resident in-process dbt runner or worker that executes the existing logical
+commands sequentially. That is a separate execution-engine change and needs its own
+failure-isolation, global-state, memory, and parity gates; it is not a Tier-C grouping
+patch.
