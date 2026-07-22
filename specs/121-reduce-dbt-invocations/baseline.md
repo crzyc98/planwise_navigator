@@ -52,7 +52,7 @@ shrinks as census/computation grows, so the 60k warm figure will likely be ≤ t
 |---|---:|---|
 | HEAD baseline | **38 (measured)** | confirms feature-120 baseline; "62" retired |
 | after Tier A+B | **30 (measured)** | −8; already ≤ the issue's 32 ceiling |
-| after Tier C | _(expect ~20–25)_ | STATE_ACCUMULATION collapse — only if gate passes (deferred) |
+| ~~after Tier C~~ | ~~20~~ | **REJECTED** — corrupts multi-year events at 60k scale (see Tier C NO-GO below) |
 
 ## Warm wall time / peak RSS (median-of-three, both configs)
 
@@ -104,4 +104,33 @@ the model's schema can change across builds in a way delete+insert can't absorb
 incrementally. Collapsing the STATE_ACCUMULATION 3-way split therefore requires either
 (a) making this model cleanly incremental (removing the full-refresh need) or (b) proving
 a reorder keeps a single full-refresh boundary — **both need the multi-year all-mart
-parity run to validate** and are gated (T028). Not implemented this session.
+parity run to validate** and are gated (T028).
+
+### Tier C — ATTEMPTED and REJECTED (2026-07-21, NO-GO)
+
+Approach (a) was implemented: drop `int_workforce_snapshot_optimized` from
+`_model_needs_full_refresh` (its `is_incremental()` predicate is the tautology
+`WHERE {{ simulation_year }} = {{ simulation_year }}`, so it *looked* redundant),
+collapsing STATE_ACCUMULATION 3→1 (invocations 30→**20**).
+
+**7.5k census: parity 0/0, looked safe.** **60k Studio census: FAILED on all three gates** —
+the classic scale-dependent trap (§8 of CLAUDE.md):
+
+| Metric | A+B (baseline) | A+B+C | Result |
+|---|---:|---:|---|
+| invocation_count | 30 | 20 | −10 |
+| warm wall (median-of-3) | 119.55 s | 181.81 s | **+52% SLOWER** ❌ |
+| peak RSS | 1265 MiB | 1474 MiB | **+18%** (over ceiling) ❌ |
+| fct_yearly_events rows | **645,130** (known-good) | 617,382 | **−27,748 events — WRONG** ❌ |
+| fct_employer_match_events | 260,784 | 234,807 | −25,977 ❌ |
+| fct_workforce_snapshot parity | — | 50,315 rows differ | **content mismatch** ❌ |
+
+**Root cause:** the `--full-refresh` is **load-bearing, not redundant.** Without it,
+`int_workforce_snapshot_optimized` (incremental `delete+insert`) *accumulates prior-year
+rows* instead of being wiped to the current year. Downstream multi-year state/event logic
+reads the bloated table, changing generated events at scale (and bloating compute + RSS).
+The 7.5k census didn't exercise the pathological multi-year pattern, giving a false pass.
+
+**Decision: Tier C reverted; NOT shipped.** Final feature = **A+B (38→30, byte-identical,
+−9.4% warm, memory-neutral)**. The gate (T028) worked exactly as designed — the multi-scale
+isolated-DB validation caught a correctness regression that a single-scale check missed.
