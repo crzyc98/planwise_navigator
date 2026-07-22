@@ -377,38 +377,38 @@ class HazardCacheManager:
                     self.logger.error(error_msg)
                     raise HazardCacheError(error_msg)
 
-                # Rebuild each cache model with full refresh
-                for model in self.CACHE_MODELS:
-                    self.logger.info(f"Rebuilding {model}...")
-
-                    # Use `dbt build` so seeds and dependent models are materialized
-                    result = self.dbt_runner.execute_command(
-                        ["build", "--select", model, "--full-refresh"],
-                        dbt_vars=extra_vars,
-                    )
-
-                    if not result.success:
-                        error_msg = self._build_rebuild_error(
-                            f"Failed to rebuild {model}", result
-                        )
-                        self.logger.error(error_msg)
-                        raise HazardCacheError(error_msg)
-
-                    self.logger.info(f"Successfully rebuilt {model}")
-
-                # Update metadata table
-                self.logger.info("Updating hazard cache metadata...")
+                # Feature 121 (Tier A): rebuild the four dim_*_hazards cache models
+                # and the metadata model in a SINGLE `dbt build --full-refresh`
+                # invocation instead of five separate ones. This is safe by
+                # construction: every model here is full-refreshed, dbt resolves the
+                # intra-selection order from the ref() DAG (each dim_*_hazards refs
+                # int_effective_parameters, materialized just above; hazard_cache_metadata
+                # refs the caches), so the built tables are byte-identical to the
+                # per-model rebuild. It replaces five subprocess launches + project
+                # parses with one. See
+                # specs/121-reduce-dbt-invocations/contracts/hazard-cache-batch.md.
+                batch_models = [*self.CACHE_MODELS, self.METADATA_MODEL]
+                self.logger.info(
+                    "Rebuilding hazard caches + metadata in one invocation: %s",
+                    ", ".join(batch_models),
+                )
                 result = self.dbt_runner.execute_command(
-                    ["build", "--select", self.METADATA_MODEL, "--full-refresh"],
+                    ["build", "--select", *batch_models, "--full-refresh"],
                     dbt_vars=extra_vars,
                 )
 
                 if not result.success:
+                    # extract_dbt_failure_detail (used by _build_rebuild_error) reads
+                    # target/run_results.json, which dbt populates per node even for a
+                    # batched selection, so the message still names the specific failing
+                    # cache model (FR-012 failure attribution).
                     error_msg = self._build_rebuild_error(
-                        "Failed to update cache metadata", result
+                        "Failed to rebuild hazard caches", result
                     )
                     self.logger.error(error_msg)
                     raise HazardCacheError(error_msg)
+
+                self.logger.info("Successfully rebuilt hazard caches + metadata")
 
                 # Clear cached hash values to force refresh
                 self._current_hash_cache = None
