@@ -169,3 +169,8 @@ example, a resident in-process dbt runner or worker that executes the existing l
 commands sequentially. That is a separate execution-engine change and needs its own
 failure-isolation, global-state, memory, and parity gates; it is not a Tier-C grouping
 patch.
+
+The preferred long-term alternative is now detailed in
+[`state-pipeline-redesign.md`](state-pipeline-redesign.md): publish the event fact once,
+replace duplicated workforce-state implementations with domain accumulators, and let
+the normalized dbt DAG make a single STATE_ACCUMULATION invocation safe by construction.
