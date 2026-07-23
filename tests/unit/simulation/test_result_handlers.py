@@ -279,7 +279,7 @@ class TestExportResultsToExcel:
             )
 
         # DatabaseConnectionManager should have been called with run_dir db
-        mock_dcm.assert_called_once_with(run_dir / "simulation.duckdb")
+        mock_dcm.assert_called_once_with(run_dir / "simulation.duckdb", read_only=True)
         assert result == expected_excel
 
     def test_falls_back_to_mock_config_on_validation_failure(self, tmp_path):

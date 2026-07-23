@@ -73,13 +73,12 @@ def export_results_to_excel(
             results_dir = scenario_path / "results"
         results_dir.mkdir(parents=True, exist_ok=True)
 
-        # Initialize database connection manager as a context manager so its pooled
-        # read-write connections are released before this function returns. Otherwise
-        # they stay open for the whole (long-lived) API process and block the
-        # subsequent read-only connection in publish_current_result -> _validate_target
-        # ("Can't open a connection to same database file with a different
-        # configuration than existing connections").
-        with DatabaseConnectionManager(db_path) as db_manager:
+        # Read-only: the exporter only ever queries. A read-write pool would hold
+        # an exclusive lock on the run's database for the entire export (minutes,
+        # for large populations), blocking every other reader — the Studio UI's
+        # results endpoints, publish_current_result's validation, etc. Read-only
+        # connections can coexist with other processes' access to the same file.
+        with DatabaseConnectionManager(db_path, read_only=True) as db_manager:
             # Create exporter
             exporter = ExcelExporter(db_manager)
 

@@ -108,7 +108,13 @@ class DatabaseConnectionPool:
     - Graceful pool exhaustion handling
     """
 
-    def __init__(self, db_path: Path, pool_size: int = 1, deterministic: bool = True):
+    def __init__(
+        self,
+        db_path: Path,
+        pool_size: int = 1,
+        deterministic: bool = True,
+        read_only: bool = False,
+    ):
         """Initialize connection pool.
 
         Args:
@@ -117,10 +123,17 @@ class DatabaseConnectionPool:
                       E079 Performance Fix: Reduced from 5 to 1 because sequential
                       pipeline execution doesn't benefit from pooling (only adds overhead)
             deterministic: If True, configure connections for deterministic behavior
+            read_only: If True, open connections read-only. DuckDB allows
+                concurrent read-only connections to the same file from other
+                processes; a read-write connection takes an exclusive lock
+                that blocks everything else (queries, promotion checks) for
+                as long as the pool stays open. Use for read-only workloads
+                (e.g. exporting results) that run alongside other access.
         """
         self.db_path = db_path
         self.pool_size = pool_size
         self.deterministic = deterministic
+        self.read_only = read_only
         self._pool: Dict[str, duckdb.DuckDBPyConnection] = {}
         self._lock = Lock()
         self._in_use: Set[str] = set()
@@ -134,7 +147,7 @@ class DatabaseConnectionPool:
         Returns:
             Configured DuckDB connection
         """
-        conn = duckdb.connect(str(self.db_path))
+        conn = duckdb.connect(str(self.db_path), read_only=self.read_only)
 
         if self.deterministic:
             # DETERMINISM FIX: Configure connection for reproducible results
@@ -240,17 +253,28 @@ class DatabaseConnectionManager:
     - Context manager pattern for safe connection handling
     """
 
-    def __init__(self, db_path: Optional[Path] = None, deterministic: bool = True):
+    def __init__(
+        self,
+        db_path: Optional[Path] = None,
+        deterministic: bool = True,
+        read_only: bool = False,
+    ):
         """Initialize DatabaseConnectionManager with connection pool.
 
         Args:
             db_path: Path to the database file. Defaults to dbt/simulation.duckdb
             deterministic: If True, configure connections for deterministic behavior
+            read_only: If True, open read-only connections that can coexist with
+                other processes' access to the same file instead of taking an
+                exclusive lock. See ``DatabaseConnectionPool``.
         """
         self.db_path = db_path or Path("dbt/simulation.duckdb")
         self.deterministic = deterministic
         self._pool = DatabaseConnectionPool(
-            db_path=self.db_path, pool_size=5, deterministic=deterministic
+            db_path=self.db_path,
+            pool_size=5,
+            deterministic=deterministic,
+            read_only=read_only,
         )
         # Register cleanup at exit to ensure connections are closed
         atexit.register(self.close_all)

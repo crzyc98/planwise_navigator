@@ -21,7 +21,7 @@ from ..database_path_resolver import (
 from .log_writer import SimulationLogWriter
 from .output_parser import SimulationOutputParser
 from .results_reader import read_results
-from .run_archiver import archive_failed_run, archive_run
+from .run_archiver import archive_failed_run, archive_run, export_run_excel
 from .run_execution import (
     active_process_registry as _active_process_registry,
     build_command,
@@ -150,7 +150,7 @@ class SimulationService:
             )
 
             # Handle successful completion
-            self._finalize_successful_simulation(
+            await self._finalize_successful_simulation(
                 workspace_id,
                 scenario_id,
                 run_id,
@@ -214,7 +214,7 @@ class SimulationService:
 
         return scenario_path, start_year, end_year, total_years
 
-    def _finalize_successful_simulation(
+    async def _finalize_successful_simulation(
         self,
         workspace_id: str,
         scenario_id: str,
@@ -289,6 +289,30 @@ class SimulationService:
         logger.info(
             f"Simulation {run_id} completed successfully in {final_elapsed:.1f}s"
         )
+
+        # Excel export is a non-critical, potentially multi-minute artifact for
+        # large populations. Run it in a worker thread via asyncio.to_thread:
+        # the `await` yields the event loop so the just-queued "completed"
+        # telemetry frame is flushed to the WebSocket immediately (otherwise a
+        # synchronous export blocks the loop and the UI sits at the last
+        # progress value for the whole export), and so other API requests are
+        # served while it runs. Its failure must never flip an already-promoted,
+        # already-completed run to "failed", so swallow-and-log here.
+        try:
+            await asyncio.to_thread(
+                export_run_excel,
+                scenario_path=scenario_path,
+                scenario_name=scenario_name,
+                config=config,
+                seed=seed,
+                run_dir=run_dir or (scenario_path / "runs" / run_id),
+            )
+        except Exception as exc:  # noqa: BLE001 - artifact is best-effort
+            logger.warning(
+                "Excel export failed for completed run %s (non-fatal): %s",
+                run_id,
+                exc,
+            )
 
     def _handle_simulation_failure(
         self,
