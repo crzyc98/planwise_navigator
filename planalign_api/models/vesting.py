@@ -134,7 +134,27 @@ class VestingAnalysisSummary(BaseModel):
     """High-level summary of vesting analysis."""
 
     analysis_year: int
-    terminated_employee_count: int = Field(..., ge=0)
+    total_terminated_employee_count: int = Field(
+        ...,
+        ge=0,
+        description="All employees terminated in the analysis year",
+    )
+    vesting_eligible_terminated_employee_count: int = Field(
+        ...,
+        ge=0,
+        description=(
+            "Terminated employees who were active and had employer contributions "
+            "in the prior year"
+        ),
+    )
+    terminated_employee_count: int = Field(
+        ...,
+        ge=0,
+        description=(
+            "Deprecated compatibility field for the vesting-eligible terminated "
+            "employee count"
+        ),
+    )
     total_employer_contributions: Decimal = Field(..., ge=0)
 
     # Current schedule totals

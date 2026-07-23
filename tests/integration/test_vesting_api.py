@@ -204,7 +204,9 @@ class TestVestingAnalysisResponseStructure:
             ),
             summary=VestingAnalysisSummary(
                 analysis_year=2027,
-                terminated_employee_count=0,
+                total_terminated_employee_count=12,
+                vesting_eligible_terminated_employee_count=8,
+                terminated_employee_count=8,
                 total_employer_contributions=Decimal("0"),
                 current_total_vested=Decimal("0"),
                 current_total_forfeited=Decimal("0"),
@@ -219,5 +221,7 @@ class TestVestingAnalysisResponseStructure:
 
         assert response.scenario_id == "baseline"
         assert response.summary.analysis_year == 2027
+        assert response.summary.total_terminated_employee_count == 12
+        assert response.summary.vesting_eligible_terminated_employee_count == 8
         assert response.by_tenure_band == []
         assert response.employee_details == []

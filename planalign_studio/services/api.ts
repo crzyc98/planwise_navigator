@@ -1838,6 +1838,11 @@ export interface VestingAnalysisRequest {
  */
 export interface VestingAnalysisSummary {
   analysis_year: number;
+  /** All employees terminated in the analysis year. */
+  total_terminated_employee_count: number;
+  /** Terminated employees with prior-year employer contributions used in this analysis. */
+  vesting_eligible_terminated_employee_count: number;
+  /** @deprecated Use vesting_eligible_terminated_employee_count. */
   terminated_employee_count: number;
   total_employer_contributions: number;
   current_total_vested: number;

@@ -609,11 +609,18 @@ export default function VestingAnalysis() {
         /* Analysis Results */
         <>
           {/* KPI Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-6">
             <KPICard
-              title="Terminated Employees"
-              value={analysisResult.summary.terminated_employee_count.toLocaleString()}
-              subtext={`In year ${analysisResult.summary.analysis_year}`}
+              title="Total Terminations"
+              value={analysisResult.summary.total_terminated_employee_count.toLocaleString()}
+              subtext={`All workforce terminations in ${analysisResult.summary.analysis_year}`}
+              icon={Users}
+              color="blue"
+            />
+            <KPICard
+              title="Vesting-Eligible Terminations"
+              value={analysisResult.summary.vesting_eligible_terminated_employee_count.toLocaleString()}
+              subtext="With prior-year employer contributions"
               icon={Users}
               color="blue"
             />
@@ -648,6 +655,9 @@ export default function VestingAnalysis() {
                 <h3 className="font-semibold text-blue-900">{analysisResult.scenario_name}</h3>
                 <p className="text-sm text-blue-700">
                   Total Employer Contributions: {formatCurrency(analysisResult.summary.total_employer_contributions)}
+                </p>
+                <p className="text-sm text-blue-700 mt-1">
+                  Vesting calculations include employees who terminated this year and had employer contributions while active in the prior year.
                 </p>
               </div>
               <div className="text-right text-sm text-blue-600">
@@ -710,7 +720,7 @@ export default function VestingAnalysis() {
                 <thead>
                   <tr className="border-b border-gray-200">
                     <th className="text-left py-3 px-4 font-semibold text-gray-600">Tenure Band</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-600">Employees</th>
+                    <th className="text-right py-3 px-4 font-semibold text-gray-600">Vesting-Eligible Employees</th>
                     <th className="text-right py-3 px-4 font-semibold text-gray-600">Contributions</th>
                     <th className="text-right py-3 px-4 font-semibold text-gray-600">Current Forfeitures</th>
                     <th className="text-right py-3 px-4 font-semibold text-gray-600">Proposed Forfeitures</th>
@@ -734,7 +744,7 @@ export default function VestingAnalysis() {
                 <tfoot>
                   <tr className="bg-gray-50 font-semibold">
                     <td className="py-3 px-4 text-gray-900">Total</td>
-                    <td className="py-3 px-4 text-right">{analysisResult.summary.terminated_employee_count.toLocaleString()}</td>
+                    <td className="py-3 px-4 text-right">{analysisResult.summary.vesting_eligible_terminated_employee_count.toLocaleString()}</td>
                     <td className="py-3 px-4 text-right">{formatCurrency(analysisResult.summary.total_employer_contributions)}</td>
                     <td className="py-3 px-4 text-right">{formatCurrency(analysisResult.summary.current_total_forfeited)}</td>
                     <td className="py-3 px-4 text-right">{formatCurrency(analysisResult.summary.proposed_total_forfeited)}</td>
@@ -752,7 +762,7 @@ export default function VestingAnalysis() {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-800 flex items-center">
                 <Table size={20} className="mr-2" />
-                Employee Details
+                Vesting-Eligible Employee Details
               </h3>
               <button
                 onClick={() => setShowEmployeeDetails(!showEmployeeDetails)}

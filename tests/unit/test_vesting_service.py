@@ -1,12 +1,15 @@
 """Unit tests for vesting service calculations."""
 
 from decimal import Decimal
+from unittest.mock import Mock
 
+import duckdb
 
-from planalign_api.models.vesting import VestingScheduleType
+from planalign_api.models.vesting import VestingScheduleConfig, VestingScheduleType
 from planalign_api.services.vesting_service import (
     SCHEDULE_INFO,
     VESTING_SCHEDULES,
+    VestingService,
     calculate_forfeiture,
     get_schedule_list,
     get_vesting_percentage,
@@ -334,3 +337,57 @@ class TestEmployeeDetailsValidation:
         assert detail.current_forfeiture == Decimal("6000.00")
         assert detail.proposed_forfeiture == Decimal("0.00")
         assert detail.forfeiture_variance == Decimal("-6000.00")
+
+
+def _schedule_config(
+    schedule_type: VestingScheduleType, name: str
+) -> VestingScheduleConfig:
+    return VestingScheduleConfig(schedule_type=schedule_type, name=name)
+
+
+def test_vesting_summary_distinguishes_total_and_eligible_terminations():
+    """All terminations are reported, while only contributed balances are analyzed."""
+    conn = duckdb.connect(":memory:")
+    conn.execute(
+        """
+        CREATE TABLE fct_workforce_snapshot (
+            employee_id VARCHAR,
+            simulation_year INTEGER,
+            employment_status VARCHAR,
+            employee_hire_date DATE,
+            termination_date DATE,
+            current_tenure INTEGER,
+            tenure_band VARCHAR,
+            annual_hours_worked INTEGER,
+            total_employer_contributions DECIMAL(12, 2)
+        )
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO fct_workforce_snapshot VALUES
+            ('eligible', 2028, 'ACTIVE', DATE '2020-01-01', NULL, 8, '5-9', 2080, 100.00),
+            ('zero_balance', 2028, 'ACTIVE', DATE '2020-01-01', NULL, 8, '5-9', 2080, 0.00),
+            ('eligible', 2029, 'TERMINATED', DATE '2020-01-01', DATE '2029-06-30', 9, '5-9', 1040, 0.00),
+            ('zero_balance', 2029, 'TERMINATED', DATE '2020-01-01', DATE '2029-06-30', 9, '5-9', 1040, 0.00),
+            ('no_prior_record', 2029, 'TERMINATED', DATE '2028-01-01', DATE '2029-06-30', 1, '<2', 1040, 0.00)
+        """
+    )
+    service = VestingService(storage=Mock())
+
+    employees = service._get_terminated_employees(conn, 2029)
+    details = service._calculate_employee_details(
+        employees,
+        _schedule_config(VestingScheduleType.IMMEDIATE, "Immediate"),
+        _schedule_config(VestingScheduleType.CLIFF_3_YEAR, "3-Year Cliff"),
+    )
+    summary = service._build_summary(
+        details,
+        2029,
+        service._get_total_terminated_employee_count(conn, 2029),
+    )
+
+    assert summary.total_terminated_employee_count == 3
+    assert summary.vesting_eligible_terminated_employee_count == 1
+    assert summary.terminated_employee_count == 1
+    assert [detail.employee_id for detail in details] == ["eligible"]
