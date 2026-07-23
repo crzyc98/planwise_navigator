@@ -11,6 +11,7 @@ from ..services.ndt_service import (
     Section401a4TestResponse,
     Section415TestResponse,
 )
+from ..services.scenario_read_warning import has_selected_result
 from ..storage.workspace_storage import WorkspaceStorage
 
 router = APIRouter()
@@ -94,7 +95,7 @@ async def run_acp_test(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Scenario {scenario_id} not found",
             )
-        if scenario.status != "completed":
+        if not has_selected_result(storage, workspace_id, scenario_id, scenario.status):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Scenario {scenario_id} has not completed successfully",
@@ -158,7 +159,7 @@ async def run_401a4_test(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Scenario {scenario_id} not found",
             )
-        if scenario.status != "completed":
+        if not has_selected_result(storage, workspace_id, scenario_id, scenario.status):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Scenario {scenario_id} has not completed successfully",
@@ -222,7 +223,7 @@ async def run_415_test(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Scenario {scenario_id} not found",
             )
-        if scenario.status != "completed":
+        if not has_selected_result(storage, workspace_id, scenario_id, scenario.status):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Scenario {scenario_id} has not completed successfully",
@@ -295,7 +296,7 @@ async def run_adp_test(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Scenario {scenario_id} not found",
             )
-        if scenario.status != "completed":
+        if not has_selected_result(storage, workspace_id, scenario_id, scenario.status):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Scenario {scenario_id} has not completed successfully",

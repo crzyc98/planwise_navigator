@@ -13,7 +13,7 @@ from planalign_core.constants import (
 from ...constants import DEFAULT_PARTICIPATION_RATE
 from ...models.simulation import SimulationResults
 from ...storage.workspace_storage import WorkspaceStorage
-from ..database_path_resolver import DatabasePathResolver
+from ..database_path_resolver import DatabasePathResolver, ResolvedDatabasePath
 
 logger = logging.getLogger(__name__)
 
@@ -46,14 +46,13 @@ def read_results(
     Returns:
         SimulationResults if data is available, else None.
     """
-    config_start_year, config_end_year = _get_year_range(
-        storage, workspace_id, scenario_id
-    )
-
     resolved = db_resolver.resolve(workspace_id, scenario_id)
     if not resolved.exists:
         logger.warning(f"No database found for scenario {scenario_id}")
         return None
+    config_start_year, config_end_year = _get_year_range(
+        resolved, storage, workspace_id, scenario_id
+    )
 
     db_source: str = (
         "global (shared - may show data from other scenarios)"
@@ -91,9 +90,9 @@ def read_results(
 
     return SimulationResults(
         scenario_id=scenario_id,
-        run_id="unknown",
-        start_year=summary["start_year"],
-        end_year=summary["end_year"],
+        run_id=resolved.run_id or "legacy",
+        start_year=config_start_year,
+        end_year=config_end_year,
         final_headcount=summary["final_headcount"],
         total_growth_pct=summary["total_growth_pct"],
         cagr=summary["cagr"],
@@ -115,8 +114,13 @@ def read_results(
 
 
 def _get_year_range(
-    storage: WorkspaceStorage, workspace_id: str, scenario_id: str
+    resolved: ResolvedDatabasePath,
+    storage: WorkspaceStorage,
+    workspace_id: str,
+    scenario_id: str,
 ) -> Tuple[int, int]:
+    if resolved.start_year is not None and resolved.end_year is not None:
+        return resolved.start_year, resolved.end_year
     config = storage.get_merged_config(workspace_id, scenario_id)
     if config:
         sim_config = config.get("simulation", {})

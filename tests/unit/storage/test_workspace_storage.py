@@ -7,6 +7,8 @@ from typing import Any, Dict
 from unittest.mock import MagicMock, patch
 
 import pytest
+import duckdb
+import uuid
 
 from planalign_api.storage.workspace_storage import WorkspaceStorage
 
@@ -708,3 +710,40 @@ class TestInjectSeedConfigDefaults:
             storage._inject_seed_config_defaults(merged)
         assert "age_bands" not in merged
         assert "tenure_bands" not in merged
+
+
+@pytest.mark.fast
+class TestRunResultStorage:
+    def test_allocates_distinct_run_directories_exclusively(self, storage, tmp_path):
+        workspace = _make_workspace(tmp_path)
+        _make_scenario(workspace)
+        first = str(uuid.uuid4())
+        second = str(uuid.uuid4())
+
+        first_path = storage.allocate_run_directory("ws-1", "sc-1", first)
+        second_path = storage.allocate_run_directory("ws-1", "sc-1", second)
+
+        assert first_path != second_path
+        with pytest.raises(FileExistsError):
+            storage.allocate_run_directory("ws-1", "sc-1", first)
+
+    def test_publish_and_explicit_current_run_deletion(self, storage, tmp_path):
+        workspace = _make_workspace(tmp_path)
+        scenario = _make_scenario(workspace)
+        run_id = str(uuid.uuid4())
+        run_dir = scenario / "runs" / run_id
+        run_dir.mkdir()
+        with duckdb.connect(str(run_dir / "simulation.duckdb")) as connection:
+            connection.execute("CREATE TABLE marker (value INTEGER)")
+        (run_dir / "run_metadata.json").write_text(
+            json.dumps({"run_id": run_id, "status": "completed"})
+        )
+
+        selected = storage.publish_current_result("ws-1", "sc-1", run_id)
+
+        assert selected == run_dir / "simulation.duckdb"
+        with pytest.raises(ValueError, match="current"):
+            storage.delete_run("ws-1", "sc-1", run_id)
+        assert storage.delete_run("ws-1", "sc-1", run_id, allow_current_result=True)
+        assert not (scenario / "current_result.json").exists()
+        assert not run_dir.exists()

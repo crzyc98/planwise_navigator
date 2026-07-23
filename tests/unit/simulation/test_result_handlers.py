@@ -117,6 +117,23 @@ class TestExportResultsToExcel:
 
         assert result is None
 
+    def test_run_dir_never_falls_back_to_mutable_scenario_database(self, tmp_path):
+        scenario_path = tmp_path / "scenario"
+        scenario_path.mkdir()
+        (scenario_path / "simulation.duckdb").touch()
+        run_dir = tmp_path / "run"
+        run_dir.mkdir()
+
+        result = export_results_to_excel(
+            scenario_path=scenario_path,
+            scenario_name="test",
+            config={},
+            seed=42,
+            run_dir=run_dir,
+        )
+
+        assert result is None
+
     def test_returns_none_on_import_error(self, tmp_path):
         """Should return None and log error when import fails."""
         scenario_path = tmp_path / "scenario"

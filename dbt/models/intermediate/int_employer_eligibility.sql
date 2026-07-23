@@ -3,7 +3,7 @@
     indexes=[
         {'columns': ['employee_id', 'simulation_year'], 'unique': true}
     ],
-    tags=['employer_contributions', 'eligibility', 'foundation', 'EVENT_GENERATION']
+    tags=['employer_contributions', 'eligibility', 'BENEFIT_CALCULATION']
 ) }}
 
 /*
@@ -32,6 +32,8 @@
 */
 
 {% set simulation_year = var('simulation_year', 2025) | int %}
+{% set scenario_id = var('scenario_id', 'default') %}
+{% set plan_design_id = var('plan_design_id', 'default') %}
 
 -- Read employer core contribution config from nested structure
 {% set employer_core_config = var('employer_core_contribution', {}) %}
@@ -70,265 +72,68 @@
 {% set match_allow_terminated_new_hires = match_eligibility.get('allow_terminated_new_hires', false) %}
 {% set match_allow_experienced_terminations = match_eligibility.get('allow_experienced_terminations', false) %}
 
--- IMPORTANT: Use per-year compensation snapshot as the base population
--- Using int_baseline_workforce limited eligibility to the first year only.
--- Switching to int_employee_compensation_by_year ensures all active employees
--- (continuous and new hires) are present for every simulation_year.
-WITH baseline_data AS (
-    SELECT
-        employee_id,
-        employment_status,
-        current_tenure,
-        employee_hire_date,
-        CAST(NULL AS DATE) AS termination_date
-    FROM {{ ref('int_employee_compensation_by_year') }}
-    WHERE simulation_year = {{ simulation_year }}
-        AND employee_id IS NOT NULL
-),
-
--- Get new hire and termination events for the simulation year to get more accurate dates
--- Epic E078: Mode-aware query - uses fct_yearly_events in Polars mode, int_*_events in SQL mode
-events_data AS (
-    {% if var('event_generation_mode', 'sql') == 'polars' %}
-    -- Polars mode: Read from fct_yearly_events
-    SELECT
-        employee_id,
-        MAX(hire_date) AS event_hire_date,
-        MAX(termination_date) AS event_termination_date
-    FROM (
-        SELECT employee_id,
-               effective_date AS hire_date,
-               CAST(NULL AS DATE) AS termination_date
-        FROM {{ ref('fct_yearly_events') }}
-        WHERE simulation_year = {{ simulation_year }}
-          AND event_type = 'hire'
-
-        UNION ALL
-
-        SELECT employee_id,
-               CAST(NULL AS DATE) AS hire_date,
-               effective_date AS termination_date
-        FROM {{ ref('fct_yearly_events') }}
-        WHERE simulation_year = {{ simulation_year }}
-          AND event_type = 'termination'
-    ) s
-    GROUP BY employee_id
-    {% else %}
-    -- SQL mode: Use intermediate event models
-    SELECT
-        employee_id,
-        MAX(hire_date) AS event_hire_date,
-        MAX(termination_date) AS event_termination_date
-    FROM (
-        SELECT employee_id,
-               effective_date AS hire_date,
-               CAST(NULL AS DATE) AS termination_date
-        FROM {{ ref('int_hiring_events') }}
-        WHERE simulation_year = {{ simulation_year }}
-
-        UNION ALL
-
-        SELECT employee_id,
-               CAST(NULL AS DATE) AS hire_date,
-               effective_date AS termination_date
-        FROM {{ ref('int_termination_events') }}
-        WHERE simulation_year = {{ simulation_year }}
-    ) s
-    GROUP BY employee_id
-    {% endif %}
-),
-
--- Flag employees classified as new-hire terminations in this simulation year
--- Epic E078: Mode-aware query - uses fct_yearly_events in Polars mode, int_new_hire_termination_events in SQL mode
-new_hire_termination_flags AS (
-    {% if var('event_generation_mode', 'sql') == 'polars' %}
-    -- Polars mode: fct_yearly_events is populated from Parquet files before EVENT_GENERATION
-    SELECT
-        employee_id,
-        TRUE AS has_new_hire_termination
-    FROM {{ ref('fct_yearly_events') }}
-    WHERE simulation_year = {{ simulation_year }}
-      AND event_type = 'termination'
-      AND event_details LIKE 'Termination - new_hire_departure%'
-    GROUP BY employee_id
-    {% else %}
-    -- SQL mode: Use intermediate event model that exists during EVENT_GENERATION
-    SELECT
-        employee_id,
-        TRUE AS has_new_hire_termination
-    FROM {{ ref('int_new_hire_termination_events') }}
-    WHERE simulation_year = {{ simulation_year }}
-    GROUP BY employee_id
-    {% endif %}
-),
-
--- Flag employees with experienced terminations (non-new-hire) in this simulation year
--- Epic E078: Mode-aware query - uses fct_yearly_events in Polars mode, int_*_events in SQL mode
-experienced_termination_flags AS (
-    {% if var('event_generation_mode', 'sql') == 'polars' %}
-    -- Polars mode: Read from fct_yearly_events
-    SELECT
-        t.employee_id,
-        TRUE AS has_experienced_termination
-    FROM {{ ref('fct_yearly_events') }} t
-    WHERE t.simulation_year = {{ simulation_year }}
-      AND t.event_type = 'termination'
-      AND t.event_details NOT LIKE 'Termination - new_hire_departure%'
-    GROUP BY t.employee_id
-    {% else %}
-    -- SQL mode: Use intermediate event models
-    SELECT
-        t.employee_id,
-        TRUE AS has_experienced_termination
-    FROM {{ ref('int_termination_events') }} t
-    WHERE t.simulation_year = {{ simulation_year }}
-      AND t.employee_id NOT IN (
-          SELECT employee_id FROM {{ ref('int_new_hire_termination_events') }} WHERE simulation_year = {{ simulation_year }}
-      )
-    GROUP BY t.employee_id
-    {% endif %}
-),
-
--- Get newly hired employees from yearly events (not in baseline workforce)
--- Epic E078: Mode-aware query - uses fct_yearly_events in Polars mode, int_hiring_events in SQL mode
-new_hires_data AS (
-    {% if var('event_generation_mode', 'sql') == 'polars' %}
-    -- Polars mode: fct_yearly_events is populated from Parquet files before EVENT_GENERATION
-    SELECT
-        ye.employee_id,
-        'active' AS employment_status,
-        0.0 AS current_tenure,  -- New hires start with 0 tenure
-        ye.effective_date AS employee_hire_date,
-        NULL AS termination_date
-    FROM {{ ref('fct_yearly_events') }} ye
-    WHERE ye.simulation_year = {{ simulation_year }}
-        AND ye.event_type = 'hire'
-        AND ye.employee_id IS NOT NULL
-        -- Only include if not already in baseline workforce
-        AND ye.employee_id NOT IN (
-            SELECT employee_id
-            FROM baseline_data
-        )
-    {% else %}
-    -- SQL mode: Use intermediate event model that exists during EVENT_GENERATION
-    SELECT
-        he.employee_id,
-        'active' AS employment_status,
-        0.0 AS current_tenure,  -- New hires start with 0 tenure
-        he.effective_date AS employee_hire_date,
-        NULL AS termination_date
-    FROM {{ ref('int_hiring_events') }} he
-    WHERE he.simulation_year = {{ simulation_year }}
-        AND he.employee_id IS NOT NULL
-        -- Only include if not already in baseline workforce
-        AND he.employee_id NOT IN (
-            SELECT employee_id
-            FROM baseline_data
-        )
-    {% endif %}
-),
-
--- Combine baseline workforce with new hires
-all_employees AS (
-    SELECT * FROM baseline_data
-    UNION ALL
-    SELECT * FROM new_hires_data
-),
-
--- Scheduled weekly hours: census employees and simulation-generated part-time hires.
--- NULL (no row) means full-time; downstream COALESCE assumes 40 hrs/wk.
-scheduled_hours AS (
-    SELECT employee_id, MAX(scheduled_hours_per_week) AS scheduled_hours_per_week
-    FROM (
-        SELECT employee_id, scheduled_hours_per_week
-        FROM {{ ref('stg_census_data') }}
-        WHERE scheduled_hours_per_week IS NOT NULL
-
-        UNION ALL
-
-        SELECT employee_id, scheduled_hours_per_week
-        FROM {{ ref('int_hiring_events') }}
-        WHERE scheduled_hours_per_week IS NOT NULL
-
-        UNION ALL
-
-        -- Prior-year carry-forward for simulation-generated hires from earlier years
-        SELECT employee_id, scheduled_hours_per_week
-        FROM {{ ref('int_active_employees_prev_year_snapshot') }}
-        WHERE scheduled_hours_per_week IS NOT NULL
-    )
-    GROUP BY employee_id
-),
-
-hours_calculation AS (
+-- Eligibility consumes canonical end-of-year workforce state. It no longer
+-- reconstructs workforce status, tenure, scheduling, or event dates independently.
+WITH hours_calculation AS (
 SELECT
-    ae.employee_id,
+    workforce.employee_id,
     {{ simulation_year }} AS simulation_year,
-    ae.current_tenure,
-    ae.employee_hire_date,
-    ae.termination_date,
-    ed.event_hire_date,
-    ed.event_termination_date,
-    COALESCE(nht.has_new_hire_termination, FALSE) AS has_new_hire_termination,
-    COALESCE(ext.has_experienced_termination, FALSE) AS has_experienced_termination,
-    sh.scheduled_hours_per_week,
+    -- Preserve the existing decision-year tenure convention: later-year
+    -- compensation helpers increment prior accepted tenure twice.
+    COALESCE(prior_workforce.current_tenure + 2, workforce.current_tenure)
+        AS current_tenure,
+    workforce.employee_hire_date,
+    workforce.termination_date,
+    workforce.detailed_status_code = 'new_hire_termination'
+        AS has_new_hire_termination,
+    workforce.detailed_status_code = 'experienced_termination'
+        AS has_experienced_termination,
+    workforce.scheduled_hours_per_week,
 
     -- Identify new hires within the simulation year
-    CASE
-        WHEN ed.event_hire_date::DATE >= '{{ simulation_year }}-01-01'::DATE
-             AND ed.event_hire_date::DATE <= '{{ simulation_year }}-12-31'::DATE
-        THEN true
-        WHEN ae.employee_hire_date::DATE >= '{{ simulation_year }}-01-01'::DATE
-             AND ae.employee_hire_date::DATE <= '{{ simulation_year }}-12-31'::DATE
-        THEN true
-        ELSE false
-    END AS is_new_hire_this_year,
+    EXTRACT(YEAR FROM workforce.employee_hire_date) = {{ simulation_year }}
+        AS is_new_hire_this_year,
 
-    -- Derive end-of-year employment status using termination events
-    -- CRITICAL FIX: Treat new-hire terminations as terminated at EOY even if not in int_termination_events
-    CASE
-        WHEN COALESCE(ed.event_termination_date::DATE, ae.termination_date::DATE) IS NOT NULL
-             AND COALESCE(ed.event_termination_date::DATE, ae.termination_date::DATE) <= '{{ simulation_year }}-12-31'::DATE
-        THEN 'terminated'
-        WHEN COALESCE(nht.has_new_hire_termination, FALSE) THEN 'terminated'
-        ELSE 'active'
-    END AS employment_status_eoy,
+    workforce.employment_status AS employment_status_eoy,
 
     -- Calculate prorated annual hours based on actual employment period
     CASE
-        -- New hire in simulation year (use event hire date if available)
-        WHEN COALESCE(ed.event_hire_date::DATE, ae.employee_hire_date::DATE) >= '{{ simulation_year }}-01-01'::DATE
-             AND COALESCE(ed.event_termination_date::DATE, ae.termination_date::DATE) IS NULL THEN
-            -- New hire, still active: prorate from hire date to year-end
+        WHEN EXTRACT(YEAR FROM workforce.employee_hire_date) = {{ simulation_year }}
+             AND (
+               workforce.termination_date IS NULL
+               OR workforce.detailed_status_code = 'new_hire_termination'
+             ) THEN
             GREATEST(0,
                 DATEDIFF('day',
-                    COALESCE(ed.event_hire_date::DATE, ae.employee_hire_date::DATE),
+                    workforce.employee_hire_date::DATE,
                     '{{ simulation_year }}-12-31'::DATE
                 ) + 1
-            ) * (COALESCE(sh.scheduled_hours_per_week, 40.0) * 52.0 / 365.0)
+            ) * (COALESCE(workforce.scheduled_hours_per_week, 40.0) * 52.0 / 365.0)
 
-        -- Terminated during simulation year
-        WHEN COALESCE(ed.event_termination_date::DATE, ae.termination_date::DATE) IS NOT NULL
-             AND COALESCE(ed.event_termination_date::DATE, ae.termination_date::DATE) <= '{{ simulation_year }}-12-31'::DATE THEN
-            -- Terminated: prorate from year start (or hire date if later) to termination
+        WHEN workforce.termination_date IS NOT NULL
+             AND workforce.termination_date::DATE <= '{{ simulation_year }}-12-31'::DATE THEN
             GREATEST(0,
                 DATEDIFF('day',
                     GREATEST(
-                        COALESCE(ed.event_hire_date::DATE, ae.employee_hire_date::DATE, '{{ simulation_year }}-01-01'::DATE),
+                        COALESCE(workforce.employee_hire_date::DATE, '{{ simulation_year }}-01-01'::DATE),
                         '{{ simulation_year }}-01-01'::DATE
                     ),
-                    COALESCE(ed.event_termination_date::DATE, ae.termination_date::DATE)
+                    workforce.termination_date::DATE
                 ) + 1
-            ) * (COALESCE(sh.scheduled_hours_per_week, 40.0) * 52.0 / 365.0)
+            ) * (COALESCE(workforce.scheduled_hours_per_week, 40.0) * 52.0 / 365.0)
 
-        -- Full year active employee
-        ELSE COALESCE(sh.scheduled_hours_per_week, 40.0) * 52.0
+        ELSE COALESCE(workforce.scheduled_hours_per_week, 40.0) * 52.0
     END AS annual_hours_worked
-FROM all_employees ae
-LEFT JOIN scheduled_hours sh ON ae.employee_id = sh.employee_id
-LEFT JOIN events_data ed ON ae.employee_id = ed.employee_id
-LEFT JOIN new_hire_termination_flags nht ON ae.employee_id = nht.employee_id
-LEFT JOIN experienced_termination_flags ext ON ae.employee_id = ext.employee_id
+FROM {{ ref('int_workforce_state_accumulator') }} workforce
+LEFT JOIN {{ ref('int_workforce_state_accumulator') }} prior_workforce
+  ON prior_workforce.scenario_id = workforce.scenario_id
+ AND prior_workforce.plan_design_id = workforce.plan_design_id
+ AND prior_workforce.employee_id = workforce.employee_id
+ AND prior_workforce.simulation_year = {{ simulation_year - 1 }}
+WHERE workforce.scenario_id = '{{ scenario_id }}'
+  AND workforce.plan_design_id = '{{ plan_design_id }}'
+  AND workforce.simulation_year = {{ simulation_year }}
+  AND workforce.employee_id IS NOT NULL
 )
 
 SELECT

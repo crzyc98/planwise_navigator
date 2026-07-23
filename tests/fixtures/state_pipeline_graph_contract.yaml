@@ -1,0 +1,92 @@
+schema_version: 1
+active_sql_variables:
+  event_generation_mode: sql
+event_candidates:
+  - int_hiring_events
+  - int_eligibility_events
+  - int_termination_events
+  - int_new_hire_termination_events
+  - int_promotion_events
+  - int_merit_events
+  - int_enrollment_events
+  - int_deferral_rate_escalation_events
+  - int_deferral_match_response_events
+ownership_classes:
+  EVENT_CANDIDATE:
+    fixture_members: []
+    expected_members_from: event_candidates
+  EVENT_PUBLICATION:
+    fixture_members:
+      - int_current_year_events
+      - fct_yearly_events
+  DOMAIN_STATE:
+    fixture_members:
+      - int_workforce_state_accumulator
+      - int_enrollment_state_accumulator
+      - int_deferral_rate_state_accumulator
+  BENEFIT_CALCULATION:
+    fixture_members:
+      - int_employer_eligibility
+      - int_employee_contributions
+      - int_employer_core_contributions
+      - int_employee_match_calculations
+  SNAPSHOT_PUBLICATION:
+    fixture_members:
+      - fct_employer_match_events
+      - fct_workforce_snapshot
+mart_inventory:
+  - dim_hazard_table
+  - dim_payroll_calendar
+  - fct_compensation_growth
+  - fct_employer_match_events
+  - fct_payroll_ledger
+  - fct_policy_optimization
+  - fct_workforce_snapshot
+  - fct_workforce_snapshot_gate_c
+  - fct_yearly_events
+intentional_audit_sinks:
+  - model: fct_employer_match_events
+    reason: Published employer-match audit fact consumed by API and export readers, not another dbt model.
+  - model: fct_compensation_growth
+    reason: Calibration-only terminal analysis mart.
+  - model: fct_policy_optimization
+    reason: Policy-optimization-only terminal analysis mart.
+prepublished_models:
+  normal:
+    - fct_yearly_events
+    - int_baseline_workforce
+    - int_new_hire_compensation_staging
+    - int_plan_eligibility_determination
+    - int_plan_eligibility_override
+    - stg_census_data
+    - stg_comp_levers
+    - stg_config_cola_by_year
+    - stg_config_job_levels
+    - stg_config_promotion_hazard_age_multipliers
+    - stg_config_promotion_hazard_base
+    - stg_config_promotion_hazard_tenure_multipliers
+    - stg_config_termination_hazard_age_multipliers
+    - stg_config_termination_hazard_tenure_multipliers
+    - stg_prior_enrollment_state
+  calibration:
+    - fct_yearly_events
+    - int_baseline_workforce
+    - int_deferral_rate_state_accumulator
+    - int_employee_contributions
+    - int_employee_match_calculations
+    - int_employer_core_contributions
+    - int_employer_eligibility
+    - int_enrollment_state_accumulator
+    - int_new_hire_compensation_staging
+    - stg_census_data
+    - stg_comp_levers
+    - stg_config_cola_by_year
+    - stg_config_job_levels
+    - stg_config_promotion_hazard_age_multipliers
+    - stg_config_promotion_hazard_base
+    - stg_config_promotion_hazard_tenure_multipliers
+    - stg_config_termination_hazard_age_multipliers
+    - stg_config_termination_hazard_tenure_multipliers
+temporal_projection_sources:
+  - enrollment_decision_projection
+  - workforce_state_projection

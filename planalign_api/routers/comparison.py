@@ -12,6 +12,7 @@ from ..storage.workspace_storage import WorkspaceStorage
 from ..models.scenario import Scenario
 from ..services.comparison_service import ComparisonService
 from ..services.config_diff_service import ConfigDiffService
+from ..services.scenario_read_warning import has_selected_result
 
 router = APIRouter()
 
@@ -45,7 +46,7 @@ def _require_completed_scenario(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Scenario {scenario_id} not found",
         )
-    if scenario.status != "completed":
+    if not has_selected_result(storage, workspace_id, scenario_id, scenario.status):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Scenario {scenario_id} has not completed successfully",

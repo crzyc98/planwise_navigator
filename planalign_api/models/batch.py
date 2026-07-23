@@ -11,7 +11,7 @@ class BatchScenario(BaseModel):
 
     scenario_id: str = Field(..., description="Scenario ID")
     name: str = Field(..., description="Scenario name")
-    status: Literal["pending", "running", "completed", "failed"] = Field(
+    status: Literal["pending", "running", "completed", "failed", "cancelled"] = Field(
         description="Scenario status"
     )
     progress: int = Field(default=0, ge=0, le=100, description="Progress percentage")

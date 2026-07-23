@@ -15,7 +15,9 @@ import platform
 # Windows requires ProactorEventLoop for asyncio subprocess support
 # MUST be set before uvicorn imports/creates its event loop
 if platform.system() == "Windows":
-    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+    asyncio.set_event_loop_policy(
+        asyncio.WindowsProactorEventLoopPolicy()  # type: ignore[attr-defined]
+    )
 
 import uvicorn
 

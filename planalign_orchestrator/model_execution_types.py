@@ -84,7 +84,7 @@ class ModelClassifier:
             "int_active_employees_prev_year_snapshot": "Previous year employee snapshot",
             MODEL_FCT_YEARLY_EVENTS: "Event sequencing and ordering critical",
             MODEL_FCT_WORKFORCE_SNAPSHOT: "Depends on all events and state accumulators",
-            "int_workforce_snapshot_optimized": "Complex workforce state computation",
+            "int_workforce_state_accumulator": "Temporal workforce state accumulation",
         }
 
         # PARALLEL_SAFE: Independent calculations that don't depend on mutable state

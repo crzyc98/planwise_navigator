@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 from typing import Callable, List, Optional
 
-from .profile_config import Invocation, ModelTiming
+from .profile_config import Invocation, ModelTiming, canonical_payload_fingerprint
 
 
 def _parse_run_results(target_dir: Path) -> List[ModelTiming]:
@@ -83,6 +83,36 @@ class InvocationRecorder:
 
     def unwrap(self) -> None:
         self._runner.execute_command = self._original
+
+    @property
+    def schedule_fingerprint(self) -> str:
+        payload = [
+            {
+                "seq": invocation.seq,
+                "year": invocation.year,
+                "stage": invocation.stage,
+                "command": invocation.command,
+            }
+            for invocation in self.invocations
+        ]
+        return canonical_payload_fingerprint(payload)
+
+    @property
+    def per_node_execution_fingerprint(self) -> str:
+        payload = [
+            {
+                "seq": invocation.seq,
+                "nodes": [
+                    {
+                        "unique_id": model.unique_id,
+                        "status": model.status,
+                    }
+                    for model in invocation.models
+                ],
+            }
+            for invocation in self.invocations
+        ]
+        return canonical_payload_fingerprint(payload)
 
     def _timed_execute_command(self, command_args, **kwargs):
         if self._before_invocation is not None:

@@ -16,12 +16,11 @@ This module encapsulates:
 from __future__ import annotations
 
 import logging
+import secrets
 import time
-import uuid
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from planalign_core.constants import (
-    MODEL_FCT_YEARLY_EVENTS,
     TABLE_FCT_WORKFORCE_SNAPSHOT,
 )
 from planalign_orchestrator.config import SimulationConfig
@@ -30,25 +29,15 @@ from planalign_orchestrator.state_accumulator import YearDependencyValidator
 from planalign_orchestrator.utils import DatabaseConnectionManager
 
 from .workflow import StageDefinition, WorkflowStage
+from .stage_execution_strategies import (
+    PipelineStageError,
+    execute_model_parallelization,
+    execute_sharded_events,
+    execute_tagged_stage,
+    should_use_model_parallelization,
+)
 
 logger = logging.getLogger(__name__)
-
-# Import model parallelization components (optional)
-try:
-    from planalign_orchestrator.parallel_execution_engine import (  # noqa: F401
-        ParallelExecutionEngine,
-        ExecutionContext,
-    )
-
-    MODEL_PARALLELIZATION_AVAILABLE = True
-except ImportError:
-    MODEL_PARALLELIZATION_AVAILABLE = False
-
-
-class PipelineStageError(RuntimeError):
-    """Exception raised when a pipeline stage execution fails."""
-
-    pass
 
 
 class YearExecutor:
@@ -157,6 +146,7 @@ class YearExecutor:
             - Model-level parallelization is used when enabled and appropriate
         """
         start_time = time.time()
+        correlation_id = secrets.token_hex(4)
 
         try:
             if self.verbose:
@@ -188,6 +178,7 @@ class YearExecutor:
                 "success": True,
                 "execution_time": execution_time,
                 "results": results,
+                "correlation_id": correlation_id,
             }
 
         except Exception as e:
@@ -203,6 +194,7 @@ class YearExecutor:
                 "success": False,
                 "execution_time": execution_time,
                 "error": str(e),
+                "correlation_id": correlation_id,
             }
 
     def _dispatch_stage_execution(
@@ -233,111 +225,14 @@ class YearExecutor:
     def _execute_parallel_stage(
         self, stage: StageDefinition, year: int
     ) -> List[DbtResult]:
-        """Execute stage with dbt parallelization using tag-based selection (E068C).
-
-        This method executes a stage using dbt's built-in parallelization with
-        tag-based model selection. For EVENT_GENERATION stages with sharding enabled,
-        it delegates to sharded execution.
-
-        Args:
-            stage: Stage definition with models and metadata
-            year: Simulation year to execute
-
-        Returns:
-            List of dbt execution results
-
-        Raises:
-            PipelineStageError: If stage execution fails
-
-        Notes:
-            - Uses tag-based selection for efficient parallel execution
-            - Supports event sharding for large datasets
-            - Thread count controlled by dbt_threads attribute
-        """
+        """Execute one broad-tag selection or delegate optional event sharding."""
         if stage.name == WorkflowStage.EVENT_GENERATION and self.event_shards > 1:
             return self._execute_sharded_event_generation(year)
-        else:
-            # Single parallel execution per stage using tags
-            tag_name = stage.name.value.upper()
-
-            if self.verbose:
-                logger.info(
-                    "Executing tag:%s with %d threads", tag_name, self.dbt_threads
-                )
-
-            result = self.dbt_runner.execute_command(
-                ["run", "--select", f"tag:{tag_name}"],
-                simulation_year=year,
-                dbt_vars=self._dbt_vars,
-                stream_output=True,
-            )
-
-            if not result.success:
-                raise PipelineStageError(
-                    f"Parallel stage {stage.name.value} failed with code {result.return_code}"
-                )
-
-            return [result]
+        return execute_tagged_stage(self, stage, year)
 
     def _execute_sharded_event_generation(self, year: int) -> List[DbtResult]:
-        """Execute event generation with optional sharding for large datasets (E068C).
-
-        This method enables horizontal sharding of event generation for improved
-        performance on large datasets. Each shard processes a subset of employees
-        and writes to a shard-specific model, which are then unioned together.
-
-        Args:
-            year: Simulation year to execute
-
-        Returns:
-            List of dbt results for all shards and union operation
-
-        Raises:
-            PipelineStageError: If any shard or union operation fails
-
-        Notes:
-            - Each shard runs in parallel with dedicated dbt vars
-            - Final union model combines all shards into fct_yearly_events
-            - Shard count controlled by event_shards attribute
-        """
-        results = []
-
-        if self.verbose:
-            logger.debug("Executing event generation with %d shards", self.event_shards)
-
-        # Execute sharded event generation in parallel
-        for shard_id in range(self.event_shards):
-            shard_vars = self._dbt_vars.copy()
-            shard_vars.update({"shard_id": shard_id, "total_shards": self.event_shards})
-
-            result = self.dbt_runner.execute_command(
-                ["run", "--select", f"events_y{year}_shard{shard_id}"],
-                simulation_year=year,
-                dbt_vars=shard_vars,
-                stream_output=True,
-            )
-            results.append(result)
-
-            if not result.success:
-                raise PipelineStageError(
-                    f"Event shard {shard_id} failed with code {result.return_code}"
-                )
-
-        # Execute final union writer
-        union_result = self.dbt_runner.execute_command(
-            ["run", "--select", MODEL_FCT_YEARLY_EVENTS],
-            simulation_year=year,
-            dbt_vars=self._dbt_vars,
-            stream_output=True,
-        )
-        results.append(union_result)
-
-        if not union_result.success:
-            raise PipelineStageError(
-                f"Event union writer failed with code {union_result.return_code}"
-            )
-
-        return results
+        """Execute optional event shards followed by one union writer."""
+        return execute_sharded_events(self, year)
 
     def _run_stage_models(self, stage: StageDefinition, year: int) -> None:
         """Execute stage models with optional model-level parallelization.
@@ -371,131 +266,14 @@ class YearExecutor:
         self._run_stage_models_legacy(stage, year)
 
     def _should_use_model_parallelization(self, stage: StageDefinition) -> bool:
-        """Determine if a stage should use model-level parallelization.
-
-        This method applies safety gates and heuristics to determine whether
-        advanced model-level parallelization is appropriate for a stage.
-
-        Args:
-            stage: Stage definition to evaluate
-
-        Returns:
-            True if model parallelization should be used, False otherwise
-
-        Notes:
-            - DuckDB single-file databases do not support concurrent writers
-            - EVENT_GENERATION and STATE_ACCUMULATION require careful handling
-            - Validation is performed when safety checks are enabled
-            - Stages with single models don't benefit from parallelization
-        """
-        # Safety gate: DuckDB single-file databases do not support concurrent writer
-        # processes. Running multiple dbt processes in parallel will contend on the
-        # database file lock and fail. Detect this environment and disable
-        # model-level parallelization entirely.
-        try:
-            db_path = getattr(self.db_manager, "db_path", None)
-            if db_path and str(db_path).endswith(".duckdb"):
-                return False
-        except Exception:
-            # If detection fails, fall through to conservative defaults below
-            pass
-
-        # Don't use for stages that require strict sequencing
-        sequential_stages = {
-            WorkflowStage.EVENT_GENERATION,
-            WorkflowStage.STATE_ACCUMULATION,
-        }
-
-        if stage.name in sequential_stages:
-            # These stages may have some parallelizable models but need careful handling
-            if self.parallelization_config and hasattr(
-                self.parallelization_config, "safety"
-            ):
-                if (
-                    self.parallelization_config.safety.validate_execution_safety
-                    and self.parallel_execution_engine is not None
-                ):
-                    # Only use if validation passes
-                    validation = (
-                        self.parallel_execution_engine.validate_stage_parallelization(
-                            stage.models
-                        )
-                    )
-                    return (
-                        validation.get("parallelizable", False)
-                        and validation.get("safety_score", 0) > 80
-                    )
-            return False
-
-        # Use for other stages if they have multiple models
-        return len(stage.models) > 1
+        """Return whether the optional model-parallel strategy is safe."""
+        return should_use_model_parallelization(self, stage)
 
     def _run_stage_with_model_parallelization(
         self, stage: StageDefinition, year: int
     ) -> None:
-        """Run stage using sophisticated model-level parallelization.
-
-        This method uses the ParallelExecutionEngine to execute stage models
-        with advanced dependency analysis, resource management, and adaptive scaling.
-
-        Args:
-            stage: Stage definition with models to execute
-            year: Simulation year
-
-        Raises:
-            PipelineStageError: If parallelization fails
-
-        Notes:
-            - Creates unique execution context with UUID
-            - Provides detailed progress and performance metrics
-            - Supports conditional parallelization based on resource availability
-        """
-        if self.verbose:
-            logger.info(
-                "Using model-level parallelization for stage %s", stage.name.value
-            )
-
-        # Create execution context
-        context = ExecutionContext(
-            simulation_year=year,
-            dbt_vars=self._dbt_vars,
-            stage_name=stage.name.value,
-            execution_id=str(uuid.uuid4())[:8],
-        )
-
-        # Execute with parallelization engine
-        # Precondition: caller (_run_stage_models) only invokes this method when
-        # self.parallel_execution_engine and self.parallelization_config are set.
-        assert self.parallel_execution_engine is not None
-        assert self.parallelization_config is not None
-        result = self.parallel_execution_engine.execute_stage_with_parallelization(
-            stage.models,
-            context,
-            enable_conditional_parallelization=self.parallelization_config.enable_conditional_parallelization,
-        )
-
-        if self.verbose:
-            logger.info("Parallelization results:")
-            logger.info("  Success: %s", result.success)
-            logger.info("  Models executed: %d", len(result.model_results))
-            logger.info("  Execution time: %.1fs", result.execution_time)
-            logger.info("  Parallelism achieved: %sx", result.parallelism_achieved)
-
-            if result.errors:
-                logger.error("  Errors: %d", len(result.errors))
-                for error in result.errors[:3]:  # Show first 3 errors
-                    logger.error("    - %s", error)
-
-        if not result.success:
-            if result.errors:
-                error_msg = "; ".join(result.errors[:2])  # Show first 2 errors
-                raise PipelineStageError(
-                    f"Model-level parallelization failed in stage {stage.name.value}: {error_msg}"
-                )
-            else:
-                raise PipelineStageError(
-                    f"Model-level parallelization failed in stage {stage.name.value}"
-                )
+        """Delegate to the extracted optional parallel execution strategy."""
+        execute_model_parallelization(self, stage, year)
 
     def _run_stage_models_legacy(self, stage: StageDefinition, year: int) -> None:
         """Legacy stage execution logic (sequential/basic parallel).
@@ -537,77 +315,24 @@ class YearExecutor:
         Raises:
             PipelineStageError: If any model execution fails
         """
-        force_full_refresh = self._is_force_full_refresh()
-
         for model in stage.models:
             self._clear_snapshot_rows_if_needed(model, year)
-
-        # Batch consecutive models sharing the same --full-refresh requirement into a
-        # single dbt invocation: dbt resolves intra-selection ordering from the DAG
-        # (all cross-model dependencies in these stages use ref()), and one invocation
-        # avoids repeated subprocess startup and project parsing per model.
-        for group, full_refresh in self._group_models_by_full_refresh(
-            stage.models, force_full_refresh, year
-        ):
-            selection = ["run", "--select", *group]
-            if full_refresh:
-                selection.append("--full-refresh")
-            res = self.dbt_runner.execute_command(
-                selection,
-                simulation_year=year,
-                dbt_vars=self._dbt_vars,
-                stream_output=True,
+        selection = ["run", "--select", *stage.models]
+        res = self.dbt_runner.execute_command(
+            selection,
+            simulation_year=year,
+            dbt_vars=self._dbt_vars,
+            stream_output=True,
+        )
+        if not res.success:
+            raise PipelineStageError(
+                f"Dbt failed on models [{', '.join(stage.models)}] in stage "
+                f"{stage.name.value} for year {year} with code {res.return_code}"
             )
-            if not res.success:
-                raise PipelineStageError(
-                    f"Dbt failed on models [{', '.join(group)}] in stage "
-                    f"{stage.name.value} with code {res.return_code}"
-                )
-
-    def _group_models_by_full_refresh(
-        self, models: List[str], force_full_refresh: bool, year: int
-    ) -> List[Tuple[List[str], bool]]:
-        """Group consecutive models by whether they require --full-refresh.
-
-        --full-refresh applies to an entire dbt invocation, so models that must be
-        rebuilt from scratch cannot share an invocation with incremental accumulators
-        whose prior-year state must be preserved.
-
-        Args:
-            models: Stage models in execution order
-            force_full_refresh: Whether config forces full refresh for all models
-            year: Simulation year (for verbose logging)
-
-        Returns:
-            List of (model group, full_refresh flag) tuples in execution order
-        """
-        groups: List[Tuple[List[str], bool]] = []
-        for model in models:
-            needs_refresh = self._model_needs_full_refresh(model, force_full_refresh)
-            if needs_refresh and self.verbose:
-                logger.debug(
-                    "Rebuilding %s with --full-refresh (%s) for year %d",
-                    model,
-                    self._get_full_refresh_reason(model),
-                    year,
-                )
-            if groups and groups[-1][1] == needs_refresh:
-                groups[-1][0].append(model)
-            else:
-                groups.append(([model], needs_refresh))
-        return groups
 
     def validate_year_dependencies(self, year: int) -> None:
         """Validate prior-year state before any consumer reads it."""
         self._year_validator.validate_year_dependencies(year)
-
-    def _is_force_full_refresh(self) -> bool:
-        """Keep temporal models incremental after the start year.
-
-        ``clear_mode=all`` resets a run before it starts; it must not erase prior
-        years while processing a later year in that run.
-        """
-        return False
 
     def _clear_snapshot_rows_if_needed(self, model: str, year: int) -> None:
         """Clear fct_workforce_snapshot rows for the year before rebuild.
@@ -639,36 +364,6 @@ class YearExecutor:
         except Exception:
             # Non-fatal; proceed with dbt incremental upsert
             pass
-
-    def _model_needs_full_refresh(self, model: str, force_full_refresh: bool) -> bool:
-        """Check whether a model must be rebuilt with --full-refresh.
-
-        Args:
-            model: Current model name
-            force_full_refresh: Whether config forces full refresh for all models
-
-        Returns:
-            True if the model requires --full-refresh
-        """
-        return force_full_refresh or model in (
-            "int_workforce_snapshot_optimized",
-            "int_deferral_rate_escalation_events",
-        )
-
-    def _get_full_refresh_reason(self, model: str) -> str:
-        """Return a human-readable reason for full refresh based on model name.
-
-        Args:
-            model: Model name
-
-        Returns:
-            String describing why full refresh is needed
-        """
-        reasons = {
-            "int_workforce_snapshot_optimized": "schema compatibility",
-            "int_deferral_rate_escalation_events": "self-reference incremental",
-        }
-        return reasons.get(model, "clear_mode=all")
 
     def _run_parallel_or_single(self, stage: StageDefinition, year: int) -> None:
         """Execute stage models in parallel or as a single dbt selection.

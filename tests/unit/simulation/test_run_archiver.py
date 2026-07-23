@@ -7,13 +7,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
+import duckdb
 
 from planalign_api.services.simulation.run_archiver import (
     archive_run,
     prune_old_runs,
     _save_config,
     _save_metadata,
-    _copy_database,
 )
 
 
@@ -66,36 +66,6 @@ class TestSaveMetadata:
 
 
 @pytest.mark.fast
-class TestCopyDatabase:
-    """Test _copy_database helper."""
-
-    def test_copies_db_file(self, tmp_path):
-        scenario_path = tmp_path / "scenario"
-        scenario_path.mkdir()
-        db_src = scenario_path / "simulation.duckdb"
-        db_src.write_text("fake-db-content")
-
-        run_dir = tmp_path / "run"
-        run_dir.mkdir()
-
-        _copy_database(scenario_path, run_dir)
-
-        db_dest = run_dir / "simulation.duckdb"
-        assert db_dest.exists()
-        assert db_dest.read_text() == "fake-db-content"
-
-    def test_no_copy_when_db_missing(self, tmp_path):
-        """Should not raise when source DB doesn't exist."""
-        scenario_path = tmp_path / "scenario"
-        scenario_path.mkdir()
-        run_dir = tmp_path / "run"
-        run_dir.mkdir()
-
-        _copy_database(scenario_path, run_dir)
-
-        assert not (run_dir / "simulation.duckdb").exists()
-
-
 @pytest.mark.fast
 class TestArchiveRun:
     """Test archive_run orchestration."""
@@ -106,6 +76,10 @@ class TestArchiveRun:
 
         scenario_path = tmp_path / "scenario"
         scenario_path.mkdir()
+        run_dir = scenario_path / "runs" / "run-abc"
+        run_dir.mkdir(parents=True)
+        with duckdb.connect(str(run_dir / "simulation.duckdb")) as connection:
+            connection.execute("CREATE TABLE marker (value INTEGER)")
 
         archive_run(
             scenario_path=scenario_path,
@@ -120,12 +94,58 @@ class TestArchiveRun:
             end_year=2027,
             events_generated=100,
             seed=42,
+            run_dir=run_dir,
         )
 
-        run_dir = scenario_path / "runs" / "run-abc"
         assert run_dir.exists()
         assert (run_dir / "config.yaml").exists()
         assert (run_dir / "run_metadata.json").exists()
+        with duckdb.connect(
+            str(run_dir / "simulation.duckdb"), read_only=True
+        ) as connection:
+            assert connection.execute("SELECT COUNT(*) FROM marker").fetchone()[0] == 0
+        assert not (scenario_path / "simulation.duckdb").exists()
+
+    def test_requires_existing_run_local_database(self, tmp_path):
+        scenario_path = tmp_path / "scenario"
+        run_dir = scenario_path / "runs" / "run-abc"
+        run_dir.mkdir(parents=True)
+
+        with pytest.raises(FileNotFoundError, match="run-local"):
+            archive_run(
+                scenario_path=scenario_path,
+                run_id="run-abc",
+                scenario_id="sc-1",
+                scenario_name="Test",
+                workspace_id="ws-1",
+                config={},
+                start_time=datetime.now(),
+                elapsed_seconds=1,
+                start_year=2025,
+                end_year=2025,
+                events_generated=0,
+                seed=42,
+                run_dir=run_dir,
+            )
+
+    def test_terminal_metadata_is_installed_atomically(self, tmp_path):
+        with patch(
+            "planalign_api.services.simulation.run_archiver.os.replace"
+        ) as replace:
+            _save_metadata(
+                tmp_path,
+                run_id="run-1",
+                scenario_id="sc-1",
+                scenario_name="Baseline",
+                workspace_id="ws-1",
+                start_time=datetime.now(),
+                elapsed_seconds=1,
+                start_year=2025,
+                end_year=2025,
+                events_generated=0,
+                seed=42,
+            )
+            replace.assert_called_once()
 
 
 @pytest.mark.fast

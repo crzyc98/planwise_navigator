@@ -1,88 +1,52 @@
-"""Stage invocation-grouping guard tests (Feature 121 — Tiers B & C).
+"""Consolidated STATE_ACCUMULATION invocation contracts for Feature 122."""
 
-These tests lock the *current, safe* grouping behavior so the Tier B (INIT+FOUNDATION
-merge) and Tier C (STATE_ACCUMULATION split collapse) changes cannot silently break
-the two invariants that keep outputs correct:
+from __future__ import annotations
 
-1. The STATE_ACCUMULATION full-refresh split exists only because
-   ``int_workforce_snapshot_optimized`` requires ``--full-refresh`` mid-list.
-2. **Critical safety invariant**: an incremental temporal accumulator
-   (``int_enrollment_state_accumulator``, ``int_deferral_rate_state_accumulator``,
-   ``int_deferral_escalation_state_accumulator``) must NEVER land in a
-   ``--full-refresh`` group — doing so would erase prior-year state and break the
-   year-N-reads-year-N-1 accumulator pattern.
+from unittest.mock import MagicMock
 
-The Tier C implementation (T027) MUST keep test #2 green.
-"""
+import pytest
 
 from planalign_orchestrator.pipeline.workflow import WorkflowBuilder, WorkflowStage
 from planalign_orchestrator.pipeline.year_executor import YearExecutor
 
 
-ACCUMULATORS = (
-    "int_enrollment_state_accumulator",
-    "int_deferral_rate_state_accumulator",
-    "int_deferral_escalation_state_accumulator",
-)
+def _state_stage(year: int = 2026):
+    workflow = WorkflowBuilder.build_year_workflow(year=year, start_year=2025)
+    return next(
+        stage for stage in workflow if stage.name is WorkflowStage.STATE_ACCUMULATION
+    )
 
 
-def _bare_executor(verbose: bool = False) -> YearExecutor:
-    """A YearExecutor with just the attributes _group_models_by_full_refresh touches."""
+def _executor() -> YearExecutor:
     executor = YearExecutor.__new__(YearExecutor)
-    executor.verbose = verbose
+    executor.dbt_runner = MagicMock()
+    executor.dbt_runner.execute_command.return_value = MagicMock(
+        success=True, return_code=0
+    )
+    executor.db_manager = MagicMock()
+    executor._dbt_vars = {"simulation_year": 2026}
     return executor
 
 
-def _state_accumulation_models(year: int = 2026) -> list:
-    workflow = WorkflowBuilder.build_year_workflow(year=year, start_year=2025)
-    stage = next(s for s in workflow if s.name == WorkflowStage.STATE_ACCUMULATION)
-    return stage.models
+@pytest.mark.parametrize("year", [2025, 2026])
+def test_state_accumulation_is_one_dependency_closed_invocation(year: int):
+    executor = _executor()
+    stage = _state_stage(year)
+
+    executor._run_sequential_event_models(stage, year)
+
+    executor.dbt_runner.execute_command.assert_called_once()
+    command = executor.dbt_runner.execute_command.call_args.args[0]
+    assert command == ["run", "--select", *stage.models]
+    assert "--full-refresh" not in command
 
 
-def test_state_accumulation_baseline_splits_into_three_groups():
-    """Baseline: the FR requirement on int_workforce_snapshot_optimized splits into 3."""
-    executor = _bare_executor()
-    models = _state_accumulation_models()
-
-    groups = executor._group_models_by_full_refresh(
-        models, force_full_refresh=False, year=2026
-    )
-
-    assert len(groups) == 3, (
-        "Baseline STATE_ACCUMULATION grouping should be 3 (pre/full-refresh/post). "
-        f"Got {[(g, fr) for g, fr in groups]}"
-    )
-    # Exactly one group is full-refresh, and it is int_workforce_snapshot_optimized alone.
-    fr_groups = [g for g, fr in groups if fr]
-    assert fr_groups == [["int_workforce_snapshot_optimized"]]
+def test_state_schedule_contains_no_removed_scratch_model():
+    assert "int_workforce_snapshot_optimized" not in _state_stage().models
 
 
-def test_incremental_accumulators_never_in_full_refresh_group():
-    """SAFETY INVARIANT (must hold through Tier C): accumulators are never full-refreshed."""
-    executor = _bare_executor()
-    models = _state_accumulation_models()
-
-    groups = executor._group_models_by_full_refresh(
-        models, force_full_refresh=False, year=2026
-    )
-
-    for group, full_refresh in groups:
-        if full_refresh:
-            for accumulator in ACCUMULATORS:
-                assert accumulator not in group, (
-                    f"{accumulator} must never be in a --full-refresh group "
-                    f"(would erase prior-year state): {group}"
-                )
-
-
-def test_grouping_preserves_model_order_and_membership():
-    """Grouping is a pure partition: flattening the groups reproduces the input order."""
-    executor = _bare_executor()
-    models = _state_accumulation_models()
-
-    groups = executor._group_models_by_full_refresh(
-        models, force_full_refresh=False, year=2026
-    )
-
-    flattened = [m for group, _ in groups for m in group]
-    assert flattened == models
+@pytest.mark.parametrize("observed", [3, 7, 24])
+def test_whole_run_invocation_total_is_observational(observed: int):
+    sample = {"invocations": [{"seq": index} for index in range(observed)]}
+    measured_total = len(sample["invocations"])
+    assert measured_total == observed

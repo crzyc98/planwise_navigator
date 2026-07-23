@@ -6,6 +6,7 @@ import threading
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
+import yaml
 from pydantic import BaseModel
 
 from ..storage.workspace_storage import WorkspaceStorage
@@ -956,7 +957,13 @@ class NDTService:
     ) -> None:
         """Detect service-based NEC tenure skew risk (mutates result in-place)."""
         try:
-            config = self.storage.get_merged_config(workspace_id, scenario_id)
+            resolved = self.db_resolver.resolve(workspace_id, scenario_id)
+            if resolved.config_path is not None:
+                config = yaml.safe_load(
+                    resolved.config_path.read_text(encoding="utf-8")
+                )
+            else:
+                config = self.storage.get_merged_config(workspace_id, scenario_id)
             if not config:
                 return
             ec_config = config.get("employer_core_contribution", {})

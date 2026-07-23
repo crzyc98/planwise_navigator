@@ -11,10 +11,8 @@ Covers:
 - _should_use_model_parallelization (DuckDB detection, sequential stages, validation)
 - _run_stage_with_model_parallelization success and failure
 - _run_stage_models_legacy routing for event vs other stages
-- _run_sequential_event_models with full refresh, snapshot clearing
-- _is_force_full_refresh
+- _run_sequential_event_models consolidation and snapshot clearing
 - _clear_snapshot_rows_if_needed
-- _append_full_refresh_if_needed / _get_full_refresh_reason
 - _run_parallel_or_single (parallel safe vs single selection)
 - _should_full_refresh_foundation
 """
@@ -662,7 +660,7 @@ class TestRunSequentialEventModels:
         cmd_args = executor.dbt_runner.execute_command.call_args[0][0]
         assert cmd_args == ["run", "--select", "m1", "m2", "m3"]
 
-    def test_full_refresh_model_splits_batch(self):
+    def test_removed_scratch_name_does_not_split_or_full_refresh(self):
         executor = _make_executor()
         stage = _event_stage(
             models=["m1", "int_workforce_snapshot_optimized", "m2", "m3"]
@@ -672,9 +670,14 @@ class TestRunSequentialEventModels:
 
         calls = [c[0][0] for c in executor.dbt_runner.execute_command.call_args_list]
         assert calls == [
-            ["run", "--select", "m1"],
-            ["run", "--select", "int_workforce_snapshot_optimized", "--full-refresh"],
-            ["run", "--select", "m2", "m3"],
+            [
+                "run",
+                "--select",
+                "m1",
+                "int_workforce_snapshot_optimized",
+                "m2",
+                "m3",
+            ]
         ]
 
     def test_model_failure_raises(self):
@@ -704,14 +707,14 @@ class TestRunSequentialEventModels:
         cmd_args = executor.dbt_runner.execute_command.call_args[0][0]
         assert "--full-refresh" not in cmd_args
 
-    def test_full_refresh_for_specific_models(self):
+    def test_removed_scratch_name_never_adds_full_refresh(self):
         executor = _make_executor()
         stage = _event_stage(models=["int_workforce_snapshot_optimized"])
 
         executor._run_sequential_event_models(stage, 2025)
 
         cmd_args = executor.dbt_runner.execute_command.call_args[0][0]
-        assert "--full-refresh" in cmd_args
+        assert "--full-refresh" not in cmd_args
 
     def test_no_full_refresh_for_normal_model(self):
         executor = _make_executor()
@@ -721,40 +724,6 @@ class TestRunSequentialEventModels:
 
         cmd_args = executor.dbt_runner.execute_command.call_args[0][0]
         assert "--full-refresh" not in cmd_args
-
-
-# ---------------------------------------------------------------------------
-# _is_force_full_refresh
-# ---------------------------------------------------------------------------
-
-
-class TestIsForceFullRefresh:
-    def test_run_reset_never_forces_later_model_refreshes(self):
-        executor = _make_executor(setup={"clear_tables": True, "clear_mode": "all"})
-        assert executor._is_force_full_refresh() is False
-
-    def test_false_when_no_setup(self):
-        executor = _make_executor(setup=None)
-        assert executor._is_force_full_refresh() is False
-
-    def test_false_when_setup_not_dict(self):
-        executor = _make_executor()
-        executor.config.setup = "not_a_dict"
-        assert executor._is_force_full_refresh() is False
-
-    def test_false_when_clear_tables_false(self):
-        executor = _make_executor(setup={"clear_tables": False, "clear_mode": "all"})
-        assert executor._is_force_full_refresh() is False
-
-    def test_false_when_clear_mode_not_all(self):
-        executor = _make_executor(
-            setup={"clear_tables": True, "clear_mode": "incremental"}
-        )
-        assert executor._is_force_full_refresh() is False
-
-    def test_uppercase_run_reset_never_forces_later_model_refreshes(self):
-        executor = _make_executor(setup={"clear_tables": True, "clear_mode": "ALL"})
-        assert executor._is_force_full_refresh() is False
 
 
 # ---------------------------------------------------------------------------
@@ -784,83 +753,6 @@ class TestClearSnapshotRowsIfNeeded:
         executor = _make_executor(verbose=True)
         executor._clear_snapshot_rows_if_needed("fct_workforce_snapshot", 2025)
         assert "fct_workforce_snapshot" in caplog.text
-
-
-# ---------------------------------------------------------------------------
-# _model_needs_full_refresh / _group_models_by_full_refresh / _get_full_refresh_reason
-# ---------------------------------------------------------------------------
-
-
-class TestModelNeedsFullRefresh:
-    def test_true_for_snapshot_optimized(self):
-        executor = _make_executor()
-        assert (
-            executor._model_needs_full_refresh(
-                "int_workforce_snapshot_optimized", False
-            )
-            is True
-        )
-
-    def test_true_for_deferral_escalation(self):
-        executor = _make_executor()
-        assert (
-            executor._model_needs_full_refresh(
-                "int_deferral_rate_escalation_events", False
-            )
-            is True
-        )
-
-    def test_true_when_force_full_refresh(self):
-        executor = _make_executor()
-        assert executor._model_needs_full_refresh("any_model", True) is True
-
-    def test_false_for_normal_model(self):
-        executor = _make_executor()
-        assert (
-            executor._model_needs_full_refresh("int_termination_events", False) is False
-        )
-
-
-class TestGroupModelsByFullRefresh:
-    def test_groups_consecutive_models_by_flag(self):
-        executor = _make_executor()
-        groups = executor._group_models_by_full_refresh(
-            ["m1", "m2", "int_workforce_snapshot_optimized", "m3"], False, 2025
-        )
-        assert groups == [
-            (["m1", "m2"], False),
-            (["int_workforce_snapshot_optimized"], True),
-            (["m3"], False),
-        ]
-
-    def test_force_full_refresh_yields_single_group(self):
-        executor = _make_executor()
-        groups = executor._group_models_by_full_refresh(["m1", "m2", "m3"], True, 2025)
-        assert groups == [(["m1", "m2", "m3"], True)]
-
-    def test_empty_models(self):
-        executor = _make_executor()
-        assert executor._group_models_by_full_refresh([], False, 2025) == []
-
-
-class TestGetFullRefreshReason:
-    def test_known_model(self):
-        executor = _make_executor()
-        assert (
-            executor._get_full_refresh_reason("int_workforce_snapshot_optimized")
-            == "schema compatibility"
-        )
-
-    def test_known_deferral_model(self):
-        executor = _make_executor()
-        assert (
-            executor._get_full_refresh_reason("int_deferral_rate_escalation_events")
-            == "self-reference incremental"
-        )
-
-    def test_unknown_model(self):
-        executor = _make_executor()
-        assert executor._get_full_refresh_reason("random_model") == "clear_mode=all"
 
 
 # ---------------------------------------------------------------------------

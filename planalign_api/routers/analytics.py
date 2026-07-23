@@ -10,6 +10,7 @@ from ..models.analytics import DCPlanAnalytics, DCPlanComparisonResponse
 from ..models.winners_losers import WinnersLosersResponse
 from ..services.analytics_service import AnalyticsService
 from ..services.winners_losers_service import WinnersLosersService
+from ..services.scenario_read_warning import has_selected_result
 from ..storage.workspace_storage import WorkspaceStorage
 
 router = APIRouter()
@@ -67,7 +68,7 @@ async def get_dc_plan_analytics(
             detail=f"Scenario {scenario_id} not found",
         )
 
-    if scenario.status != "completed":
+    if not has_selected_result(storage, workspace_id, scenario_id, scenario.status):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Scenario {scenario_id} has not completed successfully",
@@ -148,7 +149,7 @@ async def compare_dc_plan_analytics(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Scenario {scenario_id} not found",
             )
-        if scenario.status != "completed":
+        if not has_selected_result(storage, workspace_id, scenario_id, scenario.status):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Scenario {scenario_id} has not completed successfully",
@@ -224,7 +225,7 @@ async def get_winners_losers(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"{label} scenario {sid} not found",
             )
-        if scenario.status != "completed":
+        if not has_selected_result(storage, workspace_id, sid, scenario.status):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"{label} scenario {sid} has not completed successfully",

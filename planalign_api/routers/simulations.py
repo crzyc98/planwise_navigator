@@ -26,6 +26,7 @@ from ..storage.workspace_storage import WorkspaceStorage
 from ..models.scenario import Scenario
 from ..models.workspace import WorkspaceSummary
 from ..services.simulation_service import SimulationService
+from ..services.simulation.result_handlers import find_results_export
 from ..constants import ARTIFACT_TYPE_MAP, MEDIA_TYPE_MAP
 
 router = APIRouter()
@@ -670,9 +671,6 @@ async def get_results(
     # First check if results exist (this also validates scenario has completed runs)
     results = simulation_service.get_results(workspace.id, scenario_id, population)
     if results:
-        # Update scenario status if it's stale (has results but status isn't completed)
-        if scenario.status != "completed":
-            storage.update_scenario_status(workspace.id, scenario_id, "completed")
         return results
 
     # If no results and scenario status is not completed, return appropriate error
@@ -706,9 +704,7 @@ async def export_results(
             detail=f"Scenario {scenario_id} not found",
         )
 
-    # Check for results file - look for {scenario_name}_results.xlsx pattern
     scenario_path = storage._scenario_path(workspace.id, scenario_id)
-    results_dir = scenario_path / "results"
 
     if format == "excel":
         media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -717,23 +713,13 @@ async def export_results(
         media_type = "text/csv"
         ext = "csv"
 
-    # Try to find the results file (check multiple naming patterns)
-    results_file = None
-    if results_dir.exists():
-        # First try: {scenario_name}_results.xlsx
-        candidate = results_dir / f"{scenario.name}_results.{ext}"
-        if candidate.exists():
-            results_file = candidate
-        else:
-            # Second try: results.xlsx
-            candidate = results_dir / f"results.{ext}"
-            if candidate.exists():
-                results_file = candidate
-            else:
-                # Third try: any *_results.xlsx file
-                for f in results_dir.glob(f"*_results.{ext}"):
-                    results_file = f
-                    break
+    context = storage.get_scenario_read_context(workspace.id, scenario_id)
+    selected_run_dir = (
+        context.database_path.parent if context.database_path is not None else None
+    )
+    results_file = find_results_export(
+        scenario_path, scenario.name, ext, selected_run_dir
+    )
 
     if results_file and results_file.exists():
         return FileResponse(

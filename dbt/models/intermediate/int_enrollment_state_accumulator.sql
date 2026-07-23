@@ -8,7 +8,7 @@
         {'columns': ['employee_id'], 'type': 'btree'},
         {'columns': ['enrollment_status'], 'type': 'btree'}
     ],
-    tags=['STATE_ACCUMULATION']
+    tags=['STATE_ACCUMULATION', 'DOMAIN_STATE']
 ) }}
 
 /*

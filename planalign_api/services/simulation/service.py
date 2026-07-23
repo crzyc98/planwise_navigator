@@ -2,15 +2,9 @@
 
 import asyncio
 import logging
-import os
-import shutil
-import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-
-import psutil
-import yaml  # type: ignore[import]  # types-PyYAML not in CI deps
 
 from ...models.simulation import (
     PerformanceMetrics,
@@ -24,112 +18,31 @@ from ..database_path_resolver import (
     create_api_database_path_resolver,
 )
 
-from .db_cleanup import cleanup_years_outside_range
 from .log_writer import SimulationLogWriter
 from .output_parser import SimulationOutputParser
 from .results_reader import read_results
-from .run_archiver import archive_failed_run, archive_run, prune_old_runs
-from .subprocess_utils import create_subprocess, wait_subprocess
+from .run_archiver import archive_failed_run, archive_run
+from .run_execution import (
+    active_process_registry as _active_process_registry,
+    build_command,
+    build_env,
+    execute_run,
+    get_memory_mb,
+    prepare_dbt_project,
+    validate_census,
+    write_config,
+    write_seeds,
+)
 from ..provenance.capture import ProvenanceRecorder, initialize_manifest
 
 from planalign_core.constants import (
-    DATABASE_FILENAME,
     STATUS_COMPLETED,
     STATUS_FAILED,
     STATUS_RUNNING,
 )
 
 logger = logging.getLogger(__name__)
-
-CANCEL_GRACE_SECONDS = 5.0
-
-
-class ActiveProcessRegistry:
-    """Process-local ownership of active simulation subprocesses.
-
-    ``SimulationService`` instances are request-scoped, so subprocess handles
-    must live outside an individual service instance for cancellation requests
-    to reach processes started by earlier requests.
-    """
-
-    def __init__(self) -> None:
-        self._lock = threading.RLock()
-        self.processes: Dict[str, Any] = {}
-        self.cancelled_runs: set[str] = set()
-
-    def register(self, run_id: str, process: Any) -> None:
-        with self._lock:
-            self.processes[run_id] = process
-
-    def remove(self, run_id: str, process: Optional[Any] = None) -> None:
-        with self._lock:
-            if process is None or self.processes.get(run_id) is process:
-                self.processes.pop(run_id, None)
-
-    def is_cancelled(self, run_id: str) -> bool:
-        with self._lock:
-            return run_id in self.cancelled_runs
-
-    async def cancel(self, run_id: str) -> bool:
-        """Terminate a registered process, escalating to kill after a grace period."""
-        with self._lock:
-            process = self.processes.get(run_id)
-        if process is None:
-            return False
-
-        try:
-            process.terminate()
-        except ProcessLookupError:
-            # The process has already exited; it is safe to record cancellation.
-            pass
-        except OSError as exc:
-            logger.warning("Could not terminate simulation %s: %s", run_id, exc)
-            return False
-        else:
-            try:
-                await asyncio.wait_for(
-                    wait_subprocess(process), timeout=CANCEL_GRACE_SECONDS
-                )
-            except asyncio.TimeoutError:
-                try:
-                    process.kill()
-                except ProcessLookupError:
-                    pass
-                except OSError as exc:
-                    logger.warning("Could not kill simulation %s: %s", run_id, exc)
-                    return False
-                try:
-                    await wait_subprocess(process)
-                except (OSError, ProcessLookupError) as exc:
-                    logger.warning(
-                        "Could not confirm simulation %s exited: %s", run_id, exc
-                    )
-                    return False
-            except (OSError, ProcessLookupError) as exc:
-                logger.warning(
-                    "Could not confirm simulation %s exited: %s", run_id, exc
-                )
-                return False
-
-        with self._lock:
-            self.cancelled_runs.add(run_id)
-            if self.processes.get(run_id) is process:
-                self.processes.pop(run_id, None)
-        return True
-
-
-# Request dependencies construct a new SimulationService each time. Keep this
-# registry module-scoped, like the telemetry service, so those instances share
-# ownership of subprocess handles within the API process.
-_active_process_registry = ActiveProcessRegistry()
-
-
-def _get_memory_mb() -> float:
-    """Get current process memory usage in MB."""
-    try:
-        return psutil.Process().memory_info().rss / (1024 * 1024)
-    except Exception:
-        return 0.0
+_get_memory_mb = get_memory_mb
 
 
 class SimulationService:
@@ -202,14 +115,16 @@ class SimulationService:
                 workspace_id, scenario_id, STATUS_RUNNING, run_id
             )
 
-            # Prepare simulation resources
-            scenario_path, start_year, end_year, total_years = self._prepare_simulation(
-                workspace_id, scenario_id, config
+            # Allocate the authoritative run directory before the first write.
+            run_dir = self.storage.allocate_run_directory(
+                workspace_id, scenario_id, run_id
             )
 
-            # Create run dir early so partial logs survive failures (T005)
-            run_dir = scenario_path / "runs" / run_id
-            run_dir.mkdir(parents=True, exist_ok=True)
+            # Prepare simulation resources
+            scenario_path, start_year, end_year, total_years = self._prepare_simulation(
+                workspace_id, scenario_id, config, run_dir
+            )
+
             log_writer = SimulationLogWriter(run_dir)
             provenance_recorder = initialize_manifest(
                 run_dir=run_dir,
@@ -217,21 +132,21 @@ class SimulationService:
                 workspace_id=workspace_id,
                 scenario_id=scenario_id,
                 config=config,
-                seed_root=scenario_path / "seeds",
+                seed_root=run_dir / "seeds",
                 project_root=Path(__file__).parent.parent.parent.parent,
             )
 
             # Run the simulation subprocess loop
-            parser, start_time, final_elapsed = await self._run_simulation_loop(
-                scenario_path,
-                start_year,
-                end_year,
-                total_years,
-                run_id,
-                config,
-                update_run_status,
-                log_writer,
-                provenance_recorder,
+            parser, start_time, final_elapsed = await execute_run(
+                run_dir=run_dir,
+                start_year=start_year,
+                end_year=end_year,
+                total_years=total_years,
+                run_id=run_id,
+                update_run_status=update_run_status,
+                process_registry=self._process_registry,
+                log_writer=log_writer,
+                provenance_recorder=provenance_recorder,
             )
 
             # Handle successful completion
@@ -275,6 +190,7 @@ class SimulationService:
         workspace_id: str,
         scenario_id: str,
         config: Dict[str, Any],
+        run_dir: Path,
     ) -> "tuple[Path, int, int, int]":
         """Prepare scenario directory, config, seeds, and year range.
 
@@ -290,98 +206,13 @@ class SimulationService:
         )
 
         scenario_path = self.storage._scenario_path(workspace_id, scenario_id)
-        config_path = scenario_path / "config.yaml"
+        config_path = run_dir / "config.yaml"
 
-        self._validate_census(
-            config, scenario_id=scenario_id, workspace_id=workspace_id
-        )
-        self._write_config(config, config_path)
-        self._write_seeds(config, scenario_path)
-
-        # Clean stale year data
-        scenario_db_path = scenario_path / DATABASE_FILENAME
-        if scenario_db_path.exists():
-            cleanup_years_outside_range(scenario_db_path, start_year, end_year)
+        validate_census(self.storage, config, scenario_id, workspace_id)
+        write_config(config, config_path)
+        write_seeds(config, run_dir)
 
         return scenario_path, start_year, end_year, total_years
-
-    async def _run_simulation_loop(
-        self,
-        scenario_path: Path,
-        start_year: int,
-        end_year: int,
-        total_years: int,
-        run_id: str,
-        config: Dict[str, Any],
-        update_run_status,
-        log_writer: Optional["SimulationLogWriter"] = None,
-        provenance_recorder: Optional[ProvenanceRecorder] = None,
-    ) -> tuple:
-        """Launch subprocess, stream output, and await completion.
-
-        Returns (parser, start_time, final_elapsed).
-        """
-        config_path = scenario_path / "config.yaml"
-        scenario_db_path = scenario_path / DATABASE_FILENAME
-        dbt_project_dir = self._prepare_dbt_project(scenario_path)
-
-        cmd = self._build_command(
-            config_path,
-            scenario_db_path,
-            start_year,
-            end_year,
-            dbt_project_dir,
-        )
-        project_root = Path(__file__).parent.parent.parent.parent
-        env = self._build_env(project_root, run_id)
-
-        logger.info(f"Command: {' '.join(cmd)}")
-
-        process, line_iterator = await create_subprocess(
-            cmd=cmd, cwd=str(project_root), env=env
-        )
-        self._process_registry.register(run_id, process)
-
-        # Telemetry state was created at execute_simulation start (feature 094)
-        start_time = datetime.now()
-        telemetry_service = get_telemetry_service()
-        await self._wait_for_ws_listener(telemetry_service, run_id)
-        telemetry_service.apply_update(
-            run_id,
-            progress=1,
-            current_stage="INITIALIZATION",
-            current_year=start_year,
-            memory_mb=_get_memory_mb(),
-        )
-
-        parser = SimulationOutputParser(start_year, total_years)
-
-        # Stream and parse subprocess output
-        output_buffer = await self._stream_output(
-            process,
-            line_iterator,
-            run_id,
-            parser,
-            total_years,
-            start_time,
-            telemetry_service,
-            update_run_status,
-            log_writer,
-            provenance_recorder,
-        )
-
-        # Await exit code
-        return_code = await wait_subprocess(process)
-        self._process_registry.remove(run_id, process)
-        final_elapsed = (datetime.now() - start_time).total_seconds()
-
-        if self._process_registry.is_cancelled(run_id):
-            raise RuntimeError("Simulation cancelled by user")
-
-        if return_code != 0:
-            self._raise_subprocess_error(return_code, output_buffer)
-
-        return parser, start_time, final_elapsed
 
     def _finalize_successful_simulation(
         self,
@@ -400,40 +231,7 @@ class SimulationService:
         run_dir: Optional[Path] = None,
         provenance_recorder: Optional[ProvenanceRecorder] = None,
     ) -> None:
-        """Mark simulation completed, send final telemetry, archive artifacts."""
-        update_run_status(
-            run_id,
-            status=STATUS_COMPLETED,
-            progress=100,
-            current_stage="COMPLETED",
-            completed_at=datetime.now(),
-        )
-        self.storage.update_scenario_status(
-            workspace_id, scenario_id, STATUS_COMPLETED, run_id
-        )
-
-        # Final telemetry (feature 094: terminal state is retained in memory)
-        telemetry_service = get_telemetry_service()
-        events_per_second = (
-            parser.events_generated / final_elapsed if final_elapsed > 0 else 0
-        )
-        telemetry_service.apply_update(
-            run_id,
-            progress=100,
-            current_stage="COMPLETED",
-            current_year=end_year,
-            memory_mb=_get_memory_mb(),
-            events_generated=parser.events_generated,
-            elapsed_seconds=final_elapsed,
-            events_per_second=events_per_second,
-        )
-        telemetry_service.set_terminal(run_id, "completed")
-
-        logger.info(
-            f"Simulation {run_id} completed successfully in {final_elapsed:.1f}s"
-        )
-
-        # Archive run artifacts
+        """Finalize artifacts, atomically promote, then expose completed status."""
         scenario = self.storage.get_scenario(workspace_id, scenario_id)
         scenario_name = scenario.name if scenario else scenario_id
         seed = config.get("simulation", {}).get("random_seed")
@@ -452,16 +250,45 @@ class SimulationService:
             events_generated=parser.events_generated,
             seed=seed,
             run_dir=run_dir,
+            finalize_provenance=(
+                lambda: provenance_recorder.finalize(
+                    STATUS_COMPLETED,
+                    completed_at=datetime.now().astimezone(),
+                    duration_seconds=final_elapsed,
+                )
+                if provenance_recorder is not None
+                else None
+            ),
         )
-        if provenance_recorder is not None:
-            provenance_recorder.finalize(
-                STATUS_COMPLETED,
-                completed_at=datetime.now().astimezone(),
-                duration_seconds=final_elapsed,
-            )
-
-        # Prune old runs
-        prune_old_runs(self.storage, workspace_id, scenario_id, config)
+        self.storage.publish_current_result(workspace_id, scenario_id, run_id)
+        update_run_status(
+            run_id,
+            status=STATUS_COMPLETED,
+            progress=100,
+            current_stage="COMPLETED",
+            completed_at=datetime.now(),
+        )
+        self.storage.update_scenario_status(
+            workspace_id, scenario_id, STATUS_COMPLETED, run_id
+        )
+        telemetry_service = get_telemetry_service()
+        events_per_second = (
+            parser.events_generated / final_elapsed if final_elapsed > 0 else 0
+        )
+        telemetry_service.apply_update(
+            run_id,
+            progress=100,
+            current_stage="COMPLETED",
+            current_year=end_year,
+            memory_mb=get_memory_mb(),
+            events_generated=parser.events_generated,
+            elapsed_seconds=final_elapsed,
+            events_per_second=events_per_second,
+        )
+        telemetry_service.set_terminal(run_id, "completed")
+        logger.info(
+            f"Simulation {run_id} completed successfully in {final_elapsed:.1f}s"
+        )
 
     def _handle_simulation_failure(
         self,
@@ -512,6 +339,8 @@ class SimulationService:
         # with their error message and simulation.log (feature 094).
         try:
             scenario = self.storage.get_scenario(workspace_id, scenario_id)
+            if run_dir is None:
+                raise RuntimeError("run directory was not allocated")
             archive_failed_run(
                 scenario_path=self.storage._scenario_path(workspace_id, scenario_id),
                 run_id=run_id,
@@ -580,232 +409,20 @@ class SimulationService:
             recent_events=[],
         )
 
-    # ------------------------------------------------------------------
-    # Private helpers (config prep / subprocess orchestration)
-    # ------------------------------------------------------------------
-
     def _validate_census(
         self,
         config: Dict[str, Any],
         scenario_id: str = "",
         workspace_id: str = "",
     ) -> None:
-        from planalign_orchestrator.exceptions import (
-            ConfigurationError,
-            ErrorSeverity,
-            ExecutionContext,
-        )
+        validate_census(self.storage, config, scenario_id, workspace_id)
 
-        census_path = config.get("setup", {}).get("census_parquet_path")
+    _write_config = staticmethod(write_config)
+    _write_seeds = staticmethod(write_seeds)
 
-        if not census_path or not str(census_path).strip():
-            raise ConfigurationError(
-                "census_parquet_path is required but was not found in the "
-                "scenario config. Ensure a census file has been uploaded to "
-                "the scenario folder before running.",
-                context=ExecutionContext(
-                    scenario_id=scenario_id,
-                    metadata={
-                        "missing_field": "setup.census_parquet_path",
-                        "workspace_id": workspace_id,
-                    },
-                ),
-                severity=ErrorSeverity.ERROR,
-            )
-
-        # Resolve relative census paths (e.g. "data/census.parquet") against the
-        # workspace directory. Legacy scenarios stored relative paths that would
-        # otherwise be resolved against the process CWD and reported as missing.
-        resolved = self._resolve_census_path(str(census_path), workspace_id)
-
-        if resolved is None:
-            # Scenario overrides may carry a stale or placeholder path (older
-            # studio builds persisted "data/census_preprocessed.parquet" as a
-            # form default). Fall back to the workspace-level census if one is
-            # configured and exists, rather than failing the run.
-            fallback = self._workspace_census_fallback(workspace_id)
-            if fallback is not None:
-                logger.warning(
-                    f"Census file not found at '{census_path}'; falling back "
-                    f"to workspace census: {fallback}"
-                )
-                resolved = fallback
-
-        if resolved is None or not resolved.exists():
-            raise ConfigurationError(
-                f"Census file not found at '{census_path}'. Upload a valid "
-                "census parquet file to the scenario folder and retry.",
-                context=ExecutionContext(
-                    scenario_id=scenario_id,
-                    metadata={
-                        "expected_path": str(census_path),
-                        "workspace_id": workspace_id,
-                    },
-                ),
-                severity=ErrorSeverity.ERROR,
-            )
-
-        # Persist the resolved absolute path so the written config.yaml and the
-        # downstream dbt invocation read the file from an unambiguous location.
-        absolute = str(resolved.resolve())
-        config.setdefault("setup", {})["census_parquet_path"] = absolute
-        logger.info(f"Using census file: {absolute}")
-
-    def _resolve_census_path(
-        self, census_path: str, workspace_id: str
-    ) -> Optional[Path]:
-        """Return an existing Path for census_path, trying workspace-relative fallbacks."""
-        candidate = Path(census_path)
-        if candidate.is_absolute():
-            return candidate if candidate.exists() else None
-
-        # Studio runs only ever reference files inside the workspace; resolving
-        # against the process CWD could silently pick up the repo's bundled
-        # sample data (data/census_preprocessed.parquet) instead.
-        resolved = self.storage._workspace_path(workspace_id) / census_path
-        return resolved if resolved.exists() else None
-
-    def _workspace_census_fallback(self, workspace_id: str) -> Optional[Path]:
-        """Return the workspace base-config census path if it exists on disk."""
-        try:
-            workspace = self.storage.get_workspace(workspace_id)
-        except Exception as e:
-            logger.warning(f"Could not load workspace for census fallback: {e}")
-            return None
-        if workspace is None:
-            return None
-        base_path = workspace.base_config.get("setup", {}).get("census_parquet_path")
-        if not base_path or not str(base_path).strip():
-            return None
-        return self._resolve_census_path(str(base_path), workspace_id)
-
-    @staticmethod
-    def _write_config(config: Dict[str, Any], config_path: Path) -> None:
-        with open(config_path, "w") as f:
-            yaml.dump(config, f, default_flow_style=False)
-        logger.info(f"Wrote merged config to: {config_path}")
-
-    @staticmethod
-    def _write_seeds(config: Dict[str, Any], scenario_path: Path) -> None:
-        """Create a complete, scenario-local dbt seed directory.
-
-        dbt resolves seed files relative to its project directory. Studio runs
-        therefore receive a private copy of the repository defaults before any
-        scenario overrides are written. The repository's ``dbt/seeds`` folder
-        remains an immutable input to every scenario run.
-        """
-        try:
-            from planalign_orchestrator.pipeline.seed_writer import write_all_seed_csvs
-
-            scenario_seeds_dir = scenario_path / "seeds"
-            dbt_seeds_dir = Path(__file__).parent.parent.parent.parent / "dbt" / "seeds"
-            if scenario_seeds_dir.exists():
-                shutil.rmtree(scenario_seeds_dir)
-            shutil.copytree(dbt_seeds_dir, scenario_seeds_dir)
-            written = write_all_seed_csvs(config, scenario_seeds_dir)
-            written_sections = [k for k, v in written.items() if v]
-
-            if written_sections:
-                logger.info(
-                    f"313: Wrote scenario-local seeds to {scenario_seeds_dir}: "
-                    f"{', '.join(written_sections)}"
-                )
-            else:
-                logger.info(
-                    "313: Copied default seeds into scenario-local seed directory"
-                )
-        except Exception as e:
-            logger.warning(f"313: Failed to prepare scenario-local seed CSVs: {e}")
-
-    @staticmethod
-    def _prepare_dbt_project(scenario_path: Path) -> Path:
-        """Create a dbt overlay that uses the scenario's private seed files."""
-        dbt_root = Path(__file__).parent.parent.parent.parent / "dbt"
-        overlay_dir = scenario_path / "dbt_project"
-        overlay_dir.mkdir(parents=True, exist_ok=True)
-
-        # dbt requires a project file at its project root. The copied file keeps
-        # its normal ``seed-paths: [\"seeds\"]`` setting, which is linked below
-        # to this scenario's complete private seed snapshot.
-        shutil.copy2(dbt_root / "dbt_project.yml", overlay_dir / "dbt_project.yml")
-
-        for entry in (
-            "analyses",
-            "macros",
-            "models",
-            "snapshots",
-            "tests",
-            "packages.yml",
-            "package-lock.yml",
-            "dbt_packages",
-        ):
-            source = dbt_root / entry
-            if not source.exists():
-                continue
-            destination = overlay_dir / entry
-            if destination.is_symlink() and destination.resolve() == source.resolve():
-                continue
-            if destination.is_symlink() or destination.is_file():
-                destination.unlink()
-            elif destination.exists():
-                shutil.rmtree(destination)
-            destination.symlink_to(source, target_is_directory=source.is_dir())
-
-        scenario_seeds_dir = scenario_path / "seeds"
-        seeds_link = overlay_dir / "seeds"
-        if (
-            seeds_link.is_symlink()
-            and seeds_link.resolve() == scenario_seeds_dir.resolve()
-        ):
-            return overlay_dir
-        if seeds_link.is_symlink() or seeds_link.is_file():
-            seeds_link.unlink()
-        elif seeds_link.exists():
-            shutil.rmtree(seeds_link)
-        seeds_link.symlink_to(scenario_seeds_dir, target_is_directory=True)
-        return overlay_dir
-
-    @staticmethod
-    def _build_command(
-        config_path: Path,
-        scenario_db_path: Path,
-        start_year: int,
-        end_year: int,
-        dbt_project_dir: Path,
-    ) -> List[str]:
-        year_range = (
-            f"{start_year}-{end_year}" if start_year != end_year else str(start_year)
-        )
-        return [
-            "planalign",
-            "simulate",
-            year_range,
-            "--config",
-            os.fspath(config_path),
-            "--database",
-            os.fspath(scenario_db_path),
-            "--dbt-project-dir",
-            os.fspath(dbt_project_dir),
-            "--verbose",
-        ]
-
-    @staticmethod
-    def _build_env(project_root: Path, run_id: Optional[str] = None) -> Dict[str, str]:
-        env = {
-            **os.environ,
-            "PYTHONPATH": str(project_root),
-            "PYTHONIOENCODING": "utf-8",
-            # Feature 094: deterministic stage/year/count telemetry on stdout
-            "PLANALIGN_STRUCTURED_TELEMETRY": "1",
-            "PLANALIGN_ENTRY_POINT": "studio",
-            "TERM": "dumb",
-            "NO_COLOR": "1",
-            "FORCE_COLOR": "0",
-            "COLUMNS": "200",
-        }
-        if run_id is not None:
-            env["PLANALIGN_RUN_ID"] = run_id
-        return env
+    _prepare_dbt_project = staticmethod(prepare_dbt_project)
+    _build_command = staticmethod(build_command)
+    _build_env = staticmethod(build_env)
 
     @staticmethod
     async def _wait_for_ws_listener(telemetry_service, run_id: str) -> None:

@@ -102,15 +102,18 @@ def test_terminal_state_still_served(client, scenario):
 
 def test_api_restart_returns_status_without_telemetry(client, scenario, tmp_path):
     """Scenario marked running on disk but no in-memory state (API restarted)."""
+    import uuid
+
     from planalign_api.storage.workspace_storage import WorkspaceStorage
     import planalign_api.config as api_config
 
     storage = WorkspaceStorage(api_config.get_settings().workspaces_root)
+    run_id = str(uuid.uuid4())
     storage.update_scenario_status(
-        scenario["workspace_id"], scenario["scenario_id"], "running", "run-lost"
+        scenario["workspace_id"], scenario["scenario_id"], "running", run_id
     )
 
     body = client.get(f"/api/scenarios/{scenario['scenario_id']}/run/telemetry").json()
     assert body["run"]["status"] == "running"
-    assert body["run"]["run_id"] == "run-lost"
+    assert body["run"]["run_id"] == run_id
     assert body["telemetry"] is None

@@ -335,7 +335,7 @@ class VestingService:
 
         # Calculate percentage change
         if current_forfeited > 0:
-            variance_pct = (variance / current_forfeited * 100).quantize(
+            variance_pct = Decimal(variance / current_forfeited * 100).quantize(
                 Decimal("0.01")
             )
         else:

@@ -112,6 +112,36 @@ def test_projection_replay_is_deterministic_and_latest_event_wins(projection_db)
 
 @pytest.mark.fast
 @pytest.mark.unit
+def test_projection_carries_strict_prior_authoritative_enrollment(projection_db):
+    projection_db.execute(
+        """CREATE TABLE int_enrollment_state_accumulator (
+          employee_id VARCHAR, simulation_year INTEGER, enrollment_date DATE,
+          enrollment_status BOOLEAN, scenario_id VARCHAR
+        )"""
+    )
+    projection_db.execute(
+        """INSERT INTO int_enrollment_state_accumulator VALUES
+          ('new', 2025, DATE '2025-03-01', true, 'scenario-a'),
+          ('new', 2026, DATE '2025-03-01', false, 'scenario-a'),
+          ('baseline', 2025, DATE '2020-01-01', false, 'other-scope')
+        """
+    )
+
+    EnrollmentDecisionProjection(DirectConnectionManager(projection_db)).rebuild(
+        2026, "scenario-a", "plan-a"
+    )
+
+    assert projection_db.execute(
+        "SELECT authoritative_enrollment_date, authoritative_is_enrolled "
+        "FROM enrollment_decision_projection WHERE employee_id = 'new'"
+    ).fetchone() == (
+        projection_db.execute("SELECT DATE '2025-03-01'").fetchone()[0],
+        True,
+    )
+
+
+@pytest.mark.fast
+@pytest.mark.unit
 def test_ensure_table_creates_empty_dbt_source_relation():
     conn = duckdb.connect(":memory:")
     try:
@@ -137,6 +167,8 @@ EXPECTED_PROJECTION_COLUMNS = {
     "latest_event_id",
     "latest_event_year",
     "latest_event_effective_date",
+    "authoritative_enrollment_date",
+    "authoritative_is_enrolled",
 }
 
 
@@ -199,7 +231,7 @@ def test_ensure_table_preserves_current_schema_table_and_rows():
         conn.execute(
             "INSERT INTO enrollment_decision_projection VALUES "
             "('kept', 2025, 'default', 'default', DATE '2020-01-01', true, "
-            "false, 'baseline_census', 0.05, NULL, NULL, NULL)"
+            "false, 'baseline_census', 0.05, NULL, NULL, NULL, NULL, NULL)"
         )
 
         projection.ensure_table()

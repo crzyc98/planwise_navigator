@@ -60,7 +60,12 @@ from .profile_config import (
     Construction,
     EnvNote,
     FloorStats,
+    ProfileFingerprints,
     TimingSample,
+    canonical_payload_fingerprint,
+    fingerprint_file,
+    fingerprint_seed_tree,
+    normalized_yaml_fingerprint,
 )
 
 CONFIG_YAML = ROOT / "config" / "simulation_config.yaml"
@@ -82,6 +87,18 @@ def _git_sha() -> str:
         return out.stdout.strip() or "unknown"
     except OSError:
         return "unknown"
+
+
+def _dirty_tree_fingerprint() -> Optional[str]:
+    result = subprocess.run(
+        ["git", "status", "--porcelain=v1"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    status = result.stdout.strip()
+    return canonical_payload_fingerprint(status) if status else None
 
 
 def _version(pkg: str) -> str:
@@ -218,7 +235,13 @@ class _PeakRssMonitor:
     def _sample(self) -> None:
         process = psutil.Process()
         while not self._stop.wait(0.1):
-            processes = [process, *process.children(recursive=True)]
+            try:
+                processes = [process, *process.children(recursive=True)]
+            except (PermissionError, psutil.AccessDenied):
+                # Sandboxed macOS runners may deny the sysctl used to enumerate
+                # children. Keep a valid self-RSS sample; authoritative resource
+                # campaigns run with process enumeration permission.
+                processes = [process]
             total = 0
             for item in processes:
                 try:
@@ -345,6 +368,26 @@ def run_single(
             orchestrator.work_schedule.invocation_count
             if orchestrator is not None and orchestrator.work_schedule is not None
             else None
+        ),
+        fingerprints=ProfileFingerprints(
+            code=canonical_payload_fingerprint({"git_sha": _git_sha()}),
+            dirty_tree=_dirty_tree_fingerprint(),
+            normalized_config=normalized_yaml_fingerprint(effective_config),
+            census=fingerprint_file(census) or canonical_payload_fingerprint("missing"),
+            seeds=fingerprint_seed_tree(ROOT / "dbt" / "seeds"),
+            construction=(
+                canonical_payload_fingerprint(
+                    asdict(orchestrator.construction_signature)
+                )
+                if orchestrator is not None
+                and orchestrator.construction_signature is not None
+                else None
+            ),
+            database=fingerprint_file(db_path),
+            invocation_schedule=(recorder.schedule_fingerprint if recorder else None),
+            per_node_execution=(
+                recorder.per_node_execution_fingerprint if recorder else None
+            ),
         ),
     )
 

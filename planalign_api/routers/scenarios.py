@@ -1,6 +1,5 @@
 """Scenario management endpoints."""
 
-from pathlib import Path
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -17,6 +16,7 @@ from ..models.scenario import (
 from ..services.scenario_service import ScenarioService
 from ..services.seed_config_validator import validate_seed_configs
 from ..storage.workspace_storage import WorkspaceStorage
+from ..services.simulation.result_handlers import find_results_export
 
 router = APIRouter()
 
@@ -294,42 +294,13 @@ async def export_scenario_results(
     # Get scenario path and look for results
     scenario_path = storage._scenario_path(workspace_id, scenario_id)
 
-    # Helper function to find results file in a directory
-    def find_results_file(search_dir: Path) -> Path | None:
-        if not search_dir.exists():
-            return None
-        # First try: {scenario_name}_results.xlsx
-        candidate = search_dir / f"{scenario.name}_results.{ext}"
-        if candidate.exists():
-            return candidate
-        # Second try: results.xlsx
-        candidate = search_dir / f"results.{ext}"
-        if candidate.exists():
-            return candidate
-        # Third try: any *_results.xlsx file
-        for f in search_dir.glob(f"*_results.{ext}"):
-            return f
-        return None
-
-    results_file = None
-
-    # Check 1: Look in legacy results/ directory
-    results_file = find_results_file(scenario_path / "results")
-
-    # Check 2: Look in most recent run directory (runs/{run_id}/)
-    if not results_file:
-        runs_dir = scenario_path / "runs"
-        if runs_dir.exists():
-            # Get most recent run directory by modification time
-            run_dirs = sorted(
-                [d for d in runs_dir.iterdir() if d.is_dir()],
-                key=lambda d: d.stat().st_mtime,
-                reverse=True,
-            )
-            for run_dir in run_dirs:
-                results_file = find_results_file(run_dir)
-                if results_file:
-                    break
+    context = storage.get_scenario_read_context(workspace_id, scenario_id)
+    selected_run_dir = (
+        context.database_path.parent if context.database_path is not None else None
+    )
+    results_file = find_results_export(
+        scenario_path, scenario.name, ext, selected_run_dir
+    )
 
     if results_file and results_file.exists():
         # Build descriptive filename: {workspace}_{scenario}_results_{date}.xlsx

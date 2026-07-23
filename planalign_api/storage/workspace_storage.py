@@ -6,7 +6,7 @@ import shutil
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import yaml  # type: ignore[import]  # types-PyYAML not in CI deps
 
@@ -19,6 +19,9 @@ from ..models.workspace import (
     WorkspaceSummary,
 )
 from ..models.scenario import Scenario, ScenarioCreate
+
+if TYPE_CHECKING:
+    from ..services.current_result import ResolvedScenarioReadContext
 
 logger = logging.getLogger(__name__)
 
@@ -421,6 +424,12 @@ class WorkspaceStorage:
                 db_file.unlink()
                 deleted = True
 
+        # Explicit all-result deletion invalidates the latest-success pointer first.
+        pointer_path = scenario_path / "current_result.json"
+        if pointer_path.exists():
+            pointer_path.unlink()
+            deleted = True
+
         # Also clean up run databases
         runs_dir = scenario_path / "runs"
         if runs_dir.exists():
@@ -466,6 +475,11 @@ class WorkspaceStorage:
         if not runs_dir.exists():
             return result
 
+        from ..services.current_result import read_current_result
+
+        pointer = read_current_result(self._scenario_path(workspace_id, scenario_id))
+        protected_run_id = str(pointer.run_id) if pointer else None
+
         # Collect run directories with their started_at timestamps
         run_entries: List[Dict[str, Any]] = []
         for run_dir in runs_dir.iterdir():
@@ -491,7 +505,11 @@ class WorkspaceStorage:
 
         # Sort newest first, prune the tail
         run_entries.sort(key=lambda e: e["started_at"], reverse=True)
-        to_remove = run_entries[max_runs:]
+        removable = [
+            entry for entry in run_entries if entry["run_id"] != protected_run_id
+        ]
+        keep_other_count = max(max_runs - (1 if protected_run_id else 0), 0)
+        to_remove = removable[keep_other_count:]
 
         for entry in to_remove:
             run_dir = entry["path"]
@@ -514,6 +532,60 @@ class WorkspaceStorage:
     def get_scenario_database_path(self, workspace_id: str, scenario_id: str) -> Path:
         """Get path to scenario's DuckDB database."""
         return self._scenario_path(workspace_id, scenario_id) / DATABASE_FILENAME
+
+    def allocate_run_directory(
+        self, workspace_id: str, scenario_id: str, run_id: str
+    ) -> Path:
+        """Exclusively allocate a contained managed-run directory."""
+        from ..services.current_result import allocate_run_directory
+
+        return allocate_run_directory(
+            self._scenario_path(workspace_id, scenario_id), run_id
+        )
+
+    def publish_current_result(
+        self, workspace_id: str, scenario_id: str, run_id: str
+    ) -> Path:
+        """Atomically select a completed managed run and return its database."""
+        from ..services.current_result import publish_current_result
+
+        pointer = publish_current_result(
+            self._scenario_path(workspace_id, scenario_id), run_id
+        )
+        assert pointer.database_path is not None
+        return pointer.database_path
+
+    def get_scenario_read_context(
+        self, workspace_id: str, scenario_id: str
+    ) -> "ResolvedScenarioReadContext":
+        from ..services.current_result import resolve_scenario_read_context
+
+        return resolve_scenario_read_context(
+            self._scenario_path(workspace_id, scenario_id)
+        )
+
+    def delete_run(
+        self,
+        workspace_id: str,
+        scenario_id: str,
+        run_id: str,
+        *,
+        allow_current_result: bool = False,
+    ) -> bool:
+        """Delete one exact run, requiring opt-in when it is currently selected."""
+        scenario_path = self._scenario_path(workspace_id, scenario_id)
+        run_dir = scenario_path / "runs" / run_id
+        if not run_dir.is_dir():
+            return False
+        from ..services.current_result import read_current_result
+
+        pointer = read_current_result(scenario_path)
+        if pointer and str(pointer.run_id) == run_id:
+            if not allow_current_result:
+                raise ValueError("run is the current successful result")
+            (scenario_path / "current_result.json").unlink()
+        shutil.rmtree(run_dir)
+        return True
 
     def get_merged_config(
         self, workspace_id: str, scenario_id: str

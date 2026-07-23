@@ -40,14 +40,28 @@ models:
       events:
         +materialized: table
         +tags: ["EVENT_GENERATION"]
+        int_hiring_events:
+          +tags: ["EVENT_CANDIDATE"]
+        int_eligibility_events:
+          +tags: ["EVENT_CANDIDATE"]
+        int_termination_events:
+          +tags: ["EVENT_CANDIDATE"]
+        int_new_hire_termination_events:
+          +tags: ["EVENT_CANDIDATE"]
+        int_promotion_events:
+          +tags: ["EVENT_CANDIDATE"]
+        int_merit_events:
+          +tags: ["EVENT_CANDIDATE"]
+        int_deferral_rate_escalation_events:
+          +tags: ["EVENT_CANDIDATE"]
+        int_deferral_match_response_events:
+          +tags: ["EVENT_CANDIDATE"]
 
-        # Override: int_employee_contributions belongs to STATE_ACCUMULATION, not EVENT_GENERATION
-        # It depends on int_deferral_rate_state_accumulator which hasn't been built yet during EVENT_GENERATION
-        int_employee_contributions:
-          +materialized: incremental
-          +tags: ["STATE_ACCUMULATION"]
-          +unique_key: ['employee_id', 'simulation_year']
-          +incremental_strategy: 'delete+insert'
+      # Candidate ownership is independent from filesystem placement. These
+      # models participate in the immutable event assembly but live outside
+      # the events directory for domain-specific reasons.
+      int_enrollment_events:
+        +tags: ["EVENT_CANDIDATE"]
 
       # Data integrity models should run before event models
       # Dependency chain: fct_workforce_snapshot → int_active_employees_by_year → event models → fct_yearly_events
@@ -71,7 +85,7 @@ models:
       fct_yearly_events:
         +materialized: incremental
         +incremental_strategy: 'append'
-        +tags: ["events", "critical"]
+        +tags: ["events", "critical", "EVENT_PUBLICATION"]
 
       fct_workforce_snapshot:
         +materialized: incremental

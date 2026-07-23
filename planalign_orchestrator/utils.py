@@ -255,6 +255,15 @@ class DatabaseConnectionManager:
         # Register cleanup at exit to ensure connections are closed
         atexit.register(self.close_all)
 
+    def __enter__(self) -> "DatabaseConnectionManager":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        # Release the pool's connections deterministically on scope exit so a
+        # long-lived process (e.g. the Studio API) does not hold open read-write
+        # connections that block a later read-only connection to the same file.
+        self.close_all()
+
     @contextmanager
     def get_connection(
         self, *, deterministic: Optional[bool] = None, thread_id: Optional[str] = None

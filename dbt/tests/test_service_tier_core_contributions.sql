@@ -40,7 +40,7 @@ WITH service_tier_check AS (
         SELECT
             employee_id,
             FLOOR(COALESCE(current_tenure, 0))::INT AS years_of_service
-        FROM {{ ref('int_workforce_snapshot_optimized') }}
+        FROM {{ ref('int_workforce_state_accumulator') }}
         WHERE simulation_year = {{ var('simulation_year', 2025) }}
     ) snap ON ec.employee_id = snap.employee_id
     WHERE ec.simulation_year = {{ var('simulation_year', 2025) }}

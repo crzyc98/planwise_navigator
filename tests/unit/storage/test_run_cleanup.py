@@ -5,6 +5,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
+import duckdb
+import uuid
 
 from planalign_api.storage.workspace_storage import WorkspaceStorage
 
@@ -205,3 +207,23 @@ class TestCleanupOldRuns:
         result = storage.cleanup_old_runs(ws.name, "sc-1", max_runs=3)
 
         assert result["removed_count"] == 0
+
+    def test_cleanup_never_removes_current_pointer_target(self, storage, tmp_path):
+        workspace = _make_workspace(tmp_path)
+        scenario = _make_scenario(workspace)
+        now = datetime.now(timezone.utc)
+        current_id = str(uuid.uuid4())
+        current = _make_run(scenario, current_id, now - timedelta(days=30))
+        # Replace the dummy bytes with a readable DuckDB.
+        (current / "simulation.duckdb").unlink()
+        with duckdb.connect(str(current / "simulation.duckdb")) as connection:
+            connection.execute("CREATE TABLE marker (value INTEGER)")
+        for index in range(4):
+            _make_run(scenario, f"new-{index}", now + timedelta(hours=index))
+        storage.publish_current_result("ws-1", "sc-1", current_id)
+
+        result = storage.cleanup_old_runs("ws-1", "sc-1", max_runs=2)
+
+        assert current.exists()
+        assert current_id not in result["removed_runs"]
+        assert len(list((scenario / "runs").iterdir())) == 2

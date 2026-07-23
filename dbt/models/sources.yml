@@ -7,6 +7,8 @@ sources:
     tables:
       - name: enrollment_decision_projection
         description: "Prior enrollment decision state derived from census and fct_yearly_events."
+      - name: workforce_state_projection
+        description: "Strict N-1 workforce state rebuilt from the canonical accumulator."
 
   - name: snapshots
     description: "dbt snapshots schema containing historical workforce state"

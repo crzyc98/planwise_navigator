@@ -2,13 +2,41 @@
 
 import duckdb
 import pytest
+from unittest.mock import MagicMock
 
+from planalign_api.services.database_path_resolver import ResolvedDatabasePath
 from planalign_api.services.simulation.results_reader import (
     _calc_cagr,
     _compute_cagr_metrics,
     _query_workforce_progression,
     _query_participation_rate,
+    read_results,
 )
+
+
+@pytest.mark.fast
+def test_read_results_uses_selected_run_identity_and_years(tmp_path):
+    database = tmp_path / "simulation.duckdb"
+    duckdb.connect(str(database)).close()
+    resolver = MagicMock()
+    resolver.resolve.return_value = ResolvedDatabasePath(
+        path=database,
+        source="run",
+        run_id="123e4567-e89b-42d3-a456-426614174000",
+        start_year=2030,
+        end_year=2034,
+    )
+    storage = MagicMock()
+    storage.get_merged_config.return_value = {
+        "simulation": {"start_year": 2025, "end_year": 2027}
+    }
+
+    result = read_results("workspace", "scenario", storage, resolver)
+
+    assert result is not None
+    assert result.run_id == "123e4567-e89b-42d3-a456-426614174000"
+    assert (result.start_year, result.end_year) == (2030, 2034)
+    storage.get_merged_config.assert_not_called()
 
 
 @pytest.mark.fast

@@ -21,6 +21,25 @@ git push origin vX.Y.Z
 
 Versioning semantics (SemVer) and the full bump procedure live in [docs/VERSIONING_GUIDE.md](docs/VERSIONING_GUIDE.md).
 
+## Unreleased
+
+### Changed
+
+- **Feature 122 — state pipeline redesign:** managed API/Studio attempts now use
+  immutable run-specific databases and atomically retain the latest successful result
+  while a new run is active. Scenario reads expose result/active run consistency
+  headers, and Studio shows one global in-progress warning.
+- Normalized the SQL/dbt event and workforce-state DAG: current-year events publish
+  once, workforce state has one authoritative accumulator, benefit calculations use
+  separated workforce/enrollment/deferral state, and the workforce snapshot is a
+  composition. Removed the two redundant legacy state relations after exact parity.
+- STATE_ACCUMULATION now uses one command per year with no state full-refresh. In the
+  three-run 60,040-employee warm matrix, median peak RSS was 86.2% of baseline for the
+  reference workload and 81.4% for Studio; exact public mart compatibility was
+  preserved. The observed whole-run invocation total is evidence, not a fixed target.
+- This feature targets the active SQL pipeline only; deprecated Polars compatibility
+  remnants remain out of scope and Polars support was not restored.
+
 ## [2.2.0] - 2026-07-11 "Calibration"
 
 _Consolidates all work since 2.1.0 (March–July 2026, ~258 commits), reconstructed from git history._

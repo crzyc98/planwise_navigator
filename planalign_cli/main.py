@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import typer
 from rich.console import Console
@@ -79,6 +79,7 @@ from .commands.batch import run_batch  # noqa: E402
 from .commands.validate import validate_config  # noqa: E402
 from .commands.calibrate import run_calibration  # noqa: E402
 from .commands.provenance import generate_provenance_report  # noqa: E402
+from .commands.validate_change import run_validate_change  # noqa: E402
 
 # Fast compensation calibration (Feature 105) -- run_calibration already carries
 # its full typer signature, so register it directly.
@@ -140,6 +141,72 @@ def simulate(
         fail_on_validation_error=fail_on_validation_error,
         verbose=verbose,
         growth=growth,
+    )
+
+
+@app.command("validate-change")
+def validate_change(
+    census: Optional[List[Path]] = typer.Option(
+        None,
+        "--census",
+        help="Census parquet to validate at (repeatable). Omit to use the config's "
+        "census. Pass a ~60k census to exercise the scale gate that catches "
+        "scale-dependent bugs.",
+    ),
+    config: Optional[Path] = typer.Option(
+        None,
+        "--config",
+        "-c",
+        help="Base simulation config YAML (default: config/simulation_config.yaml)",
+    ),
+    years: str = typer.Option(
+        "2025-2027", "--years", help="Simulation horizon, e.g. '2025-2029'"
+    ),
+    keep_dbs: bool = typer.Option(
+        False,
+        "--keep-dbs",
+        help="Keep the isolated baseline/candidate DBs for inspection",
+    ),
+    workdir: Optional[Path] = typer.Option(
+        None, "--workdir", help="Directory for the isolated DBs (default: a temp dir)"
+    ),
+    baseline_db: Optional[Path] = typer.Option(
+        None, "--baseline-db", help="Frozen A+B baseline DuckDB"
+    ),
+    candidate_db: Optional[Path] = typer.Option(
+        None, "--candidate-db", help="Isolated candidate DuckDB"
+    ),
+    characterization: Optional[Path] = typer.Option(
+        None, "--characterization", help="Checked baseline characterization JSON"
+    ),
+    exclusions: Optional[Path] = typer.Option(
+        None, "--exclusions", help="Exact relation-column exclusion YAML"
+    ),
+    phase: Optional[str] = typer.Option(
+        None, "--phase", help="Feature 122 migration phase identifier"
+    ),
+    checkpoint: Optional[str] = typer.Option(
+        None, "--checkpoint", help="Optional phase checkpoint identifier"
+    ),
+):
+    """✅ Validate an uncommitted change is output-neutral (isolated-DB parity gate).
+
+    Builds HEAD (baseline, your change stashed) and the working tree (candidate) into
+    isolated DBs and compares mart parity, dbt invocation count, and peak RSS. Never
+    touches the shared dev DB. Exits non-zero on any mismatch.
+    """
+    run_validate_change(
+        census=census,
+        config=config,
+        years=years,
+        keep_dbs=keep_dbs,
+        workdir=workdir,
+        baseline_db=baseline_db,
+        candidate_db=candidate_db,
+        characterization=characterization,
+        exclusions=exclusions,
+        phase=phase,
+        checkpoint=checkpoint,
     )
 
 

@@ -2,11 +2,12 @@
 
 import json
 import logging
-import shutil
+import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
+import duckdb
 import yaml  # type: ignore[import]  # types-PyYAML not in CI deps
 
 from planalign_core.constants import DATABASE_FILENAME, STATUS_COMPLETED
@@ -33,6 +34,7 @@ def archive_run(
     events_generated: int,
     seed: int,
     run_dir: Optional[Path] = None,
+    finalize_provenance: Optional[Callable[[], None]] = None,
 ) -> Optional[Path]:
     """Persist run artifacts (config, metadata, database copy, Excel export).
 
@@ -58,7 +60,6 @@ def archive_run(
     if run_dir is None:
         run_dir = scenario_path / "runs" / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
-
     # Save config YAML
     _save_config(run_dir, config)
 
@@ -76,9 +77,17 @@ def archive_run(
         events_generated=events_generated,
         seed=seed,
     )
+    if finalize_provenance is not None:
+        finalize_provenance()
 
-    # Copy database snapshot
-    _copy_database(scenario_path, run_dir)
+    run_database = run_dir / DATABASE_FILENAME
+    if not run_database.is_file():
+        raise FileNotFoundError(f"run-local database is missing: {run_database}")
+    try:
+        with duckdb.connect(str(run_database), read_only=True) as connection:
+            connection.execute("SELECT 1").fetchone()
+    except Exception as exc:
+        raise RuntimeError("run-local database is not readable") from exc
 
     # Export to Excel
     excel_path = export_results_to_excel(
@@ -178,8 +187,10 @@ def prune_old_runs(
 def _save_config(run_dir: Path, config: Dict[str, Any]) -> None:
     try:
         config_path = run_dir / "config.yaml"
-        with open(config_path, "w") as f:
-            yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+        _atomic_write_text(
+            config_path,
+            yaml.dump(config, default_flow_style=False, sort_keys=False),
+        )
         logger.debug(f"Config YAML saved to: {config_path}")
     except Exception as e:
         logger.warning(f"Failed to save config YAML: {e}")
@@ -216,21 +227,15 @@ def _save_metadata(
         "status": run_status,
         "error_message": error_message,
     }
-    try:
-        metadata_path = run_dir / "run_metadata.json"
-        with open(metadata_path, "w") as f:
-            json.dump(run_metadata, f, indent=2)
-        logger.debug(f"Run metadata saved to: {metadata_path}")
-    except Exception as e:
-        logger.warning(f"Failed to save run metadata: {e}")
+    metadata_path = run_dir / "run_metadata.json"
+    _atomic_write_text(metadata_path, json.dumps(run_metadata, indent=2) + "\n")
+    logger.debug(f"Run metadata saved to: {metadata_path}")
 
 
-def _copy_database(scenario_path: Path, run_dir: Path) -> None:
-    db_src = scenario_path / DATABASE_FILENAME
-    if db_src.exists():
-        db_dest = run_dir / DATABASE_FILENAME
-        try:
-            shutil.copy2(db_src, db_dest)
-            logger.debug(f"Database copied to: {db_dest}")
-        except Exception as e:
-            logger.warning(f"Failed to copy database to run directory: {e}")
+def _atomic_write_text(path: Path, payload: str) -> None:
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    with temporary.open("w", encoding="utf-8") as handle:
+        handle.write(payload)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temporary, path)
