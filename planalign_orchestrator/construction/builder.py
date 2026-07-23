@@ -178,6 +178,7 @@ def build_orchestrator(spec: ConstructionSpec) -> ConstructionResult:
 
         def initialize_required_sources() -> None:
             orchestrator.enrollment_projection.ensure_table()
+            orchestrator.workforce_projection.ensure_table()
             execute_initialization(spec.initialization, initializer)
 
         orchestrator._initialization_callback = initialize_required_sources
