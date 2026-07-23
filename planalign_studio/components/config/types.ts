@@ -143,6 +143,12 @@ export interface FormData {
   dcMatchMagnetProbability: number; // percent (0-100)
   dcMaxVoluntaryDeferral: number;   // percent (1-100)
 
+  // DC Plan - Match-Responsive Deferral Adjustment
+  dcMatchResponseEnabled: boolean;
+  dcMatchResponseUpwardParticipation: number; // percent (0-100)
+  dcMatchResponseDownwardEnabled: boolean;
+  dcMatchResponseDownwardParticipation: number; // percent (0-100)
+
   // DC Plan - Match Enable/Disable
   dcMatchEnabled: boolean;
 

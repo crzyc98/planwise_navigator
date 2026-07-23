@@ -643,6 +643,8 @@ class WorkspaceStorage:
                 _match_template, _match_template
             )
 
+        self._resolve_deferral_match_response(merged)
+
         # Ensure employer_match and employer_core_contribution always have defaults
         # This handles workspaces created before these sections were added
         if "employer_match" not in merged:
@@ -668,6 +670,24 @@ class WorkspaceStorage:
         self._inject_seed_config_defaults(merged)
 
         return merged
+
+    @staticmethod
+    def _resolve_deferral_match_response(merged: Dict[str, Any]) -> None:
+        """Normalize Studio and legacy match-response settings for simulation."""
+        legacy = merged.get("deferral_match_response", {})
+        resolved = dict(legacy) if isinstance(legacy, dict) else {}
+        dc_plan = merged.get("dc_plan", {})
+        studio = (
+            dc_plan.get("deferral_match_response", {})
+            if isinstance(dc_plan, dict)
+            else {}
+        )
+        if isinstance(studio, dict):
+            resolved.update(studio)
+        # Studio exposes this behavior as an enabled-by-default match setting.
+        # CLI and non-workspace configuration retain their typed false default.
+        resolved.setdefault("enabled", True)
+        merged["deferral_match_response"] = resolved
 
     def _inject_seed_config_defaults(self, merged: Dict[str, Any]) -> None:
         """Inject global CSV seed defaults for missing seed config sections.

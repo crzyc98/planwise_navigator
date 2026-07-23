@@ -11,6 +11,10 @@ import duckdb
 import uuid
 
 from planalign_api.storage.workspace_storage import WorkspaceStorage
+from planalign_api.models.scenario import Scenario
+from planalign_api.models.workspace import Workspace
+from planalign_orchestrator.config import SimulationConfig, load_simulation_config
+from planalign_orchestrator.config.export import to_dbt_vars
 
 
 # --- Helpers ---
@@ -52,6 +56,30 @@ def _make_scenario(ws_dir: Path, scenario_id: str = "sc-1") -> Path:
     return sc_dir
 
 
+def _workspace_config(base_config: Dict[str, Any]) -> Workspace:
+    """Build an in-memory workspace for pure merge tests."""
+    now = datetime.now(timezone.utc)
+    return Workspace(
+        id="workspace-match-response",
+        name="Match response workspace",
+        created_at=now,
+        updated_at=now,
+        base_config=base_config,
+        storage_path="/tmp/workspace-match-response",
+    )
+
+
+def _scenario_config(overrides: Dict[str, Any]) -> Scenario:
+    """Build an in-memory Studio scenario for pure merge tests."""
+    return Scenario(
+        id="scenario-match-response",
+        workspace_id="workspace-match-response",
+        name="Match response scenario",
+        config_overrides=overrides,
+        created_at=datetime.now(timezone.utc),
+    )
+
+
 def _make_run(
     sc_dir: Path,
     run_id: str,
@@ -71,9 +99,107 @@ def _make_run(
     return run_dir
 
 
+def _simulation_base_config() -> Dict[str, Any]:
+    """Return a complete configuration shape suitable for typed merge checks."""
+    return load_simulation_config("config/simulation_config.yaml").model_dump(
+        mode="json"
+    )
+
+
 @pytest.fixture
 def storage(tmp_path: Path) -> WorkspaceStorage:
     return WorkspaceStorage(workspaces_root=tmp_path)
+
+
+@pytest.mark.fast
+class TestMatchResponseResolution:
+    """Contract coverage for Studio-to-simulation match-response resolution."""
+
+    @pytest.fixture(autouse=True)
+    def disable_seed_injection(self, storage, monkeypatch):
+        monkeypatch.setattr(
+            storage, "_inject_seed_config_defaults", lambda merged: None
+        )
+
+    def test_dc_plan_settings_resolve_to_enabled_top_level_block(self, storage):
+        base_config = _simulation_base_config()
+        base_config.pop("deferral_match_response", None)
+        merged = storage._merge_config(
+            _workspace_config(base_config),
+            _scenario_config(
+                {"dc_plan": {"deferral_match_response": {"enabled": True}}}
+            ),
+        )
+
+        assert merged["deferral_match_response"]["enabled"] is True
+        assert SimulationConfig.model_validate(merged).deferral_match_response.enabled
+
+    def test_legacy_top_level_settings_remain_supported(self, storage):
+        base_config = _simulation_base_config()
+        base_config.pop("deferral_match_response", None)
+        merged = storage._merge_config(
+            _workspace_config(base_config),
+            _scenario_config({"deferral_match_response": {"enabled": True}}),
+        )
+
+        assert merged["deferral_match_response"]["enabled"] is True
+
+    def test_dc_plan_settings_override_legacy_settings(self, storage):
+        merged = storage._merge_config(
+            _workspace_config(
+                {
+                    **_simulation_base_config(),
+                    "deferral_match_response": {
+                        "enabled": True,
+                        "upward_participation_rate": 0.25,
+                    },
+                }
+            ),
+            _scenario_config(
+                {
+                    "dc_plan": {
+                        "deferral_match_response": {
+                            "enabled": False,
+                            "upward_participation_rate": 0.40,
+                            "downward_enabled": True,
+                            "downward_participation_rate": 0.05,
+                        }
+                    }
+                }
+            ),
+        )
+
+        assert merged["deferral_match_response"] == {
+            "enabled": False,
+            "upward_participation_rate": 0.40,
+            "downward_enabled": True,
+            "downward_participation_rate": 0.05,
+        }
+
+    def test_absent_block_resolves_to_explicit_studio_enabled_default(self, storage):
+        base_config = _simulation_base_config()
+        base_config.pop("deferral_match_response", None)
+        merged = storage._merge_config(
+            _workspace_config(base_config), _scenario_config({})
+        )
+
+        assert merged["deferral_match_response"] == {"enabled": True}
+        assert SimulationConfig.model_validate(merged).deferral_match_response.enabled
+
+    def test_resolved_settings_export_the_flag_and_match_ceiling(self, storage):
+        base_config = _simulation_base_config()
+        base_config.pop("deferral_match_response", None)
+        merged = storage._merge_config(
+            _workspace_config(base_config),
+            _scenario_config(
+                {"dc_plan": {"deferral_match_response": {"enabled": True}}}
+            ),
+        )
+
+        dbt_vars = to_dbt_vars(SimulationConfig.model_validate(merged))
+
+        assert dbt_vars["deferral_match_response_enabled"] is True
+        assert dbt_vars["employer_match_max_deferral_rate"] > 0
 
 
 # ==================== repair_workspaces ====================
