@@ -48,7 +48,22 @@ models:
     description: "Consolidated fact table of all workforce events by simulation year"
     config:
       tags: ["critical", "locked", "event_sourcing", "contract"]
+    data_tests:
+      - dbt_utils.expression_is_true:
+          expression: "simulation_year BETWEEN {{ var('simulation_start_year', 2025) }} AND {{ var('simulation_end_year', 2029) }}"
     columns:
+      - name: event_id
+        description: "Deterministic event identity preserved from current-year assembly"
+        data_type: varchar
+        data_tests: [not_null]
+      - name: scenario_id
+        description: "Scenario partition key"
+        data_type: varchar
+        data_tests: [not_null]
+      - name: plan_design_id
+        description: "Plan-design partition key"
+        data_type: varchar
+        data_tests: [not_null]
       - name: employee_id
         description: "Unique employee identifier"
         data_type: varchar

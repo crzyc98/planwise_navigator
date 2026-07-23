@@ -1,6 +1,6 @@
 # Utility Scripts
 
-Small standalone utilities that support development. None of these run in CI (`ci.yml` / `tests.yml` invoke no scripts); all are run manually from the repo root with the venv active.
+Small standalone utilities that support development. None of these run in CI (`ci.yml` invokes no scripts); all are run manually from the repo root with the venv active.
 
 | Script | Purpose |
 |--------|---------|

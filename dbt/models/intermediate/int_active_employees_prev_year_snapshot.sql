@@ -1,132 +1,60 @@
 {{ config(
     materialized='ephemeral',
-    tags=["foundation", "critical", "circular_dependency_resolution"]
+    tags=['FOUNDATION', 'critical', 'temporal_projection']
 ) }}
 
--- **E082 FIX**: Changed from incremental to ephemeral to prevent stale data causing employee resurrection
--- The incremental model was retaining data from previous runs where employees hadn't been terminated yet,
--- causing terminated employees to "resurrect" in subsequent years.
--- Ephemeral ensures we always read fresh data from fct_workforce_snapshot.
+{% set simulation_year = var('simulation_year') | int %}
+{% set scenario_id = var('scenario_id', 'default') %}
+{% set plan_design_id = var('plan_design_id', 'default') %}
 
-/*
-  Primary helper model for circular dependency resolution.
-  Provides active employee data from the previous year's completed workforce snapshot.
-
-  This model creates a temporal dependency (year N depends on year N-1) instead of
-  a circular dependency within the same year.
-
-  **COMPENSATION FIX**: Uses full_year_equivalent_compensation instead of current_compensation
-  to ensure workforce state transitions maintain correct compensation continuity.
-  This fixes the promotion events compensation state management issue.
-
-  **E077 FIX**: Changed from table to incremental materialization to prevent race condition
-  where Year N+1 helper model reads Year N snapshot before it's fully materialized.
-  This ensures data persists across years and prevents year-over-year data loss.
-
-  V2 Fix: Uses a dynamic relation reference (`adapter.get_relation`) instead of a static
-  `ref()` to prevent dbt's parser from detecting a false circular dependency.
-  The orchestrator script MUST ensure that year N-1 is complete before running year N.
-*/
-
-{% set simulation_year = var('simulation_year') %}
-{% set start_year = var('start_year', 2025) | int %}
-{% set previous_year = simulation_year - 1 %}
-{% set is_first_simulation_year = (simulation_year == start_year) %}
-
-
--- This model should only execute for years after the baseline year.
-{% if not is_first_simulation_year %}
-
-with previous_year_snapshot as (
-  select
-    *
-  -- This creates a dynamic, runtime reference to the table, bypassing the static DAG parser.
-  from {{ adapter.get_relation(database=this.database, schema=this.schema, identifier='fct_workforce_snapshot') }}
-  where simulation_year = {{ previous_year }}
-    and employment_status = 'active'
-),
-
-enriched_snapshot as (
-  select
-    employee_id,
-    employee_ssn,
-    employee_birth_date,
-    employee_hire_date,
-    -- **E066 CONTINUATION FIX**: Use full_year_equivalent_compensation without hard caps
-    -- This ensures workforce state transitions maintain correct compensation continuity
-    -- **REMOVE CAPS**: Trust mathematical correctness, rely on quality flags for monitoring
-    CASE
-      WHEN full_year_equivalent_compensation IS NULL OR full_year_equivalent_compensation <= 0 THEN 50000  -- Default minimum only
-      -- **E066**: Removed hard caps - allow legitimate annualized compensation to persist across years
-      -- Quality monitoring happens in fct_workforce_snapshot via compensation_quality_flag
-      ELSE full_year_equivalent_compensation
-    END as employee_gross_compensation,
-    current_age + 1 as current_age, -- Increment age for the new year
-    current_tenure + 1 as current_tenure, -- Increment tenure for the new year
-    level_id,
-    'active' as employment_status, -- Employees from previous year are active at start of new year
-    null::date as termination_date, -- Reset termination date for the new year
-    employee_enrollment_date, -- Preserve enrollment status from previous year
-    scheduled_hours_per_week, -- Preserve part-time schedule from previous year
-
-    -- Recalculate age and tenure bands for the new, incremented values using centralized macros
-    {{ assign_age_band('current_age + 1') }} as age_band,
-    {{ assign_tenure_band('current_tenure + 1') }} as tenure_band,
-
-    -- Enrollment status tracking (backup flag for more reliable enrollment detection)
-    case
-      when employee_enrollment_date is not null then true
-      else false
-    end as is_enrolled_flag,
-
-    -- Metadata fields
-    {{ simulation_year }} as simulation_year,
-    'previous_year_snapshot' as data_source,
-
-    -- Data quality validation flags with enhanced compensation checks
-    case
-      when employee_id is null then false
-      when employee_ssn is null then false
-      when employee_birth_date is null then false
-      when employee_hire_date is null then false
-      when employee_gross_compensation <= 0 then false
-      when employee_gross_compensation > 5000000 then false  -- Flag extreme compensation for review
-      when current_age < 0 or current_age > 100 then false
-      when current_tenure < 0 then false
-      else true
-    end as data_quality_valid
-
-  from previous_year_snapshot
-)
-
-select *
-from enriched_snapshot
-where data_quality_valid = true
-
-{% else %}
-
--- For the first year (e.g., 2025), this model should produce no records,
--- as the `fct_workforce_snapshot` will be built from the baseline model.
--- Returning an empty set with the correct columns ensures schema consistency downstream.
-select
-    null::varchar as employee_id,
-    null::varchar as employee_ssn,
-    null::date as employee_birth_date,
-    null::date as employee_hire_date,
-    null::numeric(18, 2) as employee_gross_compensation,
-    null::integer as current_age,
-    null::integer as current_tenure,
-    null::bigint as level_id,  -- Fixed: match fct_workforce_snapshot type
-    null::varchar as employment_status,
-    null::date as termination_date,
-    null::varchar as age_band,
-    null::varchar as tenure_band,
-    null::date as employee_enrollment_date,
-    null::decimal(5,2) as scheduled_hours_per_week,
-    false as is_enrolled_flag,
-    {{ simulation_year }} as simulation_year,
-    'no_previous_year' as data_source,
-    false as data_quality_valid
-limit 0
-
-{% endif %}
+-- Decision-year-ready view over the orchestrator's strict N-1 projection.
+SELECT
+  workforce.employee_id,
+  workforce.employee_ssn,
+  workforce.employee_birth_date,
+  workforce.employee_hire_date,
+  CASE
+    WHEN full_year_equivalent_compensation IS NULL
+      OR full_year_equivalent_compensation <= 0 THEN 50000
+    ELSE full_year_equivalent_compensation
+  END AS employee_gross_compensation,
+  current_age + 1 AS current_age,
+  current_tenure + 1 AS current_tenure,
+  level_id,
+  'active' AS employment_status,
+  CAST(NULL AS DATE) AS termination_date,
+  {{ assign_age_band('current_age + 1') }} AS age_band,
+  {{ assign_tenure_band('current_tenure + 1') }} AS tenure_band,
+  COALESCE(
+    enrollment.authoritative_enrollment_date,
+    enrollment.enrollment_date
+  ) AS employee_enrollment_date,
+  workforce.scheduled_hours_per_week,
+  CASE
+    WHEN COALESCE(
+      enrollment.authoritative_enrollment_date,
+      enrollment.enrollment_date
+    ) IS NOT NULL THEN TRUE
+    ELSE FALSE
+  END AS is_enrolled_flag,
+  {{ simulation_year }} AS simulation_year,
+  'workforce_state_projection' AS data_source,
+  TRUE AS data_quality_valid
+FROM {{ source('orchestrator_state', 'workforce_state_projection') }} workforce
+LEFT JOIN {{ source('orchestrator_state', 'enrollment_decision_projection') }} enrollment
+  ON workforce.employee_id = enrollment.employee_id
+ AND enrollment.decision_year = {{ simulation_year }}
+ AND enrollment.scenario_id = '{{ scenario_id }}'
+ AND enrollment.plan_design_id = '{{ plan_design_id }}'
+WHERE workforce.decision_year = {{ simulation_year }}
+  AND workforce.source_simulation_year = {{ simulation_year - 1 }}
+  AND workforce.scenario_id = '{{ scenario_id }}'
+  AND workforce.plan_design_id = '{{ plan_design_id }}'
+  AND workforce.employment_status = 'active'
+  AND workforce.employee_id IS NOT NULL
+  AND workforce.employee_ssn IS NOT NULL
+  AND workforce.employee_birth_date IS NOT NULL
+  AND workforce.employee_hire_date IS NOT NULL
+  AND workforce.current_compensation > 0
+  AND workforce.current_age BETWEEN 0 AND 100
+  AND workforce.current_tenure >= 0

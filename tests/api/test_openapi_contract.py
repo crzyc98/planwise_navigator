@@ -14,7 +14,7 @@ from typing import Any
 
 import pytest
 
-from planalign_api.main import create_app
+from planalign_api.main import RUN_CONSISTENCY_HEADERS, SCENARIO_READ_ROUTES, create_app
 from planalign_api.models.system import HealthResponse, SystemStatus
 
 pytestmark = [pytest.mark.fast]
@@ -74,6 +74,37 @@ def test_openapi_schema_matches_committed_snapshot() -> None:
         "If this change is intentional, regenerate the snapshot per "
         "specs/115-api-contract-tests/quickstart.md and review the diff."
     )
+
+
+def test_all_scenario_reads_declare_consistency_headers() -> None:
+    app = create_app()
+    schema = app.openapi()
+    candidates = []
+    for route in app.routes:
+        if "GET" not in getattr(route, "methods", set()):
+            continue
+        dependant = getattr(route, "dependant", None)
+        parameter_names = {
+            parameter.name for parameter in getattr(dependant, "query_params", ())
+        }
+        if (
+            "{scenario_id}" in route.path
+            or route.path.endswith("/{workspace_id}/scenarios")
+            or parameter_names.intersection(
+                {"scenario_id", "scenarios", "scenario_a", "scenario_b", "baseline"}
+            )
+            or route.name == "get_active_simulations"
+        ):
+            candidates.append(route)
+
+    uncovered = sorted(
+        route.name for route in candidates if route.name not in SCENARIO_READ_ROUTES
+    )
+    assert not uncovered, f"scenario reads missing warning aggregation: {uncovered}"
+    for route in candidates:
+        responses = schema["paths"][route.path_format]["get"]["responses"]
+        for response in responses.values():
+            assert set(RUN_CONSISTENCY_HEADERS) <= set(response.get("headers", {}))
 
 
 def test_health_response_conforms_to_model(client_factory) -> None:

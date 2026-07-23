@@ -10,6 +10,9 @@ import logging
 from types import SimpleNamespace
 
 import pytest
+import duckdb
+import json
+import uuid
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -19,6 +22,10 @@ from planalign_api.services.database_path_resolver import (
     IsolationMode,
     WorkspaceStorageProtocol,
     create_api_database_path_resolver,
+)
+from planalign_api.services.current_result import (
+    CurrentResultIntegrityError,
+    publish_current_result,
 )
 
 
@@ -83,6 +90,101 @@ class TestScenarioLevelResolution:
         assert result.path == db_file
         assert result.source == "scenario"
         assert result.warning is None
+
+
+@pytest.mark.fast
+class TestCurrentResultResolution:
+    @staticmethod
+    def _publish(scenario_path: Path, run_id: str) -> Path:
+        run_dir = scenario_path / "runs" / run_id
+        run_dir.mkdir(parents=True)
+        with duckdb.connect(str(run_dir / "simulation.duckdb")) as connection:
+            connection.execute("CREATE TABLE marker (value INTEGER)")
+        (run_dir / "run_metadata.json").write_text(
+            json.dumps(
+                {
+                    "run_id": run_id,
+                    "status": "completed",
+                    "start_year": 2025,
+                    "end_year": 2029,
+                }
+            )
+        )
+        (run_dir / "config.yaml").write_text(
+            "simulation:\n  start_year: 2025\n  end_year: 2029\n"
+        )
+        publish_current_result(scenario_path, run_id)
+        return run_dir
+
+    def test_pointer_selected_database_run_config_and_years(
+        self, mock_storage, tmp_path
+    ):
+        scenario_path = tmp_path / "scenario"
+        run_id = str(uuid.uuid4())
+        run_dir = self._publish(scenario_path, run_id)
+        mock_storage._scenario_path.return_value = scenario_path
+        mock_storage._workspace_path.return_value = tmp_path / "workspace"
+
+        result = DatabasePathResolver(mock_storage, project_root=tmp_path).resolve(
+            "workspace", "scenario"
+        )
+
+        assert result.source == "run"
+        assert result.path == run_dir / "simulation.duckdb"
+        assert result.run_id == run_id
+        assert result.config_path == run_dir / "config.yaml"
+        assert (result.start_year, result.end_year) == (2025, 2029)
+
+    def test_active_attempt_context_keeps_pointer_result(self, mock_storage, tmp_path):
+        scenario_path = tmp_path / "scenario"
+        result_id = str(uuid.uuid4())
+        run_dir = self._publish(scenario_path, result_id)
+        active_id = str(uuid.uuid4())
+        (scenario_path / "scenario.json").write_text(
+            json.dumps({"status": "running", "last_run_id": active_id})
+        )
+        mock_storage._scenario_path.return_value = scenario_path
+        mock_storage._workspace_path.return_value = tmp_path / "workspace"
+
+        result = DatabasePathResolver(mock_storage, project_root=tmp_path).resolve(
+            "workspace", "scenario"
+        )
+
+        assert result.path == run_dir / "simulation.duckdb"
+        assert result.run_id == result_id
+        assert result.active_run_id == active_id
+        assert result.run_warning == "run_in_progress"
+
+    def test_invalid_pointer_fails_closed_without_legacy_fallback(
+        self, mock_storage, tmp_path
+    ):
+        scenario_path = tmp_path / "scenario"
+        scenario_path.mkdir()
+        (scenario_path / "simulation.duckdb").touch()
+        (scenario_path / "current_result.json").write_text("{not-json")
+        mock_storage._scenario_path.return_value = scenario_path
+        mock_storage._workspace_path.return_value = tmp_path / "workspace"
+
+        with pytest.raises(CurrentResultIntegrityError):
+            DatabasePathResolver(mock_storage, project_root=tmp_path).resolve(
+                "workspace", "scenario"
+            )
+
+    def test_legacy_fallback_still_applies_only_without_pointer(
+        self, mock_storage, tmp_path
+    ):
+        scenario_path = tmp_path / "scenario"
+        scenario_path.mkdir()
+        legacy = scenario_path / "simulation.duckdb"
+        legacy.touch()
+        mock_storage._scenario_path.return_value = scenario_path
+        mock_storage._workspace_path.return_value = tmp_path / "workspace"
+
+        result = DatabasePathResolver(mock_storage, project_root=tmp_path).resolve(
+            "workspace", "scenario"
+        )
+
+        assert result.source == "scenario" and result.path == legacy
 
     def test_scenario_db_not_found_falls_through(self, mock_storage, tmp_path):
         """Given scenario db does NOT exist, resolver continues to workspace level."""

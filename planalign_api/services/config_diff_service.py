@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 import duckdb
+import yaml
 from pydantic import ValidationError
 
 from _version import __version__
@@ -93,6 +94,18 @@ class ConfigDiffService:
         scenario_id: str,
         workspace: Optional[Workspace] = None,
     ) -> dict[str, Any]:
+        resolved = self.db_resolver.resolve(workspace_id, scenario_id)
+        if resolved.config_path is not None:
+            try:
+                archived = yaml.safe_load(
+                    resolved.config_path.read_text(encoding="utf-8")
+                )
+            except (OSError, yaml.YAMLError) as exc:
+                raise ValueError(
+                    f"Unable to read selected-run config for {scenario_id}"
+                ) from exc
+            if isinstance(archived, dict):
+                return archived
         config = (
             self.storage.get_merged_config_for(workspace, scenario_id)
             if workspace is not None
@@ -109,7 +122,7 @@ class ConfigDiffService:
         effective_config: dict[str, Any],
     ) -> ScenarioProvenance:
         resolved = self.db_resolver.resolve(workspace_id, scenario_id)
-        if not resolved.exists or resolved.source != "scenario":
+        if not resolved.exists or resolved.source not in {"scenario", "run"}:
             return ScenarioProvenance(available=False)
         try:
             with duckdb.connect(str(resolved.path), read_only=True) as connection:

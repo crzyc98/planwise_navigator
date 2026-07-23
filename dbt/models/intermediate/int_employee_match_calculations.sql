@@ -3,7 +3,7 @@
     indexes=[
         {'columns': ['employee_id', 'simulation_year'], 'unique': true}
     ],
-    tags=['match_engine', 'critical', 'core_calculation', 'STATE_ACCUMULATION']
+    tags=['match_engine', 'critical', 'core_calculation', 'BENEFIT_CALCULATION']
 ) }}
 
 /*
@@ -33,6 +33,8 @@
 */
 
 {% set simulation_year = var('simulation_year', 2025) | int %}
+{% set scenario_id = var('scenario_id', 'default') %}
+{% set plan_design_id = var('plan_design_id', 'default') %}
 
 /*
   E084 Phase B: Match configuration now accepts custom tiers directly
@@ -116,16 +118,33 @@ employee_contributions AS (
         COALESCE(elig.eligible_for_match, FALSE) AS is_eligible_for_match,
         elig.match_eligibility_reason,
         elig.match_apply_eligibility AS eligibility_config_applied,
-        -- E010: Years of service from workforce snapshot (integer years)
-        FLOOR(COALESCE(snap.current_tenure, 0))::INT AS years_of_service
+        -- Preserve the accepted scratch-snapshot service convention from
+        -- canonical current/prior workforce state.
+        FLOOR(COALESCE(
+            CASE
+                WHEN workforce.detailed_status_code = 'experienced_termination'
+                    THEN GREATEST(
+                        workforce.current_tenure,
+                        prior_workforce.current_tenure + 1
+                    )
+                ELSE workforce.current_tenure
+            END,
+            0
+        ))::INT AS years_of_service
     FROM {{ ref('int_employee_contributions') }}  ec
     LEFT JOIN {{ ref('int_employer_eligibility') }} elig
         ON ec.employee_id = elig.employee_id
        AND ec.simulation_year = elig.simulation_year
-    -- E010: Join workforce snapshot for years of service
-    LEFT JOIN {{ ref('int_workforce_snapshot_optimized') }} snap
-        ON ec.employee_id = snap.employee_id
-       AND ec.simulation_year = snap.simulation_year
+    LEFT JOIN {{ ref('int_workforce_state_accumulator') }} workforce
+        ON ec.employee_id = workforce.employee_id
+       AND ec.simulation_year = workforce.simulation_year
+       AND workforce.scenario_id = '{{ scenario_id }}'
+       AND workforce.plan_design_id = '{{ plan_design_id }}'
+    LEFT JOIN {{ ref('int_workforce_state_accumulator') }} prior_workforce
+        ON prior_workforce.employee_id = workforce.employee_id
+       AND prior_workforce.scenario_id = workforce.scenario_id
+       AND prior_workforce.plan_design_id = workforce.plan_design_id
+       AND prior_workforce.simulation_year = {{ simulation_year - 1 }}
     WHERE ec.simulation_year = {{ simulation_year }}
         AND ec.employee_id IS NOT NULL
 ),

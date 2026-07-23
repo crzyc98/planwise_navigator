@@ -21,6 +21,8 @@ from pydantic import BaseModel, ConfigDict
 from planalign_api.config import get_settings
 from planalign_core.constants import DATABASE_FILENAME as _DEFAULT_DATABASE_FILENAME
 
+from .current_result import resolve_scenario_read_context
+
 logger = logging.getLogger(__name__)
 
 
@@ -74,8 +76,14 @@ class ResolvedDatabasePath(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     path: Optional[Path] = None
-    source: Optional[Literal["scenario", "workspace", "project"]] = None
+    source: Optional[Literal["run", "scenario", "workspace", "project"]] = None
     warning: Optional[str] = None
+    run_id: Optional[str] = None
+    active_run_id: Optional[str] = None
+    run_warning: Optional[Literal["run_in_progress"]] = None
+    config_path: Optional[Path] = None
+    start_year: Optional[int] = None
+    end_year: Optional[int] = None
 
     @property
     def exists(self) -> bool:
@@ -269,17 +277,41 @@ class DatabasePathResolver:
                 warning="Invalid scenario_id: potential path traversal attempt",
             )
 
-        # Step 2: Try scenario-specific database
+        # Step 2: A current-result pointer is authoritative whenever present.
         scenario_path = self._storage._scenario_path(workspace_id, scenario_id)
+        read_context = resolve_scenario_read_context(scenario_path)
+        context_fields = {
+            "active_run_id": (
+                str(read_context.active_run_id) if read_context.active_run_id else None
+            ),
+            "run_warning": read_context.warning,
+        }
+        if read_context.database_path is not None:
+            return ResolvedDatabasePath(
+                path=read_context.database_path,
+                source="run",
+                run_id=(
+                    str(read_context.result_run_id)
+                    if read_context.result_run_id
+                    else None
+                ),
+                config_path=read_context.config_path,
+                start_year=read_context.start_year,
+                end_year=read_context.end_year,
+                **context_fields,
+            )
+
+        # Step 3: Legacy fallback is allowed only when no pointer exists.
         scenario_db_path = scenario_path / self._database_filename
         if scenario_db_path.exists():
             return ResolvedDatabasePath(
                 path=scenario_db_path,
                 source="scenario",
                 warning=None,
+                **context_fields,
             )
 
-        # Step 3: Try workspace-level database
+        # Step 4: Try workspace-level database
         workspace_path = self._storage._workspace_path(workspace_id)
         workspace_db_path = workspace_path / self._database_filename
         if workspace_db_path.exists():
@@ -287,6 +319,7 @@ class DatabasePathResolver:
                 path=workspace_db_path,
                 source="workspace",
                 warning=None,
+                **context_fields,
             )
 
         # Step 4: Check isolation mode before project fallback
@@ -300,6 +333,7 @@ class DatabasePathResolver:
                 path=None,
                 source=None,
                 warning=warning_msg,
+                **context_fields,
             )
 
         # Step 5: Try project default database (SINGLE_TENANT only)
@@ -314,6 +348,7 @@ class DatabasePathResolver:
                 path=self._project_db_path,
                 source="project",
                 warning=warning_msg,
+                **context_fields,
             )
 
         # Step 6: No database found
@@ -324,6 +359,7 @@ class DatabasePathResolver:
             path=None,
             source=None,
             warning=None,
+            **context_fields,
         )
 
 

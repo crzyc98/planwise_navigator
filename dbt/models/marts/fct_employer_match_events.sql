@@ -7,7 +7,7 @@
         {'columns': ['simulation_year', 'employee_id'], 'type': 'btree'},
         {'columns': ['event_id'], 'type': 'btree', 'unique': true}
     ],
-    tags=['match_engine', 'events', 'critical']
+    tags=['match_engine', 'events', 'critical', 'SNAPSHOT_PUBLICATION']
 ) }}
 
 /*

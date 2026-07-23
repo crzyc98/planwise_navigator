@@ -3,13 +3,14 @@
     materialized='incremental',
     unique_key=['employee_id', 'simulation_year'],
     incremental_strategy='delete+insert',
-    on_schema_change='sync_all_columns'
+    on_schema_change='sync_all_columns',
+    tags=['STATE_ACCUMULATION', 'BENEFIT_CALCULATION']
   )
 }}
 
-{# tags removed: now configured in dbt_project.yml to override directory-level EVENT_GENERATION tag #}
-
 {% set simulation_year = var('simulation_year', 2025) | int %}
+{% set scenario_id = var('scenario_id', 'default') %}
+{% set plan_design_id = var('plan_design_id', 'default') %}
 
 /*
   Employee 401(k) Contributions Calculator - IRS Compliant Version
@@ -26,8 +27,10 @@
   - Configurable limits via config_irs_limits seed
 
   Dependencies:
-  - int_employee_compensation_by_year for compensation and age data
+  - int_workforce_state_accumulator for workforce population and state
+  - int_enrollment_state_accumulator for enrollment state
   - int_deferral_rate_state_accumulator for deferral rates (S042-01: Source of Truth Architecture Fix)
+  - fct_yearly_events for contribution-window and starting-compensation facts
   - config_irs_limits for IRS limit configuration
 */
 
@@ -77,20 +80,39 @@ deferral_rates_ranked AS (
     SELECT
         employee_id,
         current_deferral_rate,
-        is_enrolled_flag,
         data_quality_flag,
         ROW_NUMBER() OVER (PARTITION BY employee_id ORDER BY simulation_year DESC) as rn
     FROM {{ ref('int_deferral_rate_state_accumulator') }}
     WHERE simulation_year <= (SELECT current_year FROM simulation_parameters)
+      AND scenario_id = '{{ scenario_id }}'
 ),
 
 deferral_rates AS (
     SELECT
         employee_id,
         COALESCE(current_deferral_rate, 0.0) AS deferral_rate,
-        COALESCE(is_enrolled_flag, false) AS is_enrolled_flag,
         data_quality_flag AS source_quality
     FROM deferral_rates_ranked
+    WHERE rn = 1
+),
+
+enrollment_state_ranked AS (
+    SELECT
+        employee_id,
+        is_enrolled,
+        ROW_NUMBER() OVER (
+            PARTITION BY employee_id ORDER BY simulation_year DESC
+        ) AS rn
+    FROM {{ ref('int_enrollment_state_accumulator') }}
+    WHERE simulation_year <= (SELECT current_year FROM simulation_parameters)
+      AND scenario_id = '{{ scenario_id }}'
+),
+
+enrollment_state AS (
+    SELECT
+        employee_id,
+        COALESCE(is_enrolled, FALSE) AS is_enrolled_flag
+    FROM enrollment_state_ranked
     WHERE rn = 1
 ),
 
@@ -116,134 +138,75 @@ enroll_optout_window AS (
     GROUP BY employee_id
 ),
 
--- Removed legacy CTEs in favor of workforce_proration as the single source
-
--- Epic E078: Mode-aware query - uses fct_yearly_events in Polars mode, int_hiring_events in SQL mode
-hire_events AS (
-    {% if var('event_generation_mode', 'sql') == 'polars' %}
-    -- Polars mode: fct_yearly_events is populated from Parquet files before EVENT_GENERATION
+-- Published compensation events supply the accepted starting-year compensation.
+-- Workforce population, dates, status, and age remain owned by canonical state.
+starting_compensation AS (
     SELECT
         employee_id,
-        effective_date::DATE AS hire_date,
-        compensation_amount AS annual_salary,
-        employee_age
+        ARG_MIN(
+            CASE
+                WHEN event_type = 'hire' THEN compensation_amount
+                WHEN event_type IN ('promotion', 'raise') THEN previous_compensation
+            END,
+            effective_date
+        ) FILTER (WHERE event_type IN ('hire', 'promotion', 'raise'))
+            AS starting_compensation
     FROM {{ ref('fct_yearly_events') }}
-    WHERE simulation_year = (SELECT current_year FROM simulation_parameters)
-      AND event_type = 'hire'
-    {% else %}
-    -- SQL mode: Use intermediate event model that exists during EVENT_GENERATION
-    SELECT
-        employee_id,
-        effective_date::DATE AS hire_date,
-        compensation_amount AS annual_salary,
-        employee_age
-    FROM {{ ref('int_hiring_events') }}
-    WHERE simulation_year = (SELECT current_year FROM simulation_parameters)
-    {% endif %}
-),
-
--- Epic E078: Mode-aware query - uses fct_yearly_events in Polars mode, int_*_events in SQL mode
--- One termination per employee (MIN date) so the LEFT JOINs below stay 1:1.
-termination_events AS (
-    SELECT
-        employee_id,
-        MIN(termination_date) AS termination_date
-    FROM (
-        {% if var('event_generation_mode', 'sql') == 'polars' %}
-        -- Polars mode: fct_yearly_events already unions new-hire + experienced terminations
-        SELECT
-            employee_id,
-            effective_date::DATE AS termination_date
-        FROM {{ ref('fct_yearly_events') }}
-        WHERE simulation_year = (SELECT current_year FROM simulation_parameters)
-          AND event_type = 'termination'
-        {% else %}
-        -- SQL mode: experienced-employee terminations live in int_termination_events;
-        -- new-hire terminations are generated separately (issue #334). Both must be
-        -- included or terminated new hires get a full-year comp base, over-stating
-        -- their contributions and employer match.
-        SELECT
-            employee_id,
-            effective_date::DATE AS termination_date
-        FROM {{ ref('int_termination_events') }}
-        WHERE simulation_year = (SELECT current_year FROM simulation_parameters)
-        UNION ALL
-        SELECT
-            employee_id,
-            effective_date::DATE AS termination_date
-        FROM {{ ref('int_new_hire_termination_events') }}
-        WHERE simulation_year = (SELECT current_year FROM simulation_parameters)
-        {% endif %}
-    ) all_terminations
+    WHERE scenario_id = '{{ scenario_id }}'
+      AND plan_design_id = '{{ plan_design_id }}'
+      AND simulation_year = (SELECT current_year FROM simulation_parameters)
     GROUP BY employee_id
 ),
 
--- Workforce proration base: include prior-year actives (snapshot) and current-year new hires
--- FIX: Add LEFT JOIN with termination events to properly handle terminated employees
-snapshot_proration AS (
-    SELECT
-        comp.employee_id,
-        {{ simulation_year }} AS simulation_year,
-        comp.employee_compensation AS current_compensation,
-        -- FIX: Calculate prorated compensation for terminated employees
-        -- NOTE: GREATEST(0, ...) handles edge cases where termination_date precedes year start
-        -- (e.g., data quality issues, prior-year terminations in snapshot). Negative day counts
-        -- are clamped to 0, resulting in $0 prorated compensation for such records.
-        CASE
-            WHEN term.termination_date IS NOT NULL THEN
-                ROUND(
-                    comp.employee_compensation *
-                    LEAST(365, GREATEST(0,
-                        DATEDIFF('day', ({{ simulation_year }} || '-01-01')::DATE, term.termination_date) + 1
-                    )) / 365.0
-                , 2)
-            ELSE comp.employee_compensation
-        END AS prorated_annual_compensation,
-        -- FIX: Update employment status to 'terminated' when termination events exist
-        CASE
-            WHEN term.termination_date IS NOT NULL THEN 'terminated'
-            ELSE comp.employment_status
-        END AS employment_status,
-        -- FIX: Set termination_date field properly
-        term.termination_date,
-        comp.employee_birth_date,
-        comp.current_age
-    FROM {{ ref('int_employee_compensation_by_year') }} comp
-    LEFT JOIN termination_events term ON comp.employee_id = term.employee_id
-    WHERE comp.simulation_year = (SELECT current_year FROM simulation_parameters)
-      -- CRITICAL FIX (E055): Exclude new hires from snapshot to prevent duplication
-      -- New hires should only appear in new_hire_proration with correct proration
-      AND NOT EXISTS (
-          SELECT 1 FROM hire_events h
-          WHERE h.employee_id = comp.employee_id
-      )
-),
-
-new_hire_proration AS (
-    SELECT
-        h.employee_id,
-        {{ simulation_year }} AS simulation_year,
-        h.annual_salary AS current_compensation,
-        -- Prorate from hire to termination (if any) else year end
-        ROUND(
-            h.annual_salary *
-            LEAST(365, GREATEST(0,
-                DATEDIFF('day', h.hire_date, COALESCE(t.termination_date, ({{ simulation_year }} || '-12-31')::DATE)) + 1
-            )) / 365.0
-        , 2) AS prorated_annual_compensation,
-        CASE WHEN t.termination_date IS NULL THEN 'active' ELSE 'terminated' END AS employment_status,
-        t.termination_date,
-        NULL::DATE AS employee_birth_date,
-        h.employee_age AS current_age
-    FROM hire_events h
-    LEFT JOIN termination_events t USING (employee_id)
-),
-
 workforce_proration AS (
-    -- Union of snapshot population and current-year new hires
-    SELECT * FROM snapshot_proration
-    UNION ALL
-    SELECT * FROM new_hire_proration
+    SELECT
+        workforce.employee_id,
+        {{ simulation_year }} AS simulation_year,
+        COALESCE(starting.starting_compensation, workforce.current_compensation)
+            AS current_compensation,
+        ROUND(
+            COALESCE(starting.starting_compensation, workforce.current_compensation)
+            * CASE
+                WHEN EXTRACT(YEAR FROM workforce.employee_hire_date)
+                    = {{ simulation_year }} THEN
+                    LEAST(365, GREATEST(0,
+                        DATEDIFF(
+                            'day',
+                            workforce.employee_hire_date::DATE,
+                            COALESCE(
+                                workforce.termination_date::DATE,
+                                '{{ simulation_year }}-12-31'::DATE
+                            )
+                        ) + 1
+                    )) / 365.0
+                WHEN workforce.termination_date IS NOT NULL THEN
+                    LEAST(365, GREATEST(0,
+                        DATEDIFF(
+                            'day',
+                            '{{ simulation_year }}-01-01'::DATE,
+                            workforce.termination_date::DATE
+                        ) + 1
+                    )) / 365.0
+                ELSE 1
+              END,
+            2
+        ) AS prorated_annual_compensation,
+        workforce.employment_status,
+        workforce.termination_date::DATE AS termination_date,
+        workforce.employee_birth_date::DATE AS employee_birth_date,
+        COALESCE(prior_workforce.current_age + 2, workforce.current_age)
+            AS current_age
+    FROM {{ ref('int_workforce_state_accumulator') }} workforce
+    LEFT JOIN {{ ref('int_workforce_state_accumulator') }} prior_workforce
+      ON prior_workforce.scenario_id = workforce.scenario_id
+     AND prior_workforce.plan_design_id = workforce.plan_design_id
+     AND prior_workforce.employee_id = workforce.employee_id
+     AND prior_workforce.simulation_year = {{ simulation_year - 1 }}
+    LEFT JOIN starting_compensation starting
+      ON workforce.employee_id = starting.employee_id
+    WHERE workforce.scenario_id = '{{ scenario_id }}'
+      AND workforce.plan_design_id = '{{ plan_design_id }}'
+      AND workforce.simulation_year = {{ simulation_year }}
 ),
 
 -- Feature 101: join the enrollment window and compute active-enrollment days,
@@ -252,7 +215,7 @@ workforce_proration AS (
 workforce_windowed AS (
     SELECT
         wf.*,
-        COALESCE(dr.is_enrolled_flag, false) AS is_enrolled_flag,
+        COALESCE(enrollment.is_enrolled_flag, FALSE) AS is_enrolled_flag,
         COALESCE(dr.deferral_rate, 0.0) AS year_end_deferral_rate,
         COALESCE(dr.source_quality, 'default_zero') AS source_quality,
         (eo.enroll_date IS NOT NULL
@@ -272,6 +235,8 @@ workforce_windowed AS (
         END AS active_enrollment_days
     FROM workforce_proration wf
     LEFT JOIN deferral_rates dr ON wf.employee_id = dr.employee_id
+    LEFT JOIN enrollment_state enrollment
+      ON wf.employee_id = enrollment.employee_id
     LEFT JOIN enroll_optout_window eo ON wf.employee_id = eo.employee_id
 ),
 

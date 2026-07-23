@@ -13,21 +13,25 @@ SELECT
 
   -- Count events that should affect workforce size
   SUM(CASE
-    WHEN is_active AND hire_date >= DATE('{{ simulation_year }}-01-01')
+    WHEN employment_status = 'active'
+      AND employee_hire_date >= DATE('{{ simulation_year }}-01-01')
     THEN 1 ELSE 0
   END) AS new_hires,
 
   SUM(CASE
-    WHEN NOT is_active AND termination_date >= DATE('{{ simulation_year }}-01-01')
+    WHEN employment_status = 'terminated'
+      AND termination_date >= DATE('{{ simulation_year }}-01-01')
     THEN 1 ELSE 0
   END) AS terminations,
 
   -- Calculate conservation error (should be close to zero)
   ABS((COUNT(*) - COALESCE(LAG(COUNT(*)) OVER (ORDER BY simulation_year), COUNT(*))) -
-      (SUM(CASE WHEN is_active AND hire_date >= DATE('{{ simulation_year }}-01-01') THEN 1 ELSE 0 END) -
-       SUM(CASE WHEN NOT is_active AND termination_date >= DATE('{{ simulation_year }}-01-01') THEN 1 ELSE 0 END))) AS conservation_error
+      (SUM(CASE WHEN employment_status = 'active'
+        AND employee_hire_date >= DATE('{{ simulation_year }}-01-01') THEN 1 ELSE 0 END) -
+       SUM(CASE WHEN employment_status = 'terminated'
+        AND termination_date >= DATE('{{ simulation_year }}-01-01') THEN 1 ELSE 0 END))) AS conservation_error
 
-FROM {{ ref('int_employee_state_by_year') }}
+FROM {{ ref('int_workforce_state_accumulator') }}
 WHERE simulation_year IN ({{ simulation_year }} - 1, {{ simulation_year }})
 GROUP BY simulation_year
 HAVING conservation_error > 10  -- Allow small tolerance for rounding/timing

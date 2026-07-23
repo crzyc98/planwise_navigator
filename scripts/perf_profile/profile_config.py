@@ -7,11 +7,14 @@ the report builder (specs/116-profile-run-cost/contracts/timing-data.md).
 
 from __future__ import annotations
 
+import hashlib
+import json
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from pydantic import BaseModel, Field, model_validator
+import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 SHARED_DEV_DB = ROOT / "dbt" / "simulation.duckdb"
@@ -37,6 +40,44 @@ MIN_WARM_REPS = {
 #   factory — planalign_orchestrator.create_orchestrator, the historical
 #             Feature 116 path (kept only for reconciliation; #455 rework).
 Construction = Literal["wrapper", "factory"]
+
+
+def canonical_payload_fingerprint(payload: Any) -> str:
+    encoded = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        default=str,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def fingerprint_file(path: Path) -> Optional[str]:
+    if not path.is_file():
+        return None
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def normalized_yaml_fingerprint(path: Path) -> str:
+    payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return canonical_payload_fingerprint(payload)
+
+
+def fingerprint_seed_tree(path: Path) -> str:
+    entries = [
+        {
+            "path": item.relative_to(path).as_posix(),
+            "sha256": fingerprint_file(item),
+        }
+        for item in sorted(path.rglob("*"))
+        if item.is_file()
+    ]
+    return canonical_payload_fingerprint(entries)
 
 
 class CensusSize(str, Enum):
@@ -77,6 +118,19 @@ class EnvNote(BaseModel):
     shared_db_sha256_before: Optional[str] = None
 
 
+class ProfileFingerprints(BaseModel):
+    method: Literal["sha256-canonical-v1"] = "sha256-canonical-v1"
+    code: str
+    dirty_tree: Optional[str] = None
+    normalized_config: str
+    census: str
+    seeds: str
+    construction: Optional[str] = None
+    database: Optional[str] = None
+    invocation_schedule: Optional[str] = None
+    per_node_execution: Optional[str] = None
+
+
 class TimingSample(BaseModel):
     sample_id: str
     census_size: CensusSize
@@ -101,6 +155,7 @@ class TimingSample(BaseModel):
     construction_signature: Optional[Dict[str, Any]] = None
     executed_schedule: List[Dict[str, Any]] = Field(default_factory=list)
     product_invocation_count: Optional[int] = Field(default=None, ge=0)
+    fingerprints: Optional[ProfileFingerprints] = None
 
     @property
     def invocation_wall_s(self) -> float:

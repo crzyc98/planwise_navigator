@@ -1,0 +1,37 @@
+schema_version: 1
+source_fixture: tests/fixtures/invariant_census.csv
+source_kind: checked_in_synthetic
+source_aggregate:
+  row_count: 150
+  active_count: 149
+  inactive_count: 1
+  preterminated_count: 1
+  positive_deferral_count: 60
+  auto_escalation_opt_out_count: 3
+  under_40_hours_count: 4
+  hired_2024_or_later_count: 56
+  hired_before_2024_count: 94
+representative_transition_expectations:
+  - name: active_census_row_starts_active
+    precondition: active is true and employee_termination_date is empty
+    expected: first-year workforce state is active before current-year events
+  - name: preterminated_census_row_stays_inactive
+    precondition: active is false and employee_termination_date predates the horizon
+    expected: workforce state cannot become active without a later hire event
+  - name: termination_closes_future_activity
+    precondition: a termination event exists and no later hire event exists
+    expected: later workforce state is inactive and contains the effective termination date
+  - name: hire_opens_activity
+    precondition: a current-year hire event exists without an earlier effective termination
+    expected: current-year workforce state is active from the hire effective date
+  - name: compensation_change_carries_forward
+    precondition: a promotion or merit event changes compensation
+    expected: later workforce state starts from the prior accepted compensation
+  - name: part_time_schedule_is_preserved
+    precondition: scheduled_hours_per_week is below 40
+    expected: the workforce carry-forward retains the accepted schedule value
+forbidden_checked_content:
+  - employee_ssn
+  - employee_row_samples
+  - absolute_census_path
+  - absolute_database_path

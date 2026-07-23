@@ -36,6 +36,7 @@ from planalign_orchestrator.pipeline.enrollment_projection import (
 from planalign_orchestrator.pipeline.workflow import WorkflowBuilder
 from planalign_orchestrator.run_metadata import check_and_record_run
 from planalign_orchestrator.utils import DatabaseConnectionManager
+from planalign_orchestrator.workforce_state_projection import WorkforceStateProjection
 
 logger = logging.getLogger(__name__)
 
@@ -305,15 +306,16 @@ class CalibrationRunner:
     def run_calibration(self) -> List[PerYearCompensationResult]:
         """Validate, guard, build the comp subgraph per year, return results."""
         verify_dc_prerequisites(self.database_path)
-        self._ensure_enrollment_projection()
+        self._ensure_projection_tables()
         self._record_run_provenance()
         return self._build_all_years()
 
-    def _ensure_enrollment_projection(self) -> None:
-        """Create or repair the disposable dbt source used by staging models."""
+    def _ensure_projection_tables(self) -> None:
+        """Create or repair disposable prior-state sources used by shared models."""
         db_manager = DatabaseConnectionManager(db_path=self.database_path)
         try:
             EnrollmentDecisionProjection(db_manager).ensure_table()
+            WorkforceStateProjection(db_manager).ensure_table()
         finally:
             db_manager.close_all()
 
@@ -368,10 +370,26 @@ class CalibrationRunner:
         # build, before the next year overwrites it.
         results: List[PerYearCompensationResult] = []
         for year in range(self.run.start_year, self.run.end_year + 1):
+            self._rebuild_prior_state_projections(year)
             self._build_year(year)
             results.append(self._read_year(year))
         self._fill_yoy_growth(results)
         return results
+
+    def _rebuild_prior_state_projections(self, year: int) -> None:
+        """Expose only year N-1 state before calibration builds year N."""
+        db_manager = DatabaseConnectionManager(db_path=self.database_path)
+        scenario_id = self._config.scenario_id or "default"
+        plan_design_id = self._config.plan_design_id or "default"
+        try:
+            EnrollmentDecisionProjection(db_manager).rebuild(
+                year, scenario_id=scenario_id, plan_design_id=plan_design_id
+            )
+            WorkforceStateProjection(db_manager).rebuild(
+                year, scenario_id=scenario_id, plan_design_id=plan_design_id
+            )
+        finally:
+            db_manager.close_all()
 
     @staticmethod
     def _fill_yoy_growth(results: List[PerYearCompensationResult]) -> None:

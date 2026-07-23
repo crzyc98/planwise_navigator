@@ -1,71 +1,104 @@
 version: 2
 
 models:
-  - name: int_employee_state_by_year
-    description: "Epic E068B: Incremental employee state tracking - year N computed from year N-1 + events(N)"
+  - name: int_current_year_events
+    description: >
+      Ephemeral, SQL-first assembly boundary for the complete current-year event
+      candidate set. Durable publication is owned only by fct_yearly_events.
     config:
-      tags: ["STATE_ACCUMULATION", "E068B", "performance"]
+      tags: ["EVENT_GENERATION", "event_sourcing", "contract"]
+    data_tests:
+      - dbt_utils.expression_is_true:
+          expression: "simulation_year = {{ var('simulation_year', 2025) }}"
+    columns:
+      - name: event_id
+        data_type: varchar
+        data_tests: [not_null]
+      - name: scenario_id
+        data_type: varchar
+        data_tests: [not_null]
+      - name: plan_design_id
+        data_type: varchar
+        data_tests: [not_null]
+      - name: employee_id
+        data_type: varchar
+        data_tests: [not_null]
+      - name: simulation_year
+        data_type: integer
+        data_tests: [not_null]
+      - name: event_sequence
+        data_type: bigint
+        data_tests: [not_null]
+
+  - name: int_workforce_state_accumulator
+    description: >
+      Authoritative workforce-only state derived from the prior accumulator year
+      and current immutable workforce events. Benefit-domain state is excluded.
+    config:
+      tags: ["STATE_ACCUMULATION", "DOMAIN_STATE", "contract"]
+    data_tests:
+      - unique:
+          column_name: "scenario_id || '_' || plan_design_id || '_' || employee_id || '_' || simulation_year"
+          name: "unique_workforce_state_per_scope_employee_year"
     columns:
       - name: scenario_id
         data_type: varchar
         data_tests: [not_null]
-        description: "Scenario identifier for simulation runs"
       - name: plan_design_id
         data_type: varchar
         data_tests: [not_null]
-        description: "Plan design identifier"
       - name: employee_id
         data_type: varchar
         data_tests: [not_null]
-        description: "Unique employee identifier"
       - name: simulation_year
         data_type: integer
         data_tests: [not_null]
-        description: "Simulation year for this state record"
-      - name: is_active
-        data_type: boolean
-        data_tests: [not_null]
-        description: "Employee active status flag"
-      - name: hire_date
-        data_type: date
-        description: "Employee hire date"
-      - name: current_level
+      - name: employee_ssn
         data_type: varchar
-        description: "Current job level"
-      - name: current_salary
-        data_type: decimal(10,2)
-        description: "Current salary amount"
-      - name: is_enrolled
-        data_type: boolean
-        description: "Benefit enrollment status flag"
-      - name: deferral_rate
-        data_type: decimal(5,4)
-        description: "Current deferral rate"
-      - name: account_balance
-        data_type: decimal(12,2)
-        description: "Current account balance"
-      - name: tenure_months
-        data_type: integer
-        description: "Tenure in months"
-      - name: years_of_service
-        data_type: integer
-        description: "Years of service"
-      - name: current_age
-        data_type: integer
-        description: "Current age"
+        data_tests: [not_null]
+      - name: employee_birth_date
+        data_type: timestamp
+      - name: employee_hire_date
+        data_type: timestamp
+        data_tests: [not_null]
+      - name: termination_date
+        data_type: timestamp
+      - name: termination_reason
+        data_type: varchar
       - name: employment_status
         data_type: varchar
-        description: "Employment status (active/terminated)"
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ["active", "terminated"]
+      - name: detailed_status_code
+        data_type: varchar
+        data_tests: [not_null]
+      - name: current_compensation
+        data_type: double
+        data_tests: [not_null]
+      - name: prorated_annual_compensation
+        data_type: double
+        data_tests: [not_null]
+      - name: full_year_equivalent_compensation
+        data_type: double
+        data_tests: [not_null]
+      - name: current_age
+        data_type: bigint
+        data_tests: [not_null]
+      - name: current_tenure
+        data_type: integer
+        data_tests: [not_null]
       - name: level_id
         data_type: integer
-        description: "Level identifier"
-    data_tests:
-      - unique:
-          column_name: "scenario_id || '-' || plan_design_id || '-' || employee_id || '-' || simulation_year"
-      - dbt_utils.expression_is_true:
-          expression: "deferral_rate >= 0.0 AND deferral_rate <= 1.0"
-      - dbt_utils.expression_is_true:
-          expression: "account_balance >= 0.0"
+        data_tests: [not_null]
+      - name: age_band
+        data_type: varchar
+      - name: tenure_band
+        data_type: varchar
+      - name: scheduled_hours_per_week
+        data_type: decimal(5,2)
+
   - name: int_employer_eligibility
     description: >
       MVP employer contribution eligibility determination model.
@@ -897,83 +930,6 @@ models:
         description: Total budget impact including all costs
         data_tests:
           - not_null
-
-  - name: int_workforce_snapshot_optimized
-    description: >
-      Optimized workforce snapshot with performance enhancements for large datasets.
-      Provides comprehensive employee state with all financial calculations.
-    config:
-      contract:
-        enforced: true
-    columns:
-      - name: employee_id
-        description: Unique employee identifier
-        data_type: varchar
-        constraints:
-          - type: not_null
-      - name: employee_ssn
-        description: Employee social security number
-        data_type: varchar
-      - name: employee_birth_date
-        description: Employee birth date
-        data_type: date
-      - name: employee_hire_date
-        description: Employee hire date
-        data_type: date
-      - name: current_compensation
-        description: Current annual compensation
-        data_type: double
-      - name: prorated_annual_compensation
-        description: Prorated compensation for partial year
-        data_type: double
-      - name: full_year_equivalent_compensation
-        description: Full year equivalent compensation
-        data_type: double
-      - name: current_age
-        description: Employee current age
-        data_type: int32
-      - name: current_tenure
-        description: Employee current tenure in years
-        data_type: double
-      - name: level_id
-        description: Employee job level
-        data_type: int32
-      - name: age_band
-        description: Age band classification
-        data_type: varchar
-      - name: tenure_band
-        description: Tenure band classification
-        data_type: varchar
-      - name: employment_status
-        description: Employment status (active/terminated)
-        data_type: varchar
-      - name: termination_date
-        description: Termination date if applicable
-        data_type: timestamp
-      - name: termination_reason
-        description: Reason for termination
-        data_type: varchar
-      - name: detailed_status_code
-        description: Detailed status code
-        data_type: varchar
-      - name: simulation_year
-        description: Simulation year
-        data_type: int32
-      - name: employee_eligibility_date
-        description: Employee eligibility date
-        data_type: date
-      - name: waiting_period_days
-        description: Waiting period in days
-        data_type: int32
-      - name: current_eligibility_status
-        description: Current eligibility status
-        data_type: varchar
-      - name: employee_enrollment_date
-        description: Employee enrollment date
-        data_type: date
-      - name: snapshot_created_at
-        description: Timestamp when snapshot was created
-        data_type: timestamp
 
   - name: int_partitioned_workforce_data
     description: >

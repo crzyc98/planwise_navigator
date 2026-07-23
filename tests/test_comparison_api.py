@@ -61,10 +61,24 @@ def _client(storage: MagicMock, service: MagicMock) -> TestClient:
     return TestClient(app)
 
 
-def test_config_diff_endpoint_success() -> None:
+def _no_current_result_pointer(storage: MagicMock, tmp_path) -> None:
+    """Point storage._scenario_path at a real, pointer-free directory.
+
+    has_selected_result() resolves a real Path via storage._scenario_path()
+    and checks it for a current_result.json pointer file. A bare MagicMock
+    fakes Path.exists() as truthy, so resolve_scenario_read_context() tries
+    to parse a mocked "file" and raises CurrentResultIntegrityError. Scoping
+    it to a real empty tmp_path lets the legacy completed-status fallback
+    apply, as it does for these scenarios in production.
+    """
+    storage._scenario_path.side_effect = lambda _, scenario_id: tmp_path / scenario_id
+
+
+def test_config_diff_endpoint_success(tmp_path) -> None:
     storage = MagicMock()
     storage.get_workspace.return_value = object()
     storage.get_scenario.side_effect = lambda _, scenario_id: _scenario(scenario_id)
+    _no_current_result_pointer(storage, tmp_path)
     service = MagicMock()
     service.compare.return_value = ConfigDiffResponse(
         scenario_a="a",
@@ -86,12 +100,13 @@ def test_config_diff_endpoint_success() -> None:
     assert response.json()["scenario_a"] == "a"
 
 
-def test_config_diff_endpoint_rejects_duplicate_and_incomplete() -> None:
+def test_config_diff_endpoint_rejects_duplicate_and_incomplete(tmp_path) -> None:
     storage = MagicMock()
     storage.get_workspace.return_value = object()
     storage.get_scenario.side_effect = lambda _, scenario_id: _scenario(
         scenario_id, "failed"
     )
+    _no_current_result_pointer(storage, tmp_path)
     service = MagicMock()
     client = _client(storage, service)
     duplicate = client.get(

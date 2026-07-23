@@ -58,6 +58,7 @@ from .pipeline.year_executor import YearExecutor
 from .pipeline.event_generation_executor import EventGenerationExecutor
 from .pipeline.enrollment_projection import EnrollmentDecisionProjection
 from .pipeline.stage_validator import StageValidator
+from .workforce_state_projection import WorkforceStateProjection
 
 # Import model parallelization components
 try:
@@ -213,6 +214,7 @@ class PipelineOrchestrator:
             verbose=verbose,
         )
         self.enrollment_projection = EnrollmentDecisionProjection(db_manager)
+        self.workforce_projection = WorkforceStateProjection(db_manager)
 
         # Initialize year executor with optional parallelization support
         self.year_executor = YearExecutor(
@@ -321,6 +323,7 @@ class PipelineOrchestrator:
                     )
                 # The dbt source must exist even before the first FOUNDATION run.
                 self.enrollment_projection.ensure_table()
+                self.workforce_projection.ensure_table()
                 self._initialize_registries(start)
                 completed_years: List[int] = []
                 simulation_start_time = time.time()
@@ -613,6 +616,15 @@ class PipelineOrchestrator:
         self.state_manager.maybe_clear_year_data(year)
         self.state_manager.clear_year_fact_rows(year)
         self._ensure_seeds_loaded()
+
+        if not dry_run and year > self.config.simulation.start_year:
+            self._prepare_enrollment_decision_state(year)
+        if not dry_run:
+            self.workforce_projection.rebuild(
+                year,
+                scenario_id=self.config.scenario_id or "default",
+                plan_design_id=self.config.plan_design_id or "default",
+            )
 
         # Start-year specific initialization
         if year == self.config.simulation.start_year:
@@ -933,7 +945,11 @@ class PipelineOrchestrator:
             else:
                 error = "missing or ambiguous stage outcome"
 
-        raise PipelineStageError(f"{context}: {error}")
+        correlation_id = stage_result.get("correlation_id")
+        correlation_context = (
+            f" [correlation_id={correlation_id}]" if correlation_id else ""
+        )
+        raise PipelineStageError(f"{context}{correlation_context}: {error}")
 
     def get_adaptive_batch_size(self) -> int:
         """Get current adaptive batch size from memory manager"""

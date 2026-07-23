@@ -11,14 +11,39 @@ function authHeaders(): Record<string, string> {
   return API_TOKEN ? { Authorization: `Bearer ${API_TOKEN}` } : {};
 }
 
-function fetchWithAuth(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  return fetch(input, {
+export const RUN_CONSISTENCY_EVENT = 'planalign:run-consistency';
+
+export interface RunConsistencyDetail {
+  warning: 'run_in_progress' | null;
+  activeRunIds: string | null;
+  resultRunIds: string | null;
+}
+
+function isScenarioRead(input: RequestInfo | URL, init?: RequestInit): boolean {
+  const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
+  if (method !== 'GET') return false;
+  const url = String(input);
+  return url.includes('/scenarios') || /[?&](scenario_id|scenarios|scenario_a|scenario_b|baseline)=/.test(url);
+}
+
+async function fetchWithAuth(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const response = await fetch(input, {
     ...init,
     headers: {
       ...init?.headers,
       ...authHeaders(),
     },
   });
+  if (isScenarioRead(input, init)) {
+    window.dispatchEvent(new CustomEvent<RunConsistencyDetail>(RUN_CONSISTENCY_EVENT, {
+      detail: {
+        warning: response.headers.get('X-PlanAlign-Run-Warning') as 'run_in_progress' | null,
+        activeRunIds: response.headers.get('X-PlanAlign-Active-Run-Id'),
+        resultRunIds: response.headers.get('X-PlanAlign-Result-Run-Id'),
+      },
+    }));
+  }
+  return response;
 }
 
 // ============================================================================

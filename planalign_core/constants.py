@@ -100,6 +100,7 @@ MODEL_INT_BASELINE_WORKFORCE = "int_baseline_workforce"
 MODEL_INT_ACTIVE_EMPLOYEES_PREV_YEAR = "int_active_employees_prev_year_snapshot"
 MODEL_INT_EMPLOYEE_COMPENSATION = "int_employee_compensation_by_year"
 MODEL_INT_WORKFORCE_NEEDS = "int_workforce_needs"
+MODEL_INT_WORKFORCE_STATE_ACCUMULATOR = "int_workforce_state_accumulator"
 MODEL_INT_NEW_HIRE_COMPENSATION = "int_new_hire_compensation_staging"
 MODEL_INT_ENROLLMENT_STATE_ACCUMULATOR = "int_enrollment_state_accumulator"
 MODEL_INT_DEFERRAL_RATE_STATE_ACCUMULATOR = "int_deferral_rate_state_accumulator"
@@ -118,6 +119,53 @@ MODEL_INT_WORKFORCE_SNAPSHOT_FINAL = "int_workforce_snapshot_final"
 MODEL_FCT_YEARLY_EVENTS = "fct_yearly_events"
 MODEL_FCT_WORKFORCE_SNAPSHOT = "fct_workforce_snapshot"
 MODEL_FCT_DC_PLAN_SUMMARY = "fct_dc_plan_summary"
+
+# Feature 122 graph ownership. These classes are intentionally disjoint and
+# mirrored by tests/fixtures/state_pipeline_graph_contract.yaml.
+EVENT_CANDIDATE_MODELS = (
+    "int_hiring_events",
+    "int_eligibility_events",
+    "int_termination_events",
+    "int_new_hire_termination_events",
+    "int_promotion_events",
+    "int_merit_events",
+    "int_enrollment_events",
+    "int_deferral_rate_escalation_events",
+    "int_deferral_match_response_events",
+)
+EVENT_PUBLICATION_MODELS = (
+    "int_current_year_events",
+    MODEL_FCT_YEARLY_EVENTS,
+)
+DOMAIN_STATE_MODELS = (
+    MODEL_INT_WORKFORCE_STATE_ACCUMULATOR,
+    MODEL_INT_ENROLLMENT_STATE_ACCUMULATOR,
+    MODEL_INT_DEFERRAL_RATE_STATE_ACCUMULATOR,
+)
+BENEFIT_CALCULATION_MODELS = (
+    "int_employer_eligibility",
+    "int_employee_contributions",
+    "int_employer_core_contributions",
+    "int_employee_match_calculations",
+)
+SNAPSHOT_PUBLICATION_MODELS = (
+    "fct_employer_match_events",
+    MODEL_FCT_WORKFORCE_SNAPSHOT,
+)
+STATE_PIPELINE_OWNERSHIP_MODELS = {
+    "EVENT_CANDIDATE": EVENT_CANDIDATE_MODELS,
+    "EVENT_PUBLICATION": EVENT_PUBLICATION_MODELS,
+    "DOMAIN_STATE": DOMAIN_STATE_MODELS,
+    "BENEFIT_CALCULATION": BENEFIT_CALCULATION_MODELS,
+    "SNAPSHOT_PUBLICATION": SNAPSHOT_PUBLICATION_MODELS,
+}
+STATE_PIPELINE_AUDIT_SINKS = frozenset(
+    {
+        "fct_employer_match_events",
+        "fct_compensation_growth",
+        "fct_policy_optimization",
+    }
+)
 
 
 # =============================================================================

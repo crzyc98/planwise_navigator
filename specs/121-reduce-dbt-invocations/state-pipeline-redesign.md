@@ -73,13 +73,17 @@ workforce-state accumulator   enrollment-state accumulator
 4. The existing fact-backed `enrollment_decision_projection` remains a valid
    prior-state boundary. It is rebuilt before event generation and reads only years
    earlier than the decision year.
+5. SQL and Polars event-generation modes must converge on the same publication
+   contract even if their candidate sources differ. Neither mode may introduce a
+   current-year fact-table feedback read.
 
 ### Domain state
 
-1. Replace the orphaned `int_employee_state_by_year` with a scenario- and
-   plan-scoped workforce-state accumulator, or rebuild that model to fulfill this
-   role. It owns employment status, dates, compensation, level, age, tenure, and
-   proration only.
+1. Introduce a shadow, scenario- and plan-scoped workforce-state accumulator before
+   replacing the orphaned `int_employee_state_by_year`. Do not promote the current
+   model in place: its hard-coded scope and unconsumed output have never passed an
+   authoritative parity gate. The canonical accumulator owns employment status,
+   dates, compensation, level, age, tenure, and proration only.
 2. Keep enrollment and deferral state in their existing domain accumulators. Do not
    fold benefit/account fields into workforce state.
 3. Make employer-core, employee-contribution, and match calculations consume the
@@ -107,6 +111,9 @@ workforce-state accumulator   enrollment-state accumulator
 ### 1. Characterize current behavior
 
 - Freeze the accepted A+B databases as golden inputs.
+- Record their config, census, construction-signature, code-revision, and database
+  fingerprints. Golden databases are ignored PII-bearing artifacts and cannot be the
+  only durable definition of expected behavior.
 - Record per-year and per-event-type counts, duplicate multiplicities, schemas, and
   state transition samples.
 - Add graph-contract tests for model ownership, duplicate yearly builds, and staged
@@ -125,7 +132,9 @@ workforce-state accumulator   enrollment-state accumulator
 
 - Define the workforce-state contract from the columns actually consumed by
   contributions, match, and the final snapshot.
-- Implement year N as year N-1 workforce state plus year N workforce events.
+- Build it first as a shadow model. Implement year N as year N-1 workforce state plus
+  year N workforce events and compare it with accepted outputs before moving a
+  consumer.
 - Migrate employer-core and match consumers away from
   `int_workforce_snapshot_optimized`.
 - Compare the new state relation with the corresponding accepted snapshot columns
@@ -151,7 +160,11 @@ workforce-state accumulator   enrollment-state accumulator
 
 - Every `fct_*` and `dim_*` mart has bidirectional `EXCEPT ALL` parity with the
   accepted A+B baseline, excluding only documented audit timestamps.
+- Public mart schemas, deterministic event IDs, event sequencing, and duplicate
+  multiplicities remain unchanged.
 - Event counts match by scenario, plan, year, and event type.
+- Both SQL and Polars event-generation modes satisfy the normalized publication
+  contract and their existing mode-specific parity expectations.
 - No current-year event candidate reads `fct_yearly_events`.
 - `fct_yearly_events` and `fct_workforce_snapshot` are each published once per year.
 - Every staged production model either has a downstream consumer or is explicitly
@@ -159,6 +172,13 @@ workforce-state accumulator   enrollment-state accumulator
 - Every temporal table is keyed by scenario, plan, employee, and simulation year as
   applicable; no hard-coded scenario or plan identifiers remain.
 - No STATE_ACCUMULATION model requires command-level `--full-refresh`.
+- Census enrollment state remains reconstructible from census plus immutable facts;
+  the disposable `enrollment_decision_projection` never becomes authoritative state.
+- Post-termination integrity remains intact: no employee receives a forbidden event
+  after their effective termination boundary.
+- Failed-stage, stale-rerun, determinism, and multi-year invariant suites remain green,
+  including partially present outputs that must stay associated with failed status.
+- Peak RSS remains within 10% of the accepted A+B baseline.
 - The shared development database remains byte-unchanged; all behavioral validation
   uses isolated databases.
 

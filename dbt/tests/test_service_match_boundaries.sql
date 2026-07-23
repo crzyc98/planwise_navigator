@@ -43,7 +43,7 @@ WITH match_calculations AS (
             employee_id,
             simulation_year,
             FLOOR(COALESCE(current_tenure, 0))::INT AS current_tenure
-        FROM {{ ref('int_workforce_snapshot_optimized') }}
+        FROM {{ ref('int_workforce_state_accumulator') }}
     ) snap ON mc.employee_id = snap.employee_id
             AND mc.simulation_year = snap.simulation_year
     WHERE mc.simulation_year = {{ var('simulation_year', 2025) }}

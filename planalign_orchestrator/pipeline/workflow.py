@@ -17,6 +17,7 @@ from enum import Enum
 from typing import List
 
 from planalign_core.constants import (
+    MODEL_FCT_YEARLY_EVENTS,
     MODEL_INT_ACTIVE_EMPLOYEES_PREV_YEAR,
     MODEL_INT_BASELINE_WORKFORCE,
     MODEL_INT_EMPLOYEE_COMPENSATION,
@@ -27,7 +28,7 @@ from planalign_core.constants import (
     MODEL_INT_PROMOTION_EVENTS,
     MODEL_INT_TERMINATION_EVENTS,
     MODEL_INT_WORKFORCE_NEEDS,
-    MODEL_FCT_YEARLY_EVENTS,
+    MODEL_INT_WORKFORCE_STATE_ACCUMULATOR,
     MODEL_FCT_WORKFORCE_SNAPSHOT,
 )
 
@@ -200,8 +201,6 @@ class WorkflowBuilder:
                     "int_hiring_events",
                     "int_new_hire_termination_events",
                     "int_employee_termination_dates",
-                    # Build employer eligibility after new-hire terminations to ensure flags are available
-                    "int_employer_eligibility",
                     "int_hazard_promotion",
                     "int_hazard_merit",
                     MODEL_INT_PROMOTION_EVENTS,
@@ -221,11 +220,9 @@ class WorkflowBuilder:
                 name=WorkflowStage.STATE_ACCUMULATION,
                 dependencies=[WorkflowStage.EVENT_GENERATION],
                 models=[
-                    MODEL_FCT_YEARLY_EVENTS,
-                    # Epic E068B: Build employee state accumulator early for O(1) state access
-                    "int_employee_state_by_year",
-                    # Build proration snapshot before contributions so all bases are prorated
-                    "int_workforce_snapshot_optimized",
+                    # Authoritative workforce-only state consumed by benefit models.
+                    MODEL_INT_WORKFORCE_STATE_ACCUMULATOR,
+                    "int_employer_eligibility",
                     MODEL_INT_ENROLLMENT_STATE_ACCUMULATOR,
                     "int_deferral_rate_state_accumulator",
                     "int_deferral_escalation_state_accumulator",
@@ -330,6 +327,7 @@ class WorkflowBuilder:
                     "int_hazard_merit",
                     MODEL_INT_PROMOTION_EVENTS,
                     MODEL_INT_MERIT_EVENTS,
+                    MODEL_FCT_YEARLY_EVENTS,
                 ],
                 validation_rules=["hire_termination_ratio", "event_sequence"],
                 parallel_safe=False,
@@ -338,9 +336,7 @@ class WorkflowBuilder:
                 name=WorkflowStage.STATE_ACCUMULATION,
                 dependencies=[WorkflowStage.EVENT_GENERATION],
                 models=[
-                    MODEL_FCT_YEARLY_EVENTS,
-                    "int_employee_state_by_year",
-                    "int_workforce_snapshot_optimized",
+                    MODEL_INT_WORKFORCE_STATE_ACCUMULATOR,
                     MODEL_FCT_WORKFORCE_SNAPSHOT,
                     # S051 calibration mart -- the per-year avg comp / YoY growth
                     # source. Not part of the standard workflow; added here.

@@ -90,6 +90,7 @@ def test_execute_stage_core_includes_stage_year_and_error_context():
             "year": 2025,
             "success": False,
             "error": "missing model int_employee_compensation",
+            "correlation_id": "corr-122",
         }
     )
 
@@ -100,6 +101,7 @@ def test_execute_stage_core_includes_stage_year_and_error_context():
     assert "foundation" in message
     assert "2025" in message
     assert "missing model int_employee_compensation" in message
+    assert "correlation_id=corr-122" in message
 
 
 def test_execute_stage_core_uses_generic_error_when_error_missing():

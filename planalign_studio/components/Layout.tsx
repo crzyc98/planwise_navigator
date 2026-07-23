@@ -15,6 +15,8 @@ import {
   updateWorkspace as apiUpdateWorkspace,
   deleteWorkspace as apiDeleteWorkspace,
   getActiveSimulations,
+  RUN_CONSISTENCY_EVENT,
+  RunConsistencyDetail,
   Workspace as ApiWorkspace,
 } from '../services/api';
 
@@ -125,6 +127,16 @@ export default function Layout() {
   const [runningScenarioId, setRunningScenarioId] = useState<string | null>(null);
   const lastHeartbeatRef = useRef<number>(0);
   const checkInFlightRef = useRef<boolean>(false);
+  const [runConsistency, setRunConsistency] = useState<RunConsistencyDetail | null>(null);
+
+  useEffect(() => {
+    const handleRunConsistency = (event: Event) => {
+      const detail = (event as CustomEvent<RunConsistencyDetail>).detail;
+      setRunConsistency(detail.warning ? detail : null);
+    };
+    window.addEventListener(RUN_CONSISTENCY_EVENT, handleRunConsistency);
+    return () => window.removeEventListener(RUN_CONSISTENCY_EVENT, handleRunConsistency);
+  }, []);
 
   const setSimulationRunning = useCallback((runId: string, scenarioId: string) => {
     setIsSimulationRunning(true);
@@ -853,6 +865,18 @@ export default function Layout() {
              </div>
           </div>
         </header>
+
+        {runConsistency?.warning === 'run_in_progress' && (
+          <div
+            role="status"
+            className="flex items-center gap-3 border-b border-amber-200 bg-amber-50 px-8 py-3 text-sm text-amber-900"
+          >
+            <AlertTriangle size={18} className="flex-shrink-0" />
+            <span>
+              A simulation is in progress. Results remain pinned to the latest successful run until the new run completes.
+            </span>
+          </div>
+        )}
 
         {/* Scrollable Content Area */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-8">

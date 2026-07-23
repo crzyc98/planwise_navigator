@@ -1,0 +1,84 @@
+openapi: 3.1.0
+info:
+  title: PlanAlign scenario read consistency extension
+  version: 1.0.0
+  description: >-
+    Additive response-header contract applied to every scenario-scoped API read.
+    Existing response bodies and status schemas remain unchanged.
+components:
+  headers:
+    PlanAlignRunWarning:
+      description: >-
+        Present with value run_in_progress when one or more scenarios in the
+        response have a newer queued/running attempt while results are served
+        from the latest successful run.
+      schema:
+        type: string
+        const: run_in_progress
+    PlanAlignActiveRunId:
+      description: >-
+        Canonical UUID of the active attempt. Multi-scenario responses use a
+        deterministic comma-separated list of scenario_id=run_id pairs.
+      schema:
+        type: string
+    PlanAlignResultRunId:
+      description: >-
+        Canonical UUID of the successful run used for the response. Multi-scenario
+        responses use a deterministic comma-separated list of scenario_id=run_id pairs.
+      schema:
+        type: string
+paths: {}
+x-planalign-application:
+  applies_to:
+    - every scenario-scoped GET/read endpoint, including attempt status and telemetry
+    - scenario results
+    - analytics
+    - comparison
+    - NDT
+    - timeline
+    - vesting
+    - winners and losers
+    - configuration diff backed by simulation results
+    - scenario result and export downloads
+  excludes:
+    - non-scenario health, version, and administration endpoints
+  headers:
+    X-PlanAlign-Run-Warning:
+      $ref: '#/components/headers/PlanAlignRunWarning'
+    X-PlanAlign-Active-Run-Id:
+      $ref: '#/components/headers/PlanAlignActiveRunId'
+    X-PlanAlign-Result-Run-Id:
+      $ref: '#/components/headers/PlanAlignResultRunId'
+  behavior:
+    no_active_attempt: >-
+      Serve the current successful result. Omit warning and active-run headers;
+      the result-run header may still identify the selected run.
+    active_attempt_with_previous_success: >-
+      Result-bearing reads serve the previous successful result unchanged and
+      include all three headers. Other scenario reads include the warning and
+      active-run headers without inventing a result run ID.
+    active_attempt_without_success: >-
+      Return the existing no-results response and identify the active attempt;
+      never serve its partial database.
+    failed_or_cancelled_attempt: >-
+      Continue serving the previous successful result without an in-progress warning.
+    newly_successful_attempt: >-
+      After atomic pointer promotion, serve the new result run ID.
+    pointer_integrity_failure: >-
+      Return an explicit server-side integrity error; do not silently roll back.
+  cors:
+    expose_headers:
+      - X-PlanAlign-Run-Warning
+      - X-PlanAlign-Active-Run-Id
+      - X-PlanAlign-Result-Run-Id
+  studio:
+    handling: >-
+      The centralized authenticated fetch layer consumes the headers and emits
+      one deduplicated global warning/banner; route components do not each invent
+      warning behavior.
+  latency:
+    target: At least 95 percent of representative scenario-scoped reads complete within two seconds.
+    conditions:
+      - no managed simulation attempt is active
+      - a newer managed simulation attempt is active and the latest successful result is served
+    evidence: Record both conditions separately so pointer resolution and warning enrichment cannot hide a regression.

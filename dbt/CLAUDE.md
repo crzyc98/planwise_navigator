@@ -84,8 +84,8 @@ Analysts control simulation via seed files:
 
 Year N reads Year N-1 state plus Year N events. Two mechanisms:
 
-- **Temporal accumulators** (`int_enrollment_state_accumulator`, `int_deferral_rate_state_accumulator`, `int_deferral_escalation_state_accumulator`): incremental models that read their own prior-year rows via `{{ this }}` — **never `--full-refresh` these mid-simulation or prior-year state is destroyed**.
-- **Prior-year snapshot reads** (e.g., `int_active_employees_prev_year_snapshot`): read `fct_workforce_snapshot` at `simulation_year - 1`.
+- **Temporal accumulators** (`int_workforce_state_accumulator`, `int_enrollment_state_accumulator`, `int_deferral_rate_state_accumulator`, `int_deferral_escalation_state_accumulator`): incremental models that read their own prior-year rows via `{{ this }}` — **never `--full-refresh` these mid-simulation or prior-year state is destroyed**.
+- **Prior-year workforce reads** (e.g., `int_active_employees_prev_year_snapshot`): read the disposable, orchestrator-built `workforce_state_projection`, which contains only years before the active simulation year.
 
 **Layering rule and its one sanctioned exception:** `int_*` models must not read from `fct_*` tables, **except `fct_yearly_events`**. The orchestrator builds `fct_yearly_events` at the start of STATE_ACCUMULATION, and 20+ downstream `int_*` state models legitimately `ref()` it within the same year. Reading any other `fct_*` table from an `int_*` model (other than prior-year `fct_workforce_snapshot` reads) is a circular-dependency bug.
 
@@ -122,11 +122,11 @@ The PipelineOrchestrator executes models per year in this sequence (see `planali
 1. **INITIALIZATION**: `staging.*` (Year 1 only)
 2. **FOUNDATION**: `int_baseline_workforce`, `int_employee_compensation_by_year`, workforce needs
 3. **EVENT_GENERATION**: termination → hiring → new-hire termination → promotion → merit → eligibility → enrollment → deferral events
-4. **STATE_ACCUMULATION**: `fct_yearly_events` → state accumulators → contributions/match → `fct_workforce_snapshot` (batched dbt invocations; ordering comes from the dbt DAG)
+4. **STATE_ACCUMULATION**: state accumulators → contributions/core/match → `fct_workforce_snapshot` (one dependency-closed dbt invocation; ordering comes from the dbt DAG)
 5. **VALIDATION**: on-demand data-quality dbt tests
 6. **REPORTING**: Audit reports
 
-`int_workforce_snapshot_optimized` and `int_deferral_rate_escalation_events` always run with `--full-refresh`; the orchestrator isolates them so the flag never touches the temporal accumulators.
+EVENT_GENERATION publishes `fct_yearly_events` before STATE_ACCUMULATION. No state-stage model requires a command-level `--full-refresh` exception.
 
 ## Performance Guidance
 

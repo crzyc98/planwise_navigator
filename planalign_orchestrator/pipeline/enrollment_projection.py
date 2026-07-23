@@ -43,6 +43,8 @@ class EnrollmentDecisionProjection:
         "latest_event_id": "VARCHAR",
         "latest_event_year": "INTEGER",
         "latest_event_effective_date": "DATE",
+        "authoritative_enrollment_date": "DATE",
+        "authoritative_is_enrolled": "BOOLEAN",
     }
 
     def __init__(self, db_manager: DatabaseConnectionManager) -> None:
@@ -194,12 +196,32 @@ class EnrollmentDecisionProjection:
                   COALESCE(e.current_deferral_rate, b.current_deferral_rate) AS current_deferral_rate,
                   e.latest_event_id,
                   e.latest_event_year,
-                  e.latest_event_effective_date
+                  e.latest_event_effective_date,
+                  CAST(NULL AS DATE) AS authoritative_enrollment_date,
+                  CAST(NULL AS BOOLEAN) AS authoritative_is_enrolled
                 FROM baseline b
                 FULL OUTER JOIN event_state e ON b.employee_id = e.employee_id
                 """,
                 parameters,
             )
+            has_enrollment_state = conn.execute(
+                "SELECT COUNT(*) > 0 FROM information_schema.tables "
+                "WHERE table_schema = 'main' "
+                "AND table_name = 'int_enrollment_state_accumulator'"
+            ).fetchone()[0]
+            if has_enrollment_state:
+                conn.execute(
+                    f"""
+                    UPDATE {temp_table} AS projection
+                    SET authoritative_enrollment_date = state.enrollment_date,
+                        authoritative_is_enrolled = state.enrollment_status
+                    FROM int_enrollment_state_accumulator AS state
+                    WHERE projection.employee_id = state.employee_id
+                      AND state.simulation_year = ? - 1
+                      AND state.scenario_id = ?
+                    """,
+                    [decision_year, scenario_id],
+                )
             duplicates = conn.execute(
                 f"SELECT COUNT(*) - COUNT(DISTINCT employee_id) FROM {temp_table}"
             ).fetchone()[0]

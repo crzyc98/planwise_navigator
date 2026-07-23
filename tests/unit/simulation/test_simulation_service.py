@@ -116,7 +116,7 @@ class TestSimulationServiceCancelSimulation:
         service._process_registry.register("run-123", process)
 
         with patch(
-            "planalign_api.services.simulation.service.CANCEL_GRACE_SECONDS", 0.01
+            "planalign_api.services.simulation.run_execution.CANCEL_GRACE_SECONDS", 0.01
         ):
             result = asyncio.run(service.cancel_simulation("run-123"))
 
@@ -237,5 +237,100 @@ class TestScenarioSeedIsolation:
 
     def test_subprocess_environment_carries_authoritative_run_id(self, tmp_path):
         run_id = "12345678-1234-5678-9234-567812345678"
-        env = SimulationService._build_env(tmp_path, run_id)
+        database = tmp_path / "runs" / run_id / "simulation.duckdb"
+        env = SimulationService._build_env(tmp_path, run_id, database)
         assert env["PLANALIGN_RUN_ID"] == run_id
+        assert env["DATABASE_PATH"] == str(database)
+
+
+@pytest.mark.fast
+class TestRunLocalLifecycle:
+    def test_prepare_writes_run_local_config_without_touching_scenario_db(
+        self, tmp_path
+    ):
+        scenario = tmp_path / "scenario"
+        scenario.mkdir()
+        run_dir = scenario / "runs" / "run"
+        run_dir.mkdir(parents=True)
+        scenario_database = scenario / "simulation.duckdb"
+        scenario_database.write_bytes(b"legacy-stays-unchanged")
+        census = tmp_path / "census.parquet"
+        census.touch()
+        storage = MagicMock()
+        storage._scenario_path.return_value = scenario
+        service = SimulationService(storage)
+        config = {
+            "setup": {"census_parquet_path": str(census)},
+            "simulation": {"start_year": 2025, "end_year": 2027},
+        }
+
+        with patch.object(service, "_write_seeds"):
+            service._prepare_simulation("ws", "scenario", config, run_dir)
+
+        assert (run_dir / "config.yaml").exists()
+        assert not (scenario / "config.yaml").exists()
+        assert scenario_database.read_bytes() == b"legacy-stays-unchanged"
+
+    def test_success_promotion_precedes_completed_status(self, tmp_path):
+        storage = MagicMock()
+        storage.get_scenario.return_value = MagicMock(name="Scenario")
+        service = SimulationService(storage)
+        parser = MagicMock(events_generated=12)
+        recorder = MagicMock()
+        order = []
+
+        def archive(**kwargs):
+            order.append("metadata")
+            kwargs["finalize_provenance"]()
+            order.append("export")
+
+        storage.publish_current_result.side_effect = lambda *args: order.append(
+            "pointer"
+        )
+        storage.update_scenario_status.side_effect = lambda *args: order.append(
+            "scenario_status"
+        )
+        recorder.finalize.side_effect = lambda *args, **kwargs: order.append(
+            "provenance"
+        )
+
+        def update(*args, **kwargs):
+            order.append("run_status")
+
+        with patch(
+            "planalign_api.services.simulation.service.archive_run",
+            side_effect=archive,
+        ), patch("planalign_api.services.simulation.service.get_telemetry_service"):
+            service._finalize_successful_simulation(
+                "ws",
+                "scenario",
+                "12345678-1234-5678-9234-567812345678",
+                {"simulation": {"random_seed": 42}},
+                tmp_path,
+                2025,
+                2027,
+                3,
+                parser,
+                MagicMock(),
+                1.0,
+                update,
+                run_dir=tmp_path / "runs" / "run",
+                provenance_recorder=recorder,
+            )
+
+        assert order[:6] == [
+            "metadata",
+            "provenance",
+            "export",
+            "pointer",
+            "run_status",
+            "scenario_status",
+        ]
+
+    def test_facade_stays_below_module_size_limit(self):
+        source = (
+            Path("planalign_api/services/simulation/service.py")
+            .read_text()
+            .splitlines()
+        )
+        assert len(source) < 600

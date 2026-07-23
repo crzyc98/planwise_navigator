@@ -1,0 +1,17 @@
+schema_version: 1
+exclusions:
+  - relation: fct_yearly_events
+    column: created_at
+    reason: Exact CURRENT_TIMESTAMP audit value generated only when fct_yearly_events publishes immutable events.
+  - relation: fct_workforce_snapshot
+    column: snapshot_created_at
+    reason: Exact CURRENT_TIMESTAMP audit value generated only when fct_workforce_snapshot publishes the composed snapshot.
+  - relation: fct_employer_match_events
+    column: created_at
+    reason: Exact CURRENT_TIMESTAMP audit value generated only when fct_employer_match_events publishes its audit fact.
+  - relation: fct_compensation_growth
+    column: analysis_timestamp
+    reason: Exact CURRENT_TIMESTAMP analysis value generated only by the calibration-specific fct_compensation_growth mart.
+  - relation: fct_policy_optimization
+    column: analysis_timestamp
+    reason: Exact CURRENT_TIMESTAMP analysis value generated only by the policy-optimization-specific fct_policy_optimization mart.

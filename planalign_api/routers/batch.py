@@ -4,7 +4,7 @@ import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional, cast
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
@@ -184,9 +184,6 @@ async def _execute_batch(
         )
         batch_job.scenarios[index].status = "running"
 
-        # Update scenario status in storage to "running"
-        storage.update_scenario_status(workspace_id, scenario.id, "running", run_id)
-
         try:
             # Get merged config for this scenario
             merged_config = storage.get_merged_config(workspace_id, scenario.id)
@@ -206,15 +203,29 @@ async def _execute_batch(
 
             end_time = datetime.now(timezone.utc)
             duration = (end_time - start_time).total_seconds()
-            batch_job.scenarios[index].status = "completed"
-            batch_job.scenarios[index].progress = 100
+            stored_scenario = storage.get_scenario(workspace_id, scenario.id)
+            outcome: Literal["completed", "failed", "cancelled"]
+            if stored_scenario and stored_scenario.status in {
+                "completed",
+                "failed",
+                "cancelled",
+            }:
+                outcome = cast(
+                    Literal["completed", "failed", "cancelled"],
+                    stored_scenario.status,
+                )
+            else:
+                outcome = "failed"
+            batch_job.scenarios[index].status = outcome
+            if outcome == "completed":
+                batch_job.scenarios[index].progress = 100
+            else:
+                batch_job.scenarios[
+                    index
+                ].error_message = f"Simulation finished with terminal status {outcome}"
             logger.info(
-                f"  [{end_time.strftime('%H:%M:%S.%f')}] [Scenario {index}] COMPLETED: {scenario.name} (took {duration:.1f}s)"
-            )
-
-            # Update scenario status in storage to "completed"
-            storage.update_scenario_status(
-                workspace_id, scenario.id, "completed", run_id
+                f"  [{end_time.strftime('%H:%M:%S.%f')}] [Scenario {index}] "
+                f"{outcome.upper()}: {scenario.name} (took {duration:.1f}s)"
             )
 
         except Exception as e:
@@ -224,9 +235,6 @@ async def _execute_batch(
             )
             batch_job.scenarios[index].status = "failed"
             batch_job.scenarios[index].error_message = str(e)
-            # Update scenario status in storage to "failed"
-            storage.update_scenario_status(workspace_id, scenario.id, "failed", run_id)
-            raise
 
     try:
         if parallel:

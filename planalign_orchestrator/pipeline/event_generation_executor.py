@@ -223,8 +223,7 @@ class EventGenerationExecutor:
             PipelineStageError: If event generation fails for any year
 
         Notes:
-            - Uses tag:EVENT_GENERATION for model selection
-            - Excludes STATE_ACCUMULATION models incorrectly tagged EVENT_GENERATION
+            - Uses tag:EVENT_GENERATION for the complete active SQL event graph
             - Queries database to count events per year for statistics
             - Supports sharded execution for large datasets
         """
@@ -248,20 +247,14 @@ class EventGenerationExecutor:
                 if self.event_shards > 1:
                     results = self._execute_sharded_event_generation(year)
                 else:
-                    # Single execution per stage using tags
-                    # Exclude STATE_ACCUMULATION models that were incorrectly tagged EVENT_GENERATION via directory-level config
-                    # These models depend on STATE_ACCUMULATION outputs that don't exist yet during EVENT_GENERATION:
-                    # - int_employee_contributions: depends on int_deferral_rate_state_accumulator
-                    # - int_employee_match_calculations: depends on int_employee_contributions
+                    # Contribution and match calculations have distinct benefit
+                    # ownership, so the event tag is dependency-complete without
+                    # orchestration-only exclusions.
                     result = self.dbt_runner.execute_command(
                         [
                             "run",
                             "--select",
                             "tag:EVENT_GENERATION",
-                            "--exclude",
-                            "int_employee_contributions",
-                            "--exclude",
-                            "int_employee_match_calculations",
                         ],
                         simulation_year=year,
                         dbt_vars=self.dbt_vars,
@@ -411,7 +404,6 @@ class EventGenerationExecutor:
             "int_hiring_events",
             "int_new_hire_termination_events",
             "int_employee_termination_dates",
-            "int_employer_eligibility",
             "int_hazard_promotion",
             "int_hazard_merit",
             MODEL_INT_PROMOTION_EVENTS,
