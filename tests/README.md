@@ -255,24 +255,9 @@ Located in `tests/utils/json_validators.py`:
 
 ### GitHub Actions
 
-The `.github/workflows/tests.yml` workflow runs automatically on push and pull requests:
-
-```yaml
-name: Tests
-on: [push, pull_request]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-      - run: pip install -e ".[dev]"
-      - run: pytest -m "not slow" --cov --cov-report=xml
-      - uses: codecov/codecov-action@v3
-```
+The `.github/workflows/ci.yml` workflow runs automatically on push to `main`/`develop`
+and on pull requests to `main`, with `lint`, `test`, `multi-year-invariants`, and
+`validate-models` jobs. See that file for the current steps.
 
 ### Pre-commit Hook
 
