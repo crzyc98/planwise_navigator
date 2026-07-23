@@ -1,4 +1,4 @@
-"""Post-simulation run archival: metadata, database copy, Excel export, retention."""
+"""Post-simulation run archival: metadata, database validation, Excel export, retention."""
 
 import json
 import logging
@@ -35,8 +35,12 @@ def archive_run(
     seed: int,
     run_dir: Optional[Path] = None,
     finalize_provenance: Optional[Callable[[], None]] = None,
-) -> Optional[Path]:
-    """Persist run artifacts (config, metadata, database copy, Excel export).
+) -> None:
+    """Persist run artifacts (config, metadata) and validate the run database.
+
+    This is the promotion-critical path: it must complete (fast) before the
+    caller flips ``current_result`` and reports the run as completed. Excel
+    export is deliberately NOT done here — see ``export_run_excel``.
 
     Args:
         scenario_path: Root path of the scenario directory.
@@ -53,9 +57,6 @@ def archive_run(
         seed: Random seed used.
         run_dir: Pre-created run directory (created early for log persistence).
             If omitted, computed as scenario_path/runs/run_id.
-
-    Returns:
-        Path to the Excel export if created, else None.
     """
     if run_dir is None:
         run_dir = scenario_path / "runs" / run_id
@@ -89,7 +90,22 @@ def archive_run(
     except Exception as exc:
         raise RuntimeError("run-local database is not readable") from exc
 
-    # Export to Excel
+
+def export_run_excel(
+    *,
+    scenario_path: Path,
+    scenario_name: str,
+    config: Dict[str, Any],
+    seed: int,
+    run_dir: Path,
+) -> Optional[Path]:
+    """Export run results to Excel — a non-critical, potentially slow artifact.
+
+    For large populations this can take minutes (pandas/openpyxl writing and
+    formatting hundreds of thousands of rows). It must run AFTER the caller
+    has already promoted the result and reported the run completed, or the
+    UI appears stuck for the entire export duration with no progress signal.
+    """
     excel_path = export_results_to_excel(
         scenario_path=scenario_path,
         scenario_name=scenario_name,
@@ -101,7 +117,6 @@ def archive_run(
         logger.info(f"Excel export created: {excel_path}")
     else:
         logger.warning("Excel export skipped or failed")
-
     return excel_path
 
 

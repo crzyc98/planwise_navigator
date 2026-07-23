@@ -42,6 +42,12 @@ _VALID_IDENTIFIER_RE = re.compile(r"^[a-zA-Z_]\w*$")
 # Characters that are invalid in filenames on Windows/macOS/Linux, plus control chars
 _UNSAFE_FILENAME_CHARS_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
+# Auto-size column widths from a sample of rows rather than the full sheet.
+# Scanning every cell of a 600K-row Events_Detail sheet cell-by-cell in pure
+# Python (openpyxl has no C-accelerated path) turns export into a multi-minute
+# stall; a few hundred rows is enough to estimate a representative width.
+_AUTOSIZE_SAMPLE_ROWS = 200
+
 
 def _safe_filename_component(
     name: str, *, fallback: str = "scenario", max_length: int = 100
@@ -732,9 +738,11 @@ class ExcelExporter:
                 cell.fill = header_fill
                 cell.alignment = Alignment(horizontal="center")
 
-            # Auto-size columns
+            # Auto-size columns from a row sample (header + first N data rows)
+            # rather than scanning every cell — see _AUTOSIZE_SAMPLE_ROWS.
             for column_cells in worksheet.columns:
-                length = max(len(str(cell.value or "")) for cell in column_cells)
+                sample_cells = column_cells[: _AUTOSIZE_SAMPLE_ROWS + 1]
+                length = max(len(str(cell.value or "")) for cell in sample_cells)
                 column_letter = get_column_letter(column_cells[0].column)
                 # Set reasonable max width
                 worksheet.column_dimensions[column_letter].width = min(length + 2, 50)

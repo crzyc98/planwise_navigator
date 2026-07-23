@@ -282,7 +282,6 @@ class TestRunLocalLifecycle:
         def archive(**kwargs):
             order.append("metadata")
             kwargs["finalize_provenance"]()
-            order.append("export")
 
         storage.publish_current_result.side_effect = lambda *args: order.append(
             "pointer"
@@ -297,34 +296,50 @@ class TestRunLocalLifecycle:
         def update(*args, **kwargs):
             order.append("run_status")
 
+        def export(**kwargs):
+            order.append("export")
+
         with patch(
             "planalign_api.services.simulation.service.archive_run",
             side_effect=archive,
-        ), patch("planalign_api.services.simulation.service.get_telemetry_service"):
-            service._finalize_successful_simulation(
-                "ws",
-                "scenario",
-                "12345678-1234-5678-9234-567812345678",
-                {"simulation": {"random_seed": 42}},
-                tmp_path,
-                2025,
-                2027,
-                3,
-                parser,
-                MagicMock(),
-                1.0,
-                update,
-                run_dir=tmp_path / "runs" / "run",
-                provenance_recorder=recorder,
+        ), patch(
+            "planalign_api.services.simulation.service.export_run_excel",
+            side_effect=export,
+        ), patch(
+            "planalign_api.services.simulation.service.get_telemetry_service"
+        ):
+            asyncio.run(
+                service._finalize_successful_simulation(
+                    "ws",
+                    "scenario",
+                    "12345678-1234-5678-9234-567812345678",
+                    {"simulation": {"random_seed": 42}},
+                    tmp_path,
+                    2025,
+                    2027,
+                    3,
+                    parser,
+                    MagicMock(),
+                    1.0,
+                    update,
+                    run_dir=tmp_path / "runs" / "run",
+                    provenance_recorder=recorder,
+                )
             )
 
-        assert order[:6] == [
+        # Metadata/DB validation and promotion must precede completed status,
+        # so downstream reads never race an incomplete result. Excel export
+        # is slow for large populations and must run AFTER completed status
+        # is reported, not before (feature 122 regression: it used to block
+        # completion for minutes on large runs). It is offloaded to a worker
+        # thread so the event loop stays free to flush the completion frame.
+        assert order == [
             "metadata",
             "provenance",
-            "export",
             "pointer",
             "run_status",
             "scenario_status",
+            "export",
         ]
 
     def test_facade_stays_below_module_size_limit(self):
