@@ -8618,6 +8618,18 @@
             "title": "Analysis Year",
             "type": "integer"
           },
+          "total_terminated_employee_count": {
+            "description": "All employees terminated in the analysis year",
+            "minimum": 0.0,
+            "title": "Total Terminated Employee Count",
+            "type": "integer"
+          },
+          "vesting_eligible_terminated_employee_count": {
+            "description": "Terminated employees who were active and had employer contributions in the prior year",
+            "minimum": 0.0,
+            "title": "Vesting Eligible Terminated Employee Count",
+            "type": "integer"
+          },
           "current_total_forfeited": {
             "title": "Current Total Forfeited",
             "type": "string"
@@ -8645,6 +8657,7 @@
             "type": "string"
           },
           "terminated_employee_count": {
+            "description": "Deprecated compatibility field for the vesting-eligible terminated employee count",
             "minimum": 0.0,
             "title": "Terminated Employee Count",
             "type": "integer"
@@ -8656,6 +8669,8 @@
         },
         "required": [
           "analysis_year",
+          "total_terminated_employee_count",
+          "vesting_eligible_terminated_employee_count",
           "terminated_employee_count",
           "total_employer_contributions",
           "current_total_vested",

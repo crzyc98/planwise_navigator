@@ -247,6 +247,19 @@ class VestingService:
         ]
         return [dict(zip(columns, row)) for row in result]
 
+    def _get_total_terminated_employee_count(self, conn, year: int) -> int:
+        """Count all employees terminated in the selected analysis year."""
+        result = conn.execute(
+            """
+            SELECT COUNT(*)
+            FROM fct_workforce_snapshot
+            WHERE simulation_year = ?
+              AND UPPER(employment_status) = 'TERMINATED'
+            """,
+            [year],
+        ).fetchone()
+        return int(result[0]) if result else 0
+
     def _calculate_employee_details(
         self,
         employees: List[dict],
@@ -310,12 +323,17 @@ class VestingService:
         return details
 
     def _build_summary(
-        self, details: List[EmployeeVestingDetail], year: int
+        self,
+        details: List[EmployeeVestingDetail],
+        year: int,
+        total_terminated_employee_count: int,
     ) -> VestingAnalysisSummary:
         """Build summary statistics from employee details (T027)."""
         if not details:
             return VestingAnalysisSummary(
                 analysis_year=year,
+                total_terminated_employee_count=total_terminated_employee_count,
+                vesting_eligible_terminated_employee_count=0,
                 terminated_employee_count=0,
                 total_employer_contributions=Decimal("0"),
                 current_total_vested=Decimal("0"),
@@ -343,6 +361,8 @@ class VestingService:
 
         return VestingAnalysisSummary(
             analysis_year=year,
+            total_terminated_employee_count=total_terminated_employee_count,
+            vesting_eligible_terminated_employee_count=len(details),
             terminated_employee_count=len(details),
             total_employer_contributions=total_contributions,
             current_total_vested=current_vested,
@@ -423,7 +443,11 @@ class VestingService:
             # Get final year if not specified
             year = request.simulation_year or self._get_final_year(conn)
 
-            # Query terminated employees
+            total_terminated_employee_count = self._get_total_terminated_employee_count(
+                conn, year
+            )
+
+            # Query terminated employees with prior-year employer contributions.
             employees = self._get_terminated_employees(conn, year)
 
             if not employees:
@@ -434,7 +458,9 @@ class VestingService:
                     scenario_name=scenario_name,
                     current_schedule=request.current_schedule,
                     proposed_schedule=request.proposed_schedule,
-                    summary=self._build_summary([], year),
+                    summary=self._build_summary(
+                        [], year, total_terminated_employee_count
+                    ),
                     by_tenure_band=[],
                     employee_details=[],
                 )
@@ -445,7 +471,9 @@ class VestingService:
             )
 
             # Aggregate results
-            summary = self._build_summary(details, year)
+            summary = self._build_summary(
+                details, year, total_terminated_employee_count
+            )
             by_tenure_band = self._aggregate_by_tenure_band(details)
 
             return VestingAnalysisResponse(
