@@ -1,0 +1,6 @@
+employee_id,employee_birth_date,employee_hire_date,employee_gross_compensation,active,employee_deferral_rate,scheduled_hours_per_week
+MR_EMP_001,1980-01-01,2020-01-01,80000,true,0.02,40
+MR_EMP_002,1982-02-02,2019-02-02,85000,true,0.03,40
+MR_EMP_003,1984-03-03,2018-03-03,90000,true,0.04,40
+MR_EMP_004,1986-04-04,2017-04-04,95000,true,0.05,40
+NH_2025_001,1990-05-05,2025-01-02,70000,true,0.02,40

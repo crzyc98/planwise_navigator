@@ -97,6 +97,12 @@ export function buildConfigPayload(
       match_magnet_enabled: Boolean(formData.dcMatchMagnetEnabled),
       match_magnet_probability: Number(formData.dcMatchMagnetProbability) / 100,
       max_voluntary_deferral_percent: Number(formData.dcMaxVoluntaryDeferral) / 100,
+      deferral_match_response: {
+        enabled: Boolean(formData.dcMatchResponseEnabled),
+        upward_participation_rate: Number(formData.dcMatchResponseUpwardParticipation) / 100,
+        downward_enabled: Boolean(formData.dcMatchResponseDownwardEnabled),
+        downward_participation_rate: Number(formData.dcMatchResponseDownwardParticipation) / 100,
+      },
       opt_out_rate_young: Number(formData.dcOptOutRateTarget) / 100 * OPT_OUT_AGE_MULTIPLIERS.young,
       opt_out_rate_mid: Number(formData.dcOptOutRateTarget) / 100 * OPT_OUT_AGE_MULTIPLIERS.mid,
       opt_out_rate_mature: Number(formData.dcOptOutRateTarget) / 100 * OPT_OUT_AGE_MULTIPLIERS.mature,

@@ -316,6 +316,60 @@ export function DCPlanSection() {
          </div>
 
          <div className="col-span-6 h-px bg-gray-200 my-2"></div>
+         <div className="sm:col-span-6 mt-2">
+           <div className="flex items-center justify-between mb-1">
+             <h4 className="text-sm font-semibold text-gray-900">Match-Responsive Deferral Adjustment</h4>
+             <label htmlFor="dcplan-match-response-enabled" className="flex items-center">
+               <input
+                 id="dcplan-match-response-enabled"
+                 type="checkbox"
+                 name="dcMatchResponseEnabled"
+                 checked={formData.dcMatchResponseEnabled}
+                 onChange={handleChange}
+                 className="h-4 w-4 text-fidelity-green rounded"
+               />
+               <span className="ml-2 text-sm text-gray-600">Enabled</span>
+             </label>
+           </div>
+           <p className="text-xs text-gray-500 mb-3">In the first projection year, models active enrolled employees changing deferrals in response to the employer-match ceiling. This is distinct from Match Magnet, which affects voluntary enrollment behavior.</p>
+           <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-6">
+             <InputField
+               label="Increase Deferral Response"
+               {...inputProps('dcMatchResponseUpwardParticipation')}
+               type="number"
+               step="1"
+               suffix="%"
+               helper="Share of eligible employees below the match ceiling who increase deferrals (0–100%)."
+               min={0}
+               max={100}
+             />
+             <div className="sm:col-span-3">
+               <label htmlFor="dcplan-match-response-downward-enabled" className="flex items-center pt-6">
+                 <input
+                   id="dcplan-match-response-downward-enabled"
+                   type="checkbox"
+                   name="dcMatchResponseDownwardEnabled"
+                   checked={formData.dcMatchResponseDownwardEnabled}
+                   onChange={handleChange}
+                   className="h-4 w-4 text-fidelity-green rounded"
+                 />
+                 <span className="ml-2 text-sm text-gray-700">Allow Deferral Decreases</span>
+               </label>
+               <InputField
+                 label="Decrease Deferral Response"
+                 {...inputProps('dcMatchResponseDownwardParticipation')}
+                 type="number"
+                 step="1"
+                 suffix="%"
+                 helper="Share of eligible employees above the match ceiling who decrease deferrals (default: 5%)."
+                 min={0}
+                 max={100}
+               />
+             </div>
+           </div>
+         </div>
+
+         <div className="col-span-6 h-px bg-gray-200 my-2"></div>
          <div className="sm:col-span-6 flex items-center justify-between mb-2">
            <h4 className="text-sm font-semibold text-gray-900">Employer Match Formula</h4>
            <label htmlFor="dcplan-match-enabled" className="flex items-center">

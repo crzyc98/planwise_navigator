@@ -1,0 +1,5 @@
+# Studio-style scenario overrides applied to a workspace base configuration.
+dc_plan:
+  deferral_match_response:
+    enabled: true
+    upward_participation_rate: 0.40

@@ -162,6 +162,12 @@ export const DEFAULT_FORM_DATA: FormData = {
   dcMatchMagnetProbability: 45,
   dcMaxVoluntaryDeferral: 10,
 
+  // Match response is enabled by default for Studio scenarios.
+  dcMatchResponseEnabled: true,
+  dcMatchResponseUpwardParticipation: 40,
+  dcMatchResponseDownwardEnabled: true,
+  dcMatchResponseDownwardParticipation: 5,
+
   // DC Plan - Match Enable/Disable
   dcMatchEnabled: true,
 

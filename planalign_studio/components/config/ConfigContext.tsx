@@ -215,6 +215,16 @@ function mapDCPlanEnrollmentFields(cfg: any, prev: FormData): Partial<FormData> 
       ? cfg.dc_plan.match_magnet_probability * 100 : prev.dcMatchMagnetProbability,
     dcMaxVoluntaryDeferral: cfg.dc_plan?.max_voluntary_deferral_percent != null
       ? cfg.dc_plan.max_voluntary_deferral_percent * 100 : prev.dcMaxVoluntaryDeferral,
+    dcMatchResponseEnabled: cfg.dc_plan?.deferral_match_response?.enabled
+      ?? prev.dcMatchResponseEnabled,
+    dcMatchResponseUpwardParticipation: cfg.dc_plan?.deferral_match_response?.upward_participation_rate != null
+      ? cfg.dc_plan.deferral_match_response.upward_participation_rate * 100
+      : prev.dcMatchResponseUpwardParticipation,
+    dcMatchResponseDownwardEnabled: cfg.dc_plan?.deferral_match_response?.downward_enabled
+      ?? prev.dcMatchResponseDownwardEnabled,
+    dcMatchResponseDownwardParticipation: cfg.dc_plan?.deferral_match_response?.downward_participation_rate != null
+      ? cfg.dc_plan.deferral_match_response.downward_participation_rate * 100
+      : prev.dcMatchResponseDownwardParticipation,
   };
 }
 
