@@ -1,0 +1,4 @@
+employee_id,employee_ssn,employee_birth_date,employee_hire_date,employee_termination_date,employee_gross_compensation,employee_capped_compensation,active,employee_deferral_rate,employee_contribution,pre_tax_contribution,roth_contribution,after_tax_contribution,employer_core_contribution,employer_match_contribution,eligibility_entry_date,scheduled_hours_per_week,auto_escalation_opt_out,eligibility_override,boundary_group
+EDGE_CAP_BELOW,999-80-0031,1985-01-01,2015-01-01,,80000,80000,true,0.03,2400,2400,0,0,0,0,2015-01-01,40,false,,below_cap
+EDGE_CAP_EQUAL,999-80-0032,1985-01-01,2015-01-01,,80000,80000,true,0.06,4800,4800,0,0,0,0,2015-01-01,40,false,,at_cap
+EDGE_CAP_ABOVE,999-80-0033,1985-01-01,2015-01-01,,80000,80000,true,0.08,6400,6400,0,0,0,0,2015-01-01,40,false,,above_cap

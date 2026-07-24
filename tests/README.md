@@ -7,6 +7,12 @@ This comprehensive testing framework validates all aspects of the Fidelity PlanA
 
 ## Quick Start
 
+The focused edge-configuration matrix is available with:
+
+```bash
+pytest -m edge_config_matrix -v
+```
+
 ```bash
 # Run all tests
 python -m pytest
