@@ -1,0 +1,12 @@
+scenario_id: edge_escalation_cap
+plan_design_id: edge_plan
+simulation: {start_year: 2025, end_year: 2026, random_seed: 124004, target_growth_rate: 0.02}
+setup: {load_seeds: true, run_staging_models: true, validate_results: false, fail_on_validation_error: true, census_parquet_path: injected, eligibility_waiting_period_days: 0}
+compensation: {cola_rate: 0.02, merit_budget: 0.035, promotion_increase: 0.125}
+workforce: {total_termination_rate: 0.0, new_hire_termination_rate: 0.0}
+eligibility: {waiting_period_days: 0}
+plan_eligibility: {minimum_age: 18}
+enrollment: {auto_enrollment: {enabled: false}, proactive_enrollment: {enabled: false}}
+deferral_rates: {use_census_rates: true, plan_deferral_cap: 0.75, generate_synthetic_events: true}
+deferral_auto_escalation: {enabled: true, effective_day: "01-01", increment_amount: 0.01, maximum_rate: 0.06, hire_date_cutoff: "2000-01-01", require_active_enrollment: false, first_escalation_delay_years: 0}
+optimization: {max_workers: 1}
