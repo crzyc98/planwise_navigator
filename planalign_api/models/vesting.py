@@ -14,6 +14,7 @@ class VestingScheduleType(str, Enum):
     """Pre-defined vesting schedule types."""
 
     IMMEDIATE = "immediate"
+    CLIFF_1_YEAR = "cliff_1_year"
     CLIFF_2_YEAR = "cliff_2_year"
     CLIFF_3_YEAR = "cliff_3_year"
     CLIFF_4_YEAR = "cliff_4_year"

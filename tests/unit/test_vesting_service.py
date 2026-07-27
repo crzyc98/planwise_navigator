@@ -29,6 +29,38 @@ class TestGetVestingPercentage:
         pct = get_vesting_percentage(VestingScheduleType.IMMEDIATE, 5)
         assert pct == Decimal("1.0")
 
+    def test_cliff_1_year_before_cliff(self):
+        """1-Year Cliff: 0% before 1 year."""
+        assert get_vesting_percentage(VestingScheduleType.CLIFF_1_YEAR, 0) == Decimal(
+            "0.0"
+        )
+
+    def test_cliff_1_year_at_cliff(self):
+        """1-Year Cliff: 100% at exactly 1 year."""
+        pct = get_vesting_percentage(VestingScheduleType.CLIFF_1_YEAR, 1)
+        assert pct == Decimal("1.0")
+
+    def test_cliff_1_year_partial_tenure_truncates_below_cliff(self):
+        """1-Year Cliff: fractional tenure under 1 year truncates to 0%."""
+        pct = get_vesting_percentage(VestingScheduleType.CLIFF_1_YEAR, 0.99)
+        assert pct == Decimal("0.0")
+
+    def test_cliff_1_year_clamps_above_cliff(self):
+        """1-Year Cliff: tenure beyond the cliff stays 100%."""
+        pct = get_vesting_percentage(VestingScheduleType.CLIFF_1_YEAR, 10)
+        assert pct == Decimal("1.0")
+
+    def test_cliff_1_year_hours_credit_denies_cliff_year(self):
+        """1-Year Cliff: failing the hours threshold drops the only vesting year."""
+        pct = get_vesting_percentage(
+            VestingScheduleType.CLIFF_1_YEAR,
+            1,
+            annual_hours=500,
+            require_hours=True,
+            hours_threshold=1000,
+        )
+        assert pct == Decimal("0.0")
+
     def test_cliff_2_year_before_cliff(self):
         """2-Year Cliff: 0% before 2 years."""
         assert get_vesting_percentage(VestingScheduleType.CLIFF_2_YEAR, 0) == Decimal(
@@ -296,9 +328,9 @@ class TestScheduleInfo:
             assert info.percentages
 
     def test_schedule_list_returns_all_schedules(self):
-        """get_schedule_list returns all 8 schedules."""
+        """get_schedule_list returns one entry per declared schedule type."""
         result = get_schedule_list()
-        assert len(result.schedules) == 8
+        assert len(result.schedules) == len(VestingScheduleType)
 
     def test_vesting_schedules_match_info(self):
         """VESTING_SCHEDULES and SCHEDULE_INFO have matching keys."""

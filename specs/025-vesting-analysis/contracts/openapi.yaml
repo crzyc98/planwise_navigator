@@ -119,6 +119,7 @@ components:
       type: string
       enum:
         - immediate
+        - cliff_1_year
         - cliff_2_year
         - cliff_3_year
         - cliff_4_year
@@ -126,7 +127,7 @@ components:
         - graded_3_year
         - graded_4_year
         - graded_5_year
-      description: Pre-defined vesting schedule types (8 total)
+      description: Pre-defined vesting schedule types (9 total)
 
     VestingScheduleInfo:
       type: object
