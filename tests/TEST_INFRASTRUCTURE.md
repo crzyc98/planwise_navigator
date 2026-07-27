@@ -6,6 +6,16 @@ Enterprise-grade testing framework with **90%+ coverage target** and **fast test
 
 ## Quick Start
 
+### Edge-Configuration Regression Matrix
+
+```bash
+pytest -m edge_config_matrix -v
+pytest -m edge_config_matrix -k broad_auto_enrollment_cutoff -v
+```
+
+The matrix has exactly four named cases, uses per-case temporary DuckDB files,
+and preserves failed databases under `var/test-artifacts/124/`.
+
 ### Run Fast Unit Tests (Developer Workflow)
 
 ```bash

@@ -150,6 +150,7 @@ markers = [
     "unit: Pure unit tests (no I/O)",
     "integration: Integration tests (database, dbt)",
     "multi_year_invariants: Three-year invariant and determinism suite",
+    "edge_config_matrix: Four-case edge configuration regression matrix",
     "e2e: End-to-end workflow tests",
 
     # Feature area markers

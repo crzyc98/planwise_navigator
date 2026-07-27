@@ -1,0 +1,14 @@
+scenario_id: edge_broad_cutoff
+plan_design_id: edge_plan
+simulation: {start_year: 2025, end_year: 2026, random_seed: 124001, target_growth_rate: 0.02}
+setup: {load_seeds: true, run_staging_models: true, validate_results: false, fail_on_validation_error: true, census_parquet_path: injected, eligibility_waiting_period_days: 0}
+compensation: {cola_rate: 0.02, merit_budget: 0.035, promotion_increase: 0.125}
+workforce: {total_termination_rate: 0.0, new_hire_termination_rate: 0.0}
+eligibility: {waiting_period_days: 0}
+plan_eligibility: {minimum_age: 18}
+enrollment:
+  auto_enrollment: {enabled: true, scope: all_eligible_employees, hire_date_cutoff: "2015-01-01", window_days: 45, default_deferral_rate: 0.04, opt_out_grace_period: 30}
+  proactive_enrollment: {enabled: false}
+deferral_rates: {use_census_rates: true, plan_deferral_cap: 0.75, generate_synthetic_events: true}
+deferral_auto_escalation: {enabled: false}
+optimization: {max_workers: 1}
