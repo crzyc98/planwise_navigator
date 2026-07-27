@@ -51,9 +51,3 @@ def test_violation_query_is_bounded(tmp_path: Path) -> None:
         connection.execute("INSERT INTO violations VALUES ('a'), ('b'), ('c')")
     rows = execute_violation_query(database, "SELECT employee_id FROM violations", 2)
     assert len(rows) == 2
-
-
-def test_shared_database_is_not_a_valid_matrix_target() -> None:
-    from tests.edge_config.catalog import CATALOG
-
-    assert all(case.config_path.parent != Path("dbt") for case in CATALOG)

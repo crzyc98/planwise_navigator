@@ -132,8 +132,18 @@ def edge_case(request: pytest.FixtureRequest) -> EdgeConfigScenario:
 
 
 @pytest.fixture
-def edge_run(edge_case: EdgeConfigScenario, tmp_path: Path) -> Iterator[ScenarioRun]:
+def edge_run(
+    edge_case: EdgeConfigScenario,
+    tmp_path: Path,
+    shared_edge_db_signature: tuple[int, str] | None,
+) -> Iterator[ScenarioRun]:
+    # Depending on the session-scoped signature captures it before the first
+    # simulation runs, so the teardown comparison below is meaningful.
     run = run_case(edge_case, tmp_path / f"{edge_case.name}.duckdb")
     yield run
     if run.error is not None:
         preserve_failed_run(run)
+    assert file_signature(SHARED_DEV_DB) == shared_edge_db_signature, (
+        f"{edge_case.name}: simulation modified the shared dev database "
+        f"{SHARED_DEV_DB}; each case must build only its own isolated database"
+    )

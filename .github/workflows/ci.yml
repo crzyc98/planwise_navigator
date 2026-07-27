@@ -156,7 +156,10 @@ jobs:
   edge-config-matrix:
     runs-on: ubuntu-latest
     needs: lint
-    timeout-minutes: 5
+    # Four sequential two-year simulations. Each costs ~105s on a GitHub runner
+    # (~2x a dev laptop), so the suite needs ~8min wall including setup.
+    # Matches multi-year-invariants, the sibling job that also runs real sims.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
