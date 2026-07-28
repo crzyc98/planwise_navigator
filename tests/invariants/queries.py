@@ -288,3 +288,18 @@ JOIN int_baseline_workforce baseline USING (employee_id)
 WHERE event.event_type = 'deferral_escalation'
   AND baseline.auto_escalation_opt_out
 """
+
+# Issue #493: int_baseline_workforce holds only the start year, so these
+# baseline-sourced columns silently became NULL from year 2 onward.
+ELIGIBILITY_STATE_PERSISTS = """
+SELECT
+  employee_id,
+  simulation_year,
+  current_eligibility_status,
+  employee_eligibility_date,
+  waiting_period_days
+FROM fct_workforce_snapshot
+WHERE current_eligibility_status IS NULL
+   OR employee_eligibility_date IS NULL
+   OR waiting_period_days IS NULL
+"""
