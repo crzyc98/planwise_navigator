@@ -116,6 +116,32 @@ baseline AS (
   WHERE baseline_rank = 1
 ),
 
+-- Issue #493: int_baseline_workforce only ever contains the start year, so the
+-- baseline CTE above is empty from year 2 onward and every eligibility column
+-- sourced from it fell through to NULL. These fields originate in the census
+-- (int_baseline_workforce passes stg_census_data straight through) and are not
+-- recomputed per year, so the correct behaviour is to carry the established
+-- value forward rather than re-derive it.
+prior_year_eligibility AS (
+{% if is_incremental() and simulation_year > start_year %}
+  SELECT
+    employee_id,
+    employee_eligibility_date,
+    waiting_period_days,
+    current_eligibility_status
+  FROM {{ this }}
+  WHERE simulation_year = {{ simulation_year }} - 1
+{% else %}
+  -- Start year (or a first build): nothing to carry forward.
+  SELECT
+    CAST(NULL AS VARCHAR) AS employee_id,
+    CAST(NULL AS DATE) AS employee_eligibility_date,
+    CAST(NULL AS INTEGER) AS waiting_period_days,
+    CAST(NULL AS VARCHAR) AS current_eligibility_status
+  WHERE FALSE
+{% endif %}
+),
+
 contributions AS (
   SELECT
     employee_id,
@@ -150,27 +176,34 @@ eligibility AS (
 composed AS (
   SELECT
     workforce.*,
-    CASE
-      WHEN {{ simulation_year }} = {{ start_year }}
-        AND baseline.employee_id IS NULL
-        AND EXTRACT(YEAR FROM workforce.employee_hire_date) = {{ simulation_year }}
-        THEN workforce.employee_hire_date::DATE
-      ELSE baseline.employee_eligibility_date
-    END AS employee_eligibility_date,
-    CASE
-      WHEN {{ simulation_year }} = {{ start_year }}
-        AND baseline.employee_id IS NULL
-        AND EXTRACT(YEAR FROM workforce.employee_hire_date) = {{ simulation_year }}
-        THEN 0
-      ELSE baseline.waiting_period_days
-    END AS waiting_period_days,
-    CASE
-      WHEN {{ simulation_year }} = {{ start_year }}
-        AND baseline.employee_id IS NULL
-        AND EXTRACT(YEAR FROM workforce.employee_hire_date) = {{ simulation_year }}
-        THEN 'eligible'
-      ELSE baseline.current_eligibility_status
-    END AS current_eligibility_status,
+    -- Issue #493: census baseline (start year) -> value carried from the prior
+    -- year -> the new-hire default. Precedence preserves start-year behaviour
+    -- exactly: prior_year_eligibility is empty in the start year, and baseline
+    -- is empty after it, so at most one of the first two ever matches.
+    COALESCE(
+      baseline.employee_eligibility_date,
+      prior_year_eligibility.employee_eligibility_date,
+      CASE
+        WHEN EXTRACT(YEAR FROM workforce.employee_hire_date) = {{ simulation_year }}
+          THEN workforce.employee_hire_date::DATE
+      END
+    ) AS employee_eligibility_date,
+    COALESCE(
+      baseline.waiting_period_days,
+      prior_year_eligibility.waiting_period_days,
+      CASE
+        WHEN EXTRACT(YEAR FROM workforce.employee_hire_date) = {{ simulation_year }}
+          THEN 0
+      END
+    ) AS waiting_period_days,
+    COALESCE(
+      baseline.current_eligibility_status,
+      prior_year_eligibility.current_eligibility_status,
+      CASE
+        WHEN EXTRACT(YEAR FROM workforce.employee_hire_date) = {{ simulation_year }}
+          THEN 'eligible'
+      END
+    ) AS current_eligibility_status,
     COALESCE(enrollment.enrollment_date, baseline.employee_enrollment_date)
       AS employee_enrollment_date,
     COALESCE(enrollment.enrollment_status, FALSE) AS is_enrolled_flag,
@@ -226,6 +259,7 @@ composed AS (
   LEFT JOIN enrollment USING (employee_id)
   LEFT JOIN deferral USING (employee_id)
   LEFT JOIN baseline USING (employee_id)
+  LEFT JOIN prior_year_eligibility USING (employee_id)
   LEFT JOIN contributions USING (employee_id)
   LEFT JOIN employer_match USING (employee_id)
   LEFT JOIN employer_core USING (employee_id)

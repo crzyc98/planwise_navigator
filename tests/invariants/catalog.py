@@ -85,4 +85,10 @@ CATALOG = (
         None,
         queries.DEFERRAL_OPTOUT_NOT_ESCALATED,
     ),
+    Invariant(
+        "eligibility-state-persists",
+        "Eligibility columns are populated in every year, not just the first.",
+        "#493",
+        queries.ELIGIBILITY_STATE_PERSISTS,
+    ),
 )
