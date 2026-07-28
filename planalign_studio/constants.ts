@@ -170,6 +170,25 @@ export const COLORS = {
   charts: ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#E91E63']
 };
 
+/**
+ * Colorblind-safe categorical series colors (Okabe-Ito, ordered to maximize
+ * separation between adjacent slots).
+ *
+ * COLORS.charts predates this and does not pass a CVD audit: the #FF8042 /
+ * #FFBB28 pair sits at ΔE 14.3 for normal vision and #FFBB28 falls outside the
+ * usable lightness band, so 4+ series become hard to tell apart. This palette
+ * clears both checks. Assign in fixed order and key by entity, never by rank,
+ * so filtering a series never repaints the survivors.
+ */
+export const SCENARIO_SERIES_COLORS = [
+  '#0072B2',
+  '#E69F00',
+  '#009E73',
+  '#CC79A7',
+  '#56B4E9',
+  '#D55E00',
+] as const;
+
 export const COMPARISON_COLORS = ['#00853F', '#2563EB'] as const;
 
 export const MOCK_BATCH_JOBS: BatchJob[] = [
