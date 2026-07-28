@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useOutletContext } from 'react-router-dom';
 import {
-  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+  LineChart, Line, BarChart, Bar, LabelList,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import {
@@ -33,6 +33,57 @@ const trendIcons: Record<string, React.ReactNode> = {
 const trendColors: Record<string, string> = {
   up: 'text-green-600',
   down: 'text-red-600',
+};
+
+const titleCase = (value: string) => value
+  .split('_')
+  .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+  .join(' ');
+
+/**
+ * Detailed employment statuses take fixed slots on the categorical palette, so a
+ * status keeps its colour whether or not the others appear in a run. The ad-hoc
+ * hexes this replaces put the two termination series at ΔE 7.1 for NORMAL
+ * vision — they were not reliably separable by anyone.
+ */
+const STATUS_SERIES_COLORS: Record<string, string> = {
+  continuous_active: COLORS.charts[0],
+  new_hire_active: COLORS.charts[1],
+  experienced_termination: COLORS.charts[2],
+  new_hire_termination: COLORS.charts[3],
+};
+
+interface EventTypeRow {
+  name: string;
+  value: number;
+  share: number;
+  /** Pre-rendered bar-tip label: LabelList only receives the value it is keyed to. */
+  label: string;
+}
+
+/**
+ * Event-type totals, largest first. A simulation emits ~9 event types, which is
+ * more than any categorical palette should carry — as a ranked bar chart they
+ * are named on the axis and sized by length, so every type keeps its own row
+ * however many there are.
+ */
+const buildEventTypeRows = (eventTrends: Record<string, number[]>): EventTypeRow[] => {
+  const totals = Object.entries(eventTrends)
+    .map(([name, values]) => ({
+      name: titleCase(name),
+      value: values.reduce((a, b) => a + b, 0),
+    }))
+    .sort((a, b) => b.value - a.value);
+
+  const sum = totals.reduce((acc, row) => acc + row.value, 0);
+  return totals.map(row => {
+    const share = sum > 0 ? (row.value / sum) * 100 : 0;
+    return {
+      ...row,
+      share,
+      label: `${row.value.toLocaleString()} (${share.toFixed(1)}%)`,
+    };
+  });
 };
 
 const KPICard = ({ title, value, subtext, trend, icon: Icon, color, loading }: any) => (
@@ -615,36 +666,43 @@ export default function AnalyticsDashboard() {
             {/* Event Type Breakdown */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
               <h3 className="text-lg font-semibold text-gray-800 mb-6">Event Types (Total)</h3>
-              <div className="h-80">
-                {results.event_trends && Object.keys(results.event_trends).length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={Object.entries(results.event_trends).map(([name, values]: [string, number[]]) => ({
-                          name,
-                          value: values.reduce((a, b) => a + b, 0)
-                        }))}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={100}
-                        paddingAngle={5}
-                        dataKey="value"
-                      >
-                        {Object.keys(results.event_trends).map((_, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS.charts[index % COLORS.charts.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                      <Legend layout="vertical" verticalAlign="middle" align="right" />
-                    </PieChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-full flex items-center justify-center text-gray-400">
-                    <p>No event breakdown available</p>
+              {results.event_trends && Object.keys(results.event_trends).length > 0 ? (() => {
+                const rows = buildEventTypeRows(results.event_trends);
+
+                return (
+                  <div style={{ height: Math.max(320, rows.length * 36 + 32) }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={rows} layout="vertical" barSize={20} margin={{ right: 130, left: 0 }}>
+                        {/* Every bar is directly labelled, so a value axis and its
+                            gridlines would only restate what the labels already say. */}
+                        <XAxis type="number" hide />
+                        <YAxis dataKey="name" type="category" stroke="#D1D5DB" width={150} fontSize={12} tick={{ fill: '#374151' }} />
+                        <Tooltip
+                          cursor={{ fill: '#F3F4F6' }}
+                          contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb' }}
+                          formatter={(value: number, _name: string, props: any) => [
+                            `${value.toLocaleString()} (${props.payload.share.toFixed(1)}%)`,
+                            'Events',
+                          ]}
+                        />
+                        {/* One measure, one hue: length carries the magnitude, so the
+                            categorical palette stays reserved for identity. */}
+                        <Bar dataKey="value" fill={COLORS.primary} name="Events" radius={[0, 4, 4, 0]}>
+                          <LabelList
+                            dataKey="label"
+                            position="right"
+                            style={{ fill: '#6B7280', fontSize: 12 }}
+                          />
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
-                )}
-              </div>
+                );
+              })() : (
+                <div className="h-80 flex items-center justify-center text-gray-400">
+                  <p>No event breakdown available</p>
+                </div>
+              )}
             </div>
 
           </div>
@@ -652,25 +710,7 @@ export default function AnalyticsDashboard() {
           {/* Compensation by Detailed Status Code */}
           {results.compensation_by_status && results.compensation_by_status.length > 0 && (() => {
             // Helper to format status codes nicely
-            const formatStatus = (status: string) => status
-              ?.split('_')
-              .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-              .join(' ') || status;
-
-            // Status color mapping
-            const statusColors: Record<string, string> = {
-              'continuous_active': '#00C49F',    // Green
-              'new_hire_active': '#0088FE',      // Blue
-              'experienced_termination': '#FF8042', // Orange
-              'new_hire_termination': '#FF6B6B'  // Red
-            };
-
-            const statusBadgeColors: Record<string, string> = {
-              'continuous_active': 'bg-green-100 text-green-800',
-              'new_hire_active': 'bg-blue-100 text-blue-800',
-              'experienced_termination': 'bg-orange-100 text-orange-800',
-              'new_hire_termination': 'bg-red-100 text-red-800'
-            };
+            const formatStatus = (status: string) => status ? titleCase(status) : status;
 
             return (
               <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
@@ -710,14 +750,17 @@ export default function AnalyticsDashboard() {
                       <Legend
                         verticalAlign="top"
                         height={36}
-                        formatter={(value) => formatStatus(value)}
+                        // Recharts tints legend text with the series colour; the palette's
+                        // lighter slots don't clear 3:1 on white, so labels wear text ink
+                        // and the swatch beside them carries the identity.
+                        formatter={(value) => <span className="text-gray-600">{formatStatus(value)}</span>}
                       />
                       {[...new Set(results.compensation_by_status.map(r => r.employment_status))].map((status: string) => (
                         <Bar
                           key={status}
                           dataKey={status}
                           name={status}
-                          fill={statusColors[status] || COLORS.charts[0]}
+                          fill={STATUS_SERIES_COLORS[status] || COLORS.charts[0]}
                           radius={[4, 4, 0, 0]}
                         />
                       ))}
@@ -740,7 +783,12 @@ export default function AnalyticsDashboard() {
                         <tr key={`${row.simulation_year}-${row.employment_status}`} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                           <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{row.simulation_year}</td>
                           <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusBadgeColors[row.employment_status] || 'bg-gray-100 text-gray-800'}`}>
+                            {/* Swatch matches the bar fill, so this table doubles as the chart's legend. */}
+                            <span className="inline-flex items-center gap-2">
+                              <span
+                                className="w-3 h-3 rounded-sm shrink-0"
+                                style={{ backgroundColor: STATUS_SERIES_COLORS[row.employment_status] || COLORS.charts[0] }}
+                              />
                               {formatStatus(row.employment_status)}
                             </span>
                           </td>

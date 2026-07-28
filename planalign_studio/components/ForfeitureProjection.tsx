@@ -21,7 +21,7 @@ import {
   VestingScheduleInfo,
   VestingScheduleType,
 } from '../services/api';
-import { MAX_SCENARIO_SELECTION, SCENARIO_SERIES_COLORS } from '../constants';
+import { COLORS, MAX_SCENARIO_SELECTION } from '../constants';
 
 const STORAGE_KEY_PREFIX = 'planalign_forfeiture_';
 
@@ -134,7 +134,7 @@ export default function ForfeitureProjection({
   const colorMap = useMemo(() => {
     const map: Record<string, string> = {};
     selectedIds.forEach((id, index) => {
-      map[id] = SCENARIO_SERIES_COLORS[index % SCENARIO_SERIES_COLORS.length];
+      map[id] = COLORS.charts[index % COLORS.charts.length];
     });
     return map;
   }, [selectedIds]);
@@ -370,7 +370,9 @@ export default function ForfeitureProjection({
                     <XAxis dataKey="year" stroke="#94a3b8" fontSize={12} />
                     <YAxis stroke="#94a3b8" fontSize={12} tickFormatter={formatCurrency} />
                     <Tooltip formatter={(value: number) => formatExact(value)} />
-                    <Legend />
+                    {/* Legend text wears text ink, not the series colour: the palette's
+                        lighter slots don't clear 3:1 on white. The swatch carries identity. */}
+                    <Legend formatter={(value: string) => <span className="text-gray-600">{value}</span>} />
                     {data.scenarios.map(series => (
                       <Area
                         key={series.scenario_id}
@@ -390,7 +392,9 @@ export default function ForfeitureProjection({
                     <XAxis dataKey="year" stroke="#94a3b8" fontSize={12} />
                     <YAxis stroke="#94a3b8" fontSize={12} tickFormatter={formatCurrency} />
                     <Tooltip cursor={{ fill: '#f8fafc' }} formatter={(value: number) => formatExact(value)} />
-                    <Legend />
+                    {/* Legend text wears text ink, not the series colour: the palette's
+                        lighter slots don't clear 3:1 on white. The swatch carries identity. */}
+                    <Legend formatter={(value: string) => <span className="text-gray-600">{value}</span>} />
                     {data.scenarios.map(series => (
                       <Bar
                         key={series.scenario_id}
