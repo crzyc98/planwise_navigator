@@ -35,6 +35,61 @@ const trendColors: Record<string, string> = {
   down: 'text-red-600',
 };
 
+const titleCase = (value: string) => value
+  .split('_')
+  .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+  .join(' ');
+
+/**
+ * Detailed employment statuses take fixed slots on the categorical palette, so a
+ * status keeps its colour whether or not the others appear in a run. The ad-hoc
+ * hexes this replaces put the two termination series at ΔE 7.1 for NORMAL
+ * vision — they were not reliably separable by anyone.
+ */
+const STATUS_SERIES_COLORS: Record<string, string> = {
+  continuous_active: COLORS.charts[0],
+  new_hire_active: COLORS.charts[1],
+  experienced_termination: COLORS.charts[2],
+  new_hire_termination: COLORS.charts[3],
+};
+
+interface EventTypeSlice {
+  name: string;
+  value: number;
+  /** Event types folded into this slice — one entry unless the slice is "Other". */
+  members: string[];
+}
+
+/**
+ * Event-type totals, largest first, folded to at most one slice per palette slot.
+ * A simulation emits ~9 event types and the categorical palette has 6 slots, so
+ * without folding the smallest slices would repeat the colours of the largest
+ * ones inside the same chart. Everything past the last slot collapses into a
+ * single "Other" slice that names its members on hover.
+ */
+const buildEventTypeSlices = (eventTrends: Record<string, number[]>): EventTypeSlice[] => {
+  const totals = Object.entries(eventTrends)
+    .map(([name, values]) => ({
+      name: titleCase(name),
+      value: values.reduce((a, b) => a + b, 0),
+      members: [titleCase(name)],
+    }))
+    .sort((a, b) => b.value - a.value);
+
+  const slots = COLORS.charts.length;
+  if (totals.length <= slots) return totals;
+
+  const folded = totals.slice(slots - 1);
+  return [
+    ...totals.slice(0, slots - 1),
+    {
+      name: 'Other',
+      value: folded.reduce((sum, slice) => sum + slice.value, 0),
+      members: folded.map(slice => slice.name),
+    },
+  ];
+};
+
 const KPICard = ({ title, value, subtext, trend, icon: Icon, color, loading }: any) => (
   <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex items-start justify-between">
     <div>
@@ -615,36 +670,78 @@ export default function AnalyticsDashboard() {
             {/* Event Type Breakdown */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
               <h3 className="text-lg font-semibold text-gray-800 mb-6">Event Types (Total)</h3>
-              <div className="h-80">
-                {results.event_trends && Object.keys(results.event_trends).length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={Object.entries(results.event_trends).map(([name, values]: [string, number[]]) => ({
-                          name,
-                          value: values.reduce((a, b) => a + b, 0)
-                        }))}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={100}
-                        paddingAngle={5}
-                        dataKey="value"
-                      >
-                        {Object.keys(results.event_trends).map((_, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS.charts[index % COLORS.charts.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                      <Legend layout="vertical" verticalAlign="middle" align="right" />
-                    </PieChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-full flex items-center justify-center text-gray-400">
-                    <p>No event breakdown available</p>
+              {results.event_trends && Object.keys(results.event_trends).length > 0 ? (() => {
+                // A slice is identified by its row in the table beside it, not by
+                // its colour — the palette's low-contrast slots are only legible
+                // against the surface when something names them.
+                const slices = buildEventTypeSlices(results.event_trends);
+                const total = slices.reduce((sum, slice) => sum + slice.value, 0);
+                const share = (value: number) => total > 0 ? (value / total) * 100 : 0;
+
+                return (
+                  <div className="flex flex-col lg:flex-row lg:items-center gap-6">
+                    <div className="h-72 lg:w-1/2">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={slices}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={100}
+                            paddingAngle={2}
+                            dataKey="value"
+                          >
+                            {slices.map((slice, index) => (
+                              <Cell key={slice.name} fill={COLORS.charts[index]} stroke="#fff" strokeWidth={2} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb' }}
+                            formatter={(value: number, name: string, props: any) => {
+                              const members: string[] = props.payload?.members ?? [];
+                              const label = members.length > 1 ? `${name} (${members.join(', ')})` : name;
+                              return [`${value.toLocaleString()} (${share(value).toFixed(1)}%)`, label];
+                            }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="lg:w-1/2 overflow-x-auto">
+                      <table className="min-w-full text-sm">
+                        <thead>
+                          <tr className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="py-2 pr-3 text-left">Event Type</th>
+                            <th className="py-2 px-3 text-right">Events</th>
+                            <th className="py-2 pl-3 text-right">Share</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {slices.map((slice, index) => (
+                            <tr key={slice.name}>
+                              <td className="py-2 pr-3 text-gray-900">
+                                <span className="inline-flex items-center gap-2">
+                                  <span
+                                    className="w-3 h-3 rounded-sm shrink-0"
+                                    style={{ backgroundColor: COLORS.charts[index] }}
+                                  />
+                                  <span title={slice.members.join(', ')}>{slice.name}</span>
+                                </span>
+                              </td>
+                              <td className="py-2 px-3 text-right text-gray-900 tabular-nums">{slice.value.toLocaleString()}</td>
+                              <td className="py-2 pl-3 text-right text-gray-500 tabular-nums">{share(slice.value).toFixed(1)}%</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                )}
-              </div>
+                );
+              })() : (
+                <div className="h-80 flex items-center justify-center text-gray-400">
+                  <p>No event breakdown available</p>
+                </div>
+              )}
             </div>
 
           </div>
@@ -652,25 +749,7 @@ export default function AnalyticsDashboard() {
           {/* Compensation by Detailed Status Code */}
           {results.compensation_by_status && results.compensation_by_status.length > 0 && (() => {
             // Helper to format status codes nicely
-            const formatStatus = (status: string) => status
-              ?.split('_')
-              .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-              .join(' ') || status;
-
-            // Status color mapping
-            const statusColors: Record<string, string> = {
-              'continuous_active': '#00C49F',    // Green
-              'new_hire_active': '#0088FE',      // Blue
-              'experienced_termination': '#FF8042', // Orange
-              'new_hire_termination': '#FF6B6B'  // Red
-            };
-
-            const statusBadgeColors: Record<string, string> = {
-              'continuous_active': 'bg-green-100 text-green-800',
-              'new_hire_active': 'bg-blue-100 text-blue-800',
-              'experienced_termination': 'bg-orange-100 text-orange-800',
-              'new_hire_termination': 'bg-red-100 text-red-800'
-            };
+            const formatStatus = (status: string) => status ? titleCase(status) : status;
 
             return (
               <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
@@ -710,14 +789,17 @@ export default function AnalyticsDashboard() {
                       <Legend
                         verticalAlign="top"
                         height={36}
-                        formatter={(value) => formatStatus(value)}
+                        // Recharts tints legend text with the series colour; the palette's
+                        // lighter slots don't clear 3:1 on white, so labels wear text ink
+                        // and the swatch beside them carries the identity.
+                        formatter={(value) => <span className="text-gray-600">{formatStatus(value)}</span>}
                       />
                       {[...new Set(results.compensation_by_status.map(r => r.employment_status))].map((status: string) => (
                         <Bar
                           key={status}
                           dataKey={status}
                           name={status}
-                          fill={statusColors[status] || COLORS.charts[0]}
+                          fill={STATUS_SERIES_COLORS[status] || COLORS.charts[0]}
                           radius={[4, 4, 0, 0]}
                         />
                       ))}
@@ -740,7 +822,12 @@ export default function AnalyticsDashboard() {
                         <tr key={`${row.simulation_year}-${row.employment_status}`} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                           <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{row.simulation_year}</td>
                           <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusBadgeColors[row.employment_status] || 'bg-gray-100 text-gray-800'}`}>
+                            {/* Swatch matches the bar fill, so this table doubles as the chart's legend. */}
+                            <span className="inline-flex items-center gap-2">
+                              <span
+                                className="w-3 h-3 rounded-sm shrink-0"
+                                style={{ backgroundColor: STATUS_SERIES_COLORS[row.employment_status] || COLORS.charts[0] }}
+                              />
                               {formatStatus(row.employment_status)}
                             </span>
                           </td>

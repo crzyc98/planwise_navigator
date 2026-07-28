@@ -167,27 +167,24 @@ export const COLORS = {
   secondary: '#4CAF50',
   accent: '#FF9800',
   danger: '#F44336',
-  charts: ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#E91E63']
+  /**
+   * The categorical series palette — Okabe-Ito, ordered to maximize separation
+   * between adjacent slots. This is the ONLY categorical ramp in the app; every
+   * multi-series chart reads from it so a scenario keeps its colour across pages.
+   *
+   * The previous ramp ('#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8',
+   * '#E91E63') failed a CVD audit: #FFBB28/#FF8042 sat at ΔE 14.3 for NORMAL
+   * vision and #FFBB28 fell outside the usable lightness band, so any selection
+   * of 4+ series became hard to separate even with full colour vision.
+   *
+   * Assign in fixed order and key by entity, never by rank, so filtering a
+   * series never repaints the survivors. Slots 3/4 (#009E73/#CC79A7) sit at
+   * ΔE 7.6 under deuteranopia, which is legal only alongside secondary
+   * encoding — every consuming view ships a legend plus a table or direct
+   * labels. Keep it that way when adding a new consumer.
+   */
+  charts: ['#0072B2', '#E69F00', '#009E73', '#CC79A7', '#56B4E9', '#D55E00']
 };
-
-/**
- * Colorblind-safe categorical series colors (Okabe-Ito, ordered to maximize
- * separation between adjacent slots).
- *
- * COLORS.charts predates this and does not pass a CVD audit: the #FF8042 /
- * #FFBB28 pair sits at ΔE 14.3 for normal vision and #FFBB28 falls outside the
- * usable lightness band, so 4+ series become hard to tell apart. This palette
- * clears both checks. Assign in fixed order and key by entity, never by rank,
- * so filtering a series never repaints the survivors.
- */
-export const SCENARIO_SERIES_COLORS = [
-  '#0072B2',
-  '#E69F00',
-  '#009E73',
-  '#CC79A7',
-  '#56B4E9',
-  '#D55E00',
-] as const;
 
 export const COMPARISON_COLORS = ['#00853F', '#2563EB'] as const;
 
