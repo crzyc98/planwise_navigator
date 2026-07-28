@@ -48,7 +48,7 @@ function toPercent(val: number | null | undefined, alreadyPercent = false): stri
   return `${(val * 100).toFixed(1)}`;
 }
 
-function formatMatchMode(mode: string | undefined): string {
+export function formatMatchMode(mode: string | undefined): string {
   switch (mode) {
     case 'deferral_based': return 'Deferral-Based';
     case 'graded_by_service': return 'Graded by Service';
@@ -58,7 +58,7 @@ function formatMatchMode(mode: string | undefined): string {
   }
 }
 
-function formatCoreType(status: string | undefined): string {
+export function formatCoreType(status: string | undefined): string {
   switch (status) {
     case 'flat': return 'Flat Rate';
     case 'graded_by_service': return 'Graded by Service';
