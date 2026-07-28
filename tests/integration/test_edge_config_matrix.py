@@ -23,6 +23,7 @@ def test_catalog_shape(edge_catalog: tuple[EdgeConfigScenario, ...]) -> None:
         "tenure_match",
         "escalation_cap",
         "zero_growth",
+        "negative_growth",
         "custom_hire_inputs",
     }
 
