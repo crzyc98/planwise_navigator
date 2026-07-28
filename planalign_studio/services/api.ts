@@ -1789,6 +1789,7 @@ export async function getPromotionHazardConfig(workspaceId: string): Promise<Pro
  */
 export type VestingScheduleType =
   | 'immediate'
+  | 'cliff_1_year'
   | 'cliff_2_year'
   | 'cliff_3_year'
   | 'cliff_4_year'

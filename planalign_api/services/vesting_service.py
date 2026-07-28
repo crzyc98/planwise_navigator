@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 # Pre-defined vesting schedules (T014)
 VESTING_SCHEDULES: dict[VestingScheduleType, dict[int, float]] = {
     VestingScheduleType.IMMEDIATE: {0: 1.0},
+    VestingScheduleType.CLIFF_1_YEAR: {0: 0.0, 1: 1.0},
     VestingScheduleType.CLIFF_2_YEAR: {0: 0.0, 1: 0.0, 2: 1.0},
     VestingScheduleType.CLIFF_3_YEAR: {0: 0.0, 1: 0.0, 2: 0.0, 3: 1.0},
     VestingScheduleType.CLIFF_4_YEAR: {0: 0.0, 1: 0.0, 2: 0.0, 3: 0.0, 4: 1.0},
@@ -54,6 +55,12 @@ SCHEDULE_INFO: dict[VestingScheduleType, VestingScheduleInfo] = {
         name="Immediate",
         description="100% vested from day one",
         percentages={0: 1.0},
+    ),
+    VestingScheduleType.CLIFF_1_YEAR: VestingScheduleInfo(
+        schedule_type=VestingScheduleType.CLIFF_1_YEAR,
+        name="1-Year Cliff",
+        description="0% until 1 year, then 100%",
+        percentages={0: 0.0, 1: 1.0},
     ),
     VestingScheduleType.CLIFF_2_YEAR: VestingScheduleInfo(
         schedule_type=VestingScheduleType.CLIFF_2_YEAR,
