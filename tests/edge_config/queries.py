@@ -282,20 +282,81 @@ def _escalation_cap(
     return violations
 
 
+# Per-year headcount against the E077 solver's inputs, with the flows that
+# produced it. `starting_workforce_count` is the solver's own view of the year's
+# opening actives, so ending-vs-starting is the growth target restated as a
+# conservation law rather than re-derived from the snapshot.
+_GROWTH_HEADCOUNT = """
+WITH ending AS (
+  SELECT simulation_year, COUNT(*) AS ending_active
+  FROM fct_workforce_snapshot
+  WHERE employment_status = 'active'
+  GROUP BY simulation_year
+),
+flows AS (
+  SELECT
+    simulation_year,
+    COUNT(DISTINCT employee_id) FILTER (WHERE event_type = 'hire') AS hires,
+    COUNT(DISTINCT employee_id) FILTER (WHERE event_type = 'termination') AS terminations
+  FROM fct_yearly_events
+  GROUP BY simulation_year
+)
+SELECT
+  needs.simulation_year,
+  needs.starting_workforce_count,
+  CAST(needs.target_growth_rate AS DOUBLE) AS configured_growth_rate,
+  ending.ending_active,
+  COALESCE(flows.hires, 0) AS hires,
+  COALESCE(flows.terminations, 0) AS terminations
+FROM int_workforce_needs needs
+JOIN ending USING (simulation_year)
+LEFT JOIN flows USING (simulation_year)
+ORDER BY needs.simulation_year
+"""
+
+
+def _growth_conservation(
+    case: EdgeConfigScenario, database: Path, expected_rate: float
+) -> list[tuple[str, dict[str, Any]]]:
+    """Assert ending headcount tracks `expected_rate`, with real flows underneath.
+
+    `expected_rate` is pinned here rather than read from the case config, so
+    changing the fixture's `target_growth_rate` fails the case instead of moving
+    the goalposts with it (#490, #498).
+    """
+    rows = _query(database, _GROWTH_HEADCOUNT)
+    violations: list[tuple[str, dict[str, Any]]] = []
+    expected_years = case.end_year - case.start_year + 1
+    if len(rows) != expected_years:
+        violations.append(
+            ("workforce needs missing for a simulated year", {"years": len(rows)})
+        )
+    for row in rows:
+        if abs(row["configured_growth_rate"] - expected_rate) > TOLERANCE:
+            violations.append(("configured growth rate is not the case boundary", row))
+            continue
+        target = round(row["starting_workforce_count"] * (1 + expected_rate))
+        if row["ending_active"] != target:
+            violations.append(("ending headcount did not track the target", row))
+        # Without real churn the headcount assertion is satisfied by a workforce
+        # that simply never moves, which is a much weaker statement (#498).
+        if not row["hires"] or not row["terminations"]:
+            violations.append(("headcount held without hires and terminations", row))
+    return violations
+
+
 def _zero_growth(
     case: EdgeConfigScenario, database: Path
 ) -> list[tuple[str, dict[str, Any]]]:
-    groups, rows = _snapshot_rows(case, database, case.end_year)
-    violations = _missing_group_rows(groups, rows)
-    hires = _query(
-        database,
-        "SELECT employee_id, simulation_year FROM fct_yearly_events "
-        "WHERE simulation_year BETWEEN ? AND ? AND event_type = 'hire'",
-        [case.start_year, case.end_year],
-    )
-    for row in hires:
-        violations.append(("zero-growth configuration emitted a hire", row))
-    return violations
+    """Zero *net* growth still replaces attrition: ending headcount == starting."""
+    return _growth_conservation(case, database, 0.0)
+
+
+def _negative_growth(
+    case: EdgeConfigScenario, database: Path
+) -> list[tuple[str, dict[str, Any]]]:
+    """The solver declines by not fully replacing attrition, not by terminating more."""
+    return _growth_conservation(case, database, -0.05)
 
 
 def _custom_hire_inputs(
@@ -327,5 +388,6 @@ ASSERTION_QUERIES: dict[str, CaseQuery] = {
     "tenure_match": _tenure_match,
     "escalation_cap": _escalation_cap,
     "zero_growth": _zero_growth,
+    "negative_growth": _negative_growth,
     "custom_hire_inputs": _custom_hire_inputs,
 }

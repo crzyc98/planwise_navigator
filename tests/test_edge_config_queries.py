@@ -205,3 +205,127 @@ def test_eligibility_assertion_rejects_case_with_no_suppressed_hire(
     assert any(
         "suppressed no hire" in violation.observed for violation in result.violations
     )
+
+
+def _growth_database(
+    path: Path, years: list[tuple[int, int, float, int, int, int]]
+) -> None:
+    """Build snapshot/event/needs rows from (year, starting, rate, ending, hires, terms)."""
+    with duckdb.connect(str(path)) as connection:
+        connection.execute(
+            """
+            CREATE TABLE fct_workforce_snapshot (
+              employee_id VARCHAR, simulation_year INTEGER, employment_status VARCHAR
+            );
+            CREATE TABLE fct_yearly_events (
+              employee_id VARCHAR, simulation_year INTEGER, event_type VARCHAR
+            );
+            CREATE TABLE int_workforce_needs (
+              simulation_year INTEGER,
+              starting_workforce_count BIGINT,
+              target_growth_rate DECIMAL(9, 4)
+            )
+            """
+        )
+        for year, starting, rate, ending, hires, terminations in years:
+            connection.execute(
+                "INSERT INTO int_workforce_needs VALUES (?, ?, ?)",
+                [year, starting, rate],
+            )
+            for index in range(ending):
+                connection.execute(
+                    "INSERT INTO fct_workforce_snapshot VALUES (?, ?, 'active')",
+                    [f"EMP_{year}_{index:04d}", year],
+                )
+            for index in range(hires):
+                connection.execute(
+                    "INSERT INTO fct_yearly_events VALUES (?, ?, 'hire')",
+                    [f"NH_{year}_{index:04d}", year],
+                )
+            for index in range(terminations):
+                connection.execute(
+                    "INSERT INTO fct_yearly_events VALUES (?, ?, 'termination')",
+                    [f"TERM_{year}_{index:04d}", year],
+                )
+
+
+def test_zero_growth_assertion_accepts_conserved_headcount(tmp_path: Path) -> None:
+    """#498: zero *net* growth still replaces attrition; hires are expected, not banned."""
+    database = tmp_path / "zero-growth.duckdb"
+    _growth_database(
+        database, [(2025, 100, 0.0, 100, 10, 10), (2026, 100, 0.0, 100, 9, 9)]
+    )
+
+    assert targeted_query(_case("zero_target_growth_rate"), database).passed
+
+
+def test_zero_growth_assertion_rejects_static_workforce(tmp_path: Path) -> None:
+    """The pre-#498 fixture: headcount holds only because nothing ever moves."""
+    database = tmp_path / "static-workforce.duckdb"
+    _growth_database(
+        database, [(2025, 100, 0.0, 100, 0, 0), (2026, 100, 0.0, 100, 0, 0)]
+    )
+
+    result = targeted_query(_case("zero_target_growth_rate"), database)
+
+    assert not result.passed
+    assert any(
+        "without hires and terminations" in violation.observed
+        for violation in result.violations
+    )
+
+
+def test_zero_growth_assertion_rejects_changed_growth_rate(tmp_path: Path) -> None:
+    """#490: moving target_growth_rate must fail the case, not move the expectation."""
+    database = tmp_path / "mutated-growth.duckdb"
+    _growth_database(
+        database, [(2025, 100, 0.03, 103, 13, 10), (2026, 103, 0.03, 106, 13, 10)]
+    )
+
+    result = targeted_query(_case("zero_target_growth_rate"), database)
+
+    assert not result.passed
+    assert any(
+        "not the case boundary" in violation.observed for violation in result.violations
+    )
+
+
+def test_zero_growth_assertion_rejects_headcount_drift(tmp_path: Path) -> None:
+    database = tmp_path / "drifting-headcount.duckdb"
+    _growth_database(
+        database, [(2025, 100, 0.0, 100, 10, 10), (2026, 100, 0.0, 97, 7, 10)]
+    )
+
+    result = targeted_query(_case("zero_target_growth_rate"), database)
+
+    assert not result.passed
+    assert any(
+        "did not track the target" in violation.observed
+        for violation in result.violations
+    )
+
+
+def test_negative_growth_assertion_accepts_configured_decline(tmp_path: Path) -> None:
+    """The solver declines by under-replacing attrition: 100 -> 95 -> 90."""
+    database = tmp_path / "negative-growth.duckdb"
+    _growth_database(
+        database, [(2025, 100, -0.05, 95, 5, 10), (2026, 95, -0.05, 90, 4, 9)]
+    )
+
+    assert targeted_query(_case("negative_target_growth_rate"), database).passed
+
+
+def test_negative_growth_assertion_rejects_over_termination(tmp_path: Path) -> None:
+    """Hitting the target by terminating faster instead of hiring less is not the same."""
+    database = tmp_path / "over-terminated.duckdb"
+    _growth_database(
+        database, [(2025, 100, -0.05, 90, 5, 15), (2026, 95, -0.05, 90, 4, 9)]
+    )
+
+    result = targeted_query(_case("negative_target_growth_rate"), database)
+
+    assert not result.passed
+    assert any(
+        "did not track the target" in violation.observed
+        for violation in result.violations
+    )
