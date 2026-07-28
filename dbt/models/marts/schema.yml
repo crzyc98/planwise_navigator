@@ -270,13 +270,40 @@ models:
         data_tests:
           - not_null
       - name: employee_eligibility_date
-        description: "Date when employee becomes eligible for DC plan participation"
+        description: >
+          Computed target date when an employee satisfies the DC-plan timing
+          rules. This may be later than the census cutoff used for the
+          start-year status and does not by itself transition reported state.
         data_type: date
       - name: waiting_period_days
         description: "Number of days employee must wait after hire to become eligible"
         data_type: integer
       - name: current_eligibility_status
-        description: "Current eligibility status based on eligibility date and simulation year"
+        description: >
+          Reported DC-plan eligibility state, as of the end of the simulation
+          year.
+
+          The start-year value preserves the census observation as of the
+          pre-simulation census cutoff (`stg_census_data` compares
+          `hire_date + eligibility_waiting_period_days` against
+          `plan_year_end_date`), so `pending` may coexist with a target
+          `employee_eligibility_date` inside the first simulation year.
+
+          After the start year, an immutable `eligibility` event is the
+          authoritative transition signal: an employee reported `pending`
+          becomes `eligible` in the year their event fires, and stays
+          `eligible` thereafter. Start-year events are deliberately withheld so
+          the census distribution is not rewritten.
+
+          Exception: an employee in their hire year has neither a census row
+          nor a prior-year row, and falls back to `eligible` on hire-year
+          membership alone -- independent of any event or waiting period.
+
+          `planalign_api/services/ndt_service.py` filters the ADP/ACP test
+          population on this column (`= 'eligible' OR IS NULL`), so it gates
+          NDT results as well as reporting. Contribution and enrollment
+          eligibility are determined by their dedicated plan-eligibility
+          models, not by this field.
         data_type: varchar
         data_tests:
           - accepted_values:

@@ -303,3 +303,75 @@ WHERE current_eligibility_status IS NULL
    OR employee_eligibility_date IS NULL
    OR waiting_period_days IS NULL
 """
+
+# #496: an eligibility event is what moves an employee out of 'pending'. From
+# the event year onward the employee must read 'eligible' -- except in the start
+# year, whose census-cutoff status is deliberately preserved, so a start-year
+# event only takes effect from the second simulation year.
+ELIGIBILITY_EVENT_TRANSITIONS_STATE = """
+WITH first_event AS (
+  SELECT employee_id, MIN(simulation_year) AS event_year
+  FROM fct_yearly_events
+  WHERE event_type = 'eligibility'
+  GROUP BY employee_id
+),
+horizon AS (
+  SELECT MIN(simulation_year) AS start_year FROM fct_workforce_snapshot
+)
+SELECT
+  snapshot.employee_id,
+  first_event.event_year,
+  snapshot.simulation_year,
+  snapshot.current_eligibility_status
+FROM fct_workforce_snapshot snapshot
+JOIN first_event USING (employee_id)
+CROSS JOIN horizon
+WHERE snapshot.simulation_year >= GREATEST(first_event.event_year, horizon.start_year + 1)
+  AND snapshot.current_eligibility_status IS DISTINCT FROM 'eligible'
+"""
+
+# #496 (converse): nothing may transition an employee to 'eligible' except an
+# eligibility event. This is the guard that would have caught the naive
+# "eligibility_date <= year end" rewrite #490 attempted.
+ELIGIBILITY_TRANSITION_REQUIRES_EVENT = """
+WITH horizon AS (
+  SELECT MIN(simulation_year) AS start_year FROM fct_workforce_snapshot
+),
+started_pending AS (
+  SELECT snapshot.employee_id
+  FROM fct_workforce_snapshot snapshot
+  CROSS JOIN horizon
+  WHERE snapshot.simulation_year = horizon.start_year
+    AND snapshot.current_eligibility_status = 'pending'
+)
+SELECT
+  later.employee_id,
+  later.simulation_year,
+  later.current_eligibility_status
+FROM fct_workforce_snapshot later
+JOIN started_pending USING (employee_id)
+WHERE later.current_eligibility_status = 'eligible'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM fct_yearly_events event
+    WHERE event.employee_id = later.employee_id
+      AND event.event_type = 'eligibility'
+      AND event.simulation_year <= later.simulation_year
+  )
+"""
+
+# #496: eligibility is monotonic. Once reported eligible an employee never
+# reverts, whether by a carry-forward gap or a re-derivation.
+ELIGIBILITY_STATE_NEVER_REGRESSES = """
+SELECT
+  prior.employee_id,
+  prior.simulation_year AS prior_year,
+  current.simulation_year AS regressed_year,
+  current.current_eligibility_status AS regressed_status
+FROM fct_workforce_snapshot prior
+JOIN fct_workforce_snapshot current
+  ON current.employee_id = prior.employee_id
+  AND current.simulation_year = prior.simulation_year + 1
+WHERE prior.current_eligibility_status = 'eligible'
+  AND current.current_eligibility_status IS DISTINCT FROM 'eligible'
+"""

@@ -223,6 +223,7 @@ def test_workforce_snapshot_is_domain_state_composition():
         "int_employer_core_contributions",
         "int_employer_eligibility",
         "int_enrollment_state_accumulator",
+        "fct_yearly_events",
         MODEL_INT_WORKFORCE_STATE_ACCUMULATOR,
     }
 

@@ -72,3 +72,61 @@ def test_cutoff_assertion_accepts_configured_boundary(
     )
 
     assert targeted_query(_case("broad_auto_enrollment_cutoff"), database).passed
+
+
+def _eligibility_database(path: Path, end_status: str) -> None:
+    with duckdb.connect(str(path)) as connection:
+        connection.execute(
+            """
+            CREATE TABLE fct_workforce_snapshot (
+              employee_id VARCHAR,
+              simulation_year INTEGER,
+              current_eligibility_status VARCHAR
+            )
+            """
+        )
+        connection.execute(
+            "INSERT INTO fct_workforce_snapshot VALUES "
+            "('EDGE_SUPPRESSED', 2025, 'pending'), "
+            "('EDGE_SUPPRESSED', 2026, ?), "
+            "('EDGE_CONTROL', 2025, 'eligible'), "
+            "('EDGE_CONTROL', 2026, 'eligible')",
+            [end_status],
+        )
+
+
+def test_eligibility_assertion_rejects_missing_event_transition(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database = tmp_path / "eligibility-mutation.duckdb"
+    _eligibility_database(database, end_status="pending")
+    monkeypatch.setattr(
+        "tests.edge_config.queries._grouped_employee_ids",
+        lambda _: {
+            "EDGE_SUPPRESSED": "suppressed_new_hire",
+            "EDGE_CONTROL": "eligible_control",
+        },
+    )
+
+    result = targeted_query(_case("new_hire_eligibility_suppression"), database)
+
+    assert not result.passed
+    assert any(
+        "did not transition" in violation.observed for violation in result.violations
+    )
+
+
+def test_eligibility_assertion_accepts_prior_year_event_transition(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database = tmp_path / "eligibility-transition.duckdb"
+    _eligibility_database(database, end_status="eligible")
+    monkeypatch.setattr(
+        "tests.edge_config.queries._grouped_employee_ids",
+        lambda _: {
+            "EDGE_SUPPRESSED": "suppressed_new_hire",
+            "EDGE_CONTROL": "eligible_control",
+        },
+    )
+
+    assert targeted_query(_case("new_hire_eligibility_suppression"), database).passed

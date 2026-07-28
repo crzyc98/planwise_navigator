@@ -109,21 +109,30 @@ def _cutoff_enrollment(
 def _eligibility_suppression(
     case: EdgeConfigScenario, database: Path
 ) -> list[tuple[str, dict[str, Any]]]:
-    groups, rows = _snapshot_rows(case, database, case.start_year)
-    violations = _missing_group_rows(groups, rows)
-    # Production reports a not-yet-eligible employee as 'pending', not
-    # 'ineligible'. Scoped to the start year: eligibility state after the first
-    # year is carried forward (#493) rather than re-determined.
-    expected_status = {
-        "suppressed_new_hire": "pending",
-        "eligible_control": "eligible",
+    groups, start_rows = _snapshot_rows(case, database, case.start_year)
+    _, end_rows = _snapshot_rows(case, database, case.end_year)
+    violations = _missing_group_rows(groups, start_rows)
+    violations.extend(_missing_group_rows(groups, end_rows))
+    expected_statuses = {
+        "suppressed_new_hire": ("pending", "eligible"),
+        "eligible_control": ("eligible", "eligible"),
     }
     for employee_id, group in groups.items():
-        row = rows.get(employee_id)
-        if row is None or group not in expected_status:
+        if group not in expected_statuses:
             continue
-        if row["current_eligibility_status"] != expected_status[group]:
-            violations.append((f"{group} eligibility status was not preserved", row))
+        start_row = start_rows.get(employee_id)
+        end_row = end_rows.get(employee_id)
+        if start_row is None or end_row is None:
+            continue
+        expected_start, expected_end = expected_statuses[group]
+        if start_row["current_eligibility_status"] != expected_start:
+            violations.append(
+                (f"{group} start-year eligibility status changed", start_row)
+            )
+        if end_row["current_eligibility_status"] != expected_end:
+            violations.append(
+                (f"{group} eligibility event did not transition status", end_row)
+            )
     return violations
 
 
