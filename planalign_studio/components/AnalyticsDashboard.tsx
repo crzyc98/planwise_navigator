@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useOutletContext } from 'react-router-dom';
 import {
-  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+  LineChart, Line, BarChart, Bar, LabelList,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import {
@@ -53,41 +53,37 @@ const STATUS_SERIES_COLORS: Record<string, string> = {
   new_hire_termination: COLORS.charts[3],
 };
 
-interface EventTypeSlice {
+interface EventTypeRow {
   name: string;
   value: number;
-  /** Event types folded into this slice — one entry unless the slice is "Other". */
-  members: string[];
+  share: number;
+  /** Pre-rendered bar-tip label: LabelList only receives the value it is keyed to. */
+  label: string;
 }
 
 /**
- * Event-type totals, largest first, folded to at most one slice per palette slot.
- * A simulation emits ~9 event types and the categorical palette has 6 slots, so
- * without folding the smallest slices would repeat the colours of the largest
- * ones inside the same chart. Everything past the last slot collapses into a
- * single "Other" slice that names its members on hover.
+ * Event-type totals, largest first. A simulation emits ~9 event types, which is
+ * more than any categorical palette should carry — as a ranked bar chart they
+ * are named on the axis and sized by length, so every type keeps its own row
+ * however many there are.
  */
-const buildEventTypeSlices = (eventTrends: Record<string, number[]>): EventTypeSlice[] => {
+const buildEventTypeRows = (eventTrends: Record<string, number[]>): EventTypeRow[] => {
   const totals = Object.entries(eventTrends)
     .map(([name, values]) => ({
       name: titleCase(name),
       value: values.reduce((a, b) => a + b, 0),
-      members: [titleCase(name)],
     }))
     .sort((a, b) => b.value - a.value);
 
-  const slots = COLORS.charts.length;
-  if (totals.length <= slots) return totals;
-
-  const folded = totals.slice(slots - 1);
-  return [
-    ...totals.slice(0, slots - 1),
-    {
-      name: 'Other',
-      value: folded.reduce((sum, slice) => sum + slice.value, 0),
-      members: folded.map(slice => slice.name),
-    },
-  ];
+  const sum = totals.reduce((acc, row) => acc + row.value, 0);
+  return totals.map(row => {
+    const share = sum > 0 ? (row.value / sum) * 100 : 0;
+    return {
+      ...row,
+      share,
+      label: `${row.value.toLocaleString()} (${share.toFixed(1)}%)`,
+    };
+  });
 };
 
 const KPICard = ({ title, value, subtext, trend, icon: Icon, color, loading }: any) => (
@@ -671,70 +667,35 @@ export default function AnalyticsDashboard() {
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
               <h3 className="text-lg font-semibold text-gray-800 mb-6">Event Types (Total)</h3>
               {results.event_trends && Object.keys(results.event_trends).length > 0 ? (() => {
-                // A slice is identified by its row in the table beside it, not by
-                // its colour — the palette's low-contrast slots are only legible
-                // against the surface when something names them.
-                const slices = buildEventTypeSlices(results.event_trends);
-                const total = slices.reduce((sum, slice) => sum + slice.value, 0);
-                const share = (value: number) => total > 0 ? (value / total) * 100 : 0;
+                const rows = buildEventTypeRows(results.event_trends);
 
                 return (
-                  <div className="flex flex-col lg:flex-row lg:items-center gap-6">
-                    <div className="h-72 lg:w-1/2">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={slices}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={60}
-                            outerRadius={100}
-                            paddingAngle={2}
-                            dataKey="value"
-                          >
-                            {slices.map((slice, index) => (
-                              <Cell key={slice.name} fill={COLORS.charts[index]} stroke="#fff" strokeWidth={2} />
-                            ))}
-                          </Pie>
-                          <Tooltip
-                            contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb' }}
-                            formatter={(value: number, name: string, props: any) => {
-                              const members: string[] = props.payload?.members ?? [];
-                              const label = members.length > 1 ? `${name} (${members.join(', ')})` : name;
-                              return [`${value.toLocaleString()} (${share(value).toFixed(1)}%)`, label];
-                            }}
+                  <div style={{ height: Math.max(320, rows.length * 36 + 32) }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={rows} layout="vertical" barSize={20} margin={{ right: 130, left: 0 }}>
+                        {/* Every bar is directly labelled, so a value axis and its
+                            gridlines would only restate what the labels already say. */}
+                        <XAxis type="number" hide />
+                        <YAxis dataKey="name" type="category" stroke="#D1D5DB" width={150} fontSize={12} tick={{ fill: '#374151' }} />
+                        <Tooltip
+                          cursor={{ fill: '#F3F4F6' }}
+                          contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb' }}
+                          formatter={(value: number, _name: string, props: any) => [
+                            `${value.toLocaleString()} (${props.payload.share.toFixed(1)}%)`,
+                            'Events',
+                          ]}
+                        />
+                        {/* One measure, one hue: length carries the magnitude, so the
+                            categorical palette stays reserved for identity. */}
+                        <Bar dataKey="value" fill={COLORS.primary} name="Events" radius={[0, 4, 4, 0]}>
+                          <LabelList
+                            dataKey="label"
+                            position="right"
+                            style={{ fill: '#6B7280', fontSize: 12 }}
                           />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <div className="lg:w-1/2 overflow-x-auto">
-                      <table className="min-w-full text-sm">
-                        <thead>
-                          <tr className="text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            <th className="py-2 pr-3 text-left">Event Type</th>
-                            <th className="py-2 px-3 text-right">Events</th>
-                            <th className="py-2 pl-3 text-right">Share</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200">
-                          {slices.map((slice, index) => (
-                            <tr key={slice.name}>
-                              <td className="py-2 pr-3 text-gray-900">
-                                <span className="inline-flex items-center gap-2">
-                                  <span
-                                    className="w-3 h-3 rounded-sm shrink-0"
-                                    style={{ backgroundColor: COLORS.charts[index] }}
-                                  />
-                                  <span title={slice.members.join(', ')}>{slice.name}</span>
-                                </span>
-                              </td>
-                              <td className="py-2 px-3 text-right text-gray-900 tabular-nums">{slice.value.toLocaleString()}</td>
-                              <td className="py-2 pl-3 text-right text-gray-500 tabular-nums">{share(slice.value).toFixed(1)}%</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
                 );
               })() : (
