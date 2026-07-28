@@ -133,7 +133,50 @@ def _eligibility_suppression(
             violations.append(
                 (f"{group} eligibility event did not transition status", end_row)
             )
+    violations.extend(_suppressed_new_hire_violations(database))
     return violations
+
+
+# Feature 103 / #499: the dial suppresses a new hire's eligibility event
+# entirely, so the employee must never be reported eligible -- in their hire year
+# or any later one. The fixture's two census rows do not exercise this (the dial
+# applies to generated hires), so it is asserted over the population.
+_SUPPRESSED_NEW_HIRE_COUNT = """
+SELECT COUNT(*) AS suppressed_new_hires
+FROM int_plan_eligibility_override
+WHERE is_plan_ineligible_override
+  AND override_source <> 'census'
+"""
+
+_SUPPRESSED_NEW_HIRE_ELIGIBLE = """
+SELECT
+  snapshot.employee_id,
+  snapshot.simulation_year,
+  snapshot.current_eligibility_status,
+  override.override_source
+FROM fct_workforce_snapshot snapshot
+JOIN int_plan_eligibility_override override
+  ON override.employee_id = snapshot.employee_id
+  AND override.simulation_year = snapshot.simulation_year
+WHERE override.is_plan_ineligible_override
+  AND override.override_source <> 'census'
+  AND snapshot.current_eligibility_status = 'eligible'
+"""
+
+
+def _suppressed_new_hire_violations(
+    database: Path,
+) -> list[tuple[str, dict[str, Any]]]:
+    """Assert the dial suppressed someone, then that nobody it suppressed reads eligible."""
+    counts = _query(database, _SUPPRESSED_NEW_HIRE_COUNT)[0]
+    if not counts["suppressed_new_hires"]:
+        # Without this the case degrades silently: a future config change that
+        # zeroes the dial would leave nothing to assert and still pass (#498).
+        return [("new_hire_ineligible_pct suppressed no hire", counts)]
+    return [
+        ("suppressed new hire reported eligible", row)
+        for row in _query(database, _SUPPRESSED_NEW_HIRE_ELIGIBLE)
+    ]
 
 
 def _tenure_match(

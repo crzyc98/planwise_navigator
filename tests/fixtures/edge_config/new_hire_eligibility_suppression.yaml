@@ -1,6 +1,6 @@
 scenario_id: edge_new_hire_suppression
 plan_design_id: edge_plan
-simulation: {start_year: 2025, end_year: 2026, random_seed: 124002, target_growth_rate: 0.02}
+simulation: {start_year: 2025, end_year: 2026, random_seed: 124002, target_growth_rate: 0.05}
 setup: {load_seeds: true, run_staging_models: true, validate_results: false, fail_on_validation_error: true, census_parquet_path: injected, eligibility_waiting_period_days: 0}
 compensation: {cola_rate: 0.02, merit_budget: 0.035, promotion_increase: 0.125}
 workforce: {total_termination_rate: 0.0, new_hire_termination_rate: 0.0}

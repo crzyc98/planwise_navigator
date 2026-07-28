@@ -295,9 +295,14 @@ models:
           `eligible` thereafter. Start-year events are deliberately withheld so
           the census distribution is not rewritten.
 
-          Exception: an employee in their hire year has neither a census row
-          nor a prior-year row, and falls back to `eligible` on hire-year
-          membership alone -- independent of any event or waiting period.
+          An employee in their hire year has neither a census row nor a
+          prior-year row, so their status comes from their own hire-year event:
+          `eligible` if `int_eligibility_events` emitted one, `pending`
+          otherwise. The start-year hold does not apply to them -- it protects
+          census provenance, and a new hire has no census observation. `pending`
+          therefore covers a waiting period running past Dec 31, a hire below
+          `minimum_age`, and a Feature 103 (`new_hire_ineligible_pct`) new hire
+          held ineligible for the whole horizon (#499).
 
           `planalign_api/services/ndt_service.py` filters the ADP/ACP test
           population on this column (`= 'eligible' OR IS NULL`), so it gates

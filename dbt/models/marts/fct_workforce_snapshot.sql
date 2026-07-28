@@ -142,7 +142,22 @@ prior_year_eligibility AS (
 ),
 
 -- An eligibility event is the authoritative signal that plan eligibility was
--- achieved, so it is what transitions an employee out of 'pending'.
+-- achieved. int_eligibility_events emits one only when every gate passes --
+-- minimum age, a waiting period that completes inside the year, and the
+-- Feature 103 ineligibility override -- so event presence, not membership in
+-- any cohort, is what this model reports eligibility from.
+eligibility_event_years AS (
+  SELECT DISTINCT
+    employee_id,
+    simulation_year AS event_year
+  FROM {{ ref('fct_yearly_events') }}
+  WHERE event_type = {{ evt_eligibility() }}
+    AND scenario_id = '{{ scenario_id }}'
+    AND plan_design_id = '{{ plan_design_id }}'
+    AND simulation_year <= {{ simulation_year }}
+),
+
+-- Transitions an employee with a census/prior-year status out of 'pending'.
 --
 -- Start year: events are excluded entirely (the bound below collapses to
 -- `<= start_year - 1`, which matches nothing). The start-year status is census
@@ -157,11 +172,23 @@ prior_year_eligibility AS (
 -- close of year N -- not year N+1.
 achieved_eligibility_events AS (
   SELECT DISTINCT employee_id
-  FROM {{ ref('fct_yearly_events') }}
-  WHERE event_type = {{ evt_eligibility() }}
-    AND scenario_id = '{{ scenario_id }}'
-    AND plan_design_id = '{{ plan_design_id }}'
-    AND simulation_year <= {{ simulation_year if simulation_year > start_year else simulation_year - 1 }}
+  FROM eligibility_event_years
+  WHERE event_year <= {{ simulation_year if simulation_year > start_year else simulation_year - 1 }}
+),
+
+-- Issue #499: the same signal for employees hired this year, who have neither a
+-- census row nor a prior-year row to carry a status forward from.
+--
+-- The start-year hold above exists to protect census provenance; a new hire has
+-- no census observation to protect, so their own hire-year event counts
+-- immediately, in the start year as in any other. Without an event they are
+-- 'pending' -- they have not yet met the requirements -- which covers a waiting
+-- period running past Dec 31, a hire below minimum_age, and a Feature 103
+-- new hire held ineligible for the whole horizon.
+hire_year_eligibility_events AS (
+  SELECT DISTINCT employee_id
+  FROM eligibility_event_years
+  WHERE event_year = {{ simulation_year }}
 ),
 
 contributions AS (
@@ -230,7 +257,11 @@ composed AS (
         prior_year_eligibility.current_eligibility_status,
         CASE
           WHEN EXTRACT(YEAR FROM workforce.employee_hire_date) = {{ simulation_year }}
-            THEN 'eligible'
+            THEN CASE
+              WHEN hire_year_eligibility_events.employee_id IS NOT NULL
+                THEN 'eligible'
+              ELSE 'pending'
+            END
         END
       )
     END AS current_eligibility_status,
@@ -291,6 +322,7 @@ composed AS (
   LEFT JOIN baseline USING (employee_id)
   LEFT JOIN prior_year_eligibility USING (employee_id)
   LEFT JOIN achieved_eligibility_events USING (employee_id)
+  LEFT JOIN hire_year_eligibility_events USING (employee_id)
   LEFT JOIN contributions USING (employee_id)
   LEFT JOIN employer_match USING (employee_id)
   LEFT JOIN employer_core USING (employee_id)
