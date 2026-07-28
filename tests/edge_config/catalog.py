@@ -91,15 +91,27 @@ CATALOG = (
         {"below_cap": "below", "at_cap": "equal", "above_cap": "above"},
         "escalation_cap",
     ),
+    _scenario(
+        "zero_target_growth_rate",
+        "zero workforce growth",
+        {"retained_workforce": "retained"},
+        "zero_growth",
+    ),
+    _scenario(
+        "custom_new_hire_inputs",
+        "custom new-hire age and compensation inputs",
+        {"seed_workforce": "seed"},
+        "custom_hire_inputs",
+    ),
 )
 
 
 def validate_catalog(catalog: tuple[EdgeConfigScenario, ...] = CATALOG) -> None:
-    """Enforce the initial feature's exactly-four unique-case contract."""
+    """Keep the matrix small enough for its twenty-minute CI budget."""
     names = [case.name for case in catalog]
-    if len(catalog) != 4:
+    if not 4 <= len(catalog) <= 6:
         raise ValueError(
-            f"edge-config matrix requires exactly four cases, got {len(catalog)}"
+            f"edge-config matrix requires four to six cases, got {len(catalog)}"
         )
     if len(set(names)) != len(names):
         raise ValueError("edge-config matrix case names must be unique")
