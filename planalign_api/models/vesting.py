@@ -213,3 +213,88 @@ class ScenarioYearsResponse(BaseModel):
         ..., description="Sorted ascending list of available simulation years"
     )
     default_year: int = Field(..., description="The most recent (final) year")
+
+
+class ForfeitureYearRow(BaseModel):
+    """Forfeitures for one scenario in one simulation year."""
+
+    simulation_year: int
+    has_prior_year_basis: bool = Field(
+        ...,
+        description=(
+            "False for a scenario's first simulation year, which has no prior "
+            "year to source employer contributions from. Such a row is not a "
+            "measured zero and must not be rendered as $0."
+        ),
+    )
+    terminated_employee_count: int = Field(
+        ..., ge=0, description="All employees terminated in this year"
+    )
+    vesting_eligible_count: int = Field(
+        ...,
+        ge=0,
+        description=(
+            "Terminated employees who were active with employer contributions "
+            "in the prior year"
+        ),
+    )
+    total_employer_contributions: Decimal = Field(..., ge=0)
+    vested_amount: Decimal = Field(..., ge=0)
+    forfeited_amount: Decimal = Field(..., ge=0)
+
+    @field_serializer(
+        "total_employer_contributions",
+        "vested_amount",
+        "forfeited_amount",
+    )
+    def serialize_decimal(self, v: Decimal) -> float:
+        """Serialize Decimal as float for JSON responses."""
+        return float(v)
+
+
+class ScenarioForfeitureSeries(BaseModel):
+    """One scenario's forfeitures across every simulation year it contains."""
+
+    scenario_id: str = Field(..., min_length=1)
+    scenario_name: str
+    years: List[ForfeitureYearRow]
+    total_employer_contributions: Decimal = Field(..., ge=0)
+    total_vested: Decimal = Field(..., ge=0)
+    total_forfeited: Decimal = Field(..., ge=0)
+
+    @field_serializer(
+        "total_employer_contributions",
+        "total_vested",
+        "total_forfeited",
+    )
+    def serialize_decimal(self, v: Decimal) -> float:
+        """Serialize Decimal as float for JSON responses."""
+        return float(v)
+
+
+class SkippedScenario(BaseModel):
+    """A requested scenario excluded from the projection, with the reason."""
+
+    scenario_id: str = Field(..., min_length=1)
+    scenario_name: str
+    reason: str = Field(
+        ..., description="Why this scenario was skipped rather than failing the request"
+    )
+
+
+class ForfeitureProjectionResponse(BaseModel):
+    """Multi-year, multi-scenario forfeitures under a single vesting schedule."""
+
+    schedule: VestingScheduleConfig
+    years: List[int] = Field(
+        ...,
+        description=(
+            "Union of simulation years across all included scenarios, ascending. "
+            "A scenario missing a year has no row for it; render as a gap, not 0."
+        ),
+    )
+    scenarios: List[ScenarioForfeitureSeries]
+    skipped: List[SkippedScenario] = Field(
+        default_factory=list,
+        description="Requested scenarios that could not be read; the rest still return",
+    )

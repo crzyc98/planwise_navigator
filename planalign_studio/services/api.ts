@@ -1908,6 +1908,63 @@ export interface ScenarioYearsResponse {
 }
 
 /**
+ * Forfeitures for one scenario in one simulation year.
+ */
+export interface ForfeitureYearRow {
+  simulation_year: number;
+  /**
+   * False for a scenario's first simulation year, which has no prior year to
+   * source employer contributions from. Such a row is not a measured zero and
+   * must not be rendered as $0.
+   */
+  has_prior_year_basis: boolean;
+  terminated_employee_count: number;
+  vesting_eligible_count: number;
+  total_employer_contributions: number;
+  vested_amount: number;
+  forfeited_amount: number;
+}
+
+/**
+ * One scenario's forfeitures across every simulation year it contains.
+ */
+export interface ScenarioForfeitureSeries {
+  scenario_id: string;
+  scenario_name: string;
+  years: ForfeitureYearRow[];
+  total_employer_contributions: number;
+  total_vested: number;
+  total_forfeited: number;
+}
+
+/**
+ * A requested scenario excluded from the projection, with the reason.
+ */
+export interface SkippedScenario {
+  scenario_id: string;
+  scenario_name: string;
+  reason: string;
+}
+
+/**
+ * Multi-year, multi-scenario forfeitures under a single vesting schedule.
+ */
+export interface ForfeitureProjectionResponse {
+  schedule: VestingScheduleConfig;
+  /** Union of years across included scenarios; a scenario may not cover all. */
+  years: number[];
+  scenarios: ScenarioForfeitureSeries[];
+  skipped: SkippedScenario[];
+}
+
+export interface ForfeitureProjectionParams {
+  scenarioIds: string[];
+  scheduleType: VestingScheduleType;
+  requireHoursCredit?: boolean;
+  hoursThreshold?: number;
+}
+
+/**
  * Get list of all available vesting schedules.
  */
 export async function listVestingSchedules(): Promise<VestingScheduleListResponse> {
@@ -1934,6 +1991,34 @@ export async function analyzeVesting(
     }
   );
   return handleResponse<VestingAnalysisResponse>(response);
+}
+
+/**
+ * Report annual forfeitures under one vesting schedule, for every simulation
+ * year, across a selected set of scenarios.
+ *
+ * This is a reporting view, not the current-vs-proposed comparison served by
+ * analyzeVesting. A scenario whose database is missing comes back in `skipped`
+ * rather than failing the request.
+ */
+export async function getForfeitureProjection(
+  workspaceId: string,
+  params: ForfeitureProjectionParams
+): Promise<ForfeitureProjectionResponse> {
+  const query = new URLSearchParams({
+    scenarios: params.scenarioIds.join(','),
+    schedule_type: params.scheduleType,
+  });
+  if (params.requireHoursCredit !== undefined) {
+    query.set('require_hours_credit', String(params.requireHoursCredit));
+  }
+  if (params.hoursThreshold !== undefined) {
+    query.set('hours_threshold', String(params.hoursThreshold));
+  }
+  const response = await fetchWithAuth(
+    `${API_BASE}/api/workspaces/${workspaceId}/analytics/vesting/forfeitures?${query}`
+  );
+  return handleResponse<ForfeitureProjectionResponse>(response);
 }
 
 /**

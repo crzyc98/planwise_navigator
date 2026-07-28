@@ -85,6 +85,7 @@ SCENARIO_READ_ROUTES = {
     "compare_dc_plan_analytics",
     "get_winners_losers",
     "get_vesting_years",
+    "project_vesting_forfeitures",
     "get_ndt_available_years",
     "run_acp_test",
     "run_401a4_test",

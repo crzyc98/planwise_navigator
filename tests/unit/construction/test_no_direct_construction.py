@@ -11,8 +11,10 @@ THIS_TEST = Path(__file__).resolve()
 def test_pipeline_orchestrator_is_instantiated_only_by_canonical_builder():
     violations = []
     for path in ROOT.rglob("*.py"):
+        # .claude holds agent worktrees — full repo copies whose own canonical
+        # builder would otherwise register as a violation of this guard.
         if path in {CANONICAL_BUILDER, THIS_TEST} or any(
-            part in {".venv", "var", ".git"} for part in path.parts
+            part in {".venv", "var", ".git", ".claude"} for part in path.parts
         ):
             continue
         constructor_token = "PipelineOrchestrator" + "("

@@ -21,6 +21,9 @@ import {
   VestingAnalysisRequest,
   EmployeeVestingDetail,
 } from '../services/api';
+import ForfeitureProjection from './ForfeitureProjection';
+
+type VestingView = 'comparison' | 'forfeitures';
 
 type SortField = 'employee_id' | 'tenure_years' | 'total_employer_contributions' |
   'current_vesting_pct' | 'current_forfeiture' | 'proposed_vesting_pct' |
@@ -157,6 +160,7 @@ export default function VestingAnalysis() {
   const [error, setError] = useState<string | null>(null);
 
   // State for employee details sorting (T045)
+  const [view, setView] = useState<VestingView>('comparison');
   const [sortField, setSortField] = useState<SortField>('forfeiture_variance');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [showEmployeeDetails, setShowEmployeeDetails] = useState(false);
@@ -374,7 +378,11 @@ export default function VestingAnalysis() {
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Vesting Analysis</h1>
-          <p className="text-gray-500 mt-1">Compare vesting schedules and project forfeiture differences.</p>
+          <p className="text-gray-500 mt-1">
+            {view === 'comparison'
+              ? 'Compare vesting schedules and project forfeiture differences.'
+              : 'Report annual forfeitures under one schedule across scenarios.'}
+          </p>
         </div>
         <button
           onClick={handleRefresh}
@@ -385,6 +393,63 @@ export default function VestingAnalysis() {
         </button>
       </div>
 
+      {/* View switcher */}
+      <div className="border-b border-gray-200">
+        <nav className="flex gap-6" aria-label="Vesting views">
+          {([
+            ['comparison', 'Schedule Comparison'],
+            ['forfeitures', 'Annual Forfeitures'],
+          ] as const).map(([id, label]) => (
+            <button
+              key={id}
+              onClick={() => setView(id)}
+              aria-current={view === id ? 'page' : undefined}
+              className={`pb-3 -mb-px text-sm font-medium border-b-2 transition-colors ${
+                view === id
+                  ? 'border-fidelity-green text-fidelity-green'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {view === 'forfeitures' && (
+        <div className="space-y-6">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <label htmlFor="forfeiture-workspace" className="block text-sm font-medium text-gray-700 mb-1">
+              Workspace
+            </label>
+            <div className="relative max-w-sm">
+              <select
+                id="forfeiture-workspace"
+                value={selectedWorkspaceId}
+                onChange={(e) => setSelectedWorkspaceId(e.target.value)}
+                className="appearance-none w-full bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm"
+              >
+                <option value="">Select Workspace</option>
+                {workspaces.map(ws => (
+                  <option key={ws.id} value={ws.id}>{ws.name}</option>
+                ))}
+              </select>
+              <ChevronDown size={16} className="absolute right-3 top-2.5 text-gray-400 pointer-events-none" />
+            </div>
+          </div>
+          {selectedWorkspaceId && (
+            <ForfeitureProjection
+              key={selectedWorkspaceId}
+              workspaceId={selectedWorkspaceId}
+              completedScenarios={completedScenarios}
+              schedules={schedules}
+            />
+          )}
+        </div>
+      )}
+
+      {view === 'comparison' && (
+      <>
       {/* Selection Controls */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -830,6 +895,8 @@ export default function VestingAnalysis() {
             )}
           </div>
         </>
+      )}
+      </>
       )}
     </div>
   );
