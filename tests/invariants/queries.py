@@ -375,3 +375,38 @@ JOIN fct_workforce_snapshot current
 WHERE prior.current_eligibility_status = 'eligible'
   AND current.current_eligibility_status IS DISTINCT FROM 'eligible'
 """
+
+# #499: the hire year is the one year an employee has neither a census row nor a
+# prior-year row to carry a status forward from, so it used to fall back to
+# 'eligible' on hire-year membership alone -- past the age gate, the waiting
+# period, and the Feature 103 override. Status must agree with event presence
+# here as it does in every other year, in both directions.
+#
+# Census employees are excluded: int_baseline_workforce holds their start-year
+# status, which is deliberately census provenance rather than event-derived
+# (#493, #496). A hire-year employee has no prior-year row by construction.
+ELIGIBILITY_HIRE_YEAR_MATCHES_EVENT = """
+WITH hire_year_events AS (
+  SELECT DISTINCT employee_id, simulation_year
+  FROM fct_yearly_events
+  WHERE event_type = 'eligibility'
+)
+SELECT
+  snapshot.employee_id,
+  snapshot.simulation_year,
+  snapshot.employee_hire_date,
+  snapshot.current_eligibility_status,
+  event.employee_id IS NOT NULL AS has_eligibility_event
+FROM fct_workforce_snapshot snapshot
+LEFT JOIN hire_year_events event
+  ON event.employee_id = snapshot.employee_id
+  AND event.simulation_year = snapshot.simulation_year
+WHERE EXTRACT(YEAR FROM snapshot.employee_hire_date) = snapshot.simulation_year
+  AND NOT EXISTS (
+    SELECT 1
+    FROM int_baseline_workforce baseline
+    WHERE baseline.employee_id = snapshot.employee_id
+  )
+  AND snapshot.current_eligibility_status IS DISTINCT FROM
+    CASE WHEN event.employee_id IS NOT NULL THEN 'eligible' ELSE 'pending' END
+"""

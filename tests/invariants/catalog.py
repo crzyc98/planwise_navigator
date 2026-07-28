@@ -109,4 +109,10 @@ CATALOG = (
         "#496",
         queries.ELIGIBILITY_STATE_NEVER_REGRESSES,
     ),
+    Invariant(
+        "eligibility-hire-year-matches-event",
+        "A new hire reads eligible only in a year their eligibility event fired.",
+        "#499",
+        queries.ELIGIBILITY_HIRE_YEAR_MATCHES_EVENT,
+    ),
 )
