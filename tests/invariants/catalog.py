@@ -91,4 +91,22 @@ CATALOG = (
         "#493",
         queries.ELIGIBILITY_STATE_PERSISTS,
     ),
+    Invariant(
+        "eligibility-event-transitions-state",
+        "A pending employee reads eligible from their eligibility event year on.",
+        "#496",
+        queries.ELIGIBILITY_EVENT_TRANSITIONS_STATE,
+    ),
+    Invariant(
+        "eligibility-transition-requires-event",
+        "Nothing but an eligibility event moves an employee out of pending.",
+        "#496",
+        queries.ELIGIBILITY_TRANSITION_REQUIRES_EVENT,
+    ),
+    Invariant(
+        "eligibility-state-never-regresses",
+        "An eligible employee never reverts to pending.",
+        "#496",
+        queries.ELIGIBILITY_STATE_NEVER_REGRESSES,
+    ),
 )

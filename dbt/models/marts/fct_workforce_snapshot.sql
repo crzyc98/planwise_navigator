@@ -116,12 +116,11 @@ baseline AS (
   WHERE baseline_rank = 1
 ),
 
--- Issue #493: int_baseline_workforce only ever contains the start year, so the
--- baseline CTE above is empty from year 2 onward and every eligibility column
--- sourced from it fell through to NULL. These fields originate in the census
--- (int_baseline_workforce passes stg_census_data straight through) and are not
--- recomputed per year, so the correct behaviour is to carry the established
--- value forward rather than re-derive it.
+-- The start-year status is census provenance, evaluated at the census cutoff
+-- (before the simulation starts). employee_eligibility_date is instead the
+-- computed target date, so a pending start-year employee can have a target
+-- date within the first simulation year. Preserve that start-year observation;
+-- only an immutable eligibility event transitions pending state.
 prior_year_eligibility AS (
 {% if is_incremental() and simulation_year > start_year %}
   SELECT
@@ -140,6 +139,29 @@ prior_year_eligibility AS (
     CAST(NULL AS VARCHAR) AS current_eligibility_status
   WHERE FALSE
 {% endif %}
+),
+
+-- An eligibility event is the authoritative signal that plan eligibility was
+-- achieved, so it is what transitions an employee out of 'pending'.
+--
+-- Start year: events are excluded entirely (the bound below collapses to
+-- `<= start_year - 1`, which matches nothing). The start-year status is census
+-- provenance -- stg_census_data compares hire_date + eligibility_waiting_period_days
+-- against plan_year_end_date -- so an employee hired just after that cutoff is
+-- legitimately 'pending' even though their eligibility event fires on day one
+-- of the simulation. #493 pinned that start-year distribution; rewriting it
+-- here would undo it.
+--
+-- Later years: the current year's events count. This relation is end-of-year
+-- state, so an employee whose event fires during year N is eligible at the
+-- close of year N -- not year N+1.
+achieved_eligibility_events AS (
+  SELECT DISTINCT employee_id
+  FROM {{ ref('fct_yearly_events') }}
+  WHERE event_type = {{ evt_eligibility() }}
+    AND scenario_id = '{{ scenario_id }}'
+    AND plan_design_id = '{{ plan_design_id }}'
+    AND simulation_year <= {{ simulation_year if simulation_year > start_year else simulation_year - 1 }}
 ),
 
 contributions AS (
@@ -196,14 +218,22 @@ composed AS (
           THEN 0
       END
     ) AS waiting_period_days,
-    COALESCE(
-      baseline.current_eligibility_status,
-      prior_year_eligibility.current_eligibility_status,
-      CASE
-        WHEN EXTRACT(YEAR FROM workforce.employee_hire_date) = {{ simulation_year }}
-          THEN 'eligible'
-      END
-    ) AS current_eligibility_status,
+    CASE
+      WHEN COALESCE(
+        baseline.current_eligibility_status,
+        prior_year_eligibility.current_eligibility_status
+      ) = 'pending'
+        AND achieved_eligibility_events.employee_id IS NOT NULL
+        THEN 'eligible'
+      ELSE COALESCE(
+        baseline.current_eligibility_status,
+        prior_year_eligibility.current_eligibility_status,
+        CASE
+          WHEN EXTRACT(YEAR FROM workforce.employee_hire_date) = {{ simulation_year }}
+            THEN 'eligible'
+        END
+      )
+    END AS current_eligibility_status,
     COALESCE(enrollment.enrollment_date, baseline.employee_enrollment_date)
       AS employee_enrollment_date,
     COALESCE(enrollment.enrollment_status, FALSE) AS is_enrolled_flag,
@@ -260,6 +290,7 @@ composed AS (
   LEFT JOIN deferral USING (employee_id)
   LEFT JOIN baseline USING (employee_id)
   LEFT JOIN prior_year_eligibility USING (employee_id)
+  LEFT JOIN achieved_eligibility_events USING (employee_id)
   LEFT JOIN contributions USING (employee_id)
   LEFT JOIN employer_match USING (employee_id)
   LEFT JOIN employer_core USING (employee_id)
