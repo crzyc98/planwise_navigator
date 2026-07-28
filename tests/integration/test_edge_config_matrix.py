@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.edge_config.assertions import assert_bounded_samples
+from tests.edge_config.assertions import assert_bounded_samples, assert_no_violations
 from tests.edge_config.catalog import EdgeConfigScenario, validate_catalog
 from tests.edge_config.queries import execute_violation_query, targeted_query
 from tests.fixtures.edge_config_matrix import require_completed
@@ -22,6 +22,8 @@ def test_catalog_shape(edge_catalog: tuple[EdgeConfigScenario, ...]) -> None:
         "eligibility_suppression",
         "tenure_match",
         "escalation_cap",
+        "zero_growth",
+        "custom_hire_inputs",
     }
 
 
@@ -39,7 +41,7 @@ def test_matrix_case_has_completed_outputs(edge_run) -> None:
     database = require_completed(edge_run)
     result = targeted_query(edge_run.scenario, database)
     assert_bounded_samples(result.violations, edge_run.scenario.sample_limit)
-    assert result.passed, result
+    assert_no_violations(result)
 
 
 def test_violation_query_is_bounded(tmp_path: Path) -> None:
