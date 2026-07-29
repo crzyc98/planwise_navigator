@@ -266,6 +266,17 @@ def batch(
         "--clean",
         help="Delete DuckDB databases before running for a clean start",
     ),
+    parallel: Optional[int] = typer.Option(
+        None,
+        "--parallel",
+        "-p",
+        min=1,
+        help=(
+            "Worker processes to run scenarios across. Default: sized from "
+            "available memory (~1.5 GiB/worker) and CPU count. Use 1 to force "
+            "serial execution."
+        ),
+    ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output"),
 ):
     """📊 Run multiple scenarios with Excel export."""
@@ -282,6 +293,7 @@ def batch(
         threads=threads,
         optimization=optimization,
         clean=clean,
+        parallel=parallel,
         verbose=verbose,
     )
 

@@ -56,6 +56,17 @@ def run_batch(
         "--clean",
         help="Delete DuckDB databases before running for a clean start",
     ),
+    parallel: Optional[int] = typer.Option(
+        None,
+        "--parallel",
+        "-p",
+        min=1,
+        help=(
+            "Worker processes to run scenarios across. Default: sized from "
+            "available memory (~1.5 GiB/worker) and CPU count. Use 1 to force "
+            "serial execution."
+        ),
+    ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output"),
 ):
     """Run multiple scenarios with Excel export."""
@@ -114,12 +125,17 @@ def run_batch(
                     threads=threads,
                     optimization=optimization,
                     clean_databases=clean,
+                    parallel=parallel,
+                    on_event=_make_progress_handler(progress, main_task),
                 )
                 progress.update(
                     main_task,
                     completed=scenario_count,
                     description="✅ Batch processing complete",
                 )
+            except KeyboardInterrupt:
+                progress.update(main_task, description="⚠️  Interrupted")
+                raise
             except Exception:
                 progress.update(main_task, description="❌ Batch processing failed")
                 raise
@@ -139,6 +155,35 @@ def run_batch(
         raise typer.Exit(1)
 
 
+def _make_progress_handler(progress, main_task):
+    """Drive the Rich bar from pool events.
+
+    The pool delivers events on this process's thread, so updates are safe and
+    ordered here even while N workers run — the workers themselves never touch
+    the terminal.
+    """
+    from planalign_orchestrator.run_pool import EventKind
+
+    running: set[str] = set()
+
+    def handle(event) -> None:
+        if event.kind is EventKind.JOB_STARTED:
+            running.add(event.job_name)
+        else:
+            running.discard(event.job_name)
+            progress.advance(main_task)
+            icon = "✅" if event.kind is EventKind.JOB_COMPLETED else "❌"
+            console.print(
+                f"  {icon} [dim]{event.job_name}"
+                f" ({event.duration_seconds or 0:.1f}s)[/dim]"
+            )
+        if running:
+            active = ", ".join(sorted(running))
+            progress.update(main_task, description=f"📊 Running: {active}")
+
+    return handle
+
+
 def _report_batch_results(results: dict, batch_runner) -> int:
     """Report batch processing results and return exit code."""
     successful = [
@@ -153,6 +198,9 @@ def _report_batch_results(results: dict, batch_runner) -> int:
     ]
 
     console.print("\n🎯 [bold blue]Batch execution completed[/bold blue]")
+    budget = getattr(batch_runner, "worker_budget", None)
+    if budget is not None:
+        console.print(f"  ⚡ Fan-out: [dim]{budget.describe()}[/dim]")
     console.print(f"  ✅ Successful: {len(successful)} scenarios")
     if successful:
         console.print(f"     [dim]{', '.join(successful)}[/dim]")
@@ -178,6 +226,7 @@ def default(
     threads: int = typer.Option(1, "--threads"),
     optimization: str = typer.Option("medium", "--optimization"),
     clean: bool = typer.Option(False, "--clean"),
+    parallel: Optional[int] = typer.Option(None, "--parallel", "-p", min=1),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ):
     """Default batch command."""
@@ -190,5 +239,6 @@ def default(
         threads=threads,
         optimization=optimization,
         clean=clean,
+        parallel=parallel,
         verbose=verbose,
     )

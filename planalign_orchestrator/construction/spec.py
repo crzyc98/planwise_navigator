@@ -54,6 +54,10 @@ class ConstructionSpec(BaseModel):
     database: Path | DatabaseConnectionManager
     threads: int = Field(default=1, ge=1, le=16)
     dbt_project_dir: Path | None = None
+    # Redirects dbt's target/ and logs/ off the shared project dir. Parallel
+    # scenario workers each supply their own so concurrent runs cannot
+    # overwrite one another's run_results.json; None keeps dbt's defaults.
+    dbt_artifacts_dir: Path | None = None
     reports_dir: Path = Path("var/reports")
     initialization: InitializationPolicy = InitializationPolicy.NONE
     execution_engine: ExecutionEngineOption = Field(

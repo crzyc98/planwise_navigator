@@ -26,9 +26,108 @@ import yaml
 
 from .config import SimulationConfig, load_simulation_config
 from .excel_exporter import ExcelExporter
+from .run_pool import (
+    EventKind,
+    PoolEvent,
+    ScenarioJob,
+    ScenarioRunPool,
+    WorkerBudget,
+    resolve_worker_count,
+)
 from .utils import DatabaseConnectionManager, ExecutionMutex
 
 logger = logging.getLogger(__name__)
+
+
+def execute_scenario_job(job: ScenarioJob) -> Dict[str, Any]:
+    """Run one fully-resolved scenario and export its results.
+
+    This is the pool's worker entry point, so it must stay a module-level
+    function (workers receive it by pickled reference) and must depend only on
+    ``job`` — nothing about the parent's state survives the process boundary.
+    Everything non-deterministic (config merge, seed resolution) is already
+    settled by :meth:`ScenarioBatchRunner._prepare_job`, which is what makes a
+    parallel run reproduce the serial one.
+    """
+    scenario_dir = Path(job.payload["scenario_dir"])
+    export_format = str(job.payload["export_format"])
+
+    # Per-scenario lock, not a global one: distinct scenarios own distinct
+    # databases, so parallel workers never contend here. It still guards
+    # against a second batch touching the same scenario concurrently.
+    with ExecutionMutex(f"scenario_{job.name}"):
+        db_manager = DatabaseConnectionManager(job.db_path)
+        from .construction import ConstructionSpec, build_orchestrator
+
+        try:
+            result = build_orchestrator(
+                ConstructionSpec(
+                    config=job.config,
+                    database=db_manager,
+                    threads=job.threads,
+                    entry_point="batch",
+                    dbt_artifacts_dir=job.dbt_artifacts_dir,
+                )
+            )
+            orchestrator = result.orchestrator
+            orchestrator.construction_signature = result.signature
+
+            logger.info(
+                "Running simulation: %d-%d",
+                job.config.simulation.start_year,
+                job.config.simulation.end_year,
+            )
+            start_time = datetime.now()
+
+            summary = orchestrator.execute_multi_year_simulation(
+                start_year=job.config.simulation.start_year,
+                end_year=job.config.simulation.end_year,
+                # Continue batch processing even with validation warnings
+                fail_on_validation_error=False,
+            )
+
+            execution_time = (datetime.now() - start_time).total_seconds()
+            logger.debug("Execution time: %.1f seconds", execution_time)
+
+            logger.info("Exporting results (%s)", export_format)
+            excel_exporter = ExcelExporter(db_manager)
+            export_path = excel_exporter.export_scenario_results(
+                scenario_name=job.name,
+                output_dir=scenario_dir,
+                config=job.config,
+                seed=job.seed,
+                export_format=export_format,
+            )
+
+            config_copy_path = scenario_dir / f"{job.name}_config.yaml"
+            _save_config_copy(job.config, config_copy_path)
+
+            return {
+                "status": "completed",
+                "summary": summary,
+                "database_path": str(job.db_path),
+                "export_path": str(export_path),
+                "scenario_dir": str(scenario_dir),
+                "execution_time_seconds": execution_time,
+                "seed": job.seed,
+                "config_path": str(config_copy_path),
+            }
+
+        finally:
+            try:
+                db_manager.close_all()
+            except Exception as e:
+                logger.debug("Non-fatal: failed closing connections: %s", e)
+
+
+def _save_config_copy(config: SimulationConfig, output_path: Path) -> None:
+    """Save a copy of the merged configuration for reference."""
+    try:
+        config_dict = config.model_dump()
+        with open(output_path, "w", encoding="utf-8") as f:
+            yaml.dump(config_dict, f, default_flow_style=False, sort_keys=False)
+    except Exception as e:
+        logger.warning("Could not save config copy: %s", e)
 
 
 class ScenarioBatchRunner:
@@ -60,6 +159,8 @@ class ScenarioBatchRunner:
         )
         self.batch_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.batch_output_dir = self.output_dir / f"batch_{self.batch_timestamp}"
+        # Populated by run_batch; lets the CLI report the resolved fan-out.
+        self.worker_budget: Optional[WorkerBudget] = None
 
         # Create output directory
         self.batch_output_dir.mkdir(parents=True, exist_ok=True)
@@ -71,6 +172,8 @@ class ScenarioBatchRunner:
         threads: int = 1,
         optimization: str = "medium",
         clean_databases: bool = False,
+        parallel: Optional[int] = None,
+        on_event: Optional[Any] = None,
     ) -> Dict[str, Any]:
         """Execute batch of scenarios with isolated databases.
 
@@ -80,6 +183,10 @@ class ScenarioBatchRunner:
             threads: Number of dbt threads for parallel execution
             optimization: Optimization level ('low', 'medium', 'high')
             clean_databases: If True, delete existing DuckDB databases before running
+            parallel: Worker processes to fan scenarios out across. ``None``
+                sizes it from measured memory and CPU budgets; ``1`` runs
+                scenarios serially in this process.
+            on_event: Optional callback receiving :class:`PoolEvent` updates.
 
         Returns:
             Dictionary mapping scenario names to their execution results
@@ -106,29 +213,55 @@ class ScenarioBatchRunner:
         if clean_databases:
             self._clean_scenario_databases(list(scenarios.keys()))
 
-        results = {}
         logger.info("Starting batch execution: %d scenarios", len(scenarios))
         logger.info("Output directory: %s", self.batch_output_dir)
         logger.info("Configuration: %d threads, %s optimization", threads, optimization)
 
-        for i, (name, config_path) in enumerate(scenarios.items(), 1):
-            logger.info("[%d/%d] Processing scenario: %s", i, len(scenarios), name)
+        budget = resolve_worker_count(parallel, len(scenarios))
+        self.worker_budget = budget
+        logger.info("Scenario fan-out: %s", budget.describe())
 
-            # Use ExecutionMutex to prevent concurrent database access
-            with ExecutionMutex(f"scenario_{name}"):
-                try:
-                    result = self._run_isolated_scenario(
-                        name, config_path, export_format, threads, optimization
+        # Prepare every job before any of them runs. Config merge and seed
+        # resolution decide what a scenario computes, so they must not depend
+        # on which worker picks the job up or in what order.
+        jobs: List[ScenarioJob] = []
+        results: Dict[str, Any] = {}
+        for name, config_path in scenarios.items():
+            try:
+                jobs.append(
+                    self._prepare_job(
+                        name,
+                        config_path,
+                        export_format=export_format,
+                        threads=threads,
+                        isolate_dbt_artifacts=budget.workers > 1,
                     )
-                    results[name] = result
-                    logger.info("Scenario %s completed successfully", name)
+                )
+            except Exception as e:
+                logger.error(
+                    "Scenario %s failed during setup: %s", name, e, exc_info=True
+                )
+                results[name] = {
+                    "status": "failed",
+                    "error": str(e),
+                    "traceback": traceback.format_exc(),
+                }
 
-                except Exception as e:
-                    logger.error("Scenario %s failed: %s", name, e, exc_info=True)
+        if jobs:
+            pool = ScenarioRunPool(max_workers=budget.workers)
+            job_results = pool.run(
+                execute_scenario_job,
+                jobs,
+                on_event=self._make_event_handler(on_event, len(jobs)),
+            )
+            for name, job_result in job_results.items():
+                if job_result.succeeded and job_result.value is not None:
+                    results[name] = job_result.value
+                else:
                     results[name] = {
                         "status": "failed",
-                        "error": str(e),
-                        "traceback": traceback.format_exc(),
+                        "error": job_result.error or "unknown failure",
+                        "traceback": job_result.traceback,
                     }
 
         # Generate batch summary report
@@ -227,25 +360,21 @@ class ScenarioBatchRunner:
         else:
             logger.info("No existing databases found to clean")
 
-    def _run_isolated_scenario(
+    def _prepare_job(
         self,
         scenario_name: str,
         config_path: Path,
+        *,
         export_format: str,
         threads: int = 1,
-        optimization: str = "medium",
-    ) -> Dict[str, Any]:
-        """Run single scenario with isolated database.
+        isolate_dbt_artifacts: bool = False,
+    ) -> ScenarioJob:
+        """Resolve one scenario into a self-contained, runnable job.
 
-        Args:
-            scenario_name: Name of the scenario
-            config_path: Path to the scenario configuration file
-            export_format: Export format ('excel' or 'csv')
-            threads: Number of dbt threads for parallel execution
-            optimization: Optimization level ('low', 'medium', 'high')
-
-        Returns:
-            Dictionary with execution results and metadata
+        Everything here happens in the parent, before any worker starts, so a
+        scenario computes the same thing whether it runs serially or on a
+        worker: the merged config and the seed are fixed up front rather than
+        re-derived under concurrency.
         """
         # Create scenario output directory
         scenario_dir = self.batch_output_dir / scenario_name
@@ -265,9 +394,6 @@ class ScenarioBatchRunner:
             conn.close()
             logger.debug("Database file created successfully")
 
-        logger.debug("Database path: %s", scenario_db)
-        logger.debug("Database exists: %s", scenario_db.exists())
-
         # Load and merge scenario configuration with base config
         config = self._load_merged_config(config_path)
         self._validate_config(config)
@@ -282,76 +408,68 @@ class ScenarioBatchRunner:
         # Update config with determined seed
         config.simulation.random_seed = seed
 
-        # Setup isolated database connection manager
-        db_manager = DatabaseConnectionManager(scenario_db)
+        # Only redirect dbt's target/ and logs/ when scenarios actually run
+        # concurrently. Serial batches keep writing to dbt/target so the usual
+        # post-mortem workflow ("look at dbt/target/run_results.json") is
+        # unchanged for anyone not opting into fan-out.
+        artifacts_dir = (
+            scenario_dir / "dbt_artifacts" if isolate_dbt_artifacts else None
+        )
+        if artifacts_dir is not None:
+            (artifacts_dir / "target").mkdir(parents=True, exist_ok=True)
+            (artifacts_dir / "logs").mkdir(parents=True, exist_ok=True)
 
-        # Setup PipelineOrchestrator through the canonical construction seam.
-        from .construction import ConstructionSpec, build_orchestrator
-
-        try:
-            result = build_orchestrator(
-                ConstructionSpec(
-                    config=config,
-                    database=db_manager,
-                    threads=threads,
-                    entry_point="batch",
-                )
-            )
-            orchestrator = result.orchestrator
-            orchestrator.construction_signature = result.signature
-
-            # Execute multi-year simulation
-            logger.info(
-                "Running simulation: %d-%d",
-                config.simulation.start_year,
-                config.simulation.end_year,
-            )
-            start_time = datetime.now()
-
-            summary = orchestrator.execute_multi_year_simulation(
-                start_year=config.simulation.start_year,
-                end_year=config.simulation.end_year,
-                fail_on_validation_error=False,  # Continue batch processing even with validation warnings
-            )
-
-            execution_time = (datetime.now() - start_time).total_seconds()
-            logger.debug("Execution time: %.1f seconds", execution_time)
-
-            # Export results
-            logger.info("Exporting results (%s)", export_format)
-            excel_exporter = ExcelExporter(db_manager)
-            export_path = excel_exporter.export_scenario_results(
-                scenario_name=scenario_name,
-                output_dir=scenario_dir,
-                config=config,
-                seed=seed,
-                export_format=export_format,
-            )
-
-            # Save scenario configuration for reference
-            config_copy_path = scenario_dir / f"{scenario_name}_config.yaml"
-            self._save_config_copy(config, config_copy_path)
-
-            return {
-                "status": "completed",
-                "summary": summary,
-                "database_path": str(scenario_db),
-                "export_path": str(export_path),
+        return ScenarioJob(
+            name=scenario_name,
+            config=config,
+            db_path=scenario_db,
+            seed=seed,
+            threads=threads,
+            dbt_artifacts_dir=artifacts_dir,
+            payload={
                 "scenario_dir": str(scenario_dir),
-                "execution_time_seconds": execution_time,
-                "seed": seed,
-                "config_path": str(config_copy_path),
-            }
+                "export_format": export_format,
+            },
+        )
 
-        finally:
-            # Ensure proper database connection cleanup
-            try:
-                # Force close any remaining connections
-                import gc
+    def _make_event_handler(self, on_event: Optional[Any], total: int) -> Any:
+        """Wrap the caller's handler with pool-level progress logging.
 
-                gc.collect()  # Force garbage collection to close lingering connections
-            except Exception:
-                pass  # Best effort cleanup
+        Aggregating here — rather than letting workers write to the terminal —
+        is what keeps concurrent output from interleaving into garbage.
+        """
+        state = {"done": 0}
+
+        def handle(event: PoolEvent) -> None:
+            if event.kind is EventKind.JOB_STARTED:
+                logger.info(
+                    "[%d/%d] Started scenario: %s",
+                    state["done"] + 1,
+                    total,
+                    event.job_name,
+                )
+            else:
+                state["done"] += 1
+                if event.kind is EventKind.JOB_COMPLETED:
+                    logger.info(
+                        "[%d/%d] Scenario %s completed in %.1fs",
+                        state["done"],
+                        total,
+                        event.job_name,
+                        event.duration_seconds or 0.0,
+                    )
+                else:
+                    logger.error(
+                        "[%d/%d] Scenario %s failed: %s",
+                        state["done"],
+                        total,
+                        event.job_name,
+                        event.error,
+                    )
+            if on_event is not None:
+                on_event(event)
+
+        return handle
 
     def _resolve_scenario_seed(
         self, scenario_name: str, config: SimulationConfig
@@ -455,20 +573,6 @@ class ScenarioBatchRunner:
 
         # Validate eligibility configuration (emits warnings for contradictory settings)
         config.validate_eligibility_configuration()
-
-    def _save_config_copy(self, config: SimulationConfig, output_path: Path) -> None:
-        """Save a copy of the merged configuration for reference.
-
-        Args:
-            config: Configuration to save
-            output_path: Path to save the configuration
-        """
-        try:
-            config_dict = config.model_dump()
-            with open(output_path, "w", encoding="utf-8") as f:
-                yaml.dump(config_dict, f, default_flow_style=False, sort_keys=False)
-        except Exception as e:
-            logger.warning("Could not save config copy: %s", e)
 
     def _generate_batch_summary(self, results: Dict[str, Any]) -> None:
         """Generate batch execution summary.

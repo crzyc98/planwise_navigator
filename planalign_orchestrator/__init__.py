@@ -61,6 +61,14 @@ from .reports.formatters import (
 )
 from .reports.multi_year_reporter import MultiYearReporter
 from .reports.year_auditor import YearAuditor
+from .run_pool import (
+    JobResult,
+    PoolEvent,
+    ScenarioJob,
+    ScenarioRunPool,
+    WorkerBudget,
+    resolve_worker_count,
+)
 from .run_summary import RunIssue, RunMetadata, RunSummaryGenerator
 from .utils import DatabaseConnectionManager, ExecutionMutex, time_block
 from .validation import (
@@ -94,6 +102,13 @@ __all__ = [
     "ScheduleStep",
     "WorkSchedule",
     "build_orchestrator",
+    # Parallel scenario fan-out
+    "JobResult",
+    "PoolEvent",
+    "ScenarioJob",
+    "ScenarioRunPool",
+    "WorkerBudget",
+    "resolve_worker_count",
     # Utils
     "ExecutionMutex",
     "DatabaseConnectionManager",
