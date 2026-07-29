@@ -101,6 +101,7 @@ packages = [
     "planalign_api.websocket",
     "planalign_core",
     "planalign_core.events",
+    "planalign_fit",
 ]
 py-modules = ["_version"]
 

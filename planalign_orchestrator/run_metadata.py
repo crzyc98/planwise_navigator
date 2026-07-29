@@ -298,6 +298,25 @@ def _compose_drift_message(result: DriftCheckResult) -> str:
     )
 
 
+def extract_param_pack_provenance(config: "SimulationConfig") -> dict:
+    """Read the ``param_pack`` block a fitted-pack run stamps into its config.
+
+    ``planalign simulate --params`` writes an effective config carrying the
+    pack's identity (issue #458). The block is an untyped extra: ``to_dbt_vars``
+    ignores it, so recording it here does not disturb the config fingerprint —
+    it answers "which fitted evidence produced this run", not "what did the
+    simulator compute".
+    """
+    block = getattr(config, "param_pack", None)
+    if not isinstance(block, dict):
+        return {}
+    return {
+        key: str(block[key])
+        for key in ("pack_id", "fingerprint", "source_digest")
+        if block.get(key) is not None
+    }
+
+
 def _append_record(
     conn,
     config: "SimulationConfig",
@@ -312,14 +331,16 @@ def _append_record(
     construction_signature: Optional["ConstructionSignature"],
 ) -> None:
     """Append this run's record (FR-008: append-only; no update/delete exists)."""
+    pack = extract_param_pack_provenance(config)
     conn.execute(
         f"""
         INSERT INTO {RUN_METADATA_TABLE} (
             run_id, run_timestamp, run_type, config_fingerprint, random_seed,
             start_year, end_year, scenario_id, plan_design_id,
             planalign_version, full_reset, construction_signature_hash,
-            initialization_policy, entry_point, runner_kind
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            initialization_policy, entry_point, runner_kind,
+            param_pack_id, param_pack_fingerprint, param_pack_source_digest
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """,
         [
             run_id,
@@ -345,6 +366,9 @@ def _append_record(
             construction_signature.runner_kind
             if construction_signature is not None
             else None,
+            pack.get("pack_id"),
+            pack.get("fingerprint"),
+            pack.get("source_digest"),
         ],
     )
 
@@ -356,6 +380,11 @@ def _evolve_provenance_schema(conn) -> None:
         "initialization_policy",
         "entry_point",
         "runner_kind",
+        # Issue #458: which fitted parameter pack (if any) produced this run's
+        # hazards and behavioural parameters.
+        "param_pack_id",
+        "param_pack_fingerprint",
+        "param_pack_source_digest",
     ):
         conn.execute(
             f"ALTER TABLE {RUN_METADATA_TABLE} ADD COLUMN IF NOT EXISTS {name} VARCHAR"

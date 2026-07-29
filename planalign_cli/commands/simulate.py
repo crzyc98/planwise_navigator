@@ -78,6 +78,13 @@ def run_simulation(
     growth: Optional[str] = typer.Option(
         None, "--growth", help="Target growth rate (e.g., '3.5%' or '0.035')"
     ),
+    params: Optional[str] = typer.Option(
+        None,
+        "--params",
+        help="Fitted parameter pack directory from `planalign fit`. Its seeds and "
+        "config fragment are applied for this run only; the repository is never "
+        "modified.",
+    ),
 ):
     """
     Run multi-year workforce simulation with Rich progress tracking.
@@ -103,6 +110,12 @@ def run_simulation(
         # Initialize wrapper
         config_path = Path(config) if config else find_default_config()
         db_path = Path(database) if database else Path("dbt") / DATABASE_FILENAME
+        project_dir = Path(dbt_project_dir) if dbt_project_dir else None
+
+        if params:
+            config_path, project_dir = _apply_parameter_pack(
+                params, config_path, project_dir
+            )
 
         if verbose:
             console.print(f"📁 Config: {config_path}")
@@ -112,7 +125,7 @@ def run_simulation(
             config_path,
             db_path,
             verbose=verbose,
-            dbt_project_dir=Path(dbt_project_dir) if dbt_project_dir else None,
+            dbt_project_dir=project_dir,
             entry_point=_resolve_entry_point(),
         )
 
@@ -185,6 +198,50 @@ def run_simulation(
     except Exception as e:
         show_error_message(f"Simulation error: {e}")
         raise typer.Exit(1)
+
+
+def _apply_parameter_pack(
+    pack_dir: str, config_path: Path, project_dir: Optional[Path]
+) -> tuple[Path, Path]:
+    """Swap in a fitted pack's config and seeds for this run only.
+
+    Returns the effective config path and the overlay dbt project directory. An
+    explicit ``--dbt-project-dir`` is rejected rather than silently ignored: the
+    pack needs its own seed overlay, so the two options cannot both hold.
+    """
+    from planalign_fit.apply import apply_pack
+    from planalign_fit.pack import PackError
+
+    if project_dir is not None:
+        show_error_message(
+            "--params and --dbt-project-dir cannot be combined: a parameter pack "
+            "builds its own dbt project overlay to carry its seeds."
+        )
+        raise typer.Exit(2)
+
+    try:
+        applied = apply_pack(pack_dir, config_path)
+    except PackError as e:
+        show_error_message(str(e))
+        raise typer.Exit(2) from e
+
+    console.print(
+        f"📐 [blue]Parameter pack:[/blue] {applied.manifest.pack_id} "
+        f"[dim](fingerprint {applied.manifest.fingerprint[:12]}…, fitted from "
+        f"{', '.join(str(y) for y in applied.manifest.snapshot_years)})[/dim]"
+    )
+    if not applied.fingerprint_verified:
+        console.print(
+            "[yellow]⚠️  Pack contents no longer match the fingerprint recorded "
+            "when it was fitted — its files were edited afterwards.[/yellow]"
+        )
+    if applied.manifest.unfittable:
+        console.print(
+            f"[yellow]⚠️  {len(applied.manifest.unfittable)} parameter group(s) in "
+            "this pack were never fitted and are running on defaults. See "
+            "fit_report.md.[/yellow]"
+        )
+    return applied.config_path, applied.dbt_project_dir
 
 
 def _print_config_summary(config_path: Path, console: Console, verbose: bool) -> None:
