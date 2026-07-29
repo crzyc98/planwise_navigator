@@ -207,7 +207,7 @@ def _comp_levers_seed(seeds_dir: Path, merit: Mapping[int, FittedValue]) -> str:
             continue
         fitted = merit.get(level)
         if fitted is not None:
-            row["parameter_value"] = _round(fitted.value)
+            row["parameter_value"] = str(_round(fitted.value))
     return _csv_text(fieldnames, rows)
 
 
@@ -224,7 +224,7 @@ def _deferral_seed(
         )
         fitted = rates.get(key)
         if fitted is not None:
-            row["default_rate"] = _round(fitted.value)
+            row["default_rate"] = str(_round(fitted.value))
     return _csv_text(fieldnames, rows)
 
 

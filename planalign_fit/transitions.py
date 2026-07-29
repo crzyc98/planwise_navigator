@@ -180,10 +180,13 @@ def _observe(
     has_inactive = False
     if "active" in common or "employee_termination_date" in common:
         for snapshot in snapshot_set:
-            count = conn.execute(
+            row = conn.execute(
                 f"SELECT COUNT(*) FROM ({_snapshot_projection(snapshot)}) "
                 "WHERE NOT is_active"
-            ).fetchone()[0]
+            ).fetchone()
+            if row is None:
+                continue
+            count = row[0]
             if count:
                 has_inactive = True
                 break
@@ -232,9 +235,10 @@ def build_transitions(
         f"CREATE TABLE {NEW_HIRES_TABLE} AS " + "\nUNION ALL\n".join(new_hire_selects)
     )
 
-    linked_pairs = int(
-        conn.execute(f"SELECT COUNT(*) FROM {TRANSITIONS_TABLE}").fetchone()[0]
-    )
+    linked_row = conn.execute(f"SELECT COUNT(*) FROM {TRANSITIONS_TABLE}").fetchone()
+    if linked_row is None:
+        raise RuntimeError("Could not count linked snapshot pairs.")
+    linked_pairs = int(linked_row[0])
     unmatched = _count_reappearances(conn, snapshot_set)
 
     return TransitionSet(
@@ -325,9 +329,8 @@ def _count_reappearances(
     """
     total = 0
     for prior, later in zip(snapshot_set.snapshots, snapshot_set.snapshots[1:]):
-        total += int(
-            conn.execute(
-                f"""
+        row = conn.execute(
+            f"""
                 SELECT COUNT(*)
                 FROM banded_{later.year} n
                 LEFT JOIN banded_{prior.year} p USING (employee_id)
@@ -335,6 +338,7 @@ def _count_reappearances(
                   AND (n.hire_date IS NULL
                        OR EXTRACT(YEAR FROM n.hire_date) < {later.year})
                 """
-            ).fetchone()[0]
-        )
+        ).fetchone()
+        if row is not None:
+            total += int(row[0])
     return total

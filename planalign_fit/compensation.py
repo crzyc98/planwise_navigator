@@ -102,10 +102,12 @@ def fit_headcount_growth(
     """
     counts = []
     for snapshot in transitions.snapshot_set:
-        active = transitions.conn.execute(
+        row = transitions.conn.execute(
             f"SELECT COUNT(*) FROM banded_{snapshot.year} WHERE is_active"
-        ).fetchone()[0]
-        counts.append(float(active))
+        ).fetchone()
+        if row is None:
+            continue
+        counts.append(float(row[0]))
 
     ratios = [
         later / earlier - 1.0

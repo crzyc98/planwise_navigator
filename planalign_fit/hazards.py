@@ -241,12 +241,15 @@ def fit_scalar_rate(
 ) -> FittedValue:
     """Fit one population-level rate (events over exposure)."""
     clause = f"WHERE {where}" if where else ""
-    exposure, events = conn.execute(
+    row = conn.execute(
         f"""
         SELECT COUNT(*), SUM(CASE WHEN {event_predicate} THEN 1 ELSE 0 END)
         FROM {table} {clause}
         """
     ).fetchone()
+    if row is None:
+        raise RuntimeError(f"Could not calculate scalar rate '{name}'.")
+    exposure, events = row
     return FittedValue.from_credibility(
         name,
         shrink_toward(

@@ -123,10 +123,6 @@ def _fit_scalars(
     priors: Priors,
     options: FitOptions,
 ) -> None:
-    smoothing = {
-        "credibility_k": options.credibility_k,
-        "min_exposure": options.min_exposure,
-    }
     result.config_overrides[
         "workforce.total_termination_rate"
     ] = hazards.fit_scalar_rate(
@@ -135,7 +131,8 @@ def _fit_scalars(
         transitions.table,
         "terminated",
         float(priors.config_value("workforce.total_termination_rate", 0.12)),
-        **smoothing,
+        credibility_k=options.credibility_k,
+        min_exposure=options.min_exposure,
     )
 
     if transitions.observability.has_termination_rows:
@@ -147,7 +144,8 @@ def _fit_scalars(
             transitions.new_hires_table,
             "terminated",
             float(priors.config_value("workforce.new_hire_termination_rate", 0.25)),
-            **smoothing,
+            credibility_k=options.credibility_k,
+            min_exposure=options.min_exposure,
         )
     else:
         result.unfittable.append(
@@ -348,11 +346,10 @@ def _record_data_warnings(result: FitResult, transitions: TransitionSet) -> None
             "They are in neither the experienced exposure nor the new-hire cohort, "
             "so they contribute to no fitted rate."
         )
-    vanished = int(
-        transitions.conn.execute(
-            f"SELECT COUNT(*) FROM {transitions.table} WHERE vanished"
-        ).fetchone()[0]
-    )
+    vanished_row = transitions.conn.execute(
+        f"SELECT COUNT(*) FROM {transitions.table} WHERE vanished"
+    ).fetchone()
+    vanished = int(vanished_row[0]) if vanished_row is not None else 0
     if vanished:
         share = vanished / transitions.linked_pairs if transitions.linked_pairs else 0.0
         result.warnings.append(

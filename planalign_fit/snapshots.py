@@ -12,7 +12,7 @@ import hashlib
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterable, Optional, Sequence
+from typing import TYPE_CHECKING, Iterator, Optional, Sequence
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     import duckdb
@@ -74,7 +74,7 @@ class SnapshotSet:
 
     snapshots: tuple[Snapshot, ...]
 
-    def __iter__(self) -> Iterable[Snapshot]:
+    def __iter__(self) -> Iterator[Snapshot]:
         return iter(self.snapshots)
 
     def __len__(self) -> int:
@@ -173,9 +173,10 @@ def _describe(
             str(row[0])
             for row in conn.execute(f"DESCRIBE SELECT * FROM {expression}").fetchall()
         )
-        row_count = int(
-            conn.execute(f"SELECT COUNT(*) FROM {expression}").fetchone()[0]
-        )
+        row = conn.execute(f"SELECT COUNT(*) FROM {expression}").fetchone()
+        if row is None:
+            raise SnapshotError(f"Could not count rows in snapshot {path.name}.")
+        row_count = int(row[0])
     except Exception as exc:  # duckdb raises a family of IO/binder errors
         raise SnapshotError(f"Could not read snapshot {path.name}: {exc}") from exc
     return columns, row_count

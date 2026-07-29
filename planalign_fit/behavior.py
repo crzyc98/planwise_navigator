@@ -255,13 +255,16 @@ def fit_opt_out_target(
     """
     if not posture.covers_new_hires:
         return None
-    exposure, opted_out = transitions.conn.execute(
+    row = transitions.conn.execute(
         f"""
         SELECT COUNT(*), SUM(CASE WHEN NOT is_enrolled THEN 1 ELSE 0 END)
         FROM {transitions.new_hires_table}
         WHERE is_active AND is_enrolled IS NOT NULL
         """
     ).fetchone()
+    if row is None:
+        return None
+    exposure, opted_out = row
     if not exposure:
         return None
     return FittedValue.from_credibility(
@@ -354,7 +357,7 @@ def fit_escalation(
     ``deferral_auto_escalation.enabled`` is a switch, not a rate, so adoption is
     reported as evidence for that switch rather than written into the pack.
     """
-    exposure, escalated, median_increase = transitions.conn.execute(
+    row = transitions.conn.execute(
         f"""
         SELECT COUNT(*),
                SUM(CASE WHEN to_deferral_rate > from_deferral_rate THEN 1 ELSE 0 END),
@@ -367,6 +370,9 @@ def fit_escalation(
           AND to_deferral_rate IS NOT NULL
         """
     ).fetchone()
+    if row is None:
+        return None
+    exposure, escalated, median_increase = row
 
     exposure = float(exposure or 0.0)
     if exposure <= 0:
