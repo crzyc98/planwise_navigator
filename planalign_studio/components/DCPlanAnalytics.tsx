@@ -18,7 +18,7 @@ import {
   DCPlanComparisonResponse,
   ContributionYearSummary,
 } from '../services/api';
-import { COLORS, MAX_SCENARIO_SELECTION } from '../constants';
+import { COLORS, CONTRIBUTION_COLORS, MAX_SCENARIO_SELECTION } from '../constants';
 
 const formatCurrency = (value: number): string => {
   if (value >= 1000000) {
@@ -105,7 +105,6 @@ const DeferralTooltip = ({ active, payload, label }: any) => {
 };
 
 const PARTICIPATION_COLORS = ['#00853F', '#4CAF50', '#81C784'];
-const CONTRIBUTION_COLORS = { employee: '#0088FE', match: '#00C49F', core: '#FFBB28' };
 
 export default function DCPlanAnalytics() {
   // Workspace context from Layout (shared across all pages)

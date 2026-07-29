@@ -1,4 +1,4 @@
-import { ChartDataPoint, SimulationConfig, BatchJob, ComparisonMetric, Workspace, Notification } from './types';
+import { ChartDataPoint, BatchJob, ComparisonMetric, Workspace, Notification } from './types';
 
 export const APP_NAME = "PlanAlign Engine";
 export const APP_VERSION = "1.0.0";
@@ -66,81 +66,6 @@ export const MOCK_NOTIFICATIONS: Notification[] = [
   }
 ];
 
-export const MOCK_CONFIGS: SimulationConfig[] = [
-  {
-    id: 'cfg_001',
-    workspaceId: 'ws_001',
-    name: 'Baseline 2025-2027',
-    startYear: 2025,
-    endYear: 2027,
-    seed: 42,
-    growthTarget: 3.0,
-    growthTolerance: 0.5,
-    description: 'Standard growth scenario based on historical hiring trends.',
-    meritBudget: 3.0,
-    colaRate: 2.0,
-    promoIncrease: 10.0,
-    promoBudget: 1.0,
-    newHireStrategy: 'percentile',
-    targetPercentile: 50,
-    baseTurnoverRate: 10.0,
-    regrettableFactor: 0.5,
-    advanced: {
-        enableMultithreading: true,
-        checkpointFrequency: 'year',
-        logLevel: 'INFO',
-        strictValidation: true
-    }
-  },
-  {
-    id: 'cfg_002',
-    workspaceId: 'ws_001',
-    name: 'High Growth Q1',
-    startYear: 2025,
-    endYear: 2028,
-    seed: 101,
-    growthTarget: 12.0,
-    growthTolerance: 1.0,
-    description: 'Aggressive expansion plan targeting engineering and sales.',
-    meritBudget: 4.0,
-    colaRate: 2.5,
-    promoIncrease: 15.0,
-    promoBudget: 2.0,
-    newHireStrategy: 'percentile',
-    targetPercentile: 75,
-    baseTurnoverRate: 15.0,
-    advanced: {
-        enableMultithreading: true,
-        checkpointFrequency: 'year',
-        logLevel: 'DEBUG',
-        strictValidation: true
-    }
-  },
-  {
-    id: 'cfg_003',
-    workspaceId: 'ws_002',
-    name: 'Cost Optimization',
-    startYear: 2025,
-    endYear: 2026,
-    seed: 99,
-    growthTarget: 0.0,
-    growthTolerance: 0.2,
-    description: 'Flat headcount growth with focus on internal mobility.',
-    meritBudget: 2.0,
-    colaRate: 2.0,
-    promoIncrease: 8.0,
-    promoBudget: 0.8,
-    newHireStrategy: 'fixed',
-    baseTurnoverRate: 8.0,
-    advanced: {
-        enableMultithreading: false,
-        checkpointFrequency: 'none',
-        logLevel: 'INFO',
-        strictValidation: true
-    }
-  }
-];
-
 export const WORKFORCE_GROWTH_DATA: ChartDataPoint[] = [
   { year: 2025, baseline: 1000, highGrowth: 1000, conservative: 1000 },
   { year: 2026, baseline: 1030, highGrowth: 1150, conservative: 1010 },
@@ -186,6 +111,13 @@ export const COLORS = {
   charts: ['#0072B2', '#E69F00', '#009E73', '#CC79A7', '#56B4E9', '#D55E00']
 };
 
+/** Fixed semantic colors for stacked employee and employer contributions. */
+export const CONTRIBUTION_COLORS = {
+  employee: COLORS.charts[0],
+  match: COLORS.charts[1],
+  core: COLORS.charts[2],
+} as const;
+
 export const COMPARISON_COLORS = ['#00853F', '#2563EB'] as const;
 
 export const MOCK_BATCH_JOBS: BatchJob[] = [
@@ -226,12 +158,4 @@ export const COMPARISON_DATA: ComparisonMetric[] = [
   { metric: 'Avg Compensation', unit: '$K', 'Baseline 2025-2027': 134, 'High Growth Q1': 135, 'Cost Optimization': 133 },
   { metric: 'Turnover Rate', unit: '%', 'Baseline 2025-2027': 12.0, 'High Growth Q1': 14.5, 'Cost Optimization': 11.2 },
   { metric: 'DC Plan Enrollment', unit: '%', 'Baseline 2025-2027': 78.4, 'High Growth Q1': 76.2, 'Cost Optimization': 79.8 },
-];
-
-// Retirement cost data by scenario ID (values in $M)
-export const RETIREMENT_COST_DATA: Array<{ year: number; [scenarioId: string]: number }> = [
-  { year: 2025, cfg_001: 4.25, cfg_002: 4.85, cfg_003: 3.95 },
-  { year: 2026, cfg_001: 4.52, cfg_002: 5.62, cfg_003: 4.08 },
-  { year: 2027, cfg_001: 4.80, cfg_002: 6.48, cfg_003: 4.15 },
-  { year: 2028, cfg_001: 5.10, cfg_002: 7.45, cfg_003: 4.22 },
 ];
