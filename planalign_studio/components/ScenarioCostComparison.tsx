@@ -26,7 +26,7 @@ import {
   Eye, Copy, Check, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
-import { PlanDesignModal } from './PlanDesignModal';
+import { PlanDesignModal, formatMatchMode } from './PlanDesignModal';
 import { LayoutContextType } from './Layout';
 import {
   listScenarios,
@@ -85,6 +85,52 @@ function loadComparisonPrefs(workspaceId: string): { selectedIds: string[]; anch
 // ============================================================================
 // Sub-Components
 // ============================================================================
+
+/**
+ * One-line summaries of the anchor scenario's actual employer-contribution
+ * design, read from the config the page already fetches. Returns null when the
+ * config has not loaded — the caller says so rather than showing a default,
+ * because a wrong plan design here reads as fact.
+ */
+const derivePlanSummary = (config: Record<string, any> | null) => {
+  const dc = config?.dc_plan;
+  if (!dc) return null;
+
+  // Rates are stored as fractions; the naive ×100 renders 0.035 as 3.5000000000000004.
+  const pct = (fraction: number | null | undefined) => +((fraction ?? 0) * 100).toFixed(2);
+
+  const rateRange = (schedule: any[]) => {
+    const rates = schedule.map(t => t.contribution_rate).filter((r): r is number => r != null);
+    if (rates.length === 0) return '--';
+    return `${pct(Math.min(...rates))}%–${pct(Math.max(...rates))}%`;
+  };
+
+  let core: string;
+  if (dc.core_enabled === false) {
+    core = 'Disabled — this scenario pays no employer core contribution.';
+  } else if (dc.core_status === 'graded_by_service') {
+    core = `Graded by service, ${rateRange(dc.core_graded_schedule ?? [])} of eligible compensation.`;
+  } else if (dc.core_status === 'points_based') {
+    core = `Points-based, ${rateRange(dc.core_points_schedule ?? [])} of eligible compensation.`;
+  } else {
+    core = `Flat ${dc.core_contribution_rate_percent ?? '--'}% of eligible compensation.`;
+  }
+
+  let match: string;
+  const tiers: any[] = dc.match_tiers ?? [];
+  if (dc.match_enabled === false) {
+    match = 'Disabled — this scenario pays no employer match.';
+  } else if (dc.match_status === 'deferral_based' && tiers.length === 1) {
+    const tier = tiers[0];
+    match = `${pct(tier.match_rate)}% on the first ${pct(tier.employee_max)}% deferred.`;
+  } else if (dc.match_status === 'deferral_based' && tiers.length > 1) {
+    match = `${tiers.length} deferral tiers, capped at ${pct(dc.match_cap_percent)}% of pay.`;
+  } else {
+    match = `${formatMatchMode(dc.match_status)}, capped at ${pct(dc.match_cap_percent)}% of pay.`;
+  }
+
+  return { core, match };
+};
 
 // Custom legend that respects the order of items passed to it
 interface CustomLegendProps {
@@ -1203,18 +1249,20 @@ export default function ScenarioCostComparison() {
               <div className="bg-gray-900 text-gray-300 p-6 rounded-xl border border-gray-800 shadow-lg">
                 <div className="flex items-center text-fidelity-light mb-4 font-bold">
                   <TrendingDown size={18} className="mr-2" />
-                  Cost Sensitivity Drivers
+                  How these figures are measured
                 </div>
                 <div className="space-y-4 text-sm leading-relaxed">
                   <p>
-                    Plan costs are primarily sensitive to <strong>enrollment velocity</strong> and{' '}
-                    <strong>merit compounding</strong>. High-growth scenarios compound these effects,
-                    creating significant multi-year divergence.
+                    <span className="text-white font-bold">Employer cost</span> is employer match
+                    plus employer core, summed across every employee in the workforce snapshot for
+                    each simulation year. Employee deferrals and salary are not included.
                   </p>
                   <p>
-                    The <span className="text-white font-bold">Incremental Variance</span> metric
-                    captures the added financial burden of non-baseline policy logic, such as
-                    higher matching percentages or lower eligibility periods.
+                    <span className="text-white font-bold">Incremental cost</span> is a scenario's
+                    employer cost minus {anchorAnalytics?.scenario_name ?? 'the anchor'}'s, so it
+                    reflects <strong>every</strong> difference between the two runs — workforce
+                    growth, compensation and census as well as plan design. It does not isolate the
+                    effect of a policy change on its own.
                   </p>
                 </div>
               </div>
@@ -1222,22 +1270,37 @@ export default function ScenarioCostComparison() {
               <div className="bg-blue-50 p-6 rounded-xl border border-blue-100">
                 <div className="flex items-center text-blue-700 mb-4 font-bold">
                   <Info size={18} className="mr-2" />
-                  Modeling Assumptions
+                  {anchorAnalytics?.scenario_name ?? 'Anchor'} employer contributions
                 </div>
-                <ul className="space-y-3 text-sm text-blue-800">
-                  <li className="flex items-start">
-                    <div className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-1.5 mr-2 flex-shrink-0" />
-                    <span><strong>Core Design:</strong> Fixed contribution of 3.0% of eligible compensation.</span>
-                  </li>
-                  <li className="flex items-start">
-                    <div className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-1.5 mr-2 flex-shrink-0" />
-                    <span><strong>Match Logic:</strong> Based on configured percentage caps and employer limits.</span>
-                  </li>
-                  <li className="flex items-start">
-                    <div className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-1.5 mr-2 flex-shrink-0" />
-                    <span><strong>Total Cost:</strong> Core + Match + Merit-adjusted salary base overhead.</span>
-                  </li>
-                </ul>
+                {(() => {
+                  const summary = derivePlanSummary(anchorConfig);
+                  if (!summary) {
+                    return (
+                      <p className="text-sm text-blue-800">
+                        Plan design unavailable for this scenario.
+                      </p>
+                    );
+                  }
+                  return (
+                    <>
+                      <ul className="space-y-3 text-sm text-blue-800">
+                        <li className="flex items-start">
+                          <div className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-1.5 mr-2 flex-shrink-0" />
+                          <span><strong>Employer core:</strong> {summary.core}</span>
+                        </li>
+                        <li className="flex items-start">
+                          <div className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-1.5 mr-2 flex-shrink-0" />
+                          <span><strong>Employer match:</strong> {summary.match}</span>
+                        </li>
+                      </ul>
+                      <p className="mt-4 text-xs text-blue-700">
+                        Eligibility gates, vesting and the full tier schedule are in
+                        {' '}<strong>View Plan Design</strong>. Other scenarios in this comparison
+                        may use a different design.
+                      </p>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           </>
