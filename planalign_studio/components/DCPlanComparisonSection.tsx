@@ -7,6 +7,7 @@ import {
   Loader2, AlertCircle, DollarSign, TrendingUp, TrendingDown
 } from 'lucide-react';
 import { DCPlanComparisonResponse, DCPlanAnalytics, ContributionYearSummary } from '../services/api';
+import { COLORS, CONTRIBUTION_COLORS } from '../constants';
 
 // --- Props ---
 
@@ -61,20 +62,12 @@ const formatPercent = (value: number, decimals: number = 1): string => {
   return `${value.toFixed(decimals)}%`;
 };
 
-// --- Contribution bar colors ---
-
-const CONTRIBUTION_COLORS = {
-  employee: '#0088FE',
-  match: '#00C49F',
-  core: '#FFBB28',
-};
-
 // E066: Contribution rate series colors
 const RATE_SERIES = [
-  { key: 'employee_contribution_rate', label: 'Employee Contribution Rate', color: '#0088FE' },
-  { key: 'match_contribution_rate', label: 'Employer Match Rate', color: '#00C49F' },
-  { key: 'core_contribution_rate', label: 'Employer Core Rate', color: '#FFBB28' },
-  { key: 'total_contribution_rate', label: 'Total Contribution Rate', color: '#FF8042' },
+  { key: 'employee_contribution_rate', label: 'Employee Contribution Rate', color: CONTRIBUTION_COLORS.employee },
+  { key: 'match_contribution_rate', label: 'Employer Match Rate', color: CONTRIBUTION_COLORS.match },
+  { key: 'core_contribution_rate', label: 'Employer Core Rate', color: CONTRIBUTION_COLORS.core },
+  { key: 'total_contribution_rate', label: 'Total Contribution Rate', color: COLORS.charts[3] },
 ] as const;
 
 // --- Tooltip style ---
