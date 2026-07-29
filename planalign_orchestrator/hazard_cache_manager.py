@@ -325,7 +325,10 @@ class HazardCacheManager:
         operator never sees an empty diagnostic.
         """
         message = prefix
-        detail = extract_dbt_failure_detail(self.dbt_runner.working_dir)
+        detail = extract_dbt_failure_detail(
+            self.dbt_runner.working_dir,
+            target_path=getattr(self.dbt_runner, "target_path", None),
+        )
         if detail:
             message += f": {detail}"
         elif getattr(result, "stderr", ""):

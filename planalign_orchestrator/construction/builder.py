@@ -113,6 +113,7 @@ def _build_runner(
         db_manager=db_manager,
         database_path=str(db_manager.db_path),
         project_dir=spec.dbt_project_dir,
+        dbt_artifacts_dir=spec.dbt_artifacts_dir,
     )
 
 
@@ -193,6 +194,9 @@ def build_orchestrator(spec: ConstructionSpec) -> ConstructionResult:
         initialization_policy=spec.initialization.value,
         installed_hook_names=_hook_names(orchestrator),
         execution_engine=resolved_engine.engine,
+        dbt_artifacts_dir=(
+            str(spec.dbt_artifacts_dir) if spec.dbt_artifacts_dir is not None else None
+        ),
     )
     orchestrator.construction_signature = signature
     orchestrator.work_schedule = work_schedule

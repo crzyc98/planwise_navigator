@@ -19,6 +19,11 @@ class ConstructionSignature:
     initialization_policy: str
     installed_hook_names: tuple[str, ...]
     execution_engine: str
+    # Recorded for provenance but deliberately absent from signature_hash: a
+    # parallel worker's private artifacts dir is run-specific identity, like
+    # database_path. Hashing it would make a fanned-out run look like a
+    # different construction than the serial run it must match.
+    dbt_artifacts_dir: str | None = None
 
     @property
     def signature_hash(self) -> str:

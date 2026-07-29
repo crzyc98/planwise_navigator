@@ -555,6 +555,25 @@ planalign batch --export-format excel
 # - Comparison reports across scenarios
 ```
 
+### **Parallel Scenario Fan-Out (Roadmap 3/8, #457)**
+
+Scenarios run across worker **processes** — one `.duckdb` per scenario is already the isolation invariant, so N scenarios occupy N cores with no shared state.
+
+```bash
+planalign batch --scenarios a,b,c        # default: sized from memory + CPU budgets
+planalign batch --parallel 4             # pin the worker count
+planalign batch --parallel 1             # force serial (pre-#457 behavior)
+```
+
+Key invariants:
+- **Memory, not CPU, usually binds**: default is `min(scenarios, cpu_count-1, available_mem / 1536 MiB)`. Per-run peak RSS is a measured **1296 MiB** (#455 baseline); sizing on CPU count alone swaps a work laptop.
+- **Determinism**: config merge and seed resolution happen in the parent *before* any worker starts, so results never depend on scheduling. Parallel output is verified equal to serial.
+- **dbt artifact isolation**: workers redirect `target/`/`logs/` via `DBT_TARGET_PATH`/`DBT_LOG_PATH` — otherwise concurrent runs overwrite each other's `run_results.json` and misattribute failures. Serial batches keep using `dbt/target`.
+- **Ctrl+C**: workers `setsid`, so the pool signals each worker's whole process group and leaves no orphaned dbt subprocess.
+- **Reusable pool**: `ScenarioRunPool` / `ScenarioJob` / `resolve_worker_count` are exported from `planalign_orchestrator` for the ensemble runner and optimizer. Worker functions must be module-level (jobs cross the process boundary by pickle).
+
+Full guide: `docs/guides/parallel_scenario_fanout.md`
+
 ### **Fast Compensation Calibration (Feature 105)**
 
 `planalign calibrate <year-range>` rebuilds **only** the compensation/workforce dbt subgraph per year and reads the S051 growth mart, skipping the entire DC-plan stack (eligibility/enrollment/deferral/vesting/contributions/match). It reuses the validated comp math verbatim (E077 solver, mid-year proration, band-aware merit/COLA/promotion, `fct_compensation_growth`), so per-year avg comp and YoY growth are **exact** vs. a full simulation — the speedup (~3–5×) comes purely from building fewer models, not from approximation.

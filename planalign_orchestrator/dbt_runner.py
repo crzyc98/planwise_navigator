@@ -74,7 +74,9 @@ class DbtDataQualityError(DbtError):
     """Error due to data quality test failures."""
 
 
-def extract_dbt_failure_detail(working_dir: Path | str) -> str:
+def extract_dbt_failure_detail(
+    working_dir: Path | str, *, target_path: Path | str | None = None
+) -> str:
     """Extract failing node names and their error messages from run_results.json.
 
     dbt records per-node results — including the actual SQL/runtime error text —
@@ -84,10 +86,18 @@ def extract_dbt_failure_detail(working_dir: Path | str) -> str:
     Parsing run_results.json lets us surface the failing node + its error instead
     of an empty diagnostic tail.
 
+    ``target_path`` names the artifacts directory when the caller has moved it
+    off the project default — parallel workers each get their own, so reading
+    the shared ``<working_dir>/target`` would attribute another scenario's
+    failure to this one.
+
     Returns a single-line summary like ``model.proj.dim_x: <error>`` (multiple
     failures joined by `` | ``), or an empty string when no detail is available.
     """
-    results_path = Path(working_dir) / "target" / "run_results.json"
+    artifacts_dir = (
+        Path(target_path) if target_path is not None else Path(working_dir) / "target"
+    )
+    results_path = artifacts_dir / "run_results.json"
     if not results_path.exists():
         return ""
     try:
@@ -181,6 +191,7 @@ class DbtRunner:
         model_parallelization_max_workers: int = 4,
         model_parallelization_memory_limit_mb: float = 4000.0,
         db_manager: Optional[Any] = None,
+        dbt_artifacts_dir: Optional[Path] = None,
     ):
         self.working_dir = working_dir
         self.threads = threads
@@ -188,6 +199,13 @@ class DbtRunner:
         self.verbose = verbose
         self.database_path = database_path
         self.project_dir = project_dir
+        # dbt writes target/ and logs/ inside the project dir. Concurrent runs
+        # sharing one project dir would overwrite each other's run_results.json
+        # and interleave logs, so parallel workers pass their own directory
+        # here; None keeps the dbt defaults for every serial caller.
+        self.dbt_artifacts_dir = (
+            Path(dbt_artifacts_dir).absolute() if dbt_artifacts_dir else None
+        )
         self.threading_enabled = threading_enabled
         self.threading_mode = threading_mode
         self.db_manager = db_manager
@@ -284,6 +302,20 @@ class DbtRunner:
             "threading_mode": self.threading_mode,
             "single_threaded_fallback": self.threads == 1,
         }
+
+    @property
+    def target_path(self) -> Path:
+        """Directory dbt writes compiled artifacts and run_results.json to."""
+        if self.dbt_artifacts_dir is not None:
+            return self.dbt_artifacts_dir / "target"
+        return Path(self.working_dir) / "target"
+
+    @property
+    def log_path(self) -> Path:
+        """Directory dbt writes dbt.log to."""
+        if self.dbt_artifacts_dir is not None:
+            return self.dbt_artifacts_dir / "logs"
+        return Path(self.working_dir) / "logs"
 
     def _build_command(
         self,
@@ -400,7 +432,9 @@ class DbtRunner:
         def _wrapped() -> DbtResult:
             res = run_once()
             if not res.success:
-                failure_detail = extract_dbt_failure_detail(self.working_dir)
+                failure_detail = extract_dbt_failure_detail(
+                    self.working_dir, target_path=self.target_path
+                )
                 raise classify_dbt_error(
                     res.stdout, res.stderr, res.return_code, failure_detail
                 )
@@ -454,8 +488,17 @@ class DbtRunner:
 
         env: Optional[Dict[str, str]] = None
 
-        if self.database_path:
+        if self.dbt_artifacts_dir is not None:
+            # dbt 1.8 honors these over the project defaults, which keeps the
+            # position-sensitive --target-path/--log-path flags out of every
+            # command we build.
             env = os.environ.copy()
+            env["DBT_TARGET_PATH"] = str(self.target_path)
+            env["DBT_LOG_PATH"] = str(self.log_path)
+
+        if self.database_path:
+            if env is None:
+                env = os.environ.copy()
             # For dbt running from /dbt directory, use relative path from dbt/ to database
             abs_db_path = Path(self.database_path).absolute()
             abs_working_dir = self.working_dir.absolute()
