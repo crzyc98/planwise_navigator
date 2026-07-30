@@ -280,6 +280,7 @@ export default function CalibrationPanel() {
   const [termLoading, setTermLoading] = useState(false);
   const [termError, setTermError] = useState<string | null>(null);
   const [termAnalysis, setTermAnalysis] = useState<TurnoverAnalysisResult | null>(null);
+  const [termAsOfYear, setTermAsOfYear] = useState('');
 
   const setValue = (key: string, v: number) =>
     setValues((prev) => ({ ...prev, [key]: v }));
@@ -349,7 +350,13 @@ export default function CalibrationPanel() {
     setTermError(null);
     setTermAnalysis(null);
     try {
-      setTermAnalysis(await analyzeTurnoverRates(activeWorkspace.id, censusPath));
+      const result = await analyzeTurnoverRates(
+        activeWorkspace.id,
+        censusPath,
+        termAsOfYear ? `${termAsOfYear}-12-31` : undefined,
+      );
+      setTermAnalysis(result);
+      setTermAsOfYear(result.as_of_date.slice(0, 4));
     } catch (e) {
       setTermError(errorText(e));
     } finally {
@@ -840,11 +847,14 @@ export default function CalibrationPanel() {
               <span className="text-xs font-normal text-gray-500">
                 attrition dilutes avg comp, so it shapes salary growth
               </span>
+              <label className="ml-auto text-xs text-gray-600">Census year
+                <input value={termAsOfYear} onChange={(event) => setTermAsOfYear(event.target.value)} placeholder="Inferred" inputMode="numeric" className="ml-1 w-20 rounded border border-gray-300 px-1 py-0.5" />
+              </label>
               <button
                 onClick={handleTermMatchCensus}
                 disabled={termLoading || !censusPath}
                 title={!censusPath ? 'Upload a census to this workspace first' : 'Derive termination rates from the census'}
-                className="ml-auto inline-flex items-center gap-2 rounded bg-gray-700 px-3 py-1.5 text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded bg-gray-700 px-3 py-1.5 text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
               >
                 {termLoading ? <Loader2 className="animate-spin" size={16} /> : <Database size={16} />}
                 Match Census
@@ -861,6 +871,7 @@ export default function CalibrationPanel() {
                     <p className="mt-0.5 text-xs text-blue-600">
                       Based on {termAnalysis.total_employees.toLocaleString()} employees
                       {' '}({termAnalysis.total_terminated.toLocaleString()} terminated)
+                      {' '}as of {termAnalysis.as_of_date} ({termAnalysis.as_of_date_source})
                     </p>
                   </div>
                   <div className="flex shrink-0 gap-2">

@@ -4,7 +4,8 @@ This module defines the data models for age and tenure band configurations
 used by the PlanAlign simulation engine.
 """
 
-from typing import List, Literal
+from datetime import date
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -74,6 +75,10 @@ class BandAnalysisRequest(BaseModel):
     file_path: str = Field(
         ..., description="Path to census file (relative to workspace or absolute)"
     )
+    as_of_date: Optional[date] = Field(
+        None,
+        description="Census as-of date. Defaults to December 31 of the latest census event year.",
+    )
 
 
 class DistributionStats(BaseModel):
@@ -104,3 +109,11 @@ class BandAnalysisResult(BaseModel):
         description="Description of analysis performed (e.g., 'Recent hires from 2024')",
     )
     source_file: str = Field(..., description="Path to source census file")
+    as_of_date: date = Field(..., description="Date used to calculate ages or tenure")
+    as_of_date_source: Literal["inferred", "provided"] = Field(
+        ...,
+        description="Whether the as-of date was inferred from the census or supplied",
+    )
+    fallback_notice: Optional[str] = Field(
+        None, description="Explanation when age-at-hire analysis was unavailable"
+    )

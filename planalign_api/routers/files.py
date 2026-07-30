@@ -257,6 +257,7 @@ async def analyze_age_distribution(
         result = service.analyze_age_distribution(
             workspace_id=workspace_id,
             file_path=request.file_path,
+            as_of_date=request.as_of_date,
         )
         return result
     except ValueError as e:

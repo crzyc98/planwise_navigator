@@ -11,6 +11,7 @@ export function TurnoverSection({ variant = 'full' }: { variant?: 'full' | 'esse
   const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<TurnoverAnalysisResult | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [asOfYear, setAsOfYear] = useState('');
 
   const handleMatchCensus = async () => {
     if (!activeWorkspace?.id || !formData.censusDataPath) {
@@ -21,8 +22,13 @@ export function TurnoverSection({ variant = 'full' }: { variant?: 'full' | 'esse
     setAnalysis(null);
     setAnalysisError(null);
     try {
-      const result = await analyzeTurnoverRates(activeWorkspace.id, formData.censusDataPath);
+      const result = await analyzeTurnoverRates(
+        activeWorkspace.id,
+        formData.censusDataPath,
+        asOfYear ? `${asOfYear}-12-31` : undefined,
+      );
       setAnalysis(result);
+      setAsOfYear(result.as_of_date.slice(0, 4));
     } catch (error) {
       setAnalysisError(error instanceof Error ? error.message : 'Failed to analyze census for turnover rates');
     } finally {
@@ -66,15 +72,20 @@ export function TurnoverSection({ variant = 'full' }: { variant?: 'full' | 'esse
       <div className="bg-orange-50 rounded-lg p-4 border border-orange-200">
         <div className="flex items-center justify-between mb-3">
           <h4 className="text-sm font-semibold text-orange-900 uppercase tracking-wider">Core Termination Rates</h4>
-          <button
-            onClick={handleMatchCensus}
-            disabled={analyzing || !formData.censusDataPath}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            title={!formData.censusDataPath ? 'Upload a census file first' : 'Analyze census to suggest termination rates'}
-          >
-            <BarChart3 size={14} />
-            {analyzing ? 'Analyzing...' : 'Match Census'}
-          </button>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-orange-800">Census year
+              <input value={asOfYear} onChange={(event) => setAsOfYear(event.target.value)} placeholder="Inferred" inputMode="numeric" className="ml-1 w-20 rounded border border-orange-300 bg-white px-2 py-1 text-sm" />
+            </label>
+            <button
+              onClick={handleMatchCensus}
+              disabled={analyzing || !formData.censusDataPath}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              title={!formData.censusDataPath ? 'Upload a census file first' : 'Analyze census to suggest termination rates'}
+            >
+              <BarChart3 size={14} />
+              {analyzing ? 'Analyzing...' : 'Match Census'}
+            </button>
+          </div>
         </div>
 
         {/* Error message */}
@@ -95,6 +106,7 @@ export function TurnoverSection({ variant = 'full' }: { variant?: 'full' | 'esse
                 <h4 className="text-blue-800 font-medium">Suggested Termination Rates</h4>
                 <p className="text-sm text-blue-600 mt-1">
                   Based on {analysis.total_employees.toLocaleString()} employees ({analysis.total_terminated.toLocaleString()} terminated)
+                  {' '}as of {analysis.as_of_date} ({analysis.as_of_date_source})
                 </p>
               </div>
               <div className="flex gap-2 ml-4">

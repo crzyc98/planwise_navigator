@@ -18,6 +18,7 @@ from .sql_security import (
     validate_column_name_from_set,
     validate_file_path_for_sql,
 )
+from .census_as_of import resolve_as_of_date
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ class TurnoverAnalysisService:
         self.workspaces_root = workspaces_root
 
     def analyze_turnover_rates(
-        self, workspace_id: str, file_path: str
+        self, workspace_id: str, file_path: str, as_of_date: date | None = None
     ) -> TurnoverAnalysisResult:
         """
         Analyze census data to suggest termination rates.
@@ -122,8 +123,10 @@ class TurnoverAnalysisService:
                     "or an 'active' boolean column, or a 'status' column."
                 )
 
-            today = date.today()
-            today_str = today.isoformat()
+            resolved_as_of = resolve_as_of_date(
+                conn, hire_date_col, term_date_col, as_of_date
+            )
+            as_of_date_str = resolved_as_of.date.isoformat()
 
             # Add computed columns for tenure and termination status
             conn.execute("ALTER TABLE census ADD COLUMN _tenure_years DOUBLE")
@@ -132,7 +135,7 @@ class TurnoverAnalysisService:
                 UPDATE census SET _tenure_years =
                     DATEDIFF('day', CAST({hire_date_col} AS DATE), ?::DATE) / 365.25
                 """,
-                [today_str],
+                [as_of_date_str],
             )
 
             # Remove rows with invalid tenure
@@ -194,6 +197,8 @@ class TurnoverAnalysisService:
                     total_terminated=0,
                     analysis_type="All employees",
                     source_file=str(file_path),
+                    as_of_date=resolved_as_of.date,
+                    as_of_date_source=resolved_as_of.source,
                     message=(
                         "No terminated employees found in census data. "
                         "All employees appear to be active. "
@@ -273,6 +278,8 @@ class TurnoverAnalysisService:
                 analysis_type="All employees",
                 source_file=str(file_path),
                 message=message,
+                as_of_date=resolved_as_of.date,
+                as_of_date_source=resolved_as_of.source,
             )
 
         finally:

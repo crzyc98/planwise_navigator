@@ -12,6 +12,8 @@ export function SegmentationSection() {
   const [ageBandAnalyzing, setAgeBandAnalyzing] = useState(false);
   const [tenureBandAnalysis, setTenureBandAnalysis] = useState<BandAnalysisResult | null>(null);
   const [tenureBandAnalyzing, setTenureBandAnalyzing] = useState(false);
+  const [asOfYear, setAsOfYear] = useState('');
+  const asOfDate = asOfYear ? `${asOfYear}-12-31` : undefined;
 
   const handleBandChange = (
     bandType: 'age' | 'tenure',
@@ -38,8 +40,9 @@ export function SegmentationSection() {
     setAgeBandAnalyzing(true);
     setAgeBandAnalysis(null);
     try {
-      const result = await analyzeAgeBands(activeWorkspace.id, formData.censusDataPath);
+      const result = await analyzeAgeBands(activeWorkspace.id, formData.censusDataPath, asOfDate);
       setAgeBandAnalysis(result);
+      setAsOfYear(result.as_of_date.slice(0, 4));
     } catch (error) {
       console.error('Failed to analyze age bands:', error);
       setBandConfigError(error instanceof Error ? error.message : 'Failed to analyze census for age bands');
@@ -63,8 +66,9 @@ export function SegmentationSection() {
     setTenureBandAnalyzing(true);
     setTenureBandAnalysis(null);
     try {
-      const result = await analyzeTenureBands(activeWorkspace.id, formData.censusDataPath);
+      const result = await analyzeTenureBands(activeWorkspace.id, formData.censusDataPath, asOfDate);
       setTenureBandAnalysis(result);
+      setAsOfYear(result.as_of_date.slice(0, 4));
     } catch (error) {
       console.error('Failed to analyze tenure bands:', error);
       setBandConfigError(error instanceof Error ? error.message : 'Failed to analyze census for tenure bands');
@@ -98,6 +102,9 @@ export function SegmentationSection() {
 
       {bandConfig && (
         <>
+          <label className="block text-sm text-gray-700">Census year
+            <input value={asOfYear} onChange={(event) => setAsOfYear(event.target.value)} placeholder="Inferred from census" inputMode="numeric" className="ml-2 w-32 rounded border border-gray-300 px-2 py-1 text-sm" />
+          </label>
           {bandValidationErrors.length > 0 && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
               <div className="flex items-start">
@@ -153,12 +160,14 @@ export function SegmentationSection() {
                     <h4 className="text-blue-800 font-medium">Suggested Age Bands</h4>
                     <p className="text-sm text-blue-600 mt-1">
                       Based on {ageBandAnalysis.distribution_stats.total_employees} employees ({ageBandAnalysis.analysis_type})
+                      {' '}as of {ageBandAnalysis.as_of_date} ({ageBandAnalysis.as_of_date_source})
                     </p>
                     <div className="mt-2 text-xs text-blue-700">
                       <span>Age range: {ageBandAnalysis.distribution_stats.min_value} - {ageBandAnalysis.distribution_stats.max_value}</span>
                       <span className="mx-2">|</span>
                       <span>Median: {ageBandAnalysis.distribution_stats.median_value.toFixed(1)}</span>
                     </div>
+                    {ageBandAnalysis.fallback_notice && <p className="mt-2 text-xs text-amber-700">{ageBandAnalysis.fallback_notice}</p>}
                   </div>
                   <div className="flex gap-2">
                     <button onClick={() => setAgeBandAnalysis(null)} className="px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
@@ -236,6 +245,7 @@ export function SegmentationSection() {
                     <h4 className="text-blue-800 font-medium">Suggested Tenure Bands</h4>
                     <p className="text-sm text-blue-600 mt-1">
                       Based on {tenureBandAnalysis.distribution_stats.total_employees} employees ({tenureBandAnalysis.analysis_type})
+                      {' '}as of {tenureBandAnalysis.as_of_date} ({tenureBandAnalysis.as_of_date_source})
                     </p>
                     <div className="mt-2 text-xs text-blue-700">
                       <span>Tenure range: {tenureBandAnalysis.distribution_stats.min_value} - {tenureBandAnalysis.distribution_stats.max_value} years</span>
