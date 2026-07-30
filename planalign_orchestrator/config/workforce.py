@@ -91,6 +91,21 @@ class ProactiveEnrollmentSettings(BaseModel):
     probability_by_demographics: Dict[str, float] = Field(default_factory=dict)
 
 
+class VoluntaryEnrollmentSettings(BaseModel):
+    """Demographic drivers of the voluntary enrollment decision.
+
+    ``int_voluntary_enrollment_decision`` evaluates
+    ``base_rates_by_age * income_multipliers * job_level_multipliers``. Each
+    mapping is optional: an omitted segment keeps the model's own default, so a
+    config that says nothing here behaves exactly as before. A fitted parameter
+    pack (issue #458) populates these from the client's own history.
+    """
+
+    base_rates_by_age: Dict[str, float] = Field(default_factory=dict)
+    income_multipliers: Dict[str, float] = Field(default_factory=dict)
+    job_level_multipliers: Dict[str, float] = Field(default_factory=dict)
+
+
 class EnrollmentTimingSettings(BaseModel):
     """Enrollment timing configuration."""
 
@@ -127,6 +142,9 @@ class EnrollmentSettings(BaseModel):
     )
     proactive_enrollment: ProactiveEnrollmentSettings = Field(
         default_factory=ProactiveEnrollmentSettings
+    )
+    voluntary_enrollment: VoluntaryEnrollmentSettings = Field(
+        default_factory=VoluntaryEnrollmentSettings
     )
     timing: EnrollmentTimingSettings = Field(default_factory=EnrollmentTimingSettings)
     match_magnet: MatchMagnetSettings = Field(default_factory=MatchMagnetSettings)

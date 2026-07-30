@@ -156,6 +156,10 @@ class TestTableLifecycle:
             "initialization_policy",
             "entry_point",
             "runner_kind",
+            # Issue #458: which fitted parameter pack produced this run.
+            "param_pack_id",
+            "param_pack_fingerprint",
+            "param_pack_source_digest",
         }
 
     def test_second_stamp_appends_and_retains_first(self, db_manager, minimal_config):

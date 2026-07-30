@@ -44,6 +44,7 @@ uv pip install -e ".[dev]"
 planalign health                                 # System readiness check
 planalign simulate 2025-2027                     # Multi-year simulation
 planalign calibrate 2025-2029 --database iso.duckdb  # Fast comp-only calibration (exact, ~3-5x faster)
+planalign fit data/history/                      # Fit hazards/behavior from census history (#458)
 planalign batch --scenarios baseline high_growth # Batch processing
 planalign status --detailed                      # Full system diagnostic
 planalign validate                               # Validate simulation configuration
@@ -199,6 +200,15 @@ planalign_engine/
 │  └─ macros/                       # Reusable SQL functions
 ├─ planalign_core/                   # Shared domain package (events, schema, constants)
 │  └─ events/                       # Unified event model (Pydantic v2)
+├─ planalign_fit/                    # Parameter fitting from census history (#458)
+│  ├─ snapshots.py                  # Snapshot discovery, validation, hashing
+│  ├─ transitions.py                # Cohort-linked diffs (DuckDB)
+│  ├─ ipf.py                        # Shared two-factor IPF solver
+│  ├─ hazards.py                    # Termination/promotion hazard fits
+│  ├─ behavior.py                   # Enrollment and deferral fits
+│  ├─ smoothing.py                  # Credibility shrinkage for thin cells
+│  ├─ pack.py                       # Parameter pack build/read/verify
+│  └─ apply.py                      # `simulate --params` overlay + effective config
 ├─ config/                           # Configuration files only (YAML)
 │  └─ simulation_config.yaml        # Simulation parameters
 ├─ var/                              # Runtime outputs (git-ignored): artifacts, reports, logs, outputs, backups
@@ -573,6 +583,41 @@ Key invariants:
 - **Reusable pool**: `ScenarioRunPool` / `ScenarioJob` / `resolve_worker_count` are exported from `planalign_orchestrator` for the ensemble runner and optimizer. Worker functions must be module-level (jobs cross the process boundary by pickle).
 
 Full guide: `docs/guides/parallel_scenario_fanout.md`
+
+### **Parameter Fitting from Census History (#458)**
+
+`planalign fit <snapshots_dir>` links 2–5 consecutive annual census snapshots by
+`employee_id`, classifies the transitions, and fits the parameters the simulator
+already consumes into a **parameter pack** — seed CSVs + a config fragment +
+`fit_report.md`. Hand-set assumptions become estimates from the client's own
+history, with provenance.
+
+```bash
+planalign fit data/history/ --output var/param_packs/acme-2024
+planalign simulate 2025-2029 --params var/param_packs/acme-2024 --database iso.duckdb
+```
+
+Key invariants:
+- **Never mutates the repo.** `--params` builds an overlay dbt project (seeds
+  copied + swapped, models symlinked) and an effective config under
+  `var/param_packs/`. `dbt/seeds` and the base config are read-only inputs.
+- **Same functional form as the simulator**: hazards are fitted as
+  `base × age_mult × tenure_mult × level_factor` via an exposure-weighted IPF
+  (`planalign_fit/ipf.py`), so the fitted seeds drop straight in.
+- **Thin cells shrink toward the current seed value** (`Z = n/(n+k)`, `k=200` by
+  default); cells under `--min-exposure` are labelled `pooled` and flagged.
+  A fit never turns a handful of observations into a parameter.
+- **What could NOT be fitted is a first-class output.** COLA (a policy input),
+  the level-discount/dampener constants, and match response are always listed
+  with the default retained; missing census columns disable their fits loudly.
+- **Provenance**: the pack fingerprint, id, and source digest land in
+  `run_metadata` (`param_pack_*` columns, extending Feature 109). The
+  `param_pack` config block is an untyped extra that `to_dbt_vars` ignores, so
+  it does not disturb the config fingerprint.
+- **Round-trip graded**: `tests/test_parameter_fitting.py::TestRoundTrip` evolves
+  a synthetic population with known rates and asserts `fit` recovers them.
+
+Full guide: `docs/guides/parameter_fitting.md`
 
 ### **Fast Compensation Calibration (Feature 105)**
 

@@ -145,6 +145,25 @@ def _export_opt_out_rates(auto: Any, dbt_vars: Dict[str, Any]) -> None:
         dbt_vars[f"opt_out_rate_{key}"] = target * mult
 
 
+def _export_voluntary_enrollment(
+    cfg: "SimulationConfig", dbt_vars: Dict[str, Any]
+) -> None:
+    """Export the voluntary enrollment decision's demographic drivers.
+
+    Only segments the config actually names are exported; the SQL keeps its own
+    default for anything omitted, so configs that predate these keys are
+    unaffected. A fitted parameter pack (issue #458) writes them.
+    """
+    voluntary = cfg.enrollment.voluntary_enrollment
+    for prefix, mapping in (
+        ("voluntary_enrollment_base_rates_by_age", voluntary.base_rates_by_age),
+        ("voluntary_enrollment_income_multipliers", voluntary.income_multipliers),
+        ("voluntary_enrollment_job_level_multipliers", voluntary.job_level_multipliers),
+    ):
+        for segment, value in (mapping or {}).items():
+            dbt_vars[f"{prefix}_{segment}"] = float(value)
+
+
 def _export_proactive_enrollment(
     cfg: "SimulationConfig", dbt_vars: Dict[str, Any]
 ) -> None:
@@ -307,6 +326,7 @@ def _export_enrollment_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     auto = cfg.enrollment.auto_enrollment
     _export_auto_enrollment_fields(auto, dbt_vars)
     _export_opt_out_rates(auto, dbt_vars)
+    _export_voluntary_enrollment(cfg, dbt_vars)
     _export_proactive_enrollment(cfg, dbt_vars)
     _export_match_magnet(cfg, dbt_vars)
 

@@ -1,0 +1,153 @@
+"""Result types shared by every estimator and consumed by the pack and report."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any, Optional
+
+from planalign_fit.smoothing import CredibilityResult
+
+
+@dataclass(frozen=True)
+class FittedValue:
+    """One fitted number, with the evidence and the prior it moved from."""
+
+    name: str
+    value: float
+    prior: float
+    exposure: float
+    events: float
+    observed: Optional[float]
+    credibility: float
+    basis: str
+    note: str
+
+    @classmethod
+    def from_credibility(cls, name: str, result: CredibilityResult) -> "FittedValue":
+        return cls(
+            name=name,
+            value=result.value,
+            prior=result.prior,
+            exposure=result.exposure,
+            events=result.events,
+            observed=result.observed,
+            credibility=result.credibility,
+            basis=result.basis,
+            note=result.note(),
+        )
+
+    @property
+    def moved_pct(self) -> Optional[float]:
+        if self.prior == 0:
+            return None
+        return self.value / self.prior - 1.0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "value": self.value,
+            "prior": self.prior,
+            "observed": self.observed,
+            "exposure": self.exposure,
+            "events": self.events,
+            "credibility": self.credibility,
+            "basis": self.basis,
+            "note": self.note,
+        }
+
+
+@dataclass(frozen=True)
+class Unfittable:
+    """A parameter the supplied data cannot speak to. Defaults are retained."""
+
+    name: str
+    reason: str
+    default_used: Any
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "reason": self.reason,
+            "default_used": self.default_used,
+        }
+
+
+@dataclass(frozen=True)
+class HazardFit:
+    """A fitted multiplicative hazard: base x age mult x tenure mult x level factor."""
+
+    kind: str
+    base_rate: FittedValue
+    age_multipliers: dict[str, FittedValue]
+    tenure_multipliers: dict[str, FittedValue]
+    level_constants: dict[str, float]
+    total_events: float
+    total_exposure: float
+    converged: bool
+    iterations: int
+
+    @property
+    def observed_overall_rate(self) -> Optional[float]:
+        if self.total_exposure <= 0:
+            return None
+        return self.total_events / self.total_exposure
+
+    def values(self) -> list[FittedValue]:
+        return [
+            self.base_rate,
+            *self.age_multipliers.values(),
+            *self.tenure_multipliers.values(),
+        ]
+
+
+@dataclass(frozen=True)
+class CellObservation:
+    """One age x tenure x level cell's raw counts, for the report's evidence table."""
+
+    age_band: str
+    tenure_band: str
+    level_id: int
+    exposure: float
+    events: float
+
+    @property
+    def observed_rate(self) -> Optional[float]:
+        if self.exposure <= 0:
+            return None
+        return self.events / self.exposure
+
+
+@dataclass
+class FitResult:
+    """Everything one ``planalign fit`` run produced.
+
+    The three payload groups map onto the three things a parameter pack ships:
+    hazard seed CSVs (``termination``/``promotion``), the other seed CSVs
+    (``merit_by_level``, ``deferral_rates``), and the config YAML fragment
+    (``config_overrides``, keyed by dotted config path).
+    """
+
+    termination: Optional[HazardFit] = None
+    promotion: Optional[HazardFit] = None
+    termination_cells: list[CellObservation] = field(default_factory=list)
+    promotion_cells: list[CellObservation] = field(default_factory=list)
+    merit_by_level: dict[int, FittedValue] = field(default_factory=dict)
+    deferral_rates: dict[tuple[str, str], FittedValue] = field(default_factory=dict)
+    config_overrides: dict[str, FittedValue] = field(default_factory=dict)
+    diagnostics: dict[str, Any] = field(default_factory=dict)
+    unfittable: list[Unfittable] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+
+    def all_fitted(self) -> list[FittedValue]:
+        values: list[FittedValue] = []
+        for hazard in (self.termination, self.promotion):
+            if hazard is not None:
+                values.extend(hazard.values())
+        values.extend(self.merit_by_level.values())
+        values.extend(self.deferral_rates.values())
+        values.extend(self.config_overrides.values())
+        return values
+
+    @property
+    def thin_cell_count(self) -> int:
+        return sum(1 for v in self.all_fitted() if v.basis in ("pooled", "prior"))

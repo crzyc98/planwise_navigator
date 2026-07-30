@@ -78,12 +78,17 @@ from .commands.status import show_status, health_check  # noqa: E402
 from .commands.batch import run_batch  # noqa: E402
 from .commands.validate import validate_config  # noqa: E402
 from .commands.calibrate import run_calibration  # noqa: E402
+from .commands.fit import run_fit  # noqa: E402
 from .commands.provenance import generate_provenance_report  # noqa: E402
 from .commands.validate_change import run_validate_change  # noqa: E402
 
 # Fast compensation calibration (Feature 105) -- run_calibration already carries
 # its full typer signature, so register it directly.
 app.command("calibrate")(run_calibration)
+
+# Evidence loop I (issue #458): fit parameters from census history. run_fit
+# carries its full typer signature too.
+app.command("fit")(run_fit)
 
 
 @app.command("provenance")
@@ -129,6 +134,11 @@ def simulate(
     growth: Optional[str] = typer.Option(
         None, "--growth", help="Target growth rate (e.g., '3.5%' or '0.035')"
     ),
+    params: Optional[str] = typer.Option(
+        None,
+        "--params",
+        help="Fitted parameter pack directory from `planalign fit`",
+    ),
 ):
     """🎯 Run multi-year workforce simulation with Rich progress tracking."""
     run_simulation(
@@ -141,6 +151,7 @@ def simulate(
         fail_on_validation_error=fail_on_validation_error,
         verbose=verbose,
         growth=growth,
+        params=params,
     )
 
 
