@@ -76,6 +76,22 @@ class HazardCacheManager:
         self._current_hash_cache: Optional[str] = None
         self._cached_hash_cache: Optional[str] = None
 
+    def _metadata_db_path(self) -> str:
+        """Resolve the database holding this run's ``hazard_cache_metadata``.
+
+        The caches are written by dbt into whatever database the run targets,
+        so the currency check must read that same file. ``get_database_path()``
+        resolves the *global* path (``DATABASE_PATH`` or ``dbt/simulation.duckdb``)
+        and ``--database`` does not set that env var — it is threaded through
+        ``DbtRunner.database_path``. Reading the global path made the stored hash
+        never match on isolated-DB runs (Studio, ``batch``, calibration), so the
+        caches were rebuilt once per simulation year instead of once per run.
+        """
+        from planalign_orchestrator.config import get_database_path
+
+        runner_db = getattr(self.dbt_runner, "database_path", None)
+        return str(runner_db) if runner_db else str(get_database_path())
+
     def compute_hazard_params_hash(self) -> str:
         """
         Compute SHA256 hash of all parameters affecting hazard calculations.
@@ -229,11 +245,9 @@ class HazardCacheManager:
 
         try:
             # Use DuckDB connection directly since dbt operations might be complex
-            from planalign_orchestrator.config import get_database_path
             import duckdb
 
-            db_path = get_database_path()
-            with duckdb.connect(str(db_path)) as conn:
+            with duckdb.connect(self._metadata_db_path()) as conn:
                 # Check if metadata table exists first
                 table_check = conn.execute(
                     """
@@ -503,11 +517,9 @@ class HazardCacheManager:
         """Log cache statistics for monitoring."""
         try:
             # Use DuckDB connection directly for statistics
-            from planalign_orchestrator.config import get_database_path
             import duckdb
 
-            db_path = get_database_path()
-            with duckdb.connect(str(db_path)) as conn:
+            with duckdb.connect(self._metadata_db_path()) as conn:
                 # Check if metadata table exists first
                 table_check = conn.execute(
                     """
