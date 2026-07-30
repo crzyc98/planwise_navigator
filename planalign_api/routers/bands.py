@@ -172,6 +172,7 @@ async def analyze_age_bands(
         result = service.analyze_age_distribution_for_bands(
             workspace_id=workspace_id,
             file_path=request.file_path,
+            as_of_date=request.as_of_date,
         )
         return result
     except ValueError as e:
@@ -221,6 +222,7 @@ async def analyze_tenure_bands(
         result = service.analyze_tenure_distribution_for_bands(
             workspace_id=workspace_id,
             file_path=request.file_path,
+            as_of_date=request.as_of_date,
         )
         return result
     except ValueError as e:
@@ -276,6 +278,7 @@ async def analyze_turnover(
         result = service.analyze_turnover_rates(
             workspace_id=workspace_id,
             file_path=request.file_path,
+            as_of_date=request.as_of_date,
         )
         return result
     except ValueError as e:

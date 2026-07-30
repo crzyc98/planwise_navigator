@@ -21,6 +21,7 @@ from .sql_security import (
     validate_file_path_for_sql,
     validate_integer,
 )
+from .census_as_of import resolve_as_of_date
 
 logger = logging.getLogger(__name__)
 
@@ -745,7 +746,12 @@ class FileService:
 
         return sorted(files, key=lambda f: f["name"])
 
-    def analyze_age_distribution(self, workspace_id: str, file_path: str) -> Dict:
+    def analyze_age_distribution(
+        self,
+        workspace_id: str,
+        file_path: str,
+        as_of_date: Optional[date] = None,
+    ) -> Dict:
         """
         Analyze age distribution from census data, focusing on recent hires.
 
@@ -822,9 +828,21 @@ class FileService:
                     )
                     break
 
-            # Calculate dates
-            today = datetime.now().date()
-            today_str = today.isoformat()
+            term_date_col = next(
+                (
+                    validate_column_name_from_set(
+                        column,
+                        set(CENSUS_TERMINATION_DATE_COLUMNS),
+                        "termination date column",
+                    )
+                    for column in CENSUS_TERMINATION_DATE_COLUMNS
+                    if column in columns
+                ),
+                None,
+            )
+            resolved_as_of = resolve_as_of_date(
+                conn, hire_date_col, term_date_col, as_of_date
+            )
 
             # Filter to active employees if status column exists
             if "active" in columns:
@@ -883,7 +901,7 @@ class FileService:
                         DATEDIFF('day', CAST({birth_date_col} AS DATE), ?::DATE) / 365.25
                     )
                     """,
-                    [today_str],
+                    [resolved_as_of.date.isoformat()],
                 )
 
             # Define age buckets matching our seed structure
@@ -939,6 +957,14 @@ class FileService:
                 else "All employees (no recent hire data)",
                 "distribution": distribution,
                 "source_file": str(file_path),
+                "as_of_date": resolved_as_of.date.isoformat(),
+                "as_of_date_source": resolved_as_of.source,
+                "fallback_notice": (
+                    "Used age as of the census date because a recent-hire cohort "
+                    "was not available."
+                    if not recent_hires_only
+                    else None
+                ),
             }
         finally:
             conn.close()

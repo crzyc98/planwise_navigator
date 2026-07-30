@@ -1214,18 +1214,22 @@ export interface AgeDistributionAnalysis {
     count: number;
   }>;
   source_file: string;
+  as_of_date: string;
+  as_of_date_source: 'inferred' | 'provided';
+  fallback_notice?: string | null;
 }
 
 export async function analyzeAgeDistribution(
   workspaceId: string,
-  filePath: string
+  filePath: string,
+  asOfDate?: string
 ): Promise<AgeDistributionAnalysis> {
   const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/analyze-age-distribution`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ file_path: filePath }),
+      body: JSON.stringify({ file_path: filePath, as_of_date: asOfDate }),
     }
   );
   return handleResponse<AgeDistributionAnalysis>(response);
@@ -1588,6 +1592,7 @@ export interface BandSaveResponse {
 
 export interface BandAnalysisRequest {
   file_path: string;
+  as_of_date?: string;
 }
 
 export interface DistributionStats {
@@ -1604,6 +1609,9 @@ export interface BandAnalysisResult {
   distribution_stats: DistributionStats;
   analysis_type: string;
   source_file: string;
+  as_of_date: string;
+  as_of_date_source: 'inferred' | 'provided';
+  fallback_notice?: string | null;
 }
 
 /**
@@ -1622,14 +1630,15 @@ export async function getBandConfigs(workspaceId: string): Promise<BandConfig> {
  */
 export async function analyzeAgeBands(
   workspaceId: string,
-  filePath: string
+  filePath: string,
+  asOfDate?: string
 ): Promise<BandAnalysisResult> {
   const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/analyze-age-bands`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ file_path: filePath }),
+      body: JSON.stringify({ file_path: filePath, as_of_date: asOfDate }),
     }
   );
   return handleResponse<BandAnalysisResult>(response);
@@ -1641,14 +1650,15 @@ export async function analyzeAgeBands(
  */
 export async function analyzeTenureBands(
   workspaceId: string,
-  filePath: string
+  filePath: string,
+  asOfDate?: string
 ): Promise<BandAnalysisResult> {
   const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/analyze-tenure-bands`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ file_path: filePath }),
+      body: JSON.stringify({ file_path: filePath, as_of_date: asOfDate }),
     }
   );
   return handleResponse<BandAnalysisResult>(response);
@@ -1673,6 +1683,8 @@ export interface TurnoverAnalysisResult {
   analysis_type: string;
   source_file: string;
   message: string | null;
+  as_of_date: string;
+  as_of_date_source: 'inferred' | 'provided';
 }
 
 /**
@@ -1681,14 +1693,15 @@ export interface TurnoverAnalysisResult {
  */
 export async function analyzeTurnoverRates(
   workspaceId: string,
-  filePath: string
+  filePath: string,
+  asOfDate?: string
 ): Promise<TurnoverAnalysisResult> {
   const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/analyze-turnover`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ file_path: filePath }),
+      body: JSON.stringify({ file_path: filePath, as_of_date: asOfDate }),
     }
   );
   return handleResponse<TurnoverAnalysisResult>(response);

@@ -22,12 +22,14 @@ from ..models.bands import (
 from .sql_security import (
     CENSUS_BIRTH_DATE_COLUMNS,
     CENSUS_HIRE_DATE_COLUMNS,
+    CENSUS_TERMINATION_DATE_COLUMNS,
     SQLSecurityError,
     validate_column_name_from_set,
     validate_file_path_for_sql,
     validate_integer,
     validate_numeric,
 )
+from .census_as_of import resolve_as_of_date
 
 logger = logging.getLogger(__name__)
 
@@ -305,7 +307,11 @@ class BandService:
     # -------------------------------------------------------------------------
 
     def analyze_age_distribution_for_bands(
-        self, workspace_id: str, file_path: str, num_bands: int = 6
+        self,
+        workspace_id: str,
+        file_path: str,
+        num_bands: int = 6,
+        as_of_date: date | None = None,
     ) -> BandAnalysisResult:
         """
         Analyze census data and suggest optimal age band boundaries.
@@ -386,9 +392,21 @@ class BandService:
                     )
                     break
 
-            # Calculate dates
-            today = date.today()
-            today_str = today.isoformat()
+            term_date_col = next(
+                (
+                    validate_column_name_from_set(
+                        column,
+                        set(CENSUS_TERMINATION_DATE_COLUMNS),
+                        "termination date column",
+                    )
+                    for column in CENSUS_TERMINATION_DATE_COLUMNS
+                    if column in columns
+                ),
+                None,
+            )
+            resolved_as_of = resolve_as_of_date(
+                conn, hire_date_col, term_date_col, as_of_date
+            )
 
             # Filter to active employees (using validated column names)
             if "active" in columns:
@@ -453,7 +471,7 @@ class BandService:
                         DATEDIFF('day', CAST({birth_date_col} AS DATE), ?::DATE) / 365.25
                     )
                     """,
-                    [today_str],
+                    [resolved_as_of.date.isoformat()],
                 )
 
             # Filter out invalid ages
@@ -513,6 +531,14 @@ class BandService:
                 ),
                 analysis_type=analysis_type,
                 source_file=str(file_path),
+                as_of_date=resolved_as_of.date,
+                as_of_date_source=resolved_as_of.source,
+                fallback_notice=(
+                    "Used age as of the census date because a recent-hire cohort "
+                    "was not available."
+                    if not recent_hires_only
+                    else None
+                ),
             )
         finally:
             conn.close()
@@ -588,7 +614,11 @@ class BandService:
     # -------------------------------------------------------------------------
 
     def analyze_tenure_distribution_for_bands(
-        self, workspace_id: str, file_path: str, num_bands: int = 5
+        self,
+        workspace_id: str,
+        file_path: str,
+        num_bands: int = 5,
+        as_of_date: date | None = None,
     ) -> BandAnalysisResult:
         """
         Analyze census data and suggest optimal tenure band boundaries.
@@ -660,9 +690,21 @@ class BandService:
                     "(employee_hire_date, hire_date, hiredate, or start_date)"
                 )
 
-            # Calculate dates
-            today = date.today()
-            today_str = today.isoformat()
+            term_date_col = next(
+                (
+                    validate_column_name_from_set(
+                        column,
+                        set(CENSUS_TERMINATION_DATE_COLUMNS),
+                        "termination date column",
+                    )
+                    for column in CENSUS_TERMINATION_DATE_COLUMNS
+                    if column in columns
+                ),
+                None,
+            )
+            resolved_as_of = resolve_as_of_date(
+                conn, hire_date_col, term_date_col, as_of_date
+            )
 
             # Filter to active employees
             if "active" in columns:
@@ -678,7 +720,7 @@ class BandService:
                     DATEDIFF('day', CAST({hire_date_col} AS DATE), ?::DATE) / 365.25
                 )
                 """,
-                [today_str],
+                [resolved_as_of.date.isoformat()],
             )
 
             # Filter out invalid tenure (negative or very high)
@@ -732,6 +774,8 @@ class BandService:
                 ),
                 analysis_type="All employees",
                 source_file=str(file_path),
+                as_of_date=resolved_as_of.date,
+                as_of_date_source=resolved_as_of.source,
             )
         finally:
             conn.close()

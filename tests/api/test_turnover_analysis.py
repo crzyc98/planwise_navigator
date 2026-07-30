@@ -101,7 +101,9 @@ class TestTurnoverAnalysisService:
         csv_path = workspace_dir / "census.csv"
         _write_csv(csv_path, rows)
 
-        result = service.analyze_turnover_rates("test-ws", "census.csv")
+        result = service.analyze_turnover_rates(
+            "test-ws", "census.csv", as_of_date=today
+        )
 
         assert result.total_employees == 100
         assert result.total_terminated == 12
@@ -138,7 +140,9 @@ class TestTurnoverAnalysisService:
         csv_path = workspace_dir / "census.csv"
         _write_csv(csv_path, rows)
 
-        result = service.analyze_turnover_rates("test-ws", "census.csv")
+        result = service.analyze_turnover_rates(
+            "test-ws", "census.csv", as_of_date=today
+        )
 
         assert result.total_employees == 50
         assert result.total_terminated == 0
@@ -175,7 +179,9 @@ class TestTurnoverAnalysisService:
         csv_path = workspace_dir / "census.csv"
         _write_csv(csv_path, rows)
 
-        result = service.analyze_turnover_rates("test-ws", "census.csv")
+        result = service.analyze_turnover_rates(
+            "test-ws", "census.csv", as_of_date=today
+        )
 
         assert result.total_terminated == 10
         assert result.experienced_rate is not None
@@ -245,7 +251,9 @@ class TestTurnoverAnalysisService:
         csv_path = workspace_dir / "census.csv"
         _write_csv(csv_path, rows)
 
-        result = service.analyze_turnover_rates("test-ws", "census.csv")
+        result = service.analyze_turnover_rates(
+            "test-ws", "census.csv", as_of_date=today
+        )
 
         assert result.experienced_rate is not None
         assert result.experienced_rate.confidence == "high"

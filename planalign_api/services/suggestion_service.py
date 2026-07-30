@@ -109,7 +109,7 @@ class TerminationRateSuggestionService:
             scenario_id: Scenario identifier
             plan_design_id: Benefit plan identifier
             year: Calendar year for calculation
-            snapshot_date: Census snapshot date (defaults to today)
+            snapshot_date: Census snapshot date (defaults to December 31 of year)
 
         Returns:
             TerminationRateSuggestion with:
@@ -119,7 +119,7 @@ class TerminationRateSuggestionService:
             - error_message: User-friendly error (if applicable)
         """
         if snapshot_date is None:
-            snapshot_date = date.today()
+            snapshot_date = date(year, 12, 31)
 
         # Calculate counts (NOT hardcoded 100%)
         active_count = self.calculate_active_employee_count(
@@ -210,7 +210,7 @@ class TerminationRateSuggestionService:
             Tuple of (TerminationRateSuggestion, TerminationRateCalculation)
         """
         if snapshot_date is None:
-            snapshot_date = date.today()
+            snapshot_date = date(year, 12, 31)
 
         # Get counts
         active_count = self.calculate_active_employee_count(

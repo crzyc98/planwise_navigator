@@ -869,6 +869,19 @@
       "BandAnalysisRequest": {
         "description": "Request for census-based band analysis.",
         "properties": {
+          "as_of_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Census as-of date. Defaults to December 31 of the latest census event year.",
+            "title": "As Of Date"
+          },
           "file_path": {
             "description": "Path to census file (relative to workspace or absolute)",
             "title": "File Path",
@@ -889,6 +902,21 @@
             "title": "Analysis Type",
             "type": "string"
           },
+          "as_of_date": {
+            "description": "Date used to calculate ages or tenure",
+            "format": "date",
+            "title": "As Of Date",
+            "type": "string"
+          },
+          "as_of_date_source": {
+            "description": "Whether the as-of date was inferred from the census or supplied",
+            "enum": [
+              "inferred",
+              "provided"
+            ],
+            "title": "As Of Date Source",
+            "type": "string"
+          },
           "distribution_stats": {
             "allOf": [
               {
@@ -896,6 +924,18 @@
               }
             ],
             "description": "Statistics about the analyzed distribution"
+          },
+          "fallback_notice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Explanation when age-at-hire analysis was unavailable",
+            "title": "Fallback Notice"
           },
           "source_file": {
             "description": "Path to source census file",
@@ -915,7 +955,9 @@
           "suggested_bands",
           "distribution_stats",
           "analysis_type",
-          "source_file"
+          "source_file",
+          "as_of_date",
+          "as_of_date_source"
         ],
         "title": "BandAnalysisResult",
         "type": "object"
@@ -3821,6 +3863,19 @@
       "FileValidationRequest": {
         "description": "Request to validate a file path.",
         "properties": {
+          "as_of_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional census as-of date for age analysis",
+            "title": "As Of Date"
+          },
           "file_path": {
             "description": "File path to validate (relative or absolute)",
             "title": "File Path",
@@ -8527,6 +8582,19 @@
       "TurnoverAnalysisRequest": {
         "description": "Request for census-based turnover rate analysis.",
         "properties": {
+          "as_of_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Census as-of date. Defaults to December 31 of the latest census event year.",
+            "title": "As Of Date"
+          },
           "file_path": {
             "description": "Path to census file (relative to workspace or absolute)",
             "title": "File Path",
@@ -8545,6 +8613,21 @@
           "analysis_type": {
             "description": "Description of analysis performed",
             "title": "Analysis Type",
+            "type": "string"
+          },
+          "as_of_date": {
+            "description": "Date used to calculate tenure",
+            "format": "date",
+            "title": "As Of Date",
+            "type": "string"
+          },
+          "as_of_date_source": {
+            "description": "Whether the as-of date was inferred from the census or supplied",
+            "enum": [
+              "inferred",
+              "provided"
+            ],
+            "title": "As Of Date Source",
             "type": "string"
           },
           "experienced_rate": {
@@ -8601,7 +8684,9 @@
           "total_employees",
           "total_terminated",
           "analysis_type",
-          "source_file"
+          "source_file",
+          "as_of_date",
+          "as_of_date_source"
         ],
         "title": "TurnoverAnalysisResult",
         "type": "object"

@@ -1,6 +1,6 @@
 """File upload and validation models."""
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
@@ -89,6 +89,9 @@ class FileValidationRequest(BaseModel):
 
     file_path: str = Field(
         ..., description="File path to validate (relative or absolute)"
+    )
+    as_of_date: Optional[date] = Field(
+        None, description="Optional census as-of date for age analysis"
     )
 
 

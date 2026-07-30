@@ -1,6 +1,7 @@
 """Pydantic models for turnover rate analysis from census data."""
 
-from typing import Optional
+from datetime import date
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -10,6 +11,10 @@ class TurnoverAnalysisRequest(BaseModel):
 
     file_path: str = Field(
         ..., description="Path to census file (relative to workspace or absolute)"
+    )
+    as_of_date: Optional[date] = Field(
+        None,
+        description="Census as-of date. Defaults to December 31 of the latest census event year.",
     )
 
 
@@ -44,4 +49,9 @@ class TurnoverAnalysisResult(BaseModel):
     source_file: str = Field(..., description="Path to source census file")
     message: Optional[str] = Field(
         None, description="Informational message about the analysis"
+    )
+    as_of_date: date = Field(..., description="Date used to calculate tenure")
+    as_of_date_source: Literal["inferred", "provided"] = Field(
+        ...,
+        description="Whether the as-of date was inferred from the census or supplied",
     )
