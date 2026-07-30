@@ -478,7 +478,7 @@ employer_core_contribution:
   contribution_rate: 0.01         # Flat core contribution rate (used when status is 'flat')
 
   # Epic E084: Core contribution status/type
-  status: 'flat'  # Options: 'none', 'flat', 'graded_by_service'
+  status: 'flat'  # Options: 'none', 'flat', 'graded_by_service', 'points_based', 'age_banded'
 
   # Epic E084: Graded core contribution schedule (used when status is 'graded_by_service')
   # Rate increases with years of service
@@ -492,6 +492,16 @@ employer_core_contribution:
     - service_years_min: 6
       service_years_max: null    # null = unlimited
       contribution_rate: 0.03    # 3% for 6+ years
+
+  # Age-banded schedule (used when status is 'age_banded'). Rates are decimal
+  # fractions and tiers must cover [0, infinity) with [min_age, max_age) bounds.
+  # age_schedule:
+  #   - min_age: 0
+  #     max_age: 30
+  #     contribution_rate: 0.03
+  #   - min_age: 30
+  #     max_age: null
+  #     contribution_rate: 0.06
 
   # Eligibility requirements (dbt variables for int_employer_eligibility.sql)
   eligibility:

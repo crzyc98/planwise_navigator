@@ -192,6 +192,12 @@ export const DEFAULT_FORM_DATA: FormData = {
     { minPoints: 40, maxPoints: 75, rate: 2.0 },
     { minPoints: 75, maxPoints: null, rate: 3.0 },
   ],
+  dcCoreAgeSchedule: [
+    { minAge: 0, maxAge: 30, rate: 3.0 },
+    { minAge: 30, maxAge: 40, rate: 4.0 },
+    { minAge: 40, maxAge: 50, rate: 5.0 },
+    { minAge: 50, maxAge: null, rate: 6.0 },
+  ],
   dcCoreMinTenureYears: 0,
   dcCoreRequireYearEndActive: true,
   dcCoreMinHoursAnnual: 1000,

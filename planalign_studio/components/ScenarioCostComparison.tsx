@@ -112,6 +112,8 @@ const derivePlanSummary = (config: Record<string, any> | null) => {
     core = `Graded by service, ${rateRange(dc.core_graded_schedule ?? [])} of eligible compensation.`;
   } else if (dc.core_status === 'points_based') {
     core = `Points-based, ${rateRange(dc.core_points_schedule ?? [])} of eligible compensation.`;
+  } else if (dc.core_status === 'age_banded') {
+    core = `Age-banded, ${rateRange(dc.core_age_schedule ?? [])} of eligible compensation.`;
   } else {
     core = `Flat ${dc.core_contribution_rate_percent ?? '--'}% of eligible compensation.`;
   }

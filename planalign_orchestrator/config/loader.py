@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from .safety import OrchestrationConfig
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from .simulation import SimulationSettings, CompensationSettings
 from .workforce import (
@@ -22,6 +22,7 @@ from .workforce import (
     PlanEligibilitySettings,
     EmployerMatchSettings,
     DeferralMatchResponseSettings,
+    validate_core_age_schedule,
 )
 from .performance import (
     OptimizationSettings,
@@ -66,6 +67,18 @@ class SimulationConfig(BaseModel):
     orchestrator: Optional[OrchestratorSettings] = Field(
         default=None, description="Orchestrator configuration including threading"
     )
+
+    @model_validator(mode="after")
+    def validate_core_age_schedules(self) -> "SimulationConfig":
+        """Reject malformed direct-YAML and Studio age schedules at load time."""
+        core = getattr(self, "employer_core_contribution", None)
+        if isinstance(core, dict) and core.get("status") == "age_banded":
+            validate_core_age_schedule(core.get("age_schedule", []))
+
+        dc_plan = getattr(self, "dc_plan", None)
+        if isinstance(dc_plan, dict) and dc_plan.get("core_status") == "age_banded":
+            validate_core_age_schedule(dc_plan.get("core_age_schedule", []))
+        return self
 
     def require_identifiers(self) -> None:
         """Raise if scenario_id/plan_design_id are missing."""

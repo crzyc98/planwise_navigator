@@ -714,12 +714,58 @@ export function DCPlanSection() {
                  <option value="flat">Flat Rate (same for all)</option>
                  <option value="graded_by_service">Graded by Service (increases with tenure)</option>
                  <option value="points_based">Points-Based (varies by age + tenure points)</option>
+                 <option value="age_banded">Age-Banded (varies by annual age)</option>
                </select>
              </div>
 
              {/* Flat rate input */}
              {formData.dcCoreStatus === 'flat' && (
                <InputField label="Core Rate" {...inputProps('dcCoreContributionRate')} type="number" step="0.5" suffix="%" helper="% of compensation" min={0} />
+             )}
+
+             {formData.dcCoreStatus === 'age_banded' && (
+               <div className="sm:col-span-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                 <span className="block text-sm font-medium text-gray-700 mb-1">Age-Banded Core Schedule</span>
+                 <p className="text-xs text-gray-500 mb-3">Annual age tiers use [min, max) intervals; the final maximum may be blank.</p>
+                 <div className="space-y-2">
+                   {formData.dcCoreAgeSchedule.map((tier, idx) => (
+                     <div key={idx} className="flex items-center gap-3 text-sm">
+                       <span className="text-gray-500 w-8">{idx + 1}.</span>
+                       <input type="number" min={0} value={tier.minAge} onChange={(e) => {
+                         const schedule = [...formData.dcCoreAgeSchedule];
+                         schedule[idx] = { ...tier, minAge: Number(e.target.value) };
+                         setFormData((prev: any) => ({ ...prev, dcCoreAgeSchedule: schedule }));
+                       }} className="w-16 px-2 py-1 border border-gray-300 rounded text-center" />
+                       <span className="text-gray-500">to</span>
+                       <input type="number" min={0} value={tier.maxAge ?? ''} placeholder="∞" onChange={(e) => {
+                         const schedule = [...formData.dcCoreAgeSchedule];
+                         schedule[idx] = { ...tier, maxAge: e.target.value ? Number(e.target.value) : null };
+                         setFormData((prev: any) => ({ ...prev, dcCoreAgeSchedule: schedule }));
+                       }} className="w-16 px-2 py-1 border border-gray-300 rounded text-center" />
+                       <span className="text-gray-500">age →</span>
+                       <input type="number" min={0} step="0.5" value={tier.rate} onChange={(e) => {
+                         const schedule = [...formData.dcCoreAgeSchedule];
+                         schedule[idx] = { ...tier, rate: Number(e.target.value) };
+                         setFormData((prev: any) => ({ ...prev, dcCoreAgeSchedule: schedule }));
+                       }} className="w-20 px-2 py-1 border border-gray-300 rounded text-center" />
+                       <span className="text-gray-500">%</span>
+                       {formData.dcCoreAgeSchedule.length > 1 && <button type="button" onClick={() => setFormData((prev: any) => ({ ...prev, dcCoreAgeSchedule: prev.dcCoreAgeSchedule.filter((_: any, i: number) => i !== idx) }))} className="text-red-500 hover:text-red-700 px-2">✕</button>}
+                     </div>
+                   ))}
+                 </div>
+                 <button type="button" onClick={() => {
+                   const last = formData.dcCoreAgeSchedule[formData.dcCoreAgeSchedule.length - 1];
+                   const newMin = last?.maxAge ?? ((last?.minAge ?? 0) + 10);
+                   const schedule = last?.maxAge === null
+                     ? [...formData.dcCoreAgeSchedule.slice(0, -1), { ...last, maxAge: newMin }]
+                     : [...formData.dcCoreAgeSchedule];
+                   setFormData((prev: any) => ({ ...prev, dcCoreAgeSchedule: [...schedule, { minAge: newMin, maxAge: null, rate: last?.rate ?? 1 }] }));
+                 }} className="mt-3 text-sm text-fidelity-green hover:text-green-700 font-medium">+ Add Tier</button>
+                 {(() => {
+                   const warnings = validateMatchTiers(formData.dcCoreAgeSchedule.map(t => ({ min: t.minAge, max: t.maxAge })), 'age');
+                   return warnings.length ? <div className="mt-3 bg-amber-50 border border-amber-300 rounded-md p-3"><p className="text-xs font-medium text-amber-800">Tier configuration warnings:</p><ul className="list-disc list-inside">{warnings.map((warning, index) => <li key={index} className="text-xs text-amber-700">{warning}</li>)}</ul></div> : null;
+                 })()}
+               </div>
              )}
 
              {/* E084: Graded Schedule Editor */}

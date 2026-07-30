@@ -288,6 +288,65 @@ class TestServiceRiskFlag:
         assert "15.0" in result.service_risk_detail
         assert "2.0" in result.service_risk_detail
 
+    def test_age_banded_design_sets_review_caveat_on_auto_pass(self, service_with_db):
+        service, conn, mock_resolver = service_with_db
+        _insert_employee(conn, "HCE1", 2024, 200000.0, 200000.0)
+        _insert_employee(conn, "HCE1", 2025, 100000.0, 100000.0, core_amount=6000.0)
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
+        # Realistic merged-config shape: the DC Plan UI writes only
+        # dc_plan.core_status, while the workspace merge always supplies an
+        # employer_core_contribution default of status='flat'.
+        service.storage.get_merged_config = MagicMock(
+            return_value={
+                "dc_plan": {"core_status": "age_banded"},
+                "employer_core_contribution": {
+                    "enabled": True,
+                    "status": "flat",
+                    "contribution_rate": 0.03,
+                },
+            }
+        )
+
+        with patch("duckdb.connect", return_value=conn):
+            result = service.run_401a4_test("ws1", "sc1", "Test", 2025)
+
+        assert result.test_result == "pass"
+        assert result.service_risk_flag is True
+        assert "Age-banded" in (result.service_risk_detail or "")
+
+    def test_dc_plan_core_status_overrides_merged_default(self, service_with_db):
+        """A Studio graded design must flag skew despite the merged 'flat' default."""
+        service, conn, mock_resolver = service_with_db
+        _insert_employee(conn, "HCE1", 2024, 200000.0, 200000.0, 0.0)
+        _insert_employee(
+            conn, "HCE1", 2025, 100000.0, 100000.0, core_amount=8000.0, tenure=15.0
+        )
+        _insert_employee(conn, "NHCE1", 2024, 80000.0, 80000.0, 0.0)
+        _insert_employee(
+            conn, "NHCE1", 2025, 100000.0, 100000.0, core_amount=6000.0, tenure=2.0
+        )
+        mock_resolver.resolve.return_value = ResolvedDatabasePath(
+            path=Path(":memory:"), source="scenario"
+        )
+        service.storage.get_merged_config = MagicMock(
+            return_value={
+                "dc_plan": {"core_status": "graded_by_service"},
+                "employer_core_contribution": {
+                    "enabled": True,
+                    "status": "flat",
+                    "contribution_rate": 0.03,
+                },
+            }
+        )
+
+        with patch("duckdb.connect", return_value=conn):
+            result = service.run_401a4_test("ws1", "sc1", "Test", 2025)
+
+        assert result.service_risk_flag is True
+        assert "15.0" in (result.service_risk_detail or "")
+
 
 # ==============================================================================
 # Test 5: NEC-only mode (default)

@@ -73,6 +73,12 @@ export interface PointsCoreTier {
   rate: number;
 }
 
+export interface AgeCoreTier {
+  minAge: number;
+  maxAge: number | null;
+  rate: number;
+}
+
 export interface FormData {
   // Data Sources
   censusDataPath: string;
@@ -165,6 +171,7 @@ export interface FormData {
   dcCoreStatus: string;
   dcCoreGradedSchedule: CoreGradedTier[];
   dcCorePointsSchedule: PointsCoreTier[];
+  dcCoreAgeSchedule: AgeCoreTier[];
   dcCoreMinTenureYears: number;
   dcCoreRequireYearEndActive: boolean;
   dcCoreMinHoursAnnual: number;
