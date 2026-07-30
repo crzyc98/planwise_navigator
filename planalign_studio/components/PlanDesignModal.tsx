@@ -54,6 +54,7 @@ export function formatMatchMode(mode: string | undefined): string {
     case 'graded_by_service': return 'Graded by Service';
     case 'tenure_based': return 'Tenure-Based';
     case 'points_based': return 'Points-Based';
+    case 'age_banded': return 'Age-Banded';
     default: return mode || '--';
   }
 }
@@ -97,6 +98,7 @@ export function PlanDesignModal({ config, onClose }: PlanDesignModalProps) {
   const coreStatus = dc.core_status || 'flat';
   const coreGradedSchedule: any[] = dc.core_graded_schedule || [];
   const corePointsSchedule: any[] = dc.core_points_schedule || [];
+  const coreAgeSchedule: any[] = dc.core_age_schedule || [];
 
   return (
     <div
@@ -269,6 +271,23 @@ export function PlanDesignModal({ config, onClose }: PlanDesignModalProps) {
                           <span className="text-gray-400 w-4">{i + 1}.</span>
                           <span>{t.min_points} to {t.max_points ?? '\u221E'} pts</span>
                           <span className="text-gray-400">&rarr;</span>
+                          <span className="font-medium">{toPercent(t.contribution_rate)}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {coreStatus === 'age_banded' && coreAgeSchedule.length > 0 && (
+                  <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
+                    <p className="text-xs font-medium text-gray-700 mb-2">Age-Banded Core Schedule</p>
+                    <p className="text-[10px] text-gray-500 mb-2">Annual age; [min, max) intervals.</p>
+                    <div className="space-y-1">
+                      {coreAgeSchedule.map((t: any, i: number) => (
+                        <div key={i} className="flex items-center gap-2 text-xs text-gray-700">
+                          <span className="text-gray-400 w-4">{i + 1}.</span>
+                          <span>Age {t.min_age} to {t.max_age ?? '∞'}</span>
+                          <span className="text-gray-400">→</span>
                           <span className="font-medium">{toPercent(t.contribution_rate)}%</span>
                         </div>
                       ))}

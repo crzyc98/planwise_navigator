@@ -98,6 +98,35 @@ def get_dbt_vars_for_flat_rate(
     }
 
 
+def get_age_banded_core_schedule() -> list[dict[str, Any]]:
+    """A valid boundary-focused age schedule with percentage-valued dbt rates."""
+    return [
+        {"min_age": 0, "max_age": 30, "rate": 3.0},
+        {"min_age": 30, "max_age": 40, "rate": 4.0},
+        {"min_age": 40, "max_age": 50, "rate": 5.0},
+        {"min_age": 50, "max_age": None, "rate": 6.0},
+    ]
+
+
+def get_empty_age_banded_core_schedule() -> list[dict[str, Any]]:
+    """Represent the permitted flat-rate fallback for an age-banded design."""
+    return []
+
+
+def get_dbt_vars_for_age_banded_core(
+    schedule: list[dict[str, Any]] | None = None,
+    rate: float = 0.02,
+    simulation_year: int = 2025,
+) -> dict[str, Any]:
+    """Build dbt vars for an age-banded core contribution fixture."""
+    return {
+        "simulation_year": simulation_year,
+        "employer_core_status": "age_banded",
+        "employer_core_contribution_rate": rate,
+        "employer_core_age_schedule": schedule or [],
+    }
+
+
 # Pre-configured test scenarios
 TWO_TIER_VARS = get_dbt_vars_for_graded_service(get_two_tier_schedule())
 FOUR_TIER_VARS = get_dbt_vars_for_graded_service(get_four_tier_schedule())

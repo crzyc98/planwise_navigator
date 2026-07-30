@@ -1,0 +1,29 @@
+scenario_id: core_mode_points
+plan_design_id: age_banded_plan
+simulation: {start_year: 2025, end_year: 2025, random_seed: 125001, target_growth_rate: 0.15}
+setup: {load_seeds: true, run_staging_models: true, validate_results: false, fail_on_validation_error: true, census_parquet_path: injected, eligibility_waiting_period_days: 0}
+compensation: {cola_rate: 0.02, merit_budget: 0.035, promotion_increase: 0.125}
+workforce: {total_termination_rate: 0.0, new_hire_termination_rate: 0.0}
+eligibility: {waiting_period_days: 0}
+plan_eligibility: {minimum_age: 18}
+employer_core_contribution:
+  enabled: true
+  status: points_based
+  # Points = FLOOR(age) + FLOOR(years of service); the first tier floors at zero
+  # points, so the fallback below must never apply.
+  contribution_rate: 0.001
+  points_schedule:
+    - {min_points: 0, max_points: 40, contribution_rate: 0.02}
+    - {min_points: 40, max_points: 60, contribution_rate: 0.03}
+    - {min_points: 60, max_points: 80, contribution_rate: 0.04}
+    - {min_points: 80, max_points: null, contribution_rate: 0.05}
+  eligibility:
+    minimum_tenure_years: 0
+    require_active_at_year_end: true
+    minimum_hours_annual: 0
+    allow_new_hires: true
+employer_match: {active_formula: simple_match, apply_eligibility: false}
+enrollment: {auto_enrollment: {enabled: false}, proactive_enrollment: {enabled: false}}
+deferral_rates: {use_census_rates: true, plan_deferral_cap: 0.75, generate_synthetic_events: true}
+deferral_auto_escalation: {enabled: false}
+optimization: {max_workers: 1}

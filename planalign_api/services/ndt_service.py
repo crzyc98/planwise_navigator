@@ -812,7 +812,7 @@ class NDTService:
 
             # Edge case: no NHCE employees
             if not nhce_rates:
-                return Section401a4ScenarioResult(
+                result = Section401a4ScenarioResult(
                     scenario_id=scenario_id,
                     scenario_name=scenario_name,
                     simulation_year=year,
@@ -825,10 +825,14 @@ class NDTService:
                     include_match=include_match,
                     employees=employees if include_employees else None,
                 )
+                self._detect_service_risk(
+                    result, workspace_id, scenario_id, hce_tenures, nhce_tenures
+                )
+                return result
 
             # Edge case: no HCE employees -> auto-pass
             if not hce_rates:
-                return Section401a4ScenarioResult(
+                result = Section401a4ScenarioResult(
                     scenario_id=scenario_id,
                     scenario_name=scenario_name,
                     simulation_year=year,
@@ -841,12 +845,16 @@ class NDTService:
                     include_match=include_match,
                     employees=employees if include_employees else None,
                 )
+                self._detect_service_risk(
+                    result, workspace_id, scenario_id, hce_tenures, nhce_tenures
+                )
+                return result
 
             # Edge case: no employer contributions at all
             if all(abs(r) < 1e-9 for r in hce_rates) and all(
                 abs(r) < 1e-9 for r in nhce_rates
             ):
-                return Section401a4ScenarioResult(
+                result = Section401a4ScenarioResult(
                     scenario_id=scenario_id,
                     scenario_name=scenario_name,
                     simulation_year=year,
@@ -859,6 +867,10 @@ class NDTService:
                     include_match=include_match,
                     employees=employees if include_employees else None,
                 )
+                self._detect_service_risk(
+                    result, workspace_id, scenario_id, hce_tenures, nhce_tenures
+                )
+                return result
 
             # Compute pass/fail
             result = self._compute_401a4_result(
@@ -969,7 +981,22 @@ class NDTService:
             ec_config = config.get("employer_core_contribution", {})
             if not isinstance(ec_config, dict):
                 return
-            ec_status = ec_config.get("status", "")
+            # dc_plan wins, matching the precedence in to_dbt_vars: the DC Plan UI
+            # writes only dc_plan.core_status, while the workspace merge always
+            # supplies an employer_core_contribution default of status='flat'.
+            dc_plan = config.get("dc_plan") or {}
+            dc_status = (
+                dc_plan.get("core_status") if isinstance(dc_plan, dict) else None
+            )
+            ec_status = dc_status or ec_config.get("status", "")
+
+            if ec_status == "age_banded":
+                result.service_risk_flag = True
+                result.service_risk_detail = (
+                    "Age-banded employer core contributions require further "
+                    "nondiscrimination review."
+                )
+                return
 
             if ec_status == "graded_by_service" and hce_tenures and nhce_tenures:
                 hce_avg_tenure = sum(hce_tenures) / len(hce_tenures)

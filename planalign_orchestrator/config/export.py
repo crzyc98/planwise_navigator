@@ -992,6 +992,20 @@ def _export_threading_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     return dbt_vars
 
 
+def _transform_age_tiers(age_schedule: list) -> list:
+    """Map age tiers to the macro shape (rate as a percentage, e.g. 0.06 -> 6.0)."""
+    return [
+        {
+            "min_age": tier.get("min_age", 0),
+            "max_age": tier.get("max_age"),
+            "rate": (tier.get("contribution_rate", tier.get("rate", 0)) * 100)
+            if tier.get("contribution_rate") is not None
+            else tier.get("rate", 0),
+        }
+        for tier in age_schedule
+    ]
+
+
 def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     """Export employer core contribution settings to dbt vars.
 
@@ -1054,6 +1068,12 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                     }
                     transformed_points.append(transformed_tier)
                 dbt_vars["employer_core_points_schedule"] = transformed_points
+
+            age_schedule = core_contrib.get("age_schedule")
+            if isinstance(age_schedule, list) and len(age_schedule) > 0:
+                dbt_vars["employer_core_age_schedule"] = _transform_age_tiers(
+                    age_schedule
+                )
 
             if eligibility:
                 min_tenure = eligibility.get("minimum_tenure_years")
@@ -1227,6 +1247,15 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                         }
                         transformed_points.append(transformed_tier)
                     dbt_vars["employer_core_points_schedule"] = transformed_points
+
+            # Age-banded core schedule (for age_banded mode)
+            if dc_plan_dict.get("core_age_schedule") is not None:
+                age_schedule = dc_plan_dict["core_age_schedule"]
+                if isinstance(age_schedule, list) and len(age_schedule) > 0:
+                    core_top_level["age_schedule"] = age_schedule
+                    dbt_vars["employer_core_age_schedule"] = _transform_age_tiers(
+                        age_schedule
+                    )
 
             # Merge dc_plan eligibility overrides into employer_core_contribution
             if core_eligibility_overrides or core_top_level:

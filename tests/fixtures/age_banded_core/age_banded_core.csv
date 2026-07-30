@@ -1,0 +1,9 @@
+employee_id,employee_ssn,employee_birth_date,employee_hire_date,employee_termination_date,employee_gross_compensation,employee_capped_compensation,active,employee_deferral_rate,employee_contribution,pre_tax_contribution,roth_contribution,after_tax_contribution,employer_core_contribution,employer_match_contribution,eligibility_entry_date,scheduled_hours_per_week,auto_escalation_opt_out,eligibility_override,boundary_group
+AGE_BAND_22,999-25-0001,2002-04-01,2021-03-01,,62000,62000,true,0.03,1860,1860,0,0,0,0,2021-03-01,40,false,,below_first_boundary
+AGE_BAND_29,999-25-0002,1995-06-15,2018-02-01,,71000,71000,true,0.03,2130,2130,0,0,0,0,2018-02-01,40,false,,crosses_30_in_2026
+AGE_BAND_30,999-25-0003,1994-06-15,2017-08-01,,74000,74000,true,0.04,2960,2960,0,0,0,0,2017-08-01,40,false,,exact_boundary_30
+AGE_BAND_39,999-25-0004,1985-03-10,2014-05-01,,96000,96000,true,0.05,4800,4800,0,0,0,0,2014-05-01,40,false,,crosses_40_in_2026
+AGE_BAND_40,999-25-0005,1984-03-10,2013-01-15,,101000,101000,true,0.05,5050,5050,0,0,0,0,2013-01-15,40,false,,exact_boundary_40
+AGE_BAND_49,999-25-0006,1975-09-20,2010-06-01,,128000,128000,true,0.06,7680,7680,0,0,0,0,2010-06-01,40,false,,crosses_50_in_2026
+AGE_BAND_50,999-25-0007,1974-09-20,2009-04-01,,134000,134000,true,0.06,8040,8040,0,0,0,0,2009-04-01,40,false,,exact_boundary_50
+AGE_BAND_60,999-25-0008,1964-01-05,2005-10-01,,152000,152000,true,0.07,10640,10640,0,0,0,0,2005-10-01,40,false,,above_final_boundary

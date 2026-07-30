@@ -292,6 +292,45 @@ def validate_tier_contiguity(
             )
 
 
+class AgeCoreTier(BaseModel):
+    """One age-banded employer core contribution interval."""
+
+    min_age: int = Field(ge=0, description="Inclusive lower age bound")
+    max_age: Optional[int] = Field(
+        default=None, description="Exclusive upper age bound; null is unbounded"
+    )
+    contribution_rate: float = Field(
+        ge=0, description="Contribution rate as a decimal fraction"
+    )
+
+    @model_validator(mode="after")
+    def validate_range(self) -> "AgeCoreTier":
+        if self.max_age is not None and self.max_age <= self.min_age:
+            raise ValueError("max_age must be greater than min_age")
+        return self
+
+
+def validate_core_age_schedule(schedule: Any) -> None:
+    """Validate a nonempty core age schedule covers ``[0, infinity)`` exactly."""
+    if schedule is None or schedule == []:
+        return
+    if not isinstance(schedule, list):
+        raise ValueError("core age_schedule must be a list")
+
+    tiers = [
+        tier if isinstance(tier, AgeCoreTier) else AgeCoreTier.model_validate(tier)
+        for tier in schedule
+    ]
+    validate_tier_contiguity(
+        [{"min_age": tier.min_age, "max_age": tier.max_age} for tier in tiers],
+        min_key="min_age",
+        max_key="max_age",
+        label="core age",
+    )
+    if tiers and all(tier.max_age is not None for tier in tiers):
+        raise ValueError("core age schedule must end with an unbounded final tier")
+
+
 # E046: Tenure-based match tier configuration
 #
 # DEPRECATED (Feature 099): superseded by TenureGradedMatchBand. Retained

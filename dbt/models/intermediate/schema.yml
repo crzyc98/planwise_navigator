@@ -264,10 +264,12 @@ models:
   - name: int_employer_core_contributions
     description: >
       Employer core (non-elective) contribution calculation model.
-      Supports both flat rate and graded-by-service configurations.
+      Supports flat, graded-by-service, points-based, and age-banded configurations.
       When employer_core_status is 'graded_by_service', applies tiered
       rates based on employee years of service. Includes audit trail
       field (applied_years_of_service) for compliance tracking.
+      Age-banded schedules use the annual workforce current_age and do not
+      depend on reporting age bands.
     config:
       tags: ["employer_contributions", "core_contributions", "mvp"]
     columns:

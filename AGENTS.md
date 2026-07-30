@@ -135,6 +135,8 @@ When adding or changing dbt models: add/adjust `schema.yml` tests, keep types an
 - Fresh DuckDB at `workspaces/<workspace>/scenarios/<scenario>/runs/<run_id>/simulation.duckdb` for each Studio/API attempt; atomic scenario-local `current_result.json`; existing run metadata/provenance files; new internal dbt workforce accumulator and disposable prior-year projection; no public mart schema change (122-state-pipeline-redesign)
 - Python 3.11; SQL/Jinja executed by dbt Core 1.8.8 with dbt-duckdb 1.8.1 + pytest, DuckDB 1.0.0, pandas/pyarrow, existing `planalign_orchestrator` config loader and multi-year executor (124-edge-config-regression-matrix)
 - Per-case DuckDB files under pytest `tmp_path`; checked-in CSV fixture/config inputs; never `dbt/simulation.duckdb` (124-edge-config-regression-matrix)
+- Python 3.11; SQL/Jinja compatible with dbt Core 1.8.8 and dbt-duckdb 1.8.1; TypeScript 5.8 + Pydantic v2, FastAPI, DuckDB 1.0.0, React 19, Tailwind CSS 4, pytest 7.4 (125-age-banded-core)
+- Scenario-isolated DuckDB simulation outputs; YAML workspace and scenario configuration; no new persisted table or public mart schema (125-age-banded-core)
 
 ## Recent Changes
 - 106-fail-dbt-stage: Added Python >=3.11 + dbt Core/dbt DuckDB execution via the existing orchestrator, Pydantic configuration models, DuckDB-backed simulation state, pytest for tests

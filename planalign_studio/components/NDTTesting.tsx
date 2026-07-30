@@ -917,15 +917,15 @@ function Section401a4SingleResult({
         </div>
       </div>
 
-      {/* Service Risk Warning */}
+      {/* Nondiscrimination review caveat */}
       {result.service_risk_flag && (
         <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 flex items-start">
           <AlertTriangle size={20} className="text-amber-600 mr-3 mt-0.5 flex-shrink-0" />
           <div>
-            <h4 className="text-sm font-semibold text-amber-800">Service-Based NEC Tenure Risk</h4>
+            <h4 className="text-sm font-semibold text-amber-800">Nondiscrimination Review Required</h4>
             <p className="text-sm text-amber-700 mt-1">
-              The employer core contribution uses a service-based formula and there is significant
-              tenure skew between HCE and NHCE groups. {result.service_risk_detail}
+              The employer core contribution design may require further nondiscrimination review.
+              This result is not a legal qualification conclusion. {result.service_risk_detail}
             </p>
           </div>
         </div>
@@ -1095,7 +1095,7 @@ function Section401a4ComparisonResults({ results, scenarioOrder }: { results: Se
                   </div>
                   {result.service_risk_flag && (
                     <div className="flex items-center text-xs text-amber-700 bg-amber-50 rounded px-2 py-1 mt-1">
-                      <AlertTriangle size={12} className="mr-1" /> Service tenure risk
+                      <AlertTriangle size={12} className="mr-1" /> Review caveat
                     </div>
                   )}
                 </div>

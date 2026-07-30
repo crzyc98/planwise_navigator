@@ -247,6 +247,13 @@ function mapDCPlanCoreFields(cfg: any, prev: FormData): Partial<FormData> {
           rate: convertRateToPercent(tier.contribution_rate, 0),
         }))
       : prev.dcCorePointsSchedule,
+    dcCoreAgeSchedule: cfg.dc_plan?.core_age_schedule
+      ? cfg.dc_plan.core_age_schedule.map((tier: any) => ({
+          minAge: tier.min_age ?? 0,
+          maxAge: tier.max_age ?? null,
+          rate: convertRateToPercent(tier.contribution_rate, 0),
+        }))
+      : prev.dcCoreAgeSchedule,
     dcCoreMinTenureYears: cfg.dc_plan?.core_min_tenure_years ?? prev.dcCoreMinTenureYears,
     dcCoreRequireYearEndActive: cfg.dc_plan?.core_require_year_end_active ?? prev.dcCoreRequireYearEndActive,
     dcCoreMinHoursAnnual: cfg.dc_plan?.core_min_hours_annual ?? prev.dcCoreMinHoursAnnual,

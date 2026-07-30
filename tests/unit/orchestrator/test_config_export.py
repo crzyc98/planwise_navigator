@@ -849,6 +849,33 @@ class TestExportThreadingVars:
 
 
 class TestExportCoreContributionVars:
+    def test_age_banded_schedule_exports_direct_yaml_and_studio(self):
+        cfg = _make_config()
+        cfg.employer_core_contribution = {
+            "status": "age_banded",
+            "contribution_rate": 0.03,
+            "age_schedule": [
+                {"min_age": 0, "max_age": 30, "contribution_rate": 0.03},
+                {"min_age": 30, "max_age": None, "contribution_rate": 0.06},
+            ],
+        }
+        direct = _export_core_contribution_vars(cfg)
+        assert direct["employer_core_age_schedule"][1] == {
+            "min_age": 30,
+            "max_age": None,
+            "rate": 6.0,
+        }
+
+        cfg.dc_plan = {
+            "core_status": "age_banded",
+            "core_age_schedule": [
+                {"min_age": 0, "max_age": None, "contribution_rate": 0.04}
+            ],
+        }
+        studio = _export_core_contribution_vars(cfg)
+        assert studio["employer_core_status"] == "age_banded"
+        assert studio["employer_core_age_schedule"][0]["rate"] == 4.0
+
     def test_core_contribution_basic(self):
         cfg = _make_config()
         cfg.employer_core_contribution = {
