@@ -31,6 +31,10 @@ NEW_HIRES_TABLE = "fit_new_hires"
 ENROLLMENT_COLUMNS = ("employee_enrollment_date", "employee_deferral_rate")
 
 
+class TransitionError(ValueError):
+    """The linked transition table could not be built or counted."""
+
+
 @dataclass(frozen=True)
 class Observability:
     """Which fits the supplied snapshots can actually support."""
@@ -185,9 +189,10 @@ def _observe(
                 "WHERE NOT is_active"
             ).fetchone()
             if row is None:
-                continue
-            count = row[0]
-            if count:
+                raise TransitionError(
+                    f"Could not count inactive rows in snapshot {snapshot.year}."
+                )
+            if row[0]:
                 has_inactive = True
                 break
     return Observability(
@@ -237,7 +242,7 @@ def build_transitions(
 
     linked_row = conn.execute(f"SELECT COUNT(*) FROM {TRANSITIONS_TABLE}").fetchone()
     if linked_row is None:
-        raise RuntimeError("Could not count linked snapshot pairs.")
+        raise TransitionError("Could not count linked snapshot pairs.")
     linked_pairs = int(linked_row[0])
     unmatched = _count_reappearances(conn, snapshot_set)
 
@@ -339,6 +344,9 @@ def _count_reappearances(
                        OR EXTRACT(YEAR FROM n.hire_date) < {later.year})
                 """
         ).fetchone()
-        if row is not None:
-            total += int(row[0])
+        if row is None:
+            raise TransitionError(
+                f"Could not count reappearances between {prior.year} and {later.year}."
+            )
+        total += int(row[0])
     return total

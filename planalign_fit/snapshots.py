@@ -173,13 +173,12 @@ def _describe(
             str(row[0])
             for row in conn.execute(f"DESCRIBE SELECT * FROM {expression}").fetchall()
         )
-        row = conn.execute(f"SELECT COUNT(*) FROM {expression}").fetchone()
-        if row is None:
-            raise SnapshotError(f"Could not count rows in snapshot {path.name}.")
-        row_count = int(row[0])
+        count_row = conn.execute(f"SELECT COUNT(*) FROM {expression}").fetchone()
     except Exception as exc:  # duckdb raises a family of IO/binder errors
         raise SnapshotError(f"Could not read snapshot {path.name}: {exc}") from exc
-    return columns, row_count
+    if count_row is None:
+        raise SnapshotError(f"Could not count rows in snapshot {path.name}.")
+    return columns, int(count_row[0])
 
 
 def _validate_columns(path: Path, columns: Sequence[str]) -> None:

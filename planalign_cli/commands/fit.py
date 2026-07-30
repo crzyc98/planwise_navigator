@@ -21,6 +21,7 @@ from planalign_fit import (
     FitRun,
     PackError,
     SnapshotError,
+    TransitionError,
     fit_parameter_pack,
     render_fit_report,
     write_pack,
@@ -98,7 +99,7 @@ def run_fit(
 
     try:
         run = fit_parameter_pack(snapshots_dir, options)
-    except SnapshotError as exc:
+    except (SnapshotError, TransitionError) as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(EXIT_UNREADABLE_SNAPSHOTS) from exc
     except (BandDefinitionError, PriorsError) as exc:

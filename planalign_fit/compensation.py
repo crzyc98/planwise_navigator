@@ -106,7 +106,8 @@ def fit_headcount_growth(
             f"SELECT COUNT(*) FROM banded_{snapshot.year} WHERE is_active"
         ).fetchone()
         if row is None:
-            continue
+            # Skipping a year would silently pair non-adjacent snapshots below.
+            return None
         counts.append(float(row[0]))
 
     ratios = [

@@ -23,7 +23,7 @@ from planalign_fit.bands import BandDefinitions
 from planalign_fit.models import CellObservation, FittedValue, HazardFit
 from planalign_fit.priors import HazardPriors, prior_for_bands
 from planalign_fit.smoothing import shrink_ratio, shrink_toward
-from planalign_fit.transitions import TransitionSet
+from planalign_fit.transitions import TransitionError, TransitionSet
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     import duckdb
@@ -248,7 +248,7 @@ def fit_scalar_rate(
         """
     ).fetchone()
     if row is None:
-        raise RuntimeError(f"Could not calculate scalar rate '{name}'.")
+        raise TransitionError(f"Could not calculate scalar rate '{name}'.")
     exposure, events = row
     return FittedValue.from_credibility(
         name,

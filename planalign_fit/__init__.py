@@ -30,7 +30,11 @@ from planalign_fit.report import render_fit_report
 from planalign_fit.runner import FitOptions, FitRun, fit_parameter_pack
 from planalign_fit.smoothing import CredibilityResult, shrink_toward
 from planalign_fit.snapshots import Snapshot, SnapshotError, SnapshotSet, load_snapshots
-from planalign_fit.transitions import TransitionSet, build_transitions
+from planalign_fit.transitions import (
+    TransitionError,
+    TransitionSet,
+    build_transitions,
+)
 
 __all__ = [
     "Band",
@@ -48,6 +52,7 @@ __all__ = [
     "Snapshot",
     "SnapshotError",
     "SnapshotSet",
+    "TransitionError",
     "TransitionSet",
     "Unfittable",
     "build_transitions",
