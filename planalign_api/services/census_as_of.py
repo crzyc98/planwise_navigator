@@ -46,7 +46,8 @@ def resolve_as_of_date(
         if len(date_expressions) > 1
         else date_expressions[0]
     )
-    latest_date = conn.execute(f"SELECT MAX({event_date}) FROM census").fetchone()[0]
+    row = conn.execute(f"SELECT MAX({event_date}) FROM census").fetchone()
+    latest_date = row[0] if row else None
     if latest_date is None:
         raise ValueError(
             "Cannot infer a census as-of date from unparseable hire or termination dates. "
