@@ -37,6 +37,110 @@ class TestSaveConfig:
 
 
 @pytest.mark.fast
+class TestArchivedConfigStatesEffectiveDesign:
+    """Issue #523: the archived config must state the design that actually ran.
+
+    Studio writes its plan design into ``dc_plan``, leaving
+    ``employer_core_contribution`` at the base-config defaults. Archiving the
+    merged config verbatim recorded a design the run never used.
+    """
+
+    def _archived(self, tmp_path, config):
+        _save_config(tmp_path, config)
+        return yaml.safe_load((tmp_path / "config.yaml").read_text())
+
+    def test_dc_plan_rate_wins_over_nested_default(self, tmp_path):
+        """The 2026-07-10 case: nested 3% / dc_plan 1% must archive as 1%."""
+        archived = self._archived(
+            tmp_path,
+            {
+                "employer_core_contribution": {
+                    "status": "flat",
+                    "contribution_rate": 0.03,
+                },
+                "dc_plan": {"core_status": "flat", "core_contribution_rate_percent": 1},
+            },
+        )
+        assert archived["employer_core_contribution"]["contribution_rate"] == 0.01
+
+    def test_integrated_design_archives_its_integration(self, tmp_path):
+        """An SS-integrated design must not archive as integration: null."""
+        archived = self._archived(
+            tmp_path,
+            {
+                "employer_core_contribution": {
+                    "status": "flat",
+                    "contribution_rate": 0.03,
+                    "integration": None,
+                },
+                "dc_plan": {
+                    "core_contribution_rate_percent": 5.7,
+                    "core_integration_enabled": True,
+                    "core_integration_level_mode": "ss_wage_base",
+                    "core_integration_disparity_rate": 0.05,
+                },
+            },
+        )
+        core = archived["employer_core_contribution"]
+        assert core["contribution_rate"] == 0.057
+        assert core["integration"]["enabled"] is True
+        assert core["integration"]["level_mode"] == "ss_wage_base"
+        assert core["integration"]["disparity_rate"] == 0.05
+
+    def test_yaml_configured_design_is_untouched(self, tmp_path):
+        """A non-Studio design must archive byte-identically to before the fix."""
+        config = {
+            "employer_core_contribution": {"status": "flat", "contribution_rate": 0.03},
+            "dc_plan": {"match_template": "tiered"},
+        }
+        expected = yaml.dump(config, default_flow_style=False, sort_keys=False)
+        _save_config(tmp_path, config)
+        assert (tmp_path / "config.yaml").read_text() == expected
+
+    def test_archived_config_round_trips_to_the_same_effective_design(self, tmp_path):
+        """The archive and the engine must not drift apart again.
+
+        Re-resolving the archived config must be a fixed point: it already
+        states the effective design, so it resolves to the same core block the
+        engine derived from the original merged config, and contradicts none of
+        the engine's vars. The archived config may resolve to *more* vars than
+        the original, because writing the resolved block makes nested
+        eligibility explicit where the Studio config only had ``dc_plan``.
+        """
+        from types import SimpleNamespace
+
+        from planalign_orchestrator.config.export import (
+            _export_core_contribution_vars,
+        )
+
+        config = {
+            "employer_core_contribution": {
+                "status": "flat",
+                "contribution_rate": 0.03,
+                "integration": None,
+            },
+            "dc_plan": {
+                "core_status": "graded_by_service",
+                "core_contribution_rate_percent": 5.7,
+                "core_integration_enabled": True,
+                "core_integration_level_mode": "ss_wage_base",
+                "core_integration_disparity_rate": 0.05,
+                "core_min_hours_annual": 1000,
+            },
+        }
+        archived = self._archived(tmp_path, config)
+
+        engine_vars = _export_core_contribution_vars(SimpleNamespace(**config))
+        archived_vars = _export_core_contribution_vars(SimpleNamespace(**archived))
+
+        assert (
+            archived_vars["employer_core_contribution"]
+            == engine_vars["employer_core_contribution"]
+        )
+        assert archived_vars.items() >= engine_vars.items()
+
+
+@pytest.mark.fast
 class TestSaveMetadata:
     """Test _save_metadata helper."""
 

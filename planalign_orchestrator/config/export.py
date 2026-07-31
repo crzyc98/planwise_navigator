@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from planalign_orchestrator.config.permitted_disparity import (
@@ -1330,6 +1331,33 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
         )
 
     return dbt_vars
+
+
+def resolve_effective_core_contribution(
+    config: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
+    """Resolve `dc_plan` core settings into the canonical nested block.
+
+    Studio writes its plan design into `dc_plan`, so a merged config carries two
+    representations of the same design and only `to_dbt_vars` knows which one
+    wins. This exposes that single precedence rule to callers that need to
+    *record* the effective design (#523) rather than run it, so the archived
+    artifact and the engine cannot disagree.
+
+    Returns the resolved `employer_core_contribution` block, or None when
+    `dc_plan` contributes no core settings (a YAML-configured design), so the
+    caller can leave such configs untouched. The None case matters: the YAML
+    path of `_export_core_contribution_vars` *derives* `allow_new_hires`, so
+    unconditionally overlaying would rewrite configs Studio never touched.
+    """
+    dc_plan = config.get("dc_plan") or {}
+    if not isinstance(dc_plan, dict):
+        dc_plan = getattr(dc_plan, "model_dump", dict)() or {}
+    if not any(key.startswith("core_") for key in dc_plan):
+        return None
+
+    core_vars = _export_core_contribution_vars(SimpleNamespace(**config))
+    return core_vars.get("employer_core_contribution")
 
 
 def _export_deferral_match_response_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
