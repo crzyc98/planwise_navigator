@@ -275,3 +275,60 @@ class TestPoolParallelExecution:
 
         assert all(r.succeeded for r in results.values())
         assert elapsed < 2.0, f"no overlap observed: {elapsed:.2f}s"
+
+
+class TestSignalSessionScoping:
+    """A worker is only signalled as a group once it leads its own session."""
+
+    def test_worker_without_setsid_is_signalled_individually(self, monkeypatch):
+        """Never signal a group that still contains the pool itself.
+
+        ``setsid`` runs inside the worker after fork and can fail, so there is
+        a window where ``getpgid(worker)`` still resolves to the POOL's group.
+        Signalling it took down the parent, its siblings, and -- on a terminal
+        -- the user's shell. In CI it surfaced as "The runner has received a
+        shutdown signal", killing the job at the moment the pool terminated.
+        """
+        from planalign_orchestrator import run_pool
+
+        class _Worker:
+            pid = 4242
+
+            def is_alive(self):
+                return True
+
+        killpg_calls, kill_calls = [], []
+        # Worker has not setsid yet: its group is the pool's, not its own pid.
+        monkeypatch.setattr(run_pool.os, "getpgid", lambda pid: 99)
+        monkeypatch.setattr(
+            run_pool.os, "killpg", lambda pgid, sig: killpg_calls.append(pgid)
+        )
+        monkeypatch.setattr(
+            run_pool.os, "kill", lambda pid, sig: kill_calls.append(pid)
+        )
+
+        run_pool._signal_session(_Worker(), 15)
+
+        assert killpg_calls == [], "signalled a group containing the pool itself"
+        assert kill_calls == [4242]
+
+    def test_session_leader_is_signalled_as_a_group(self, monkeypatch):
+        """Once the worker leads its session, the group carries its dbt children."""
+        from planalign_orchestrator import run_pool
+
+        class _Worker:
+            pid = 4242
+
+            def is_alive(self):
+                return True
+
+        killpg_calls = []
+        # setsid succeeded: pgid == pid, so the group is exactly this worker's.
+        monkeypatch.setattr(run_pool.os, "getpgid", lambda pid: pid)
+        monkeypatch.setattr(
+            run_pool.os, "killpg", lambda pgid, sig: killpg_calls.append(pgid)
+        )
+
+        run_pool._signal_session(_Worker(), 15)
+
+        assert killpg_calls == [4242]

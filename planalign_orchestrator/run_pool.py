@@ -527,7 +527,18 @@ def _signal_session(process: Any, sig: int) -> None:
         return
     try:
         if hasattr(os, "killpg"):
-            os.killpg(os.getpgid(pid), sig)
+            # Only signal the GROUP when the worker leads its own session.
+            # `setsid` runs inside the worker after fork (and may fail), so
+            # there is a window where getpgid(pid) still returns OUR group --
+            # signalling it would take down the whole pool's process group:
+            # the parent, its siblings, and on a terminal the user's shell.
+            # Observed as "The runner has received a shutdown signal" killing
+            # a CI job outright. Signal just the process until it has setsid.
+            pgid = os.getpgid(pid)
+            if pgid == pid:
+                os.killpg(pgid, sig)
+            else:
+                os.kill(pid, sig)
         else:  # pragma: no cover - platforms without process groups
             process.terminate()
     except (ProcessLookupError, PermissionError):
