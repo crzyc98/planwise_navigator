@@ -19,6 +19,7 @@ from ..models.workspace import (
     WorkspaceSummary,
 )
 from ..models.scenario import Scenario, ScenarioCreate
+from ..services.storage_usage import directory_bytes, iter_workspace_dirs
 
 if TYPE_CHECKING:
     from ..services.current_result import ResolvedScenarioReadContext
@@ -95,10 +96,14 @@ class WorkspaceStorage:
                                 if last_run_at is None or run_at > last_run_at:
                                     last_run_at = run_at
 
-            # Calculate storage
-            storage_mb = sum(
-                f.stat().st_size for f in workspace_dir.rglob("*") if f.is_file()
-            ) / (1024 * 1024)
+            # Storage size comes from the shared TTL cache and is never
+            # scanned here: listing workspaces is on the navigation path, and
+            # a workspace tree is large enough that walking it dominates the
+            # request. /api/system/status performs the scan.
+            cached_bytes = directory_bytes(workspace_dir, allow_scan=False)
+            storage_mb = (
+                cached_bytes / (1024 * 1024) if cached_bytes is not None else None
+            )
 
             summaries.append(
                 WorkspaceSummary(
@@ -113,6 +118,19 @@ class WorkspaceStorage:
             )
 
         return summaries
+
+    def find_workspace_id_for_scenario(self, scenario_id: str) -> Optional[str]:
+        """Find which workspace owns a scenario, by ID.
+
+        Routes under /api/scenarios/{scenario_id} and the response-header
+        middleware both need this mapping. Deriving it from list_workspaces()
+        is orders of magnitude more expensive than it needs to be, because
+        that builds full summaries; this only probes for scenario.json.
+        """
+        for workspace_dir in iter_workspace_dirs(self.workspaces_root):
+            if (workspace_dir / "scenarios" / scenario_id / "scenario.json").exists():
+                return workspace_dir.name
+        return None
 
     def get_workspace(self, workspace_id: str) -> Optional[Workspace]:
         """Get a workspace by ID."""

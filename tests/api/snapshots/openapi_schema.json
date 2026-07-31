@@ -9394,10 +9394,16 @@
             "type": "integer"
           },
           "storage_used_mb": {
-            "default": 0.0,
-            "description": "Storage used in MB",
-            "title": "Storage Used Mb",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Storage used in MB, or null when not currently cached. Listing workspaces never walks the filesystem; call /api/system/status for authoritative storage figures.",
+            "title": "Storage Used Mb"
           }
         },
         "required": [

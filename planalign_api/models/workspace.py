@@ -58,7 +58,14 @@ class WorkspaceSummary(BaseModel):
     last_run_at: Optional[datetime] = Field(
         None, description="Last simulation run timestamp"
     )
-    storage_used_mb: float = Field(default=0.0, description="Storage used in MB")
+    storage_used_mb: Optional[float] = Field(
+        None,
+        description=(
+            "Storage used in MB, or null when not currently cached. Listing "
+            "workspaces never walks the filesystem; call /api/system/status "
+            "for authoritative storage figures."
+        ),
+    )
 
     class Config:
         json_encoders = {

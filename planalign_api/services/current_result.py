@@ -90,7 +90,10 @@ def _read_json(path: Path, *, label: str) -> dict:
 
 
 def _validate_target(
-    scenario_path: Path, pointer: CurrentResultPointer
+    scenario_path: Path,
+    pointer: CurrentResultPointer,
+    *,
+    verify_database: bool = True,
 ) -> CurrentResultPointer:
     run_dir = _run_directory(scenario_path, pointer.run_id)
     metadata_path = run_dir / RUN_METADATA_FILENAME
@@ -104,13 +107,18 @@ def _validate_target(
     database_path = run_dir / DATABASE_FILENAME
     if not database_path.is_file():
         raise CurrentResultIntegrityError("current result database is missing")
-    try:
-        with duckdb.connect(str(database_path), read_only=True) as connection:
-            connection.execute("SELECT 1").fetchone()
-    except Exception as exc:
-        raise CurrentResultIntegrityError(
-            "current result database is not readable"
-        ) from exc
+    # Opening a multi-gigabyte DuckDB file costs ~10ms even read-only, so the
+    # openability probe is skipped for callers that only need run identity
+    # (e.g. response headers). The cheap checks above still run, so a pointer
+    # is always proven to name a completed run whose database file is present.
+    if verify_database:
+        try:
+            with duckdb.connect(str(database_path), read_only=True) as connection:
+                connection.execute("SELECT 1").fetchone()
+        except Exception as exc:
+            raise CurrentResultIntegrityError(
+                "current result database is not readable"
+            ) from exc
     config_path = run_dir / "config.yaml"
     start_year = metadata.get("start_year")
     end_year = metadata.get("end_year")
@@ -134,7 +142,9 @@ def _validate_target(
     )
 
 
-def read_current_result(scenario_path: Path) -> CurrentResultPointer | None:
+def read_current_result(
+    scenario_path: Path, *, verify_database: bool = True
+) -> CurrentResultPointer | None:
     """Read and validate the selected successful run, failing closed on corruption."""
     pointer_path = scenario_path / POINTER_FILENAME
     if not pointer_path.exists():
@@ -145,7 +155,7 @@ def read_current_result(scenario_path: Path) -> CurrentResultPointer | None:
         )
     except (ValueError, TypeError) as exc:
         raise CurrentResultIntegrityError("invalid current-result pointer") from exc
-    return _validate_target(scenario_path, pointer)
+    return _validate_target(scenario_path, pointer, verify_database=verify_database)
 
 
 def _fsync_directory(path: Path) -> None:
@@ -181,8 +191,10 @@ def publish_current_result(
     return pointer
 
 
-def resolve_scenario_read_context(scenario_path: Path) -> ResolvedScenarioReadContext:
-    pointer = read_current_result(scenario_path)
+def resolve_scenario_read_context(
+    scenario_path: Path, *, verify_database: bool = True
+) -> ResolvedScenarioReadContext:
+    pointer = read_current_result(scenario_path, verify_database=verify_database)
     scenario_data: dict = {}
     scenario_json = scenario_path / "scenario.json"
     if scenario_json.is_file():
