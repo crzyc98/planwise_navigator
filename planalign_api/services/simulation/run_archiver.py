@@ -11,6 +11,7 @@ import duckdb
 import yaml  # type: ignore[import]  # types-PyYAML not in CI deps
 
 from planalign_core.constants import DATABASE_FILENAME, STATUS_COMPLETED
+from planalign_orchestrator.config.export import resolve_effective_core_contribution
 
 from ...constants import DEFAULT_MAX_RUNS_PER_SCENARIO
 from ...storage.workspace_storage import WorkspaceStorage
@@ -199,12 +200,35 @@ def prune_old_runs(
 # -- private helpers ----------------------------------------------------------
 
 
+def _effective_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Resolve `dc_plan` into the canonical block before archiving (#523).
+
+    A Studio-configured design lives in `dc_plan`, leaving
+    `employer_core_contribution` at the base-config defaults. Archiving the
+    merged config verbatim therefore records a design the run never used. This
+    applies the same precedence the engine does, so the audit artifact states
+    what actually ran. Resolution is confined to the archive: the merged config
+    the engine sees is untouched, so `config_fingerprint` is unaffected.
+    """
+    resolved = resolve_effective_core_contribution(config)
+    if not resolved:
+        return config
+
+    effective = dict(config)
+    core = dict(effective.get("employer_core_contribution") or {})
+    core.update(resolved)
+    effective["employer_core_contribution"] = core
+    return effective
+
+
 def _save_config(run_dir: Path, config: Dict[str, Any]) -> None:
     try:
         config_path = run_dir / "config.yaml"
         _atomic_write_text(
             config_path,
-            yaml.dump(config, default_flow_style=False, sort_keys=False),
+            yaml.dump(
+                _effective_config(config), default_flow_style=False, sort_keys=False
+            ),
         )
         logger.debug(f"Config YAML saved to: {config_path}")
     except Exception as e:
