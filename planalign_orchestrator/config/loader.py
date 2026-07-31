@@ -24,11 +24,32 @@ from .workforce import (
     DeferralMatchResponseSettings,
     validate_core_age_schedule,
 )
+from .permitted_disparity import (
+    normalize_dc_plan_integration,
+    validate_core_integration,
+)
 from .performance import (
     OptimizationSettings,
     OrchestratorSettings,
     E068CThreadingSettings,
 )
+
+
+def _core_integration_config(core: Any, dc_plan: Any) -> Optional[Dict[str, Any]]:
+    """Return the configured integration shape, favoring an explicit Studio payload."""
+    if isinstance(dc_plan, dict) and "core_integration_enabled" in dc_plan:
+        rate = dc_plan.get("core_contribution_rate")
+        if "core_contribution_rate_percent" in dc_plan:
+            rate = float(dc_plan["core_contribution_rate_percent"]) / 100
+        return {
+            "status": dc_plan.get("core_status", "flat"),
+            "contribution_rate": rate or 0.0,
+            "graded_schedule": dc_plan.get("core_graded_schedule", []),
+            "points_schedule": dc_plan.get("core_points_schedule", []),
+            "age_schedule": dc_plan.get("core_age_schedule", []),
+            "integration": normalize_dc_plan_integration(dc_plan),
+        }
+    return core if isinstance(core, dict) and "integration" in core else None
 
 
 class SimulationConfig(BaseModel):
@@ -69,8 +90,8 @@ class SimulationConfig(BaseModel):
     )
 
     @model_validator(mode="after")
-    def validate_core_age_schedules(self) -> "SimulationConfig":
-        """Reject malformed direct-YAML and Studio age schedules at load time."""
+    def validate_core_schedules_and_integration(self) -> "SimulationConfig":
+        """Reject malformed core schedules and illegal integration at load time."""
         core = getattr(self, "employer_core_contribution", None)
         if isinstance(core, dict) and core.get("status") == "age_banded":
             validate_core_age_schedule(core.get("age_schedule", []))
@@ -78,6 +99,13 @@ class SimulationConfig(BaseModel):
         dc_plan = getattr(self, "dc_plan", None)
         if isinstance(dc_plan, dict) and dc_plan.get("core_status") == "age_banded":
             validate_core_age_schedule(dc_plan.get("core_age_schedule", []))
+        integration_core = _core_integration_config(core, dc_plan)
+        if integration_core is not None:
+            validate_core_integration(
+                integration_core,
+                self.simulation.start_year,
+                self.simulation.end_year,
+            )
         return self
 
     def require_identifiers(self) -> None:

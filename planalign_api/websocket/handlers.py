@@ -11,6 +11,9 @@ from ..services.telemetry_service import TelemetryService, get_telemetry_service
 
 logger = logging.getLogger(__name__)
 
+# Pre-encoded so the heartbeat and telemetry paths share one send call.
+_HEARTBEAT = '{"type": "heartbeat"}'
+
 
 async def simulation_websocket(
     websocket: WebSocket,
@@ -49,15 +52,30 @@ async def simulation_websocket(
             try:
                 # Wait for telemetry message with timeout
                 message = await asyncio.wait_for(queue.get(), timeout=10.0)
-                await websocket.send_text(message)
             except asyncio.TimeoutError:
-                # Send heartbeat
-                await websocket.send_json({"type": "heartbeat"})
+                # Quiet stretch (e.g. a long dbt model build): keepalive instead.
+                message = _HEARTBEAT
+
+            # The send is deliberately outside the timeout handler. Raising it
+            # from inside an `except` body would skip the sibling
+            # `except WebSocketDisconnect` below — Python does not route an
+            # exception raised in one handler's body to another handler of the
+            # same try — so an ordinary client disconnect during a heartbeat
+            # would surface as a generic error instead of a clean break.
+            try:
+                await websocket.send_text(message)
             except WebSocketDisconnect:
                 break
 
+    except WebSocketDisconnect:
+        # Client went away; the normal way a telemetry stream ends.
+        logger.debug("WebSocket closed by client for run %s", run_id)
+
     except Exception as e:
-        logger.error(f"WebSocket error for run {run_id}: {e}")
+        # Log the type: several disconnect-ish exceptions carry no message, so
+        # `{e}` alone renders as an empty string and a real failure becomes
+        # indistinguishable from a routine hangup.
+        logger.error("WebSocket error for run %s: %s: %r", run_id, type(e).__name__, e)
 
     finally:
         telemetry.unsubscribe(run_id, queue)
@@ -108,16 +126,30 @@ async def batch_websocket(
                 data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
                 # Handle client commands if needed
                 logger.debug(f"Received from batch client: {data}")
+                continue
 
             except asyncio.TimeoutError:
-                # Send heartbeat
-                await websocket.send_json({"type": "heartbeat"})
+                pass  # Quiet stretch; fall through to the keepalive below.
 
             except WebSocketDisconnect:
                 break
 
+            # Sent outside the timeout handler: an exception raised inside an
+            # `except` body bypasses that try's sibling handlers, so a disconnect
+            # here would never reach `except WebSocketDisconnect` above.
+            try:
+                await websocket.send_text(_HEARTBEAT)
+            except WebSocketDisconnect:
+                break
+
+    except WebSocketDisconnect:
+        # Client went away; the normal way a batch stream ends.
+        logger.debug("WebSocket closed by client for batch %s", batch_id)
+
     except Exception as e:
-        logger.error(f"WebSocket error for batch {batch_id}: {e}")
+        logger.error(
+            "WebSocket error for batch %s: %s: %r", batch_id, type(e).__name__, e
+        )
 
     finally:
         await manager.disconnect(websocket, f"batch_{batch_id}")

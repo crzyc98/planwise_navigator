@@ -310,6 +310,38 @@ class AgeCoreTier(BaseModel):
         return self
 
 
+class CoreIntegrationSettings(BaseModel):
+    """Social Security integrated employer core contribution settings."""
+
+    enabled: bool = False
+    level_mode: Literal[
+        "ss_wage_base", "percent_of_ss_wage_base", "fixed_dollar"
+    ] = "ss_wage_base"
+    level_value: Optional[float] = None
+    disparity_rate: float = 0.0
+
+    @model_validator(mode="after")
+    def validate_enabled_settings(self) -> "CoreIntegrationSettings":
+        """Validate value bounds only when integration participates in a run."""
+        if not self.enabled:
+            return self
+        if self.disparity_rate < 0:
+            raise ValueError("disparity_rate must be greater than or equal to zero")
+        if self.level_mode == "ss_wage_base":
+            return self
+        if self.level_value is None:
+            raise ValueError(
+                f"level_value is required when level_mode is {self.level_mode}"
+            )
+        if self.level_value <= 0:
+            raise ValueError("level_value must be greater than zero")
+        if self.level_mode == "percent_of_ss_wage_base" and self.level_value > 100:
+            raise ValueError(
+                "level_value must not exceed 100 for percent_of_ss_wage_base"
+            )
+        return self
+
+
 def validate_core_age_schedule(schedule: Any) -> None:
     """Validate a nonempty core age schedule covers ``[0, infinity)`` exactly."""
     if schedule is None or schedule == []:

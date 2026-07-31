@@ -118,6 +118,33 @@ const derivePlanSummary = (config: Record<string, any> | null) => {
     core = `Flat ${dc.core_contribution_rate_percent ?? '--'}% of eligible compensation.`;
   }
 
+  const rawIntegration = config?.employer_core_contribution?.integration;
+  const integration = dc.core_integration_enabled !== undefined
+    ? {
+        enabled: dc.core_integration_enabled,
+        levelMode: dc.core_integration_level_mode,
+        levelValue: dc.core_integration_level_value,
+        disparityRate: dc.core_integration_disparity_rate,
+        disparityRatePercent: dc.core_integration_disparity_rate_percent,
+      }
+    : rawIntegration && {
+        enabled: rawIntegration.enabled,
+        levelMode: rawIntegration.level_mode,
+        levelValue: rawIntegration.level_value,
+        disparityRate: rawIntegration.disparity_rate,
+        disparityRatePercent: undefined,
+      };
+  if (dc.core_enabled !== false && integration?.enabled) {
+    const disparityRate = integration.disparityRatePercent ?? pct(integration.disparityRate);
+    let integrationLevel = 'the Social Security wage base';
+    if (integration.levelMode === 'percent_of_ss_wage_base') {
+      integrationLevel = `${integration.levelValue}% of the Social Security wage base`;
+    } else if (integration.levelMode === 'fixed_dollar') {
+      integrationLevel = `$${Number(integration.levelValue).toLocaleString()}`;
+    }
+    core = `${core.slice(0, -1)}, plus ${disparityRate}% above ${integrationLevel}.`;
+  }
+
   let match: string;
   const tiers: any[] = dc.match_tiers ?? [];
   if (dc.match_enabled === false) {

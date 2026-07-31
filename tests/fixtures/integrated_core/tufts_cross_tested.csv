@@ -1,0 +1,7 @@
+employee_id,employee_ssn,employee_birth_date,employee_hire_date,employee_termination_date,employee_gross_compensation,employee_capped_compensation,active,employee_deferral_rate,employee_contribution,pre_tax_contribution,roth_contribution,after_tax_contribution,employer_core_contribution,employer_match_contribution,eligibility_entry_date,scheduled_hours_per_week,auto_escalation_opt_out,eligibility_override,boundary_group
+TUFTS_YOUNG_BELOW,999-27-0001,1995-03-01,2015-01-01,,100000,100000,true,0.03,3000,3000,0,0,0,0,2015-01-01,40,false,,young_below
+TUFTS_YOUNG_ABOVE,999-27-0002,1995-03-01,2015-01-01,,250000,250000,true,0.03,7500,7500,0,0,0,0,2015-01-01,40,false,,young_above
+TUFTS_YOUNG_AT_39,999-27-0003,1986-06-01,2015-01-01,,250000,250000,true,0.03,7500,7500,0,0,0,0,2015-01-01,40,false,,young_edge
+TUFTS_OLD_AT_40,999-27-0004,1985-06-01,2010-01-01,,250000,250000,true,0.03,7500,7500,0,0,0,0,2010-01-01,40,false,,old_edge
+TUFTS_OLD_BELOW,999-27-0005,1970-03-01,2000-01-01,,100000,100000,true,0.03,3000,3000,0,0,0,0,2000-01-01,40,false,,old_below
+TUFTS_OLD_ABOVE,999-27-0006,1970-03-01,2000-01-01,,250000,250000,true,0.03,7500,7500,0,0,0,0,2000-01-01,40,false,,old_above

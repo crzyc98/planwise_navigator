@@ -48,6 +48,19 @@ function toPercent(val: number | null | undefined, alreadyPercent = false): stri
   return `${(val * 100).toFixed(1)}`;
 }
 
+export function formatIntegrationLevel(dc: Record<string, any>): string {
+  switch (dc.core_integration_level_mode) {
+    case 'percent_of_ss_wage_base':
+      return `${dc.core_integration_level_value ?? '--'}% of the Social Security wage base`;
+    case 'fixed_dollar':
+      return dc.core_integration_level_value != null
+        ? `$${Number(dc.core_integration_level_value).toLocaleString()}`
+        : '--';
+    default:
+      return 'Social Security wage base';
+  }
+}
+
 export function formatMatchMode(mode: string | undefined): string {
   switch (mode) {
     case 'deferral_based': return 'Deferral-Based';
@@ -291,6 +304,29 @@ export function PlanDesignModal({ config, onClose }: PlanDesignModalProps) {
                           <span className="font-medium">{toPercent(t.contribution_rate)}%</span>
                         </div>
                       ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* §401(l) integration — shown for any core status, since it
+                    modifies the resolved base rate rather than replacing it. */}
+                {dc.core_integration_enabled && (
+                  <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
+                    <p className="text-xs font-medium text-gray-700 mb-2">Social Security Integration</p>
+                    <div className="space-y-1 text-xs text-gray-700">
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-500">Integration level</span>
+                        <span className="text-gray-400">→</span>
+                        <span className="font-medium">{formatIntegrationLevel(dc)}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-500">Disparity rate</span>
+                        <span className="text-gray-400">→</span>
+                        <span className="font-medium">{toPercent(dc.core_integration_disparity_rate)}%</span>
+                      </div>
+                      <p className="text-[10px] text-gray-500 pt-1">
+                        Applied to compensation above the level, on top of the base rate.
+                      </p>
                     </div>
                   </div>
                 )}

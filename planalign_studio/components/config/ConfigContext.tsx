@@ -254,6 +254,17 @@ function mapDCPlanCoreFields(cfg: any, prev: FormData): Partial<FormData> {
           rate: convertRateToPercent(tier.contribution_rate, 0),
         }))
       : prev.dcCoreAgeSchedule,
+    dcCoreIntegrationEnabled:
+      cfg.dc_plan?.core_integration_enabled ?? prev.dcCoreIntegrationEnabled,
+    dcCoreIntegrationLevelMode:
+      cfg.dc_plan?.core_integration_level_mode ?? prev.dcCoreIntegrationLevelMode,
+    dcCoreIntegrationLevelValue:
+      cfg.dc_plan?.core_integration_level_value ?? prev.dcCoreIntegrationLevelValue,
+    // Stored as a decimal fraction; the form carries a percentage.
+    dcCoreIntegrationDisparityRate: convertRateToPercent(
+      cfg.dc_plan?.core_integration_disparity_rate,
+      prev.dcCoreIntegrationDisparityRate
+    ),
     dcCoreMinTenureYears: cfg.dc_plan?.core_min_tenure_years ?? prev.dcCoreMinTenureYears,
     dcCoreRequireYearEndActive: cfg.dc_plan?.core_require_year_end_active ?? prev.dcCoreRequireYearEndActive,
     dcCoreMinHoursAnnual: cfg.dc_plan?.core_min_hours_annual ?? prev.dcCoreMinHoursAnnual,

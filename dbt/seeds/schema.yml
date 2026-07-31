@@ -15,6 +15,7 @@ seeds:
         super_catch_up_age_min: integer
         super_catch_up_age_max: integer
         is_estimated: boolean
+        social_security_wage_base: integer
 
   - name: comp_levers
     description: "Compensation parameters by scenario and year"

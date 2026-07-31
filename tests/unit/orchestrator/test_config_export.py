@@ -849,6 +849,94 @@ class TestExportThreadingVars:
 
 
 class TestExportCoreContributionVars:
+    def test_direct_yaml_integration_exports_decimal_dbt_vars(self):
+        cfg = _make_config()
+        cfg.employer_core_contribution = {
+            "enabled": True,
+            "status": "flat",
+            "contribution_rate": 0.03,
+            "integration": {
+                "enabled": True,
+                "level_mode": "percent_of_ss_wage_base",
+                "level_value": 80,
+                "disparity_rate": 0.027,
+            },
+        }
+
+        result = _export_core_contribution_vars(cfg)
+
+        assert result["employer_core_integration_enabled"] is True
+        assert (
+            result["employer_core_integration_level_mode"] == "percent_of_ss_wage_base"
+        )
+        assert result["employer_core_integration_level_value"] == 80.0
+        assert result["employer_core_integration_disparity_rate"] == 0.027
+
+    def test_studio_dc_plan_integration_reaches_dbt_vars(self):
+        """A Studio-configured integration must reach dbt, not just validate.
+
+        Without the dc_plan export branch the vars fall back to their model-side
+        defaults, so the run succeeds and computes no integration at all.
+        """
+        cfg = _make_config()
+        cfg.dc_plan = {
+            "core_enabled": True,
+            "core_status": "flat",
+            "core_contribution_rate_percent": 3.0,
+            "core_integration_enabled": True,
+            "core_integration_level_mode": "ss_wage_base",
+            "core_integration_level_value": None,
+            "core_integration_disparity_rate": 0.027,
+        }
+
+        result = to_dbt_vars(cfg)
+
+        assert result["employer_core_integration_enabled"] is True
+        assert result["employer_core_integration_level_mode"] == "ss_wage_base"
+        assert result["employer_core_integration_level_value"] is None
+        assert result["employer_core_integration_disparity_rate"] == 0.027
+        # The nested shape the model reads for eligibility must carry it too.
+        assert result["employer_core_contribution"]["integration"]["enabled"] is True
+
+    def test_studio_percent_disparity_rate_converts_to_decimal(self):
+        """The form carries a percentage; the engine only sees decimal fractions."""
+        cfg = _make_config()
+        cfg.dc_plan = {
+            "core_enabled": True,
+            "core_status": "flat",
+            "core_contribution_rate_percent": 3.0,
+            "core_integration_enabled": True,
+            "core_integration_level_mode": "fixed_dollar",
+            "core_integration_level_value": 150000,
+            "core_integration_disparity_rate_percent": 2.7,
+        }
+
+        result = to_dbt_vars(cfg)
+
+        assert result["employer_core_integration_disparity_rate"] == pytest.approx(
+            0.027
+        )
+        assert result["employer_core_integration_level_value"] == 150000.0
+
+    def test_studio_without_integration_keys_does_not_enable_it(self):
+        """A Studio design that never touched integration must not turn it on.
+
+        The base YAML always carries an explicit `integration.enabled: false`, so
+        the var is present either way; what matters is that the dc_plan branch
+        does not flip it on when the payload is silent about integration.
+        """
+        cfg = _make_config()
+        cfg.dc_plan = {
+            "core_enabled": True,
+            "core_status": "flat",
+            "core_contribution_rate_percent": 3.0,
+        }
+
+        result = to_dbt_vars(cfg)
+
+        assert result["employer_core_integration_enabled"] is False
+        assert result["employer_core_integration_disparity_rate"] == 0.0
+
     def test_age_banded_schedule_exports_direct_yaml_and_studio(self):
         cfg = _make_config()
         cfg.employer_core_contribution = {

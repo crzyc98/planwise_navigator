@@ -565,6 +565,34 @@ planalign batch --export-format excel
 # - Comparison reports across scenarios
 ```
 
+### **Social Security Integrated Employer Core Contributions**
+
+`employer_core_contribution.integration` is a permitted-disparity modifier, not a
+fifth core status. The configured status still resolves the base rate; integration
+adds a separately rounded rate on recognized compensation above its level.
+
+```yaml
+employer_core_contribution:
+  enabled: true
+  status: flat
+  contribution_rate: 0.03
+  integration:
+    enabled: true
+    level_mode: ss_wage_base  # ss_wage_base | percent_of_ss_wage_base | fixed_dollar
+    level_value: null         # required for percentage and fixed-dollar modes
+    disparity_rate: 0.027     # decimal fraction: 2.7%
+```
+
+- The integration level uses the full-year Social Security wage base; it is not
+  prorated for mid-year hires or terminations.
+- The 401(a)(17) cap applies before the integration split.
+- Configuration validation evaluates every simulation year and rejects a
+  disparity rate above the lesser of the lowest base schedule rate and the
+  applicable IRC §401(l) factor. It never clamps the rate.
+- `int_employer_core_contributions` exposes the wage base, resolved level,
+  excess compensation, and separately rounded base/disparity components for
+  audit reconciliation.
+
 ### **Parallel Scenario Fan-Out (Roadmap 3/8, #457)**
 
 Scenarios run across worker **processes** — one `.duckdb` per scenario is already the isolation invariant, so N scenarios occupy N cores with no shared state.
@@ -840,6 +868,8 @@ Current version: **2.2.0** ("Calibration") — managed in `_version.py` and `pyp
 - DuckDB. **No schema or behavior change to any `fct_*`/`int_*`/`dim_*` model.** The only intended change is *how many* dbt commands the orchestrator issues and *which models share a command* — never what a model computes. Every behavioral run uses an isolated per-run DB; the shared `dbt/simulation.duckdb` is never built into. (121-reduce-dbt-invocations)
 - Python 3.11 (config + FastAPI workspace layer). SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1 — **read-only for this feature** (no model edits). + Pydantic v2 (`DeferralMatchResponseSettings`), FastAPI workspace storage/merge (`planalign_api/storage/workspace_storage.py`), config export (`planalign_orchestrator/config/export.py::to_dbt_vars`), DuckDB. (123-match-response-events)
 - DuckDB, one `.duckdb` per scenario/run. No schema or table changes; events already flow through `fct_yearly_events`. (123-match-response-events)
+- Python 3.11 (config validation, tests); SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1 (Jinja-templated `.sql`); TypeScript/React (Studio) + Pydantic v2 (`CoreIntegrationSettings`, reusing the `AgeCoreTier` pattern in `planalign_orchestrator/config/workforce.py`); existing dbt macros + seeds; React/Vite + Tailwind (Studio); pytest (126-ss-integrated-core)
+- DuckDB. **No new tables and no schema change to any `fct_*` model.** One column added to the `config_irs_limits` seed; five audit columns added to the existing `int_employer_core_contributions` table materialization. (126-ss-integrated-core)
 
 ## Recent Changes
 - 099-tenure-graded-match: Added Python 3.11 (orchestrator/config/API), SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1, TypeScript/React (Studio UI) + Pydantic v2 (config validation), DuckDB 1.0.0 (storage/engine), FastAPI (workspace config API), React/Vite + Tailwind (Studio)

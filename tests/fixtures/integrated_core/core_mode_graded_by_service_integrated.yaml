@@ -1,0 +1,24 @@
+scenario_id: integrated_core_graded
+plan_design_id: integrated_core_plan
+simulation: {start_year: 2025, end_year: 2025, random_seed: 126001, target_growth_rate: 0.15}
+setup: {load_seeds: true, run_staging_models: true, validate_results: false, fail_on_validation_error: true, census_parquet_path: injected, eligibility_waiting_period_days: 0}
+compensation: {cola_rate: 0.02, merit_budget: 0.035, promotion_increase: 0.125}
+workforce: {total_termination_rate: 0.0, new_hire_termination_rate: 0.0}
+eligibility: {waiting_period_days: 0}
+plan_eligibility: {minimum_age: 18}
+employer_core_contribution:
+  enabled: true
+  status: graded_by_service
+  contribution_rate: 0.001
+  graded_schedule:
+    - {service_years_min: 0, service_years_max: 5, contribution_rate: 0.03}
+    - {service_years_min: 5, service_years_max: 10, contribution_rate: 0.04}
+    - {service_years_min: 10, service_years_max: 15, contribution_rate: 0.05}
+    - {service_years_min: 15, service_years_max: null, contribution_rate: 0.06}
+  integration: {enabled: true, level_mode: ss_wage_base, level_value: null, disparity_rate: 0.01}
+  eligibility: {minimum_tenure_years: 0, require_active_at_year_end: true, minimum_hours_annual: 1000, allow_new_hires: true}
+employer_match: {active_formula: simple_match, apply_eligibility: false}
+enrollment: {auto_enrollment: {enabled: false}, proactive_enrollment: {enabled: false}}
+deferral_rates: {use_census_rates: true, plan_deferral_cap: 0.75, generate_synthetic_events: true}
+deferral_auto_escalation: {enabled: false}
+optimization: {max_workers: 1}

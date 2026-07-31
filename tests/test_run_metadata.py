@@ -75,6 +75,22 @@ class TestConfigFingerprint:
         )
         assert compute_config_fingerprint(changed) != baseline
 
+    def test_core_integration_settings_change_the_hash(self, minimal_config):
+        baseline = compute_config_fingerprint(minimal_config)
+        changed = minimal_config.model_copy(deep=True)
+        changed.employer_core_contribution = {
+            "enabled": True,
+            "status": "flat",
+            "contribution_rate": 0.03,
+            "integration": {
+                "enabled": True,
+                "level_mode": "ss_wage_base",
+                "level_value": None,
+                "disparity_rate": 0.027,
+            },
+        }
+        assert compute_config_fingerprint(changed) != baseline
+
     def test_seed_change_does_not_change_hash(self, minimal_config):
         baseline = compute_config_fingerprint(minimal_config)
         reseeded = minimal_config.model_copy(deep=True)

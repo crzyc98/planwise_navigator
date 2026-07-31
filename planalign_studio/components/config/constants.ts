@@ -198,6 +198,11 @@ export const DEFAULT_FORM_DATA: FormData = {
     { minAge: 40, maxAge: 50, rate: 5.0 },
     { minAge: 50, maxAge: null, rate: 6.0 },
   ],
+  // Integration defaults off, so every existing design is unaffected.
+  dcCoreIntegrationEnabled: false,
+  dcCoreIntegrationLevelMode: 'ss_wage_base',
+  dcCoreIntegrationLevelValue: null,
+  dcCoreIntegrationDisparityRate: 0,
   dcCoreMinTenureYears: 0,
   dcCoreRequireYearEndActive: true,
   dcCoreMinHoursAnnual: 1000,

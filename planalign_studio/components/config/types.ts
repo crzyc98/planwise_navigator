@@ -79,6 +79,11 @@ export interface AgeCoreTier {
   rate: number;
 }
 
+export type CoreIntegrationLevelMode =
+  | 'ss_wage_base'
+  | 'percent_of_ss_wage_base'
+  | 'fixed_dollar';
+
 export interface FormData {
   // Data Sources
   censusDataPath: string;
@@ -172,6 +177,12 @@ export interface FormData {
   dcCoreGradedSchedule: CoreGradedTier[];
   dcCorePointsSchedule: PointsCoreTier[];
   dcCoreAgeSchedule: AgeCoreTier[];
+  // Social Security integration (permitted disparity, §401(l)). A modifier on
+  // whatever base rate dcCoreStatus resolved — not a fifth core status.
+  dcCoreIntegrationEnabled: boolean;
+  dcCoreIntegrationLevelMode: CoreIntegrationLevelMode;
+  dcCoreIntegrationLevelValue: number | null;
+  dcCoreIntegrationDisparityRate: number;
   dcCoreMinTenureYears: number;
   dcCoreRequireYearEndActive: boolean;
   dcCoreMinHoursAnnual: number;
