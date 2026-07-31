@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 from types import SimpleNamespace
+import typing
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from planalign_orchestrator.config.permitted_disparity import (
@@ -1356,7 +1357,12 @@ def resolve_effective_core_contribution(
     if not any(key.startswith("core_") for key in dc_plan):
         return None
 
-    core_vars = _export_core_contribution_vars(SimpleNamespace(**config))
+    # `_export_core_contribution_vars` reaches its inputs through `getattr`, so a
+    # namespace over the merged dict satisfies it without building a validated
+    # SimulationConfig — which a Studio config dict may not satisfy anyway.
+    core_vars = _export_core_contribution_vars(
+        typing.cast("SimulationConfig", SimpleNamespace(**config))
+    )
     return core_vars.get("employer_core_contribution")
 
 
