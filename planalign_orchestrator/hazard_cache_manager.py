@@ -247,7 +247,17 @@ class HazardCacheManager:
             # Use DuckDB connection directly since dbt operations might be complex
             import duckdb
 
-            with duckdb.connect(self._metadata_db_path()) as conn:
+            # A currency check must never MATERIALIZE a database. `duckdb.connect`
+            # creates the file when absent, and `_metadata_db_path` falls back to
+            # the global path when the runner carries no `database_path` — so a
+            # run targeting an isolated DB could create an empty
+            # `dbt/simulation.duckdb` merely by asking whether a cache exists.
+            # No database means no cached hash.
+            metadata_db = Path(self._metadata_db_path())
+            if not metadata_db.exists():
+                return None
+
+            with duckdb.connect(str(metadata_db), read_only=True) as conn:
                 # Check if metadata table exists first
                 table_check = conn.execute(
                     """
@@ -519,7 +529,17 @@ class HazardCacheManager:
             # Use DuckDB connection directly for statistics
             import duckdb
 
-            with duckdb.connect(self._metadata_db_path()) as conn:
+            # Monitoring must never MATERIALIZE a database. `_metadata_db_path`
+            # falls back to the global path when the runner carries no
+            # `database_path`, and `duckdb.connect` creates the file if absent —
+            # so a run targeting an isolated DB could leave an empty
+            # `dbt/simulation.duckdb` behind purely by logging statistics.
+            # Nothing to report if the database does not exist yet.
+            metadata_db = Path(self._metadata_db_path())
+            if not metadata_db.exists():
+                return
+
+            with duckdb.connect(str(metadata_db), read_only=True) as conn:
                 # Check if metadata table exists first
                 table_check = conn.execute(
                     """
