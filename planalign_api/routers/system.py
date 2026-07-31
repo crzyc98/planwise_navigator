@@ -11,6 +11,7 @@ import yaml  # type: ignore[import]  # types-PyYAML not in CI deps
 from ..auth import require_api_token
 from ..config import APISettings, get_settings
 from ..models.system import HealthResponse, SystemStatus
+from ..services.storage_usage import workspace_totals
 
 router = APIRouter()
 
@@ -24,27 +25,10 @@ def get_active_simulation_count() -> int:
 
 
 def get_storage_usage(workspaces_root: Path) -> tuple[float, int, int]:
-    """Calculate storage usage and counts."""
-    total_size = 0
-    workspace_count = 0
-    scenario_count = 0
-
-    if workspaces_root.exists():
-        for workspace_dir in workspaces_root.iterdir():
-            if workspace_dir.is_dir() and not workspace_dir.name.startswith("."):
-                workspace_count += 1
-                # Count scenarios
-                scenarios_dir = workspace_dir / "scenarios"
-                if scenarios_dir.exists():
-                    for scenario_dir in scenarios_dir.iterdir():
-                        if scenario_dir.is_dir():
-                            scenario_count += 1
-                # Calculate size
-                for file_path in workspace_dir.rglob("*"):
-                    if file_path.is_file():
-                        total_size += file_path.stat().st_size
-
-    return total_size / (1024 * 1024), workspace_count, scenario_count  # Convert to MB
+    """Calculate storage usage and counts (MB, workspaces, scenarios)."""
+    totals = workspace_totals(workspaces_root)
+    assert totals is not None  # allow_scan defaults True, so never None here
+    return totals.total_mb, totals.workspace_count, totals.scenario_count
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -71,12 +55,16 @@ async def health_check(settings: APISettings = Depends(get_settings)) -> HealthR
             "New workspaces will use built-in defaults."
         )
 
-    # Check storage usage
-    storage_mb, _, _ = get_storage_usage(settings.workspaces_root)
+    # Check storage usage. Health is polled and must stay fast, so this reads
+    # cached totals only; when the cache is cold the warning is omitted rather
+    # than walking multi-gigabyte workspace trees. /api/system/status does the
+    # scan and warms the cache for subsequent health checks.
+    totals = workspace_totals(settings.workspaces_root, allow_scan=False)
     storage_limit_mb = settings.storage_limit_gb * 1024
-    if storage_mb > storage_limit_mb * 0.9:
+    if totals is not None and totals.total_mb > storage_limit_mb * 0.9:
         warnings.append(
-            f"Storage usage at {storage_mb:.1f}MB of {storage_limit_mb:.0f}MB limit (>90%)"
+            f"Storage usage at {totals.total_mb:.1f}MB of "
+            f"{storage_limit_mb:.0f}MB limit (>90%)"
         )
 
     return HealthResponse(

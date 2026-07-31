@@ -165,6 +165,16 @@ export function buildConfigPayload(
         max_age: tier.maxAge,
         contribution_rate: tier.rate / 100,
       })),
+      // §401(l) integration. The engine only ever sees decimal fractions, so the
+      // percentage the form carries is converted here, once.
+      core_integration_enabled: Boolean(formData.dcCoreIntegrationEnabled),
+      core_integration_level_mode: formData.dcCoreIntegrationLevelMode,
+      core_integration_level_value:
+        formData.dcCoreIntegrationLevelMode === 'ss_wage_base'
+          ? null
+          : Number(formData.dcCoreIntegrationLevelValue),
+      core_integration_disparity_rate:
+        Number(formData.dcCoreIntegrationDisparityRate) / 100,
       core_min_tenure_years: Number(formData.dcCoreMinTenureYears),
       core_require_year_end_active: Boolean(formData.dcCoreRequireYearEndActive),
       core_min_hours_annual: Number(formData.dcCoreMinHoursAnnual),

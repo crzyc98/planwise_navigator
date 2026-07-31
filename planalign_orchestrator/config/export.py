@@ -9,6 +9,9 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+from planalign_orchestrator.config.permitted_disparity import (
+    normalize_dc_plan_integration,
+)
 from planalign_orchestrator.config.tenure_graded_match import (
     migrate_legacy_tenure_based_config,
 )
@@ -1032,6 +1035,21 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
             if status is not None:
                 dbt_vars["employer_core_status"] = str(status)
 
+            integration = core_contrib.get("integration")
+            if isinstance(integration, dict):
+                dbt_vars["employer_core_integration_enabled"] = bool(
+                    integration.get("enabled", False)
+                )
+                dbt_vars["employer_core_integration_level_mode"] = str(
+                    integration.get("level_mode", "ss_wage_base")
+                )
+                dbt_vars["employer_core_integration_level_value"] = integration.get(
+                    "level_value"
+                )
+                dbt_vars["employer_core_integration_disparity_rate"] = float(
+                    integration.get("disparity_rate", 0.0)
+                )
+
             graded_schedule = core_contrib.get("graded_schedule")
             if isinstance(graded_schedule, list) and len(graded_schedule) > 0:
                 transformed_schedule = []
@@ -1256,6 +1274,26 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                     dbt_vars["employer_core_age_schedule"] = _transform_age_tiers(
                         age_schedule
                     )
+
+            # Social Security integration (permitted disparity). Composes with any
+            # core status, so it is exported independently of the schedules above.
+            # Without this the Studio shape validates but never reaches dbt, and
+            # integration silently never activates.
+            if dc_plan_dict.get("core_integration_enabled") is not None:
+                integration_settings = normalize_dc_plan_integration(dc_plan_dict)
+                core_top_level["integration"] = integration_settings
+                dbt_vars["employer_core_integration_enabled"] = integration_settings[
+                    "enabled"
+                ]
+                dbt_vars["employer_core_integration_level_mode"] = integration_settings[
+                    "level_mode"
+                ]
+                dbt_vars[
+                    "employer_core_integration_level_value"
+                ] = integration_settings["level_value"]
+                dbt_vars[
+                    "employer_core_integration_disparity_rate"
+                ] = integration_settings["disparity_rate"]
 
             # Merge dc_plan eligibility overrides into employer_core_contribution
             if core_eligibility_overrides or core_top_level:

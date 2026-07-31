@@ -133,6 +133,7 @@ seeds:
         catch_up_limit: integer
         catch_up_age_threshold: integer
         compensation_limit: integer
+        social_security_wage_base: integer
 
     comp_levers:
       +column_types:

@@ -97,10 +97,7 @@ SCENARIO_READ_ROUTES = {
 
 
 def _find_workspace(storage: WorkspaceStorage, scenario_id: str) -> str | None:
-    for workspace in storage.list_workspaces():
-        if storage.get_scenario(workspace.id, scenario_id) is not None:
-            return workspace.id
-    return None
+    return storage.find_workspace_id_for_scenario(scenario_id)
 
 
 def _scenario_ids(request: Request) -> list[str]:

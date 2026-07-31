@@ -24,7 +24,7 @@ from ..models.simulation import (
 from ..services.telemetry_service import get_telemetry_service
 from ..storage.workspace_storage import WorkspaceStorage
 from ..models.scenario import Scenario
-from ..models.workspace import WorkspaceSummary
+from ..models.workspace import Workspace
 from ..services.simulation_service import SimulationService
 from ..services.simulation.result_handlers import find_results_export
 from ..constants import ARTIFACT_TYPE_MAP, MEDIA_TYPE_MAP
@@ -57,7 +57,7 @@ _NON_TERMINAL_RUN_STATUSES = {"pending", "queued", "running"}
 
 def _find_scenario_and_workspace(
     storage: WorkspaceStorage, scenario_id: str
-) -> tuple[Optional[WorkspaceSummary], Optional[Scenario]]:
+) -> tuple[Optional[Workspace], Optional[Scenario]]:
     """Find a scenario and its workspace by scenario_id.
 
     Args:
@@ -67,11 +67,15 @@ def _find_scenario_and_workspace(
     Returns:
         Tuple of (workspace, scenario) or (None, None) if not found
     """
-    for ws in storage.list_workspaces():
-        scenario = storage.get_scenario(ws.id, scenario_id)
-        if scenario:
-            return ws, scenario
-    return None, None
+    workspace_id = storage.find_workspace_id_for_scenario(scenario_id)
+    if workspace_id is None:
+        return None, None
+
+    scenario = storage.get_scenario(workspace_id, scenario_id)
+    if scenario is None:
+        return None, None
+
+    return storage.get_workspace(workspace_id), scenario
 
 
 @router.post("/{scenario_id}/run", response_model=SimulationRun)

@@ -52,6 +52,10 @@
 {% set employer_core_graded_schedule = var('employer_core_graded_schedule', []) %}
 {% set employer_core_points_schedule = var('employer_core_points_schedule', []) %}
 {% set employer_core_age_schedule = var('employer_core_age_schedule', []) %}
+{% set employer_core_integration_enabled = var('employer_core_integration_enabled', false) %}
+{% set employer_core_integration_level_mode = var('employer_core_integration_level_mode', 'ss_wage_base') %}
+{% set employer_core_integration_level_value = var('employer_core_integration_level_value', none) %}
+{% set employer_core_integration_disparity_rate = var('employer_core_integration_disparity_rate', 0.0) %}
 {% set core_rate_expr %}
     {% if employer_core_status == 'age_banded' and employer_core_age_schedule | length > 0 %}
     {{ get_age_banded_core_rate('COALESCE(snap.current_age, 0)', employer_core_age_schedule, employer_core_contribution_rate) }}
@@ -75,7 +79,8 @@
 WITH irs_compensation_limits AS (
     SELECT
         limit_year,
-        compensation_limit AS irs_401a17_limit
+        compensation_limit AS irs_401a17_limit,
+        social_security_wage_base
     FROM {{ ref('config_irs_limits') }}
     WHERE limit_year = {{ simulation_year }}
 ),
@@ -206,7 +211,7 @@ snapshot_flags AS (
 
 -- Main query with window function for deduplication
 -- E026: Added IRS 401(a)(17) compensation limit enforcement
-core_contributions AS (
+integration_basis AS (
 SELECT
     pop.employee_id,
     pop.simulation_year,
@@ -219,6 +224,11 @@ SELECT
     lim.irs_401a17_limit,
     -- E026: Track if 401(a)(17) limit was applied
     COALESCE(wf.prorated_annual_compensation, pop.prorated_annual_compensation, pop.employee_compensation) > lim.irs_401a17_limit AS irs_401a17_limit_applied,
+    lim.social_security_wage_base AS ss_wage_base,
+    LEAST(
+        COALESCE(wf.prorated_annual_compensation, pop.prorated_annual_compensation, pop.employee_compensation),
+        lim.irs_401a17_limit
+    ) AS recognized_compensation,
 
     -- Core contribution calculation
     -- Configurable rate for eligible employees
@@ -326,6 +336,23 @@ LEFT JOIN snapshot_flags snap
     ON pop.employee_id = snap.employee_id
 )
 
+{% if employer_core_integration_enabled %}
+,
+integration_components AS (
+    SELECT
+        basis.*,
+        {{ get_integrated_core_amounts(
+            "CASE WHEN basis.core_contribution_rate > 0 THEN basis.recognized_compensation ELSE 0 END",
+            "basis.ss_wage_base",
+            "basis.core_contribution_rate",
+            employer_core_integration_level_mode,
+            employer_core_integration_level_value if employer_core_integration_level_value is not none else 0,
+            employer_core_integration_disparity_rate
+        ) }}
+    FROM integration_basis basis
+)
+{% endif %}
+
 -- Final SELECT - deduplicate in case a new hire is also present in compensation snapshot (year 1)
 SELECT
     employee_id,
@@ -334,7 +361,11 @@ SELECT
     employment_status,
     eligible_for_core,
     annual_hours_worked,
+    {% if employer_core_integration_enabled %}
+    base_core_amount + disparity_core_amount AS employer_core_amount,
+    {% else %}
     employer_core_amount,
+    {% endif %}
     core_contribution_rate,
     contribution_method,
     standard_core_rate,
@@ -342,8 +373,20 @@ SELECT
     -- E026: IRS 401(a)(17) compliance fields
     irs_401a17_limit,
     irs_401a17_limit_applied,
+    ss_wage_base,
+    {% if employer_core_integration_enabled %}
+    integration_level_applied,
+    excess_compensation,
+    base_core_amount,
+    disparity_core_amount,
+    {% else %}
+    NULL::INTEGER AS integration_level_applied,
+    0.00 AS excess_compensation,
+    employer_core_amount AS base_core_amount,
+    0.00 AS disparity_core_amount,
+    {% endif %}
     created_at,
     scenario_id,
     parameter_scenario_id
-FROM core_contributions
+FROM {% if employer_core_integration_enabled %}integration_components{% else %}integration_basis{% endif %}
 WHERE rn = 1

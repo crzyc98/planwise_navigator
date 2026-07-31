@@ -503,6 +503,18 @@ employer_core_contribution:
   #     max_age: null
   #     contribution_rate: 0.06
 
+  # Social Security integrated (permitted-disparity) modifier. This does not
+  # replace the status above: the status resolves the base rate and integration
+  # adds disparity_rate to recognized compensation above the resolved level.
+  integration:
+    enabled: false
+    # ss_wage_base | percent_of_ss_wage_base | fixed_dollar
+    level_mode: 'ss_wage_base'
+    # Required for percent_of_ss_wage_base (0-100) and fixed_dollar (>0).
+    # level_value: null
+    # Decimal fraction: 0.027 represents an additional 2.7%.
+    disparity_rate: 0.0
+
   # Eligibility requirements (dbt variables for int_employer_eligibility.sql)
   eligibility:
     minimum_tenure_years: 0        # Minimum years of service (default: 1 year)

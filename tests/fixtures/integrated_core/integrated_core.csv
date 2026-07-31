@@ -1,0 +1,7 @@
+employee_id,employee_ssn,employee_birth_date,employee_hire_date,employee_termination_date,employee_gross_compensation,employee_capped_compensation,active,employee_deferral_rate,employee_contribution,pre_tax_contribution,roth_contribution,after_tax_contribution,employer_core_contribution,employer_match_contribution,eligibility_entry_date,scheduled_hours_per_week,auto_escalation_opt_out,eligibility_override,boundary_group
+CORE_BELOW_BASE,999-26-0001,1985-04-01,2010-01-01,,100000,100000,true,0.03,3000,3000,0,0,0,0,2010-01-01,40,false,,below_wage_base
+CORE_AT_BASE,999-26-0002,1980-06-15,2008-02-01,,176100,176100,true,0.03,5283,5283,0,0,0,0,2008-02-01,40,false,,at_2025_wage_base
+CORE_ABOVE_BASE,999-26-0003,1975-09-20,2018-03-01,,200000,200000,true,0.04,8000,8000,0,0,0,0,2018-03-01,40,false,,above_wage_base
+CORE_ABOVE_CAP,999-26-0004,1970-01-05,2000-04-01,,500000,500000,true,0.05,25000,25000,0,0,0,0,2000-04-01,40,false,,above_401a17_cap
+CORE_MID_YEAR_HIRE,999-26-0005,1990-02-10,2025-07-01,,240000,240000,true,0.03,7200,7200,0,0,0,0,2025-07-01,40,false,,prorated_below_wage_base
+CORE_INELIGIBLE,999-26-0006,1988-11-30,2012-01-01,,90000,90000,true,0.03,2700,2700,0,0,0,0,2012-01-01,0,false,,below_hours_requirement

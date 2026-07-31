@@ -259,7 +259,9 @@ class NDTService:
                 "hce_compensation_threshold",
                 "super_catch_up_limit",
                 "annual_additions_limit",
+                "social_security_wage_base",
             )
+            placeholders = ", ".join("?" for _ in required_columns)
             conn = duckdb.connect(str(db_path))
             try:
                 # Check if all required columns exist
@@ -268,8 +270,10 @@ class NDTService:
                     SELECT COUNT(*) FROM information_schema.columns
                     WHERE table_schema = 'main'
                       AND table_name = 'config_irs_limits'
-                      AND column_name IN (?, ?, ?)
-                    """,
+                      AND column_name IN ({placeholders})
+                    """.format(
+                        placeholders=placeholders
+                    ),
                     list(required_columns),
                 ).fetchone()
                 assert column_count_row is not None

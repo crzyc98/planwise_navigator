@@ -6,6 +6,66 @@ import { MATCH_TEMPLATES, calculateMatchCap, DEFAULT_FORM_DATA } from './constan
 import { analyzeOptOutRate, OptOutRateAnalysisResult } from '../../services/api';
 import { TenureGradedMatchEditor } from './TenureGradedMatchEditor';
 
+/**
+ * The lowest base core rate any employee could receive, as a percentage.
+ *
+ * Mirrors `min_schedule_rate` in permitted_disparity.py: with a varying
+ * schedule, §401(l) binds on the *lowest* band, since an employee in that band
+ * may not receive a disparity exceeding their own base rate.
+ */
+export function minCoreBaseRatePercent(formData: any): number | null {
+  const tierMin = (tiers: Array<{ rate: number }>) =>
+    tiers.length ? Math.min(...tiers.map((t) => Number(t.rate) || 0)) : null;
+
+  switch (formData.dcCoreStatus) {
+    case 'graded_by_service':
+      return tierMin(formData.dcCoreGradedSchedule ?? []);
+    case 'points_based':
+      return tierMin(formData.dcCorePointsSchedule ?? []);
+    case 'age_banded':
+      return tierMin(formData.dcCoreAgeSchedule ?? []);
+    default:
+      return Number(formData.dcCoreContributionRate) || 0;
+  }
+}
+
+/**
+ * Warn when the disparity rate exceeds the base rate — the §401(l) constraint
+ * that needs no wage-base lookup and is by far the most common violation.
+ *
+ * Deliberately partial. The permitted-disparity *factor* (5.7% / 5.4% / 4.3%,
+ * by integration level relative to that year's taxable wage base) depends on
+ * seed data the browser does not have, so the server stays authoritative and
+ * this never claims a configuration is legal — only that one is not.
+ */
+export function validateCoreIntegration(formData: any): string[] {
+  if (!formData.dcCoreIntegrationEnabled) return [];
+
+  const disparity = Number(formData.dcCoreIntegrationDisparityRate) || 0;
+  const baseRate = minCoreBaseRatePercent(formData);
+  const warnings: string[] = [];
+
+  if (baseRate !== null && disparity > baseRate) {
+    const scope =
+      formData.dcCoreStatus === 'flat'
+        ? 'the base core rate'
+        : 'the lowest band of the core schedule';
+    warnings.push(
+      `Disparity rate ${disparity}% exceeds ${scope} (${baseRate}%). Under §401(l) the ` +
+        `disparity may not exceed the base rate, so this run will be rejected. Either ` +
+        `raise the base rate to ${disparity}% or lower the disparity to ${baseRate}%.`
+    );
+  }
+
+  if (disparity > 5.7) {
+    warnings.push(
+      `Disparity rate ${disparity}% exceeds the maximum permitted disparity factor of 5.7%.`
+    );
+  }
+
+  return warnings;
+}
+
 export function validateMatchTiers(
   tiers: Array<{ min: number; max: number | null }>,
   label: string,
@@ -973,6 +1033,90 @@ export function DCPlanSection() {
                 })()}
               </div>
             )}
+
+             {/* Social Security integration (permitted disparity, §401(l)).
+                 Rendered for every contribution type: it modifies whichever base
+                 rate the schedule above resolved, rather than replacing it. */}
+             <div className="sm:col-span-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+               <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                 <input
+                   type="checkbox"
+                   name="dcCoreIntegrationEnabled"
+                   checked={formData.dcCoreIntegrationEnabled}
+                   onChange={handleChange}
+                   className="h-4 w-4 text-fidelity-green border-gray-300 rounded focus:ring-fidelity-green"
+                 />
+                 Social Security Integration (Permitted Disparity)
+               </label>
+               <p className="text-xs text-gray-500 mt-1">
+                 Adds an extra rate on compensation above an integration level, on top of the
+                 contribution type selected above. Off by default.
+               </p>
+
+               {formData.dcCoreIntegrationEnabled && (
+                 <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                   <div>
+                     <label htmlFor="dcplan-core-integration-mode" className="block text-sm font-medium text-gray-700">Integration Level</label>
+                     <select
+                       id="dcplan-core-integration-mode"
+                       name="dcCoreIntegrationLevelMode"
+                       value={formData.dcCoreIntegrationLevelMode}
+                       onChange={handleChange}
+                       className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
+                     >
+                       <option value="ss_wage_base">Social Security wage base</option>
+                       <option value="percent_of_ss_wage_base">% of the wage base</option>
+                       <option value="fixed_dollar">Fixed dollar amount</option>
+                     </select>
+                   </div>
+
+                   {formData.dcCoreIntegrationLevelMode !== 'ss_wage_base' && (
+                     <InputField
+                       label={formData.dcCoreIntegrationLevelMode === 'percent_of_ss_wage_base' ? 'Level' : 'Level Amount'}
+                       {...inputProps('dcCoreIntegrationLevelValue')}
+                       type="number"
+                       step={formData.dcCoreIntegrationLevelMode === 'percent_of_ss_wage_base' ? '1' : '1000'}
+                       suffix={formData.dcCoreIntegrationLevelMode === 'percent_of_ss_wage_base' ? '%' : '$'}
+                       helper={formData.dcCoreIntegrationLevelMode === 'percent_of_ss_wage_base' ? '% of the wage base' : 'Dollar integration level'}
+                       min={0}
+                     />
+                   )}
+
+                   <InputField
+                     label="Disparity Rate"
+                     {...inputProps('dcCoreIntegrationDisparityRate')}
+                     type="number"
+                     step="0.1"
+                     suffix="%"
+                     helper="Extra rate above the level"
+                     min={0}
+                   />
+
+                   <p className="sm:col-span-3 text-xs text-gray-500">
+                     Under §401(l) the disparity rate may not exceed the lesser of the base
+                     contribution rate and the permitted disparity factor (5.7% when the level is
+                     the wage base, lower for reduced levels). An excessive rate is rejected when
+                     the simulation starts, with the applicable limit named.
+                   </p>
+
+                   {(() => {
+                     const warnings = validateCoreIntegration(formData);
+                     return warnings.length ? (
+                       <div className="sm:col-span-3 bg-amber-50 border border-amber-300 rounded-md p-3">
+                         <p className="text-xs font-medium text-amber-800 mb-1">
+                           §401(l) permitted disparity:
+                         </p>
+                         <ul className="list-disc list-inside space-y-0.5">
+                           {warnings.map((warning, index) => (
+                             <li key={index} className="text-xs text-amber-700">{warning}</li>
+                           ))}
+                         </ul>
+                       </div>
+                     ) : null;
+                   })()}
+                 </div>
+               )}
+             </div>
 
              <InputField label="Min. Tenure" {...inputProps('dcCoreMinTenureYears')} type="number" suffix="Years" helper="Years of service required" min={0} />
              <InputField label="Min. Annual Hours" {...inputProps('dcCoreMinHoursAnnual')} type="number" suffix="Hours" helper="Hours worked per year" min={0} />

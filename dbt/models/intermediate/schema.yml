@@ -303,6 +303,20 @@ models:
           - dbt_utils.accepted_range:
               min_value: 0
               max_value: 400000
+      - name: ss_wage_base
+        description: Social Security taxable wage base for the simulation year.
+      - name: integration_level_applied
+        description: Resolved integration level; null when integration is disabled.
+      - name: excess_compensation
+        description: Recognized compensation above the integration level.
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 20000000
+      - name: base_core_amount
+        description: Separately rounded base-rate employer core contribution.
+      - name: disparity_core_amount
+        description: Separately rounded permitted-disparity contribution.
       - name: core_contribution_rate
         description: >
           Applied contribution rate. For flat mode, uses configured rate.

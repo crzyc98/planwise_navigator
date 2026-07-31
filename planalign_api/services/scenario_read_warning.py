@@ -41,8 +41,12 @@ def build_scenario_read_headers(
     active: list[tuple[str, str]] = []
     results: list[tuple[str, str]] = []
     for ref in unique:
+        # Headers only report run identity, which comes from JSON metadata.
+        # This runs on every scenario-scoped GET, so it must not open the
+        # scenario databases just to prove they are openable.
         context = resolve_scenario_read_context(
-            storage._scenario_path(ref.workspace_id, ref.scenario_id)
+            storage._scenario_path(ref.workspace_id, ref.scenario_id),
+            verify_database=False,
         )
         if context.active_run_id is not None:
             active.append((ref.scenario_id, str(context.active_run_id)))
