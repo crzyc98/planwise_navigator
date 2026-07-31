@@ -106,16 +106,25 @@ jobs:
           # capture and a longer timeout). Lighter integration tests that drive
           # a real dbt run stay here and rely on the dbt deps installed above.
           #
-          # --splits/--group partitions the suite deterministically by collection
-          # order, so every test runs exactly once across the four shards. The
-          # slow tests spread evenly (184/184/184/183), so splitting by count
-          # balances wall time without needing a stored durations file.
+          # --splits/--group partitions the suite deterministically, so every
+          # test runs exactly once across the four shards.
+          #
+          # least_duration balances by the measured times in .test_durations,
+          # not by test count. Count-based splitting does NOT work here: the
+          # suite is extremely top-heavy (the two slowest tests are 29% of total
+          # runtime), so an even split by count still put ~40 minutes of work in
+          # one shard while the others finished in under 5.
+          #
+          # Refresh .test_durations with:
+          #   pytest tests/ -m "not multi_year_invariants" --store-durations
+          # Stale entries are harmless -- unknown tests fall back to an average.
           #
           # No --cov-fail-under here: a single shard only ever sees a quarter of
           # the suite and would fail the gate spuriously. The threshold is
           # enforced once, on the combined data, in the `coverage` job.
           pytest tests/ -v -m "not multi_year_invariants" \
             --splits 4 --group ${{ matrix.shard }} \
+            --splitting-algorithm least_duration \
             --cov=planalign_orchestrator --cov=planalign_cli \
             --cov=planalign_api --cov=planalign_core \
             --cov-report=
