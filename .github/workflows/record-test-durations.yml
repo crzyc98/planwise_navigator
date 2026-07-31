@@ -1,0 +1,67 @@
+name: Record Test Durations
+
+# Manually triggered. Produces the .test_durations file that the sharded `test`
+# job in ci.yml balances on.
+#
+# Why this must run on CI rather than a laptop: durations are only useful as
+# *relative* weights on the machine that will replay them. A locally recorded
+# file balanced four shards to 5.38 minutes each in simulation, but the real CI
+# run came out 28 / 35 / 38 / 50 minutes -- dbt-subprocess and I/O-heavy tests
+# degrade far more on a runner than CPU-bound ones, so the local weights were
+# simply wrong for this hardware.
+#
+# Run it from the Actions tab (or `gh workflow run record-test-durations.yml`),
+# download the `test-durations` artifact, and commit it as `.test_durations`.
+# Re-run whenever shard times drift apart.
+
+on:
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    # The whole suite on one runner is the ~96 minutes this file exists to
+    # eliminate; allow headroom so a slow runner cannot truncate the recording.
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Install dependencies
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          uv pip install --system -r requirements.txt
+          uv pip install --system -r requirements-dev.txt
+          # Trigger the sqlparse MAX_GROUPING_TOKENS auto-patch, as ci.yml does.
+          python -c "import planalign_orchestrator"
+
+      - name: Install dbt packages
+        run: |
+          cd dbt
+          dbt deps
+
+      - name: Record durations
+        # Same selection as the sharded test job, so every test it will later
+        # schedule has a recorded weight. No coverage: it perturbs timings.
+        run: pytest tests/ -m "not multi_year_invariants" --store-durations -q
+
+      - name: Upload durations
+        # Always upload: a partial recording is still better than laptop
+        # timings, and it shows which tests were reached if the run failed.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-durations
+          path: .test_durations
+          include-hidden-files: true
+          if-no-files-found: error
