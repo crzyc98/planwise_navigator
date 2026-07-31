@@ -46,6 +46,20 @@ jobs:
   test:
     runs-on: ubuntu-latest
     needs: lint
+    # Sharded across 4 runners: this job was ~96 of the pipeline's ~102 minutes,
+    # and it is dominated by integration tests that drive real dbt runs. Wall
+    # time is max(shard), not the sum, so 4 shards cut it to roughly a quarter.
+    #
+    # Sharding rather than pytest-xdist (`-n auto`) is deliberate. The execution
+    # lock is a single file in the working directory (utils.py: `.{name}.lock`),
+    # so xdist workers -- which share one checkout -- contend on it and fail with
+    # "Failed to acquire execution lock". Measured: 2 such failures under
+    # `-n auto`. Each shard is its own runner with its own filesystem, so the
+    # lock behaves exactly as it does today.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
 
@@ -81,21 +95,75 @@ jobs:
           cd dbt
           dbt deps
 
-      - name: Run Python tests
+      - name: Run Python tests (shard ${{ matrix.shard }}/4)
+        env:
+          # Keep each shard's coverage data in its own file so the combine step
+          # below can merge them without clobbering.
+          COVERAGE_FILE: .coverage.${{ matrix.shard }}
         run: |
-          # Coverage gate: actual coverage is ~63% (2026-07); ratchet the
-          # threshold up as coverage improves, never down.
           # multi_year_invariants is excluded here: those multi-year suites run
           # in the dedicated multi-year-invariants job (with failure-artifact
           # capture and a longer timeout). Lighter integration tests that drive
           # a real dbt run stay here and rely on the dbt deps installed above.
-          pytest tests/ -v -m "not multi_year_invariants" --cov=planalign_orchestrator --cov=planalign_cli --cov=planalign_api --cov=planalign_core --cov-fail-under=60 --cov-report=xml
+          #
+          # --splits/--group partitions the suite deterministically by collection
+          # order, so every test runs exactly once across the four shards. The
+          # slow tests spread evenly (184/184/184/183), so splitting by count
+          # balances wall time without needing a stored durations file.
+          #
+          # No --cov-fail-under here: a single shard only ever sees a quarter of
+          # the suite and would fail the gate spuriously. The threshold is
+          # enforced once, on the combined data, in the `coverage` job.
+          pytest tests/ -v -m "not multi_year_invariants" \
+            --splits 4 --group ${{ matrix.shard }} \
+            --cov=planalign_orchestrator --cov=planalign_cli \
+            --cov=planalign_api --cov=planalign_core \
+            --cov-report=
+
+      - name: Upload shard coverage data
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-data-${{ matrix.shard }}
+          path: .coverage.${{ matrix.shard }}
+          include-hidden-files: true
+          if-no-files-found: error
 
       # NOTE: no raw `dbt run` here — a full build requires a census parquet
       # (git-ignored) and orchestrator-created tables (e.g.
       # enrollment_decision_projection). dbt compilation is validated in the
       # validate-models job; behavioral dbt tests run locally against
       # isolated databases per the CLAUDE.md validation rule.
+
+  coverage:
+    # Enforces the coverage gate once, on the four shards combined. Splitting the
+    # test job means no single run sees the whole suite, so the threshold cannot
+    # live in the shards.
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install coverage
+        run: pip install coverage==7.*
+
+      - name: Download shard coverage data
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-data-*
+          merge-multiple: true
+
+      - name: Combine and enforce threshold
+        run: |
+          coverage combine .coverage.*
+          coverage xml
+          # Coverage gate: actual coverage is ~63% (2026-07); ratchet the
+          # threshold up as coverage improves, never down.
+          coverage report --fail-under=60
 
       - name: Archive coverage report
         uses: actions/upload-artifact@v4
