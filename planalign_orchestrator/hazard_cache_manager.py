@@ -257,7 +257,14 @@ class HazardCacheManager:
             if not metadata_db.exists():
                 return None
 
-            with duckdb.connect(str(metadata_db), read_only=True) as conn:
+            # NB: deliberately NOT read_only. DuckDB refuses a read-only
+            # connection to a file already open read-write in this process
+            # ("Can't open a connection to same database file with a different
+            # configuration"), and the except below would swallow that into a
+            # None hash — silently rebuilding the caches every year and undoing
+            # the saving from #516/#518. The existence check above is what stops
+            # the file from being created.
+            with duckdb.connect(str(metadata_db)) as conn:
                 # Check if metadata table exists first
                 table_check = conn.execute(
                     """
@@ -539,7 +546,9 @@ class HazardCacheManager:
             if not metadata_db.exists():
                 return
 
-            with duckdb.connect(str(metadata_db), read_only=True) as conn:
+            # Not read_only, for the same reason as get_cached_params_hash: it
+            # conflicts with an existing read-write connection to the same file.
+            with duckdb.connect(str(metadata_db)) as conn:
                 # Check if metadata table exists first
                 table_check = conn.execute(
                     """
