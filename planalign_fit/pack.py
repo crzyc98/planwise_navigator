@@ -86,6 +86,12 @@ class PackManifest:
     min_exposure: float
     base_config: str
     base_seeds: str
+    # How the promotion rate was arrived at: measured / estimated / not_fitted.
+    # Defaults to "measured" so packs written before #511 load unchanged.
+    promotion_basis: str = "measured"
+    # Only thresholds moved off their defaults, so a default run's manifest is
+    # unchanged in substance and a moved dial is impossible to miss.
+    thresholds: dict[str, float] = field(default_factory=dict)
     notes: str = ""
     unfittable: list[dict[str, Any]] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
@@ -180,6 +186,38 @@ def _promotion_seeds(fit: HazardFit) -> dict[str, str]:
     }
 
 
+def _promotion_prior_seeds(priors: Priors) -> dict[str, str]:
+    """The current promotion seeds, unchanged — used when nothing was fitted."""
+    hazard = priors.promotion
+    return {
+        PROMOTION_BASE_SEED: _csv_text(
+            ["base_rate", "level_dampener_factor"],
+            [
+                {
+                    "base_rate": _round(hazard.base_rate),
+                    "level_dampener_factor": hazard.level_constants[
+                        "level_dampener_factor"
+                    ],
+                }
+            ],
+        ),
+        PROMOTION_AGE_SEED: _csv_text(
+            ["age_band", "multiplier"],
+            [
+                {"age_band": band, "multiplier": _round(value)}
+                for band, value in hazard.age_multipliers.items()
+            ],
+        ),
+        PROMOTION_TENURE_SEED: _csv_text(
+            ["tenure_band", "multiplier"],
+            [
+                {"tenure_band": band, "multiplier": _round(value)}
+                for band, value in hazard.tenure_multipliers.items()
+            ],
+        ),
+    }
+
+
 def _read_seed_rows(
     seeds_dir: Path, filename: str
 ) -> tuple[list[str], list[dict[str, str]]]:
@@ -271,6 +309,7 @@ def build_pack(
     pack_id: Optional[str] = None,
     notes: str = "",
     fit_date: Optional[datetime] = None,
+    thresholds: Optional[Mapping[str, float]] = None,
 ) -> ParameterPack:
     """Assemble a pack from a completed fit. Writes nothing."""
     del bands  # cell grouping is already baked into the fitted values
@@ -280,6 +319,13 @@ def build_pack(
         seed_files.update(_termination_seeds(result.termination))
     if result.promotion is not None:
         seed_files.update(_promotion_seeds(result.promotion))
+    else:
+        # The promotion hazard could not be fitted. Emit the priors rather than
+        # omitting the files: `simulate --params` builds its overlay project by
+        # swapping seeds in, so a missing seed would break the run. A pack with
+        # a defaulted promotion hazard is still a valid, runnable pack — it
+        # simply carries forward what was already configured.
+        seed_files.update(_promotion_prior_seeds(priors))
     if result.merit_by_level:
         seed_files[COMP_LEVERS_SEED] = _comp_levers_seed(
             priors.seeds_dir, result.merit_by_level
@@ -313,6 +359,12 @@ def build_pack(
         min_exposure=min_exposure,
         base_config=str(priors.config_path),
         base_seeds=str(priors.seeds_dir),
+        promotion_basis=(
+            result.promotion_classification.basis.value
+            if result.promotion_classification is not None
+            else "measured"
+        ),
+        thresholds=dict(thresholds or {}),
         notes=notes,
         unfittable=[u.to_dict() for u in result.unfittable],
         warnings=list(result.warnings),

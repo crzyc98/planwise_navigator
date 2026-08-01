@@ -35,6 +35,11 @@ PROMOTION_TENURE_SEED = "config_promotion_hazard_tenure_multipliers.csv"
 COMP_LEVERS_SEED = "comp_levers.csv"
 DEFERRAL_RATES_SEED = "default_deferral_rates.csv"
 
+COMPENSATION_KEY = "compensation"
+# `compensation.promotion_compensation.base_increase_pct` (E059). The simulator
+# ships 0.20; this is only the fallback when a base config omits it.
+DEFAULT_PROMOTION_RAISE = 0.20
+
 
 class PriorsError(ValueError):
     """Current seeds or config could not be read."""
@@ -73,6 +78,40 @@ class Priors:
                 return default
             node = node[key]
         return node
+
+    @property
+    def promotion_raise(self) -> float:
+        """The raise the simulator gives a promotion, as a decimal fraction.
+
+        Anchors the promotion component when the promotion rate has to be
+        recovered from the raise distribution (#511). It is a starting point
+        for the fit, not a constraint on it.
+        """
+        return float(
+            self.config_value(
+                f"{COMPENSATION_KEY}.promotion_compensation.base_increase_pct",
+                DEFAULT_PROMOTION_RAISE,
+            )
+            or DEFAULT_PROMOTION_RAISE
+        )
+
+    def merit_prior(self, level_id: int) -> float:
+        """Current merit rate for a level — anchors the ordinary component."""
+        return float(
+            self.merit_by_level.get(
+                level_id,
+                float(self.config_value("compensation.merit_budget", 0.035) or 0.035),
+            )
+        )
+
+    def cola_prior(self, level_id: int) -> float:
+        """Current COLA for a level, falling back to the config-wide rate."""
+        return float(
+            self.cola_by_level.get(
+                level_id,
+                float(self.config_value("compensation.cola_rate", 0.0) or 0.0),
+            )
+        )
 
 
 def _read_csv(path: Path) -> list[dict[str, str]]:

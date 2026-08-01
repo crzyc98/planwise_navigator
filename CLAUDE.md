@@ -870,6 +870,8 @@ Current version: **2.2.0** ("Calibration") — managed in `_version.py` and `pyp
 - DuckDB, one `.duckdb` per scenario/run. No schema or table changes; events already flow through `fct_yearly_events`. (123-match-response-events)
 - Python 3.11 (config validation, tests); SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1 (Jinja-templated `.sql`); TypeScript/React (Studio) + Pydantic v2 (`CoreIntegrationSettings`, reusing the `AgeCoreTier` pattern in `planalign_orchestrator/config/workforce.py`); existing dbt macros + seeds; React/Vite + Tailwind (Studio); pytest (126-ss-integrated-core)
 - DuckDB. **No new tables and no schema change to any `fct_*` model.** One column added to the `config_irs_limits` seed; five audit columns added to the existing `int_employer_core_contributions` table materialization. (126-ss-integrated-core)
+- Python 3.11 + numpy ≥1.24 (already declared, `pyproject.toml:20`) for the EM inner loop; DuckDB (in-memory, already used by the fitter); no new dependencies (130-promotion-fit-bias)
+- None. `fit_parameter_pack` runs entirely in an in-memory DuckDB (`runner.py:66`) and never touches a simulation database, shared or isolated. Output is a parameter-pack directory. (130-promotion-fit-bias)
 
 ## Recent Changes
 - 099-tenure-graded-match: Added Python 3.11 (orchestrator/config/API), SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1, TypeScript/React (Studio UI) + Pydantic v2 (config validation), DuckDB 1.0.0 (storage/engine), FastAPI (workspace config API), React/Vite + Tailwind (Studio)

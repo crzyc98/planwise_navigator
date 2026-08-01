@@ -28,6 +28,10 @@ from planalign_fit import (
 )
 from planalign_fit.bands import BandDefinitionError
 from planalign_fit.priors import PriorsError
+from planalign_fit.promotion import (
+    DEFAULT_LEVEL_COVERAGE_THRESHOLD,
+    DEFAULT_SEPARATION_EXPOSURE_GATE,
+)
 from planalign_fit.smoothing import DEFAULT_CREDIBILITY_K, DEFAULT_MIN_EXPOSURE
 
 console = Console()
@@ -73,6 +77,20 @@ def run_fit(
         "--min-exposure",
         help="Cells below this exposure are flagged as thin and lean on the prior",
     ),
+    level_coverage_threshold: float = typer.Option(
+        DEFAULT_LEVEL_COVERAGE_THRESHOLD,
+        "--level-coverage-threshold",
+        help="Share of linked employees that must carry a job level for the "
+        "census column to be treated as authoritative. Below this, promotions "
+        "are estimated from the raise distribution instead.",
+    ),
+    separation_exposure_gate: float = typer.Option(
+        DEFAULT_SEPARATION_EXPOSURE_GATE,
+        "--separation-exposure-gate",
+        help="Share of exposure that must sit in job levels where promotions "
+        "are distinguishable from ordinary raises before a promotion hazard is "
+        "published at all.",
+    ),
     pack_id: Optional[str] = typer.Option(
         None, "--pack-id", help="Name for the pack (default: fit-<years>-<timestamp>)"
     ),
@@ -87,6 +105,8 @@ def run_fit(
     options = FitOptions(
         credibility_k=credibility_k,
         min_exposure=min_exposure,
+        level_coverage_threshold=level_coverage_threshold,
+        separation_exposure_gate=separation_exposure_gate,
         seeds_dir=seeds_dir,
         config_path=config,
         pack_id=pack_id,
@@ -96,6 +116,19 @@ def run_fit(
     if credibility_k < 0 or min_exposure < 0:
         console.print("[red]--credibility-k and --min-exposure must be >= 0[/red]")
         raise typer.Exit(EXIT_BAD_INPUT)
+
+    # Never silently clamped: a clamped threshold produces a fit that looks
+    # legitimate but answers a different question than the one asked.
+    for name, value in (
+        ("--level-coverage-threshold", level_coverage_threshold),
+        ("--separation-exposure-gate", separation_exposure_gate),
+    ):
+        if not 0 < value <= 1:
+            console.print(
+                f"[red]{name} must be greater than 0 and at most 1 "
+                f"(got {value}).[/red]"
+            )
+            raise typer.Exit(EXIT_BAD_INPUT)
 
     try:
         run = fit_parameter_pack(snapshots_dir, options)
@@ -135,6 +168,17 @@ def _render_summary(run: FitRun, destination: Path) -> None:
         "Thin / prior-backed",
         f"[yellow]{len(thin)}[/yellow]" if thin else "0",
     )
+    classification = result.promotion_classification
+    if classification is not None:
+        from planalign_fit.models import PromotionBasis
+
+        label = _promotion_basis_label(classification)
+        table.add_row(
+            "Promotion basis",
+            f"[yellow]{label}[/yellow]"
+            if classification.basis is PromotionBasis.NOT_FITTED
+            else label,
+        )
     table.add_row(
         "Could not be fitted",
         f"[yellow]{len(result.unfittable)}[/yellow]" if result.unfittable else "0",
@@ -167,3 +211,23 @@ def _render_summary(run: FitRun, destination: Path) -> None:
         f"\n[dim]Apply it:[/dim] planalign simulate {next_year}-{next_year + 2} "
         f"--params {destination} --database iso.duckdb"
     )
+
+
+def _promotion_basis_label(classification) -> str:
+    """How this fit learned its promotion rate, in one line (#511).
+
+    Surfaced in the terminal, not only the report: an analyst must not have to
+    open `fit_report.md` to discover their promotion hazard is a default.
+    """
+    from planalign_fit.models import PromotionBasis
+
+    if classification.basis is PromotionBasis.MEASURED:
+        return f"measured from level_id (coverage {classification.level_coverage:.0%})"
+    if classification.basis is PromotionBasis.ESTIMATED:
+        separated = sum(1 for level in classification.levels if level.separated)
+        share = classification.separated_exposure_share or 0.0
+        return (
+            f"estimated from raise distribution ({separated} of "
+            f"{len(classification.levels)} levels, {share:.0%} of exposure)"
+        )
+    return "not fitted — default retained"

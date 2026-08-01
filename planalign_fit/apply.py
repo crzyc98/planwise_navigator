@@ -79,6 +79,12 @@ def provenance_block(manifest: PackManifest) -> dict[str, Any]:
         "fit_date": manifest.fit_date,
         "source_digest": manifest.source_digest,
         "snapshot_years": list(manifest.snapshot_years),
+        # Whether the promotion hazard behind this run was fitted from the
+        # client's history or is a retained default (#511). Rides the same
+        # mechanism as the rest of the block: `to_dbt_vars` ignores unknown
+        # top-level keys, so it reaches `run_metadata` without perturbing the
+        # config fingerprint.
+        "promotion_basis": manifest.promotion_basis,
     }
 
 

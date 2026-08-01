@@ -15,11 +15,15 @@ from typing import Optional
 
 import duckdb
 
-from planalign_fit import behavior, compensation, hazards
+from planalign_fit import behavior, compensation, hazards, promotion
 from planalign_fit.bands import BandDefinitions, load_band_definitions
-from planalign_fit.models import FitResult, Unfittable
+from planalign_fit.models import FitResult, PromotionBasis, Unfittable
 from planalign_fit.pack import ParameterPack, build_pack
 from planalign_fit.priors import Priors, load_priors
+from planalign_fit.promotion import (
+    DEFAULT_LEVEL_COVERAGE_THRESHOLD,
+    DEFAULT_SEPARATION_EXPOSURE_GATE,
+)
 from planalign_fit.smoothing import DEFAULT_CREDIBILITY_K, DEFAULT_MIN_EXPOSURE
 from planalign_fit.snapshots import SnapshotSet, load_snapshots
 from planalign_fit.transitions import TransitionSet, build_transitions
@@ -33,6 +37,13 @@ class FitOptions:
 
     credibility_k: float = DEFAULT_CREDIBILITY_K
     min_exposure: float = DEFAULT_MIN_EXPOSURE
+    # Share of linked employees that must carry a job level before the census
+    # column is treated as authoritative for promotions (#511). Below it the
+    # column is ignored entirely rather than mixed with band-derived levels.
+    level_coverage_threshold: float = DEFAULT_LEVEL_COVERAGE_THRESHOLD
+    # Share of exposure that must sit in levels where promotions are
+    # distinguishable before a promotion hazard is published at all.
+    separation_exposure_gate: float = DEFAULT_SEPARATION_EXPOSURE_GATE
     seeds_dir: Optional[Path] = None
     config_path: Optional[Path] = None
     pack_id: Optional[str] = None
@@ -77,6 +88,7 @@ def fit_parameter_pack(
         min_exposure=options.min_exposure,
         pack_id=options.pack_id,
         notes=options.notes,
+        thresholds=_moved_thresholds(options),
     )
     return FitRun(
         pack=pack,
@@ -87,6 +99,16 @@ def fit_parameter_pack(
         options=options,
         diagnostics=result.diagnostics,
     )
+
+
+def _moved_thresholds(options: FitOptions) -> dict[str, float]:
+    """Thresholds the analyst moved, so a reviewer can see the dial was turned."""
+    moved: dict[str, float] = {}
+    if options.level_coverage_threshold != DEFAULT_LEVEL_COVERAGE_THRESHOLD:
+        moved["level_coverage_threshold"] = options.level_coverage_threshold
+    if options.separation_exposure_gate != DEFAULT_SEPARATION_EXPOSURE_GATE:
+        moved["separation_exposure_gate"] = options.separation_exposure_gate
+    return moved
 
 
 def _run_estimators(
@@ -102,9 +124,34 @@ def _run_estimators(
     result.termination, result.termination_cells = hazards.fit_termination_hazard(
         transitions, priors.termination, **smoothing
     )
-    result.promotion, result.promotion_cells = hazards.fit_promotion_hazard(
-        transitions, priors.promotion, **smoothing
+
+    # Decide how promotions can be known *before* fitting them: the answer sets
+    # every row's promotion weight, which both the promotion hazard and the
+    # merit median then read (#511).
+    result.promotion_classification = promotion.classify(
+        transitions,
+        priors,
+        level_coverage_threshold=options.level_coverage_threshold,
+        separation_exposure_gate=options.separation_exposure_gate,
+        min_exposure=options.min_exposure,
     )
+    if result.promotion_classification.basis is PromotionBasis.NOT_FITTED:
+        result.unfittable.append(
+            Unfittable(
+                name="config_promotion_hazard_base.base_rate / age and tenure "
+                "multipliers",
+                reason=result.promotion_classification.reason,
+                default_used=priors.promotion.base_rate,
+            )
+        )
+    else:
+        result.promotion, result.promotion_cells = hazards.fit_promotion_hazard(
+            transitions,
+            priors.promotion,
+            exposure_filter=promotion.exposure_filter(result.promotion_classification),
+            **smoothing,
+        )
+
     result.merit_by_level = compensation.fit_merit_by_level(
         transitions, priors, **smoothing
     )
@@ -330,15 +377,7 @@ def _record_structural_exclusions(result: FitResult, priors: Priors) -> None:
 
 
 def _record_data_warnings(result: FitResult, transitions: TransitionSet) -> None:
-    if not transitions.observability.has_explicit_level:
-        result.warnings.append(
-            "No 'level_id' column in the snapshots, so job level was inferred from "
-            "compensation banding — the same rule the simulator's baseline uses. A "
-            "promotion is then any move across a compensation band, which an "
-            "ordinary merit raise can trigger on its own, so the fitted promotion "
-            "hazard is an upper bound. Supply level_id in the census to measure "
-            "promotions directly."
-        )
+    _record_promotion_warnings(result)
     if transitions.unmatched_reappearances:
         result.warnings.append(
             f"{transitions.unmatched_reappearances:,} employee(s) appear in a later "
@@ -374,3 +413,41 @@ def format_summary(run: FitRun) -> list[tuple[str, str]]:
         ("Not fittable", str(len(result.unfittable))),
         ("Pack fingerprint", run.pack.manifest.fingerprint[:12]),
     ]
+
+
+def _record_promotion_warnings(result: FitResult) -> None:
+    """Say out loud how promotions were classified, whenever it is not ideal."""
+    classification = result.promotion_classification
+    if classification is None:
+        return
+
+    coverage = classification.level_coverage
+    if 0.0 < coverage < classification.level_coverage_threshold:
+        result.warnings.append(
+            f"'level_id' is present but populated for only {coverage:.0%} of "
+            f"linked employees, below the "
+            f"{classification.level_coverage_threshold:.0%} needed to trust it. "
+            "It was ignored and promotions were estimated from the raise "
+            "distribution instead — a partially populated column would "
+            "otherwise mix two different definitions of promotion in one fit."
+        )
+
+    if classification.basis is PromotionBasis.NOT_FITTED:
+        result.warnings.append(
+            "Promotions could not be distinguished from ordinary raises in "
+            "enough of this population to publish a rate. The configured "
+            "promotion hazard is retained unchanged, so any projection that "
+            "depends on promotions still rests on an assumption."
+        )
+        return
+
+    if classification.basis is PromotionBasis.ESTIMATED:
+        withheld = classification.unseparated_levels
+        if withheld:
+            names = ", ".join(str(level) for level in withheld)
+            result.warnings.append(
+                f"Job level(s) {names} were withheld from the promotion fit: "
+                "their raises did not resolve into ordinary and promotion "
+                "components. Their promotion rate follows from the fitted base "
+                "rate and the unchanged level factor, not from their own data."
+            )

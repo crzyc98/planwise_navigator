@@ -14,7 +14,7 @@ event resolves.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from planalign_fit.bands import BandDefinitions
@@ -42,7 +42,13 @@ class Observability:
     has_termination_rows: bool
     has_enrollment: bool
     has_deferral_rate: bool
-    has_explicit_level: bool
+    # Share of linked transitions carrying an explicit job level at *both* ends
+    # — a promotion is only directly observable across a pair. Deliberately a
+    # coverage measure rather than a column-presence flag: the level projection
+    # falls back to compensation banding per row, so a column populated for a
+    # handful of employees would otherwise let a fit call itself authoritative
+    # while band-deriving everyone else (#511).
+    level_coverage: float
 
     def reasons(self) -> dict[str, str]:
         """Human-readable blockers, keyed by the fit they block."""
@@ -135,8 +141,11 @@ WHERE employee_id IS NOT NULL
 
 
 def _banded_projection(snapshot: Snapshot, bands: BandDefinitions) -> str:
-    # A census that carries level_id is authoritative; otherwise level is
-    # derived from compensation banding, exactly as int_baseline_workforce does.
+    # Where a census supplies level_id it wins; where it does not (or leaves a
+    # row blank) level is derived from compensation banding, exactly as
+    # int_baseline_workforce does. `source_level_id` is carried through
+    # unresolved so a caller can tell the two apart per row and measure how much
+    # of the population the column actually covers.
     level_expr = (
         f"COALESCE(source_level_id, {bands.level_case('compensation')})"
         if snapshot.has("level_id")
@@ -156,6 +165,7 @@ SELECT
   is_active,
   deferral_rate,
   enrollment_date,
+  source_level_id,
   {level_expr} AS level_id,
   {bands.age_band_case('age')} AS age_band,
   {bands.tenure_band_case('tenure')} AS tenure_band,
@@ -199,7 +209,9 @@ def _observe(
         has_termination_rows=has_inactive,
         has_enrollment=any(c in common for c in ENROLLMENT_COLUMNS),
         has_deferral_rate="employee_deferral_rate" in common,
-        has_explicit_level="level_id" in common,
+        # Filled in once the transition table exists — coverage is a property
+        # of linked pairs, not of the column list.
+        level_coverage=0.0,
     )
 
 
@@ -245,6 +257,9 @@ def build_transitions(
         raise TransitionError("Could not count linked snapshot pairs.")
     linked_pairs = int(linked_row[0])
     unmatched = _count_reappearances(conn, snapshot_set)
+    observability = replace(
+        observability, level_coverage=_level_coverage(conn, linked_pairs)
+    )
 
     return TransitionSet(
         conn=conn,
@@ -254,6 +269,27 @@ def build_transitions(
         unmatched_reappearances=unmatched,
         linked_pairs=linked_pairs,
     )
+
+
+def _level_coverage(conn: "duckdb.DuckDBPyConnection", linked_pairs: int) -> float:
+    """Share of transitions with a census-supplied job level at both ends.
+
+    A promotion is a *move* between levels, so a transition is only directly
+    observable when both snapshots name the employee's level. Rows missing
+    either end fall back to compensation banding, which is precisely the
+    substitution that cannot be trusted to signal a promotion.
+    """
+    if linked_pairs <= 0:
+        return 0.0
+    row = conn.execute(
+        f"""
+        SELECT COUNT(*) FROM {TRANSITIONS_TABLE}
+        WHERE has_source_level
+        """
+    ).fetchone()
+    if row is None:
+        raise TransitionError("Could not measure job-level coverage.")
+    return float(row[0]) / float(linked_pairs)
 
 
 def _pair_transition_sql(prior: Snapshot, later: Snapshot) -> str:
@@ -276,6 +312,8 @@ SELECT
   n.is_enrolled AS to_enrolled,
   p.deferral_rate AS from_deferral_rate,
   n.deferral_rate AS to_deferral_rate,
+  (p.source_level_id IS NOT NULL AND n.source_level_id IS NOT NULL)
+    AS has_source_level,
   (n.employee_id IS NOT NULL AND n.is_active) AS continued,
   NOT (n.employee_id IS NOT NULL AND n.is_active) AS terminated,
   (n.employee_id IS NULL) AS vanished,
@@ -283,6 +321,17 @@ SELECT
     WHEN n.employee_id IS NOT NULL AND n.is_active AND n.level_id > p.level_id THEN TRUE
     ELSE FALSE
   END AS promoted,
+  -- How likely this transition was a promotion rather than an ordinary raise.
+  -- Seeded with the observed flag, which is the right answer whenever the
+  -- census supplies job levels. When it does not, `planalign_fit.promotion`
+  -- overwrites this with a fitted probability (#511). Downstream, summing it
+  -- gives promotion events and its complement weights the merit median, so
+  -- both estimates read the same quantity.
+  CASE
+    WHEN n.employee_id IS NOT NULL AND n.is_active AND n.level_id > p.level_id
+      THEN 1.0
+    ELSE 0.0
+  END AS promotion_weight,
   CASE
     WHEN n.employee_id IS NOT NULL AND n.is_active
          AND p.compensation IS NOT NULL AND p.compensation > 0
