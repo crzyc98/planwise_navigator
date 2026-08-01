@@ -5,8 +5,11 @@ Pytest Configuration for Fidelity PlanAlign Engine Testing
 Root conftest.py - delegates to tests/utils/ for reusable components.
 """
 
-import warnings
 import gc
+import hashlib
+from collections.abc import Iterator
+from pathlib import Path
+import warnings
 
 import pytest
 
@@ -30,6 +33,30 @@ from tests.fixtures import (  # noqa: F401
     census_enrollment_rows,
     enrollment_history_rows,
 )
+
+
+SHARED_DEV_DB = Path(__file__).resolve().parents[1] / "dbt" / "simulation.duckdb"
+FileSignature = tuple[int, str] | None
+
+
+def _file_signature(path: Path) -> FileSignature:
+    """Return the file signature without opening DuckDB."""
+    if not path.exists():
+        return None
+    return path.stat().st_size, hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def shared_dev_database_guard() -> Iterator[FileSignature]:
+    """Ensure no test writes to the shared development database."""
+    before = _file_signature(SHARED_DEV_DB)
+    yield before
+    after = _file_signature(SHARED_DEV_DB)
+    assert after == before, (
+        "Tests modified the shared development database "
+        f"{SHARED_DEV_DB}: before={before!r}, after={after!r}. "
+        "Use an isolated database under tmp_path instead."
+    )
 
 
 def pytest_configure(config):

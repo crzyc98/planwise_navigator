@@ -7,6 +7,7 @@ These tests verify that the sqlparse configuration is correctly loaded
 when Python subprocesses are spawned, which is critical for dbt execution.
 """
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -158,8 +159,10 @@ class TestDbtRunnerSubprocessIntegration:
         not DBT_DIR.exists(),
         reason="dbt directory not found",
     )
-    def test_dbt_debug_command_succeeds(self):
+    def test_dbt_debug_command_succeeds(self, tmp_path: Path):
         """Test that dbt debug command works with configured sqlparse."""
+        environment = dict(os.environ)
+        environment["DATABASE_PATH"] = str(tmp_path / "dbt-debug.duckdb")
 
         result = subprocess.run(
             [sys.executable, "-m", "dbt", "debug"],
@@ -167,6 +170,7 @@ class TestDbtRunnerSubprocessIntegration:
             capture_output=True,
             text=True,
             timeout=60,
+            env=environment,
         )
 
         # dbt debug should run without token errors
