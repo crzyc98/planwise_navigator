@@ -51,7 +51,7 @@ from planalign_fit.models import (
     PromotionClassification,
 )
 from planalign_fit.priors import Priors
-from planalign_fit.transitions import TransitionSet
+from planalign_fit.transitions import TransitionError, TransitionSet
 
 WEIGHTS_TABLE = "fit_promotion_weights"
 
@@ -352,12 +352,20 @@ def _write_weights(transitions: TransitionSet, levels: list[LevelSeparation]) ->
     conn = transitions.conn
     conn.execute(f"UPDATE {transitions.table} SET promotion_weight = 0.0")
 
-    weights_exist = conn.execute(
+    row = conn.execute(
         "SELECT COUNT(*) FROM duckdb_tables() WHERE table_name = ?",
         [WEIGHTS_TABLE],
-    ).fetchone()[0]
-    if not weights_exist:
-        return
+    ).fetchone()
+    if row is None or not row[0]:
+        # Unreachable by construction: this runs only when at least one level
+        # separated, and a separated level always stashes its weights. Raise
+        # rather than return, because returning would leave every weight at
+        # zero — which the hazard would read as "nobody was promoted" and
+        # publish as a fitted rate of 0.
+        raise TransitionError(
+            "Promotion weights were expected but none were stashed; the fit "
+            "would otherwise report a promotion rate of zero."
+        )
 
     conn.execute(
         f"""
