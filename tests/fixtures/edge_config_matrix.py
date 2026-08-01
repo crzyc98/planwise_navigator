@@ -122,8 +122,10 @@ def edge_catalog() -> tuple[EdgeConfigScenario, ...]:
 
 
 @pytest.fixture(scope="session")
-def shared_edge_db_signature() -> tuple[int, str] | None:
-    return file_signature(SHARED_DEV_DB)
+def shared_edge_db_signature(
+    shared_dev_database_guard: tuple[int, str] | None,
+) -> tuple[int, str] | None:
+    return shared_dev_database_guard
 
 
 @pytest.fixture(params=CATALOG, ids=lambda case: case.name)
@@ -137,8 +139,7 @@ def edge_run(
     tmp_path: Path,
     shared_edge_db_signature: tuple[int, str] | None,
 ) -> Iterator[ScenarioRun]:
-    # Depending on the session-scoped signature captures it before the first
-    # simulation runs, so the teardown comparison below is meaningful.
+    # The root autouse fixture captures this signature before any test runs.
     run = run_case(edge_case, tmp_path / f"{edge_case.name}.duckdb")
     yield run
     if run.error is not None:

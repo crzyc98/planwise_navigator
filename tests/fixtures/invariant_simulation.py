@@ -145,8 +145,10 @@ def invariant_census_parquet(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 
 @pytest.fixture(scope="session")
-def shared_dev_db_signature() -> tuple[int, str] | None:
-    return file_signature(SHARED_DEV_DB)
+def shared_dev_db_signature(
+    shared_dev_database_guard: tuple[int, str] | None,
+) -> tuple[int, str] | None:
+    return shared_dev_database_guard
 
 
 @pytest.fixture(scope="session")
