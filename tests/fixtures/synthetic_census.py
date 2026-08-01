@@ -10,6 +10,7 @@ deterministic given a seed — no reliance on the simulator, which is the point
 from __future__ import annotations
 
 import csv
+import math
 import random
 from dataclasses import dataclass, field
 from datetime import date
@@ -49,6 +50,14 @@ class TruthRates:
     merit: float = 0.04
     cola: float = 0.015
     promotion_raise: float = 0.18
+    # Within-component dispersion of the annual raise. Without these a
+    # population is two point masses (every ordinary raise exactly
+    # `merit + cola`, every promotion raise exactly `promotion_raise`), which
+    # no real census resembles and which makes separating the two trivial.
+    # Defaults keep the components distinguishable; widen `merit_sigma` or
+    # shrink the gap to build a deliberately inseparable population.
+    merit_sigma: float = 0.015
+    promotion_sigma: float = 0.04
     enrollment: float = 0.20
     new_hire_enrollment: float = 0.35
     hire_rate: float = 0.14
@@ -117,6 +126,30 @@ def _new_employee(
     )
 
 
+def _draw_raise(rng: random.Random, truth: TruthRates, promoted: bool) -> float:
+    """One employee's annual raise, drawn around its component's centre.
+
+    Dispersion is lognormal so a raise cannot turn negative however wide the
+    sigma, and so the distribution is right-skewed the way real raises are.
+    Draws come from the caller's seeded ``rng``, keeping the fixture
+    reproducible.
+    """
+    if promoted:
+        centre, sigma = truth.promotion_raise, truth.promotion_sigma
+    else:
+        centre, sigma = truth.merit + truth.cola, truth.merit_sigma
+    if sigma <= 0:
+        return centre
+    # Solve the lognormal parameters so the drawn growth factor has mean
+    # (1 + centre) and standard deviation sigma, rather than sigma applying to
+    # the log scale where it would not mean what the field name says.
+    mean_factor = 1.0 + centre
+    variance = sigma**2
+    mu = math.log(mean_factor**2 / math.sqrt(mean_factor**2 + variance))
+    log_sigma = math.sqrt(math.log(1.0 + variance / mean_factor**2))
+    return rng.lognormvariate(mu, log_sigma) - 1.0
+
+
 def _advance_year(
     population: Sequence[Employee],
     rng: random.Random,
@@ -141,7 +174,7 @@ def _advance_year(
             continue
 
         promoted = employee.level_id < MAX_LEVEL and rng.random() < truth.promotion
-        raise_pct = truth.promotion_raise if promoted else truth.merit + truth.cola
+        raise_pct = _draw_raise(rng, truth, promoted)
         survivor = Employee(
             **{
                 **employee.__dict__,

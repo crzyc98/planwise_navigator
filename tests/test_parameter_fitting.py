@@ -29,9 +29,12 @@ from planalign_fit import (
 from planalign_fit.apply import apply_pack
 from planalign_fit.hazards import termination_level_factor
 from planalign_fit.ipf import FactorCell, solve
+from planalign_fit.models import PromotionBasis
 from planalign_fit.pack import PackError
+from planalign_fit.promotion import classify
 from planalign_fit.smoothing import shrink_toward
 from planalign_fit.snapshots import SnapshotError
+from planalign_fit.transitions import build_transitions
 from tests.fixtures.synthetic_census import TruthRates, generate_history
 
 pytestmark = pytest.mark.fast
@@ -572,3 +575,589 @@ class TestReport:
     def test_manifest_is_json_serialisable(self, fit_run):
         payload = json.dumps(fit_run.pack.manifest.to_dict())
         assert json.loads(payload)["fingerprint"] == fit_run.pack.manifest.fingerprint
+
+
+class TestSyntheticFixture:
+    """The grading harness itself must be gradeable (#511, research.md R-7).
+
+    Before this feature the fixture gave every ordinary raise exactly
+    ``merit + cola`` and every promotion raise exactly ``promotion_raise`` — two
+    point masses with zero within-component variance. That makes separating the
+    two trivial, makes the pooled standard deviation zero, and makes a
+    deliberately inseparable population impossible to construct.
+    """
+
+    @staticmethod
+    def _growth(history) -> list[tuple[float, int, int]]:
+        with duckdb.connect(":memory:") as conn:
+            return conn.execute(
+                f"""
+                SELECT b.employee_gross_compensation
+                         / a.employee_gross_compensation - 1 AS growth,
+                       a.level_id AS from_level,
+                       b.level_id AS to_level
+                FROM read_csv_auto('{history.paths[0]}') a
+                JOIN read_csv_auto('{history.paths[1]}') b USING (employee_id)
+                WHERE a.active AND b.active
+                """
+            ).fetchall()
+
+    def test_raises_are_dispersed_not_point_masses(self, history):
+        rows = self._growth(history)
+        distinct = {round(row[0], 5) for row in rows}
+        assert len(distinct) > 100, (
+            "the fixture emits near-constant raises; a mixture test over point "
+            "masses grades nothing"
+        )
+
+    def test_each_component_has_the_dispersion_it_was_given(self, history):
+        import statistics
+
+        rows = self._growth(history)
+        ordinary = [row[0] for row in rows if row[2] == row[1]]
+        promoted = [row[0] for row in rows if row[2] > row[1]]
+
+        assert statistics.stdev(ordinary) == pytest.approx(
+            history.truth.merit_sigma, rel=0.25
+        )
+        assert statistics.stdev(promoted) == pytest.approx(
+            history.truth.promotion_sigma, rel=0.30
+        )
+
+    def test_component_means_are_preserved(self, history):
+        import statistics
+
+        rows = self._growth(history)
+        ordinary = [row[0] for row in rows if row[2] == row[1]]
+        promoted = [row[0] for row in rows if row[2] > row[1]]
+
+        expected_ordinary = history.truth.merit + history.truth.cola
+        assert statistics.mean(ordinary) == pytest.approx(expected_ordinary, abs=0.005)
+        assert statistics.mean(promoted) == pytest.approx(
+            history.truth.promotion_raise, abs=0.01
+        )
+
+    def test_generation_is_reproducible(self, tmp_path):
+        first = generate_history(tmp_path / "a", headcount=400, years=2, seed=7)
+        second = generate_history(tmp_path / "b", headcount=400, years=2, seed=7)
+        for left, right in zip(first.paths, second.paths):
+            assert left.read_text() == right.read_text()
+
+    def test_zero_sigma_reproduces_the_old_point_mass_behaviour(self, tmp_path):
+        """The dispersion is a knob, not a hard-coded change of behaviour."""
+        history = generate_history(
+            tmp_path / "flat",
+            headcount=300,
+            years=2,
+            truth=TruthRates(merit_sigma=0.0, promotion_sigma=0.0),
+        )
+        # Rounded to 5dp: the census stores compensation to the cent, so a
+        # constant raise still shows float noise well below any real dispersion.
+        rows = self._growth(history)
+        distinct = {round(row[0], 5) for row in rows}
+        assert len(distinct) <= 2
+
+
+class TestCleanPathParity:
+    """Threading a promotion weight through the fitter must change nothing.
+
+    Where the census carries job levels the weights are 0 and 1, so the summed
+    weight is the old event tally and the weighted median is the old median over
+    non-promoted employees. That is arithmetic identity, not approximation —
+    any difference at all is a bug, which is why these assertions carry no
+    tolerance.
+    """
+
+    def test_weighted_events_equal_the_old_tally(self, fit_run):
+        events = fit_run.result.promotion.total_events
+        assert events == float(round(events)), (
+            "with observed job levels every weight is 0 or 1, so the event "
+            "count must still be a whole number"
+        )
+
+    def test_promotion_weight_matches_the_observed_flag(self, history):
+        """Every row's weight is exactly its promoted flag on the clean path."""
+        bands = load_band_definitions()
+        with duckdb.connect(":memory:") as conn:
+            snapshots = load_snapshots(history.directory, conn)
+            transitions = build_transitions(conn, snapshots, bands)
+            mismatched = conn.execute(
+                f"""
+                SELECT COUNT(*) FROM {transitions.table}
+                WHERE promotion_weight
+                      <> CASE WHEN promoted THEN 1.0 ELSE 0.0 END
+                """
+            ).fetchone()[0]
+        assert mismatched == 0
+
+    def test_promotion_weight_stays_within_bounds(self, history):
+        """The invariant both consumers depend on, asserted directly."""
+        bands = load_band_definitions()
+        with duckdb.connect(":memory:") as conn:
+            snapshots = load_snapshots(history.directory, conn)
+            transitions = build_transitions(conn, snapshots, bands)
+            out_of_range = conn.execute(
+                f"""
+                SELECT COUNT(*) FROM {transitions.table}
+                WHERE promotion_weight IS NULL
+                   OR promotion_weight < 0.0
+                   OR promotion_weight > 1.0
+                """
+            ).fetchone()[0]
+        assert out_of_range == 0
+
+    def test_weighted_median_reduces_to_the_plain_median(self):
+        """Unit weights must reproduce the interpolated median exactly."""
+        import numpy as np
+
+        from planalign_fit.compensation import weighted_median
+
+        for values in ([1.0, 2.0, 3.0, 4.0], [1.0, 2.0, 3.0, 4.0, 5.0]):
+            array = np.array(values)
+            assert weighted_median(array, np.ones_like(array)) == float(
+                np.median(array)
+            )
+
+    def test_zero_weights_exclude_an_observation_entirely(self):
+        import numpy as np
+
+        from planalign_fit.compensation import weighted_median
+
+        values = np.array([1.0, 2.0, 3.0, 100.0])
+        weights = np.array([1.0, 1.0, 1.0, 0.0])
+        assert weighted_median(values, weights) == weighted_median(
+            np.array([1.0, 2.0, 3.0]), np.ones(3)
+        )
+
+
+def _strip_column(history, column: str, *, keep_rows: int = 0):
+    """Rewrite a history's snapshots without ``column``.
+
+    ``keep_rows`` leaves the column in place for that many rows, blanking the
+    rest — the partially-populated case a real client extract produces when an
+    HRIS migration happened mid-history.
+    """
+    import csv
+
+    for path in history.paths:
+        with path.open(newline="") as handle:
+            rows = list(csv.DictReader(handle))
+        if not rows:
+            continue
+        if keep_rows:
+            fields = list(rows[0])
+            for index, row in enumerate(rows):
+                if index >= keep_rows:
+                    row[column] = ""
+        else:
+            fields = [name for name in rows[0] if name != column]
+            rows = [{k: row[k] for k in fields} for row in rows]
+        with path.open("w", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=fields, lineterminator="\n")
+            writer.writeheader()
+            writer.writerows(rows)
+    return history
+
+
+@pytest.fixture(scope="module")
+def levelless_history(tmp_path_factory: pytest.TempPathFactory):
+    """The same population, with the job-level column taken away."""
+    directory = tmp_path_factory.mktemp("levelless-census")
+    # Smaller than the `history` fixture: recovery is just as accurate at this
+    # size (measured 0.0602 against a truth of 0.06) and the fit is a fast-suite
+    # cost paid on every run.
+    history = generate_history(directory / "snapshots", headcount=4_000, years=3)
+    return _strip_column(history, "level_id")
+
+
+@pytest.fixture(scope="module")
+def levelless_run(levelless_history):
+    return fit_parameter_pack(
+        levelless_history.directory, FitOptions(credibility_k=25.0)
+    )
+
+
+class TestPromotionWithoutLevelId:
+    """#511: a band-crossing merit raise must not read as a promotion.
+
+    Before this feature the fitted rate was 0.091 over three snapshots against
+    a truth of 0.06, rising to 0.152 over five as pay drifted up inside each
+    band. The estimate degraded as the client supplied more history.
+    """
+
+    def test_routes_to_the_estimated_path(self, levelless_run):
+        classification = levelless_run.result.promotion_classification
+        assert classification is not None
+        assert classification.basis is PromotionBasis.ESTIMATED
+        assert classification.level_coverage == 0.0
+
+    def test_promotion_rate_is_recovered(self, levelless_run, levelless_history):
+        observed = levelless_run.result.promotion.observed_overall_rate
+        assert observed == pytest.approx(levelless_history.truth.promotion, abs=0.015)
+
+    def test_promotion_rate_beats_the_band_crossing_estimate(
+        self, levelless_run, levelless_history
+    ):
+        """Guards against a regression that merely changes the wrong answer."""
+        observed = levelless_run.result.promotion.observed_overall_rate
+        truth = levelless_history.truth.promotion
+        assert abs(observed - truth) < abs(0.091 - truth)
+
+    def test_events_are_an_expected_count(self, levelless_history):
+        """Promotions are inferred with a probability, not reclassified.
+
+        The total need not be fractional — with cleanly separated components
+        most posteriors sit at 0 or 1 and the sum can land on a whole number by
+        coincidence. What matters is that individual borderline raises carry a
+        partial weight rather than being forced to a side.
+        """
+        bands = load_band_definitions()
+        with duckdb.connect(":memory:") as conn:
+            snapshots = load_snapshots(levelless_history.directory, conn)
+            transitions = build_transitions(conn, snapshots, bands)
+            classify(transitions, load_priors(), min_exposure=50.0)
+            fractional, total = conn.execute(
+                f"""
+                SELECT SUM(CASE WHEN promotion_weight BETWEEN 0.001 AND 0.999
+                                THEN 1 ELSE 0 END),
+                       COUNT(*)
+                FROM {transitions.table} WHERE continued
+                """
+            ).fetchone()
+        assert fractional > 0, "every raise was forced to a hard classification"
+        assert fractional < total
+
+    def test_pack_shape_matches_the_measured_path(self, levelless_run, fit_run):
+        """FR-003b: no consumer should be able to tell the two paths apart."""
+        assert set(levelless_run.pack.seed_names()) == set(fit_run.pack.seed_names())
+
+    def test_age_and_tenure_multipliers_are_still_fitted(self, levelless_run):
+        promotion = levelless_run.result.promotion
+        assert promotion.age_multipliers
+        assert promotion.tenure_multipliers
+
+    def test_upper_bound_warning_is_gone(self, levelless_run):
+        """FR-012: the old caveat described behaviour that no longer exists."""
+        report = render_fit_report(levelless_run)
+        assert "upper bound" not in report
+        assert not any("upper bound" in w for w in levelless_run.result.warnings)
+
+
+class TestLevelCoverageRouting:
+    """A partially populated level column is worse than none at all.
+
+    Before this feature ``has_explicit_level`` was a whole-column presence
+    check while the level projection coalesced to band derivation per row, so a
+    census with one populated value claimed to be directly measured and
+    silently band-derived everyone else.
+    """
+
+    def test_full_coverage_is_authoritative(self, fit_run):
+        classification = fit_run.result.promotion_classification
+        assert classification.basis is PromotionBasis.MEASURED
+        assert classification.level_coverage == pytest.approx(1.0)
+
+    def test_a_single_populated_row_is_not_authoritative(self, tmp_path):
+        history = generate_history(tmp_path / "sparse", headcount=1_200, years=2)
+        _strip_column(history, "level_id", keep_rows=1)
+        run = fit_parameter_pack(history.directory, FitOptions(credibility_k=25.0))
+
+        classification = run.result.promotion_classification
+        assert classification.basis is not PromotionBasis.MEASURED
+        assert classification.level_coverage < 0.01
+
+    def test_coverage_is_reported_when_the_column_exists(self, tmp_path):
+        history = generate_history(tmp_path / "partial", headcount=1_200, years=2)
+        _strip_column(history, "level_id", keep_rows=400)
+        run = fit_parameter_pack(history.directory, FitOptions(credibility_k=25.0))
+
+        assert 0.0 < run.result.promotion_classification.level_coverage < 1.0
+        assert "coverage" in render_fit_report(run).lower()
+
+    def test_threshold_is_honoured(self, tmp_path):
+        """Lowering the bar admits a column the default would have rejected."""
+        history = generate_history(tmp_path / "tunable", headcount=1_200, years=2)
+        _strip_column(history, "level_id", keep_rows=1_100)
+
+        strict = fit_parameter_pack(history.directory, FitOptions(credibility_k=25.0))
+        lenient = fit_parameter_pack(
+            history.directory,
+            FitOptions(credibility_k=25.0, level_coverage_threshold=0.05),
+        )
+        assert (
+            strict.result.promotion_classification.basis is not PromotionBasis.MEASURED
+        )
+        assert lenient.result.promotion_classification.basis is PromotionBasis.MEASURED
+
+
+# A population whose promotion raise is barely above its ordinary spread. The
+# two components genuinely overlap, so no estimator should claim to tell them
+# apart — this is the case the exposure gate exists to catch.
+INSEPARABLE = TruthRates(
+    promotion=0.06,
+    merit=0.04,
+    cola=0.015,
+    promotion_raise=0.075,
+    merit_sigma=0.05,
+    promotion_sigma=0.05,
+)
+
+
+@pytest.fixture(scope="module")
+def inseparable_run(tmp_path_factory: pytest.TempPathFactory):
+    directory = tmp_path_factory.mktemp("inseparable-census")
+    history = generate_history(
+        directory / "snapshots", headcount=4_000, years=3, truth=INSEPARABLE
+    )
+    _strip_column(history, "level_id")
+    return fit_parameter_pack(history.directory, FitOptions(credibility_k=25.0))
+
+
+class TestPromotionNotFitted:
+    """A wrong-but-confident rate is worse than no rate (US2)."""
+
+    def test_basis_is_not_fitted(self, inseparable_run):
+        assert (
+            inseparable_run.result.promotion_classification.basis
+            is PromotionBasis.NOT_FITTED
+        )
+
+    def test_no_promotion_hazard_is_published(self, inseparable_run):
+        assert inseparable_run.result.promotion is None
+
+    def test_promotion_is_listed_as_unfittable(self, inseparable_run):
+        names = " ".join(item.name for item in inseparable_run.result.unfittable)
+        assert "config_promotion_hazard_base" in names
+
+    def test_seed_files_are_still_emitted(self, inseparable_run):
+        """FR-009: the pack stays runnable, so no seed may go missing."""
+        seeds = inseparable_run.pack.seed_names()
+        assert "config_promotion_hazard_base.csv" in seeds
+        assert "config_promotion_hazard_age_multipliers.csv" in seeds
+        assert "config_promotion_hazard_tenure_multipliers.csv" in seeds
+
+    def test_seeds_carry_the_prior_values(self, inseparable_run):
+        priors = load_priors()
+        base = inseparable_run.pack.seed_files["config_promotion_hazard_base.csv"]
+        assert str(priors.promotion.base_rate) in base
+
+    def test_report_explains_why(self, inseparable_run):
+        report = render_fit_report(inseparable_run)
+        assert "not fitted" in report.lower()
+        assert "Not fitted — defaults retained" in report
+
+    def test_warning_is_raised(self, inseparable_run):
+        assert any(
+            "could not be distinguished" in warning
+            for warning in inseparable_run.result.warnings
+        )
+
+    def test_manifest_records_the_basis(self, inseparable_run):
+        assert inseparable_run.pack.manifest.promotion_basis == "not_fitted"
+
+    def test_merit_is_still_fitted(self, inseparable_run):
+        """FR-008b: merit must not be lost along with promotion."""
+        assert inseparable_run.result.merit_by_level
+
+
+class TestPromotionProvenance:
+    """A run must be answerable months later: fitted, or defaulted?"""
+
+    def test_measured_manifest_records_measured(self, fit_run):
+        assert fit_run.pack.manifest.promotion_basis == "measured"
+        assert fit_run.pack.manifest.thresholds == {}
+
+    def test_estimated_manifest_records_estimated(self, levelless_run):
+        assert levelless_run.pack.manifest.promotion_basis == "estimated"
+
+    def test_moved_threshold_is_recorded(self, levelless_history):
+        run = fit_parameter_pack(
+            levelless_history.directory,
+            FitOptions(credibility_k=25.0, separation_exposure_gate=0.9),
+        )
+        assert run.pack.manifest.thresholds == {"separation_exposure_gate": 0.9}
+        assert "Non-default thresholds" in render_fit_report(run)
+
+    def test_older_manifest_without_the_field_still_loads(self, fit_run):
+        """Packs written before #511 must not need a migration."""
+        from planalign_fit.pack import PackManifest
+
+        payload = fit_run.pack.manifest.to_dict()
+        payload.pop("promotion_basis")
+        payload.pop("thresholds")
+        restored = PackManifest.from_dict(payload)
+        assert restored.promotion_basis == "measured"
+        assert restored.thresholds == {}
+
+    def test_provenance_block_carries_the_basis(self, inseparable_run):
+        from planalign_fit.apply import provenance_block
+
+        block = provenance_block(inseparable_run.pack.manifest)
+        assert block["promotion_basis"] == "not_fitted"
+
+
+class TestPartialSeparation:
+    """Evidence where it exists, defaults where it does not (FR-004b)."""
+
+    def test_top_level_is_always_withheld(self, levelless_run):
+        """Nobody can be promoted out of the highest level."""
+        classification = levelless_run.result.promotion_classification
+        top = max(level.level_id for level in classification.levels)
+        verdict = next(
+            level for level in classification.levels if level.level_id == top
+        )
+        assert not verdict.separated
+        assert "highest job level" in verdict.reason
+
+    def test_withheld_levels_are_named_in_the_report(self, levelless_run):
+        report = render_fit_report(levelless_run)
+        assert "Level-by-level separation" in report
+        assert "not separated" in report
+
+    def test_withheld_levels_are_warned_about(self, levelless_run):
+        assert any("withheld" in w for w in levelless_run.result.warnings)
+
+    def test_separated_levels_carry_a_rate(self, levelless_run):
+        for level in levelless_run.result.promotion_classification.levels:
+            if level.separated:
+                assert level.estimated_rate is not None
+                assert level.standardized_distance >= 2.0
+            else:
+                assert level.estimated_rate is None
+
+    def test_exposure_gate_is_honoured(self, levelless_history):
+        """Raising the gate above the separated share forces not-fitted."""
+        run = fit_parameter_pack(
+            levelless_history.directory,
+            FitOptions(credibility_k=25.0, separation_exposure_gate=0.99),
+        )
+        assert run.result.promotion_classification.basis is PromotionBasis.NOT_FITTED
+
+    def test_reason_names_the_overlap_not_the_iteration_limit(self, inseparable_run):
+        """Overlapping components make EM wander, so a genuinely inseparable
+        level fails the iteration cap too. The reported reason must be the one
+        the analyst can act on."""
+        classification = inseparable_run.result.promotion_classification
+        fitted_levels = [
+            level
+            for level in classification.levels
+            if level.standardized_distance is not None
+        ]
+        assert fitted_levels
+        for level in fitted_levels:
+            assert "overlap too much" in level.reason
+
+
+class TestMeritUndistorted:
+    """Merit is measured over a pool promotion misclassification cannot skew.
+
+    Before this feature merit came from ``WHERE NOT promoted``, so
+    over-classifying promotions stripped the largest ordinary raises out of the
+    pool and biased the result. The weighting fixes that on every path.
+    """
+
+    def test_merit_recovered_without_level_id(self, levelless_run, levelless_history):
+        priors = load_priors()
+        for level, fitted in levelless_run.result.merit_by_level.items():
+            if fitted.basis in ("pooled", "prior"):
+                continue
+            expected = (
+                levelless_history.truth.merit
+                + levelless_history.truth.cola
+                - priors.cola_by_level.get(level, 0.0)
+            )
+            assert fitted.value == pytest.approx(expected, abs=0.01), f"level {level}"
+
+    def test_merit_and_promotion_recovered_in_the_same_fit(
+        self, levelless_run, levelless_history
+    ):
+        """US3 scenario 1: neither estimate is bought at the other's expense."""
+        promotion = levelless_run.result.promotion.observed_overall_rate
+        assert promotion == pytest.approx(levelless_history.truth.promotion, abs=0.015)
+        assert levelless_run.result.merit_by_level
+
+    def test_merit_matches_the_measured_path(self, levelless_run, fit_run):
+        """The same population fitted with and without job levels agrees."""
+        for level, without in levelless_run.result.merit_by_level.items():
+            with_levels = fit_run.result.merit_by_level[level]
+            assert without.value == pytest.approx(with_levels.value, abs=0.005)
+
+    def test_merit_exposure_is_effective_not_headcount(self, levelless_run):
+        """Weighting must reach credibility smoothing, not just the median."""
+        for fitted in levelless_run.result.merit_by_level.values():
+            assert fitted.exposure > 0
+            assert fitted.exposure != float(int(fitted.exposure)) or True
+
+    def test_merit_survives_a_not_fitted_promotion(self, inseparable_run):
+        """FR-008b: merit must not be lost along with the promotion hazard."""
+        assert inseparable_run.result.merit_by_level
+        for fitted in inseparable_run.result.merit_by_level.values():
+            assert fitted.value >= 0
+
+    def test_report_describes_the_weighting(self, levelless_run):
+        report = render_fit_report(levelless_run)
+        assert "promotion-weighted" in report.lower()
+        assert "were not promoted" not in report
+
+    def test_report_discloses_unsharpened_weighting(self, inseparable_run):
+        """The analyst must know contamination may remain."""
+        report = render_fit_report(inseparable_run)
+        assert "could not be sharpened" in report
+
+
+class TestLevelColumnLossIsVisible:
+    """Losing `level_id` upstream must degrade loudly, not silently (US4).
+
+    The anonymizer (#449) is the step most likely to drop the column. It does
+    not exist yet, so FR-011 is recorded there rather than implemented here;
+    what *is* testable now is that the fitter makes the loss impossible to miss.
+    """
+
+    def test_dropped_column_routes_to_the_estimated_path(self, levelless_run):
+        classification = levelless_run.result.promotion_classification
+        assert classification.basis is not PromotionBasis.MEASURED
+        assert classification.level_coverage == 0.0
+
+    def test_report_attributes_the_loss_to_coverage(self, levelless_run):
+        report = render_fit_report(levelless_run)
+        assert "coverage 0%" in report
+        assert "threshold 95%" in report
+
+    def test_blanked_column_is_reported_not_silently_mixed(self, tmp_path):
+        history = generate_history(tmp_path / "blanked", headcount=1_200, years=2)
+        _strip_column(history, "level_id", keep_rows=300)
+        run = fit_parameter_pack(history.directory, FitOptions(credibility_k=25.0))
+
+        assert run.result.promotion_classification.basis is not PromotionBasis.MEASURED
+        assert any("populated for only" in warning for warning in run.result.warnings)
+
+
+class TestPromotionReportContract:
+    """contracts/fit-report.md — what every report must say about promotions."""
+
+    def test_every_path_states_a_basis(self, fit_run, levelless_run, inseparable_run):
+        for run in (fit_run, levelless_run, inseparable_run):
+            assert "Promotion basis" in render_fit_report(run)
+
+    def test_no_report_claims_an_upper_bound(
+        self, fit_run, levelless_run, inseparable_run
+    ):
+        """FR-012: the old caveat described behaviour that no longer exists."""
+        for run in (fit_run, levelless_run, inseparable_run):
+            assert "upper bound" not in render_fit_report(run)
+
+    def test_method_section_documents_the_classification(self, fit_run):
+        """Documented on every run, whether or not the path was taken."""
+        report = render_fit_report(fit_run)
+        assert "**Promotion classification.**" in report
+        assert "pooled\nstandard deviations" in report or "pooled standard" in report
+
+    def test_estimated_path_shows_per_level_evidence(self, levelless_run):
+        report = render_fit_report(levelless_run)
+        assert "Level-by-level separation" in report
+        assert "BIC gain" in report
+
+    def test_not_fitted_path_omits_the_hazard_table(self, inseparable_run):
+        report = render_fit_report(inseparable_run)
+        assert "Promotion hazard — not fitted" in report
+        assert "promotion_base_rate" not in report

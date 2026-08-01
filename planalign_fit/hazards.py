@@ -153,14 +153,22 @@ def _smooth_multipliers(
 
 
 def load_cells(
-    conn: "duckdb.DuckDBPyConnection", table: str, event_predicate: str
+    conn: "duckdb.DuckDBPyConnection", table: str, event_weight: str
 ) -> list[CellObservation]:
-    """Aggregate the transition table into age x tenure x level cells."""
+    """Aggregate the transition table into age x tenure x level cells.
+
+    ``event_weight`` is a SQL expression yielding each row's contribution to the
+    event count. A boolean predicate cast to 0/1 gives a plain tally; a
+    fractional weight gives an *expected* count, which is how the promotion
+    hazard is built when promotions are inferred rather than observed (#511).
+    The IPF solver already carries events as a float, so both are the same
+    arithmetic to everything downstream.
+    """
     rows = conn.execute(
         f"""
         SELECT age_band, tenure_band, level_id,
                COUNT(*) AS exposure,
-               SUM(CASE WHEN {event_predicate} THEN 1 ELSE 0 END) AS events
+               SUM({event_weight}) AS events
         FROM {table}
         GROUP BY age_band, tenure_band, level_id
         ORDER BY age_band, tenure_band, level_id
@@ -190,7 +198,9 @@ def fit_termination_hazard(
     New hires are excluded by construction: the exposure is the population
     active at the end of the prior year, matching the E077 cohort split.
     """
-    cells = load_cells(transitions.conn, transitions.table, "terminated")
+    cells = load_cells(
+        transitions.conn, transitions.table, "CASE WHEN terminated THEN 1 ELSE 0 END"
+    )
     fit = fit_hazard(
         "termination",
         cells,
@@ -209,12 +219,26 @@ def fit_promotion_hazard(
     *,
     credibility_k: float,
     min_exposure: float,
+    exposure_filter: str = "TRUE",
 ) -> tuple[HazardFit, list[CellObservation]]:
-    """Fit the promotion hazard over employees who survived the year."""
+    """Fit the promotion hazard over employees who survived the year.
+
+    Events are the sum of ``promotion_weight``, so this is one code path whether
+    promotions were observed from job levels (weights of 0 and 1, an exact
+    tally) or inferred from the raise distribution (fractional weights, an
+    expected count).
+
+    ``exposure_filter`` narrows the denominator to the rows this fit can
+    actually speak to — transitions with a job level at both ends when levels
+    were observed, or the levels whose raises separated when they were
+    inferred. Rows outside it contribute neither exposure nor events, rather
+    than silently counting as non-promotions.
+    """
     cells = load_cells(
         transitions.conn,
-        f"(SELECT * FROM {transitions.table} WHERE continued)",
-        "promoted",
+        f"(SELECT * FROM {transitions.table} "
+        f"WHERE continued AND ({exposure_filter}))",
+        "promotion_weight",
     )
     fit = fit_hazard(
         "promotion",

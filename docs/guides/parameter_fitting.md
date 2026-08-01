@@ -33,7 +33,7 @@ satisfies it.
 | `employee_termination_date` / `active` | | new-hire termination rate |
 | `employee_deferral_rate` | | deferral rates, escalation |
 | `employee_enrollment_date` | | enrollment and opt-out behaviour |
-| `level_id` | | promotions measured instead of inferred |
+| `level_id` | | promotions measured directly instead of inferred from raise size |
 
 The year of each file comes from a `snapshot_year` column when present,
 otherwise from a single unambiguous four-digit year in the filename
@@ -42,12 +42,61 @@ assumes a one-year step.
 
 **Supply `level_id` if you have it.** Without it, level is derived from
 compensation banding (the same rule `int_baseline_workforce` uses), so any
-merit raise that crosses a band boundary reads as a promotion and the fitted
-promotion hazard is an upper bound. The fit report warns when this happens.
+merit raise crossing a band boundary would read as a promotion. Measured on a
+synthetic population with a true 6% promotion rate, that mistake fits 9.1% over
+three snapshots and 15.2% over five. It gets worse with more history: nobody
+leaves a compensation band except by crossing it, so an incumbent cohort drifts
+up and piles against its ceiling.
+
+The fitter no longer publishes that number. When the level column is missing it
+recovers the promotion rate from the *shape* of the raise distribution instead
+(see [Promotion classification](#promotion-classification) below), and where
+ordinary and promotion raises cannot be told apart it reports no rate at all.
+That is a recovery path, not a substitute: a census carrying `level_id` is
+measured directly and needs none of it.
+
+Note that a **partially** populated `level_id` is treated as no column at all.
+Below `--level-coverage-threshold` (default 95% of linked employees) the column
+is ignored rather than mixed with band-derived levels, because a fit that draws
+promotions from two different definitions at once cannot be reasoned about.
 
 ---
 
 ## What gets fitted
+
+### Promotion classification
+
+A promotion is a move to a higher job level, so how the fitter learns it
+depends on whether the census says what that level is. Every run reports which
+of three states it landed in, in the CLI summary and in `fit_report.md`:
+
+| Basis | When | What lands in the pack |
+|---|---|---|
+| `measured` | `level_id` covers at least 95% of linked employees | Rates fitted from observed level moves |
+| `estimated` | The column is missing or too sparse, and raises separate | Rates fitted from the raise distribution |
+| `not_fitted` | Raises do not separate across enough of the population | The configured default, unchanged |
+
+**How estimation works.** The simulator builds a raise one of two ways —
+ordinary (COLA plus merit) or promotion (a much larger step) — which makes the
+observed year-over-year growth a two-component mixture. Fitting one back
+recovers the promotion rate *and* the ordinary-raise centre in a single pass,
+which is what stops promotion from being defined in terms of a merit estimate
+that was itself measured off the promotion classification. Each employee's
+probability of belonging to the promotion component becomes their weight in the
+promotion hazard, and its complement their weight in the merit fit.
+
+**When it refuses.** A job level contributes a fitted rate only where the two
+components are genuinely distinguishable — at least two pooled standard
+deviations apart, with a two-component model preferred on BIC. Levels that fail
+are withheld and named in the report. If the levels that did separate hold less
+than `--separation-exposure-gate` (default 50%) of exposure, no promotion
+hazard is published at all and the configured default is retained. A
+wrong-but-confident promotion rate is worse than none.
+
+The separation test itself is deliberately **not** tunable: relaxing it until a
+number appears is indistinguishable from manufacturing one. The two coverage
+thresholds are adjustable, and any non-default value is recorded in the report
+and the pack manifest.
 
 ### Hazards — `base × age_mult × tenure_mult × level_factor`
 
@@ -64,10 +113,18 @@ separately from the new-hire cohort.
 
 ### Compensation
 
-`merit_base` per job level (into `comp_levers.csv`), as the median
-year-over-year compensation growth of employees who stayed and were **not**
-promoted, net of the configured COLA. Promotions are excluded — their raise is
-modelled separately.
+`merit_base` per job level (into `comp_levers.csv`), as the
+**promotion-weighted** median year-over-year compensation growth of employees
+who stayed, net of the configured COLA. Each employee is weighted by how likely
+their raise was an ordinary one, so a certain promotion contributes nothing and
+a certain non-promotion contributes fully — their promotion raise is modelled
+separately.
+
+Where the census carries job levels the weights are 0 and 1, so this is exactly
+the old "exclude promotions" rule. Where it does not, promotions are only
+*probable*, and down-weighting them beats a hard split that would be wrong
+either way. Reported exposure is the summed weight rather than a headcount, so
+credibility smoothing sees the evidence actually behind the median.
 
 ### Enrollment and deferral
 
@@ -216,6 +273,8 @@ duckdb /tmp/fitcheck.duckdb "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE s
 | `--seeds-dir` | `dbt/seeds` | seeds supplying bands and priors |
 | `--credibility-k` | `200` | exposure at which data and prior tie |
 | `--min-exposure` | `50` | below this a cell is flagged thin |
+| `--level-coverage-threshold` | `0.95` | share of employees needing a `level_id` for the column to be authoritative |
+| `--separation-exposure-gate` | `0.50` | share of exposure that must separate before a promotion hazard is published |
 | `--pack-id` | `fit-<years>-<timestamp>` | pack name |
 | `--notes` | — | free text recorded in the manifest |
 | `--force` | off | replace an existing pack directory |

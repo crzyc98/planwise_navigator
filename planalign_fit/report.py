@@ -10,7 +10,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Iterable, Optional, Sequence
 
-from planalign_fit.models import CellObservation, FittedValue, HazardFit
+from planalign_fit.models import (
+    CellObservation,
+    FittedValue,
+    HazardFit,
+    PromotionBasis,
+    PromotionClassification,
+)
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from planalign_fit.runner import FitRun
@@ -27,9 +33,7 @@ def render_fit_report(run: "FitRun") -> str:
         _hazard_section(
             "Termination hazard", run.result.termination, run.result.termination_cells
         ),
-        _hazard_section(
-            "Promotion hazard", run.result.promotion, run.result.promotion_cells
-        ),
+        _promotion_section(run),
         _merit_section(run),
         _config_section(run),
         _deferral_section(run),
@@ -78,7 +82,11 @@ def _summary(run: "FitRun") -> str:
         ("Parameters that could not be fitted", f"{len(result.unfittable)}"),
         ("Credibility constant `k`", f"{run.options.credibility_k:,.0f}"),
         ("Minimum exposure per cell", f"{run.options.min_exposure:,.0f}"),
+        ("Promotion basis", _basis_label(result.promotion_classification)),
     ]
+    moved = _moved_thresholds(run)
+    if moved:
+        rows.append(("Non-default thresholds", moved))
     body = "\n".join(f"| {label} | {value} |" for label, value in rows)
     return f"""## Summary
 
@@ -115,7 +123,7 @@ def _hazard_section(
     return f"""## {title}
 
 Observed overall rate **{observed_text}** over {fit.total_exposure:,.0f} exposure
-years and {fit.total_events:,.0f} events; the multiplicative fit {convergence}.
+years and {_event_count(fit.total_events)} events; the multiplicative fit {convergence}.
 Level factor held fixed at {constants} — see "Not fitted" below.
 
 ### Fitted values
@@ -126,6 +134,18 @@ Level factor held fixed at {constants} — see "Not fitted" below.
 
 {_cell_table(cells)}
 """
+
+
+def _event_count(events: float) -> str:
+    """Render an event count, keeping a decimal when the count is expected.
+
+    Promotion events are a sum of per-employee probabilities when promotions
+    were inferred rather than observed (#511), so rounding 412.7 to "413" would
+    present an estimate as an exact tally.
+    """
+    if abs(events - round(events)) < 1e-9:
+        return f"{events:,.0f}"
+    return f"{events:,.1f}"
 
 
 def _fitted_table(values: Iterable[FittedValue]) -> str:
@@ -158,7 +178,7 @@ def _cell_table(cells: Sequence[CellObservation], limit: int = 40) -> str:
     )
     rows = [
         f"| {cell.age_band} | {cell.tenure_band} | {cell.level_id} | "
-        f"{cell.exposure:,.0f} | {cell.events:,.0f} | "
+        f"{cell.exposure:,.0f} | {_event_count(cell.events)} | "
         f"{(cell.observed_rate or 0.0):.4f} |"
         for cell in populated[:limit]
     ]
@@ -179,12 +199,28 @@ def _merit_section(run: "FitRun") -> str:
     ]
     return f"""## Merit by job level
 
-Fitted as the median year-over-year compensation growth of employees who stayed
-and were not promoted, net of the configured COLA. Promotions are excluded —
-their raise is modelled separately.
-
+Fitted as the **promotion-weighted** median year-over-year compensation growth
+of employees who stayed, net of the configured COLA. Each employee is weighted
+by how likely their raise was an ordinary one, so a certain promotion
+contributes nothing and a certain non-promotion contributes fully — their
+promotion raise is modelled separately. Exposure below is that summed weight,
+not a headcount.
+{_merit_caveat(run)}
 {_fitted_table(values)}
 """
+
+
+def _merit_caveat(run: "FitRun") -> str:
+    """FR-008b: say when the weighting rests on an unresolved classification."""
+    classification = run.result.promotion_classification
+    if classification is None or classification.basis is not PromotionBasis.NOT_FITTED:
+        return ""
+    return (
+        "\n⚠️ Promotions could not be distinguished from ordinary raises in this\n"
+        "census, so the merit weighting **could not be sharpened** by a usable\n"
+        "promotion classification. Some promotion raises may remain in the pool,\n"
+        "biasing merit upward.\n"
+    )
 
 
 def _config_section(run: "FitRun") -> str:
@@ -258,6 +294,22 @@ log-linear model with the level factor as a fixed offset). Age multipliers are
 rescaled to an exposure-weighted mean of 1.0 so base and multipliers are
 identified.
 
+**Promotion classification.** A promotion is a move to a higher job level.
+Where the census carries a job level for at least
+{run.options.level_coverage_threshold:.0%} of linked employees, promotions are
+measured directly from those moves. Otherwise level is derived from
+compensation banding, which makes *any* band-crossing raise look like a
+promotion — so instead the year-over-year raise distribution is fitted per level
+as two components: ordinary raises near COLA plus merit, and promotion raises
+near the configured promotion increase. Each employee's probability of belonging
+to the promotion component becomes their weight in the promotion hazard, and its
+complement their weight in the merit fit, so the two estimates are identified
+together rather than off each other. A level contributes a fitted rate only
+where the components are genuinely distinguishable — at least two pooled
+standard deviations apart, with a two-component model preferred on BIC — and
+where too little of the population separates, no promotion hazard is published
+at all.
+
 **Credibility smoothing.** Every fitted value is blended toward its prior — the
 current seed or config value — with weight `Z = exposure / (exposure + k)`, at
 `k = {run.options.credibility_k:,.0f}`. Cells below
@@ -277,3 +329,135 @@ planalign simulate {run.snapshot_set.years[-1] + 1}-{run.snapshot_set.years[-1] 
 The run stamps `{run.pack.manifest.pack_id}` and fingerprint
 `{run.pack.manifest.fingerprint[:16]}…` into `run_metadata`.
 """
+
+
+def _basis_label(classification: Optional[PromotionClassification]) -> str:
+    """One line an analyst can read without opening the rest of the report."""
+    if classification is None:
+        return "not recorded"
+    if classification.basis is PromotionBasis.MEASURED:
+        return (
+            f"measured from `level_id` (coverage {classification.level_coverage:.0%})"
+        )
+    if classification.basis is PromotionBasis.ESTIMATED:
+        separated = sum(1 for level in classification.levels if level.separated)
+        share = classification.separated_exposure_share or 0.0
+        return (
+            f"estimated from the raise distribution ({separated} of "
+            f"{len(classification.levels)} levels, {share:.0%} of exposure)"
+        )
+    return "**not fitted — configured default retained**"
+
+
+def _moved_thresholds(run: "FitRun") -> str:
+    """FR-017: a moved dial must be visible without the command that set it."""
+    from planalign_fit.promotion import (
+        DEFAULT_LEVEL_COVERAGE_THRESHOLD,
+        DEFAULT_SEPARATION_EXPOSURE_GATE,
+    )
+
+    moved = []
+    if run.options.level_coverage_threshold != DEFAULT_LEVEL_COVERAGE_THRESHOLD:
+        moved.append(
+            f"level-coverage {run.options.level_coverage_threshold:.2f} "
+            f"(default {DEFAULT_LEVEL_COVERAGE_THRESHOLD:.2f})"
+        )
+    if run.options.separation_exposure_gate != DEFAULT_SEPARATION_EXPOSURE_GATE:
+        moved.append(
+            f"separation-exposure-gate {run.options.separation_exposure_gate:.2f} "
+            f"(default {DEFAULT_SEPARATION_EXPOSURE_GATE:.2f})"
+        )
+    return "; ".join(moved)
+
+
+def _promotion_section(run: "FitRun") -> str:
+    """The promotion hazard, prefaced by how its rate was arrived at."""
+    classification = run.result.promotion_classification
+    fit = run.result.promotion
+
+    if classification is not None and classification.basis is PromotionBasis.NOT_FITTED:
+        return f"""## Promotion hazard — not fitted
+
+{classification.reason.capitalize()}.
+
+The configured promotion hazard is retained unchanged; see "Not fitted" below.
+Supplying a `level_id` column in the census would let promotions be measured
+directly rather than inferred from the size of a raise.
+
+{_separation_table(classification)}
+"""
+
+    if fit is None:
+        return ""
+
+    section = _hazard_section("Promotion hazard", fit, run.result.promotion_cells)
+    if classification is None:
+        return section
+
+    if classification.basis is PromotionBasis.MEASURED:
+        preamble = (
+            f"Job level supplied by the census for "
+            f"{classification.level_coverage:.0%} of linked employees, so "
+            "promotions were measured directly from level moves.\n"
+        )
+        return section.replace(
+            "## Promotion hazard\n", f"## Promotion hazard\n\n{preamble}"
+        )
+
+    share = classification.separated_exposure_share or 0.0
+    preamble = (
+        f"No usable `level_id` column (coverage "
+        f"{classification.level_coverage:.0%}, threshold "
+        f"{classification.level_coverage_threshold:.0%}), so promotions were "
+        "separated from ordinary raises by their size. A level contributes to "
+        "the fit only where the two are genuinely distinguishable.\n\n"
+        f"Levels that separated hold **{share:.0%}** of experienced exposure "
+        f"(gate: {classification.exposure_gate:.0%}).\n\n"
+        f"{_separation_table(classification)}\n"
+    )
+    return section.replace(
+        "## Promotion hazard\n", f"## Promotion hazard\n\n{preamble}"
+    )
+
+
+def _distance(value: Optional[float]) -> str:
+    return "—" if value is None else f"{value:.1f}\u03c3"
+
+
+def _separation_table(classification: PromotionClassification) -> str:
+    """Per-level verdicts — the evidence behind an inferred promotion rate."""
+    if not classification.levels:
+        return ""
+
+    header = (
+        "| Level | Exposure | Verdict | Est. rate | Ordinary raise | "
+        "Promotion raise | Separation | BIC gain |\n"
+        "|---:|---:|---|---:|---:|---:|---:|---:|"
+    )
+
+    def cell(value: Optional[float], fmt: str) -> str:
+        return "—" if value is None else format(value, fmt)
+
+    rows = []
+    for level in classification.levels:
+        verdict = "separated" if level.separated else "**not separated**"
+        rows.append(
+            f"| {level.level_id} | {level.exposure:,.0f} | {verdict} | "
+            f"{cell(level.estimated_rate, '.4f')} | "
+            f"{cell(level.ordinary_location, '.1%')} | "
+            f"{cell(level.promotion_location, '.1%')} | "
+            f"{_distance(level.standardized_distance)} | "
+            f"{cell(level.bic_improvement, '+,.0f')} |"
+        )
+
+    notes = "\n".join(
+        f"- Level {level.level_id}: {level.reason}."
+        for level in classification.levels
+        if not level.separated
+    )
+    table = "\n".join([header, *rows])
+    return (
+        f"### Level-by-level separation\n\n{table}\n\n{notes}\n"
+        if notes
+        else (f"### Level-by-level separation\n\n{table}\n")
+    )
