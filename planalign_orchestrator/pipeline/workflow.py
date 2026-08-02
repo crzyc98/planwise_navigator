@@ -118,9 +118,12 @@ class WorkflowBuilder:
         # seams share _execute_year_workflow, so this dedup is on the real path
         # (issue #465 tier-1 dedup; product-valid slice of #468).
         if year == start_year:
-            initialization_models = [
-                MODEL_INT_BASELINE_WORKFORCE,
-            ]
+            # FOUNDATION full-refreshes int_baseline_workforce moments later
+            # (YearExecutor._should_full_refresh_foundation), discarding an
+            # INITIALIZATION build. StageValidator dispatches no INITIALIZATION
+            # validation, so retain the stage for telemetry with no models, just
+            # as Feature 121 does for the later-year FOUNDATION stage.
+            initialization_models = []
         else:
             initialization_models = [
                 MODEL_INT_ACTIVE_EMPLOYEES_PREV_YEAR,

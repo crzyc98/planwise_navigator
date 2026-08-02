@@ -80,15 +80,34 @@ def test_no_foundation_model_is_lost_in_the_merge():
 
 
 def test_start_year_is_left_split():
-    """Year 1 must be unchanged: INITIALIZATION baseline-only, FOUNDATION non-empty."""
+    """Year 1 stays two stages, with FOUNDATION owning the baseline build.
+
+    Tier B (feature 121) merged INITIALIZATION into FOUNDATION for later years
+    and deliberately left the start year split, because start-year FOUNDATION
+    carries --full-refresh and that flag applies to a whole invocation.
+
+    Feature 132 (step 1a) then emptied start-year INITIALIZATION. That is not a
+    retreat from Tier B's split — the two stages are still distinct, and
+    FOUNDATION still runs its own --full-refresh invocation. It removes a build
+    whose output FOUNDATION discarded moments later: INITIALIZATION built
+    int_baseline_workforce incrementally, then FOUNDATION full-refreshed the
+    same model. The substantive invariant is therefore stronger than before —
+    int_baseline_workforce is built exactly once, by the stage that
+    full-refreshes it.
+    """
     workflow = WorkflowBuilder.build_year_workflow(
         year=START_YEAR, start_year=START_YEAR
     )
     init = _stage(workflow, WorkflowStage.INITIALIZATION)
     foundation = _stage(workflow, WorkflowStage.FOUNDATION)
 
-    assert init.models == [MODEL_INT_BASELINE_WORKFORCE]
+    # Feature 132 step 1a: the redundant incremental build is gone.
+    assert init.models == []
+    # ...but the stage itself is retained, so its telemetry still reports.
+    assert init is not None
     assert foundation.models, "start-year FOUNDATION must still build its own models"
+    # The baseline build moved nowhere — FOUNDATION still owns it, exactly once.
+    assert foundation.models.count(MODEL_INT_BASELINE_WORKFORCE) == 1
     # The year-1 eligibility chain is still present.
     assert "int_plan_eligibility_determination" in foundation.models
 

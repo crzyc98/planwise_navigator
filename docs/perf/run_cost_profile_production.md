@@ -134,3 +134,44 @@ python -m scripts.perf_profile.build_production_report --campaign-id prod-455
 Campaign `prod-455`: started 2026-07-20T17:29:48.072525+00:00, finished 2026-07-20T17:54:39.826986+00:00; shared dev DB unchanged: **True** (SC-007).
 
 Warm samples consumed: reference-factory-custom-1.json, reference-factory-custom-2.json, reference-factory-custom-3.json, reference-wrapper-custom-1.json, reference-wrapper-custom-2.json, reference-wrapper-custom-3.json, studio-wrapper-custom-1.json, studio-wrapper-custom-2.json, studio-wrapper-custom-3.json.
+
+---
+
+## 8. Addendum — Feature 132 (#519) correction, 2026-08-02
+
+Feature 132 re-measured the production path and **corrected two figures that
+earlier planning treated as settled**. Anyone sizing invocation work should read
+this section before the ones above.
+
+### The 91.5s baseline in #519 does not exist
+
+Across **43 recorded 60k runs** in `var/perf_profile/`, none is near it:
+
+| Invocations | n | Median | Range |
+|---|---:|---:|---|
+| 38 (pre-#478) | 6 | 131.9s | 129.9–134.1 |
+| 30 (post-#478) | 17 | 120.2s | 116.3–127.9 |
+| **20 (post-#516/#518)** | **18** | **102.7s** | **97.1–183.7** |
+
+A fresh three-repetition baseline measured **103.576s**, mid-band. #519's own
+components also fail to reconcile: 27.7 + 43.2 + 16.1 = **87.0s**, not 91.5s.
+Same defect pattern as #478's "62 invocations", which was really 38.
+
+### Marginal cost is ~1.5–1.75s per command, not 2–4s
+
+From the two invocation-count changes already on record:
+
+- 38 → 30 (8 removed): 131.9 → 120.2 = **1.46s/command**
+- 30 → 20 (10 removed): 120.2 → 102.7 = **1.75s/command**
+
+The "startup" metric reported in these profiles — dbt wall minus summed model
+execution — is **not** the recoverable amount. It sweeps in parse, adapter init,
+and catalog work that does not disappear when commands merge. Dividing it by
+command count overstates the prize by roughly 2×.
+
+**Consequence**: the remaining invocation-collapse ceiling is **~9s**, not the
+~30s #519 projected. Feature 132 shipped one step (20 → 19 commands, −3.787s,
+all-marts parity clean) and stopped; the larger addressable block is now the
+~17s of orchestrator Python (#521).
+
+Full reasoning: `specs/132-collapse-dbt-invocations/evidence/decision-log.md`.
