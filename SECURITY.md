@@ -24,7 +24,7 @@ Do **not** open a public GitHub issue for security vulnerabilities.
 
 The FastAPI backend ships with safe-by-default network settings:
 
-- **Loopback binding by default** — the API binds to `127.0.0.1:8000`. Non-loopback binding is an explicit opt-in via `PLANALIGN_API_HOST`.
+- **Loopback binding by default** — both the API and Studio frontend bind to loopback (`127.0.0.1`). Non-loopback binding is an explicit opt-in via `PLANALIGN_API_HOST` or `planalign studio --host`. The Vite development server accepts only an explicit Host allowlist; set `PLANALIGN_STUDIO_ALLOWED_HOSTS` to a comma-separated list when using DNS names.
 - **Shared-token authentication** — set `PLANALIGN_API_TOKEN` to require a token on API routes (`Authorization: Bearer <token>` or `X-API-Token`). Token comparison is constant-time. When the API is bound to a non-loopback host without a token, a security warning is logged and all routes are unauthenticated — do not run this configuration outside a trusted network segment.
 - **CORS validation** — wildcard CORS (`*`) combined with a non-loopback bind is rejected at startup. Configure explicit origins via `PLANALIGN_API_CORS_ORIGINS` (default: the local Studio dev server on port 5173).
 - **Scoped storage resolution** — API requests resolve databases to scenario/workspace storage; the legacy project-database fallback is disabled unless the development-only `PLANALIGN_API_ALLOW_PROJECT_DB_FALLBACK` flag is set. Artifact download routes validate paths against traversal.
