@@ -850,7 +850,7 @@ Project is feature-complete for MVP. All simulations use dbt/SQL-only path (Pola
 
 ## **13. Versioning**
 
-Current version: **2.2.0** ("Calibration") — managed in `_version.py` and `pyproject.toml`. See `/docs/VERSIONING_GUIDE.md` for the full update process and `/CHANGELOG.md` for history.
+Current version: **2.3.0** (unreleased; last tagged release is v2.2.0 "Calibration") — managed in `_version.py` and `pyproject.toml`. See `/docs/VERSIONING_GUIDE.md` for the full update process and `/CHANGELOG.md` for history.
 
 ## Active Technologies
 - Python 3.11 (orchestrator/config/API), SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1, TypeScript/React (Studio UI) + Pydantic v2 (config validation), DuckDB 1.0.0 (storage/engine), FastAPI (workspace config API), React/Vite + Tailwind (Studio) (099-tenure-graded-match)
