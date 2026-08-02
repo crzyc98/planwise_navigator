@@ -8,7 +8,7 @@
 SELECT
     scenario_id,
     fiscal_year,
-    job_level,
+    CAST(job_level AS INTEGER) AS job_level,
     UPPER(event_type) AS event_type,  -- Standardize to uppercase
     parameter_name,
     parameter_value,
