@@ -1,0 +1,1488 @@
+{
+  "comparisons": [
+    {
+      "absolute_error": 411.2411794056534,
+      "actual": 127300.38931220102,
+      "family": "compensation",
+      "metric": "compensation.average",
+      "observable": true,
+      "percent_error": 0.003230478568271262,
+      "period": 2025,
+      "predicted": 127711.63049160667,
+      "spread": {
+        "actual_within_spread": true,
+        "distance_outside": null,
+        "maximum": 127776.85870503585,
+        "minimum": 127215.2145323741,
+        "seed_count": 3,
+        "values": [
+          127776.85870503585,
+          127711.63049160667,
+          127215.2145323741
+        ]
+      },
+      "status": "pass",
+      "threshold": {
+        "fail": 0.06,
+        "warn": 0.03
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": 411.2411794056534,
+      "actual": 127300.38931220102,
+      "family": "compensation",
+      "metric": "compensation.average",
+      "observable": true,
+      "percent_error": 0.003230478568271262,
+      "period": "cumulative",
+      "predicted": 127711.63049160667,
+      "spread": {
+        "actual_within_spread": true,
+        "distance_outside": null,
+        "maximum": 127776.85870503585,
+        "minimum": 127215.2145323741,
+        "seed_count": 3,
+        "values": [
+          127776.85870503585,
+          127711.63049160667,
+          127215.2145323741
+        ]
+      },
+      "status": "pass",
+      "threshold": {
+        "fail": 0.06,
+        "warn": 0.03
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": 176748.72999984026,
+      "actual": 212846250.9300001,
+      "family": "compensation",
+      "metric": "compensation.total",
+      "observable": true,
+      "percent_error": 0.0008304056530362312,
+      "period": 2025,
+      "predicted": 213022999.65999994,
+      "spread": {
+        "actual_within_spread": true,
+        "distance_outside": null,
+        "maximum": 213131800.31999978,
+        "minimum": 212194977.84,
+        "seed_count": 3,
+        "values": [
+          213131800.31999978,
+          213022999.65999994,
+          212194977.84
+        ]
+      },
+      "status": "pass",
+      "threshold": {
+        "fail": 0.06,
+        "warn": 0.03
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": 176748.72999984026,
+      "actual": 212846250.9300001,
+      "family": "compensation",
+      "metric": "compensation.total",
+      "observable": true,
+      "percent_error": 0.0008304056530362312,
+      "period": "cumulative",
+      "predicted": 213022999.65999994,
+      "spread": {
+        "actual_within_spread": true,
+        "distance_outside": null,
+        "maximum": 213131800.31999978,
+        "minimum": 212194977.84,
+        "seed_count": 3,
+        "values": [
+          213131800.31999978,
+          213022999.65999994,
+          212194977.84
+        ]
+      },
+      "status": "pass",
+      "threshold": {
+        "fail": 0.06,
+        "warn": 0.03
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": 16.0,
+      "actual": 225.0,
+      "family": "flows",
+      "metric": "flows.hires",
+      "observable": true,
+      "percent_error": 0.07111111111111111,
+      "period": 2025,
+      "predicted": 241.0,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": -16.0,
+        "maximum": 241.0,
+        "minimum": 241.0,
+        "seed_count": 3,
+        "values": [
+          241.0,
+          241.0,
+          241.0
+        ]
+      },
+      "status": "pass",
+      "threshold": {
+        "fail": 0.2,
+        "warn": 0.1
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": 16.0,
+      "actual": 225.0,
+      "family": "flows",
+      "metric": "flows.hires",
+      "observable": true,
+      "percent_error": 0.07111111111111111,
+      "period": "cumulative",
+      "predicted": 241.0,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": -16.0,
+        "maximum": 241.0,
+        "minimum": 241.0,
+        "seed_count": 3,
+        "values": [
+          241.0,
+          241.0,
+          241.0
+        ]
+      },
+      "status": "pass",
+      "threshold": {
+        "fail": 0.2,
+        "warn": 0.1
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": -2.0,
+      "actual": 99.0,
+      "family": "flows",
+      "metric": "flows.promotions",
+      "observable": true,
+      "percent_error": -0.020202020202020204,
+      "period": 2025,
+      "predicted": 97.0,
+      "spread": {
+        "actual_within_spread": true,
+        "distance_outside": null,
+        "maximum": 111.0,
+        "minimum": 89.0,
+        "seed_count": 3,
+        "values": [
+          97.0,
+          111.0,
+          89.0
+        ]
+      },
+      "status": "pass",
+      "threshold": {
+        "fail": 0.2,
+        "warn": 0.1
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": -2.0,
+      "actual": 99.0,
+      "family": "flows",
+      "metric": "flows.promotions",
+      "observable": true,
+      "percent_error": -0.020202020202020204,
+      "period": "cumulative",
+      "predicted": 97.0,
+      "spread": {
+        "actual_within_spread": true,
+        "distance_outside": null,
+        "maximum": 111.0,
+        "minimum": 89.0,
+        "seed_count": 3,
+        "values": [
+          97.0,
+          111.0,
+          89.0
+        ]
+      },
+      "status": "pass",
+      "threshold": {
+        "fail": 0.2,
+        "warn": 0.1
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": 12.0,
+      "actual": 131.0,
+      "family": "flows",
+      "metric": "flows.terminations",
+      "observable": true,
+      "percent_error": 0.0916030534351145,
+      "period": 2025,
+      "predicted": 143.0,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": -12.0,
+        "maximum": 143.0,
+        "minimum": 143.0,
+        "seed_count": 3,
+        "values": [
+          143.0,
+          143.0,
+          143.0
+        ]
+      },
+      "status": "pass",
+      "threshold": {
+        "fail": 0.2,
+        "warn": 0.1
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": 12.0,
+      "actual": 131.0,
+      "family": "flows",
+      "metric": "flows.terminations",
+      "observable": true,
+      "percent_error": 0.0916030534351145,
+      "period": "cumulative",
+      "predicted": 143.0,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": -12.0,
+        "maximum": 143.0,
+        "minimum": 143.0,
+        "seed_count": 3,
+        "values": [
+          143.0,
+          143.0,
+          143.0
+        ]
+      },
+      "status": "pass",
+      "threshold": {
+        "fail": 0.2,
+        "warn": 0.1
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": 94.0,
+      "actual": 342.0,
+      "family": "headcount",
+      "metric": "headcount.by_age_band.25-34",
+      "observable": true,
+      "percent_error": 0.27485380116959063,
+      "period": 2025,
+      "predicted": 436.0,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": -78.0,
+        "maximum": 438.0,
+        "minimum": 420.0,
+        "seed_count": 3,
+        "values": [
+          420.0,
+          438.0,
+          436.0
+        ]
+      },
+      "status": "fail",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": 94.0,
+      "actual": 342.0,
+      "family": "headcount",
+      "metric": "headcount.by_age_band.25-34",
+      "observable": true,
+      "percent_error": 0.27485380116959063,
+      "period": "cumulative",
+      "predicted": 436.0,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": -78.0,
+        "maximum": 438.0,
+        "minimum": 420.0,
+        "seed_count": 3,
+        "values": [
+          420.0,
+          438.0,
+          436.0
+        ]
+      },
+      "status": "fail",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": -11.0,
+      "actual": 433.0,
+      "family": "headcount",
+      "metric": "headcount.by_age_band.35-44",
+      "observable": true,
+      "percent_error": -0.025404157043879907,
+      "period": 2025,
+      "predicted": 422.0,
+      "spread": {
+        "actual_within_spread": true,
+        "distance_outside": null,
+        "maximum": 441.0,
+        "minimum": 419.0,
+        "seed_count": 3,
+        "values": [
+          441.0,
+          422.0,
+          419.0
+        ]
+      },
+      "status": "warn",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": -11.0,
+      "actual": 433.0,
+      "family": "headcount",
+      "metric": "headcount.by_age_band.35-44",
+      "observable": true,
+      "percent_error": -0.025404157043879907,
+      "period": "cumulative",
+      "predicted": 422.0,
+      "spread": {
+        "actual_within_spread": true,
+        "distance_outside": null,
+        "maximum": 441.0,
+        "minimum": 419.0,
+        "seed_count": 3,
+        "values": [
+          441.0,
+          422.0,
+          419.0
+        ]
+      },
+      "status": "warn",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": -38.0,
+      "actual": 437.0,
+      "family": "headcount",
+      "metric": "headcount.by_age_band.45-54",
+      "observable": true,
+      "percent_error": -0.08695652173913043,
+      "period": 2025,
+      "predicted": 399.0,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": 33.0,
+        "maximum": 404.0,
+        "minimum": 395.0,
+        "seed_count": 3,
+        "values": [
+          404.0,
+          395.0,
+          399.0
+        ]
+      },
+      "status": "fail",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": -38.0,
+      "actual": 437.0,
+      "family": "headcount",
+      "metric": "headcount.by_age_band.45-54",
+      "observable": true,
+      "percent_error": -0.08695652173913043,
+      "period": "cumulative",
+      "predicted": 399.0,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": 33.0,
+        "maximum": 404.0,
+        "minimum": 395.0,
+        "seed_count": 3,
+        "values": [
+          404.0,
+          395.0,
+          399.0
+        ]
+      },
+      "status": "fail",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": -55.0,
+      "actual": 421.0,
+      "family": "headcount",
+      "metric": "headcount.by_age_band.55-64",
+      "observable": true,
+      "percent_error": -0.13064133016627077,
+      "period": 2025,
+      "predicted": 366.0,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": 50.0,
+        "maximum": 371.0,
+        "minimum": 361.0,
+        "seed_count": 3,
+        "values": [
+          361.0,
+          366.0,
+          371.0
+        ]
+      },
+      "status": "fail",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": -55.0,
+      "actual": 421.0,
+      "family": "headcount",
+      "metric": "headcount.by_age_band.55-64",
+      "observable": true,
+      "percent_error": -0.13064133016627077,
+      "period": "cumulative",
+      "predicted": 366.0,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": 50.0,
+        "maximum": 371.0,
+        "minimum": 361.0,
+        "seed_count": 3,
+        "values": [
+          361.0,
+          366.0,
+          371.0
+        ]
+      },
+      "status": "fail",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": -1.0,
+      "actual": 34.0,
+      "family": "headcount",
+      "metric": "headcount.by_age_band.65+",
+      "observable": true,
+      "percent_error": -0.029411764705882353,
+      "period": 2025,
+      "predicted": 33.0,
+      "spread": {
+        "actual_within_spread": true,
+        "distance_outside": null,
+        "maximum": 36.0,
+        "minimum": 32.0,
+        "seed_count": 3,
+        "values": [
+          33.0,
+          36.0,
+          32.0
+        ]
+      },
+      "status": "warn",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": -1.0,
+      "actual": 34.0,
+      "family": "headcount",
+      "metric": "headcount.by_age_band.65+",
+      "observable": true,
+      "percent_error": -0.029411764705882353,
+      "period": "cumulative",
+      "predicted": 33.0,
+      "spread": {
+        "actual_within_spread": true,
+        "distance_outside": null,
+        "maximum": 36.0,
+        "minimum": 32.0,
+        "seed_count": 3,
+        "values": [
+          33.0,
+          36.0,
+          32.0
+        ]
+      },
+      "status": "warn",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": 6.0,
+      "actual": 5.0,
+      "family": "headcount",
+      "metric": "headcount.by_age_band.< 25",
+      "observable": true,
+      "percent_error": 1.2,
+      "period": 2025,
+      "predicted": 11.0,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": -4.0,
+        "maximum": 11.0,
+        "minimum": 9.0,
+        "seed_count": 3,
+        "values": [
+          9.0,
+          11.0,
+          11.0
+        ]
+      },
+      "status": "fail",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": 6.0,
+      "actual": 5.0,
+      "family": "headcount",
+      "metric": "headcount.by_age_band.< 25",
+      "observable": true,
+      "percent_error": 1.2,
+      "period": "cumulative",
+      "predicted": 11.0,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": -4.0,
+        "maximum": 11.0,
+        "minimum": 9.0,
+        "seed_count": 3,
+        "values": [
+          9.0,
+          11.0,
+          11.0
+        ]
+      },
+      "status": "fail",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": -26.0,
+      "actual": 529.0,
+      "family": "headcount",
+      "metric": "headcount.by_level.1",
+      "observable": true,
+      "percent_error": -0.04914933837429111,
+      "period": 2025,
+      "predicted": 503.0,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": 19.0,
+        "maximum": 510.0,
+        "minimum": 491.0,
+        "seed_count": 3,
+        "values": [
+          503.0,
+          491.0,
+          510.0
+        ]
+      },
+      "status": "fail",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": -26.0,
+      "actual": 529.0,
+      "family": "headcount",
+      "metric": "headcount.by_level.1",
+      "observable": true,
+      "percent_error": -0.04914933837429111,
+      "period": "cumulative",
+      "predicted": 503.0,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": 19.0,
+        "maximum": 510.0,
+        "minimum": 491.0,
+        "seed_count": 3,
+        "values": [
+          503.0,
+          491.0,
+          510.0
+        ]
+      },
+      "status": "fail",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": 14.0,
+      "actual": 546.0,
+      "family": "headcount",
+      "metric": "headcount.by_level.2",
+      "observable": true,
+      "percent_error": 0.02564102564102564,
+      "period": 2025,
+      "predicted": 560.0,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": -5.0,
+        "maximum": 574.0,
+        "minimum": 551.0,
+        "seed_count": 3,
+        "values": [
+          560.0,
+          574.0,
+          551.0
+        ]
+      },
+      "status": "warn",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": 14.0,
+      "actual": 546.0,
+      "family": "headcount",
+      "metric": "headcount.by_level.2",
+      "observable": true,
+      "percent_error": 0.02564102564102564,
+      "period": "cumulative",
+      "predicted": 560.0,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": -5.0,
+        "maximum": 574.0,
+        "minimum": 551.0,
+        "seed_count": 3,
+        "values": [
+          560.0,
+          574.0,
+          551.0
+        ]
+      },
+      "status": "warn",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": -13.0,
+      "actual": 266.0,
+      "family": "headcount",
+      "metric": "headcount.by_level.3",
+      "observable": true,
+      "percent_error": -0.04887218045112782,
+      "period": 2025,
+      "predicted": 253.0,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": 8.0,
+        "maximum": 258.0,
+        "minimum": 251.0,
+        "seed_count": 3,
+        "values": [
+          251.0,
+          253.0,
+          258.0
+        ]
+      },
+      "status": "fail",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": -13.0,
+      "actual": 266.0,
+      "family": "headcount",
+      "metric": "headcount.by_level.3",
+      "observable": true,
+      "percent_error": -0.04887218045112782,
+      "period": "cumulative",
+      "predicted": 253.0,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": 8.0,
+        "maximum": 258.0,
+        "minimum": 251.0,
+        "seed_count": 3,
+        "values": [
+          251.0,
+          253.0,
+          258.0
+        ]
+      },
+      "status": "fail",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": 22.0,
+      "actual": 260.0,
+      "family": "headcount",
+      "metric": "headcount.by_level.4",
+      "observable": true,
+      "percent_error": 0.08461538461538462,
+      "period": 2025,
+      "predicted": 282.0,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": -20.0,
+        "maximum": 284.0,
+        "minimum": 280.0,
+        "seed_count": 3,
+        "values": [
+          284.0,
+          282.0,
+          280.0
+        ]
+      },
+      "status": "fail",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": 22.0,
+      "actual": 260.0,
+      "family": "headcount",
+      "metric": "headcount.by_level.4",
+      "observable": true,
+      "percent_error": 0.08461538461538462,
+      "period": "cumulative",
+      "predicted": 282.0,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": -20.0,
+        "maximum": 284.0,
+        "minimum": 280.0,
+        "seed_count": 3,
+        "values": [
+          284.0,
+          282.0,
+          280.0
+        ]
+      },
+      "status": "fail",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": -2.0,
+      "actual": 71.0,
+      "family": "headcount",
+      "metric": "headcount.by_level.5",
+      "observable": true,
+      "percent_error": -0.028169014084507043,
+      "period": 2025,
+      "predicted": 69.0,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": 1.0,
+        "maximum": 70.0,
+        "minimum": 68.0,
+        "seed_count": 3,
+        "values": [
+          70.0,
+          68.0,
+          69.0
+        ]
+      },
+      "status": "warn",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": -2.0,
+      "actual": 71.0,
+      "family": "headcount",
+      "metric": "headcount.by_level.5",
+      "observable": true,
+      "percent_error": -0.028169014084507043,
+      "period": "cumulative",
+      "predicted": 69.0,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": 1.0,
+        "maximum": 70.0,
+        "minimum": 68.0,
+        "seed_count": 3,
+        "values": [
+          70.0,
+          68.0,
+          69.0
+        ]
+      },
+      "status": "warn",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": -5.0,
+      "actual": 488.0,
+      "family": "headcount",
+      "metric": "headcount.by_tenure_band.10-19",
+      "observable": true,
+      "percent_error": -0.010245901639344262,
+      "period": 2025,
+      "predicted": 483.0,
+      "spread": {
+        "actual_within_spread": true,
+        "distance_outside": null,
+        "maximum": 492.0,
+        "minimum": 482.0,
+        "seed_count": 3,
+        "values": [
+          492.0,
+          483.0,
+          482.0
+        ]
+      },
+      "status": "pass",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": -5.0,
+      "actual": 488.0,
+      "family": "headcount",
+      "metric": "headcount.by_tenure_band.10-19",
+      "observable": true,
+      "percent_error": -0.010245901639344262,
+      "period": "cumulative",
+      "predicted": 483.0,
+      "spread": {
+        "actual_within_spread": true,
+        "distance_outside": null,
+        "maximum": 492.0,
+        "minimum": 482.0,
+        "seed_count": 3,
+        "values": [
+          492.0,
+          483.0,
+          482.0
+        ]
+      },
+      "status": "pass",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": -5.0,
+      "actual": 252.0,
+      "family": "headcount",
+      "metric": "headcount.by_tenure_band.2-4",
+      "observable": true,
+      "percent_error": -0.01984126984126984,
+      "period": 2025,
+      "predicted": 247.0,
+      "spread": {
+        "actual_within_spread": true,
+        "distance_outside": null,
+        "maximum": 258.0,
+        "minimum": 246.0,
+        "seed_count": 3,
+        "values": [
+          247.0,
+          246.0,
+          258.0
+        ]
+      },
+      "status": "pass",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": -5.0,
+      "actual": 252.0,
+      "family": "headcount",
+      "metric": "headcount.by_tenure_band.2-4",
+      "observable": true,
+      "percent_error": -0.01984126984126984,
+      "period": "cumulative",
+      "predicted": 247.0,
+      "spread": {
+        "actual_within_spread": true,
+        "distance_outside": null,
+        "maximum": 258.0,
+        "minimum": 246.0,
+        "seed_count": 3,
+        "values": [
+          247.0,
+          246.0,
+          258.0
+        ]
+      },
+      "status": "pass",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": -4.0,
+      "actual": 305.0,
+      "family": "headcount",
+      "metric": "headcount.by_tenure_band.20+",
+      "observable": true,
+      "percent_error": -0.013114754098360656,
+      "period": 2025,
+      "predicted": 301.0,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": 1.0,
+        "maximum": 304.0,
+        "minimum": 301.0,
+        "seed_count": 3,
+        "values": [
+          301.0,
+          304.0,
+          301.0
+        ]
+      },
+      "status": "pass",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": -4.0,
+      "actual": 305.0,
+      "family": "headcount",
+      "metric": "headcount.by_tenure_band.20+",
+      "observable": true,
+      "percent_error": -0.013114754098360656,
+      "period": "cumulative",
+      "predicted": 301.0,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": 1.0,
+        "maximum": 304.0,
+        "minimum": 301.0,
+        "seed_count": 3,
+        "values": [
+          301.0,
+          304.0,
+          301.0
+        ]
+      },
+      "status": "pass",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": -2.0,
+      "actual": 257.0,
+      "family": "headcount",
+      "metric": "headcount.by_tenure_band.5-9",
+      "observable": true,
+      "percent_error": -0.007782101167315175,
+      "period": 2025,
+      "predicted": 255.0,
+      "spread": {
+        "actual_within_spread": true,
+        "distance_outside": null,
+        "maximum": 260.0,
+        "minimum": 254.0,
+        "seed_count": 3,
+        "values": [
+          254.0,
+          260.0,
+          255.0
+        ]
+      },
+      "status": "pass",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": -2.0,
+      "actual": 257.0,
+      "family": "headcount",
+      "metric": "headcount.by_tenure_band.5-9",
+      "observable": true,
+      "percent_error": -0.007782101167315175,
+      "period": "cumulative",
+      "predicted": 255.0,
+      "spread": {
+        "actual_within_spread": true,
+        "distance_outside": null,
+        "maximum": 260.0,
+        "minimum": 254.0,
+        "seed_count": 3,
+        "values": [
+          254.0,
+          260.0,
+          255.0
+        ]
+      },
+      "status": "pass",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": 4.0,
+      "actual": 370.0,
+      "family": "headcount",
+      "metric": "headcount.by_tenure_band.< 2",
+      "observable": true,
+      "percent_error": 0.010810810810810811,
+      "period": 2025,
+      "predicted": 374.0,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": -2.0,
+        "maximum": 375.0,
+        "minimum": 372.0,
+        "seed_count": 3,
+        "values": [
+          374.0,
+          375.0,
+          372.0
+        ]
+      },
+      "status": "pass",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": 4.0,
+      "actual": 370.0,
+      "family": "headcount",
+      "metric": "headcount.by_tenure_band.< 2",
+      "observable": true,
+      "percent_error": 0.010810810810810811,
+      "period": "cumulative",
+      "predicted": 374.0,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": -2.0,
+        "maximum": 375.0,
+        "minimum": 372.0,
+        "seed_count": 3,
+        "values": [
+          374.0,
+          375.0,
+          372.0
+        ]
+      },
+      "status": "pass",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": -4.0,
+      "actual": 1672.0,
+      "family": "headcount",
+      "metric": "headcount.total",
+      "observable": true,
+      "percent_error": -0.0023923444976076554,
+      "period": 2025,
+      "predicted": 1668.0,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": 4.0,
+        "maximum": 1668.0,
+        "minimum": 1668.0,
+        "seed_count": 3,
+        "values": [
+          1668.0,
+          1668.0,
+          1668.0
+        ]
+      },
+      "status": "pass",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": -4.0,
+      "actual": 1672.0,
+      "family": "headcount",
+      "metric": "headcount.total",
+      "observable": true,
+      "percent_error": -0.0023923444976076554,
+      "period": "cumulative",
+      "predicted": 1668.0,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": 4.0,
+        "maximum": 1668.0,
+        "minimum": 1668.0,
+        "seed_count": 3,
+        "values": [
+          1668.0,
+          1668.0,
+          1668.0
+        ]
+      },
+      "status": "pass",
+      "threshold": {
+        "fail": 0.04,
+        "warn": 0.02
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": 0.0028133624201118826,
+      "actual": 0.043847129186603155,
+      "family": "plan",
+      "metric": "plan.average_deferral_rate",
+      "observable": true,
+      "percent_error": 0.06416297879249673,
+      "period": 2025,
+      "predicted": 0.04666049160671504,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": -0.0024706765687929275,
+        "maximum": 0.046975659472422465,
+        "minimum": 0.04631780575539608,
+        "seed_count": 3,
+        "values": [
+          0.04666049160671504,
+          0.04631780575539608,
+          0.046975659472422465
+        ]
+      },
+      "status": "warn",
+      "threshold": {
+        "fail": 0.1,
+        "warn": 0.05
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": 0.0028133624201118826,
+      "actual": 0.043847129186603155,
+      "family": "plan",
+      "metric": "plan.average_deferral_rate",
+      "observable": true,
+      "percent_error": 0.06416297879249673,
+      "period": "cumulative",
+      "predicted": 0.04666049160671504,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": -0.0024706765687929275,
+        "maximum": 0.046975659472422465,
+        "minimum": 0.04631780575539608,
+        "seed_count": 3,
+        "values": [
+          0.04666049160671504,
+          0.04631780575539608,
+          0.046975659472422465
+        ]
+      },
+      "status": "warn",
+      "threshold": {
+        "fail": 0.1,
+        "warn": 0.05
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": null,
+      "actual": null,
+      "family": "plan",
+      "metric": "plan.employer_match_cost",
+      "observable": false,
+      "percent_error": null,
+      "period": 2025,
+      "predicted": null,
+      "spread": null,
+      "status": "not_observable",
+      "threshold": null,
+      "unobservable_reason": "snapshots carry no employee_deferral_rate column, so deferral levels and employer match cannot be observed"
+    },
+    {
+      "absolute_error": null,
+      "actual": null,
+      "family": "plan",
+      "metric": "plan.employer_match_cost",
+      "observable": false,
+      "percent_error": null,
+      "period": "cumulative",
+      "predicted": null,
+      "spread": null,
+      "status": "not_observable",
+      "threshold": null,
+      "unobservable_reason": "snapshots carry no employee_deferral_rate column, so deferral levels and employer match cannot be observed"
+    },
+    {
+      "absolute_error": 0.15500183585189264,
+      "actual": 0.6357655502392344,
+      "family": "plan",
+      "metric": "plan.participation_rate",
+      "observable": true,
+      "percent_error": 0.2438034520643128,
+      "period": 2025,
+      "predicted": 0.7907673860911271,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": -0.1502056727823483,
+        "maximum": 0.7937649880095923,
+        "minimum": 0.7859712230215827,
+        "seed_count": 3,
+        "values": [
+          0.7907673860911271,
+          0.7859712230215827,
+          0.7937649880095923
+        ]
+      },
+      "status": "fail",
+      "threshold": {
+        "fail": 0.1,
+        "warn": 0.05
+      },
+      "unobservable_reason": null
+    },
+    {
+      "absolute_error": 0.15500183585189264,
+      "actual": 0.6357655502392344,
+      "family": "plan",
+      "metric": "plan.participation_rate",
+      "observable": true,
+      "percent_error": 0.2438034520643128,
+      "period": "cumulative",
+      "predicted": 0.7907673860911271,
+      "spread": {
+        "actual_within_spread": false,
+        "distance_outside": -0.1502056727823483,
+        "maximum": 0.7937649880095923,
+        "minimum": 0.7859712230215827,
+        "seed_count": 3,
+        "values": [
+          0.7907673860911271,
+          0.7859712230215827,
+          0.7937649880095923
+        ]
+      },
+      "status": "fail",
+      "threshold": {
+        "fail": 0.1,
+        "warn": 0.05
+      },
+      "unobservable_reason": null
+    }
+  ],
+  "notes": "Reference example. A realistically anonymized 1,500-employee history: synthetic, generated independently of the simulator, containing no client data.",
+  "overridden_thresholds": [],
+  "provenance": {
+    "backtest_date": "2026-08-02T00:00:55.166652+00:00",
+    "compensation_basis": "annualized rate for active employees at year end",
+    "level_basis": "compensation_band",
+    "pack_fingerprint": "14673eb5b78560c7db4f1142c1cbe0cb398abf710c9247e5ed51b6779dc9c2b6",
+    "pack_id": "pack",
+    "promotion_basis": "measured",
+    "snapshots": [
+      {
+        "filename": "census_2022.csv",
+        "role": "fit",
+        "row_count": 1500,
+        "sha256": "862ac667e8d608fa8c9771d760f3bfd406ca7220e4ae793c02c148abde1f49d7",
+        "year": 2022
+      },
+      {
+        "filename": "census_2023.csv",
+        "role": "fit",
+        "row_count": 1710,
+        "sha256": "1e4dbe1161b67cf23a0431bc813c151633e3cd998022aef5a6f70b60339df41d",
+        "year": 2023
+      },
+      {
+        "filename": "census_2024.csv",
+        "role": "fit",
+        "row_count": 1768,
+        "sha256": "3b09c7dcd751657ee5bbfa20729b31f86acc43493e1a8723203e17cb2cee829f",
+        "year": 2024
+      },
+      {
+        "filename": "census_2025.csv",
+        "role": "holdout",
+        "row_count": 1835,
+        "sha256": "780fd82cc32369f03605740db44e418e1dc6fcc51375b3f37288b41d67125100",
+        "year": 2025
+      }
+    ],
+    "source_digest": "9114c7e39c63870c83865d3c16a014756c601e5ebf74d07fc87b5ab540fcc709",
+    "tool_version": "2.3.0"
+  },
+  "schema_version": "1.0.0",
+  "scorecard_fingerprint": "09aca6156b73e2f9cf2523695006476a0e4bcb7658e2df18af2e6d9cef28c353",
+  "seed_runs": [
+    {
+      "config_fingerprint": "5d15096c0fef1c3ed10db0ce543d72f0f0ca67a924fc232dffeb7b93b5b5a4cc",
+      "database": "seed_42.duckdb",
+      "seed": 42,
+      "years_simulated": [
+        2025
+      ]
+    },
+    {
+      "config_fingerprint": "5d15096c0fef1c3ed10db0ce543d72f0f0ca67a924fc232dffeb7b93b5b5a4cc",
+      "database": "seed_43.duckdb",
+      "seed": 43,
+      "years_simulated": [
+        2025
+      ]
+    },
+    {
+      "config_fingerprint": "5d15096c0fef1c3ed10db0ce543d72f0f0ca67a924fc232dffeb7b93b5b5a4cc",
+      "database": "seed_44.duckdb",
+      "seed": 44,
+      "years_simulated": [
+        2025
+      ]
+    }
+  ],
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "split": {
+    "all_years": [
+      2022,
+      2023,
+      2024,
+      2025
+    ],
+    "boundary_year": 2024,
+    "fit_years": [
+      2022,
+      2023,
+      2024
+    ],
+    "holdout_years": [
+      2025
+    ]
+  },
+  "thresholds": {
+    "compensation": {
+      "fail": 0.06,
+      "warn": 0.03
+    },
+    "flows": {
+      "fail": 0.2,
+      "warn": 0.1
+    },
+    "headcount": {
+      "fail": 0.04,
+      "warn": 0.02
+    },
+    "plan": {
+      "fail": 0.1,
+      "warn": 0.05
+    }
+  },
+  "verdict": "fail",
+  "verdict_summary": "22 pass, 10 warn, 16 fail, 2 not observable"
+}

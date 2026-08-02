@@ -15,6 +15,7 @@ already supports.
 from __future__ import annotations
 
 import logging
+import json
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -29,6 +30,7 @@ from planalign_fit.pack import (
     deep_merge,
     load_pack,
     verify_pack,
+    _fingerprint,
 )
 
 logger = logging.getLogger(__name__)
@@ -66,14 +68,19 @@ class AppliedPack:
     fingerprint_verified: bool
 
 
-def provenance_block(manifest: PackManifest) -> dict[str, Any]:
+def provenance_block(
+    manifest: PackManifest,
+    *,
+    pack: ParameterPack | None = None,
+    pack_dir: Path | None = None,
+) -> dict[str, Any]:
     """The ``param_pack`` block stamped into the effective config.
 
     ``SimulationConfig`` keeps unknown top-level keys, and ``to_dbt_vars``
     ignores them, so this rides along without perturbing the config
     fingerprint — it is provenance, not a result-affecting input.
     """
-    return {
+    block: dict[str, Any] = {
         "pack_id": manifest.pack_id,
         "fingerprint": manifest.fingerprint,
         "fit_date": manifest.fit_date,
@@ -85,6 +92,40 @@ def provenance_block(manifest: PackManifest) -> dict[str, Any]:
         # top-level keys, so it reaches `run_metadata` without perturbing the
         # config fingerprint.
         "promotion_basis": manifest.promotion_basis,
+    }
+    if pack is not None and pack_dir is not None:
+        backtest = _current_backtest(pack, pack_dir)
+        if backtest is not None:
+            block["backtest"] = backtest
+    return block
+
+
+def _current_backtest(pack: ParameterPack, pack_dir: Path) -> dict[str, Any] | None:
+    path = pack_dir / "backtest" / "scorecard.json"
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    provenance = payload.get("provenance")
+    current_fingerprint = _fingerprint(
+        pack.config_fragment, pack.seed_files, pack.manifest.source_digest
+    )
+    if (
+        not isinstance(provenance, dict)
+        or provenance.get("pack_fingerprint") != current_fingerprint
+    ):
+        return None
+    fingerprint = payload.get("scorecard_fingerprint")
+    verdict = payload.get("verdict")
+    holdout = (payload.get("split") or {}).get("holdout_years")
+    if not isinstance(fingerprint, str) or verdict not in {"pass", "warn", "fail"}:
+        return None
+    return {
+        "scorecard_fingerprint": fingerprint,
+        "verdict": verdict,
+        "holdout_years": holdout,
     }
 
 
@@ -109,7 +150,7 @@ def apply_pack(
     root = Path(workdir) if workdir else DEFAULT_WORKDIR / pack.manifest.pack_id
     root.mkdir(parents=True, exist_ok=True)
 
-    config_path = _write_effective_config(pack, Path(base_config), root)
+    config_path = _write_effective_config(pack, Path(base_config), root, Path(pack_dir))
     project_dir = _build_overlay_project(pack, root, dbt_root or DBT_ROOT)
 
     return AppliedPack(
@@ -122,7 +163,7 @@ def apply_pack(
 
 
 def _write_effective_config(
-    pack: ParameterPack, base_config: Path, workdir: Path
+    pack: ParameterPack, base_config: Path, workdir: Path, pack_dir: Path
 ) -> Path:
     if not base_config.is_file():
         raise PackError(f"Base config not found: {base_config}")
@@ -130,7 +171,9 @@ def _write_effective_config(
         base = yaml.safe_load(handle) or {}
 
     effective = deep_merge(base, pack.config_fragment)
-    effective["param_pack"] = provenance_block(pack.manifest)
+    effective["param_pack"] = provenance_block(
+        pack.manifest, pack=pack, pack_dir=pack_dir
+    )
 
     destination = workdir / CONFIG_FILENAME
     with destination.open("w", encoding="utf-8") as handle:

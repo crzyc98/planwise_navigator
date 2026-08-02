@@ -310,11 +310,24 @@ def extract_param_pack_provenance(config: "SimulationConfig") -> dict:
     block = getattr(config, "param_pack", None)
     if not isinstance(block, dict):
         return {}
-    return {
+    result = {
         key: str(block[key])
         for key in ("pack_id", "fingerprint", "source_digest")
         if block.get(key) is not None
     }
+    backtest = block.get("backtest")
+    if isinstance(backtest, dict) and backtest.get("scorecard_fingerprint"):
+        result["backtest_score_ref"] = json.dumps(
+            {
+                "pack_id": block.get("pack_id"),
+                "scorecard_fingerprint": backtest.get("scorecard_fingerprint"),
+                "verdict": backtest.get("verdict"),
+                "holdout_years": backtest.get("holdout_years"),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    return result
 
 
 def _append_record(
@@ -339,8 +352,9 @@ def _append_record(
             start_year, end_year, scenario_id, plan_design_id,
             planalign_version, full_reset, construction_signature_hash,
             initialization_policy, entry_point, runner_kind,
-            param_pack_id, param_pack_fingerprint, param_pack_source_digest
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            param_pack_id, param_pack_fingerprint, param_pack_source_digest,
+            backtest_score_ref
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """,
         [
             run_id,
@@ -369,6 +383,7 @@ def _append_record(
             pack.get("pack_id"),
             pack.get("fingerprint"),
             pack.get("source_digest"),
+            pack.get("backtest_score_ref"),
         ],
     )
 
@@ -385,6 +400,7 @@ def _evolve_provenance_schema(conn) -> None:
         "param_pack_id",
         "param_pack_fingerprint",
         "param_pack_source_digest",
+        "backtest_score_ref",
     ):
         conn.execute(
             f"ALTER TABLE {RUN_METADATA_TABLE} ADD COLUMN IF NOT EXISTS {name} VARCHAR"

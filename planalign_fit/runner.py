@@ -48,6 +48,7 @@ class FitOptions:
     config_path: Optional[Path] = None
     pack_id: Optional[str] = None
     notes: str = ""
+    only_years: Optional[tuple[int, ...]] = None
 
 
 @dataclass
@@ -76,6 +77,8 @@ def fit_parameter_pack(
     # simulation database, shared or isolated.
     with duckdb.connect(":memory:") as conn:
         snapshot_set = load_snapshots(snapshots_dir, conn)
+        if options.only_years is not None:
+            snapshot_set = snapshot_set.subset(options.only_years)
         transitions = build_transitions(conn, snapshot_set, bands)
         result = _run_estimators(transitions, priors, options)
 
