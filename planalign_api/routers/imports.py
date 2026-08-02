@@ -254,6 +254,9 @@ async def upload_file(
             detail=f"Unsupported format: .{suffix}. Only .csv and .xlsx are accepted",
         )
 
+    # Cleared once the file is moved into the session directory, so the
+    # cleanup in `finally` does not delete the retained original.
+    temp_path: Path | None
     temp_path, _ = await stream_upload_to_tempfile(
         file,
         suffix=f".{suffix}",
