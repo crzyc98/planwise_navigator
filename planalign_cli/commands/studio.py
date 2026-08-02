@@ -207,7 +207,9 @@ def _detect_lan_ip() -> str:
 
 def _resolve_bind_host(host: str | None) -> str:
     """Resolve an explicit CLI host or the API's safe environment default."""
-    configured_host = host or os.environ.get("PLANALIGN_API_HOST", "127.0.0.1")
+    configured_host = (
+        host if host else os.environ.get("PLANALIGN_API_HOST", "127.0.0.1")
+    )
     if configured_host == "auto":
         return _detect_lan_ip()
     return configured_host
