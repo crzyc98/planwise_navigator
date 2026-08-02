@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import io
 import logging
 import re
+import shutil
 from pathlib import Path
 from typing import List
 
@@ -32,6 +34,7 @@ from ..models.imports import (
 from ..services.census_schema import CANONICAL_NAMES, FIELDS, get_field, is_canonical
 from ..services.import_service import ImportService
 from ..services.suggestion_engine import SuggestionEngine
+from ..services.upload_stream import stream_upload_to_tempfile
 from ..storage.workspace_storage import WorkspaceStorage
 
 logger = logging.getLogger(__name__)
@@ -134,31 +137,34 @@ def _validate_mapping(
     return errors
 
 
-def _parse_dataframe(content: bytes, filename: str, sheet_name: str | None = None):
-    """Parse bytes into a pandas DataFrame with encoding fallback."""
+def _pandas_source(source: bytes | Path) -> Path | io.BytesIO:
+    """Return a fresh pandas-compatible input for a byte or file source."""
+    return source if isinstance(source, Path) else io.BytesIO(source)
+
+
+def _parse_dataframe(
+    source: bytes | Path, filename: str, sheet_name: str | None = None
+):
+    """Parse an uploaded file into a DataFrame with encoding fallback."""
     suffix = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     encoding_used = "utf-8"
     encoding_warnings: list[str] = []
 
     if suffix == "xlsx":
-        import io
-
         df = pd.read_excel(
-            io.BytesIO(content), sheet_name=sheet_name or 0, dtype=object
+            _pandas_source(source), sheet_name=sheet_name or 0, dtype=object
         )
         available_sheets: list[str] = []
         if sheet_name is None:
-            xf = pd.ExcelFile(io.BytesIO(content))
+            xf = pd.ExcelFile(_pandas_source(source))
             available_sheets = xf.sheet_names
         return df, available_sheets, encoding_used, encoding_warnings
 
     # CSV — try UTF-8, fall back to latin-1
-    import io
-
     try:
-        df = pd.read_csv(io.BytesIO(content), dtype=object)
+        df = pd.read_csv(_pandas_source(source), dtype=object)
     except UnicodeDecodeError:
-        df = pd.read_csv(io.BytesIO(content), encoding="latin-1", dtype=object)
+        df = pd.read_csv(_pandas_source(source), encoding="latin-1", dtype=object)
         encoding_used = "latin-1"
         null_like = (
             df.select_dtypes(include="object")
@@ -248,55 +254,64 @@ async def upload_file(
             detail=f"Unsupported format: .{suffix}. Only .csv and .xlsx are accepted",
         )
 
-    content = await file.read()
-    if len(content) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="File exceeds 500MB limit")
-
-    try:
-        df, available_sheets, encoding_used, enc_warnings = _parse_dataframe(
-            content, file.filename
-        )
-    except Exception as exc:
-        raise HTTPException(
-            status_code=422, detail=f"Could not parse file: {exc}"
-        ) from exc
-
-    if len(df) == 0:
-        raise HTTPException(status_code=422, detail="File has 0 data rows")
-
-    df, column_renames = _dedup_columns(df)
-    detected = _build_detected_columns(df)
-    preview = _df_to_records(df.head(100))
-
-    session = service.create_session(
-        workspace_id=workspace_id,
-        original_filename=file.filename,
-        source_format=suffix,  # type: ignore[arg-type]
-        detected_columns=detected,
-        row_count=len(df),
-        preview_rows=preview,
-        available_sheets=available_sheets,
-        created_by=x_user_id,
-        encoding_used=encoding_used,
-        encoding_warnings=enc_warnings,
-        column_renames=column_renames or None,
+    # Cleared once the file is moved into the session directory, so the
+    # cleanup in `finally` does not delete the retained original.
+    temp_path: Path | None
+    temp_path, _ = await stream_upload_to_tempfile(
+        file,
+        suffix=f".{suffix}",
+        max_file_bytes=MAX_UPLOAD_BYTES,
     )
+    try:
+        try:
+            df, available_sheets, encoding_used, enc_warnings = _parse_dataframe(
+                temp_path, file.filename
+            )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=422, detail=f"Could not parse file: {exc}"
+            ) from exc
 
-    # Retain original bytes so sheet re-selection can re-parse
-    session_dir = service._session_path(workspace_id, session.import_id)
-    orig_path = session_dir / f"_orig_{file.filename}"
-    orig_path.write_bytes(content)
+        if len(df) == 0:
+            raise HTTPException(status_code=422, detail="File has 0 data rows")
 
-    # Persist source as parquet for downstream use
-    source_path = service._source_parquet_path(workspace_id, session.import_id)
-    import duckdb
+        df, column_renames = _dedup_columns(df)
+        detected = _build_detected_columns(df)
+        preview = _df_to_records(df.head(100))
 
-    conn = duckdb.connect(":memory:")
-    conn.register("_src", df)
-    conn.execute(f"COPY _src TO '{source_path}' (FORMAT PARQUET)")
-    conn.close()
+        session = service.create_session(
+            workspace_id=workspace_id,
+            original_filename=file.filename,
+            source_format=suffix,  # type: ignore[arg-type]
+            detected_columns=detected,
+            row_count=len(df),
+            preview_rows=preview,
+            available_sheets=available_sheets,
+            created_by=x_user_id,
+            encoding_used=encoding_used,
+            encoding_warnings=enc_warnings,
+            column_renames=column_renames or None,
+        )
 
-    return session
+        # Retain the original file so sheet re-selection can re-parse it.
+        session_dir = service._session_path(workspace_id, session.import_id)
+        orig_path = session_dir / f"_orig_{file.filename}"
+        shutil.move(str(temp_path), orig_path)
+        temp_path = None
+
+        # Persist source as parquet for downstream use
+        source_path = service._source_parquet_path(workspace_id, session.import_id)
+        import duckdb
+
+        conn = duckdb.connect(":memory:")
+        conn.register("_src", df)
+        conn.execute(f"COPY _src TO '{source_path}' (FORMAT PARQUET)")
+        conn.close()
+
+        return session
+    finally:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
 
 
 # ---------------------------------------------------------------------------
@@ -332,9 +347,8 @@ async def select_sheet(
             status_code=422, detail="Original file not retained; cannot re-parse sheet"
         )
 
-    orig_bytes = orig_path.read_bytes()
     df, _, encoding_used, enc_warnings = _parse_dataframe(
-        orig_bytes, session.original_filename, sheet_name=body.sheet_name
+        orig_path, session.original_filename, sheet_name=body.sheet_name
     )
     df, _ = _dedup_columns(df)
     detected = _build_detected_columns(df)

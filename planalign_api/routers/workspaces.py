@@ -1,6 +1,5 @@
 """Workspace management endpoints."""
 
-import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -14,6 +13,7 @@ from ..models.export import (
     BulkImportStatus,
     ConflictResolution,
     ImportResponse,
+    ImportStatus,
     ImportValidationResponse,
 )
 from ..models.workspace import (
@@ -22,14 +22,20 @@ from ..models.workspace import (
     WorkspaceSummary,
     WorkspaceUpdate,
 )
-from ..services.export_service import ExportService
+from ..services.export_service import ExportService, MAX_IMPORT_SIZE_BYTES
 from ..services.seed_config_validator import validate_seed_configs
+from ..services.upload_stream import stream_upload_to_tempfile
 from ..storage.workspace_storage import WorkspaceStorage
 
 router = APIRouter()
 
 # In-memory storage for temporary upload files
 _temp_upload_files: Dict[str, Path] = {}
+
+# Request-level ceiling for /bulk-import, independent of the 1 GiB per-archive
+# limit: a bulk request may legitimately carry several max-size archives, so
+# this bounds total temp-disk consumption per request rather than per file.
+MAX_BULK_IMPORT_SIZE_BYTES = 8 * 1024 * 1024 * 1024
 
 
 def get_storage(settings: APISettings = Depends(get_settings)) -> WorkspaceStorage:
@@ -325,16 +331,13 @@ async def validate_import(
     Checks archive integrity, manifest validity, and name conflicts.
     Returns validation result with any conflicts or warnings.
     """
-    # Save uploaded file to temp location
-    with tempfile.NamedTemporaryFile(suffix=".7z", delete=False) as temp_file:
-        content = await file.read()
-        temp_file.write(content)
-        temp_path = Path(temp_file.name)
+    temp_path, file_size = await stream_upload_to_tempfile(
+        file,
+        suffix=".7z",
+        max_file_bytes=MAX_IMPORT_SIZE_BYTES,
+    )
 
     try:
-        # Get file size
-        file_size = len(content)
-
         # Validate archive
         result = export_service.validate_archive(temp_path, file_size)
 
@@ -349,17 +352,19 @@ async def validate_import(
             # Note: This is a workaround; ideally we'd use a session or multipart upload
         else:
             # Clean up invalid archive
-            temp_path.unlink()
+            temp_path.unlink(missing_ok=True)
 
         return result
 
-    except Exception as e:
+    except HTTPException:
+        temp_path.unlink(missing_ok=True)
+        raise
+    except Exception as exc:
         # Clean up on error
-        if temp_path.exists():
-            temp_path.unlink()
+        temp_path.unlink(missing_ok=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Validation error: {str(e)}",
+            detail=f"Validation error: {str(exc)}",
         )
 
 
@@ -378,11 +383,11 @@ async def import_workspace(
     - 'replace': Delete existing workspace and import
     - 'skip': Skip this import (not applicable for single import)
     """
-    # Save uploaded file to temp location
-    with tempfile.NamedTemporaryFile(suffix=".7z", delete=False) as temp_file:
-        content = await file.read()
-        temp_file.write(content)
-        temp_path = Path(temp_file.name)
+    temp_path, _ = await stream_upload_to_tempfile(
+        file,
+        suffix=".7z",
+        max_file_bytes=MAX_IMPORT_SIZE_BYTES,
+    )
 
     try:
         # Parse conflict resolution
@@ -413,8 +418,18 @@ async def import_workspace(
         )
     finally:
         # Clean up temp file
-        if temp_path.exists():
-            temp_path.unlink()
+        temp_path.unlink(missing_ok=True)
+
+
+def _failed_import(filename: Optional[str], warning: str) -> ImportResponse:
+    """Build the result entry for an archive that could not be imported."""
+    return ImportResponse(
+        workspace_id="",
+        name=filename or "Unknown",
+        scenario_count=0,
+        status=ImportStatus.PARTIAL,
+        warnings=[warning],
+    )
 
 
 @router.post("/bulk-import", response_model=BulkImportStatus)
@@ -440,41 +455,40 @@ async def start_bulk_import(
         except ValueError:
             pass
 
+    total_upload_bytes = 0
+
     # Process each file
     for file in files:
         # Update current file in status
         status_obj.current_file = file.filename
 
-        # Save to temp file
-        with tempfile.NamedTemporaryFile(suffix=".7z", delete=False) as temp_file:
-            content = await file.read()
-            temp_file.write(content)
-            temp_path = Path(temp_file.name)
-
+        # Upload failures are recorded per file rather than aborting the
+        # request: earlier archives are already imported, so raising here
+        # would strand them with no report of what landed.
+        temp_path: Optional[Path] = None
         try:
-            # Import workspace
+            temp_path, file_size = await stream_upload_to_tempfile(
+                file,
+                suffix=".7z",
+                max_file_bytes=MAX_IMPORT_SIZE_BYTES,
+                request_bytes_so_far=total_upload_bytes,
+                max_request_bytes=MAX_BULK_IMPORT_SIZE_BYTES,
+            )
+            total_upload_bytes += file_size
+
             result = export_service.import_workspace(
                 archive_path=temp_path,
                 conflict_resolution=resolution,
             )
             status_obj.results.append(result)
-        except Exception as e:
-            # Record failed import
-            from ..models.export import ImportStatus
-
-            status_obj.results.append(
-                ImportResponse(
-                    workspace_id="",
-                    name=file.filename or "Unknown",
-                    scenario_count=0,
-                    status=ImportStatus.PARTIAL,
-                    warnings=[str(e)],
-                )
-            )
+        except HTTPException as exc:
+            status_obj.results.append(_failed_import(file.filename, str(exc.detail)))
+        except Exception as exc:
+            status_obj.results.append(_failed_import(file.filename, str(exc)))
         finally:
             # Clean up temp file
-            if temp_path.exists():
-                temp_path.unlink()
+            if temp_path is not None:
+                temp_path.unlink(missing_ok=True)
 
         status_obj.completed += 1
 
