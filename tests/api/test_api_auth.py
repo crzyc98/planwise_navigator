@@ -12,6 +12,8 @@ import planalign_api.config as api_config
 
 pytestmark = [pytest.mark.fast]
 
+_ALLOWED_ORIGIN = "http://localhost:5173"
+
 
 def test_protected_router_requires_configured_bearer_token(client_factory) -> None:
     client = client_factory("shared-secret")
@@ -50,7 +52,7 @@ def test_websocket_requires_configured_token(client_factory, path: str) -> None:
     client = client_factory("shared-secret")
 
     with pytest.raises(WebSocketDisconnect) as error:
-        with client.websocket_connect(path):
+        with client.websocket_connect(path, headers={"Origin": _ALLOWED_ORIGIN}):
             pass
 
     assert error.value.code == 1008
@@ -60,7 +62,9 @@ def test_websocket_requires_configured_token(client_factory, path: str) -> None:
 def test_websocket_accepts_query_token(client_factory, path: str) -> None:
     client = client_factory("shared-secret")
 
-    with client.websocket_connect(f"{path}?token=shared-secret"):
+    with client.websocket_connect(
+        f"{path}?token=shared-secret", headers={"Origin": _ALLOWED_ORIGIN}
+    ):
         pass
 
 
@@ -72,7 +76,9 @@ def test_websocket_rejects_wrong_token(
     client = client_factory("shared-secret")
 
     with pytest.raises(WebSocketDisconnect) as error:
-        with client.websocket_connect(f"{path}?token={bad_token}"):
+        with client.websocket_connect(
+            f"{path}?token={bad_token}", headers={"Origin": _ALLOWED_ORIGIN}
+        ):
             pass
 
     assert error.value.code == 1008
@@ -84,8 +90,39 @@ def test_websocket_allows_connections_without_configured_token(
 ) -> None:
     client = client_factory(None)
 
-    with client.websocket_connect(path):
+    with client.websocket_connect(path, headers={"Origin": _ALLOWED_ORIGIN}):
         pass
+
+
+@pytest.mark.parametrize("path", ["/ws/simulation/run-1", "/ws/batch/batch-1"])
+@pytest.mark.parametrize("origin", ["http://attacker.example", None])
+def test_websocket_rejects_disallowed_or_missing_origin(
+    client_factory, path: str, origin: str | None
+) -> None:
+    client = client_factory(None)
+    headers = {"Origin": origin} if origin else {}
+
+    with pytest.raises(WebSocketDisconnect) as error:
+        with client.websocket_connect(path, headers=headers):
+            pass
+
+    assert error.value.code == 1008
+
+
+@pytest.mark.parametrize("path", ["/ws/simulation/run-1", "/ws/batch/batch-1"])
+def test_websocket_rejects_disallowed_origin_with_valid_token(
+    client_factory, path: str
+) -> None:
+    client = client_factory("shared-secret")
+
+    with pytest.raises(WebSocketDisconnect) as error:
+        with client.websocket_connect(
+            f"{path}?token=shared-secret",
+            headers={"Origin": "http://attacker.example"},
+        ):
+            pass
+
+    assert error.value.code == 1008
 
 
 def test_non_loopback_wildcard_cors_is_rejected(monkeypatch) -> None:
