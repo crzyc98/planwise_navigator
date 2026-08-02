@@ -4,18 +4,25 @@
 
 Everything below runs against **isolated databases under `var/`**. The shared `dbt/simulation.duckdb` is never built into by this work.
 
-## 1. Generate the reference census (once per gate)
+## 1. Use the workspace census — do not generate one
 
-The 60,040-row census is not in the repository — it is scaled 8× from the 7,505-row source. Generate it **once** and reuse the same file for every run in a gate (research Finding 6):
+**This step was specified wrongly the first time and cost a stopped run.** The
+original instruction was to scale the 7,505-row dev census 8× with
+`scripts/perf_profile/make_large_census.py`. Do not do that.
 
-```bash
-source .venv/bin/activate
-python -m scripts.perf_profile.make_large_census \
-  --factor 8 \
-  --out var/perf_profile/census_60k.parquet
+Every prior 60k measurement (49 of them) uses the **workspace census**:
+
+```
+workspaces/1497b19c-b212-4c67-82d3-bc0455b637e0/data/census.parquet
 ```
 
-Confirm it reports 60,040 rows with unique ids before proceeding.
+A synthetic 8× scale-up has the same row count but is eight copies of the same
+7,505 people — different distributions, different event volumes, different SQL
+time. Results measured against it **cannot be compared to any prior run**, and
+comparing them anyway produces a phantom regression. Feature 132 did exactly
+that and halted on a difference that was its own making.
+
+Use the workspace census so your numbers join the existing series.
 
 ## 2. Capture the baseline
 

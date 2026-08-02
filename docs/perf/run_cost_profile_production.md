@@ -143,19 +143,29 @@ Feature 132 re-measured the production path and **corrected two figures that
 earlier planning treated as settled**. Anyone sizing invocation work should read
 this section before the ones above.
 
-### The 91.5s baseline in #519 does not exist
+### Always measure with the workspace census
 
-Across **43 recorded 60k runs** in `var/perf_profile/`, none is near it:
+Of 71 recorded 60k runs, **49 use the workspace census**
+(`workspaces/1497b19c-.../data/census.parquet`) and 9 use a synthetic 8×
+scale-up of the 7,505-row dev census. Same row count, different distributions,
+therefore different event volumes and different SQL time — **results from the
+two are not comparable.**
+
+Feature 132 generated a scaled census, measured 103.576s, and briefly concluded
+that #519's 91.5s baseline was wrong. It was not: 91.5s came from the #516 fix
+session (2026-07-30, workspace census, 117.7s → 91.5s at 28 → 20 invocations).
+The two numbers describe different workloads.
+
+Workspace-census cohort medians, for anyone joining the series:
 
 | Invocations | n | Median | Range |
 |---|---:|---:|---|
 | 38 (pre-#478) | 6 | 131.9s | 129.9–134.1 |
 | 30 (post-#478) | 17 | 120.2s | 116.3–127.9 |
-| **20 (post-#516/#518)** | **18** | **102.7s** | **97.1–183.7** |
+| 20 (post-#516/#518) | ~15 | ~100s | 97.1–106.8 |
 
-A fresh three-repetition baseline measured **103.576s**, mid-band. #519's own
-components also fail to reconcile: 27.7 + 43.2 + 16.1 = **87.0s**, not 91.5s.
-Same defect pattern as #478's "62 invocations", which was really 38.
+#519's 91.5s sits below that 20-invocation range, so treat it as optimistic
+rather than typical — but do not treat it as fabricated.
 
 ### Marginal cost is ~1.5–1.75s per command, not 2–4s
 

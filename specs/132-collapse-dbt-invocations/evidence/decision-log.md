@@ -47,22 +47,45 @@ Full detail: [step-1b-record.md](step-1b-record.md).
 
 Stopped on economics, established during T011 reconciliation.
 
-### The baseline was a phantom
+### Correction: the baseline gap was a census mismatch, not a bad number
 
-Issue #519 stated 91.5s. Across **43 recorded 60k runs** in `var/perf_profile/`,
-none is close:
+**This was an error in this feature's own method, recorded here rather than
+quietly fixed.**
 
-| Invocations | n | Median | Range |
-|---|---:|---:|---|
-| 38 (pre-#478) | 6 | 131.9s | 129.9–134.1 |
-| 30 (post-#478) | 17 | 120.2s | 116.3–127.9 |
-| **20 (current)** | **18** | **102.7s** | **97.1–183.7** |
+T011 flagged the fresh 103.576s baseline as a 13.2% disagreement with #519's
+91.5s and stopped the work. The stop was correct; the diagnosis was not.
 
-The fresh baseline of 103.576s sits mid-band. The issue's own components also
-fail to reconcile: 27.7 + 43.2 + 16.1 = **87.0s**, not the 91.5s stated.
+`quickstart.md` specified generating the reference census with
+`scripts/perf_profile/make_large_census.py --factor 8`. But **every prior 60k
+measurement used the workspace census**
+(`workspaces/1497b19c-.../data/census.parquet`) — 49 recorded runs, versus 9
+using the scaled file, all 9 from this feature:
 
-This is the same defect pattern as #478's "62 invocations", which turned out to
-be 38.
+| Census | Runs |
+|---|---:|
+| workspace | 49 |
+| synthetic 8× scaled | 9 (all feature 132) |
+| `census_large.parquet` | 13 |
+
+The scaled census is eight copies of the same 7,505 people. Same row count,
+different distributions, therefore different event volumes and different SQL
+time. **103.576s and 91.5s were never measuring the same workload**, so the
+"material disagreement" T011 detected was manufactured by this feature's own
+census choice.
+
+#519's 91.5s traces to the #516 fix session (2026-07-30, workspace census), which
+recorded 117.7s → 91.5s at 28 → 20 invocations. It is a real measurement, not a
+fabrication. It remains below the workspace-census 20-invocation cohort
+(~97.1–106.8s across ~15 runs), so it is optimistic relative to later runs — but
+that is a separate question from the one T011 raised.
+
+**What survives**: every conclusion below. Marginal cost is derived entirely
+within the workspace-census cohort, and step 1a's −3.787s is self-baselined —
+the same scaled census on both sides of the A/B, per `FR-010`. The census
+mismatch invalidates the *comparison to 91.5s*, nothing else.
+
+**What to fix before the next measurement**: use the workspace census, so
+results join the existing cohort instead of starting a new one.
 
 ### Marginal cost is ~1.5–1.75s per command, not 2–4s
 
@@ -100,10 +123,13 @@ class of surprise 1b hit) is not worth attempting for the same reason.
 The seconds are the smaller half.
 
 1. **#519's premise is corrected.** Startup is not a 43.2s pool waiting to be
-   drained; the recoverable marginal cost is ~1.5–1.75s per command. The
-   remaining invocation-collapse ceiling is **~9s, not ~30s**.
-2. **A phantom baseline is retired**, and the real one (102.7s across 18 runs)
-   is recorded for whoever measures next.
+   drained; the recoverable marginal cost is ~1.5–1.75s per command, measured
+   across the 38 → 30 → 20 cohorts. The remaining invocation-collapse ceiling is
+   **~9s, not ~30s**.
+2. **A measurement-method trap is documented**: the reference census must be
+   the workspace census, not a synthetic scale-up, or results cannot be compared
+   to any prior run. This feature tripped it and nearly drew the wrong
+   conclusion from it.
 3. **A dormant test on a critical foundation model** is filed as #533.
 4. **A genuinely redundant build is gone**, worth 3.787s with clean parity.
 5. **A reusable all-marts parity driver** (`scripts/parity_gate.py`) now exists,
