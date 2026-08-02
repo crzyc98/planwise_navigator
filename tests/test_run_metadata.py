@@ -176,6 +176,7 @@ class TestTableLifecycle:
             "param_pack_id",
             "param_pack_fingerprint",
             "param_pack_source_digest",
+            "backtest_score_ref",
         }
 
     def test_second_stamp_appends_and_retains_first(self, db_manager, minimal_config):

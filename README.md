@@ -216,6 +216,8 @@ planalign simulate 2025-2027                      # Multi-year simulation
 planalign simulate 2025 --dry-run                 # Preview execution plan
 planalign simulate 2025 --verbose                 # Detailed logging
 planalign calibrate 2025-2029 --database iso.duckdb   # Fast comp-only calibration
+planalign fit data/history --output var/param_packs/client-fit  # Fit census history
+planalign backtest data/history --output var/param_packs/client-score  # Holdout scorecard
 planalign batch --scenarios baseline high_growth  # Batch scenarios with isolation
 planalign batch --export-format excel --clean     # Excel export with metadata
 planalign analyze                                 # Results analysis in the terminal

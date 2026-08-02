@@ -23,6 +23,19 @@ Versioning semantics (SemVer) and the full bump procedure live in [docs/VERSIONI
 
 ## Unreleased
 
+### Added
+
+- **Feature 131 — backtest scorecards:** `planalign backtest` fits parameter
+  packs on early census snapshots only, simulates held-out years across
+  isolated seed runs, and emits deterministic Markdown/JSON scorecards with
+  thresholds, seed spread, observability, and an auditable provenance chain.
+  Predicted and actual are held to one definition on both sides: terminations
+  count the experienced cohort, by-level headcount is band-derived from
+  compensation, and employer-match cost is reported as not observable rather
+  than inferred from an assumed formula. The harness self-test backtests
+  history the simulator itself produced, so a residual error is attributable
+  to the harness rather than to configuration divergence.
+
 ### Changed
 
 - **Feature 122 — state pipeline redesign:** managed API/Studio attempts now use

@@ -103,6 +103,28 @@ class SnapshotSet:
     def supports(self, column: str) -> bool:
         return column in self.common_columns()
 
+    def subset(self, years: Sequence[int]) -> "SnapshotSet":
+        """Return a validated subset containing exactly ``years``.
+
+        Unknown years are rejected before the ordinary set validation so a
+        caller can distinguish a typo from an invalid (gapped or too-small)
+        selection.
+        """
+        requested = tuple(years)
+        available = self.years
+        unknown = sorted(set(requested) - set(available))
+        if unknown:
+            raise SnapshotError(
+                "Requested snapshot year(s) "
+                f"{', '.join(str(year) for year in unknown)} are not available; "
+                f"requested {list(requested)}, available {list(available)}."
+            )
+        retained = tuple(
+            snapshot for snapshot in self.snapshots if snapshot.year in requested
+        )
+        _validate_set(retained)
+        return SnapshotSet(retained)
+
 
 def _sha256_file(path: Path) -> str:
     digest = hashlib.sha256()

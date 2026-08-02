@@ -42,6 +42,7 @@ EntryPoint = Literal[
     "parity",
     "invariant_test",
     "perf_harness",
+    "backtest",
 ]
 
 

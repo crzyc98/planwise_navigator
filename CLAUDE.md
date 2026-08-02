@@ -45,6 +45,7 @@ planalign health                                 # System readiness check
 planalign simulate 2025-2027                     # Multi-year simulation
 planalign calibrate 2025-2029 --database iso.duckdb  # Fast comp-only calibration (exact, ~3-5x faster)
 planalign fit data/history/                      # Fit hazards/behavior from census history (#458)
+planalign backtest data/history/                 # Score a fit against held-out history (#459)
 planalign batch --scenarios baseline high_growth # Batch processing
 planalign status --detailed                      # Full system diagnostic
 planalign validate                               # Validate simulation configuration
@@ -647,6 +648,20 @@ Key invariants:
 
 Full guide: `docs/guides/parameter_fitting.md`
 
+### **Backtest Scorecards (#459)**
+
+`planalign backtest <snapshots_dir>` holds out the latest one or two census
+years, fits on the earlier snapshots only, simulates the holdout across 1–5
+unique seeds, and writes human- and machine-readable scorecards beside the
+parameter pack. Every seed runs serially in an isolated database beneath
+`var/backtests/`; the command never opens `dbt/simulation.duckdb`.
+
+```bash
+planalign backtest data/history/ --output var/param_packs/acme-backtest
+```
+
+Full guide: `docs/guides/backtesting.md`
+
 ### **Fast Compensation Calibration (Feature 105)**
 
 `planalign calibrate <year-range>` rebuilds **only** the compensation/workforce dbt subgraph per year and reads the S051 growth mart, skipping the entire DC-plan stack (eligibility/enrollment/deferral/vesting/contributions/match). It reuses the validated comp math verbatim (E077 solver, mid-year proration, band-aware merit/COLA/promotion, `fct_compensation_growth`), so per-year avg comp and YoY growth are **exact** vs. a full simulation — the speedup (~3–5×) comes purely from building fewer models, not from approximation.
@@ -872,6 +887,8 @@ Current version: **2.2.0** ("Calibration") — managed in `_version.py` and `pyp
 - DuckDB. **No new tables and no schema change to any `fct_*` model.** One column added to the `config_irs_limits` seed; five audit columns added to the existing `int_employer_core_contributions` table materialization. (126-ss-integrated-core)
 - Python 3.11 + numpy ≥1.24 (already declared, `pyproject.toml:20`) for the EM inner loop; DuckDB (in-memory, already used by the fitter); no new dependencies (130-promotion-fit-bias)
 - None. `fit_parameter_pack` runs entirely in an in-memory DuckDB (`runner.py:66`) and never touches a simulation database, shared or isolated. Output is a parameter-pack directory. (130-promotion-fit-bias)
+- Python 3.11 + `planalign_fit` (#458 fitter, transitions, bands), `planalign_orchestrator` (`build_orchestrator`/`ConstructionSpec`, `run_metadata`), `duckdb` Python client, Typer + Rich (CLI), Pydantic v2 (scorecard models), PyYAML. No new third-party dependencies. (131-backtest-scorecard)
+- Isolated per-seed DuckDB files under `var/backtests/<run>/`; an in-memory DuckDB for actuals extraction. The shared `dbt/simulation.duckdb` is never opened. Artifacts are files under the parameter pack directory. (131-backtest-scorecard)
 
 ## Recent Changes
 - 099-tenure-graded-match: Added Python 3.11 (orchestrator/config/API), SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1, TypeScript/React (Studio UI) + Pydantic v2 (config validation), DuckDB 1.0.0 (storage/engine), FastAPI (workspace config API), React/Vite + Tailwind (Studio)
