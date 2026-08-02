@@ -21,6 +21,9 @@ from rich.table import Table
 
 console = Console()
 
+_LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1", "[::1]"}
+_WILDCARD_HOSTS = {"0.0.0.0", "::", "[::]"}
+
 
 def _repair_workspaces_on_startup() -> None:
     """
@@ -202,10 +205,45 @@ def _detect_lan_ip() -> str:
         return "localhost"
 
 
+def _resolve_bind_host(host: str | None) -> str:
+    """Resolve an explicit CLI host or the API's safe environment default."""
+    configured_host = (
+        host if host else os.environ.get("PLANALIGN_API_HOST", "127.0.0.1")
+    )
+    if configured_host == "auto":
+        return _detect_lan_ip()
+    return configured_host
+
+
+def _url_host(bind_host: str) -> str:
+    """Return a reachable, URL-safe host for a local browser."""
+    if bind_host in _WILDCARD_HOSTS:
+        bind_host = _detect_lan_ip()
+    if ":" in bind_host and not bind_host.startswith("["):
+        return f"[{bind_host}]"
+    return bind_host
+
+
+def _warn_for_unsafe_bind(bind_host: str) -> None:
+    """Display a prominent warning for unauthenticated network exposure."""
+    if bind_host in _LOOPBACK_HOSTS or os.environ.get("PLANALIGN_API_TOKEN"):
+        return
+    console.print(
+        Panel.fit(
+            "[bold red]SECURITY WARNING[/bold red]\n"
+            f"Studio is binding to [bold]{bind_host}[/bold] without "
+            "PLANALIGN_API_TOKEN.\n"
+            "Anyone who can reach this host can access workspace and simulation data.",
+            border_style="red",
+        )
+    )
+    console.print()
+
+
 def launch_studio(
     api_port: int = 8000,
     frontend_port: int = 5173,
-    host: str = "localhost",
+    host: str | None = None,
     api_only: bool = False,
     frontend_only: bool = False,
     no_browser: bool = False,
@@ -217,13 +255,14 @@ def launch_studio(
     Args:
         api_port: Port for the FastAPI backend (default: 8000)
         frontend_port: Port for the Vite dev server (default: 5173)
-        host: Hostname for display URLs (default: localhost). Use 'auto' to detect LAN IP.
+        host: Bind host override. Defaults to PLANALIGN_API_HOST or 127.0.0.1.
         api_only: Only start the API backend
         frontend_only: Only start the frontend
         no_browser: Don't open browser automatically
         verbose: Show detailed output from both servers
     """
-    display_host = _detect_lan_ip() if host == "auto" else host
+    bind_host = _resolve_bind_host(host)
+    display_host = _url_host(bind_host)
     # studio.py is at planalign_cli/commands/studio.py
     # Go up 3 levels: commands/ -> planalign_cli/ -> project_root/
     project_root = Path(__file__).parent.parent.parent
@@ -245,6 +284,8 @@ def launch_studio(
 
     # Display startup info
     console.print()
+
+    _warn_for_unsafe_bind(bind_host)
     console.print(
         Panel.fit(
             "[bold blue]PlanAlign Studio[/bold blue]\n"
@@ -272,6 +313,7 @@ def launch_studio(
             stderr = None if verbose else subprocess.DEVNULL
 
             api_env = os.environ.copy()
+            api_env["PLANALIGN_API_HOST"] = bind_host
             api_env["PLANALIGN_API_PORT"] = str(api_port)
 
             # On Windows, use planalign_api.run which sets ProactorEventLoop
@@ -296,7 +338,7 @@ def launch_studio(
                     "-m",
                     "planalign_api.run",
                     "--host",
-                    "0.0.0.0",
+                    bind_host,
                     "--port",
                     str(api_port),
                     *reload_args,
@@ -308,7 +350,7 @@ def launch_studio(
                     "uvicorn",
                     "planalign_api.main:app",
                     "--host",
-                    "0.0.0.0",
+                    bind_host,
                     "--port",
                     str(api_port),
                     *reload_args,
@@ -332,10 +374,10 @@ def launch_studio(
                 console.print("[red]API backend failed to start[/red]")
                 raise SystemExit(1)
 
+            console.print(f"[green]  API bound to {bind_host}:{api_port}[/green]")
             console.print(
-                f"[green]  API running at http://localhost:{api_port}[/green]"
+                f"[dim]    Docs: http://{display_host}:{api_port}/api/docs[/dim]"
             )
-            console.print(f"[dim]    Docs: http://localhost:{api_port}/api/docs[/dim]")
 
         # Start frontend
         if not api_only:
@@ -367,6 +409,12 @@ def launch_studio(
             frontend_env = os.environ.copy()
             frontend_env.pop("VITE_API_URL", None)
             frontend_env.pop("VITE_WS_URL", None)
+            frontend_env["PLANALIGN_API_HOST"] = bind_host
+            frontend_env["PLANALIGN_API_PORT"] = str(api_port)
+            frontend_env.setdefault(
+                "PLANALIGN_STUDIO_ALLOWED_HOSTS",
+                f"localhost,127.0.0.1,::1,{display_host.strip('[]')}",
+            )
 
             npm_cmd = _get_npm_command()
             frontend_process = subprocess.Popen(
@@ -378,7 +426,7 @@ def launch_studio(
                     "--port",
                     str(frontend_port),
                     "--host",
-                    "0.0.0.0",
+                    bind_host,
                 ],
                 cwd=str(frontend_dir),
                 env=frontend_env,
@@ -399,7 +447,7 @@ def launch_studio(
                 raise SystemExit(1)
 
             console.print(
-                f"[green]  Frontend running at http://localhost:{frontend_port}[/green]"
+                f"[green]  Frontend bound to {bind_host}:{frontend_port}[/green]"
             )
 
         # Display summary

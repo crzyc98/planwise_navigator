@@ -403,10 +403,13 @@ def studio(
     frontend_port: int = typer.Option(
         5173, "--frontend-port", help="Port for the frontend dev server"
     ),
-    host: str = typer.Option(
-        "localhost",
+    host: Optional[str] = typer.Option(
+        None,
         "--host",
-        help="Hostname for display URLs. Use 'auto' to detect LAN IP for server deployments.",
+        help=(
+            "Bind host override. Defaults to PLANALIGN_API_HOST or 127.0.0.1; "
+            "use 'auto' to detect the LAN IP."
+        ),
     ),
     api_only: bool = typer.Option(
         False, "--api-only", help="Only start the API backend"
