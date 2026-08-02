@@ -24,7 +24,11 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 
 from .config import get_settings
-from .auth import require_api_token, require_websocket_api_token
+from .auth import (
+    require_api_token,
+    require_websocket_api_token,
+    require_websocket_origin,
+)
 from .routers import (
     system_router,
     workspaces_router,
@@ -332,6 +336,8 @@ def create_app() -> FastAPI:
     @app.websocket("/ws/simulation/{run_id}")
     async def websocket_simulation(websocket: WebSocket, run_id: str):
         """WebSocket endpoint for simulation telemetry."""
+        if not await require_websocket_origin(websocket):
+            return
         if not await require_websocket_api_token(websocket):
             return
         await simulation_websocket(websocket, run_id)
@@ -339,6 +345,8 @@ def create_app() -> FastAPI:
     @app.websocket("/ws/batch/{batch_id}")
     async def websocket_batch(websocket: WebSocket, batch_id: str):
         """WebSocket endpoint for batch processing updates."""
+        if not await require_websocket_origin(websocket):
+            return
         if not await require_websocket_api_token(websocket):
             return
         await batch_websocket(websocket, batch_id)

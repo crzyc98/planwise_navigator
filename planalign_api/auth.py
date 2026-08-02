@@ -48,3 +48,14 @@ async def require_websocket_api_token(websocket: WebSocket) -> bool:
 
     await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
     return False
+
+
+async def require_websocket_origin(websocket: WebSocket) -> bool:
+    """Require a WebSocket handshake Origin allowed by the CORS configuration."""
+    origin = websocket.headers.get("origin")
+    allowed_origins = get_settings().cors_origins
+    if origin and ("*" in allowed_origins or origin in allowed_origins):
+        return True
+
+    await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+    return False
