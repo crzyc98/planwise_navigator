@@ -180,7 +180,7 @@ class WorkflowBuilder:
                 name=WorkflowStage.INITIALIZATION,
                 dependencies=[],
                 models=initialization_models,
-                validation_rules=["data_freshness_check"],
+                validation_rules=[],
             ),
             StageDefinition(
                 name=WorkflowStage.FOUNDATION,
@@ -308,7 +308,7 @@ class WorkflowBuilder:
                 name=WorkflowStage.INITIALIZATION,
                 dependencies=[],
                 models=initialization_models,
-                validation_rules=["data_freshness_check"],
+                validation_rules=[],
             ),
             StageDefinition(
                 name=WorkflowStage.FOUNDATION,

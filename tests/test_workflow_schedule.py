@@ -50,6 +50,22 @@ def test_start_year_command_count() -> None:
     assert setup_commands + len(_stage_models(START_YEAR)) < 8
 
 
+@pytest.mark.parametrize(
+    "builder",
+    [
+        WorkflowBuilder.build_year_workflow,
+        WorkflowBuilder.build_calibration_year_workflow,
+    ],
+)
+def test_initialization_has_no_undeployed_validation_rules(builder) -> None:
+    workflow = builder(START_YEAR, START_YEAR)
+    initialization = next(
+        stage for stage in workflow if stage.name is WorkflowStage.INITIALIZATION
+    )
+
+    assert initialization.validation_rules == []
+
+
 def test_no_model_built_twice_per_year() -> None:
     selected = [model for models in _stage_models(START_YEAR) for model in models]
     duplicates = {model for model, count in Counter(selected).items() if count > 1}
