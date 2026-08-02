@@ -1239,7 +1239,7 @@ models:
           - not_null
 
       - name: job_level
-        description: Job level (1-5) for which this parameter applies
+        description: Integer job level (1-5) for which this parameter applies
         data_tests:
           - not_null
           - dbt_utils.accepted_range:

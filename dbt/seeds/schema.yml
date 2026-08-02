@@ -23,7 +23,7 @@ seeds:
       column_types:
         scenario_id: varchar
         fiscal_year: integer
-        job_level: varchar
+        job_level: integer
         event_type: varchar
         parameter_name: varchar
         parameter_value: decimal(10,4)
