@@ -134,3 +134,54 @@ python -m scripts.perf_profile.build_production_report --campaign-id prod-455
 Campaign `prod-455`: started 2026-07-20T17:29:48.072525+00:00, finished 2026-07-20T17:54:39.826986+00:00; shared dev DB unchanged: **True** (SC-007).
 
 Warm samples consumed: reference-factory-custom-1.json, reference-factory-custom-2.json, reference-factory-custom-3.json, reference-wrapper-custom-1.json, reference-wrapper-custom-2.json, reference-wrapper-custom-3.json, studio-wrapper-custom-1.json, studio-wrapper-custom-2.json, studio-wrapper-custom-3.json.
+
+---
+
+## 8. Addendum — Feature 132 (#519) correction, 2026-08-02
+
+Feature 132 re-measured the production path and **corrected two figures that
+earlier planning treated as settled**. Anyone sizing invocation work should read
+this section before the ones above.
+
+### Always measure with the workspace census
+
+Of 71 recorded 60k runs, **49 use the workspace census**
+(`workspaces/1497b19c-.../data/census.parquet`) and 9 use a synthetic 8×
+scale-up of the 7,505-row dev census. Same row count, different distributions,
+therefore different event volumes and different SQL time — **results from the
+two are not comparable.**
+
+Feature 132 generated a scaled census, measured 103.576s, and briefly concluded
+that #519's 91.5s baseline was wrong. It was not: 91.5s came from the #516 fix
+session (2026-07-30, workspace census, 117.7s → 91.5s at 28 → 20 invocations).
+The two numbers describe different workloads.
+
+Workspace-census cohort medians, for anyone joining the series:
+
+| Invocations | n | Median | Range |
+|---|---:|---:|---|
+| 38 (pre-#478) | 6 | 131.9s | 129.9–134.1 |
+| 30 (post-#478) | 17 | 120.2s | 116.3–127.9 |
+| 20 (post-#516/#518) | ~15 | ~100s | 97.1–106.8 |
+
+#519's 91.5s sits below that 20-invocation range, so treat it as optimistic
+rather than typical — but do not treat it as fabricated.
+
+### Marginal cost is ~1.5–1.75s per command, not 2–4s
+
+From the two invocation-count changes already on record:
+
+- 38 → 30 (8 removed): 131.9 → 120.2 = **1.46s/command**
+- 30 → 20 (10 removed): 120.2 → 102.7 = **1.75s/command**
+
+The "startup" metric reported in these profiles — dbt wall minus summed model
+execution — is **not** the recoverable amount. It sweeps in parse, adapter init,
+and catalog work that does not disappear when commands merge. Dividing it by
+command count overstates the prize by roughly 2×.
+
+**Consequence**: the remaining invocation-collapse ceiling is **~9s**, not the
+~30s #519 projected. Feature 132 shipped one step (20 → 19 commands, −3.787s,
+all-marts parity clean) and stopped; the larger addressable block is now the
+~17s of orchestrator Python (#521).
+
+Full reasoning: `specs/132-collapse-dbt-invocations/evidence/decision-log.md`.
