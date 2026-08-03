@@ -11,12 +11,17 @@ import pytest
 
 from planalign_orchestrator.change_validation import (
     BuildMetrics,
+    ChangeValidationError,
     ScaleResult,
     ValidationResult,
+    _assert_comparable_configs,
     _parse_horizon,
     compare_marts_detailed,
 )
-from planalign_orchestrator.state_pipeline_validation import ExclusionEntry
+from planalign_orchestrator.state_pipeline_validation import (
+    CharacterizationRecord,
+    ExclusionEntry,
+)
 
 
 def _ok_build(count=30):
@@ -201,3 +206,98 @@ def test_detailed_parity_rejects_exclusion_for_unknown_column(tmp_path):
                 )
             ],
         )
+
+
+# --------------------------------------------------------------------------- #
+# Config-fingerprint precondition (#520)
+# --------------------------------------------------------------------------- #
+SHA_A = "a" * 64
+SHA_B = "b" * 64
+
+
+def _characterization(recorded_config_fingerprint):
+    aggregate = {"mart_row_counts": {}}
+    if recorded_config_fingerprint is not None:
+        aggregate["recorded_config_fingerprint"] = recorded_config_fingerprint
+    return CharacterizationRecord(
+        baseline_id="f122-ab-test",
+        code_fingerprint=SHA_A,
+        normalized_config_fingerprint=SHA_A,
+        census_fingerprint=SHA_A,
+        seed_fingerprint=SHA_A,
+        construction_fingerprint=SHA_A,
+        database_fingerprint=SHA_A,
+        horizon=(2025, 2029),
+        census_rows=60040,
+        aggregate=aggregate,
+    )
+
+
+def _database_with_config(path: Path, fingerprint) -> Path:
+    statements = [
+        "CREATE TABLE run_metadata (run_timestamp TIMESTAMP, config_fingerprint VARCHAR)"
+    ]
+    if fingerprint is not None:
+        statements.append(
+            "INSERT INTO run_metadata VALUES "
+            f"(TIMESTAMP '2026-01-01 00:00:00', '{fingerprint}')"
+        )
+    return _database(path, statements)
+
+
+def test_matching_config_fingerprints_are_comparable(tmp_path):
+    _assert_comparable_configs(
+        _characterization(SHA_A),
+        _database_with_config(tmp_path / "baseline.duckdb", SHA_A),
+        _database_with_config(tmp_path / "candidate.duckdb", SHA_A),
+    )
+
+
+def test_cross_config_comparison_is_refused_not_reported_as_a_difference(tmp_path):
+    """A candidate built under a different config cannot be compared at all.
+
+    Event counts are config-dominated (#520: a 142,592-event swing from config
+    alone), so the diff would be meaningless rather than merely failing.
+    """
+    with pytest.raises(ChangeValidationError, match="different config"):
+        _assert_comparable_configs(
+            _characterization(SHA_A),
+            _database_with_config(tmp_path / "baseline.duckdb", SHA_A),
+            _database_with_config(tmp_path / "candidate.duckdb", SHA_B),
+        )
+
+
+def test_baseline_built_under_a_different_config_is_also_refused(tmp_path):
+    with pytest.raises(ChangeValidationError, match="baseline database"):
+        _assert_comparable_configs(
+            _characterization(SHA_A),
+            _database_with_config(tmp_path / "baseline.duckdb", SHA_B),
+            _database_with_config(tmp_path / "candidate.duckdb", SHA_A),
+        )
+
+
+def test_unrecorded_config_is_refused_rather_than_assumed_to_match(tmp_path):
+    with pytest.raises(ChangeValidationError, match="recorded no run_metadata"):
+        _assert_comparable_configs(
+            _characterization(SHA_A),
+            _database_with_config(tmp_path / "baseline.duckdb", SHA_A),
+            _database_with_config(tmp_path / "candidate.duckdb", None),
+        )
+
+
+def test_missing_run_metadata_table_is_refused(tmp_path):
+    with pytest.raises(ChangeValidationError, match="recorded no run_metadata"):
+        _assert_comparable_configs(
+            _characterization(SHA_A),
+            _database_with_config(tmp_path / "baseline.duckdb", SHA_A),
+            _database(tmp_path / "candidate.duckdb", []),
+        )
+
+
+def test_characterization_without_a_recorded_config_cannot_gate(tmp_path):
+    """Pre-#520 characterizations recorded no config; there is nothing to compare."""
+    _assert_comparable_configs(
+        _characterization(None),
+        _database(tmp_path / "baseline.duckdb", []),
+        _database(tmp_path / "candidate.duckdb", []),
+    )
