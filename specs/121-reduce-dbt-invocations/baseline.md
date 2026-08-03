@@ -121,9 +121,33 @@ the classic scale-dependent trap (§8 of CLAUDE.md):
 | invocation_count | 30 | 20 | −10 |
 | warm wall (median-of-3) | 119.55 s | 181.81 s | **+52% SLOWER** ❌ |
 | peak RSS | 1265 MiB | 1474 MiB | **+18%** (over ceiling) ❌ |
-| fct_yearly_events rows | **645,130** (known-good) | 617,382 | **−27,748 events — WRONG** ❌ |
-| fct_employer_match_events | 260,784 | 234,807 | −25,977 ❌ |
+| fct_yearly_events rows | 645,130 | 617,382 | −27,748 events — ⚠️ see correction below |
+| fct_employer_match_events | 260,784 | 234,807 | −25,977 — ⚠️ see correction below |
 | fct_workforce_snapshot parity | — | 50,315 rows differ | **content mismatch** ❌ |
+
+> **Correction (2026-08-03, issue #520).** The two event-count rows above are **not
+> valid evidence** and originally read "645,130 (known-good)" / "617,382 — WRONG".
+> The counts were not produced under a common config: the baseline side is the frozen
+> A+B database captured under its own config, while the candidate was built with the
+> live Studio scenario config. Event counts are **config-dominated** — #520 measured a
+> 142,592-event swing from config alone on identical code and census, over 5× this
+> −27,748 — so a cross-config count difference says nothing about the change under
+> test. The candidate's 617,382 is exactly what the Studio config yields on current
+> `main`, which is what one expects if the config, not Tier C, produced the delta.
+>
+> **The Tier C rejection still stands.** It rests on the `fct_workforce_snapshot`
+> content mismatch (50,315 rows differ), the +52% wall regression, and the +18% RSS
+> overrun — all measured within the run pair and none of them config artifacts. The
+> root cause below (the load-bearing `--full-refresh`) is also unaffected. Only the
+> "known-good / WRONG" framing of the count rows was wrong.
+>
+> Feature 122 later collapsed STATE_ACCUMULATION to one command per year (20
+> invocations) **with** exact frozen-baseline parity, confirming the collapse was
+> achievable — Tier C's implementation of it, not its objective, was the defect.
+>
+> `run_frozen_validation` now refuses to compare databases whose recorded
+> `run_metadata.config_fingerprint` differs, so this class of false signal cannot
+> recur.
 
 **Initial root-cause finding:** the `--full-refresh` is **load-bearing, not redundant.**
 Without it, `int_workforce_snapshot_optimized` (incremental `delete+insert`)

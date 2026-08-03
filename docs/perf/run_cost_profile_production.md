@@ -26,10 +26,28 @@ The original Feature 116 campaign built the orchestrator through `planalign_orch
 
 Warm-rep medians (a cold rep 0 is discarded):
 
-| Config | Warm reps | Events | Invocations | Wall median (min–max) | CPU | Peak RSS |
-|---|---|---:|---:|---|---:|---:|
-| reference | 3 | 759,974 | 38 | 132.1s (131.8s–135.0s) | 155.7s | 1296 MiB |
-| studio | 3 | 645,130 | 38 | 132.0s (130.7s–133.7s) | 151.7s | 1284 MiB |
+| Config | Config identity | Warm reps | Events | Invocations | Wall median (min–max) | CPU | Peak RSS |
+|---|---|---|---:|---:|---|---:|---:|
+| reference | `config/simulation_config.yaml` @ `3d169cc3` | 3 | 759,974 | 38 | 132.1s (131.8s–135.0s) | 155.7s | 1296 MiB |
+| studio | Studio scenario config as of `3d169cc3` (mutable; not recoverable) | 3 | 645,130 | 38 | 132.0s (130.7s–133.7s) | 151.7s | 1284 MiB |
+
+> **Scope note (2026-08-03, issue #520).** These rows are **scoped to the config that
+> produced them** and are not comparable to later measurements. Event count is
+> config-dominated: #520 measured a 142,592-event swing from config alone on identical
+> code and census. Two consequences:
+>
+> - The `reference` row reproduces exactly — the same config yielded 759,974 again at
+>   the Feature 122 tip, across a code generation that also changed the invocation
+>   count. That is a clean cross-version parity datapoint.
+> - The `studio` row's 645,130 does **not** reproduce. Studio scenario configs live
+>   under `workspaces/` and are mutable; the one measured here has since been edited.
+>   Today's Studio config yields 617,382 on `main`. Nothing regressed — the input
+>   changed.
+>
+> Do **not** overwrite these 38-invocation timings with later 20-invocation
+> measurements; they describe different schedules under different configs. Add new
+> rows with their own config identity instead. Current figures for the Studio config on
+> `main`: 617,382 events, 351,243 snapshots, 20 invocations, 91.5s.
 
 ## 2. Where the time goes (decomposition, warm medians)
 

@@ -535,6 +535,53 @@ class FrozenValidationResult:
         )
 
 
+def _recorded_config_fingerprint(database: Path) -> Optional[str]:
+    """Latest ``run_metadata.config_fingerprint`` in a database, if it recorded one."""
+    try:
+        with duckdb.connect(str(database), read_only=True) as connection:
+            row = connection.execute(
+                "SELECT config_fingerprint FROM run_metadata "
+                "ORDER BY run_timestamp DESC LIMIT 1"
+            ).fetchone()
+    except duckdb.Error:
+        return None
+    return row[0] if row and row[0] else None
+
+
+def _assert_comparable_configs(
+    characterization: CharacterizationRecord,
+    baseline_db: Path,
+    candidate_db: Path,
+) -> None:
+    """Refuse to compare runs produced by different effective configs.
+
+    Mart parity is only meaningful within one config. The event count is
+    *config-dominated* — issue #520 measured a 142,592-event swing from config
+    alone on identical code and census — so comparing across configs reports a
+    difference that says nothing about the change under test. Feature 121's
+    Tier C was rejected partly on such a comparison (its independent snapshot
+    and RSS failures stood on their own). This is a precondition, not a parity
+    failure: it raises rather than appending to ``failures``.
+    """
+    expected = characterization.aggregate.get("recorded_config_fingerprint")
+    if not expected:
+        return  # pre-#520 characterizations recorded no config; nothing to gate on
+    for label, database in (("baseline", baseline_db), ("candidate", candidate_db)):
+        actual = _recorded_config_fingerprint(database)
+        if actual is None:
+            raise ChangeValidationError(
+                f"{label} database recorded no run_metadata.config_fingerprint, so it "
+                f"cannot be shown to share the config of baseline "
+                f"{characterization.baseline_id}; refusing to compare"
+            )
+        if actual != expected:
+            raise ChangeValidationError(
+                f"{label} database was produced under a different config than baseline "
+                f"{characterization.baseline_id} (expected {expected[:12]}, got "
+                f"{actual[:12]}); refusing to compare — see issue #520"
+            )
+
+
 def run_frozen_validation(
     *,
     repo_root: Path,
@@ -560,6 +607,7 @@ def run_frozen_validation(
     characterization = CharacterizationRecord.model_validate_json(
         characterization_path.read_text(encoding="utf-8")
     )
+    _assert_comparable_configs(characterization, baseline_db, candidate_db)
     baseline_report = verify_characterization_database(baseline_db, characterization)
     marts = discover_marts(dbt_dir)
     manifest = load_exclusion_manifest(exclusions_path, known_relations=set(marts))

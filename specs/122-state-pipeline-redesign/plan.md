@@ -19,7 +19,7 @@ Before changing pipeline behavior, make Studio/API simulation attempts truly iso
 **Project Type**: Python orchestrator/CLI/API plus dbt analytics project and a React Studio client
 **Performance Goals**: One STATE_ACCUMULATION invocation per year; one execution of each publication model per year; whole-run invocation count measured as evidence with no fixed-total acceptance threshold; peak RSS no more than 110% of a freshly characterized A+B baseline; at least 95% of representative scenario reads complete within two seconds both while idle and while serving the latest success during an active run
 **Constraints**: Exact public schema, deterministic IDs/sequences, row multiplicity, and unexcluded output parity; SQL-only active pipeline; newly allocated run database for every Studio/API attempt; prior databases and `dbt/simulation.duckdb` remain byte-unchanged; no PII or golden DuckDB files committed; no command boundary removed before its phase gate passes
-**Scale/Scope**: Authoritative validation at 60,040 employees over 2025–2029 (accepted baseline approximately 645,130 yearly events and 351,243 workforce snapshots), plus reference/synthetic edge workloads and all dbt marts selected from the `marts` path
+**Scale/Scope**: Authoritative validation at 60,040 employees over 2025–2029 (accepted baseline approximately 645,130 yearly events and 351,243 workforce snapshots **under the frozen A+B config `f122-ab-c6ad648`** — the event count is config-dependent and only meaningful alongside that baseline's `recorded_config_fingerprint`; see issue #520), plus reference/synthetic edge workloads and all dbt marts selected from the `marts` path
 
 ## Constitution Check
 
