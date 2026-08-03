@@ -390,20 +390,29 @@ def _append_record(
 
 def _evolve_provenance_schema(conn) -> None:
     """Idempotently add construction columns and the terminal record table."""
-    for name in (
-        "construction_signature_hash",
-        "initialization_policy",
-        "entry_point",
-        "runner_kind",
+    provenance_columns = (
+        ("construction_signature_hash", "VARCHAR"),
+        ("initialization_policy", "VARCHAR"),
+        ("entry_point", "VARCHAR"),
+        ("runner_kind", "VARCHAR"),
         # Issue #458: which fitted parameter pack (if any) produced this run's
         # hazards and behavioural parameters.
-        "param_pack_id",
-        "param_pack_fingerprint",
-        "param_pack_source_digest",
-        "backtest_score_ref",
-    ):
+        ("param_pack_id", "VARCHAR"),
+        ("param_pack_fingerprint", "VARCHAR"),
+        ("param_pack_source_digest", "VARCHAR"),
+        ("backtest_score_ref", "VARCHAR"),
+        # Feature 133: aggregate-level seed-ensemble provenance. These stay
+        # nullable for ordinary single-run records and are evolved additively.
+        ("ensemble_id", "VARCHAR"),
+        ("ensemble_seed_list", "VARCHAR"),
+        ("ensemble_seed_count", "INTEGER"),
+        ("ensemble_role", "VARCHAR"),
+        ("ensemble_frozen_subsystem", "VARCHAR"),
+        ("ensemble_member_paths", "VARCHAR"),
+    )
+    for name, column_type in provenance_columns:
         conn.execute(
-            f"ALTER TABLE {RUN_METADATA_TABLE} ADD COLUMN IF NOT EXISTS {name} VARCHAR"
+            f"ALTER TABLE {RUN_METADATA_TABLE} ADD COLUMN IF NOT EXISTS {name} {column_type}"
         )
     conn.execute(_CREATE_EXECUTION_TABLE_SQL)
     # Feature 119 deployed the first eleven fields. Early Feature 120 builds

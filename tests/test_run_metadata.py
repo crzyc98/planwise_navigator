@@ -177,6 +177,13 @@ class TestTableLifecycle:
             "param_pack_fingerprint",
             "param_pack_source_digest",
             "backtest_score_ref",
+            # Feature 133: nullable for ordinary single-run records.
+            "ensemble_id",
+            "ensemble_seed_list",
+            "ensemble_seed_count",
+            "ensemble_role",
+            "ensemble_frozen_subsystem",
+            "ensemble_member_paths",
         }
 
     def test_second_stamp_appends_and_retains_first(self, db_manager, minimal_config):

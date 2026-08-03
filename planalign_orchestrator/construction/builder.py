@@ -156,6 +156,7 @@ def build_orchestrator(spec: ConstructionSpec) -> ConstructionResult:
             verbose=spec.verbose,
             start_year=spec.config.simulation.start_year,
             dbt_vars=to_dbt_vars(spec.config),
+            lock_name=spec.initialization_lock_name,
             # The canonical seam runs self-healing against a potentially EMPTY
             # database (the fresh-DB initialization contract), so it performs a
             # full cold seed+staging+FOUNDATION build, not the quick missing-table

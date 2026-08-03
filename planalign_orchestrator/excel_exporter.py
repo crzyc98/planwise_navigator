@@ -23,6 +23,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
+import duckdb
 import pandas as pd
 
 from planalign_core.constants import (
@@ -94,6 +95,7 @@ class ExcelExporter:
         seed: int,
         export_format: str = "excel",
         split_by_year: Optional[bool] = None,
+        ensemble_db_path: Optional[Path] = None,
     ) -> Path:
         """Export complete scenario results to Excel workbook or CSV files.
 
@@ -104,6 +106,7 @@ class ExcelExporter:
             seed: Random seed used for the simulation
             export_format: Export format ('excel' or 'csv')
             split_by_year: Force splitting by year (auto-determined if None)
+            ensemble_db_path: Optional dedicated ensemble aggregate database.
 
         Returns:
             Path to the main export file or directory
@@ -114,10 +117,27 @@ class ExcelExporter:
 
         output_dir.mkdir(parents=True, exist_ok=True)
 
+        # ``--discard-seed-dbs`` intentionally leaves the aggregate database as
+        # the only ensemble artifact. Do not open the missing primary path in
+        # that case: DuckDB would create an empty file merely to discover that
+        # there is no workforce mart to export.
+        if (
+            ensemble_db_path is not None
+            and export_format.lower() == "excel"
+            and not self.db_manager.db_path.exists()
+        ):
+            return self._create_ensemble_only_export(
+                scenario_name, output_dir, ensemble_db_path
+            )
+
         with self.db_manager.get_connection() as conn:
             # Check if workforce snapshot table exists
             table_exists = self._check_table_exists(conn, TABLE_FCT_WORKFORCE_SNAPSHOT)
             if not table_exists:
+                if ensemble_db_path is not None and export_format.lower() == "excel":
+                    return self._create_ensemble_only_export(
+                        scenario_name, output_dir, ensemble_db_path
+                    )
                 logger.warning(
                     "fct_workforce_snapshot table not found, creating minimal export"
                 )
@@ -142,7 +162,14 @@ class ExcelExporter:
                 )
             else:
                 return self._export_excel(
-                    scenario_name, output_dir, conn, config, seed, split, total_rows
+                    scenario_name,
+                    output_dir,
+                    conn,
+                    config,
+                    seed,
+                    split,
+                    total_rows,
+                    ensemble_db_path=ensemble_db_path,
                 )
 
     def _check_table_exists(self, conn, table_name: str) -> bool:
@@ -305,6 +332,8 @@ class ExcelExporter:
         seed: int,
         split: bool,
         total_rows: int,
+        *,
+        ensemble_db_path: Optional[Path] = None,
     ) -> Path:
         """Export scenario results to Excel workbook.
 
@@ -351,7 +380,91 @@ class ExcelExporter:
             df_metadata.to_excel(writer, sheet_name="Metadata", index=False)
             self._format_worksheet(writer.book["Metadata"])
 
+            self._write_ensemble_sheets(writer, ensemble_db_path)
+
         return excel_path
+
+    def _create_ensemble_only_export(
+        self, scenario_name: str, output_dir: Path, ensemble_db_path: Path
+    ) -> Path:
+        """Export a valid aggregate-only workbook when no single-run mart exists."""
+        excel_path = output_dir / f"{scenario_name}_results.xlsx"
+        distributions = self._read_ensemble_distributions(ensemble_db_path)
+        with pd.ExcelWriter(excel_path, engine="openpyxl") as writer:
+            if distributions is None:
+                pd.DataFrame(
+                    {"message": ["Simulation completed but no data tables found"]}
+                ).to_excel(writer, sheet_name="Status", index=False)
+                self._format_worksheet(writer.book["Status"])
+            else:
+                distributions = self._sanitize_for_excel(distributions)
+                distributions.to_excel(
+                    writer, sheet_name="Metric_Distributions", index=False
+                )
+                self._format_worksheet(writer.book["Metric_Distributions"])
+        return excel_path
+
+    def _write_ensemble_sheets(self, writer, ensemble_db_path: Optional[Path]) -> None:
+        """Add the completed ensemble's distribution sheet.
+
+        Variance attribution is deliberately excluded from the client-facing
+        workbook: it is a single-anchor conditional variance change, not a
+        decomposition, and a spreadsheet strips the caveats that make it readable.
+        The evidence stays queryable in `fct_variance_attribution`.
+        """
+        distributions = self._read_ensemble_distributions(ensemble_db_path)
+        if distributions is not None:
+            distributions = self._sanitize_for_excel(distributions)
+            distributions.to_excel(
+                writer, sheet_name="Metric_Distributions", index=False
+            )
+            self._format_worksheet(writer.book["Metric_Distributions"])
+
+    @staticmethod
+    def _read_ensemble_distributions(
+        ensemble_db_path: Optional[Path],
+    ) -> Optional[pd.DataFrame]:
+        """Read aggregate values through a short-lived read-only connection."""
+        if ensemble_db_path is None or not ensemble_db_path.exists():
+            return None
+        with duckdb.connect(str(ensemble_db_path), read_only=True) as conn:
+            present = conn.execute(
+                "SELECT 1 FROM information_schema.tables "
+                "WHERE table_schema = 'main' AND table_name = ? LIMIT 1",
+                ["fct_metric_distributions"],
+            ).fetchone()
+            if present is None:
+                return None
+            return conn.execute(
+                "SELECT metric, simulation_year, p10, p25, p50, p75, p90, "
+                "mean, stddev, n_seeds, n_seeds_requested, is_sufficient, "
+                "percentile_method FROM fct_metric_distributions "
+                "ORDER BY metric, simulation_year"
+            ).df()
+
+    @staticmethod
+    def _read_ensemble_attribution(
+        ensemble_db_path: Optional[Path],
+    ) -> Optional[pd.DataFrame]:
+        """Read attribution evidence when the ensemble completed that opt-in step."""
+        if ensemble_db_path is None or not ensemble_db_path.exists():
+            return None
+        with duckdb.connect(str(ensemble_db_path), read_only=True) as conn:
+            present = conn.execute(
+                "SELECT 1 FROM information_schema.tables "
+                "WHERE table_schema = 'main' AND table_name = ? LIMIT 1",
+                ["fct_variance_attribution"],
+            ).fetchone()
+            if present is None:
+                return None
+            return conn.execute(
+                "SELECT subsystem, metric, simulation_year, variance_share, "
+                "baseline_variance, frozen_variance, n_seeds, baselines_reused, "
+                "baselines_executed, stochastic_status "
+                "FROM fct_variance_attribution "
+                "ORDER BY metric, simulation_year, stochastic_status, "
+                "variance_share DESC NULLS LAST, subsystem"
+            ).df()
 
     def _write_workforce_sheets(self, writer, conn, split: bool) -> None:
         """Write workforce snapshot data to Excel sheets.

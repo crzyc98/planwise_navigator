@@ -86,7 +86,7 @@ workforce_with_ranking AS (
     SELECT
         w.*,
         -- Deterministic hash (no floating point)
-        HASH(w.employee_id || '|' || {{ simulation_year }} || '|TERMINATION|{{ var('random_seed', 42) }}') % 1000000 AS selection_hash
+        HASH(w.employee_id || '|' || {{ simulation_year }} || '|TERMINATION|{{ subsystem_seed('termination') }}') % 1000000 AS selection_hash
     FROM workforce_with_bands w
 ),
 
@@ -98,7 +98,7 @@ final_experienced_terminations AS (
         'termination' AS event_type,
         {{ simulation_year }} AS simulation_year,
         -- E022 FIX: Use hire_date as lower bound for termination date
-        {{ generate_termination_date('w.employee_id', simulation_year, 'w.employee_hire_date', var('random_seed', 42)) }} AS effective_date,
+        {{ generate_termination_date('w.employee_id', simulation_year, 'w.employee_hire_date', subsystem_seed('termination')) }} AS effective_date,
         'deterministic_termination' AS termination_reason,
         w.employee_gross_compensation AS final_compensation,
         w.current_age,
@@ -107,7 +107,7 @@ final_experienced_terminations AS (
         -- E022 FIX: Use hire_date-constrained termination date
         {{ calculate_tenure(
             'w.employee_hire_date',
-            generate_termination_date('w.employee_id', simulation_year, 'w.employee_hire_date', var('random_seed', 42))
+            generate_termination_date('w.employee_id', simulation_year, 'w.employee_hire_date', subsystem_seed('termination'))
         ) }} AS current_tenure,
         w.level_id,
         w.age_band,

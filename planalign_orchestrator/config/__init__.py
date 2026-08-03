@@ -59,6 +59,12 @@ from .performance import (
     OptimizationSettings,
 )
 
+# Seed-ensemble configuration
+from .ensemble import (
+    EnsembleSettings,
+    EnsembleThresholdSettings,
+)
+
 # Safety settings
 from .safety import (
     ProductionSafetySettings,
@@ -112,6 +118,9 @@ __all__ = [
     "EventGenerationSettings",
     "E068CThreadingSettings",
     "OptimizationSettings",
+    # Ensemble
+    "EnsembleSettings",
+    "EnsembleThresholdSettings",
     # Safety
     "ProductionSafetySettings",
     "OrchestrationConfig",

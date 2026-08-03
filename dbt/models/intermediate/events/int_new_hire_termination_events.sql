@@ -58,7 +58,7 @@ eligible_terminations AS (
             WHEN e.days_until_year_end < 1 THEN NULL  -- No time for any tenure
             WHEN e.days_until_year_end < 30 THEN 1    -- Late hire: min 1 day
             WHEN e.days_until_year_end < 90 THEN 30   -- Mid-year: min 30 days
-            ELSE 30 + (ABS(HASH(e.employee_id || '|MIN|{{ var('random_seed', 42) }}')) % 61)  -- Early: 30-90 random
+            ELSE 30 + (ABS(HASH(e.employee_id || '|MIN|{{ subsystem_seed('termination') }}')) % 61)  -- Early: 30-90 random
         END AS min_tenure_days,
         CASE
             -- No days remaining - cannot terminate this year
@@ -87,10 +87,10 @@ eligible_terminations AS (
                 + CAST(
                     CAST(
                         -- Random minimum: 30 + (0-60) = 30-90 days
-                        (30 + (ABS(HASH(e.employee_id || '|MIN|{{ var('random_seed', 42) }}')) % 61))
+                        (30 + (ABS(HASH(e.employee_id || '|MIN|{{ subsystem_seed('termination') }}')) % 61))
                         -- Plus additional random days within remaining window
                         + (CAST(SUBSTR(e.employee_id, -3) AS INTEGER)
-                           % GREATEST(1, e.days_until_year_end - (30 + (ABS(HASH(e.employee_id || '|MIN|{{ var('random_seed', 42) }}')) % 61)) + 1))
+                           % GREATEST(1, e.days_until_year_end - (30 + (ABS(HASH(e.employee_id || '|MIN|{{ subsystem_seed('termination') }}')) % 61)) + 1))
                         AS VARCHAR
                     ) || ' days' AS INTERVAL
                 )
@@ -115,7 +115,7 @@ valid_candidates AS (
 ranked_candidates AS (
     SELECT
         vc.*,
-        (HASH(vc.employee_id || '|' || {{ simulation_year }} || '|NH_TERM|{{ var('random_seed', 42) }}') % 1000000) / 1000000.0 AS random_value,
+        (HASH(vc.employee_id || '|' || {{ simulation_year }} || '|NH_TERM|{{ subsystem_seed('termination') }}') % 1000000) / 1000000.0 AS random_value,
         wn.new_hire_termination_rate AS termination_rate
     FROM valid_candidates vc
     CROSS JOIN workforce_needs wn
