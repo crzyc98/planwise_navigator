@@ -61,6 +61,9 @@ class ConstructionSpec(BaseModel):
     dbt_artifacts_dir: Path | None = None
     reports_dir: Path = Path("var/reports")
     initialization: InitializationPolicy = InitializationPolicy.NONE
+    # The default initializer mutex protects existing single-run behavior.
+    # Parallel isolated workers may supply a distinct name per target database.
+    initialization_lock_name: str | None = None
     execution_engine: ExecutionEngineOption = Field(
         default_factory=ExecutionEngineOption
     )

@@ -662,6 +662,41 @@ planalign backtest data/history/ --output var/param_packs/acme-backtest
 
 Full guide: `docs/guides/backtesting.md`
 
+### **Seed Ensembles (Feature 133)**
+
+`planalign simulate <years> --seeds N` runs N fully isolated seed worlds and
+writes a dedicated aggregate database under `var/ensembles/`. It reports
+linear P10/P50/P90 bands and optional threshold-exceedance probabilities.
+`--attribution` adds an **experimental, diagnostic-only** conditional variance
+measurement (see below) — it is not variance attribution.
+
+```bash
+planalign simulate 2025-2029 --seeds 25 --attribution --attribution-seeds 10
+```
+
+Key invariants:
+- **Isolation:** every seed uses its own database; aggregation opens completed
+  seed databases read-only, and `dbt/simulation.duckdb` is never an ensemble target.
+- **Evidence:** per-seed values remain alongside `fct_metric_distributions` so
+  published percentiles can be independently recomputed. Thin samples withhold
+  bands instead of presenting zeroes.
+- **Determinism is labelled, not banded:** a metric with zero spread across all
+  seeds (e.g. `active_headcount`, solved by the E077 growth solver) renders as
+  `deterministic` rather than five identical percentile columns.
+- **`--attribution` is EXPERIMENTAL and diagnostic-only.** It measures
+  `1 - Var(Y | subsystem seed = anchor) / Var(Y)` at a **single arbitrary
+  anchor**, which is not a variance decomposition. Conditional variance at one
+  anchor can legitimately exceed marginal variance, so results are never ranked,
+  always print raw pinned/unpinned variances and the anchor seed, and are
+  withheld from Excel exports (evidence stays in `fct_variance_attribution`).
+  Only termination, hiring, and promotion have independently seedable draws;
+  enrollment and merit render as `not stochastic`, never a misleading 0%.
+- **Cost:** the CLI declares its memory-bounded worker budget and all headline
+  plus frozen attribution runs before execution. Retained headline worlds are
+  reused only when seed and config fingerprint both match.
+
+Full guide: `docs/guides/seed_ensembles.md`
+
 ### **Fast Compensation Calibration (Feature 105)**
 
 `planalign calibrate <year-range>` rebuilds **only** the compensation/workforce dbt subgraph per year and reads the S051 growth mart, skipping the entire DC-plan stack (eligibility/enrollment/deferral/vesting/contributions/match). It reuses the validated comp math verbatim (E077 solver, mid-year proration, band-aware merit/COLA/promotion, `fct_compensation_growth`), so per-year avg comp and YoY growth are **exact** vs. a full simulation — the speedup (~3–5×) comes purely from building fewer models, not from approximation.
@@ -850,7 +885,7 @@ Project is feature-complete for MVP. All simulations use dbt/SQL-only path (Pola
 
 ## **13. Versioning**
 
-Current version: **2.3.0** (unreleased; last tagged release is v2.2.0 "Calibration") — managed in `_version.py` and `pyproject.toml`. See `/docs/VERSIONING_GUIDE.md` for the full update process and `/CHANGELOG.md` for history.
+Current version: **2.4.0** (unreleased; last tagged release is v2.2.0 "Calibration") — managed in `_version.py` and `pyproject.toml`. See `/docs/VERSIONING_GUIDE.md` for the full update process and `/CHANGELOG.md` for history.
 
 ## Active Technologies
 - Python 3.11 (orchestrator/config/API), SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1, TypeScript/React (Studio UI) + Pydantic v2 (config validation), DuckDB 1.0.0 (storage/engine), FastAPI (workspace config API), React/Vite + Tailwind (Studio) (099-tenure-graded-match)
@@ -891,6 +926,8 @@ Current version: **2.3.0** (unreleased; last tagged release is v2.2.0 "Calibrati
 - Isolated per-seed DuckDB files under `var/backtests/<run>/`; an in-memory DuckDB for actuals extraction. The shared `dbt/simulation.duckdb` is never opened. Artifacts are files under the parameter pack directory. (131-backtest-scorecard)
 - Python 3.11 (orchestrator only). SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1 — **no model file is modified by this feature**. + `planalign_orchestrator` internals — `WorkflowBuilder.build_year_workflow` (`pipeline/workflow.py`), `YearExecutor._run_parallel_or_single` / `_should_full_refresh_foundation` (`pipeline/year_executor.py`), `HazardCacheManager.rebuild_hazard_caches`, `PipelineOrchestrator._run_start_year_setup`, `DbtRunner.execute_command` (schedule recorder), `StageValidator`. Measurement via `scripts/perf_profile` (`make_large_census`, `run_matrix`, `dbt_timing`). (132-collapse-dbt-invocations)
 - DuckDB. Isolated per-run databases under `var/`; the shared `dbt/simulation.duckdb` is never built into. (132-collapse-dbt-invocations)
+- Python 3.11; SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1 (Jinja-templated `.sql`) + `planalign_orchestrator` (`ScenarioRunPool`, `ScenarioJob`, `resolve_worker_count`, `ConstructionSpec`/`build_orchestrator`, `run_metadata`, `excel_exporter`); NumPy ≥1.24 (percentiles — already declared); Typer + Rich (CLI); Pydantic v2 (config); `duckdb` Python clien (133-seed-ensemble-bands)
+- DuckDB. One database per seed plus one dedicated ensemble database per ensemble, under a timestamped directory in `var/ensembles/`. Per-seed databases are read-only inputs to aggregation and are never mutated after their run. The shared `dbt/simulation.duckdb` is never an ensemble target. (133-seed-ensemble-bands)
 
 ## Recent Changes
 - 099-tenure-graded-match: Added Python 3.11 (orchestrator/config/API), SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1, TypeScript/React (Studio UI) + Pydantic v2 (config validation), DuckDB 1.0.0 (storage/engine), FastAPI (workspace config API), React/Vite + Tailwind (Studio)

@@ -25,6 +25,21 @@ Versioning semantics (SemVer) and the full bump procedure live in [docs/VERSIONI
 
 ### Added
 
+- **Feature 133 — seed ensembles:** `planalign simulate --seeds N` now runs
+  isolated seed worlds and writes auditable linear percentile bands with
+  retained per-seed evidence, optional threshold-exceedance probabilities, and
+  workbook distribution exports. Metrics with zero spread across all seeds (for
+  example `active_headcount`, solved by the E077 growth solver) render as
+  `deterministic` rather than as identical percentile columns.
+
+  `--attribution` is included as **experimental and diagnostic-only**: it
+  measures conditional variance at a single arbitrary anchor seed, which is not
+  a variance decomposition and can legitimately report higher variance when a
+  subsystem is pinned. It is unranked, discloses its anchor and raw variances,
+  and is withheld from client-facing workbooks (evidence remains in
+  `fct_variance_attribution`). A defensible estimator is tracked in #543.
+  Enrollment and merit are labelled structurally not stochastic rather than 0%.
+
 - **Feature 131 — backtest scorecards:** `planalign backtest` fits parameter
   packs on early census snapshots only, simulates held-out years across
   isolated seed runs, and emits deterministic Markdown/JSON scorecards with

@@ -141,6 +141,31 @@ def simulate(
         "--params",
         help="Fitted parameter pack directory from `planalign fit`",
     ),
+    seeds: Optional[int] = typer.Option(
+        None, "--seeds", min=1, help="Run an isolated ensemble of N seeds"
+    ),
+    seed_list: Optional[str] = typer.Option(
+        None, "--seed-list", help="Comma-separated explicit ensemble seeds"
+    ),
+    attribution: bool = typer.Option(
+        False, "--attribution", help="Measure one-factor-at-a-time variance attribution"
+    ),
+    attribution_seeds: Optional[int] = typer.Option(
+        None, "--attribution-seeds", min=1, help="Headline seed subset for attribution"
+    ),
+    min_seeds: int = typer.Option(
+        10, "--min-seeds", min=1, help="Minimum successful seeds for bands"
+    ),
+    discard_seed_dbs: bool = typer.Option(
+        False,
+        "--discard-seed-dbs",
+        help="Discard per-seed databases after aggregate persistence",
+    ),
+    threshold: Optional[list[str]] = typer.Option(
+        None,
+        "--threshold",
+        help="Repeatable ensemble threshold in metric:value form",
+    ),
 ):
     """🎯 Run multi-year workforce simulation with Rich progress tracking."""
     run_simulation(
@@ -154,6 +179,13 @@ def simulate(
         verbose=verbose,
         growth=growth,
         params=params,
+        seeds=seeds,
+        seed_list=seed_list,
+        attribution=attribution,
+        attribution_seeds=attribution_seeds,
+        min_seeds=min_seeds,
+        discard_seed_dbs=discard_seed_dbs,
+        threshold=threshold,
     )
 
 
@@ -291,6 +323,23 @@ def batch(
         ),
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output"),
+    seeds: Optional[int] = typer.Option(
+        None, "--seeds", min=1, help="Run an isolated ensemble per scenario"
+    ),
+    seed_list: Optional[str] = typer.Option(
+        None, "--seed-list", help="Comma-separated explicit ensemble seeds"
+    ),
+    attribution: bool = typer.Option(
+        False, "--attribution", help="Measure one-factor-at-a-time variance attribution"
+    ),
+    attribution_seeds: Optional[int] = typer.Option(
+        None, "--attribution-seeds", min=1, help="Headline seed subset for attribution"
+    ),
+    min_seeds: int = typer.Option(10, "--min-seeds", min=1),
+    discard_seed_dbs: bool = typer.Option(False, "--discard-seed-dbs"),
+    threshold: Optional[list[str]] = typer.Option(
+        None, "--threshold", help="Repeatable ensemble threshold in metric:value form"
+    ),
 ):
     """📊 Run multiple scenarios with Excel export."""
     # Handle comma-separated scenario names for user convenience
@@ -308,6 +357,13 @@ def batch(
         clean=clean,
         parallel=parallel,
         verbose=verbose,
+        seeds=seeds,
+        seed_list=seed_list,
+        attribution=attribution,
+        attribution_seeds=attribution_seeds,
+        min_seeds=min_seeds,
+        discard_seed_dbs=discard_seed_dbs,
+        threshold=threshold,
     )
 
 

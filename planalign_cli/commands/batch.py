@@ -68,6 +68,23 @@ def run_batch(
         ),
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output"),
+    seeds: Optional[int] = typer.Option(
+        None, "--seeds", min=1, help="Run an isolated ensemble per scenario"
+    ),
+    seed_list: Optional[str] = typer.Option(
+        None, "--seed-list", help="Comma-separated explicit ensemble seeds"
+    ),
+    attribution: bool = typer.Option(
+        False, "--attribution", help="Measure one-factor-at-a-time variance attribution"
+    ),
+    attribution_seeds: Optional[int] = typer.Option(
+        None, "--attribution-seeds", min=1, help="Headline seed subset for attribution"
+    ),
+    min_seeds: int = typer.Option(10, "--min-seeds", min=1),
+    discard_seed_dbs: bool = typer.Option(False, "--discard-seed-dbs"),
+    threshold: Optional[list[str]] = typer.Option(
+        None, "--threshold", help="Repeatable ensemble threshold in metric:value form"
+    ),
 ):
     """Run multiple scenarios with Excel export."""
     try:
@@ -93,6 +110,28 @@ def run_batch(
             base_config_path, Path("dbt") / DATABASE_FILENAME, verbose=verbose
         )
         batch_runner = wrapper.create_batch_runner(scenarios_path, output_path)
+
+        if seeds is not None or seed_list is not None or attribution or threshold:
+            results = _run_ensemble_batch(
+                batch_runner,
+                scenarios=scenarios,
+                seeds=seeds,
+                seed_list=seed_list,
+                attribution=attribution,
+                attribution_seeds=attribution_seeds,
+                min_seeds=min_seeds,
+                discard_seed_dbs=discard_seed_dbs,
+                parallel=parallel,
+                threshold=threshold,
+                export_format=export_format,
+            )
+            if not results:
+                show_error_message("No scenarios were processed")
+                raise typer.Exit(1)
+            exit_code = _report_batch_results(results, batch_runner)
+            if exit_code:
+                raise typer.Exit(exit_code)
+            return
 
         # Determine scenario count for progress tracking
         available_scenario_files = list(scenarios_path.glob("*.yaml"))
@@ -228,6 +267,13 @@ def default(
     clean: bool = typer.Option(False, "--clean"),
     parallel: Optional[int] = typer.Option(None, "--parallel", "-p", min=1),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
+    seeds: Optional[int] = typer.Option(None, "--seeds", min=1),
+    seed_list: Optional[str] = typer.Option(None, "--seed-list"),
+    attribution: bool = typer.Option(False, "--attribution"),
+    attribution_seeds: Optional[int] = typer.Option(None, "--attribution-seeds", min=1),
+    min_seeds: int = typer.Option(10, "--min-seeds", min=1),
+    discard_seed_dbs: bool = typer.Option(False, "--discard-seed-dbs"),
+    threshold: Optional[list[str]] = typer.Option(None, "--threshold"),
 ):
     """Default batch command."""
     run_batch(
@@ -241,4 +287,146 @@ def default(
         clean=clean,
         parallel=parallel,
         verbose=verbose,
+        seeds=seeds,
+        seed_list=seed_list,
+        attribution=attribution,
+        attribution_seeds=attribution_seeds,
+        min_seeds=min_seeds,
+        discard_seed_dbs=discard_seed_dbs,
+        threshold=threshold,
     )
+
+
+def _run_ensemble_batch(
+    batch_runner,
+    *,
+    scenarios: Optional[list[str]],
+    seeds: Optional[int],
+    seed_list: Optional[str],
+    attribution: bool,
+    attribution_seeds: Optional[int],
+    min_seeds: int,
+    discard_seed_dbs: bool,
+    parallel: Optional[int],
+    threshold: Optional[list[str]],
+    export_format: str,
+) -> dict:
+    """Run the same ensemble semantics independently for every batch scenario."""
+    from planalign_ensemble.models import EnsembleSpec, Threshold
+    from planalign_ensemble.planner import plan_ensemble
+    from planalign_ensemble.report import (
+        EnsembleProgressReporter,
+        print_attribution_tables,
+        print_distribution_tables,
+        print_ensemble_plan,
+    )
+    from planalign_ensemble.runner import run_ensemble
+    from planalign_orchestrator.run_pool import resolve_worker_count
+
+    from .simulate import _ensemble_exit_code, _parse_seed_list, _parse_threshold
+
+    if seeds is not None and seed_list is not None:
+        raise ValueError("--seeds and --seed-list cannot be used together")
+    if attribution_seeds is not None and not attribution:
+        raise ValueError("--attribution-seeds requires --attribution")
+    explicit_seeds = _parse_seed_list(seed_list) if seed_list is not None else None
+    seed_count = seeds if seeds is not None else len(explicit_seeds or ())
+    if seed_count < 1:
+        raise ValueError("ensemble options require --seeds or --seed-list")
+    discovered = batch_runner._discover_scenarios(scenarios)
+    _validate_requested_scenarios(batch_runner, scenarios, discovered)
+    results: dict = {}
+    for name, config_path in discovered.items():
+        config = batch_runner._load_merged_config(config_path)
+        configured_thresholds = tuple(
+            Threshold(metric=item.metric, value=item.value, label=item.label)
+            for item in config.ensemble.thresholds
+        )
+        cli_thresholds = tuple(_parse_threshold(value) for value in (threshold or ()))
+        spec = EnsembleSpec(
+            scenario_id=config.scenario_id or name,
+            seed_count=seed_count,
+            base_seed=config.simulation.random_seed,
+            seed_list=explicit_seeds,
+            start_year=config.simulation.start_year,
+            end_year=config.simulation.end_year,
+            min_seeds=min_seeds,
+            attribution=attribution,
+            attribution_seed_count=attribution_seeds,
+            thresholds=configured_thresholds + cli_thresholds,
+            discard_seed_dbs=discard_seed_dbs,
+            config_path=config_path,
+        )
+        plan = plan_ensemble(
+            spec,
+            output_root=batch_runner.batch_output_dir / name / "ensembles",
+        )
+        print_ensemble_plan(console, plan, resolve_worker_count(parallel, seed_count))
+        result = run_ensemble(
+            plan,
+            parallel=parallel,
+            config=config,
+            on_event=EnsembleProgressReporter(console, total_seeds=seed_count),
+        )
+        print_distribution_tables(console, result.distributions, min_seeds=min_seeds)
+        print_attribution_tables(console, result.attribution)
+        export_path = None
+        if export_format.lower() == "excel" and any(
+            outcome.succeeded for outcome in result.outcomes
+        ):
+            export_path = _export_ensemble_workbook(
+                batch_runner=batch_runner,
+                scenario_name=name,
+                config=config,
+                result=result,
+            )
+        results[name] = {
+            "status": (
+                STATUS_COMPLETED if _ensemble_exit_code(result) == 0 else STATUS_FAILED
+            ),
+            "database_path": str(result.plan.ensemble_db_path),
+            "ensemble_id": result.plan.ensemble_id,
+            "export_path": str(export_path) if export_path is not None else None,
+            "seed_failures": [
+                {"seed": item.seed, "error": item.error}
+                for item in result.outcomes
+                if not item.succeeded
+            ],
+        }
+    return results
+
+
+def _export_ensemble_workbook(
+    *, batch_runner, scenario_name: str, config, result
+) -> Path:
+    """Write the aggregate-only workbook without reopening a seed database."""
+    from planalign_orchestrator.excel_exporter import ExcelExporter
+    from planalign_orchestrator.utils import DatabaseConnectionManager
+
+    manager = DatabaseConnectionManager(
+        result.plan.ensemble_db_path,
+        read_only=True,
+    )
+    try:
+        return ExcelExporter(manager).export_scenario_results(
+            scenario_name=scenario_name,
+            output_dir=batch_runner.batch_output_dir / scenario_name,
+            config=config,
+            seed=config.simulation.random_seed,
+            ensemble_db_path=result.plan.ensemble_db_path,
+        )
+    finally:
+        manager.close_all()
+
+
+def _validate_requested_scenarios(batch_runner, requested, discovered) -> None:
+    """Match normal batch's clear missing-scenario error before any seed runs."""
+    if not requested:
+        return
+    missing = sorted(set(requested) - set(discovered))
+    if missing:
+        available = ", ".join(sorted(batch_runner._discover_scenarios())) or "(none)"
+        raise ValueError(
+            f"Scenario(s) not found in {batch_runner.scenarios_dir}: "
+            f"{', '.join(missing)}. Available: {available}"
+        )

@@ -1411,6 +1411,21 @@ def _export_deferral_match_response_vars(cfg: "SimulationConfig") -> Dict[str, A
     return dbt_vars
 
 
+def _export_ensemble_freeze_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
+    """Export per-subsystem seed overrides only for attribution freeze runs.
+
+    The default empty mapping must produce no variables.  Besides preserving
+    ordinary dbt compilation, this keeps ``compute_config_fingerprint`` stable
+    for every pre-ensemble configuration.
+    """
+    ensemble = getattr(cfg, "ensemble", None)
+    frozen_seeds = getattr(ensemble, "frozen_subsystem_seeds", {})
+    return {
+        f"random_seed_{subsystem}": int(seed)
+        for subsystem, seed in frozen_seeds.items()
+    }
+
+
 def to_dbt_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     """Map typed config to dbt vars compatible with existing models.
 
@@ -1435,6 +1450,7 @@ def to_dbt_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     dbt_vars.update(_export_threading_vars(cfg))
     dbt_vars.update(_export_core_contribution_vars(cfg))
     dbt_vars.update(_export_deferral_match_response_vars(cfg))
+    dbt_vars.update(_export_ensemble_freeze_vars(cfg))
 
     # Remove any keys marked with the _REMOVE_KEY sentinel
     # This allows UI to explicitly clear values set by legacy YAML

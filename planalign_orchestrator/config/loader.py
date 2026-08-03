@@ -33,6 +33,7 @@ from .performance import (
     OrchestratorSettings,
     E068CThreadingSettings,
 )
+from .ensemble import EnsembleSettings
 
 
 def _core_integration_config(core: Any, dc_plan: Any) -> Optional[Dict[str, Any]]:
@@ -88,6 +89,10 @@ class SimulationConfig(BaseModel):
     orchestrator: Optional[OrchestratorSettings] = Field(
         default=None, description="Orchestrator configuration including threading"
     )
+
+    # Feature 133: validated after-run risk thresholds. Other ensemble options
+    # remain invocation concerns so ordinary simulation configs stay unchanged.
+    ensemble: EnsembleSettings = Field(default_factory=EnsembleSettings)
 
     @model_validator(mode="after")
     def validate_core_schedules_and_integration(self) -> "SimulationConfig":

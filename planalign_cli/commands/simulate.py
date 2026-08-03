@@ -85,6 +85,34 @@ def run_simulation(
         "config fragment are applied for this run only; the repository is never "
         "modified.",
     ),
+    seeds: Optional[int] = typer.Option(
+        None, "--seeds", min=1, help="Run an isolated ensemble of N seeds"
+    ),
+    seed_list: Optional[str] = typer.Option(
+        None, "--seed-list", help="Comma-separated explicit ensemble seeds"
+    ),
+    attribution: bool = typer.Option(
+        False, "--attribution", help="Measure one-factor-at-a-time variance attribution"
+    ),
+    attribution_seeds: Optional[int] = typer.Option(
+        None,
+        "--attribution-seeds",
+        min=1,
+        help="Headline seed subset K used for paired attribution",
+    ),
+    min_seeds: int = typer.Option(
+        10, "--min-seeds", min=1, help="Minimum successful seeds for bands"
+    ),
+    discard_seed_dbs: bool = typer.Option(
+        False,
+        "--discard-seed-dbs",
+        help="Discard per-seed databases after aggregate persistence",
+    ),
+    threshold: Optional[list[str]] = typer.Option(
+        None,
+        "--threshold",
+        help="Repeatable ensemble threshold in metric:value form",
+    ),
 ):
     """
     Run multi-year workforce simulation with Rich progress tracking.
@@ -116,6 +144,24 @@ def run_simulation(
             config_path, project_dir = _apply_parameter_pack(
                 params, config_path, project_dir
             )
+
+        if seeds is not None or seed_list is not None or threshold or attribution:
+            _run_ensemble_simulation(
+                start_year=start_year,
+                end_year=end_year,
+                config_path=config_path,
+                database=database,
+                project_dir=project_dir,
+                seeds=seeds,
+                seed_list=seed_list,
+                attribution=attribution,
+                attribution_seeds=attribution_seeds,
+                min_seeds=min_seeds,
+                discard_seed_dbs=discard_seed_dbs,
+                threshold=threshold,
+                dry_run=dry_run,
+            )
+            return
 
         if verbose:
             console.print(f"📁 Config: {config_path}")
@@ -195,6 +241,13 @@ def run_simulation(
 
         show_success_message("Multi-year simulation completed successfully")
 
+    except typer.Exit:
+        raise
+    except KeyboardInterrupt:
+        console.print(
+            "[yellow]Ensemble interrupted; no aggregate was written.[/yellow]"
+        )
+        raise typer.Exit(130)
     except Exception as e:
         show_error_message(f"Simulation error: {e}")
         raise typer.Exit(1)
@@ -455,6 +508,13 @@ def default(
     growth: Optional[str] = typer.Option(
         None, "--growth", help="Target growth rate (e.g., '3.5%' or '0.035')"
     ),
+    seeds: Optional[int] = typer.Option(None, "--seeds", min=1),
+    seed_list: Optional[str] = typer.Option(None, "--seed-list"),
+    attribution: bool = typer.Option(False, "--attribution"),
+    attribution_seeds: Optional[int] = typer.Option(None, "--attribution-seeds", min=1),
+    min_seeds: int = typer.Option(10, "--min-seeds", min=1),
+    discard_seed_dbs: bool = typer.Option(False, "--discard-seed-dbs"),
+    threshold: Optional[list[str]] = typer.Option(None, "--threshold"),
 ):
     """Default simulate command."""
     run_simulation(
@@ -467,7 +527,179 @@ def default(
         fail_on_validation_error=fail_on_validation_error,
         verbose=verbose,
         growth=growth,
+        seeds=seeds,
+        seed_list=seed_list,
+        attribution=attribution,
+        attribution_seeds=attribution_seeds,
+        min_seeds=min_seeds,
+        discard_seed_dbs=discard_seed_dbs,
+        threshold=threshold,
     )
+
+
+def _run_ensemble_simulation(
+    *,
+    start_year: int,
+    end_year: int,
+    config_path: Path,
+    database: Optional[str],
+    project_dir: Optional[Path],
+    seeds: Optional[int],
+    seed_list: Optional[str],
+    attribution: bool,
+    attribution_seeds: Optional[int],
+    min_seeds: int,
+    discard_seed_dbs: bool,
+    threshold: Optional[list[str]],
+    dry_run: bool,
+) -> None:
+    """Build, disclose, and execute an isolated ensemble instead of one run."""
+    from planalign_ensemble.models import EnsembleSpec
+    from planalign_ensemble.planner import plan_ensemble
+    from planalign_ensemble.report import (
+        EnsembleProgressReporter,
+        print_attribution_tables,
+        print_distribution_tables,
+        print_ensemble_plan,
+        print_risk_statements,
+    )
+    from planalign_ensemble.runner import run_ensemble
+    from planalign_orchestrator.run_pool import resolve_worker_count
+
+    spec, config = _build_ensemble_spec(
+        start_year,
+        end_year,
+        config_path,
+        project_dir,
+        seeds,
+        seed_list,
+        attribution,
+        attribution_seeds,
+        min_seeds,
+        discard_seed_dbs,
+        threshold,
+        EnsembleSpec,
+    )
+    plan = plan_ensemble(spec, output_root=_ensemble_output_root(database))
+    budget = resolve_worker_count(None, len(plan.seeds))
+    print_ensemble_plan(console, plan, budget)
+    if dry_run:
+        console.print("[dim]Dry run: no seed workers were started.[/dim]")
+        return
+    result = run_ensemble(
+        plan,
+        config=config,
+        on_event=EnsembleProgressReporter(console, total_seeds=len(plan.seeds)),
+    )
+    print_distribution_tables(console, result.distributions, min_seeds=min_seeds)
+    print_risk_statements(console, result.risk_statements)
+    print_attribution_tables(console, result.attribution)
+    _report_ensemble_failures(result)
+    exit_code = _ensemble_exit_code(result)
+    if exit_code:
+        raise typer.Exit(exit_code)
+    show_success_message(f"Ensemble completed: {result.plan.ensemble_db_path}")
+
+
+def _build_ensemble_spec(
+    start_year: int,
+    end_year: int,
+    config_path: Path,
+    project_dir: Optional[Path],
+    seeds: Optional[int],
+    seed_list: Optional[str],
+    attribution: bool,
+    attribution_seeds: Optional[int],
+    min_seeds: int,
+    discard_seed_dbs: bool,
+    threshold: Optional[list[str]],
+    spec_type,
+):
+    """Load base config and convert CLI inputs into one validated request."""
+    from planalign_ensemble.models import Threshold
+    from planalign_orchestrator.config import load_simulation_config
+
+    if seeds is not None and seed_list is not None:
+        raise ValueError("--seeds and --seed-list cannot be used together")
+    if attribution_seeds is not None and not attribution:
+        raise ValueError("--attribution-seeds requires --attribution")
+    config = load_simulation_config(config_path, env_overrides=False)
+    explicit_seeds = _parse_seed_list(seed_list) if seed_list is not None else None
+    seed_count = seeds if seeds is not None else len(explicit_seeds or ())
+    if seed_count < 1:
+        raise ValueError("ensemble options require --seeds or --seed-list")
+    configured_thresholds = tuple(
+        Threshold(metric=item.metric, value=item.value, label=item.label)
+        for item in config.ensemble.thresholds
+    )
+    cli_thresholds = tuple(_parse_threshold(value) for value in (threshold or ()))
+    spec = spec_type(
+        scenario_id=config.scenario_id or config_path.stem,
+        seed_count=seed_count,
+        base_seed=config.simulation.random_seed,
+        seed_list=explicit_seeds,
+        start_year=start_year,
+        end_year=end_year,
+        min_seeds=min_seeds,
+        attribution=attribution,
+        attribution_seed_count=attribution_seeds,
+        thresholds=configured_thresholds + cli_thresholds,
+        discard_seed_dbs=discard_seed_dbs,
+        config_path=config_path,
+        dbt_project_dir=project_dir,
+    )
+    return spec, config
+
+
+def _parse_seed_list(value: str) -> tuple[int, ...]:
+    """Parse a comma-separated seed list without silently changing its meaning."""
+    parts = [part.strip() for part in value.split(",")]
+    if not parts or any(not part for part in parts):
+        raise ValueError("--seed-list must contain comma-separated integers")
+    try:
+        return tuple(int(part) for part in parts)
+    except ValueError as exc:
+        raise ValueError("--seed-list values must each be an integer") from exc
+
+
+def _parse_threshold(value: str):
+    """Parse one repeatable metric:value option into a validated threshold."""
+    from planalign_ensemble.models import Threshold
+
+    if ":" not in value:
+        raise ValueError("--threshold must use metric:value form")
+    metric, raw_value = value.rsplit(":", 1)
+    if not metric.strip() or not raw_value.strip():
+        raise ValueError("--threshold must use metric:value form")
+    try:
+        return Threshold(metric=metric, value=float(raw_value))
+    except ValueError as exc:
+        raise ValueError("--threshold value must be numeric") from exc
+
+
+def _ensemble_output_root(database: Optional[str]) -> Path:
+    """Map an optional ensemble root without ever targeting the shared dev DB."""
+    if database is None:
+        return Path("var/ensembles")
+    candidate = Path(database)
+    if candidate.suffix == ".duckdb":
+        return candidate.parent / f"{candidate.stem}_ensembles"
+    return candidate
+
+
+def _report_ensemble_failures(result) -> None:
+    """Name failed seeds so a reduced sample is never silently presented."""
+    failures = [outcome for outcome in result.outcomes if not outcome.succeeded]
+    for outcome in failures:
+        console.print(f"[red]Seed {outcome.seed} failed:[/red] {outcome.error}")
+
+
+def _ensemble_exit_code(result) -> int:
+    """Apply the ensemble contract's terminal status semantics."""
+    successful = sum(outcome.succeeded for outcome in result.outcomes)
+    if successful == 0:
+        return 3
+    return 2 if successful != len(result.outcomes) else 0
 
 
 def _parse_growth_rate(growth_str: str) -> float:

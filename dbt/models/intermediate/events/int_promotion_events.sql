@@ -78,7 +78,7 @@ eligible_workforce AS (
         -- **DETERMINISTIC RANDOM**: Consistent hash-based probability
         -- Issue #385: include random_seed so seed changes reshuffle promotions
         -- the same way they reshuffle terminations.
-        (ABS(HASH(employee_id || '{{ simulation_year }}' || 'promotion' || '{{ var('random_seed', 42) }}')) % 1000) / 1000.0 AS random_value
+        (ABS(HASH(employee_id || '{{ simulation_year }}' || 'promotion' || '{{ subsystem_seed('promotion') }}')) % 1000) / 1000.0 AS random_value
     FROM current_workforce
 ),
 

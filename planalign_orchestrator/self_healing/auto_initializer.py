@@ -78,6 +78,7 @@ class AutoInitializer:
         verbose: bool = False,
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
         use_lock: bool = True,
+        lock_name: str | None = None,
         start_year: int = 2025,
         dbt_vars: Optional[Dict[str, Any]] = None,
     ) -> None:
@@ -89,6 +90,8 @@ class AutoInitializer:
             verbose: Enable verbose progress output
             timeout_seconds: Maximum time for initialization (default: 60s per SC-003)
             use_lock: Use file-based mutex to prevent concurrent initialization
+            lock_name: Optional mutex namespace. Defaults to the historical
+                process-wide initialization lock.
             start_year: Simulation start year for foundation model initialization
             dbt_vars: Config-derived dbt vars (e.g. census_parquet_path) so the
                 seed/staging/foundation builds honor the configured census rather
@@ -99,6 +102,7 @@ class AutoInitializer:
         self.verbose = verbose
         self.timeout_seconds = timeout_seconds
         self.use_lock = use_lock
+        self.lock_name = lock_name or INIT_LOCK_NAME
         self.start_year = start_year
         self._dbt_vars = dbt_vars or {}
         self._checker = TableExistenceChecker(db_manager)
@@ -161,7 +165,7 @@ class AutoInitializer:
 
         # Acquire initialization lock if enabled
         if self.use_lock:
-            self._lock = ExecutionMutex(INIT_LOCK_NAME)
+            self._lock = ExecutionMutex(self.lock_name)
             lock_file = str(self._lock.lock_file)
             if not self._lock.acquire(timeout=5):
                 # Another initialization is in progress

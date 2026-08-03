@@ -1,6 +1,6 @@
 [project]
 name = "fidelity-planalign-engine"
-version = "2.3.0"
+version = "2.4.0"
 description = "Fidelity PlanAlign Engine - Enterprise workforce simulation platform with immutable event sourcing"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -104,6 +104,7 @@ packages = [
     "planalign_core.events",
     "planalign_fit",
     "planalign_backtest",
+    "planalign_ensemble",
 ]
 py-modules = ["_version"]
 
