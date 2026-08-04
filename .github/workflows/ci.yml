@@ -86,10 +86,22 @@ jobs:
         run: |
           export PATH="$HOME/.local/bin:$PATH"
           # Same requirements files as the sharded `test` job, so the two cannot
-          # drift. `dbt deps` is deliberately omitted: nothing marked `fast` may
-          # invoke dbt, and skipping it keeps this job lean.
+          # drift.
           uv pip install --system -r requirements.txt
           uv pip install --system -r requirements-dev.txt
+
+      - name: Install dbt packages
+        run: |
+          # The graph/workflow contract tests (tests/unit/orchestrator/
+          # test_pipeline_graph_contract.py, test_pipeline_stage_ownership.py,
+          # test_workflow_graph_contract.py) are auto-marked `fast` by path
+          # (tests/conftest.py's pytest_collection_modifyitems) but run a real
+          # `dbt parse` via tests/helpers/dbt_manifest.py, which fails without
+          # the packages in packages.yml installed. This keeps them runnable
+          # on every PR instead of deferring architecture-contract checks to
+          # push/nightly/full-ci.
+          cd dbt
+          dbt deps
 
       - name: Run fast test suite
         env:

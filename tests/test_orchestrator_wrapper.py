@@ -395,10 +395,14 @@ class TestOrchestratorWrapper:
         assert health["healthy"]
         connection.execute.assert_called_once_with("SELECT 1")
 
-    def test_check_system_health_missing_config(self):
+    def test_check_system_health_missing_config(self, tmp_path):
+        # Path.exists is patched globally below, which forces the db_path.exists()
+        # check to True and makes check_system_health() open a real connection --
+        # must stay off the shared dev database (tests/conftest.py's
+        # shared_dev_database_guard).
         wrapper = OrchestratorWrapper(
             config_path=Path("nonexistent.yaml"),
-            db_path=Path("dbt/simulation.duckdb"),
+            db_path=tmp_path / "simulation.duckdb",
         )
         with patch.object(Path, "exists", return_value=True):
             health = wrapper.check_system_health()
