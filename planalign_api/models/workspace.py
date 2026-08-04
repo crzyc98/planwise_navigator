@@ -28,7 +28,13 @@ class WorkspaceUpdate(BaseModel):
 
 
 class Workspace(BaseModel):
-    """Full workspace model."""
+    """Full workspace model.
+
+    Internal domain representation used by ``WorkspaceStorage`` and services
+    that need the on-disk location (e.g. export). ``storage_path`` is an
+    absolute server filesystem path and MUST NOT be serialized in API
+    responses — routes use :class:`WorkspaceResponse` instead.
+    """
 
     id: str = Field(..., description="Unique workspace ID (UUID)")
     name: str = Field(..., description="Workspace name")
@@ -44,6 +50,29 @@ class Workspace(BaseModel):
         json_encoders = {
             datetime: lambda v: v.isoformat(),
             Path: str,
+        }
+
+
+class WorkspaceResponse(BaseModel):
+    """Public workspace representation returned by the API.
+
+    Same shape as :class:`Workspace` minus ``storage_path``: the absolute
+    server filesystem path is internal deployment detail the Studio UI does
+    not need (issue #532).
+    """
+
+    id: str = Field(..., description="Unique workspace ID (UUID)")
+    name: str = Field(..., description="Workspace name")
+    description: Optional[str] = Field(None, description="Workspace description")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
+    base_config: Dict[str, Any] = Field(
+        ..., description="Base simulation configuration"
+    )
+
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat(),
         }
 
 

@@ -9242,65 +9242,6 @@
         "title": "WorkforceParamsApplyResult",
         "type": "object"
       },
-      "Workspace": {
-        "description": "Full workspace model.",
-        "properties": {
-          "base_config": {
-            "description": "Base simulation configuration",
-            "title": "Base Config",
-            "type": "object"
-          },
-          "created_at": {
-            "description": "Creation timestamp",
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Workspace description",
-            "title": "Description"
-          },
-          "id": {
-            "description": "Unique workspace ID (UUID)",
-            "title": "Id",
-            "type": "string"
-          },
-          "name": {
-            "description": "Workspace name",
-            "title": "Name",
-            "type": "string"
-          },
-          "storage_path": {
-            "description": "Absolute path to workspace directory",
-            "title": "Storage Path",
-            "type": "string"
-          },
-          "updated_at": {
-            "description": "Last update timestamp",
-            "format": "date-time",
-            "title": "Updated At",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "created_at",
-          "updated_at",
-          "base_config",
-          "storage_path"
-        ],
-        "title": "Workspace",
-        "type": "object"
-      },
       "WorkspaceCreate": {
         "description": "Request model for creating a workspace.",
         "properties": {
@@ -9341,6 +9282,59 @@
           "name"
         ],
         "title": "WorkspaceCreate",
+        "type": "object"
+      },
+      "WorkspaceResponse": {
+        "description": "Public workspace representation returned by the API.\n\nSame shape as :class:`Workspace` minus ``storage_path``: the absolute\nserver filesystem path is internal deployment detail the Studio UI does\nnot need (issue #532).",
+        "properties": {
+          "base_config": {
+            "description": "Base simulation configuration",
+            "title": "Base Config",
+            "type": "object"
+          },
+          "created_at": {
+            "description": "Creation timestamp",
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Workspace description",
+            "title": "Description"
+          },
+          "id": {
+            "description": "Unique workspace ID (UUID)",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "description": "Workspace name",
+            "title": "Name",
+            "type": "string"
+          },
+          "updated_at": {
+            "description": "Last update timestamp",
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "created_at",
+          "updated_at",
+          "base_config"
+        ],
+        "title": "WorkspaceResponse",
         "type": "object"
       },
       "WorkspaceSummary": {
@@ -11386,7 +11380,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Workspace"
+                  "$ref": "#/components/schemas/WorkspaceResponse"
                 }
               }
             },
@@ -11778,7 +11772,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Workspace"
+                  "$ref": "#/components/schemas/WorkspaceResponse"
                 }
               }
             },
@@ -11829,7 +11823,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Workspace"
+                  "$ref": "#/components/schemas/WorkspaceResponse"
                 }
               }
             },

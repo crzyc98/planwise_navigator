@@ -104,7 +104,6 @@ const toFrontendWorkspace = (ws: ApiWorkspace): Workspace => ({
   created_at: ws.created_at,
   updated_at: ws.updated_at,
   base_config: ws.base_config,
-  storage_path: ws.storage_path,
 });
 
 export default function Layout() {
@@ -355,7 +354,6 @@ export default function Layout() {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         base_config: {},
-        storage_path: '',
       };
 
       const created = await addWorkspace(newWorkspace);
