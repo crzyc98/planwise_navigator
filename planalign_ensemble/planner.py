@@ -12,8 +12,16 @@ from .models import EnsembleSpec, SeedPlan, Subsystem
 
 
 _DERIVED_SEED_INCREMENT = 1001
-_ESTIMATED_SEED_DB_MIB = 350.0
-_ESTIMATED_ENSEMBLE_DB_MIB = 16.0
+
+# Calibrated against two measured ensembles (issue #544): a 5-year, ~7k-employee
+# run produced a ~58 MiB seed database and a ~17.8 MiB dbt artifacts directory
+# per run (headline or attribution alike), and a ~2 MiB aggregate database. The
+# per-year rate lets the estimate track `--seeds`/horizon changes instead of
+# staying flat; the artifacts and aggregate constants keep headroom over the
+# measured values rather than matching them exactly.
+_SEED_DB_MIB_PER_YEAR = 11.6
+_SEED_ARTIFACTS_MIB = 18.0
+_ESTIMATED_ENSEMBLE_DB_MIB = 4.0
 _UNSAFE_PATH_COMPONENT = re.compile(r"[^A-Za-z0-9._-]+")
 
 
@@ -45,10 +53,20 @@ def plan_ensemble(
         ensemble_db_path=ensemble_dir / "ensemble.duckdb",
         config_fingerprint=config_fingerprint,
         total_run_count=len(seeds) + attribution_runs,
-        estimated_disk_mib=(planned_seed_databases * _ESTIMATED_SEED_DB_MIB)
-        + _ESTIMATED_ENSEMBLE_DB_MIB,
+        estimated_disk_mib=_estimate_disk_mib(
+            planned_seed_databases, spec.start_year, spec.end_year
+        ),
         spec=spec,
     )
+
+
+def _estimate_disk_mib(
+    planned_seed_databases: int, start_year: int, end_year: int
+) -> float:
+    """Scale the per-run estimate by horizon so shortening it lowers the figure."""
+    horizon_years = end_year - start_year + 1
+    per_run_mib = (_SEED_DB_MIB_PER_YEAR * horizon_years) + _SEED_ARTIFACTS_MIB
+    return (planned_seed_databases * per_run_mib) + _ESTIMATED_ENSEMBLE_DB_MIB
 
 
 def _derive_seeds(base_seed: int, seed_count: int) -> tuple[int, ...]:
