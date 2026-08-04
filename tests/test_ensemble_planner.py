@@ -88,3 +88,45 @@ def test_attribution_disk_estimate_includes_its_frozen_seed_worlds(tmp_path) -> 
     )
 
     assert attribution.estimated_disk_mib > bands_only.estimated_disk_mib
+
+
+@pytest.mark.fast
+def test_disk_estimate_is_calibrated_against_measured_ensembles(tmp_path) -> None:
+    """Regression guard for #544: the estimate must track real disk use, not 4.6x it."""
+    bands_only = plan_ensemble(
+        _spec(seed_count=25, start_year=2025, end_year=2029),
+        output_root=tmp_path,
+        now=_PLANNED_AT,
+    )
+    attribution = plan_ensemble(
+        _spec(
+            seed_count=25,
+            start_year=2025,
+            end_year=2029,
+            attribution=True,
+            attribution_seed_count=10,
+        ),
+        output_root=tmp_path,
+        now=_PLANNED_AT,
+    )
+
+    # Measured actuals for these two ensembles (issue #544): 1899 MiB and 4174 MiB.
+    assert 1700 <= bands_only.estimated_disk_mib <= 2100
+    assert 3800 <= attribution.estimated_disk_mib <= 4600
+
+
+@pytest.mark.fast
+def test_disk_estimate_scales_with_simulation_horizon(tmp_path) -> None:
+    """Shortening the horizon must lower the disclosed estimate, not leave it flat."""
+    short_horizon = plan_ensemble(
+        _spec(seed_count=25, start_year=2025, end_year=2027),
+        output_root=tmp_path,
+        now=_PLANNED_AT,
+    )
+    long_horizon = plan_ensemble(
+        _spec(seed_count=25, start_year=2025, end_year=2029),
+        output_root=tmp_path,
+        now=_PLANNED_AT,
+    )
+
+    assert short_horizon.estimated_disk_mib < long_horizon.estimated_disk_mib
