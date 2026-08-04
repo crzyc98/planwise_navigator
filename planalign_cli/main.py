@@ -153,6 +153,12 @@ def simulate(
     attribution_seeds: Optional[int] = typer.Option(
         None, "--attribution-seeds", min=1, help="Headline seed subset for attribution"
     ),
+    attribution_anchors: Optional[int] = typer.Option(
+        None,
+        "--attribution-anchors",
+        min=1,
+        help="Anchor seeds A averaged per subsystem (default 5)",
+    ),
     min_seeds: int = typer.Option(
         10, "--min-seeds", min=1, help="Minimum successful seeds for bands"
     ),
@@ -183,6 +189,7 @@ def simulate(
         seed_list=seed_list,
         attribution=attribution,
         attribution_seeds=attribution_seeds,
+        attribution_anchors=attribution_anchors,
         min_seeds=min_seeds,
         discard_seed_dbs=discard_seed_dbs,
         threshold=threshold,
@@ -335,6 +342,12 @@ def batch(
     attribution_seeds: Optional[int] = typer.Option(
         None, "--attribution-seeds", min=1, help="Headline seed subset for attribution"
     ),
+    attribution_anchors: Optional[int] = typer.Option(
+        None,
+        "--attribution-anchors",
+        min=1,
+        help="Anchor seeds A averaged per subsystem (default 5)",
+    ),
     min_seeds: int = typer.Option(10, "--min-seeds", min=1),
     discard_seed_dbs: bool = typer.Option(False, "--discard-seed-dbs"),
     threshold: Optional[list[str]] = typer.Option(
@@ -361,6 +374,7 @@ def batch(
         seed_list=seed_list,
         attribution=attribution,
         attribution_seeds=attribution_seeds,
+        attribution_anchors=attribution_anchors,
         min_seeds=min_seeds,
         discard_seed_dbs=discard_seed_dbs,
         threshold=threshold,

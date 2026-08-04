@@ -24,6 +24,11 @@ _SEED_ARTIFACTS_MIB = 18.0
 _ESTIMATED_ENSEMBLE_DB_MIB = 4.0
 _UNSAFE_PATH_COMPONENT = re.compile(r"[^A-Za-z0-9._-]+")
 
+# Offset well clear of any plausible headline seed range so an anchor seed can
+# never collide with a headline seed, keeping the two seed spaces legible in
+# logs and output paths.
+_ANCHOR_SEED_OFFSET = 9_000_000
+
 
 def plan_ensemble(
     spec: EnsembleSpec,
@@ -42,7 +47,9 @@ def plan_ensemble(
     ensemble_dir = output_root / f"{timestamp}-{_safe_component(spec.scenario_id)}"
     paths = {seed: ensemble_dir / f"seed_{seed}.duckdb" for seed in seeds}
     attribution_runs = (
-        len(_attributable_subsystems()) * spec.resolved_attribution_seed_count
+        len(_attributable_subsystems())
+        * spec.resolved_attribution_seed_count
+        * spec.resolved_attribution_anchor_count
     )
     planned_seed_databases = len(seeds) + attribution_runs
     return SeedPlan(
@@ -111,4 +118,22 @@ def _attributable_subsystems() -> tuple[Subsystem, ...]:
     return tuple(subsystem for subsystem in Subsystem if subsystem.is_seed_variant)
 
 
-__all__ = ["plan_ensemble"]
+def resolve_attribution_anchor_seeds(spec: EnsembleSpec) -> tuple[int, ...]:
+    """Derive the deterministic anchor seeds averaged over for attribution.
+
+    Averaging the frozen arm's conditional variance over several anchors,
+    rather than pinning to one, is what makes the estimate approximate the
+    subsystem's first-order Sobol index instead of an arbitrary single-anchor
+    value (#543). Anchors live in a disjoint numeric range from headline seeds
+    so the two spaces never collide and stay legible in logs and output paths.
+    """
+    count = spec.resolved_attribution_anchor_count
+    if count == 0:
+        return ()
+    return tuple(
+        spec.base_seed + _ANCHOR_SEED_OFFSET + (_DERIVED_SEED_INCREMENT * index)
+        for index in range(count)
+    )
+
+
+__all__ = ["plan_ensemble", "resolve_attribution_anchor_seeds"]

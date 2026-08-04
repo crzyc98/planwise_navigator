@@ -61,6 +61,7 @@ def test_seed_options_exist_on_both_simulate_entry_points() -> None:
         "threshold",
         "attribution",
         "attribution_seeds",
+        "attribution_anchors",
     }
 
     assert required <= set(inspect.signature(run_simulation).parameters)
@@ -98,6 +99,7 @@ def test_batch_exposes_the_same_seed_count_option() -> None:
         "threshold",
         "attribution",
         "attribution_seeds",
+        "attribution_anchors",
     }
     for command in (run_batch, batch_default, main_batch):
         assert required <= set(inspect.signature(command).parameters)

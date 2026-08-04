@@ -1,7 +1,8 @@
-"""Paired one-factor-at-a-time variance attribution for seed ensembles."""
+"""Anchor-averaged one-factor-at-a-time variance attribution for seed ensembles."""
 
 from __future__ import annotations
 
+import hashlib
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
@@ -21,6 +22,9 @@ from .models import (
 
 
 BaselineExecutor = Callable[[SeedPlan], Sequence[SeedRunOutcome]]
+
+_BOOTSTRAP_ITERATIONS = 2000
+_MIN_BOOTSTRAP_REPLICATES = 100
 
 
 @dataclass(frozen=True)
@@ -207,8 +211,9 @@ def _variance_share(
     executed: int,
     anchor_seed: int | None = None,
 ) -> AttributionShare:
-    """Compute one anchored conditional variance change over the shared seed set."""
+    """Compute one anchor's conditional variance change over the shared seed set."""
     paired_seeds = sorted(set(baseline) & set(frozen))
+    anchor_seeds = () if anchor_seed is None else (anchor_seed,)
     common = {
         "metric": key[0],
         "simulation_year": key[1],
@@ -216,7 +221,8 @@ def _variance_share(
         "n_seeds": len(paired_seeds),
         "baselines_reused": reused,
         "baselines_executed": executed,
-        "anchor_seed": anchor_seed,
+        "anchor_seeds": anchor_seeds,
+        "n_anchors": len(anchor_seeds),
         "stochastic_status": "stochastic",
     }
     if len(paired_seeds) < 2:
@@ -234,6 +240,104 @@ def _variance_share(
         frozen_variance=frozen_variance,
         variance_share=variance_share,
     )
+
+
+@dataclass(frozen=True)
+class _AnchorObservation:
+    """One anchor's paired (baseline, frozen) values for one metric and year."""
+
+    anchor_seed: int
+    baseline_values: tuple[float, ...]
+    frozen_values: tuple[float, ...]
+
+
+def _combine_anchor_observations(
+    key: tuple[str, int],
+    subsystem: Subsystem,
+    observations: Sequence[_AnchorObservation],
+    reused: int,
+    executed: int,
+) -> AttributionShare:
+    """Average conditional variance across anchors and bootstrap its interval."""
+    common = {
+        "metric": key[0],
+        "simulation_year": key[1],
+        "subsystem": subsystem,
+        "baselines_reused": reused,
+        "baselines_executed": executed,
+        "anchor_seeds": tuple(item.anchor_seed for item in observations),
+        "n_anchors": len(observations),
+        "stochastic_status": "stochastic",
+    }
+    if not observations:
+        return AttributionShare(**common, n_seeds=0)
+    n_seeds = min(len(item.baseline_values) for item in observations)
+    baseline_variances: list[float] = []
+    frozen_variances: list[float] = []
+    per_anchor_shares: list[float] = []
+    for observation in observations:
+        baseline_variance = float(np.var(observation.baseline_values, ddof=1))
+        frozen_variance = float(np.var(observation.frozen_values, ddof=1))
+        baseline_variances.append(baseline_variance)
+        frozen_variances.append(frozen_variance)
+        if baseline_variance != 0.0:
+            per_anchor_shares.append(1.0 - frozen_variance / baseline_variance)
+    if not per_anchor_shares:
+        return AttributionShare(**common, n_seeds=n_seeds)
+    ci_low, ci_high, iterations = _bootstrap_ci(key, subsystem, observations)
+    return AttributionShare(
+        **common,
+        n_seeds=n_seeds,
+        baseline_variance=float(np.mean(baseline_variances)),
+        frozen_variance=float(np.mean(frozen_variances)),
+        variance_share=float(np.mean(per_anchor_shares)),
+        ci_low=ci_low,
+        ci_high=ci_high,
+        bootstrap_iterations=iterations,
+    )
+
+
+def _bootstrap_ci(
+    key: tuple[str, int],
+    subsystem: Subsystem,
+    observations: Sequence[_AnchorObservation],
+) -> tuple[float | None, float | None, int]:
+    """Paired-bootstrap the anchor-averaged share by resampling within anchors.
+
+    Each replicate resamples every anchor's paired seed values with
+    replacement (preserving the baseline/frozen pairing), recomputes that
+    anchor's conditional variance share, and averages across anchors exactly
+    as the point estimate does. The interval is the 2.5th/97.5th percentile of
+    those replicate averages. The RNG is seeded deterministically from the
+    metric/year/subsystem key so re-running the same evidence reproduces the
+    same interval.
+    """
+    rng = np.random.default_rng(_stable_seed(key, subsystem))
+    replicate_means: list[float] = []
+    for _ in range(_BOOTSTRAP_ITERATIONS):
+        replicate_shares: list[float] = []
+        for observation in observations:
+            n = len(observation.baseline_values)
+            indices = rng.integers(0, n, size=n)
+            baseline_sample = np.asarray(observation.baseline_values)[indices]
+            frozen_sample = np.asarray(observation.frozen_values)[indices]
+            baseline_variance = float(np.var(baseline_sample, ddof=1))
+            if baseline_variance == 0.0:
+                continue
+            frozen_variance = float(np.var(frozen_sample, ddof=1))
+            replicate_shares.append(1.0 - frozen_variance / baseline_variance)
+        if replicate_shares:
+            replicate_means.append(float(np.mean(replicate_shares)))
+    if len(replicate_means) < _MIN_BOOTSTRAP_REPLICATES:
+        return None, None, 0
+    ci_low, ci_high = np.percentile(replicate_means, [2.5, 97.5])
+    return float(ci_low), float(ci_high), _BOOTSTRAP_ITERATIONS
+
+
+def _stable_seed(key: tuple[str, int], subsystem: Subsystem) -> int:
+    """Derive a deterministic bootstrap RNG seed from the metric/year/subsystem."""
+    payload = f"{key[0]}|{key[1]}|{subsystem.value}".encode()
+    return int.from_bytes(hashlib.sha256(payload).digest()[:4], "big")
 
 
 def attribute_variance(
@@ -307,10 +411,14 @@ def write_attribution_results(
             share.simulation_year,
             share.subsystem.value,
             share.variance_share,
+            share.ci_low,
+            share.ci_high,
             share.baseline_variance,
             share.frozen_variance,
-            share.anchor_seed,
+            ",".join(str(seed) for seed in share.anchor_seeds),
+            share.n_anchors,
             share.n_seeds,
+            share.bootstrap_iterations,
             share.baselines_reused,
             share.baselines_executed,
             share.stochastic_status,
@@ -324,7 +432,7 @@ def write_attribution_results(
         connection.execute(_CREATE_ATTRIBUTION_SQL)
         connection.executemany(
             "INSERT INTO fct_variance_attribution VALUES "
-            "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             rows,
         )
 
@@ -337,10 +445,14 @@ CREATE TABLE IF NOT EXISTS fct_variance_attribution (
     simulation_year INTEGER NOT NULL,
     subsystem VARCHAR NOT NULL,
     variance_share DOUBLE,
+    ci_low DOUBLE,
+    ci_high DOUBLE,
     baseline_variance DOUBLE,
     frozen_variance DOUBLE,
-    anchor_seed INTEGER,
+    anchor_seeds VARCHAR NOT NULL,
+    n_anchors INTEGER NOT NULL,
     n_seeds INTEGER NOT NULL,
+    bootstrap_iterations INTEGER NOT NULL,
     baselines_reused INTEGER NOT NULL,
     baselines_executed INTEGER NOT NULL,
     stochastic_status VARCHAR NOT NULL,
@@ -429,34 +541,61 @@ def _frozen_shares(
     config: Any,
     parallel: int | None,
 ) -> list[AttributionShare]:
-    """Run each independently seed-variant subsystem once with a pinned stream."""
+    """Run each seed-variant subsystem's frozen arm across every anchor and average."""
+    from .planner import resolve_attribution_anchor_seeds
+
     shares: list[AttributionShare] = []
+    anchors = resolve_attribution_anchor_seeds(plan.spec)
+    baseline_index = _values_by_metric_and_seed(baseline_values)
+    eligible_keys = sorted(baseline_index)
     for subsystem in (item for item in subsystems if item.is_seed_variant):
-        frozen_config = _frozen_config(config, subsystem, seeds[0])
-        frozen_plan = _frozen_plan(
-            plan, seeds, subsystem, _fingerprint(frozen_config, plan)
-        )
-        outcomes = _execute_seed_runs(
-            frozen_plan, frozen_config, parallel, subsystem.value
-        )
-        _write_provenance(
-            frozen_plan, role="attribution_frozen", frozen_subsystem=subsystem
-        )
-        calculated = calculate_variance_shares(
-            baseline_values,
-            _extract_values(frozen_plan, outcomes),
-            subsystem=subsystem,
-            baselines_reused=resolution.reused_count,
-            baselines_executed=resolution.executed_count,
-            anchor_seed=seeds[0],
-        )
-        shares.extend(
-            share
-            for share in calculated
-            if share.n_seeds >= plan.spec.min_seeds
-            and (share.metric, share.simulation_year)
-            in {(item.metric, item.simulation_year) for item in baseline_values}
-        )
+        observations_by_key: dict[
+            tuple[str, int], list[_AnchorObservation]
+        ] = defaultdict(list)
+        for anchor in anchors:
+            frozen_config = _frozen_config(config, subsystem, anchor)
+            frozen_plan = _frozen_plan(
+                plan, seeds, subsystem, anchor, _fingerprint(frozen_config, plan)
+            )
+            outcomes = _execute_seed_runs(
+                frozen_plan, frozen_config, parallel, f"{subsystem.value}-{anchor}"
+            )
+            _write_provenance(
+                frozen_plan,
+                role="attribution_frozen",
+                frozen_subsystem=subsystem,
+                anchor_seed=anchor,
+            )
+            frozen_index = _values_by_metric_and_seed(
+                _extract_values(frozen_plan, outcomes)
+            )
+            for key in eligible_keys:
+                paired_seeds = sorted(
+                    set(baseline_index[key]) & set(frozen_index.get(key, {}))
+                )
+                if len(paired_seeds) < 2:
+                    continue
+                observations_by_key[key].append(
+                    _AnchorObservation(
+                        anchor_seed=anchor,
+                        baseline_values=tuple(
+                            baseline_index[key][seed] for seed in paired_seeds
+                        ),
+                        frozen_values=tuple(
+                            frozen_index[key][seed] for seed in paired_seeds
+                        ),
+                    )
+                )
+        for key in eligible_keys:
+            share = _combine_anchor_observations(
+                key,
+                subsystem,
+                observations_by_key.get(key, []),
+                resolution.reused_count,
+                resolution.executed_count,
+            )
+            if share.n_seeds >= plan.spec.min_seeds:
+                shares.append(share)
     return shares
 
 
@@ -474,6 +613,7 @@ def _frozen_plan(
     plan: SeedPlan,
     seeds: Sequence[int],
     subsystem: Subsystem,
+    anchor_seed: int,
     fingerprint: str,
 ) -> SeedPlan:
     """Allocate a dedicated immutable result DB for every frozen seed world."""
@@ -481,6 +621,7 @@ def _frozen_plan(
         seed: plan.ensemble_db_path.parent
         / "attribution"
         / subsystem.value
+        / f"anchor_{anchor_seed}"
         / f"seed_{seed}.duckdb"
         for seed in seeds
     }
@@ -499,6 +640,7 @@ def _write_provenance(
     *,
     role: str,
     frozen_subsystem: Subsystem | None = None,
+    anchor_seed: int | None = None,
 ) -> None:
     """Record the attribution role using the existing additive metadata table."""
     from .provenance import write_ensemble_provenance
@@ -507,6 +649,7 @@ def _write_provenance(
         plan,
         role=role,  # type: ignore[arg-type]
         frozen_subsystem=frozen_subsystem,
+        anchor_seed=anchor_seed,
     )
 
 

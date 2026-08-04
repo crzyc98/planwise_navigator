@@ -409,6 +409,10 @@ def _evolve_provenance_schema(conn) -> None:
         ("ensemble_role", "VARCHAR"),
         ("ensemble_frozen_subsystem", "VARCHAR"),
         ("ensemble_member_paths", "VARCHAR"),
+        # Issue #543: which anchor seed this attribution_frozen run pinned the
+        # subsystem to. Multiple anchors are averaged per subsystem, so this
+        # disambiguates one frozen run among several sharing a subsystem.
+        ("ensemble_frozen_anchor_seed", "INTEGER"),
     )
     for name, column_type in provenance_columns:
         conn.execute(

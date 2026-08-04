@@ -35,6 +35,27 @@ def test_attribution_seed_count_cannot_exceed_headline_seed_count() -> None:
 
 
 @pytest.mark.fast
+def test_resolved_attribution_anchor_count_defaults_to_five() -> None:
+    """Averaging over several anchors is the point of #543 — default, don't skip it."""
+    spec = _spec(attribution=True)
+    assert spec.resolved_attribution_anchor_count == 5
+
+
+@pytest.mark.fast
+def test_resolved_attribution_anchor_count_honors_explicit_override() -> None:
+    """An explicit --attribution-anchors value replaces the default of 5."""
+    spec = _spec(attribution=True, attribution_anchor_count=3)
+    assert spec.resolved_attribution_anchor_count == 3
+
+
+@pytest.mark.fast
+def test_resolved_attribution_anchor_count_is_zero_without_attribution() -> None:
+    """No anchors are resolved when attribution was never requested."""
+    spec = _spec(attribution_anchor_count=3)
+    assert spec.resolved_attribution_anchor_count == 0
+
+
+@pytest.mark.fast
 def test_seed_count_must_be_at_least_one() -> None:
     """An ensemble always contains at least one resolved seed."""
     with pytest.raises(ValidationError, match="seed_count"):

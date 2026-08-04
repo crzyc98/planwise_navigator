@@ -27,6 +27,7 @@ def write_ensemble_provenance(
     *,
     role: EnsembleRole = "headline",
     frozen_subsystem: Subsystem | None = None,
+    anchor_seed: int | None = None,
 ) -> None:
     """Append the aggregate's seed lineage to its dedicated ensemble database."""
     if role == "attribution_frozen" and frozen_subsystem is None:
@@ -35,6 +36,8 @@ def write_ensemble_provenance(
         )
     if role != "attribution_frozen" and frozen_subsystem is not None:
         raise ValueError("frozen_subsystem is only valid for attribution_frozen")
+    if role != "attribution_frozen" and anchor_seed is not None:
+        raise ValueError("anchor_seed is only valid for attribution_frozen")
     plan.ensemble_db_path.parent.mkdir(parents=True, exist_ok=True)
     with duckdb.connect(str(plan.ensemble_db_path)) as conn:
         conn.execute(_CREATE_TABLE_SQL)
@@ -46,8 +49,8 @@ def write_ensemble_provenance(
                 start_year, end_year, scenario_id, plan_design_id,
                 planalign_version, full_reset, ensemble_id, ensemble_seed_list,
                 ensemble_seed_count, ensemble_role, ensemble_frozen_subsystem,
-                ensemble_member_paths
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ensemble_frozen_anchor_seed, ensemble_member_paths
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 str(uuid.uuid4()),
@@ -66,6 +69,7 @@ def write_ensemble_provenance(
                 len(plan.seeds),
                 role,
                 frozen_subsystem.value if frozen_subsystem is not None else None,
+                anchor_seed,
                 json.dumps(
                     [str(path) for path in plan.seed_db_paths.values()],
                     separators=(",", ":"),

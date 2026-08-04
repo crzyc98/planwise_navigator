@@ -63,16 +63,19 @@ def _write_ensemble_attribution(path) -> None:
         conn.execute(
             "CREATE TABLE fct_variance_attribution ("
             "metric VARCHAR, simulation_year INTEGER, subsystem VARCHAR, "
-            "variance_share DOUBLE, baseline_variance DOUBLE, frozen_variance DOUBLE, "
-            "n_seeds INTEGER, baselines_reused INTEGER, baselines_executed INTEGER, "
+            "variance_share DOUBLE, ci_low DOUBLE, ci_high DOUBLE, "
+            "baseline_variance DOUBLE, frozen_variance DOUBLE, anchor_seeds VARCHAR, "
+            "n_anchors INTEGER, n_seeds INTEGER, bootstrap_iterations INTEGER, "
+            "baselines_reused INTEGER, baselines_executed INTEGER, "
             "stochastic_status VARCHAR)"
         )
         conn.execute(
             "INSERT INTO fct_variance_attribution VALUES "
-            "('total_employer_plan_cost', 2029, 'termination', 0.61, 10, 3.9, "
-            "10, 10, 0, 'stochastic'), "
+            "('total_employer_plan_cost', 2029, 'termination', 0.61, 0.50, 0.70, "
+            "10, 3.9, '9000042,9001043,9002044,9003045,9004046', 5, "
+            "10, 2000, 10, 0, 'stochastic'), "
             "('total_employer_plan_cost', 2029, 'enrollment', NULL, NULL, NULL, "
-            "10, 10, 0, 'not_stochastic')"
+            "NULL, NULL, '', 0, 10, 0, 10, 0, 'not_stochastic')"
         )
 
 
@@ -142,10 +145,10 @@ def test_normal_export_does_not_gain_an_empty_distribution_sheet(tmp_path) -> No
 
 
 @pytest.mark.fast
-def test_attribution_is_withheld_from_the_client_workbook_but_kept_as_evidence(
+def test_attribution_is_included_in_the_client_workbook_now_it_is_anchor_averaged(
     tmp_path,
 ) -> None:
-    """A spreadsheet strips the caveats single-anchor variance cannot be read without."""
+    """#543: the anchor-averaged estimator with a bootstrap CI is publishable."""
     primary_db = tmp_path / "seed.duckdb"
     ensemble_db = tmp_path / "ensemble.duckdb"
     _write_primary_snapshot(primary_db)
@@ -170,11 +173,24 @@ def test_attribution_is_withheld_from_the_client_workbook_but_kept_as_evidence(
     finally:
         manager.close_all()
 
-    sheetnames = load_workbook(workbook_path, data_only=True).sheetnames
-    assert "Variance_Attribution" not in sheetnames
+    workbook = load_workbook(workbook_path, data_only=True)
+    sheetnames = workbook.sheetnames
+    assert "Variance_Attribution" in sheetnames
     assert "Metric_Distributions" in sheetnames
 
-    # Withheld from the workbook, never deleted: the evidence stays queryable.
+    sheet = workbook["Variance_Attribution"]
+    header = [cell.value for cell in sheet[1]]
+    rows = [
+        dict(zip(header, row, strict=True))
+        for row in sheet.iter_rows(min_row=2, values_only=True)
+    ]
+    by_subsystem = {row["subsystem"]: row for row in rows}
+    assert by_subsystem["termination"]["variance_share"] == 0.61
+    assert by_subsystem["termination"]["ci_low"] == 0.50
+    assert by_subsystem["termination"]["ci_high"] == 0.70
+    assert by_subsystem["termination"]["n_anchors"] == 5
+    assert by_subsystem["enrollment"]["variance_share"] is None
+
     with duckdb.connect(str(ensemble_db), read_only=True) as connection:
         retained = connection.execute(
             "SELECT subsystem, variance_share FROM fct_variance_attribution "
