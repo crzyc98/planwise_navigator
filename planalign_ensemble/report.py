@@ -62,10 +62,11 @@ def _print_run_count(console: Console, plan: SeedPlan) -> None:
     attribution_runs = plan.total_run_count - headline_runs
     subsystem_count = sum(item.is_seed_variant for item in Subsystem)
     seed_count = plan.spec.resolved_attribution_seed_count
+    anchor_count = plan.spec.resolved_attribution_anchor_count
     console.print(
         f"  Runs:          {headline_runs} headline + {attribution_runs} attribution "
-        f"({subsystem_count} subsystems × {seed_count} seeds) = "
-        f"{plan.total_run_count} total"
+        f"({subsystem_count} subsystems × {anchor_count} anchors × {seed_count} seeds) "
+        f"= {plan.total_run_count} total"
     )
     console.print(
         f"                 baseline runs reused from headline: {seed_count} of {seed_count}"
@@ -146,7 +147,7 @@ def print_attribution_tables(
     console: Console,
     shares: list[AttributionShare] | tuple[AttributionShare, ...],
 ) -> None:
-    """Render unranked single-anchor variance changes and structural absences."""
+    """Render ranked, anchor-averaged variance shares and structural absences."""
     grouped: dict[tuple[str, int], list[AttributionShare]] = defaultdict(list)
     for share in shares:
         grouped[(share.metric, share.simulation_year)].append(share)
@@ -229,17 +230,17 @@ def _print_attribution_group(
     """Show one metric/year ranking without treating a missing draw as zero."""
     label = _METRIC_LABELS.get(metric, metric.replace("_", " ").title())
     sample_size = max((share.n_seeds for share in shares), default=0)
-    anchor = next(
-        (share.anchor_seed for share in shares if share.anchor_seed is not None), None
-    )
-    anchor_text = f"anchor seed {anchor}" if anchor is not None else "a single anchor"
+    anchor_count = max((share.n_anchors for share in shares), default=0)
     console.print(
-        f"[bold][EXPERIMENTAL] Conditional variance change — {label.lower()}, {year} "
-        f"(n={sample_size} paired seeds, {anchor_text})[/bold]"
+        f"[bold]Variance share (main effect) — {label.lower()}, {year} "
+        f"(n={sample_size} paired seeds × {anchor_count} anchors)[/bold]"
     )
     stochastic = sorted(
         (share for share in shares if share.stochastic_status == "stochastic"),
-        key=lambda share: share.subsystem.value,
+        key=lambda share: (
+            share.variance_share if share.variance_share is not None else float("-inf")
+        ),
+        reverse=True,
     )
     for share in stochastic:
         console.print(f"     {_format_attribution_share(share)}")
@@ -253,14 +254,16 @@ def _print_attribution_group(
         )
     representative = shares[0]
     console.print(
-        "  Method: variance with one subsystem's seed pinned to a single anchor, "
-        "relative to unpinned variance."
+        f"  Method: conditional-variance reduction averaged across {anchor_count} "
+        "independently pinned anchor seeds per subsystem — approximates the "
+        "subsystem's first-order Sobol index. 95% CI from a paired bootstrap "
+        "resampled within each anchor."
     )
     console.print(
-        "  [yellow]Not a variance decomposition and not causal attribution: "
-        "conditional variance at one anchor can legitimately exceed marginal "
-        "variance, so 'higher when pinned' is a real result rather than an error, "
-        "and these are deliberately unranked. Diagnostic use only.[/yellow]"
+        "  [yellow]Main effect only: pinning one subsystem's seed also fixes the "
+        "population later subsystems draw from, so interaction effects are not "
+        "decomposed and shares across subsystems need not sum to 1. Not a full "
+        "variance decomposition or causal attribution.[/yellow]"
     )
     console.print(
         "  Baselines: "
@@ -270,16 +273,21 @@ def _print_attribution_group(
 
 
 def _format_attribution_share(share: AttributionShare) -> str:
-    """Show the raw variances behind a change so it cannot read as a settled share."""
+    """Show the raw variances and interval behind a share, not just the point estimate."""
     if share.variance_share is None:
         return (
-            f"{share.subsystem.value:<13} not estimable — baseline variance is zero "
-            f"or fewer than two paired values (n={share.n_seeds})"
+            f"{share.subsystem.value:<13} not estimable — no anchor had two paired "
+            f"values with nonzero baseline variance (n={share.n_seeds})"
         )
     direction = "lower" if share.variance_share > 0 else "higher"
+    interval = (
+        f", 95% CI [{share.ci_low:.0%}, {share.ci_high:.0%}]"
+        if share.ci_low is not None and share.ci_high is not None
+        else ", CI not estimable"
+    )
     return (
         f"{share.subsystem.value:<13} variance {abs(share.variance_share):.0%} "
-        f"{direction} when pinned "
+        f"{direction} when pinned{interval} "
         f"(unpinned {share.baseline_variance:.4g}, pinned {share.frozen_variance:.4g}, "
         f"n={share.n_seeds})"
     )

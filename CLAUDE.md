@@ -667,11 +667,11 @@ Full guide: `docs/guides/backtesting.md`
 `planalign simulate <years> --seeds N` runs N fully isolated seed worlds and
 writes a dedicated aggregate database under `var/ensembles/`. It reports
 linear P10/P50/P90 bands and optional threshold-exceedance probabilities.
-`--attribution` adds an **experimental, diagnostic-only** conditional variance
-measurement (see below) — it is not variance attribution.
+`--attribution` adds an anchor-averaged conditional variance measurement
+(see below), publishable with a bootstrap interval since #543.
 
 ```bash
-planalign simulate 2025-2029 --seeds 25 --attribution --attribution-seeds 10
+planalign simulate 2025-2029 --seeds 25 --attribution --attribution-seeds 10 --attribution-anchors 5
 ```
 
 Key invariants:
@@ -683,17 +683,24 @@ Key invariants:
 - **Determinism is labelled, not banded:** a metric with zero spread across all
   seeds (e.g. `active_headcount`, solved by the E077 growth solver) renders as
   `deterministic` rather than five identical percentile columns.
-- **`--attribution` is EXPERIMENTAL and diagnostic-only.** It measures
-  `1 - Var(Y | subsystem seed = anchor) / Var(Y)` at a **single arbitrary
-  anchor**, which is not a variance decomposition. Conditional variance at one
-  anchor can legitimately exceed marginal variance, so results are never ranked,
-  always print raw pinned/unpinned variances and the anchor seed, and are
-  withheld from Excel exports (evidence stays in `fct_variance_attribution`).
-  Only termination, hiring, and promotion have independently seedable draws;
+- **`--attribution` averages over several anchors (#543), not one.** For each
+  subsystem it repeats the frozen arm across `--attribution-anchors` (default 5)
+  independently pinned anchor seeds and averages
+  `1 - Var(Y | subsystem seed = anchor) / Var(Y)` across them — by the law of
+  total variance this approximates the subsystem's first-order Sobol index,
+  rather than reporting one arbitrary anchor's conditional variance. A paired
+  bootstrap (resampled within each anchor) gives a 95% CI. Results are ranked
+  and exported to the Excel workbook (`Variance_Attribution` sheet) and
+  `fct_variance_attribution`. It is still main-effect-only: pinning one
+  subsystem's seed also fixes the population later subsystems draw from, so
+  interaction effects are not decomposed and shares need not sum to 1. Only
+  termination, hiring, and promotion have independently seedable draws;
   enrollment and merit render as `not stochastic`, never a misleading 0%.
-- **Cost:** the CLI declares its memory-bounded worker budget and all headline
-  plus frozen attribution runs before execution. Retained headline worlds are
-  reused only when seed and config fingerprint both match.
+- **Cost:** each additional anchor multiplies attribution's frozen-run count
+  by the subsystem count (3 × K seeds per anchor). The CLI declares its
+  memory-bounded worker budget and all headline plus frozen attribution runs
+  (subsystems × anchors × seeds) before execution. Retained headline worlds
+  are reused only when seed and config fingerprint both match.
 
 Full guide: `docs/guides/seed_ensembles.md`
 

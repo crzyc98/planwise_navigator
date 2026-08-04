@@ -193,9 +193,7 @@ def test_empty_risk_section_is_explicit() -> None:
 
 
 @pytest.mark.fast
-def test_attribution_report_is_unranked_caveated_and_names_structural_absences() -> (
-    None
-):
+def test_attribution_report_is_ranked_caveated_and_names_structural_absences() -> None:
     """Every displayed attribution finding carries method, sample, and reuse context."""
     console, stream = _console()
 
@@ -207,9 +205,14 @@ def test_attribution_report_is_unranked_caveated_and_names_structural_absences()
                 simulation_year=2029,
                 subsystem=Subsystem.TERMINATION,
                 variance_share=0.61,
+                ci_low=0.50,
+                ci_high=0.70,
                 baseline_variance=10.0,
                 frozen_variance=3.9,
+                anchor_seeds=(9000042, 9001043, 9002044, 9003045, 9004046),
+                n_anchors=5,
                 n_seeds=10,
+                bootstrap_iterations=2000,
                 baselines_reused=10,
                 stochastic_status="stochastic",
             ),
@@ -218,9 +221,14 @@ def test_attribution_report_is_unranked_caveated_and_names_structural_absences()
                 simulation_year=2029,
                 subsystem=Subsystem.HIRING,
                 variance_share=0.22,
+                ci_low=0.10,
+                ci_high=0.34,
                 baseline_variance=10.0,
                 frozen_variance=7.8,
+                anchor_seeds=(9000042, 9001043, 9002044, 9003045, 9004046),
+                n_anchors=5,
                 n_seeds=10,
+                bootstrap_iterations=2000,
                 baselines_reused=10,
                 stochastic_status="stochastic",
             ),
@@ -237,16 +245,14 @@ def test_attribution_report_is_unranked_caveated_and_names_structural_absences()
 
     output = stream.getvalue()
     unwrapped = " ".join(output.split())
-    assert "[EXPERIMENTAL] Conditional variance change" in unwrapped
+    assert "Variance share (main effect)" in unwrapped
     assert "termination" in output
     assert "hiring" in output
     assert "not stochastic" in output
     assert "n=10" in output
     assert "10 reused" in output
-    # Single-anchor conditional variance is not a decomposition: never ranked,
-    # never described as attribution, and always caveated.
-    assert "1. termination" not in output
-    assert "2. hiring" not in output
-    assert "What drives the spread" not in output
-    assert "not causal attribution" in unwrapped
-    assert "Diagnostic use only" in unwrapped
+    assert "95% CI [50%, 70%]" in unwrapped
+    # Anchor-averaged shares are ranked (termination's 61% precedes hiring's 22%).
+    assert output.index("termination") < output.index("hiring")
+    assert "not a full variance decomposition" in unwrapped.lower()
+    assert "causal attribution" in unwrapped.lower()

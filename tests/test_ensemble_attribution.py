@@ -7,6 +7,8 @@ from pathlib import Path
 import pytest
 
 from planalign_ensemble.attribution import (
+    _AnchorObservation,
+    _combine_anchor_observations,
     calculate_variance_shares,
     not_stochastic_shares,
     resolve_baselines,
@@ -150,6 +152,103 @@ def test_reused_baseline_evidence_has_the_same_share_as_a_fresh_baseline() -> No
     assert reused[0].variance_share == fresh[0].variance_share
     assert reused[0].baseline_variance == fresh[0].baseline_variance
     assert reused[0].frozen_variance == fresh[0].frozen_variance
+
+
+@pytest.mark.fast
+def test_anchor_averaged_share_averages_a_constant_per_anchor_effect() -> None:
+    """#543: averaging over anchors, not pinning to one, is the point of the fix."""
+    observations = [
+        _AnchorObservation(
+            anchor_seed=anchor,
+            baseline_values=(1.0, 3.0, 5.0),
+            frozen_values=(2.0, 2.0, 2.0),
+        )
+        for anchor in (9000042, 9001043, 9002044)
+    ]
+
+    share = _combine_anchor_observations(
+        ("total_employer_plan_cost", 2029),
+        Subsystem.TERMINATION,
+        observations,
+        3,
+        0,
+    )
+
+    assert share.n_anchors == 3
+    assert share.anchor_seeds == (9000042, 9001043, 9002044)
+    assert share.variance_share == 1.0
+    assert share.ci_low is not None and share.ci_high is not None
+    assert share.ci_low <= share.variance_share <= share.ci_high
+    assert share.bootstrap_iterations > 0
+
+
+@pytest.mark.fast
+def test_anchor_averaged_share_differs_from_any_single_anchor_when_anchors_vary() -> (
+    None
+):
+    """The averaged share reflects every anchor, not just the first one seen."""
+    dominant = _AnchorObservation(
+        anchor_seed=1, baseline_values=(1.0, 3.0, 5.0), frozen_values=(2.0, 2.0, 2.0)
+    )
+    no_effect = _AnchorObservation(
+        anchor_seed=2, baseline_values=(1.0, 3.0, 5.0), frozen_values=(1.0, 3.0, 5.0)
+    )
+
+    share = _combine_anchor_observations(
+        ("total_employer_plan_cost", 2029),
+        Subsystem.TERMINATION,
+        [dominant, no_effect],
+        2,
+        0,
+    )
+
+    single_anchor_dominant = _combine_anchor_observations(
+        ("total_employer_plan_cost", 2029),
+        Subsystem.TERMINATION,
+        [dominant],
+        2,
+        0,
+    )
+
+    assert share.variance_share == pytest.approx(0.5)
+    assert share.variance_share != single_anchor_dominant.variance_share
+
+
+@pytest.mark.fast
+def test_anchor_averaged_share_with_no_observations_is_not_estimable() -> None:
+    """No anchor produced two paired values: report absence, not a fabricated zero."""
+    share = _combine_anchor_observations(
+        ("total_employer_plan_cost", 2029), Subsystem.HIRING, [], 1, 0
+    )
+
+    assert share.n_anchors == 0
+    assert share.n_seeds == 0
+    assert share.variance_share is None
+    assert share.ci_low is None
+    assert share.ci_high is None
+
+
+@pytest.mark.fast
+def test_bootstrap_ci_is_deterministic_across_repeated_calls() -> None:
+    """The RNG is seeded from (metric, year, subsystem) so reruns reproduce the CI."""
+    observations = [
+        _AnchorObservation(
+            anchor_seed=anchor,
+            baseline_values=(1.0, 3.0, 5.0, 7.0, 9.0),
+            frozen_values=(2.0, 2.5, 3.5, 4.0, 4.5),
+        )
+        for anchor in (9000042, 9001043)
+    ]
+
+    first = _combine_anchor_observations(
+        ("total_employer_plan_cost", 2029), Subsystem.HIRING, observations, 5, 0
+    )
+    second = _combine_anchor_observations(
+        ("total_employer_plan_cost", 2029), Subsystem.HIRING, observations, 5, 0
+    )
+
+    assert first.ci_low == second.ci_low
+    assert first.ci_high == second.ci_high
 
 
 @pytest.mark.fast

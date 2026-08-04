@@ -402,16 +402,11 @@ class ExcelExporter:
                     writer, sheet_name="Metric_Distributions", index=False
                 )
                 self._format_worksheet(writer.book["Metric_Distributions"])
+            self._write_attribution_sheet(writer, ensemble_db_path)
         return excel_path
 
     def _write_ensemble_sheets(self, writer, ensemble_db_path: Optional[Path]) -> None:
-        """Add the completed ensemble's distribution sheet.
-
-        Variance attribution is deliberately excluded from the client-facing
-        workbook: it is a single-anchor conditional variance change, not a
-        decomposition, and a spreadsheet strips the caveats that make it readable.
-        The evidence stays queryable in `fct_variance_attribution`.
-        """
+        """Add the completed ensemble's distribution and attribution sheets."""
         distributions = self._read_ensemble_distributions(ensemble_db_path)
         if distributions is not None:
             distributions = self._sanitize_for_excel(distributions)
@@ -419,6 +414,25 @@ class ExcelExporter:
                 writer, sheet_name="Metric_Distributions", index=False
             )
             self._format_worksheet(writer.book["Metric_Distributions"])
+        self._write_attribution_sheet(writer, ensemble_db_path)
+
+    def _write_attribution_sheet(
+        self, writer, ensemble_db_path: Optional[Path]
+    ) -> None:
+        """Add the anchor-averaged variance-share sheet when attribution ran.
+
+        Re-enabled per #543: the estimator now averages conditional variance
+        over several anchors (approximating each subsystem's first-order Sobol
+        index) with a paired-bootstrap CI, rather than reporting one arbitrary
+        anchor. It is still a main-effect-only share, not a full variance
+        decomposition — the sheet's own columns (ci_low/ci_high, n_anchors)
+        carry that context into the workbook.
+        """
+        attribution = self._read_ensemble_attribution(ensemble_db_path)
+        if attribution is not None and not attribution.empty:
+            attribution = self._sanitize_for_excel(attribution)
+            attribution.to_excel(writer, sheet_name="Variance_Attribution", index=False)
+            self._format_worksheet(writer.book["Variance_Attribution"])
 
     @staticmethod
     def _read_ensemble_distributions(
@@ -459,8 +473,9 @@ class ExcelExporter:
                 return None
             return conn.execute(
                 "SELECT subsystem, metric, simulation_year, variance_share, "
-                "baseline_variance, frozen_variance, n_seeds, baselines_reused, "
-                "baselines_executed, stochastic_status "
+                "ci_low, ci_high, baseline_variance, frozen_variance, "
+                "anchor_seeds, n_anchors, n_seeds, bootstrap_iterations, "
+                "baselines_reused, baselines_executed, stochastic_status "
                 "FROM fct_variance_attribution "
                 "ORDER BY metric, simulation_year, stochastic_status, "
                 "variance_share DESC NULLS LAST, subsystem"

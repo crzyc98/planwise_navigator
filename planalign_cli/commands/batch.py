@@ -80,6 +80,12 @@ def run_batch(
     attribution_seeds: Optional[int] = typer.Option(
         None, "--attribution-seeds", min=1, help="Headline seed subset for attribution"
     ),
+    attribution_anchors: Optional[int] = typer.Option(
+        None,
+        "--attribution-anchors",
+        min=1,
+        help="Anchor seeds A averaged per subsystem (default 5)",
+    ),
     min_seeds: int = typer.Option(10, "--min-seeds", min=1),
     discard_seed_dbs: bool = typer.Option(False, "--discard-seed-dbs"),
     threshold: Optional[list[str]] = typer.Option(
@@ -119,6 +125,7 @@ def run_batch(
                 seed_list=seed_list,
                 attribution=attribution,
                 attribution_seeds=attribution_seeds,
+                attribution_anchors=attribution_anchors,
                 min_seeds=min_seeds,
                 discard_seed_dbs=discard_seed_dbs,
                 parallel=parallel,
@@ -271,6 +278,9 @@ def default(
     seed_list: Optional[str] = typer.Option(None, "--seed-list"),
     attribution: bool = typer.Option(False, "--attribution"),
     attribution_seeds: Optional[int] = typer.Option(None, "--attribution-seeds", min=1),
+    attribution_anchors: Optional[int] = typer.Option(
+        None, "--attribution-anchors", min=1
+    ),
     min_seeds: int = typer.Option(10, "--min-seeds", min=1),
     discard_seed_dbs: bool = typer.Option(False, "--discard-seed-dbs"),
     threshold: Optional[list[str]] = typer.Option(None, "--threshold"),
@@ -291,6 +301,7 @@ def default(
         seed_list=seed_list,
         attribution=attribution,
         attribution_seeds=attribution_seeds,
+        attribution_anchors=attribution_anchors,
         min_seeds=min_seeds,
         discard_seed_dbs=discard_seed_dbs,
         threshold=threshold,
@@ -305,6 +316,7 @@ def _run_ensemble_batch(
     seed_list: Optional[str],
     attribution: bool,
     attribution_seeds: Optional[int],
+    attribution_anchors: Optional[int],
     min_seeds: int,
     discard_seed_dbs: bool,
     parallel: Optional[int],
@@ -329,6 +341,8 @@ def _run_ensemble_batch(
         raise ValueError("--seeds and --seed-list cannot be used together")
     if attribution_seeds is not None and not attribution:
         raise ValueError("--attribution-seeds requires --attribution")
+    if attribution_anchors is not None and not attribution:
+        raise ValueError("--attribution-anchors requires --attribution")
     explicit_seeds = _parse_seed_list(seed_list) if seed_list is not None else None
     seed_count = seeds if seeds is not None else len(explicit_seeds or ())
     if seed_count < 1:
@@ -353,6 +367,7 @@ def _run_ensemble_batch(
             min_seeds=min_seeds,
             attribution=attribution,
             attribution_seed_count=attribution_seeds,
+            attribution_anchor_count=attribution_anchors,
             thresholds=configured_thresholds + cli_thresholds,
             discard_seed_dbs=discard_seed_dbs,
             config_path=config_path,

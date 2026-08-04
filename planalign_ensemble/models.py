@@ -71,6 +71,7 @@ class EnsembleSpec(BaseModel):
     min_seeds: int = Field(default=10, ge=1)
     attribution: bool = False
     attribution_seed_count: int | None = Field(default=None, ge=1)
+    attribution_anchor_count: int | None = Field(default=None, ge=1)
     discard_seed_dbs: bool = False
     config_path: Path | None = None
     dbt_project_dir: Path | None = None
@@ -104,6 +105,19 @@ class EnsembleSpec(BaseModel):
         if not self.attribution:
             return 0
         return self.attribution_seed_count or min(self.seed_count, self.min_seeds)
+
+    @property
+    def resolved_attribution_anchor_count(self) -> int:
+        """Return the number of anchor seeds averaged per subsystem, when enabled.
+
+        Averaging over multiple anchors (rather than pinning to one) is what
+        makes the estimate a defensible approximation of the first-order
+        Sobol index for that subsystem instead of an arbitrary single-anchor
+        conditional variance (#543).
+        """
+        if not self.attribution:
+            return 0
+        return self.attribution_anchor_count or 5
 
 
 class SeedPlan(BaseModel):
@@ -217,13 +231,24 @@ class RiskStatement(BaseModel):
 
 
 class AttributionShare(BaseModel):
-    """Conditional variance change for one metric and subsystem at a single anchor.
+    """Anchor-averaged conditional variance share for one metric and subsystem.
 
-    EXPERIMENTAL. `variance_share` is `1 - Var(Y | subsystem seed = anchor_seed) /
-    Var(Y)`, measured at one arbitrary anchor. Conditional variance at a particular
-    anchor can legitimately exceed marginal variance, so this is neither a variance
-    decomposition nor a causal attribution and must not be ranked or presented as
-    one. A defensible estimator averages over many anchors (#543).
+    `variance_share` is the average, across `n_anchors` independently pinned
+    anchor seeds, of `1 - Var(Y | subsystem seed = anchor) / Var(Y)`. By the law
+    of total variance this approximates the first-order Sobol index for the
+    subsystem: the share of outcome variance associated with that subsystem's
+    draw, averaged rather than measured at one arbitrary anchor (#543). It
+    captures only this subsystem's main effect — pinning one subsystem's seed
+    also fixes the population later subsystems draw from, so interaction effects
+    are not decomposed and shares across subsystems need not sum to 1. This is
+    still not a causal attribution or a full variance decomposition.
+
+    `ci_low`/`ci_high` are a paired bootstrap interval: each replicate resamples
+    the paired (baseline, frozen) seed values within every anchor with
+    replacement, recomputes the anchor-averaged share, and the interval is the
+    2.5th/97.5th percentile of those replicates. The bootstrap RNG is seeded
+    deterministically from (metric, simulation_year, subsystem), so re-running
+    the same evidence reproduces the same interval.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -232,10 +257,14 @@ class AttributionShare(BaseModel):
     simulation_year: int
     subsystem: Subsystem
     variance_share: float | None = None
+    ci_low: float | None = None
+    ci_high: float | None = None
     baseline_variance: float | None = None
     frozen_variance: float | None = None
-    anchor_seed: int | None = None
+    anchor_seeds: tuple[int, ...] = Field(default_factory=tuple)
+    n_anchors: int = Field(default=0, ge=0)
     n_seeds: int = Field(ge=0)
+    bootstrap_iterations: int = Field(default=0, ge=0)
     baselines_reused: int = Field(default=0, ge=0)
     baselines_executed: int = Field(default=0, ge=0)
     stochastic_status: Literal["stochastic", "not_stochastic"]
@@ -243,11 +272,14 @@ class AttributionShare(BaseModel):
     @model_validator(mode="after")
     def validate_stochastic_status(self) -> "AttributionShare":
         """Avoid rendering structural non-stochasticity as a measured zero."""
-        if (
-            self.stochastic_status == "not_stochastic"
-            and self.variance_share is not None
+        if self.stochastic_status == "not_stochastic" and (
+            self.variance_share is not None
+            or self.ci_low is not None
+            or self.ci_high is not None
         ):
-            raise ValueError("not_stochastic attribution shares must be None")
+            raise ValueError(
+                "not_stochastic attribution shares must have no measured statistics"
+            )
         return self
 
 

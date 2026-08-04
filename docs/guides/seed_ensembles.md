@@ -69,54 +69,96 @@ For every sufficient metric/year sample, the CLI reports the strict-exceedance
 probability and contributing seed count. A metric unavailable from the source
 mart is reported as not evaluable rather than silently treated as zero.
 
-## Conditional variance change (EXPERIMENTAL — diagnostic only)
-
-> **This is not variance attribution and must not be presented as one.** It is
-> excluded from client-facing workbooks. Read this section before using the
-> numbers for anything.
+## Variance share attribution (anchor-averaged, #543)
 
 Add `--attribution` to measure, for each of termination, hiring, and promotion,
-how the outcome variance changes when that subsystem's seed is pinned.
+the share of outcome variance associated with that subsystem's draw.
 
 ```bash
-planalign simulate 2025-2029 --seeds 25 --attribution --attribution-seeds 10
+planalign simulate 2025-2029 --seeds 25 --attribution --attribution-seeds 10 --attribution-anchors 5
 ```
 
-The runner pins only that subsystem's seed while the global seed continues to
-vary, compares sample variance over the same paired seed list, and reports:
+For each subsystem, the runner repeats the frozen arm across `--attribution-anchors`
+(default 5) independently pinned **anchor seeds**, each time pinning only that
+subsystem's seed while the global seed continues to vary across the
+`--attribution-seeds` (K) paired baseline seeds, and computes
 
 `1 - Var(Y | subsystem seed = anchor) / Var(Y)`
 
-**The anchor is a single arbitrary value** — the first attribution seed. That is
-the central limitation. Conditional variance at one particular anchor can
-legitimately be *larger* than marginal variance, because pinning a subsystem
-fixes its hash key rather than its realized multi-year event stream, and the
-still-varying subsystems interact with it. A measured run showed promotion's
-variance 250% *higher* when pinned; that is anchor dependence and interaction,
-not an error and not proof of noise.
+at every anchor. The reported `variance_share` is the **mean across anchors**,
+not one arbitrary anchor's value. By the law of total variance this
+approximates the subsystem's first-order Sobol index — the share of outcome
+variance associated with its draw, averaged the way the theory requires rather
+than measured at a single point. `ci_low`/`ci_high` are a 95% paired-bootstrap
+interval: each replicate resamples every anchor's paired (baseline, frozen)
+seed values with replacement, recomputes the anchor-averaged share, and the
+interval is the 2.5th/97.5th percentile of those replicates. The bootstrap RNG
+is seeded deterministically from `(metric, simulation_year, subsystem)`, so
+re-running against the same evidence reproduces the same interval.
 
-Consequences, all deliberate:
+This supersedes the single-anchor design shipped with Feature 133: pinning to
+one arbitrary anchor (`seeds[0]`) could show a subsystem's *conditional*
+variance exceeding its *marginal* variance — a measured run showed promotion's
+variance 250% higher when pinned at one anchor — which is not an error but is
+also not something a single point estimate can distinguish from real signal.
+Averaging over several anchors is what makes the number stable enough to rank
+and export.
 
-- Results are **never ranked** — ordering one-anchor numbers implies a
-  decomposition that has not been estimated.
-- Raw unpinned and pinned variances are printed alongside every value so the
-  magnitude is inspectable rather than reduced to a single percentage.
-- The anchor seed is disclosed in the output and stored in
-  `fct_variance_attribution.anchor_seed`.
-- Nothing from this pass reaches the Excel workbook. The evidence stays
-  queryable in `fct_variance_attribution`.
+**Still main-effect-only, not a full decomposition.** Pinning one subsystem's
+seed also fixes the population later subsystems draw from (hiring changes who
+is exposed to termination risk, for example), so interaction effects between
+subsystems are not captured and shares across subsystems need not sum to 1.
+Results are ranked within a metric/year by the point estimate, but "variance
+share" should not be read as "percent of cost caused by."
 
-A defensible estimator must average conditional variance across **many** anchors
-(law of total variance), or use a pick-freeze/Sobol design with genuinely
-independent subsystem streams. Both cost substantially more simulation runs.
-Tracked in #543. Until then, treat the output as a diagnostic for exploring
-model behavior, not as evidence about what drives cost.
+Consequences:
 
-Note also that small `--attribution-seeds` values make variance *ratios* very
-unstable, compounding the anchor problem. The command discloses the extra
-`3 × K` frozen runs before it starts. Headline seed runs are reused only when
-both the seed and effective configuration fingerprint match; reuse and
-fresh-baseline counts appear in the report.
+- Results **are ranked** by `variance_share` and reach the Excel workbook (a
+  `Variance_Attribution` sheet) and `fct_variance_attribution`, now that the
+  estimate is anchor-averaged with a CI rather than a single-anchor value.
+- Raw unpinned and pinned variances (averaged across anchors) are printed
+  alongside every share so the magnitude stays inspectable.
+- All anchor seeds used are disclosed in the CLI output and stored in
+  `fct_variance_attribution.anchor_seeds`; `n_anchors` and
+  `bootstrap_iterations` record how the interval was built.
+
+### Cost
+
+Each additional anchor multiplies attribution's frozen-run count by the
+subsystem count: **3 subsystems × A anchors × K seeds**, on top of the N
+headline runs. The CLI discloses the exact total before any worker starts.
+
+| `--seeds` (N) | K (`--attribution-seeds`) | A (`--attribution-anchors`) | Attribution runs (3×A×K) | Total runs |
+|---|---|---|---|---|
+| 25 | 10 | 1 (old single-anchor equivalent) | 30 | 55 |
+| 25 | 10 | 5 (default) | 150 | 175 |
+| 25 | 10 | 10 | 300 | 325 |
+
+Wall time scales with run count and available parallel workers
+(`ScenarioRunPool`, sized from memory and CPU count). Per-run wall time is not
+dominated by census size — dbt per-invocation overhead dominates at every
+scale measured (`docs/perf/run_cost_profile.md`,
+`docs/perf/run_cost_profile_production.md`, post-#478 invocation
+consolidation):
+
+- **~90–100s/run** for a 5-year horizon at a ~7.5k-employee (dev-scale) census.
+- **~120s/run** for a 5-year horizon at a 60k-employee (client-scale) census.
+
+Extrapolating (not a fresh empirical measurement of the full attribution job,
+since 150+ real dbt runs is impractical to execute per-change): the default
+5-anchor attribution pass above (150 frozen runs) is roughly **3.75–5 CPU-hours**
+serial-equivalent at dev-to-client scale, or **~30–45 minutes wall time** with
+8 parallel workers. A single `--attribution-anchors 1` run (30 frozen runs,
+matching the pre-#543 cost) is proportionally ~5× cheaper. Choose
+`--attribution-anchors` and `--attribution-seeds` with this multiplier in mind
+before running against a large census.
+
+Note also that small `--attribution-seeds` (K) values still make each anchor's
+variance ratio unstable; K and A trade off independently against cost — more
+anchors tighten the CI on the *mean*, more seeds tighten each anchor's own
+estimate. Headline seed runs are reused as the baseline arm only when both the
+seed and effective configuration fingerprint match; reuse and fresh-baseline
+counts appear in the report.
 
 Enrollment and merit are deliberately reported as **not stochastic**, not as
 0% contributors. Enrollment's production hashes do not include the random
@@ -129,10 +171,10 @@ later attribution request.
 
 ## Deliverables and validation
 
-An ensemble workbook adds `Metric_Distributions` when aggregate bands exist.
-Existing non-ensemble exports gain no empty sheet. Conditional variance results
-are intentionally **not** exported — a spreadsheet cell strips the caveats the
-number cannot be read without — and remain in `fct_variance_attribution`.
+An ensemble workbook adds `Metric_Distributions` when aggregate bands exist,
+and a `Variance_Attribution` sheet when `--attribution` ran. Existing
+non-ensemble exports gain no empty sheet. Attribution evidence also remains
+queryable directly in `fct_variance_attribution`.
 
 Use isolated databases for validation:
 

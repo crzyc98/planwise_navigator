@@ -64,15 +64,33 @@ def test_duplicate_explicit_seed_list_is_rejected() -> None:
 
 @pytest.mark.fast
 def test_run_count_discloses_headline_and_attribution_work(tmp_path) -> None:
-    """Planning reports the full OFAT multiplier before any worker starts."""
+    """Planning reports the full anchor-averaged multiplier before any worker starts."""
     plan = plan_ensemble(
         _spec(seed_count=5, attribution=True, attribution_seed_count=2),
         output_root=tmp_path,
         now=_PLANNED_AT,
     )
 
-    assert plan.total_run_count == 11  # 5 headline + 3 subsystems × 2 seeds
+    # 5 headline + 3 subsystems × 5 default anchors × 2 seeds
+    assert plan.total_run_count == 35
     assert plan.estimated_disk_mib > 0
+
+
+@pytest.mark.fast
+def test_run_count_scales_with_explicit_attribution_anchor_count(tmp_path) -> None:
+    """A smaller --attribution-anchors value must lower the disclosed run count."""
+    plan = plan_ensemble(
+        _spec(
+            seed_count=5,
+            attribution=True,
+            attribution_seed_count=2,
+            attribution_anchor_count=1,
+        ),
+        output_root=tmp_path,
+        now=_PLANNED_AT,
+    )
+
+    assert plan.total_run_count == 11  # 5 headline + 3 subsystems × 1 anchor × 2 seeds
 
 
 @pytest.mark.fast
@@ -92,7 +110,13 @@ def test_attribution_disk_estimate_includes_its_frozen_seed_worlds(tmp_path) -> 
 
 @pytest.mark.fast
 def test_disk_estimate_is_calibrated_against_measured_ensembles(tmp_path) -> None:
-    """Regression guard for #544: the estimate must track real disk use, not 4.6x it."""
+    """Regression guard for #544: the estimate must track real disk use, not 4.6x it.
+
+    The #544 measurement predates the anchor-averaging design (#543), whose
+    single implicit anchor is reproduced here with attribution_anchor_count=1
+    so this stays a regression guard against real measured bytes rather than
+    silently drifting with the anchor default.
+    """
     bands_only = plan_ensemble(
         _spec(seed_count=25, start_year=2025, end_year=2029),
         output_root=tmp_path,
@@ -105,6 +129,7 @@ def test_disk_estimate_is_calibrated_against_measured_ensembles(tmp_path) -> Non
             end_year=2029,
             attribution=True,
             attribution_seed_count=10,
+            attribution_anchor_count=1,
         ),
         output_root=tmp_path,
         now=_PLANNED_AT,
@@ -113,6 +138,38 @@ def test_disk_estimate_is_calibrated_against_measured_ensembles(tmp_path) -> Non
     # Measured actuals for these two ensembles (issue #544): 1899 MiB and 4174 MiB.
     assert 1700 <= bands_only.estimated_disk_mib <= 2100
     assert 3800 <= attribution.estimated_disk_mib <= 4600
+
+
+@pytest.mark.fast
+def test_disk_estimate_scales_with_attribution_anchor_count(tmp_path) -> None:
+    """More averaged anchors must raise the disclosed disk estimate, not hide the cost."""
+    single_anchor = plan_ensemble(
+        _spec(
+            seed_count=25,
+            start_year=2025,
+            end_year=2029,
+            attribution=True,
+            attribution_seed_count=10,
+            attribution_anchor_count=1,
+        ),
+        output_root=tmp_path,
+        now=_PLANNED_AT,
+    )
+    five_anchors = plan_ensemble(
+        _spec(
+            seed_count=25,
+            start_year=2025,
+            end_year=2029,
+            attribution=True,
+            attribution_seed_count=10,
+            attribution_anchor_count=5,
+        ),
+        output_root=tmp_path,
+        now=_PLANNED_AT,
+    )
+
+    assert five_anchors.estimated_disk_mib > single_anchor.estimated_disk_mib
+    assert five_anchors.total_run_count == 5 * single_anchor.total_run_count - 4 * 25
 
 
 @pytest.mark.fast

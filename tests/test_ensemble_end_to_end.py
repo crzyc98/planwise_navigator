@@ -208,6 +208,20 @@ def test_attribution_ranks_dominant_stream_and_marks_structural_absences(
     assert by_subsystem["merit"].stochastic_status == "not_stochastic"
     assert not any(name.startswith("baseline_") for name in executed)
 
+    # #543: the point estimate is averaged over several anchors (not one
+    # arbitrary anchor), and carries a bootstrap interval.
+    assert by_subsystem["termination"].n_anchors == 5
+    assert len(by_subsystem["termination"].anchor_seeds) == 5
+    assert len(set(by_subsystem["termination"].anchor_seeds)) == 5
+    assert by_subsystem["termination"].ci_low is not None
+    assert by_subsystem["termination"].ci_high is not None
+    assert (
+        by_subsystem["termination"].ci_low
+        <= by_subsystem["termination"].variance_share
+        <= by_subsystem["termination"].ci_high
+    )
+    assert by_subsystem["termination"].bootstrap_iterations > 0
+
     with duckdb.connect(str(plan.ensemble_db_path), read_only=True) as conn:
         assert (
             conn.execute("SELECT COUNT(*) FROM fct_variance_attribution").fetchone()[0]
