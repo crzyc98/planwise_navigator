@@ -1,11 +1,33 @@
 # filename: .github/workflows/ci.yml
 name: CI Pipeline
 
+# Gating policy (measured 2026-08-04):
+#
+#   Pull requests run lint + validate-models + the fast suite: about 5 minutes.
+#   Everything heavier -- the four integration shards, multi-year invariants, the
+#   edge-config matrix, and the coverage gate -- runs on push to main/develop, on
+#   the nightly schedule, and on demand.
+#
+# The full pipeline measured ~66 minutes of wall time on PR #545 (shards at
+# 49/65/49/63 min, edge-config-matrix 14m, multi-year-invariants 5m). Paying that
+# on every push made the feedback loop unusable, and it is dominated by
+# integration tests driving real dbt runs rather than by anything a typical PR
+# touches.
+#
+# To run the full pipeline against a PR before merging, add the `full-ci` label.
+# There is no branch protection on main, so skipped jobs cannot deadlock a merge;
+# if required status checks are ever enabled, revisit this -- required checks that
+# never run will block merges.
 on:
   push:
     branches: [main, develop]
   pull_request:
     branches: [main]
+  schedule:
+    # Nightly full run at 07:00 UTC so integration regressions merged during the
+    # day are caught before the next morning.
+    - cron: '0 7 * * *'
+  workflow_dispatch:
 
 env:
   PYTHON_VERSION: '3.11'
@@ -42,12 +64,71 @@ jobs:
           ruff check .
           mypy planalign_orchestrator/ planalign_cli/ planalign_core/ --ignore-missing-imports
 
+  # The PR gate. Unit-only, no dbt runs, no database: ~4 minutes for ~2,180
+  # tests. This is the check developers wait on, so keep it fast -- anything
+  # needing a real dbt invocation belongs in `test` below, not here.
+  fast-tests:
+    runs-on: ubuntu-latest
+    needs: lint
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Install dependencies
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          # Same requirements files as the sharded `test` job, so the two cannot
+          # drift. `dbt deps` is deliberately omitted: nothing marked `fast` may
+          # invoke dbt, and skipping it keeps this job lean.
+          uv pip install --system -r requirements.txt
+          uv pip install --system -r requirements-dev.txt
+
+      - name: Run fast test suite
+        env:
+          # Same runner-temp sentinel discipline as the sharded job: the fast
+          # suite must never reach the global database either.
+          DATABASE_PATH: ${{ runner.temp }}/planalign-ci-fast.duckdb
+        run: pytest -m fast -q
+
+      - name: Assert default database sentinel remains unused
+        if: always()
+        env:
+          DATABASE_PATH: ${{ runner.temp }}/planalign-ci-fast.duckdb
+        run: |
+          if [ -e "$DATABASE_PATH" ]; then
+            echo "::error::A test reached the global/default database path: $DATABASE_PATH"
+            echo "This runner.temp sentinel must remain absent; tests must use explicit isolated databases."
+            echo "Likely cause: code fell back to get_database_path() instead of a test fixture database."
+            echo "See CLAUDE.md §8 (validate in isolated databases) and tests/conftest.py's shared_dev_database_guard."
+            exit 1
+          fi
+
   test:
     runs-on: ubuntu-latest
     needs: lint
+    # Skipped on pull requests unless the `full-ci` label is present -- see the
+    # gating policy comment at the top of this file. Runs in full on push to
+    # main/develop, nightly, and via workflow_dispatch.
+    if: >-
+      github.event_name != 'pull_request' ||
+      contains(github.event.pull_request.labels.*.name, 'full-ci')
     # Sharded across 4 runners: this job was ~96 of the pipeline's ~102 minutes,
     # and it is dominated by integration tests that drive real dbt runs. Wall
     # time is max(shard), not the sum, so 4 shards cut it to roughly a quarter.
+    #
+    # NOTE (2026-08-04): measured shard times on PR #545 were 49/65/49/63 min,
+    # far above the ~25 min this split was sized for, and `.test_durations`
+    # records only 59.9 min total across 2,738 tests -- roughly 4x stale, which
+    # is why the shards are imbalanced. Refresh it (see below) before trusting
+    # the balance.
     #
     # Sharding rather than pytest-xdist (`-n auto`) is deliberate. The execution
     # lock is a single file in the working directory (utils.py: `.{name}.lock`),
@@ -163,6 +244,11 @@ jobs:
     # Enforces the coverage gate once, on the four shards combined. Splitting the
     # test job means no single run sees the whole suite, so the threshold cannot
     # live in the shards.
+    #
+    # Consequence of the PR gating policy: `test` is skipped on unlabelled PRs,
+    # so this job is skipped with it and the coverage threshold is NOT enforced
+    # per-PR. It is enforced on push to main/develop and nightly. Label a PR
+    # `full-ci` to check coverage before merging.
     runs-on: ubuntu-latest
     needs: test
     steps:
@@ -199,6 +285,10 @@ jobs:
   multi-year-invariants:
     runs-on: ubuntu-latest
     needs: lint
+    # Skipped on PRs without the `full-ci` label -- see gating policy at top.
+    if: >-
+      github.event_name != 'pull_request' ||
+      contains(github.event.pull_request.labels.*.name, 'full-ci')
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -266,6 +356,10 @@ jobs:
   edge-config-matrix:
     runs-on: ubuntu-latest
     needs: lint
+    # Skipped on PRs without the `full-ci` label -- see gating policy at top.
+    if: >-
+      github.event_name != 'pull_request' ||
+      contains(github.event.pull_request.labels.*.name, 'full-ci')
     # Four sequential two-year simulations. Each costs ~105s on a GitHub runner
     # (~2x a dev laptop), so the suite needs ~8min wall including setup.
     # Matches multi-year-invariants, the sibling job that also runs real sims.
