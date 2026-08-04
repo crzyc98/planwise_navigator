@@ -19,6 +19,7 @@ from ..models.export import (
 from ..models.workspace import (
     Workspace,
     WorkspaceCreate,
+    WorkspaceResponse,
     WorkspaceSummary,
     WorkspaceUpdate,
 )
@@ -115,7 +116,7 @@ async def list_workspaces(
     return storage.list_workspaces()
 
 
-@router.post("", response_model=Workspace, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=WorkspaceResponse, status_code=status.HTTP_201_CREATED)
 async def create_workspace(
     data: WorkspaceCreate,
     storage: WorkspaceStorage = Depends(get_storage),
@@ -129,7 +130,7 @@ async def create_workspace(
     return storage.create_workspace(data, default_config)
 
 
-@router.get("/{workspace_id}", response_model=Workspace)
+@router.get("/{workspace_id}", response_model=WorkspaceResponse)
 async def get_workspace(
     workspace_id: str,
     storage: WorkspaceStorage = Depends(get_storage),
@@ -148,7 +149,7 @@ async def get_workspace(
     return workspace
 
 
-@router.put("/{workspace_id}", response_model=Workspace)
+@router.put("/{workspace_id}", response_model=WorkspaceResponse)
 async def update_workspace(
     workspace_id: str,
     data: WorkspaceUpdate,

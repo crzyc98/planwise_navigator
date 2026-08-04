@@ -16,7 +16,6 @@ export const MOCK_WORKSPACES: Workspace[] = [
     created_at: '2025-01-01T00:00:00Z',
     updated_at: '2025-01-15T00:00:00Z',
     base_config: {},
-    storage_path: '/workspaces/ws_001',
   },
   {
     id: 'ws_002',
@@ -27,7 +26,6 @@ export const MOCK_WORKSPACES: Workspace[] = [
     created_at: '2025-01-01T00:00:00Z',
     updated_at: '2025-01-20T00:00:00Z',
     base_config: {},
-    storage_path: '/workspaces/ws_002',
   }
 ];
 

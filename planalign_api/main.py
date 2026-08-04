@@ -68,6 +68,22 @@ logging.basicConfig(
 # Set log level for our modules
 logging.getLogger("planalign_api").setLevel(logging.DEBUG)
 
+# /api/docs and /api/redoc render Swagger UI / ReDoc, which load their JS/CSS
+# from cdn.jsdelivr.net and (ReDoc) Google Fonts, plus an inline bootstrap
+# <script>/<style> FastAPI generates itself. Every other route only ever
+# returns JSON, so it gets a fully locked-down policy.
+_DOCS_PATHS = {"/api/docs", "/api/redoc"}
+_DOCS_CSP = (
+    "default-src 'none'; "
+    "script-src https://cdn.jsdelivr.net 'unsafe-inline'; "
+    "style-src https://cdn.jsdelivr.net https://fonts.googleapis.com 'unsafe-inline'; "
+    "font-src https://fonts.gstatic.com; "
+    "img-src https://fastapi.tiangolo.com data:; "
+    "connect-src 'self'; "
+    "frame-ancestors 'none'"
+)
+_API_CSP = "default-src 'none'; frame-ancestors 'none'"
+
 SCENARIO_READ_ROUTES = {
     "list_scenarios",
     "get_scenario",
@@ -202,6 +218,17 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
         expose_headers=list(RUN_CONSISTENCY_HEADERS),
     )
+
+    @app.middleware("http")
+    async def add_security_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Content-Security-Policy"] = (
+            _DOCS_CSP if request.url.path in _DOCS_PATHS else _API_CSP
+        )
+        return response
 
     @app.middleware("http")
     async def add_scenario_read_headers(request: Request, call_next):

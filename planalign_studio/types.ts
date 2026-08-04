@@ -41,7 +41,6 @@ export interface Workspace {
   created_at: string;
   updated_at: string;
   base_config: Record<string, any>;
-  storage_path: string;
 }
 
 export interface Notification {

@@ -81,7 +81,6 @@ export default function WorkspaceManager() {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       base_config: {},
-      storage_path: '',
     };
 
     addWorkspace(newWorkspace);
