@@ -9,7 +9,6 @@ on:
 
 env:
   PYTHON_VERSION: '3.11'
-  DATABASE_PATH: '${{ github.workspace }}/dbt/simulation.duckdb'
 
 jobs:
   lint:
@@ -100,6 +99,10 @@ jobs:
           # Keep each shard's coverage data in its own file so the combine step
           # below can merge them without clobbering.
           COVERAGE_FILE: .coverage.${{ matrix.shard }}
+          # Point the CI fallback at a runner-local sentinel, never the tracked
+          # shared dev DB. Tests must provide their own isolated database; the
+          # always-run assertion below detects an unexpected fallback.
+          DATABASE_PATH: ${{ runner.temp }}/planalign-ci-shard-${{ matrix.shard }}.duckdb
         run: |
           # multi_year_invariants is excluded here: those multi-year suites run
           # in the dedicated multi-year-invariants job (with failure-artifact
@@ -128,6 +131,19 @@ jobs:
             --cov=planalign_orchestrator --cov=planalign_cli \
             --cov=planalign_api --cov=planalign_core \
             --cov-report=
+
+      - name: Assert default database sentinel remains unused (shard ${{ matrix.shard }}/4)
+        if: always()
+        env:
+          DATABASE_PATH: ${{ runner.temp }}/planalign-ci-shard-${{ matrix.shard }}.duckdb
+        run: |
+          if [ -e "$DATABASE_PATH" ]; then
+            echo "::error::A test reached the global/default database path: $DATABASE_PATH"
+            echo "This runner.temp sentinel must remain absent; tests must use explicit isolated databases."
+            echo "Likely cause: code fell back to get_database_path() instead of a test fixture database."
+            echo "See CLAUDE.md §8 (validate in isolated databases) and tests/conftest.py's shared_dev_database_guard."
+            exit 1
+          fi
 
       - name: Upload shard coverage data
         uses: actions/upload-artifact@v4
@@ -217,10 +233,27 @@ jobs:
           dbt deps
 
       - name: Run multi-year invariant suite
+        env:
+          # This sentinel exposes tests that bypass their isolated database.
+          # The assertion below must remain so the guard stays non-vacuous.
+          DATABASE_PATH: ${{ runner.temp }}/planalign-ci-multi-year-invariants.duckdb
         run: |
           mkdir -p var/test-artifacts/113
           set -o pipefail
           pytest -m multi_year_invariants -v 2>&1 | tee var/test-artifacts/113/diagnostics.log
+
+      - name: Assert default database sentinel remains unused
+        if: always()
+        env:
+          DATABASE_PATH: ${{ runner.temp }}/planalign-ci-multi-year-invariants.duckdb
+        run: |
+          if [ -e "$DATABASE_PATH" ]; then
+            echo "::error::A test reached the global/default database path: $DATABASE_PATH"
+            echo "This runner.temp sentinel must remain absent; tests must use explicit isolated databases."
+            echo "Likely cause: code fell back to get_database_path() instead of a test fixture database."
+            echo "See CLAUDE.md §8 (validate in isolated databases) and tests/conftest.py's shared_dev_database_guard."
+            exit 1
+          fi
 
       - name: Preserve failed invariant databases
         if: failure()
@@ -250,10 +283,27 @@ jobs:
       - name: Install dbt packages
         run: cd dbt && dbt deps
       - name: Run edge configuration matrix
+        env:
+          # This sentinel exposes tests that bypass their isolated database.
+          # The assertion below must remain so the guard stays non-vacuous.
+          DATABASE_PATH: ${{ runner.temp }}/planalign-ci-edge-config-matrix.duckdb
         run: |
           mkdir -p var/test-artifacts/124
           set -o pipefail
           pytest -m edge_config_matrix -v --durations=10 2>&1 | tee var/test-artifacts/124/diagnostics.log
+
+      - name: Assert default database sentinel remains unused
+        if: always()
+        env:
+          DATABASE_PATH: ${{ runner.temp }}/planalign-ci-edge-config-matrix.duckdb
+        run: |
+          if [ -e "$DATABASE_PATH" ]; then
+            echo "::error::A test reached the global/default database path: $DATABASE_PATH"
+            echo "This runner.temp sentinel must remain absent; tests must use explicit isolated databases."
+            echo "Likely cause: code fell back to get_database_path() instead of a test fixture database."
+            echo "See CLAUDE.md §8 (validate in isolated databases) and tests/conftest.py's shared_dev_database_guard."
+            exit 1
+          fi
       - name: Preserve failed matrix artifacts
         if: failure()
         uses: actions/upload-artifact@v4
