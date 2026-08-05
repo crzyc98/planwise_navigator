@@ -39,6 +39,10 @@ def _export_simulation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     # Enterprise identifiers (CRITICAL: Must match Python event factory queries)
     dbt_vars["scenario_id"] = cfg.scenario_id if cfg.scenario_id else "default"
     dbt_vars["plan_design_id"] = cfg.plan_design_id if cfg.plan_design_id else "default"
+    # Audit-trail scenario tag (#510): several data-quality/contribution models tag
+    # rows with both scenario_id and parameter_scenario_id; the latter had no
+    # exporter and always fell back to its SQL literal "default".
+    dbt_vars["parameter_scenario_id"] = dbt_vars["scenario_id"]
 
     # Simulation bounds
     if cfg.simulation.start_year is not None:
@@ -164,9 +168,40 @@ def _export_voluntary_enrollment(
         ("voluntary_enrollment_base_rates_by_age", voluntary.base_rates_by_age),
         ("voluntary_enrollment_income_multipliers", voluntary.income_multipliers),
         ("voluntary_enrollment_job_level_multipliers", voluntary.job_level_multipliers),
+        (
+            "voluntary_enrollment_deferral_rates_demographic_base_rates",
+            voluntary.deferral_rates.demographic_base_rates,
+        ),
     ):
         for segment, value in (mapping or {}).items():
             dbt_vars[f"{prefix}_{segment}"] = float(value)
+
+
+def _export_year_over_year_conversion(
+    cfg: "SimulationConfig", dbt_vars: Dict[str, Any]
+) -> None:
+    """Export year-over-year voluntary conversion settings (Epic E053).
+
+    Only segments the config actually names are exported; the SQL keeps its own
+    default for anything omitted, matching `_export_voluntary_enrollment`.
+    """
+    yoy = cfg.enrollment.year_over_year_conversion
+    _set_if_not_none(dbt_vars, "year_over_year_conversion_enabled", yoy.enabled, bool)
+    for prefix, mapping in (
+        ("year_over_year_conversion_base_rates_by_age", yoy.base_rates_by_age),
+        ("year_over_year_conversion_income_multipliers", yoy.income_multipliers),
+        ("year_over_year_conversion_tenure_multipliers", yoy.tenure_multipliers),
+    ):
+        for segment, value in (mapping or {}).items():
+            dbt_vars[f"{prefix}_{segment}"] = float(value)
+
+    deferral_rates = yoy.deferral_rates
+    for segment in ("young", "mid_career", "mature", "senior"):
+        value = getattr(deferral_rates, segment)
+        if value is not None:
+            dbt_vars[f"year_over_year_conversion_deferral_rates_{segment}"] = float(
+                value
+            )
 
 
 def _export_proactive_enrollment(
@@ -332,6 +367,7 @@ def _export_enrollment_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     _export_auto_enrollment_fields(auto, dbt_vars)
     _export_opt_out_rates(auto, dbt_vars)
     _export_voluntary_enrollment(cfg, dbt_vars)
+    _export_year_over_year_conversion(cfg, dbt_vars)
     _export_proactive_enrollment(cfg, dbt_vars)
     _export_match_magnet(cfg, dbt_vars)
 
