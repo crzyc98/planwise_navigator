@@ -91,6 +91,17 @@ class ProactiveEnrollmentSettings(BaseModel):
     probability_by_demographics: Dict[str, float] = Field(default_factory=dict)
 
 
+class VoluntaryEnrollmentDeferralRatesSettings(BaseModel):
+    """Deferral rate selected for a new voluntary enrollee, by age x income cell.
+
+    ``int_voluntary_enrollment_decision`` reads
+    ``demographic_base_rates_{age}_{income}`` (e.g. ``young_low``). The mapping
+    is optional: an omitted cell keeps the model's own default.
+    """
+
+    demographic_base_rates: Dict[str, float] = Field(default_factory=dict)
+
+
 class VoluntaryEnrollmentSettings(BaseModel):
     """Demographic drivers of the voluntary enrollment decision.
 
@@ -104,6 +115,42 @@ class VoluntaryEnrollmentSettings(BaseModel):
     base_rates_by_age: Dict[str, float] = Field(default_factory=dict)
     income_multipliers: Dict[str, float] = Field(default_factory=dict)
     job_level_multipliers: Dict[str, float] = Field(default_factory=dict)
+    deferral_rates: VoluntaryEnrollmentDeferralRatesSettings = Field(
+        default_factory=VoluntaryEnrollmentDeferralRatesSettings
+    )
+
+
+class YearOverYearConversionDeferralRatesSettings(BaseModel):
+    """Deferral rate a year-over-year converter selects, by age segment.
+
+    ``int_enrollment_events`` reads ``deferral_rates_{age}`` (e.g. ``young``).
+    ``conservative`` is a documented-but-unread YAML key (no corresponding
+    var()) and is intentionally not modeled here.
+    """
+
+    young: Optional[float] = None
+    mid_career: Optional[float] = None
+    mature: Optional[float] = None
+    senior: Optional[float] = None
+
+
+class YearOverYearConversionSettings(BaseModel):
+    """Year-over-year voluntary conversion of prior-year non-participants.
+
+    ``int_enrollment_events`` evaluates
+    ``base_rates_by_age * income_multipliers * tenure_multipliers`` to decide
+    whether a non-enrolled employee converts, and separately reads
+    ``deferral_rates`` for the rate a converter selects. Each mapping is
+    optional: an omitted segment keeps the model's own default.
+    """
+
+    enabled: Optional[bool] = None
+    base_rates_by_age: Dict[str, float] = Field(default_factory=dict)
+    income_multipliers: Dict[str, float] = Field(default_factory=dict)
+    tenure_multipliers: Dict[str, float] = Field(default_factory=dict)
+    deferral_rates: YearOverYearConversionDeferralRatesSettings = Field(
+        default_factory=YearOverYearConversionDeferralRatesSettings
+    )
 
 
 class EnrollmentTimingSettings(BaseModel):
@@ -145,6 +192,9 @@ class EnrollmentSettings(BaseModel):
     )
     voluntary_enrollment: VoluntaryEnrollmentSettings = Field(
         default_factory=VoluntaryEnrollmentSettings
+    )
+    year_over_year_conversion: YearOverYearConversionSettings = Field(
+        default_factory=YearOverYearConversionSettings
     )
     timing: EnrollmentTimingSettings = Field(default_factory=EnrollmentTimingSettings)
     match_magnet: MatchMagnetSettings = Field(default_factory=MatchMagnetSettings)
