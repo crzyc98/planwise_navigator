@@ -935,6 +935,8 @@ Current version: **2.4.0** (unreleased; last tagged release is v2.2.0 "Calibrati
 - DuckDB. Isolated per-run databases under `var/`; the shared `dbt/simulation.duckdb` is never built into. (132-collapse-dbt-invocations)
 - Python 3.11; SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1 (Jinja-templated `.sql`) + `planalign_orchestrator` (`ScenarioRunPool`, `ScenarioJob`, `resolve_worker_count`, `ConstructionSpec`/`build_orchestrator`, `run_metadata`, `excel_exporter`); NumPy ≥1.24 (percentiles — already declared); Typer + Rich (CLI); Pydantic v2 (config); `duckdb` Python clien (133-seed-ensemble-bands)
 - DuckDB. One database per seed plus one dedicated ensemble database per ensemble, under a timestamped directory in `var/ensembles/`. Per-seed databases are read-only inputs to aggregation and are never mutated after their run. The shared `dbt/simulation.duckdb` is never an ensemble target. (133-seed-ensemble-bands)
+- Python 3.11 (API router/service); TypeScript/React (Studio UI) + FastAPI + Pydantic v2 (`planalign_api`), `duckdb` Python client (read-only connections), React 18 + Tailwind CSS v4 + Recharts (`planalign_studio`) (134-new-hire-cohort)
+- DuckDB — reads only `fct_workforce_snapshot` and (for the warning-only cross-check) `run_metadata`, both already present in per-scenario `.duckdb` files resolved via `DatabasePathResolver`. No new tables, no writes. (134-new-hire-cohort)
 
 ## Recent Changes
 - 099-tenure-graded-match: Added Python 3.11 (orchestrator/config/API), SQL via dbt-core 1.8.8 / dbt-duckdb 1.8.1, TypeScript/React (Studio UI) + Pydantic v2 (config validation), DuckDB 1.0.0 (storage/engine), FastAPI (workspace config API), React/Vite + Tailwind (Studio)

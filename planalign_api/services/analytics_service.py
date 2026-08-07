@@ -1,7 +1,7 @@
 """Analytics service for DC Plan contribution analysis."""
 
 import logging
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from ..models.analytics import (
     ContributionYearSummary,
@@ -21,6 +21,8 @@ from .database_path_resolver import (
 )
 
 logger = logging.getLogger(__name__)
+
+Cohort = Literal["all", "new_hires", "baseline"]
 
 
 class AnalyticsService:
@@ -106,6 +108,65 @@ class AnalyticsService:
             **rates,
         }
 
+    @staticmethod
+    def _cohort_predicate(cohort: Cohort, first_year: Optional[int]) -> str:
+        """Return a WHERE-fragment (no leading AND/WHERE) classifying rows by cohort.
+
+        `all` has no predicate; `new_hires` is hired on/after the resolved first
+        simulation year; `baseline` is everyone else (spec.md FR-002).
+        """
+        if cohort == "new_hires":
+            return f"employee_hire_date >= DATE '{first_year}-01-01'"
+        if cohort == "baseline":
+            return f"employee_hire_date < DATE '{first_year}-01-01'"
+        return ""
+
+    @staticmethod
+    def _combine_where(*fragments: str) -> str:
+        """Join non-empty WHERE fragments with AND, prefixing WHERE/AND correctly."""
+        clauses = [f for f in fragments if f]
+        if not clauses:
+            return ""
+        return "WHERE " + " AND ".join(clauses)
+
+    def _resolve_first_simulation_year(
+        self, conn, workspace_id: str, scenario_id: str
+    ) -> int:
+        """Resolve the first simulation year used to classify new_hires/baseline.
+
+        Source of truth is MIN(simulation_year) from the scenario's own
+        fct_workforce_snapshot. Cross-checked (warning-only, never overriding
+        the classification value) against run_metadata.start_year when that
+        table exists (Feature 109; pre-Feature-109 databases lack it).
+        """
+        first_year = conn.execute(
+            f"SELECT MIN(simulation_year) FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}"
+        ).fetchone()[0]
+        first_year = int(first_year)
+
+        try:
+            row = conn.execute(
+                "SELECT start_year FROM run_metadata ORDER BY run_timestamp DESC LIMIT 1"
+            ).fetchone()
+        except Exception:
+            # Pre-Feature-109 database: run_metadata table doesn't exist yet.
+            row = None
+
+        if row is not None:
+            recorded_start_year = int(row[0])
+            if recorded_start_year != first_year:
+                logger.warning(
+                    "Cohort classification year mismatch for workspace=%s "
+                    "scenario=%s: fct_workforce_snapshot MIN(simulation_year)=%s "
+                    "vs run_metadata.start_year=%s; using the snapshot value.",
+                    workspace_id,
+                    scenario_id,
+                    first_year,
+                    recorded_start_year,
+                )
+
+        return first_year
+
     def get_dc_plan_analytics(
         self,
         workspace_id: str,
@@ -113,6 +174,7 @@ class AnalyticsService:
         scenario_name: str,
         active_only: bool = False,
         effective_rate: bool = False,
+        cohort: Cohort = "all",
     ) -> Optional[DCPlanAnalytics]:
         """
         Get DC Plan analytics for a single scenario.
@@ -129,8 +191,15 @@ class AnalyticsService:
 
             conn = duckdb.connect(str(resolved.path), read_only=True)
 
-            participation = self._get_participation_summary(conn, active_only)
-            contribution_by_year = self._get_contribution_by_year(conn, active_only)
+            first_simulation_year = self._resolve_first_simulation_year(
+                conn, workspace_id, scenario_id
+            )
+            participation = self._get_participation_summary(
+                conn, active_only, cohort, first_simulation_year
+            )
+            contribution_by_year = self._get_contribution_by_year(
+                conn, active_only, cohort, first_simulation_year
+            )
             totals = self._compute_grand_totals(contribution_by_year)
             deferral_distribution = self._get_deferral_distribution(
                 conn, effective_rate=effective_rate, active_only=active_only
@@ -146,6 +215,7 @@ class AnalyticsService:
             return DCPlanAnalytics(
                 scenario_id=scenario_id,
                 scenario_name=scenario_name,
+                resolved_first_simulation_year=first_simulation_year,
                 total_eligible=participation["total_eligible"],
                 total_enrolled=participation["total_enrolled"],
                 participation_rate=participation["participation_rate"],
@@ -176,16 +246,27 @@ class AnalyticsService:
             logger.error(f"Failed to get DC plan analytics: {e}")
             return None
 
-    def _get_participation_summary(self, conn, active_only: bool = False) -> dict:
+    def _get_participation_summary(
+        self,
+        conn,
+        active_only: bool = False,
+        cohort: Cohort = "all",
+        first_simulation_year: Optional[int] = None,
+    ) -> dict:
         """Get participation summary from final simulation year.
 
         Args:
             active_only: If True, filter to active employees only.
                          If False (default), include all employees (active + terminated).
+            cohort: Population filter — `all`, `new_hires`, or `baseline` (FR-004).
+            first_simulation_year: Required when cohort != "all"; the year that
+                classifies new_hires vs baseline (see _resolve_first_simulation_year).
         """
         try:
-            status_filter = (
-                "AND UPPER(employment_status) = 'ACTIVE'" if active_only else ""
+            status_filter = "UPPER(employment_status) = 'ACTIVE'" if active_only else ""
+            cohort_filter = self._cohort_predicate(cohort, first_simulation_year)
+            where_clause = self._combine_where(
+                "simulation_year = final_year.max_year", status_filter, cohort_filter
             )
             result = conn.execute(
                 f"""
@@ -201,8 +282,7 @@ class AnalyticsService:
                     SUM(CASE WHEN participation_status_detail ILIKE '%census%'
                               OR participation_status_detail ILIKE '%baseline%' THEN 1 ELSE 0 END) as census_enrolled
                 FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}, final_year
-                WHERE simulation_year = final_year.max_year
-                  {status_filter}
+                {where_clause}
             """
             ).fetchone()
 
@@ -238,29 +318,31 @@ class AnalyticsService:
             }
 
     def _get_contribution_by_year(
-        self, conn, active_only: bool = False
+        self,
+        conn,
+        active_only: bool = False,
+        cohort: Cohort = "all",
+        first_simulation_year: Optional[int] = None,
     ) -> List[ContributionYearSummary]:
         """Get contribution totals by simulation year.
 
         Args:
             active_only: If True, filter to active employees only.
                          If False (default), include all employees (active + terminated).
+            cohort: Population filter — `all`, `new_hires`, or `baseline` (FR-004).
+            first_simulation_year: Required when cohort != "all"; the year that
+                classifies new_hires vs baseline (see _resolve_first_simulation_year).
         """
         try:
             # E104: Enhanced query with average deferral rate, participation rate, and total employer cost
             # E013: Added total_compensation for employer cost rate calculation
-            if active_only:
-                status_filter = "WHERE UPPER(employment_status) = 'ACTIVE'"
-                participation_rate_expr = (
-                    "COALESCE(COUNT(CASE WHEN is_enrolled_flag THEN 1 END) * 100.0 "
-                    "/ NULLIF(COUNT(*), 0), 0)"
-                )
-            else:
-                status_filter = ""
-                participation_rate_expr = (
-                    "COALESCE(COUNT(CASE WHEN is_enrolled_flag THEN 1 END) * 100.0 "
-                    "/ NULLIF(COUNT(*), 0), 0)"
-                )
+            status_filter = "UPPER(employment_status) = 'ACTIVE'" if active_only else ""
+            cohort_filter = self._cohort_predicate(cohort, first_simulation_year)
+            where_clause = self._combine_where(status_filter, cohort_filter)
+            participation_rate_expr = (
+                "COALESCE(COUNT(CASE WHEN is_enrolled_flag THEN 1 END) * 100.0 "
+                "/ NULLIF(COUNT(*), 0), 0)"
+            )
 
             df = conn.execute(
                 f"""
@@ -277,7 +359,7 @@ class AnalyticsService:
                     COUNT(*) as total_eligible,
                     COALESCE(SUM(prorated_annual_compensation), 0) as total_compensation
                 FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
-                {status_filter}
+                {where_clause}
                 GROUP BY simulation_year
                 ORDER BY simulation_year
             """

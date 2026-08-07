@@ -17,7 +17,16 @@ import {
   DCPlanAnalytics as DCPlanAnalyticsData,
   DCPlanComparisonResponse,
   ContributionYearSummary,
+  DCPlanCohort,
 } from '../services/api';
+
+// 134-new-hire-cohort (FR-006): same segmented control as ScenarioCostComparison.
+const COHORT_TOGGLE_LABELS: Record<DCPlanCohort, string> = {
+  all: 'All employees',
+  new_hires: 'New hires',
+  baseline: 'Starting census',
+};
+const VALID_COHORTS: DCPlanCohort[] = ['all', 'new_hires', 'baseline'];
 import { COLORS, CONTRIBUTION_COLORS, MAX_SCENARIO_SELECTION } from '../constants';
 
 const formatCurrency = (value: number): string => {
@@ -127,6 +136,10 @@ export default function DCPlanAnalytics() {
   // Active-only toggle for participation metrics (default: all participants)
   const [activeOnly, setActiveOnly] = useState(false);
 
+  // 134-new-hire-cohort (FR-006): population filter, same three values as
+  // ScenarioCostComparison's Cost Comparison view.
+  const [cohort, setCohort] = useState<DCPlanCohort>('all');
+
   // Deferral distribution view: effective rate for the year vs year-end snapshot
   const [deferralView, setDeferralView] = useState<'effective' | 'yearend'>('yearend');
 
@@ -196,7 +209,7 @@ export default function DCPlanAnalytics() {
       setAnalytics(null);
       setComparisonData(null);
     }
-  }, [selectedScenarioIds, comparisonMode, activeWorkspace?.id, activeOnly, deferralView]);
+  }, [selectedScenarioIds, comparisonMode, activeWorkspace?.id, activeOnly, deferralView, cohort]);
 
   const fetchScenarios = async (workspaceId: string) => {
     setLoadingScenarios(true);
@@ -220,7 +233,7 @@ export default function DCPlanAnalytics() {
     setLoading(true);
     setError(null);
     try {
-      const data = await getDCPlanAnalytics(activeWorkspace.id, scenarioId, activeOnly, deferralView === 'effective');
+      const data = await getDCPlanAnalytics(activeWorkspace.id, scenarioId, activeOnly, deferralView === 'effective', cohort);
       setAnalytics(data);
       setComparisonData(null);
       if (data.contribution_by_year.length > 0) {
@@ -241,7 +254,7 @@ export default function DCPlanAnalytics() {
     setLoading(true);
     setError(null);
     try {
-      const data = await compareDCPlanAnalytics(activeWorkspace.id, scenarioIds, activeOnly, deferralView === 'effective');
+      const data = await compareDCPlanAnalytics(activeWorkspace.id, scenarioIds, activeOnly, deferralView === 'effective', cohort);
       setComparisonData(data);
       setAnalytics(null);
     } catch (err: any) {
@@ -368,6 +381,19 @@ export default function DCPlanAnalytics() {
           >
             Compare {comparisonMode && `(${selectedScenarioIds.length}/3)`}
           </button>
+
+          {/* Cohort Control (134-new-hire-cohort, FR-006) */}
+          <div className="flex bg-gray-100 p-1 rounded-lg">
+            {VALID_COHORTS.map((value) => (
+              <button
+                key={value}
+                onClick={() => setCohort(value)}
+                className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${cohort === value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                {COHORT_TOGGLE_LABELS[value]}
+              </button>
+            ))}
+          </div>
 
           {/* Active Employees Only Toggle */}
           <label htmlFor="dc-active-only" className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm cursor-pointer hover:bg-gray-50 transition-colors">
