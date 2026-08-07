@@ -2584,6 +2584,11 @@
             "title": "Participation Rate",
             "type": "number"
           },
+          "resolved_first_simulation_year": {
+            "description": "First simulation year used to classify employees into the new_hires/baseline cohorts, always populated regardless of the requested cohort (134-new-hire-cohort)",
+            "title": "Resolved First Simulation Year",
+            "type": "integer"
+          },
           "scenario_id": {
             "description": "Scenario identifier",
             "title": "Scenario Id",
@@ -2646,6 +2651,7 @@
         "required": [
           "scenario_id",
           "scenario_name",
+          "resolved_first_simulation_year",
           "total_eligible",
           "total_enrolled",
           "participation_rate",
@@ -11894,6 +11900,23 @@
               "title": "Effective Rate",
               "type": "boolean"
             }
+          },
+          {
+            "description": "Population filter: all employees, employees hired during the simulation, or the starting census.",
+            "in": "query",
+            "name": "cohort",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "description": "Population filter: all employees, employees hired during the simulation, or the starting census.",
+              "enum": [
+                "all",
+                "new_hires",
+                "baseline"
+              ],
+              "title": "Cohort",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -14723,6 +14746,23 @@
               "description": "If true, use effective_annual_deferral_rate for the deferral distribution (matches contribution calculation). If false, use current_deferral_rate (year-end snapshot).",
               "title": "Effective Rate",
               "type": "boolean"
+            }
+          },
+          {
+            "description": "Population filter: all employees, employees hired during the simulation, or the starting census.",
+            "in": "query",
+            "name": "cohort",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "description": "Population filter: all employees, employees hired during the simulation, or the starting census.",
+              "enum": [
+                "all",
+                "new_hires",
+                "baseline"
+              ],
+              "title": "Cohort",
+              "type": "string"
             }
           }
         ],

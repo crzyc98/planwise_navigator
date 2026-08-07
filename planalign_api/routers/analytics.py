@@ -1,6 +1,6 @@
 """Analytics endpoints: DC Plan and Winners & Losers."""
 
-from typing import List
+from typing import List, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
@@ -43,6 +43,10 @@ async def get_dc_plan_analytics(
         False,
         description="If true, use effective_annual_deferral_rate for the deferral distribution (matches contribution calculation). If false, use current_deferral_rate (year-end snapshot).",
     ),
+    cohort: Literal["all", "new_hires", "baseline"] = Query(
+        "all",
+        description="Population filter: all employees, employees hired during the simulation, or the starting census.",
+    ),
     storage: WorkspaceStorage = Depends(get_storage),
     analytics_service: AnalyticsService = Depends(get_analytics_service),
 ) -> DCPlanAnalytics:
@@ -81,6 +85,7 @@ async def get_dc_plan_analytics(
         scenario.name,
         active_only=active_only,
         effective_rate=effective_rate,
+        cohort=cohort,
     )
 
     if not analytics:
@@ -108,6 +113,10 @@ async def compare_dc_plan_analytics(
     effective_rate: bool = Query(
         False,
         description="If true, use effective_annual_deferral_rate for the deferral distribution.",
+    ),
+    cohort: Literal["all", "new_hires", "baseline"] = Query(
+        "all",
+        description="Population filter: all employees, employees hired during the simulation, or the starting census.",
     ),
     storage: WorkspaceStorage = Depends(get_storage),
     analytics_service: AnalyticsService = Depends(get_analytics_service),
@@ -165,6 +174,7 @@ async def compare_dc_plan_analytics(
             scenario_names[scenario_id],
             active_only=active_only,
             effective_rate=effective_rate,
+            cohort=cohort,
         )
         if analytics:
             analytics_list.append(analytics)

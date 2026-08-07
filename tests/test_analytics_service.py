@@ -40,6 +40,7 @@ def _create_snapshot_table(conn: duckdb.DuckDBPyConnection) -> None:
             plan_design_id VARCHAR DEFAULT 'standard_401k',
             simulation_year INTEGER,
             employment_status VARCHAR,
+            employee_hire_date DATE DEFAULT DATE '2020-01-01',
             is_enrolled_flag BOOLEAN,
             prorated_annual_contributions DECIMAL(12,2) DEFAULT 0,
             employer_match_amount DECIMAL(12,2) DEFAULT 0,
@@ -1934,3 +1935,146 @@ def test_contribution_by_year_total_eligible_count_active_only(in_memory_conn):
     # 10 enrolled active + 5 non-enrolled active = 15
     assert year_result.total_eligible_count == 15
     assert year_result.participant_count == 10
+
+
+# =============================================================================
+# 134-new-hire-cohort: _cohort_predicate, _combine_where,
+# _resolve_first_simulation_year (T015)
+# =============================================================================
+
+
+class TestCohortPredicate:
+    """Unit tests for AnalyticsService._cohort_predicate (research.md R2)."""
+
+    def test_all_cohort_has_no_predicate(self):
+        assert AnalyticsService._cohort_predicate("all", 2025) == ""
+
+    def test_new_hires_cohort_predicate(self):
+        assert (
+            AnalyticsService._cohort_predicate("new_hires", 2025)
+            == "employee_hire_date >= DATE '2025-01-01'"
+        )
+
+    def test_baseline_cohort_predicate(self):
+        assert (
+            AnalyticsService._cohort_predicate("baseline", 2025)
+            == "employee_hire_date < DATE '2025-01-01'"
+        )
+
+
+class TestCombineWhere:
+    """Unit tests for AnalyticsService._combine_where (research.md R2)."""
+
+    def test_no_fragments_returns_empty_string(self):
+        assert AnalyticsService._combine_where() == ""
+
+    def test_all_empty_fragments_returns_empty_string(self):
+        assert AnalyticsService._combine_where("", "") == ""
+
+    def test_single_fragment_gets_where_prefix(self):
+        assert AnalyticsService._combine_where("a = 1") == "WHERE a = 1"
+
+    def test_multiple_fragments_joined_with_and(self):
+        assert (
+            AnalyticsService._combine_where("a = 1", "b = 2") == "WHERE a = 1 AND b = 2"
+        )
+
+    def test_empty_fragments_are_skipped(self):
+        assert (
+            AnalyticsService._combine_where("", "a = 1", "", "b = 2")
+            == "WHERE a = 1 AND b = 2"
+        )
+
+
+class TestResolveFirstSimulationYear:
+    """Unit tests for AnalyticsService._resolve_first_simulation_year (research.md R1)."""
+
+    def test_resolves_from_snapshot_min_year(self, in_memory_conn):
+        _seed_employees(
+            in_memory_conn,
+            [
+                {
+                    "employee_id": "e1",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+                {
+                    "employee_id": "e1",
+                    "year": 2026,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                },
+            ],
+        )
+        service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
+
+        year = service._resolve_first_simulation_year(in_memory_conn, "ws1", "s1")
+
+        assert year == 2025
+
+    def test_missing_run_metadata_table_is_skipped_silently(
+        self, in_memory_conn, caplog
+    ):
+        """Pre-Feature-109 databases have no run_metadata table."""
+        _seed_employees(
+            in_memory_conn,
+            [{"employee_id": "e1", "year": 2025, "status": "ACTIVE", "enrolled": True}],
+        )
+        service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
+
+        year = service._resolve_first_simulation_year(in_memory_conn, "ws1", "s1")
+
+        assert year == 2025
+        assert not any(
+            "Cohort classification year mismatch" in record.message
+            for record in caplog.records
+        )
+
+    def test_matching_run_metadata_does_not_warn(self, in_memory_conn, caplog):
+        _seed_employees(
+            in_memory_conn,
+            [{"employee_id": "e1", "year": 2025, "status": "ACTIVE", "enrolled": True}],
+        )
+        in_memory_conn.execute(
+            "CREATE TABLE run_metadata (run_timestamp TIMESTAMP, start_year INTEGER)"
+        )
+        in_memory_conn.execute(
+            "INSERT INTO run_metadata VALUES (TIMESTAMP '2026-01-01', 2025)"
+        )
+        service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
+
+        with caplog.at_level("WARNING"):
+            year = service._resolve_first_simulation_year(in_memory_conn, "ws1", "s1")
+
+        assert year == 2025
+        assert not any(
+            "Cohort classification year mismatch" in record.message
+            for record in caplog.records
+        )
+
+    def test_mismatched_run_metadata_warns_but_uses_snapshot_value(
+        self, in_memory_conn, caplog
+    ):
+        """A shifted-year re-run must warn, never raise, and never override the
+        snapshot-derived classification value (spec.md edge case)."""
+        _seed_employees(
+            in_memory_conn,
+            [{"employee_id": "e1", "year": 2025, "status": "ACTIVE", "enrolled": True}],
+        )
+        in_memory_conn.execute(
+            "CREATE TABLE run_metadata (run_timestamp TIMESTAMP, start_year INTEGER)"
+        )
+        in_memory_conn.execute(
+            "INSERT INTO run_metadata VALUES (TIMESTAMP '2026-01-01', 2024)"
+        )
+        service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
+
+        with caplog.at_level("WARNING"):
+            year = service._resolve_first_simulation_year(in_memory_conn, "ws1", "s1")
+
+        assert year == 2025
+        assert any(
+            "Cohort classification year mismatch" in record.message
+            for record in caplog.records
+        )

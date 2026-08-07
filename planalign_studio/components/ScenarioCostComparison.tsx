@@ -36,6 +36,7 @@ import {
   DCPlanComparisonResponse,
   DCPlanAnalytics,
   ContributionYearSummary,
+  DCPlanCohort,
 } from '../services/api';
 import { COLORS, MAX_SCENARIO_SELECTION } from '../constants';
 
@@ -56,13 +57,41 @@ const formatPercent = (value: number, decimals: number = 1): string => {
   return `${value.toFixed(decimals)}%`;
 };
 
+// 134-new-hire-cohort: short segmented-control labels vs. the fuller badge/
+// methodology text (ui-contract.md) — kept separate per the contract's note
+// that the toggle label stays short.
+const COHORT_TOGGLE_LABELS: Record<DCPlanCohort, string> = {
+  all: 'All employees',
+  new_hires: 'New hires',
+  baseline: 'Starting census',
+};
+
+function cohortBadgeLabel(cohort: DCPlanCohort, resolvedFirstSimulationYear?: number): string {
+  if (cohort === 'new_hires') {
+    return `Hired during the simulation (${resolvedFirstSimulationYear ?? '?'}+)`;
+  }
+  if (cohort === 'baseline') {
+    return 'Starting census';
+  }
+  return '';
+}
+
+const VALID_COHORTS: DCPlanCohort[] = ['all', 'new_hires', 'baseline'];
+
+function isValidCohort(value: unknown): value is DCPlanCohort {
+  return typeof value === 'string' && (VALID_COHORTS as string[]).includes(value);
+}
+
 // ============================================================================
 // LocalStorage Helpers for Persisting Comparison Preferences
 // ============================================================================
 
 const STORAGE_KEY_PREFIX = 'planalign_comparison_';
 
-function saveComparisonPrefs(workspaceId: string, prefs: { selectedIds: string[]; anchorId: string }) {
+function saveComparisonPrefs(
+  workspaceId: string,
+  prefs: { selectedIds: string[]; anchorId: string; cohort: DCPlanCohort }
+) {
   try {
     localStorage.setItem(`${STORAGE_KEY_PREFIX}${workspaceId}`, JSON.stringify(prefs));
   } catch (e) {
@@ -70,7 +99,9 @@ function saveComparisonPrefs(workspaceId: string, prefs: { selectedIds: string[]
   }
 }
 
-function loadComparisonPrefs(workspaceId: string): { selectedIds: string[]; anchorId: string } | null {
+function loadComparisonPrefs(
+  workspaceId: string
+): { selectedIds: string[]; anchorId: string; cohort?: unknown } | null {
   try {
     const stored = localStorage.getItem(`${STORAGE_KEY_PREFIX}${workspaceId}`);
     if (stored) {
@@ -214,6 +245,20 @@ const ErrorState = ({ message, onRetry }: { message: string; onRetry: () => void
   </div>
 );
 
+// 134-new-hire-cohort (FR-009, ui-contract.md): visually distinct from the
+// existing anchor/plan chips so it reads as a filter indicator, not a title.
+const CohortBadge = ({ cohort, resolvedFirstSimulationYear }: {
+  cohort: DCPlanCohort;
+  resolvedFirstSimulationYear?: number;
+}) => {
+  if (cohort === 'all') return null;
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-purple-100 text-purple-700 border border-purple-200">
+      {cohortBadgeLabel(cohort, resolvedFirstSimulationYear)}
+    </span>
+  );
+};
+
 const LoadingState = () => (
   <div className="flex flex-col items-center justify-center h-96 text-gray-400">
     <Loader2 size={48} className="mb-4 animate-spin" />
@@ -245,6 +290,7 @@ export default function ScenarioCostComparison() {
   // -------------------------------------------------------------------------
   const [viewMode, setViewMode] = useState<'annual' | 'cumulative'>('annual');
   const [searchQuery, setSearchQuery] = useState('');
+  const [cohort, setCohort] = useState<DCPlanCohort>('all');
 
   // -------------------------------------------------------------------------
   // State: API Data & UI State
@@ -422,6 +468,9 @@ export default function ScenarioCostComparison() {
         // Filter to only include scenarios that still exist and are completed
         const validSelectedIds = savedPrefs.selectedIds.filter(id => completedIds.has(id));
         const validAnchorId = completedIds.has(savedPrefs.anchorId) ? savedPrefs.anchorId : '';
+        // FR-008: an unrecognized/corrupted stored cohort value falls back to 'all'
+        // rather than blocking selectedIds/anchorId restoration.
+        setCohort(isValidCohort(savedPrefs.cohort) ? savedPrefs.cohort : 'all');
 
         if (validSelectedIds.length > 0) {
           // Restore saved selection
@@ -478,7 +527,13 @@ export default function ScenarioCostComparison() {
     setLoading(true);
     setError(null);
     try {
-      const data = await compareDCPlanAnalytics(activeWorkspace.id, selectedScenarioIds);
+      const data = await compareDCPlanAnalytics(
+        activeWorkspace.id,
+        selectedScenarioIds,
+        false,
+        false,
+        cohort
+      );
       setComparisonData(data);
     } catch (err) {
       console.error('Failed to fetch comparison:', err);
@@ -487,7 +542,7 @@ export default function ScenarioCostComparison() {
     } finally {
       setLoading(false);
     }
-  }, [activeWorkspace?.id, selectedScenarioIds]);
+  }, [activeWorkspace?.id, selectedScenarioIds, cohort]);
 
   // -------------------------------------------------------------------------
   // Effects
@@ -536,9 +591,10 @@ export default function ScenarioCostComparison() {
       saveComparisonPrefs(activeWorkspace.id, {
         selectedIds: selectedScenarioIds,
         anchorId: anchorScenarioId,
+        cohort,
       });
     }
-  }, [activeWorkspace?.id, selectionWorkspaceId, selectedScenarioIds, anchorScenarioId]);
+  }, [activeWorkspace?.id, selectionWorkspaceId, selectedScenarioIds, anchorScenarioId, cohort]);
 
   // -------------------------------------------------------------------------
   // Event Handlers
@@ -600,6 +656,12 @@ export default function ScenarioCostComparison() {
 
     const lines: string[] = [];
 
+    // 134-new-hire-cohort (FR-011, ui-contract.md): identifies the active
+    // cohort out of UI context when the matrix is pasted elsewhere.
+    if (cohort !== 'all') {
+      lines.push(`# Cohort: ${cohortBadgeLabel(cohort, anchorAnalytics?.resolved_first_simulation_year)}`);
+    }
+
     // Header row
     lines.push(['Scenario', ...years.map(String), 'Total', 'Variance'].join('\t'));
 
@@ -631,7 +693,7 @@ export default function ScenarioCostComparison() {
     });
 
     return lines.join('\n');
-  }, [comparisonData, years, orderedScenarioIds, anchorScenarioId, anchorAnalytics]);
+  }, [comparisonData, years, orderedScenarioIds, anchorScenarioId, anchorAnalytics, cohort]);
 
   const handleCopy = useCallback(() => {
     const tsv = tableToTSV();
@@ -645,6 +707,11 @@ export default function ScenarioCostComparison() {
     if (!comparisonData || years.length === 0) return '';
 
     const lines: string[] = [];
+
+    // 134-new-hire-cohort (FR-011)
+    if (cohort !== 'all') {
+      lines.push(`# Cohort: ${cohortBadgeLabel(cohort, anchorAnalytics?.resolved_first_simulation_year)}`);
+    }
 
     // Header row
     lines.push(['Scenario', ...years.map(String), 'Total', 'Variance'].join('\t'));
@@ -677,7 +744,7 @@ export default function ScenarioCostComparison() {
     });
 
     return lines.join('\n');
-  }, [comparisonData, years, orderedScenarioIds, anchorScenarioId, anchorAnalytics]);
+  }, [comparisonData, years, orderedScenarioIds, anchorScenarioId, anchorAnalytics, cohort]);
 
   const handleCompensationCopy = useCallback(() => {
     const tsv = compensationTableToTSV();
@@ -920,24 +987,42 @@ export default function ScenarioCostComparison() {
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
               <div className="flex items-center justify-between mb-8">
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900">Employer Cost Trends</h3>
+                  <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    Employer Cost Trends
+                    <CohortBadge cohort={cohort} resolvedFirstSimulationYear={anchorAnalytics?.resolved_first_simulation_year} />
+                  </h3>
                   <p className="text-sm text-gray-500">Comparing total contributions for the selected horizon.</p>
                 </div>
 
-                {/* View Mode Toggle */}
-                <div className="flex bg-gray-100 p-1 rounded-lg">
-                  <button
-                    onClick={() => setViewMode('annual')}
-                    className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'annual' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                  >
-                    Annual Spend
-                  </button>
-                  <button
-                    onClick={() => setViewMode('cumulative')}
-                    className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'cumulative' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                  >
-                    Cumulative Cost
-                  </button>
+                <div className="flex items-center gap-2">
+                  {/* Cohort Control (134-new-hire-cohort, FR-001) */}
+                  <div className="flex bg-gray-100 p-1 rounded-lg">
+                    {VALID_COHORTS.map((value) => (
+                      <button
+                        key={value}
+                        onClick={() => setCohort(value)}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${cohort === value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                      >
+                        {COHORT_TOGGLE_LABELS[value]}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* View Mode Toggle */}
+                  <div className="flex bg-gray-100 p-1 rounded-lg">
+                    <button
+                      onClick={() => setViewMode('annual')}
+                      className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'annual' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                      Annual Spend
+                    </button>
+                    <button
+                      onClick={() => setViewMode('cumulative')}
+                      className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'cumulative' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                      Cumulative Cost
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -1015,9 +1100,10 @@ export default function ScenarioCostComparison() {
             {selectedScenarioIds.length > 1 && (
               <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-lg font-bold text-gray-900 flex items-center">
+                  <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                     <Calculator size={18} className="mr-2 text-blue-600" />
                     Incremental Costs vs. {anchorAnalytics?.scenario_name}
+                    <CohortBadge cohort={cohort} resolvedFirstSimulationYear={anchorAnalytics?.resolved_first_simulation_year} />
                   </h3>
                   <div className="px-3 py-1 bg-blue-50 text-blue-700 text-[10px] font-bold rounded-md uppercase tracking-wide">
                     Values represent cost delta
@@ -1080,7 +1166,10 @@ export default function ScenarioCostComparison() {
             {/* Multi-Year Cost Matrix Table */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
-                <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider">Multi-Year Cost Matrix</h3>
+                <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider flex items-center gap-2">
+                  Multi-Year Cost Matrix
+                  <CohortBadge cohort={cohort} resolvedFirstSimulationYear={anchorAnalytics?.resolved_first_simulation_year} />
+                </h3>
                 <div className="flex items-center space-x-2">
                   <span className="text-[10px] bg-white border border-gray-200 text-gray-600 px-2 py-0.5 rounded font-bold flex items-center">
                     <DollarSign size={8} className="mr-0.5" /> VALUES IN $
@@ -1149,9 +1238,23 @@ export default function ScenarioCostComparison() {
                           </td>
                           {years.map((year) => {
                             const yearData = analytics.contribution_by_year.find(y => y.year === year);
+                            if (!yearData) {
+                              // 134-new-hire-cohort (FR-012): a year absent from
+                              // contribution_by_year means zero cohort-matching
+                              // employees — distinguishable from a computed $0.
+                              return (
+                                <td key={year} className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-400 font-mono italic">
+                                  {cohort !== 'all' ? (
+                                    <span title="No employees in cohort">—</span>
+                                  ) : (
+                                    '-'
+                                  )}
+                                </td>
+                              );
+                            }
                             return (
                               <td key={year} className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-600 font-mono">
-                                {yearData ? formatCurrency(yearData.total_employer_cost) : '-'}
+                                {formatCurrency(yearData.total_employer_cost)}
                               </td>
                             );
                           })}
@@ -1293,6 +1396,15 @@ export default function ScenarioCostComparison() {
                     growth, compensation and census as well as plan design. It does not isolate the
                     effect of a policy change on its own.
                   </p>
+                  {cohort !== 'all' && (
+                    <p>
+                      <span className="text-white font-bold">Cohort:</span> figures reflect only
+                      the <strong>{cohortBadgeLabel(cohort, anchorAnalytics?.resolved_first_simulation_year)}</strong> cohort
+                      {cohort === 'new_hires'
+                        ? ` — employees hired on or after ${anchorAnalytics?.resolved_first_simulation_year ?? 'the first simulation year'}.`
+                        : ' — everyone else in the workforce snapshot.'}
+                    </p>
+                  )}
                 </div>
               </div>
 

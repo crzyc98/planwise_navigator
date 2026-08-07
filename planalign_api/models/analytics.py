@@ -107,6 +107,13 @@ class DCPlanAnalytics(BaseModel):
 
     scenario_id: str = Field(description="Scenario identifier")
     scenario_name: str = Field(description="Scenario display name")
+    resolved_first_simulation_year: int = Field(
+        description=(
+            "First simulation year used to classify employees into the "
+            "new_hires/baseline cohorts, always populated regardless of the "
+            "requested cohort (134-new-hire-cohort)"
+        )
+    )
 
     # Participation summary
     total_eligible: int = Field(description="Total eligible employees")
