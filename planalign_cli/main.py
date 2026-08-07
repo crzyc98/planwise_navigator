@@ -80,6 +80,7 @@ from .commands.validate import validate_config  # noqa: E402
 from .commands.calibrate import run_calibration  # noqa: E402
 from .commands.fit import run_fit  # noqa: E402
 from .commands.backtest import run_backtest_command  # noqa: E402
+from .commands.optimize import run_optimize  # noqa: E402
 from .commands.provenance import generate_provenance_report  # noqa: E402
 from .commands.validate_change import run_validate_change  # noqa: E402
 
@@ -91,6 +92,7 @@ app.command("calibrate")(run_calibration)
 # carries its full typer signature too.
 app.command("fit")(run_fit)
 app.command("backtest")(run_backtest_command)
+app.command("optimize")(run_optimize)
 
 
 @app.command("provenance")

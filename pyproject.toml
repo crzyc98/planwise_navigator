@@ -105,6 +105,7 @@ packages = [
     "planalign_fit",
     "planalign_backtest",
     "planalign_ensemble",
+    "planalign_optimizer",
 ]
 py-modules = ["_version"]
 
@@ -180,7 +181,7 @@ markers = [
 
 # Coverage options (when using pytest-cov)
 [tool.coverage.run]
-source = ["planalign_orchestrator", "planalign_cli", "planalign_api", "planalign_core"]
+source = ["planalign_orchestrator", "planalign_cli", "planalign_api", "planalign_core", "planalign_optimizer"]
 omit = [
     "*/tests/*",
     "*/venv/*",
