@@ -2789,3 +2789,199 @@ export async function optimizeCalibration(
   }
   return { run_id: job.run_id, outcome: job.outcome };
 }
+
+// ============================================================================
+// Optimizer Endpoints (Roadmap 7/8, issue #461 / #557 — plan-design optimizer)
+// ============================================================================
+
+export type LeverKind = 'discrete' | 'continuous';
+export type LeverValue = string | number | boolean;
+
+export interface LeverSpec {
+  name: string;
+  kind: LeverKind;
+  choices?: LeverValue[] | null;
+  bounds?: [number, number] | null;
+}
+
+export interface DesignSpaceSpec {
+  levers: LeverSpec[];
+}
+
+export type ObjectiveDirection = 'minimize' | 'maximize';
+
+export interface ObjectiveTerm {
+  metric: string;
+  direction: ObjectiveDirection;
+}
+
+export type ConstraintOperator = '<=' | '>=' | '<' | '>' | '==';
+
+export interface ConstraintSpec {
+  metric: string;
+  operator: ConstraintOperator;
+  threshold: number;
+  /** 1-99; only takes effect when baseline.ensemble_database is also set. */
+  percentile?: number | null;
+}
+
+export interface ObjectiveConstraintSpec {
+  /** 1 entry ranks candidates; 2 entries unlocks the Pareto frontier. */
+  objectives: ObjectiveTerm[];
+  constraints: ConstraintSpec[];
+}
+
+export interface BaselineSpec {
+  config_path: string;
+  ensemble_database?: string | null;
+}
+
+export interface OptimizerSpecPayload {
+  design_space: DesignSpaceSpec;
+  objective: ObjectiveConstraintSpec;
+  baseline: BaselineSpec;
+}
+
+export interface ConstraintResult {
+  metric: string;
+  evaluation_mode: 'point_estimate' | 'percentile';
+  evaluated_value: number | null;
+  satisfied: boolean | null;
+}
+
+export type CandidateStatus = 'feasible' | 'infeasible' | 'non_evaluable' | 'failed';
+
+export interface Candidate {
+  candidate_id: string;
+  lever_values: Record<string, LeverValue>;
+  db_path: string | null;
+  status: CandidateStatus;
+  objective_values: Record<string, number | null>;
+  constraint_results: ConstraintResult[];
+  is_duplicate_of: string | null;
+  duration_seconds: number;
+}
+
+export interface OptimizerRun {
+  run_id: string;
+  design_space: DesignSpaceSpec;
+  objective_constraint_spec: ObjectiveConstraintSpec;
+  max_runs: number;
+  search_seed: number;
+  baseline_config_fingerprint: string;
+  candidates: Candidate[];
+  /** Populated only for single-objective runs, best first. */
+  ranked_feasible: string[];
+  /** Populated only for 2-objective runs; null otherwise. */
+  pareto_frontier: string[] | null;
+  /** Set only when zero candidates were ranked/on the frontier — names the
+   * constraint(s) nobody satisfied. Surface this loudly in the UI. */
+  binding_infeasible_constraints: string[] | null;
+}
+
+export interface OptimizerValidateRequest {
+  /** Exactly one of spec/spec_yaml is required. */
+  spec?: OptimizerSpecPayload | null;
+  spec_yaml?: string | null;
+  /** If given, also returns a seed-phase dry-run preview. */
+  max_runs?: number | null;
+}
+
+export interface OptimizerValidateResponse {
+  valid: boolean;
+  error?: string | null;
+  /** The parsed/validated spec on success — lets the builder populate itself
+   * from an imported YAML file. */
+  resolved_spec?: OptimizerSpecPayload | null;
+  seed_phase_candidates?: Array<Record<string, LeverValue>> | null;
+  seed_phase_count?: number | null;
+  baseline_drift_warning?: string | null;
+}
+
+export interface OptimizerRunRequest {
+  spec: OptimizerSpecPayload;
+  max_runs: number;
+  search_seed?: number | null;
+  parallel?: number | null;
+  workspace_id?: string | null;
+  database_dir?: string | null;
+  output_dir?: string | null;
+  compare_baseline_to?: string | null;
+}
+
+export interface OptimizerStartResponse {
+  run_id: string;
+  status: 'queued';
+  database_dir: string;
+  output_dir: string;
+}
+
+export interface OptimizerJob {
+  run_id: string;
+  status: 'queued' | 'running' | 'completed' | 'failed';
+  created_at: string;
+  completed_at: string | null;
+  result: OptimizerRun | null;
+  output_dir: string | null;
+  error: string | null;
+  error_status: number | null;
+}
+
+/** Cheap, synchronous spec validation + optional seed-phase preview. Always
+ * resolves 200; a bad spec is reported via `valid`/`error`, never thrown. */
+export async function validateOptimizerSpec(
+  request: OptimizerValidateRequest
+): Promise<OptimizerValidateResponse> {
+  const response = await fetchWithAuth(`${API_BASE}/api/optimizer/validate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<OptimizerValidateResponse>(response);
+}
+
+export async function getOptimizerRun(runId: string): Promise<OptimizerJob> {
+  const response = await fetchWithAuth(`${API_BASE}/api/optimizer/runs/${runId}`);
+  return handleResponse<OptimizerJob>(response);
+}
+
+const OPTIMIZER_POLL_MS = 2000;
+
+/** Poll an optimizer job until it reaches a terminal state. */
+async function awaitOptimizerJob(runId: string): Promise<OptimizerJob> {
+  for (;;) {
+    const job = await getOptimizerRun(runId);
+    if (job.status === 'completed') return job;
+    if (job.status === 'failed') {
+      throw new ApiError(job.error_status ?? 500, 'Optimizer run failed', job.error ?? undefined);
+    }
+    await new Promise((resolve) => setTimeout(resolve, OPTIMIZER_POLL_MS));
+  }
+}
+
+/**
+ * Run a plan-design optimizer search. The backend enqueues a background job
+ * (each candidate is an isolated scenario simulation, so this can take
+ * several minutes) and this wrapper polls it to completion.
+ */
+export async function runOptimizer(request: OptimizerRunRequest): Promise<OptimizerJob> {
+  const response = await fetchWithAuth(`${API_BASE}/api/optimizer/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  const started = await handleResponse<OptimizerStartResponse>(response);
+  return awaitOptimizerJob(started.run_id);
+}
+
+/** Drill down to one candidate's already-computed result (permalink/deep-link
+ * use; the same data is already present on a completed OptimizerJob). */
+export async function getOptimizerCandidate(
+  runId: string,
+  candidateId: string
+): Promise<Candidate> {
+  const response = await fetchWithAuth(
+    `${API_BASE}/api/optimizer/runs/${runId}/candidates/${candidateId}`
+  );
+  return handleResponse<Candidate>(response);
+}

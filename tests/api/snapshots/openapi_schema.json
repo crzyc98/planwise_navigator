@@ -1809,6 +1809,102 @@
         "title": "CalibrationStartResponse",
         "type": "object"
       },
+      "Candidate": {
+        "description": "One evaluated or exactly deduplicated design point.",
+        "properties": {
+          "candidate_id": {
+            "title": "Candidate Id",
+            "type": "string"
+          },
+          "constraint_results": {
+            "items": {
+              "$ref": "#/components/schemas/ConstraintResult"
+            },
+            "title": "Constraint Results",
+            "type": "array"
+          },
+          "db_path": {
+            "anyOf": [
+              {
+                "format": "path",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Db Path"
+          },
+          "duration_seconds": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "title": "Duration Seconds",
+            "type": "number"
+          },
+          "is_duplicate_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Duplicate Of"
+          },
+          "lever_values": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "title": "Lever Values",
+            "type": "object"
+          },
+          "objective_values": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Objective Values",
+            "type": "object"
+          },
+          "status": {
+            "enum": [
+              "feasible",
+              "infeasible",
+              "non_evaluable",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "candidate_id",
+          "lever_values",
+          "status"
+        ],
+        "title": "Candidate",
+        "type": "object"
+      },
       "CapturedValidationResult": {
         "additionalProperties": false,
         "properties": {
@@ -2391,6 +2487,96 @@
           }
         },
         "title": "ConfigurationEvidence",
+        "type": "object"
+      },
+      "ConstraintResult": {
+        "description": "Evaluated outcome for one declared constraint.",
+        "properties": {
+          "evaluated_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluated Value"
+          },
+          "evaluation_mode": {
+            "enum": [
+              "point_estimate",
+              "percentile"
+            ],
+            "title": "Evaluation Mode",
+            "type": "string"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "satisfied": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Satisfied"
+          }
+        },
+        "required": [
+          "metric",
+          "evaluation_mode"
+        ],
+        "title": "ConstraintResult",
+        "type": "object"
+      },
+      "ConstraintSpec": {
+        "description": "One hard metric guardrail.",
+        "properties": {
+          "metric": {
+            "minLength": 1,
+            "title": "Metric",
+            "type": "string"
+          },
+          "operator": {
+            "enum": [
+              "<=",
+              ">=",
+              "<",
+              ">",
+              "=="
+            ],
+            "title": "Operator",
+            "type": "string"
+          },
+          "percentile": {
+            "anyOf": [
+              {
+                "maximum": 99.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percentile"
+          },
+          "threshold": {
+            "title": "Threshold",
+            "type": "number"
+          }
+        },
+        "required": [
+          "metric",
+          "operator",
+          "threshold"
+        ],
+        "title": "ConstraintSpec",
         "type": "object"
       },
       "ContributionYearSummary": {
@@ -3009,6 +3195,20 @@
           "delta_pcts"
         ],
         "title": "DeltaValue",
+        "type": "object"
+      },
+      "DesignSpaceSpec": {
+        "description": "The complete set of levers the optimizer may mutate.",
+        "properties": {
+          "levers": {
+            "items": {
+              "$ref": "#/components/schemas/LeverSpec"
+            },
+            "title": "Levers",
+            "type": "array"
+          }
+        },
+        "title": "DesignSpaceSpec",
         "type": "object"
       },
       "DetectedColumn": {
@@ -4704,6 +4904,78 @@
         "title": "LevelDistributionResponse",
         "type": "object"
       },
+      "LeverSpec": {
+        "description": "One declared configuration lever and its allowed values.",
+        "properties": {
+          "bounds": {
+            "anyOf": [
+              {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bounds"
+          },
+          "choices": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Choices"
+          },
+          "kind": {
+            "enum": [
+              "discrete",
+              "continuous"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "kind"
+        ],
+        "title": "LeverSpec",
+        "type": "object"
+      },
       "LogPage": {
         "description": "Paginated log lines for the log viewer endpoint.",
         "properties": {
@@ -4999,6 +5271,56 @@
         "title": "MappingValidationError",
         "type": "object"
       },
+      "ObjectiveConstraintSpec": {
+        "description": "The objectives and hard constraints for a search.",
+        "properties": {
+          "constraints": {
+            "items": {
+              "$ref": "#/components/schemas/ConstraintSpec"
+            },
+            "title": "Constraints",
+            "type": "array"
+          },
+          "objectives": {
+            "items": {
+              "$ref": "#/components/schemas/ObjectiveTerm"
+            },
+            "maxItems": 2,
+            "minItems": 1,
+            "title": "Objectives",
+            "type": "array"
+          }
+        },
+        "required": [
+          "objectives"
+        ],
+        "title": "ObjectiveConstraintSpec",
+        "type": "object"
+      },
+      "ObjectiveTerm": {
+        "description": "One metric optimization direction.",
+        "properties": {
+          "direction": {
+            "enum": [
+              "minimize",
+              "maximize"
+            ],
+            "title": "Direction",
+            "type": "string"
+          },
+          "metric": {
+            "minLength": 1,
+            "title": "Metric",
+            "type": "string"
+          }
+        },
+        "required": [
+          "metric",
+          "direction"
+        ],
+        "title": "ObjectiveTerm",
+        "type": "object"
+      },
       "OptOutRateAnalysisRequest": {
         "description": "Request for census-based opt-out rate analysis.",
         "properties": {
@@ -5146,6 +5468,400 @@
           "error_pct"
         ],
         "title": "OptimizationIteration",
+        "type": "object"
+      },
+      "OptimizerJob": {
+        "description": "Status/result record for a background optimizer job.",
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "error_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Status"
+          },
+          "output_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Dir"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OptimizerRun"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "status",
+          "created_at"
+        ],
+        "title": "OptimizerJob",
+        "type": "object"
+      },
+      "OptimizerRun": {
+        "description": "Immutable output of one bounded optimizer invocation.",
+        "properties": {
+          "baseline_config_fingerprint": {
+            "title": "Baseline Config Fingerprint",
+            "type": "string"
+          },
+          "binding_infeasible_constraints": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Binding Infeasible Constraints"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/Candidate"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "design_space": {
+            "$ref": "#/components/schemas/DesignSpaceSpec"
+          },
+          "max_runs": {
+            "minimum": 1.0,
+            "title": "Max Runs",
+            "type": "integer"
+          },
+          "objective_constraint_spec": {
+            "$ref": "#/components/schemas/ObjectiveConstraintSpec"
+          },
+          "pareto_frontier": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pareto Frontier"
+          },
+          "ranked_feasible": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Ranked Feasible",
+            "type": "array"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "search_seed": {
+            "title": "Search Seed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_id",
+          "design_space",
+          "objective_constraint_spec",
+          "max_runs",
+          "search_seed",
+          "baseline_config_fingerprint"
+        ],
+        "title": "OptimizerRun",
+        "type": "object"
+      },
+      "OptimizerRunRequest": {
+        "properties": {
+          "compare_baseline_to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compare Baseline To"
+          },
+          "database_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Database Dir"
+          },
+          "max_runs": {
+            "minimum": 1.0,
+            "title": "Max Runs",
+            "type": "integer"
+          },
+          "output_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Dir"
+          },
+          "parallel": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parallel"
+          },
+          "search_seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Seed"
+          },
+          "spec": {
+            "title": "Spec",
+            "type": "object"
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace Id"
+          }
+        },
+        "required": [
+          "spec",
+          "max_runs"
+        ],
+        "title": "OptimizerRunRequest",
+        "type": "object"
+      },
+      "OptimizerStartResponse": {
+        "properties": {
+          "database_dir": {
+            "title": "Database Dir",
+            "type": "string"
+          },
+          "output_dir": {
+            "title": "Output Dir",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "status": {
+            "const": "queued",
+            "enum": [
+              "queued"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "status",
+          "database_dir",
+          "output_dir"
+        ],
+        "title": "OptimizerStartResponse",
+        "type": "object"
+      },
+      "OptimizerValidateRequest": {
+        "description": "Exactly one of ``spec``/``spec_yaml`` must be given.",
+        "properties": {
+          "max_runs": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Runs"
+          },
+          "spec": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spec"
+          },
+          "spec_yaml": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spec Yaml"
+          }
+        },
+        "title": "OptimizerValidateRequest",
+        "type": "object"
+      },
+      "OptimizerValidateResponse": {
+        "properties": {
+          "baseline_drift_warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline Drift Warning"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "resolved_spec": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved Spec"
+          },
+          "seed_phase_candidates": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed Phase Candidates"
+          },
+          "seed_phase_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed Phase Count"
+          },
+          "valid": {
+            "title": "Valid",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "valid"
+        ],
+        "title": "OptimizerValidateResponse",
         "type": "object"
       },
       "ParquetColumn": {
@@ -9958,6 +10674,186 @@
         "summary": "Health Check",
         "tags": [
           "System"
+        ]
+      }
+    },
+    "/api/optimizer/run": {
+      "post": {
+        "description": "Enqueue a plan-design optimizer search; poll /optimizer/runs/{run_id}.\n\nRequest validation fails fast (404 unknown workspace, 422 bad spec, 409\nnon-fresh output directory); build-time failures surface on the job\nrecord instead (409 spec/baseline resolution issue, 500 unexpected).",
+        "operationId": "start_optimizer_run_api_optimizer_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OptimizerRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OptimizerStartResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Optimizer Run",
+        "tags": [
+          "Optimizer"
+        ]
+      }
+    },
+    "/api/optimizer/runs/{run_id}": {
+      "get": {
+        "description": "Poll an optimizer job: status, then result or error.",
+        "operationId": "get_optimizer_run_api_optimizer_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OptimizerJob"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Optimizer Run",
+        "tags": [
+          "Optimizer"
+        ]
+      }
+    },
+    "/api/optimizer/runs/{run_id}/candidates/{candidate_id}": {
+      "get": {
+        "description": "Drill down to one candidate's already-computed result (no new query).",
+        "operationId": "get_optimizer_candidate_api_optimizer_runs__run_id__candidates__candidate_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "candidate_id",
+            "required": true,
+            "schema": {
+              "title": "Candidate Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Optimizer Candidate Api Optimizer Runs  Run Id  Candidates  Candidate Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Optimizer Candidate",
+        "tags": [
+          "Optimizer"
+        ]
+      }
+    },
+    "/api/optimizer/validate": {
+      "post": {
+        "description": "Cheap, synchronous spec validation + optional seed-phase dry-run preview.\n\nAlways returns 200; a bad spec is reported via `valid`/`error`, not raised,\nsince this endpoint exists precisely to preview invalid input.",
+        "operationId": "validate_optimizer_spec_api_optimizer_validate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OptimizerValidateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OptimizerValidateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Validate Optimizer Spec",
+        "tags": [
+          "Optimizer"
         ]
       }
     },
