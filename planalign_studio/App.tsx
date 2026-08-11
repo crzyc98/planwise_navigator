@@ -18,6 +18,7 @@ import NDTTesting from './components/NDTTesting';
 import WinnersLosersTab from './components/WinnersLosersTab';
 import DataImportWizard from './components/DataImportWizard';
 import CalibrationPanel from './components/CalibrationPanel';
+import OptimizerPanel from './components/OptimizerPanel';
 import RunProvenanceReport from './components/RunProvenanceReport';
 import EmployeeTimelinePage from './components/timeline/EmployeeTimelinePage';
 
@@ -91,6 +92,7 @@ export default function App() {
             <Route path="scenarios" element={<ScenariosPage />} />
             <Route path="config" element={<ConfigStudio />} />
             <Route path="calibrate" element={<CalibrationPanel />} />
+            <Route path="optimize" element={<OptimizerPanel />} />
             <Route path="config/:scenarioId" element={<ConfigStudio />} />
             <Route path="analytics" element={<AnalyticsDashboard />} />
             <Route path="analytics/compare" element={<ScenarioComparison />} />

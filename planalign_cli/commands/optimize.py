@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import secrets
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -16,6 +15,7 @@ from planalign_optimizer.baseline import load_baseline, stale_baseline_warning
 from planalign_optimizer.design_space import sample_candidates
 from planalign_optimizer.evaluate import validate_levers_against_baseline
 from planalign_optimizer.export import write_exports
+from planalign_optimizer.paths import require_fresh_directory, resolve_output_paths
 from planalign_optimizer.report import write_report
 from planalign_optimizer.search import run_optimizer, seed_phase_count
 from planalign_optimizer.models import OptimizerRun, OptimizerSpec
@@ -79,10 +79,10 @@ def run_optimize(
         if dry_run:
             _render_dry_run(spec, max_runs, search_seed)
             return
-        database_dir, output_dir = _resolve_output_paths(database, output)
-        _require_fresh_directory(database_dir, "candidate database")
+        database_dir, output_dir = resolve_output_paths(database, output)
+        require_fresh_directory(database_dir, "candidate database")
         if output_dir != database_dir:
-            _require_fresh_directory(output_dir, "export")
+            require_fresh_directory(output_dir, "export")
         run, budget = run_optimizer(
             spec,
             resolved_baseline,
@@ -99,28 +99,6 @@ def run_optimize(
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(EXIT_BAD_INPUT) from exc
     _render_summary(run, budget.describe(), report_path)
-
-
-def _resolve_output_paths(
-    database: Path | None, output: Path | None
-) -> tuple[Path, Path]:
-    default = Path("var/optimizer_runs") / datetime.now(timezone.utc).strftime(
-        "%Y%m%dT%H%M%S.%fZ"
-    )
-    database_dir = (database or output or default).resolve()
-    output_dir = (output or database_dir).resolve()
-    shared = (Path("dbt") / "simulation.duckdb").resolve()
-    for flag, path in (("--database", database_dir), ("--output", output_dir)):
-        if path == shared or path.suffix == ".duckdb":
-            raise ValueError(
-                f"{flag} must be a fresh directory, never dbt/simulation.duckdb or another database file"
-            )
-    return database_dir, output_dir
-
-
-def _require_fresh_directory(path: Path, label: str) -> None:
-    if path.exists() and any(path.iterdir()):
-        raise ValueError(f"{label} directory is not empty: {path}")
 
 
 def _render_dry_run(spec: OptimizerSpec, max_runs: int, seed: int) -> None:

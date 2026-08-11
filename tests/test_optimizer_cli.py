@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from planalign_cli.commands.optimize import _resolve_output_paths
 from planalign_cli.main import app
+from planalign_optimizer.paths import resolve_output_paths
 
 pytestmark = pytest.mark.fast
 runner = CliRunner()
@@ -84,4 +84,4 @@ baseline:
 
 def test_output_path_cannot_be_the_shared_dev_database() -> None:
     with pytest.raises(ValueError, match="--output"):
-        _resolve_output_paths(Path("/tmp/optimizer-iso"), Path("dbt/simulation.duckdb"))
+        resolve_output_paths(Path("/tmp/optimizer-iso"), Path("dbt/simulation.duckdb"))
