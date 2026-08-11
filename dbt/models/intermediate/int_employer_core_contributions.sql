@@ -138,23 +138,11 @@ population AS (
                 THEN 'active'
             ELSE workforce.employment_status
         END AS employment_status,
-        CASE
-            WHEN workforce.detailed_status_code = 'experienced_termination'
-                THEN GREATEST(
-                    workforce.current_tenure,
-                    prior_workforce.current_tenure + 1
-                )
-            ELSE workforce.current_tenure
-        END AS current_tenure,
+        workforce.current_tenure AS current_tenure,
         workforce.current_age,
         workforce.detailed_status_code,
         workforce.termination_date::DATE AS termination_date
     FROM {{ ref('int_workforce_state_accumulator') }} workforce
-    LEFT JOIN {{ ref('int_workforce_state_accumulator') }} prior_workforce
-      ON prior_workforce.scenario_id = workforce.scenario_id
-     AND prior_workforce.plan_design_id = workforce.plan_design_id
-     AND prior_workforce.employee_id = workforce.employee_id
-     AND prior_workforce.simulation_year = {{ simulation_year - 1 }}
     LEFT JOIN starting_compensation starting
       ON workforce.employee_id = starting.employee_id
     WHERE workforce.scenario_id = '{{ scenario_id }}'

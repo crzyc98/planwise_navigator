@@ -118,19 +118,8 @@ employee_contributions AS (
         COALESCE(elig.eligible_for_match, FALSE) AS is_eligible_for_match,
         elig.match_eligibility_reason,
         elig.match_apply_eligibility AS eligibility_config_applied,
-        -- Preserve the accepted scratch-snapshot service convention from
-        -- canonical current/prior workforce state.
-        FLOOR(COALESCE(
-            CASE
-                WHEN workforce.detailed_status_code = 'experienced_termination'
-                    THEN GREATEST(
-                        workforce.current_tenure,
-                        prior_workforce.current_tenure + 1
-                    )
-                ELSE workforce.current_tenure
-            END,
-            0
-        ))::INT AS years_of_service
+        -- Exact completed service used by eligibility and all service-based rates.
+        FLOOR(COALESCE(workforce.current_tenure, 0))::INT AS years_of_service
     FROM {{ ref('int_employee_contributions') }}  ec
     LEFT JOIN {{ ref('int_employer_eligibility') }} elig
         ON ec.employee_id = elig.employee_id
@@ -140,11 +129,6 @@ employee_contributions AS (
        AND ec.simulation_year = workforce.simulation_year
        AND workforce.scenario_id = '{{ scenario_id }}'
        AND workforce.plan_design_id = '{{ plan_design_id }}'
-    LEFT JOIN {{ ref('int_workforce_state_accumulator') }} prior_workforce
-        ON prior_workforce.employee_id = workforce.employee_id
-       AND prior_workforce.scenario_id = workforce.scenario_id
-       AND prior_workforce.plan_design_id = workforce.plan_design_id
-       AND prior_workforce.simulation_year = {{ simulation_year - 1 }}
     WHERE ec.simulation_year = {{ simulation_year }}
         AND ec.employee_id IS NOT NULL
 ),

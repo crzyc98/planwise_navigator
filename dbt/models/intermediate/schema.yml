@@ -104,7 +104,9 @@ models:
       MVP employer contribution eligibility determination model.
       Enhanced with Epic E058: Employer Match Eligibility Configuration.
       Implements sophisticated eligibility logic for both match and core contributions
-      with configurable business rules and backward compatibility.
+      with configurable business rules and backward compatibility. Eligibility service
+      is copied exactly from the current-year workforce accumulator; no benefit model
+      reconstructs service from a prior-year row.
     config:
       tags: ["employer_contributions", "eligibility", "foundation", "e058"]
     columns:
@@ -159,7 +161,10 @@ models:
           - accepted_values:
               values: [true, false]
       - name: current_tenure
-        description: "Epic E058 Phase 1: Employee tenure in years for eligibility calculation"
+        description: >
+          Authoritative completed years of service copied exactly from
+          int_workforce_state_accumulator.current_tenure for the same employee and
+          simulation year. Terminated employees use service through termination_date.
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
@@ -328,8 +333,9 @@ models:
               max_value: 1.00
       - name: applied_years_of_service
         description: >
-          Audit trail field: integer years of service used for tier lookup
-          when graded_by_service is configured. Calculated as FLOOR(current_tenure).
+          Exact integer service basis used for graded-by-service and points-based
+          core rate selection. Equals FLOOR of the current-year authoritative
+          workforce current_tenure, including termination-date service.
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
@@ -441,8 +447,10 @@ models:
               values: [true, false]
       - name: applied_years_of_service
         description: >
-          E010: Years of service used for service tier lookup when employer_match_status='graded_by_service'.
-          NULL when using deferral-based matching. Enables audit trail for compliance verification.
+          Exact integer service basis used by graded_by_service, tenure_graded,
+          and points_based match modes. Equals FLOOR of the current-year
+          authoritative workforce current_tenure, including termination-date
+          service. NULL for deferral-based matching.
     data_tests:
       - unique:
           column_name: "employee_id || '_' || simulation_year"

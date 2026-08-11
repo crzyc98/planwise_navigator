@@ -18,13 +18,17 @@
 
   Expected: No rows returned (all assertions pass)
 
-  Note: This test only runs when employer_match_status = 'graded_by_service'
+  Rate boundaries are checked for graded_by_service. Exact service audit
+  reconciliation also runs for tenure_graded and points_based modes.
 
   Feature: E010 - Service-Based Match Contribution Tiers
 */
 
 {% set employer_match_status = var('employer_match_status', 'deferral_based') %}
 {% set employer_match_graded_schedule = var('employer_match_graded_schedule', []) %}
+{% set simulation_year = var('simulation_year', 2025) | int %}
+{% set scenario_id = var('scenario_id', 'default') %}
+{% set plan_design_id = var('plan_design_id', 'default') %}
 
 WITH match_calculations AS (
     SELECT
@@ -44,9 +48,13 @@ WITH match_calculations AS (
             simulation_year,
             FLOOR(COALESCE(current_tenure, 0))::INT AS current_tenure
         FROM {{ ref('int_workforce_state_accumulator') }}
+        WHERE scenario_id = '{{ scenario_id }}'
+          AND plan_design_id = '{{ plan_design_id }}'
+          AND simulation_year = {{ simulation_year }}
     ) snap ON mc.employee_id = snap.employee_id
             AND mc.simulation_year = snap.simulation_year
-    WHERE mc.simulation_year = {{ var('simulation_year', 2025) }}
+    WHERE mc.scenario_id = '{{ scenario_id }}'
+        AND mc.simulation_year = {{ simulation_year }}
         AND mc.is_eligible_for_match = TRUE
         AND mc.employer_match_amount > 0
 ),
@@ -76,8 +84,9 @@ boundary_checks AS (
             ELSE 0
         END AS actual_tier_rate
     FROM match_calculations
-    -- Only run this check when in graded_by_service mode
-    WHERE '{{ employer_match_status }}' = 'graded_by_service'
+    WHERE '{{ employer_match_status }}' IN (
+        'graded_by_service', 'tenure_graded', 'points_based'
+    )
 ),
 
 assertions AS (
@@ -87,7 +96,7 @@ assertions AS (
         -- Validate applied_years_of_service is populated and matches actual tenure
         CASE
             WHEN applied_years_of_service IS NULL THEN 'MISSING_YEARS_OF_SERVICE'
-            WHEN ABS(applied_years_of_service - current_tenure) > 1 THEN 'TENURE_MISMATCH'
+            WHEN applied_years_of_service IS DISTINCT FROM current_tenure THEN 'TENURE_MISMATCH'
             ELSE 'OK'
         END AS tenure_audit_status
     FROM boundary_checks
@@ -96,5 +105,8 @@ assertions AS (
 -- Return rows where tier rate doesn't match expected or audit field is missing
 SELECT *
 FROM assertions
-WHERE rate_difference > 0.01  -- 1% tolerance for floating point rounding
+WHERE (
+    rate_difference > 0.01  -- 1% tolerance for floating point rounding
+    AND '{{ employer_match_status }}' = 'graded_by_service'
+)
    OR tenure_audit_status != 'OK'

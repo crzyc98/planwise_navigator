@@ -1,5 +1,64 @@
 """Violation-returning SQL for the Feature 113 invariant catalog."""
 
+# Feature 136: benefit consumers must use the current-year workforce service
+# value without prior-year reconstruction. Diagnostics are intentionally bounded.
+EMPLOYER_ELIGIBILITY_SERVICE_MATCHES_WORKFORCE = """
+SELECT
+  eligibility.employee_id,
+  eligibility.simulation_year,
+  eligibility.current_tenure AS eligibility_current_tenure,
+  workforce.current_tenure AS workforce_current_tenure
+FROM int_employer_eligibility eligibility
+LEFT JOIN int_workforce_state_accumulator workforce
+  ON eligibility.employee_id = workforce.employee_id
+ AND eligibility.simulation_year = workforce.simulation_year
+ AND eligibility.scenario_id = workforce.scenario_id
+ AND workforce.plan_design_id = 'service_credit_plan'
+WHERE eligibility.scenario_id = 'service_credit_synthetic'
+  AND (
+    workforce.employee_id IS NULL
+    OR eligibility.current_tenure IS DISTINCT FROM workforce.current_tenure
+  )
+ORDER BY eligibility.employee_id, eligibility.simulation_year
+LIMIT 20
+"""
+
+EMPLOYER_TENURE_REQUIREMENTS_ENFORCED = """
+WITH scoped AS (
+  SELECT
+    eligibility.*,
+    EXTRACT(YEAR FROM workforce.employee_hire_date) = eligibility.simulation_year
+      AS is_hire_year
+  FROM int_employer_eligibility eligibility
+  INNER JOIN int_workforce_state_accumulator workforce
+    ON eligibility.employee_id = workforce.employee_id
+   AND eligibility.simulation_year = workforce.simulation_year
+   AND eligibility.scenario_id = workforce.scenario_id
+   AND workforce.plan_design_id = 'service_credit_plan'
+  WHERE eligibility.scenario_id = 'service_credit_synthetic'
+),
+violations AS (
+  SELECT 'core' AS contribution_type, employee_id, simulation_year,
+         current_tenure, core_tenure_requirement AS tenure_requirement
+  FROM scoped
+  WHERE eligible_for_core
+    AND current_tenure < core_tenure_requirement
+    AND NOT (core_allow_new_hires AND is_hire_year)
+  UNION ALL
+  SELECT 'match', employee_id, simulation_year,
+         current_tenure, match_tenure_requirement
+  FROM scoped
+  WHERE match_apply_eligibility
+    AND eligible_for_match
+    AND current_tenure < match_tenure_requirement
+    AND NOT (match_allow_new_hires AND is_hire_year)
+)
+SELECT *
+FROM violations
+ORDER BY contribution_type, employee_id, simulation_year
+LIMIT 20
+"""
+
 EVENT_UNIQUENESS = """
 SELECT
   MIN(employee_id) AS employee_id,

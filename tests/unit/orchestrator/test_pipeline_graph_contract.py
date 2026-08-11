@@ -211,6 +211,26 @@ def test_employee_match_consumes_canonical_workforce_and_benefit_inputs():
     }
 
 
+def test_employer_service_consumers_forbid_prior_year_reconstruction():
+    consumers = (
+        "int_employer_eligibility",
+        "int_employer_core_contributions",
+        "int_employee_match_calculations",
+    )
+    for consumer in consumers:
+        path = ROOT / f"dbt/models/intermediate/{consumer}.sql"
+        sql = path.read_text()
+        assert sql.count("ref('int_workforce_state_accumulator')") == 1
+        assert "prior_workforce" not in sql
+        assert "prior_workforce.current_tenure" not in sql
+
+    eligibility = (
+        ROOT / "dbt/models/intermediate/int_employer_eligibility.sql"
+    ).read_text()
+    assert "current_tenure + 2" not in eligibility
+    assert "workforce.current_tenure AS current_tenure" in eligibility
+
+
 def test_workforce_snapshot_is_domain_state_composition():
     path = ROOT / "dbt/models/marts/fct_workforce_snapshot.sql"
 
