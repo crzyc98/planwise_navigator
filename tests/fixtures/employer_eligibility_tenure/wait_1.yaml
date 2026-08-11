@@ -1,0 +1,27 @@
+scenario_id: service_wait_1
+plan_design_id: service_credit_plan
+simulation: {start_year: 2025, end_year: 2029, random_seed: 136001, target_growth_rate: 0.02}
+setup: {load_seeds: true, run_staging_models: true, validate_results: false, fail_on_validation_error: true, census_parquet_path: injected, eligibility_waiting_period_days: 0}
+compensation: {cola_rate: 0.02, merit_budget: 0.035, promotion_increase: 0.125}
+workforce: {total_termination_rate: 0.08, new_hire_termination_rate: 0.0}
+eligibility: {waiting_period_days: 0}
+plan_eligibility: {minimum_age: 18}
+employer_core_contribution:
+  enabled: true
+  status: flat
+  contribution_rate: 0.03
+  eligibility: {minimum_tenure_years: 1, require_active_at_year_end: true, minimum_hours_annual: 0, allow_new_hires: false}
+employer_match:
+  active_formula: tiered_match
+  apply_eligibility: true
+  eligibility: {minimum_tenure_years: 1, require_active_at_year_end: true, minimum_hours_annual: 0, allow_new_hires: false}
+  formulas:
+    tiered_match:
+      name: Tiered Match
+      type: tiered
+      tiers: [{tier: 1, employee_min: 0.00, employee_max: 0.06, match_rate: 0.50}]
+      max_match_percentage: 0.03
+enrollment: {auto_enrollment: {enabled: false}, proactive_enrollment: {enabled: false}}
+deferral_rates: {use_census_rates: true, plan_deferral_cap: 0.75, generate_synthetic_events: true}
+deferral_auto_escalation: {enabled: false}
+optimization: {max_workers: 1}

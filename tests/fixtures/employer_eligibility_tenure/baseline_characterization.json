@@ -1,0 +1,54 @@
+{
+  "opening_year": {
+    "1": {
+      "core_cost": 725613.0,
+      "core_paid": 138,
+      "match_cost": 739064.5,
+      "match_paid": 107
+    },
+    "2": {
+      "core_cost": 501063.0,
+      "core_paid": 97,
+      "match_cost": 526324.0,
+      "match_paid": 77
+    },
+    "3": {
+      "core_cost": 444393.0,
+      "core_paid": 88,
+      "match_cost": 455193.0,
+      "match_paid": 68
+    }
+  },
+  "zero_wait_all_years": {
+    "2025": {
+      "core_cost": 800365.86,
+      "core_paid": 152,
+      "match_cost": 820698.9,
+      "match_paid": 116
+    },
+    "2026": {
+      "core_cost": 841538.87,
+      "core_paid": 155,
+      "match_cost": 937317.42,
+      "match_paid": 128
+    },
+    "2027": {
+      "core_cost": 891388.55,
+      "core_paid": 158,
+      "match_cost": 1025529.97,
+      "match_paid": 137
+    },
+    "2028": {
+      "core_cost": 932602.87,
+      "core_paid": 161,
+      "match_cost": 1121468.26,
+      "match_paid": 147
+    },
+    "2029": {
+      "core_cost": 979668.07,
+      "core_paid": 164,
+      "match_cost": 1189031.26,
+      "match_paid": 151
+    }
+  }
+}

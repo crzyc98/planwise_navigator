@@ -12,9 +12,14 @@
   which service tier was used for each contribution calculation.
 */
 
+{% set simulation_year = var('simulation_year', 2025) | int %}
+{% set scenario_id = var('scenario_id', 'default') %}
+{% set plan_design_id = var('plan_design_id', 'default') %}
+
 WITH audit_check AS (
     SELECT
         ec.employee_id,
+        ec.simulation_year,
         ec.applied_years_of_service,
         ec.core_contribution_rate,
         ec.employer_core_amount,
@@ -28,11 +33,16 @@ WITH audit_check AS (
     INNER JOIN (
         SELECT
             employee_id,
+            simulation_year,
             FLOOR(COALESCE(current_tenure, 0))::INT AS years_of_service
         FROM {{ ref('int_workforce_state_accumulator') }}
-        WHERE simulation_year = {{ var('simulation_year', 2025) }}
+        WHERE scenario_id = '{{ scenario_id }}'
+          AND plan_design_id = '{{ plan_design_id }}'
+          AND simulation_year = {{ simulation_year }}
     ) snap ON ec.employee_id = snap.employee_id
-    WHERE ec.simulation_year = {{ var('simulation_year', 2025) }}
+          AND ec.simulation_year = snap.simulation_year
+    WHERE ec.scenario_id = '{{ scenario_id }}'
+      AND ec.simulation_year = {{ simulation_year }}
       AND ec.employer_core_amount > 0
 )
 

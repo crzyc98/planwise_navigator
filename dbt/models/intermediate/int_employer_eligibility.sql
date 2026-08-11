@@ -78,10 +78,8 @@ WITH hours_calculation AS (
 SELECT
     workforce.employee_id,
     {{ simulation_year }} AS simulation_year,
-    -- Preserve the existing decision-year tenure convention: later-year
-    -- compensation helpers increment prior accepted tenure twice.
-    COALESCE(prior_workforce.current_tenure + 2, workforce.current_tenure)
-        AS current_tenure,
+    -- Exact current-year completed service from the authoritative accumulator.
+    workforce.current_tenure AS current_tenure,
     workforce.employee_hire_date,
     workforce.termination_date,
     workforce.detailed_status_code = 'new_hire_termination'
@@ -125,11 +123,6 @@ SELECT
         ELSE COALESCE(workforce.scheduled_hours_per_week, 40.0) * 52.0
     END AS annual_hours_worked
 FROM {{ ref('int_workforce_state_accumulator') }} workforce
-LEFT JOIN {{ ref('int_workforce_state_accumulator') }} prior_workforce
-  ON prior_workforce.scenario_id = workforce.scenario_id
- AND prior_workforce.plan_design_id = workforce.plan_design_id
- AND prior_workforce.employee_id = workforce.employee_id
- AND prior_workforce.simulation_year = {{ simulation_year - 1 }}
 WHERE workforce.scenario_id = '{{ scenario_id }}'
   AND workforce.plan_design_id = '{{ plan_design_id }}'
   AND workforce.simulation_year = {{ simulation_year }}
