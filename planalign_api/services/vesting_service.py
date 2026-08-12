@@ -49,6 +49,15 @@ VESTING_SCHEDULES: dict[VestingScheduleType, dict[int, float]] = {
         4: 0.80,
         5: 1.0,
     },
+    VestingScheduleType.GRADED_6_YEAR: {
+        0: 0.0,
+        1: 0.0,
+        2: 0.20,
+        3: 0.40,
+        4: 0.60,
+        5: 0.80,
+        6: 1.0,
+    },
 }
 
 
@@ -107,6 +116,20 @@ SCHEDULE_INFO: dict[VestingScheduleType, VestingScheduleInfo] = {
         name="5-Year Graded",
         description="20% per year from year 1-5",
         percentages={0: 0.0, 1: 0.20, 2: 0.40, 3: 0.60, 4: 0.80, 5: 1.0},
+    ),
+    VestingScheduleType.GRADED_6_YEAR: VestingScheduleInfo(
+        schedule_type=VestingScheduleType.GRADED_6_YEAR,
+        name="6-Year Graded",
+        description="0% through year 1, then 20% per year from year 2-6",
+        percentages={
+            0: 0.0,
+            1: 0.0,
+            2: 0.20,
+            3: 0.40,
+            4: 0.60,
+            5: 0.80,
+            6: 1.0,
+        },
     ),
 }
 

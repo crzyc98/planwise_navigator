@@ -168,6 +168,15 @@ class TestGetVestingPercentage:
             "1.0"
         )
 
+    def test_graded_6_year_progression(self):
+        """6-Year Graded: 0% through year 1, then 20% per year."""
+        expected = ("0.0", "0.0", "0.20", "0.40", "0.60", "0.80", "1.0")
+
+        for tenure_years, vesting_pct in enumerate(expected):
+            assert get_vesting_percentage(
+                VestingScheduleType.GRADED_6_YEAR, tenure_years
+            ) == Decimal(vesting_pct)
+
     def test_tenure_beyond_max_capped_at_100(self):
         """Tenure beyond schedule max uses 100% vesting."""
         # 3-year cliff caps at year 3
@@ -176,6 +185,9 @@ class TestGetVestingPercentage:
         )
         # 5-year graded caps at year 5
         assert get_vesting_percentage(VestingScheduleType.GRADED_5_YEAR, 15) == Decimal(
+            "1.0"
+        )
+        assert get_vesting_percentage(VestingScheduleType.GRADED_6_YEAR, 15) == Decimal(
             "1.0"
         )
 

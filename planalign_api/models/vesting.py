@@ -22,6 +22,7 @@ class VestingScheduleType(str, Enum):
     GRADED_3_YEAR = "graded_3_year"
     GRADED_4_YEAR = "graded_4_year"
     GRADED_5_YEAR = "graded_5_year"
+    GRADED_6_YEAR = "graded_6_year"
 
 
 class VestingScheduleInfo(BaseModel):

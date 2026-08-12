@@ -16,12 +16,12 @@ class TestVestingSchedulesEndpoint:
     """Tests for GET /api/vesting/schedules endpoint."""
 
     def test_list_schedules_returns_all_schedules(self, client):
-        """GET /api/vesting/schedules returns all 9 schedule types."""
+        """GET /api/vesting/schedules returns all 10 schedule types."""
         response = client.get("/api/vesting/schedules")
         assert response.status_code == 200
         data = response.json()
         assert "schedules" in data
-        assert len(data["schedules"]) == 9
+        assert len(data["schedules"]) == 10
 
     def test_schedule_has_required_fields(self, client):
         """Each schedule has schedule_type, name, description, percentages."""
@@ -50,6 +50,7 @@ class TestVestingSchedulesEndpoint:
             "graded_3_year",
             "graded_4_year",
             "graded_5_year",
+            "graded_6_year",
         }
         returned_types = {s["schedule_type"] for s in schedules}
         assert returned_types == valid_types
