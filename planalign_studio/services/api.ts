@@ -1815,7 +1815,8 @@ export type VestingScheduleType =
   | 'qaca_2_year'
   | 'graded_3_year'
   | 'graded_4_year'
-  | 'graded_5_year';
+  | 'graded_5_year'
+  | 'graded_6_year';
 
 /**
  * Vesting schedule metadata for display.

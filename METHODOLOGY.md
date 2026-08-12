@@ -194,7 +194,7 @@ Match tier rates, boundaries, and caps are fully configurable per plan design.
 | Immediate     | 100% vested from day one    | Safe Harbor matches          |
 | 2-Year Cliff  | 0% until 2 years, then 100% | QACA Safe Harbor             |
 | 3-Year Cliff  | 0% until 3 years, then 100% | Standard match               |
-| 6-Year Graded | 20% per year of service     | Standard match (alternative) |
+| 6-Year Graded | 0% through year 1, then 20% per year through year 6 | Standard match (alternative) |
 
 ### 3.5 IRS Regulatory Limits
 
