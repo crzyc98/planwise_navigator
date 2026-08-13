@@ -14,6 +14,7 @@ from typing import List, Optional
 
 import typer
 from rich.console import Console
+from planalign_ensemble.models import METRIC_REGISTRY
 
 from .commands.studio import launch_studio
 from .commands.sync import (
@@ -93,6 +94,32 @@ app.command("calibrate")(run_calibration)
 app.command("fit")(run_fit)
 app.command("backtest")(run_backtest_command)
 app.command("optimize")(run_optimize)
+
+
+@app.command("evidence-pack")
+def evidence_pack(
+    scenario_path: Path = typer.Argument(
+        ..., help="Scenario directory containing a managed or legacy result"
+    ),
+    metric: str = typer.Option(..., "--metric", help="Canonical evidence metric"),
+    base_year: int = typer.Option(..., "--base-year", min=1900, max=2200),
+    target_year: int = typer.Option(..., "--target-year", min=1900, max=2200),
+    output: Optional[Path] = typer.Option(
+        None, "--output", help="Write canonical Markdown to this path"
+    ),
+    force: bool = typer.Option(
+        False, "--force", help="Replace an existing output file"
+    ),
+):
+    """Generate a cited driver decomposition from an existing scenario result."""
+    if metric not in METRIC_REGISTRY:
+        choices = ", ".join(METRIC_REGISTRY)
+        raise typer.BadParameter(
+            f"metric must be one of: {choices}", param_hint="--metric"
+        )
+    from .commands.evidence_pack import generate_evidence_pack
+
+    generate_evidence_pack(scenario_path, metric, base_year, target_year, output, force)
 
 
 @app.command("provenance")

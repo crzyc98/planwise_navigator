@@ -139,6 +139,8 @@ When adding or changing dbt models: add/adjust `schema.yml` tests, keep types an
 - Scenario-isolated DuckDB simulation outputs; YAML workspace and scenario configuration; no new persisted table or public mart schema (125-age-banded-core)
 - Python 3.11; SQL/Jinja compatible with dbt Core 1.8.8 and dbt-duckdb 1.8.1 + Existing PlanAlign orchestrator, Pydantic v2 configuration, dbt Core 1.8.8, dbt-duckdb 1.8.1, DuckDB 1.0.0, pytest 7.4; no new dependency (136-eligibility-tenure-offset)
 - Existing scenario-isolated DuckDB workforce, eligibility, contribution, event, and snapshot relations; no new table, persisted field, public mart schema, or result migration (136-eligibility-tenure-offset)
+- Python 3.11; TypeScript 5.8 + Existing DuckDB 1.0.0, Pydantic 2.7.4, FastAPI, Typer/Rich, React 19, React Router 7, Tailwind CSS 4, and the existing `planalign_ensemble` canonical metric registry; no new dependency (138-evidence-pack)
+- Existing scenario result `simulation.duckdb`, `current_result.json`, archived `run_metadata.json`/`provenance.json`, and append-only in-database `run_metadata`; all access is read-only and no new table or file is persisted in a run archive (138-evidence-pack)
 
 ## Recent Changes
 - 106-fail-dbt-stage: Added Python >=3.11 + dbt Core/dbt DuckDB execution via the existing orchestrator, Pydantic configuration models, DuckDB-backed simulation state, pytest for tests

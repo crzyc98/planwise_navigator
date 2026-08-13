@@ -1,0 +1,274 @@
+openapi: 3.1.0
+info:
+  title: PlanAlign Evidence Pack Contract
+  version: 1.0.0
+  description: >-
+    Authenticated, read-only generation of a cited driver decomposition for one
+    metric and year pair of the scenario's selected completed result.
+paths:
+  /api/workspaces/{workspace_id}/scenarios/{scenario_id}/evidence-pack:
+    get:
+      operationId: get_scenario_evidence_pack
+      summary: Build a cited driver-decomposition evidence pack
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          schema: { type: string, minLength: 1 }
+        - name: scenario_id
+          in: path
+          required: true
+          schema: { type: string, minLength: 1 }
+        - name: metric
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/MetricId'
+        - name: base_year
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1900, maximum: 2200 }
+        - name: target_year
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1900, maximum: 2200 }
+      responses:
+        '200':
+          description: Pack and canonical self-contained Markdown for one bound run
+          headers:
+            X-PlanAlign-Result-Run-Id:
+              description: Concrete managed run selected for this request
+              schema: { type: string }
+            X-PlanAlign-Run-Warning:
+              description: Existing scenario-read consistency warning, if applicable
+              schema: { type: string }
+            X-PlanAlign-Active-Run-Id:
+              description: Concurrent active attempt, if one exists
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvidencePackEnvelope'
+        '401':
+          description: Missing or invalid API token
+        '404':
+          description: Workspace, scenario, or selected completed result not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Result archive is unstable, identity-conflicted, or locked
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Invalid year order, unavailable year/metric/schema, or invalid request
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UnsupportedResponse' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    MetricId:
+      type: string
+      enum:
+        - active_headcount
+        - total_compensation
+        - employer_match_cost
+        - total_employer_plan_cost
+        - participation_rate
+        - avg_deferral_rate
+    DecimalString:
+      type: string
+      pattern: '^-?(0|[1-9][0-9]*)(\.[0-9]+)?$'
+      examples: ['0', '1250000.25', '-0.0042']
+    Citation:
+      type: object
+      additionalProperties: false
+      required: [result_store, query_id, query, result_column]
+      properties:
+        result_store: { type: string }
+        query_id: { type: string, const: Q1 }
+        query: { type: string, minLength: 1 }
+        result_column: { type: string, minLength: 1 }
+    EvidenceFigure:
+      type: object
+      additionalProperties: false
+      required: [value, unit, status, reason, citation]
+      properties:
+        value:
+          oneOf:
+            - $ref: '#/components/schemas/DecimalString'
+            - type: 'null'
+        unit:
+          type: string
+          enum: [count, currency, rate, percent_of_change]
+        status:
+          type: string
+          enum: [defined, undefined, suppressed]
+        reason: { type: [string, 'null'] }
+        citation: { $ref: '#/components/schemas/Citation' }
+    PopulationEvidence:
+      type: object
+      additionalProperties: false
+      required: [label, count, base_count, target_count, changed_count]
+      properties:
+        label: { type: string }
+        count: { $ref: '#/components/schemas/EvidenceFigure' }
+        base_count:
+          oneOf:
+            - $ref: '#/components/schemas/EvidenceFigure'
+            - type: 'null'
+        target_count:
+          oneOf:
+            - $ref: '#/components/schemas/EvidenceFigure'
+            - type: 'null'
+        changed_count:
+          oneOf:
+            - $ref: '#/components/schemas/EvidenceFigure'
+            - type: 'null'
+    DriverContribution:
+      type: object
+      additionalProperties: false
+      required: [id, label, description, contribution, share_of_change, population]
+      properties:
+        id: { type: string }
+        label: { type: string }
+        description: { type: string }
+        contribution: { $ref: '#/components/schemas/EvidenceFigure' }
+        share_of_change: { $ref: '#/components/schemas/EvidenceFigure' }
+        population: { $ref: '#/components/schemas/PopulationEvidence' }
+    Residual:
+      type: object
+      additionalProperties: false
+      required: [contribution, share_of_change, material, largest_contribution]
+      properties:
+        contribution: { $ref: '#/components/schemas/EvidenceFigure' }
+        share_of_change: { $ref: '#/components/schemas/EvidenceFigure' }
+        material: { type: boolean }
+        largest_contribution: { type: boolean }
+    MetricChange:
+      type: object
+      additionalProperties: false
+      required:
+        - metric
+        - label
+        - base_year
+        - target_year
+        - base_value
+        - target_value
+        - total_change
+        - shares_suppressed_reason
+      properties:
+        metric: { $ref: '#/components/schemas/MetricId' }
+        label: { type: string }
+        base_year: { type: integer }
+        target_year: { type: integer }
+        base_value: { $ref: '#/components/schemas/EvidenceFigure' }
+        target_value: { $ref: '#/components/schemas/EvidenceFigure' }
+        total_change: { $ref: '#/components/schemas/EvidenceFigure' }
+        shares_suppressed_reason: { type: [string, 'null'] }
+    PackWarning:
+      type: object
+      additionalProperties: false
+      required: [code, severity, message]
+      properties:
+        code:
+          type: string
+          enum:
+            - run_in_progress
+            - legacy_result
+            - current_config_mismatch
+            - current_seed_mismatch
+            - mixed_generation
+            - incomplete_build
+            - incomplete_provenance
+            - integrity_mismatch
+            - material_residual
+            - residual_dominates
+            - shares_suppressed
+        severity: { type: string, enum: [info, caution, critical] }
+        message: { type: string }
+    PackProvenance:
+      type: object
+      additionalProperties: false
+      required:
+        - workspace_id
+        - scenario_id
+        - scenario_name
+        - run_id
+        - run_timestamp
+        - random_seed
+        - config_fingerprint
+        - result_store
+        - verification_disposition
+      properties:
+        workspace_id: { type: [string, 'null'] }
+        scenario_id: { type: string }
+        scenario_name: { type: [string, 'null'] }
+        run_id: { type: string }
+        run_timestamp: { type: [string, 'null'], format: date-time }
+        random_seed: { type: [integer, 'null'] }
+        config_fingerprint:
+          type: [string, 'null']
+          pattern: '^[0-9a-f]{64}$'
+        result_store: { type: string }
+        verification_disposition:
+          type: string
+          enum: [fully_verified, incomplete, unverifiable]
+    EvidencePack:
+      type: object
+      additionalProperties: false
+      required:
+        - schema_version
+        - provenance
+        - change
+        - drivers
+        - residual
+        - warnings
+        - population_note
+      properties:
+        schema_version: { type: string, const: '1.0' }
+        provenance: { $ref: '#/components/schemas/PackProvenance' }
+        change: { $ref: '#/components/schemas/MetricChange' }
+        drivers:
+          type: array
+          minItems: 3
+          maxItems: 4
+          items: { $ref: '#/components/schemas/DriverContribution' }
+        residual: { $ref: '#/components/schemas/Residual' }
+        warnings:
+          type: array
+          items: { $ref: '#/components/schemas/PackWarning' }
+        population_note: { type: string }
+    EvidencePackEnvelope:
+      type: object
+      additionalProperties: false
+      required: [pack, text_export, filename]
+      properties:
+        pack: { $ref: '#/components/schemas/EvidencePack' }
+        text_export: { type: string }
+        filename:
+          type: string
+          pattern: '^[A-Za-z0-9._-]+\.md$'
+    ErrorResponse:
+      type: object
+      required: [detail]
+      properties:
+        detail: { type: string }
+    UnsupportedResponse:
+      type: object
+      required: [detail]
+      properties:
+        detail: { type: string }
+        available_years:
+          type: array
+          items: { type: integer }
+        missing_columns:
+          type: array
+          items: { type: string }

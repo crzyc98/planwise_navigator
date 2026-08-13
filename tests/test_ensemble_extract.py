@@ -6,7 +6,11 @@ import duckdb
 import pytest
 
 from planalign_ensemble.extract import extract_seed_metrics
-from planalign_ensemble.models import SeedRunOutcome
+from planalign_ensemble.models import (
+    CANONICAL_METRICS,
+    METRIC_REGISTRY,
+    SeedRunOutcome,
+)
 
 
 def _write_snapshot(path, *, include_plan_cost: bool = True) -> None:
@@ -65,3 +69,18 @@ def test_absent_metric_is_preserved_as_null_not_zero(tmp_path) -> None:
     actual = {value.metric: value.value for value in values}
 
     assert actual["total_employer_plan_cost"] is None
+
+
+@pytest.mark.fast
+def test_canonical_metric_registry_is_stable_and_complete() -> None:
+    assert tuple(METRIC_REGISTRY) == CANONICAL_METRICS
+    assert METRIC_REGISTRY["active_headcount"].label == "Active headcount"
+    assert METRIC_REGISTRY["total_employer_plan_cost"].source_column == (
+        "total_employer_contributions"
+    )
+    assert METRIC_REGISTRY["participation_rate"].required_columns == (
+        "employee_id",
+        "simulation_year",
+        "participation_status",
+    )
+    assert METRIC_REGISTRY["avg_deferral_rate"].null_excludes_population is True

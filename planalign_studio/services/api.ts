@@ -471,7 +471,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
     let detail: string | undefined;
     try {
       const error = await response.json();
-      detail = error.detail;
+      detail = typeof error.detail === 'string' ? error.detail : JSON.stringify(error.detail);
     } catch {
       // Response wasn't JSON
     }
@@ -1047,6 +1047,92 @@ export async function downloadRunProvenanceFile(
   saveBrowserDownload(
     new Blob([content], { type: `${mediaType};charset=utf-8` }),
     `${runId}-provenance.${extension}`,
+  );
+}
+
+// ============================================================================
+// Evidence Packs (138-evidence-pack)
+// ============================================================================
+
+export type EvidenceMetric = 'active_headcount' | 'total_compensation' | 'employer_match_cost' | 'total_employer_plan_cost' | 'participation_rate' | 'avg_deferral_rate';
+export type EvidenceFigureStatus = 'defined' | 'undefined' | 'suppressed';
+
+export interface EvidenceCitation {
+  result_store: string;
+  query_id: 'Q1';
+  query: string;
+  result_column: string;
+}
+
+export interface EvidenceFigure {
+  value: string | null;
+  unit: 'count' | 'currency' | 'rate' | 'percent_of_change';
+  status: EvidenceFigureStatus;
+  reason: string | null;
+  citation: EvidenceCitation;
+}
+
+export interface EvidenceDriver {
+  id: string;
+  label: string;
+  description: string;
+  contribution: EvidenceFigure;
+  share_of_change: EvidenceFigure;
+  population: { label: string; count: EvidenceFigure };
+}
+
+export interface EvidencePackEnvelope {
+  pack: {
+    provenance: {
+      scenario_id: string;
+      scenario_name: string | null;
+      run_id: string;
+      run_timestamp: string | null;
+      random_seed: number | null;
+      config_fingerprint: string | null;
+      result_store: string;
+      verification_disposition: 'fully_verified' | 'incomplete' | 'unverifiable';
+    };
+    change: {
+      metric: EvidenceMetric;
+      label: string;
+      base_year: number;
+      target_year: number;
+      base_value: EvidenceFigure;
+      target_value: EvidenceFigure;
+      total_change: EvidenceFigure;
+      shares_suppressed_reason: string | null;
+    };
+    drivers: EvidenceDriver[];
+    residual: {
+      contribution: EvidenceFigure;
+      share_of_change: EvidenceFigure;
+      material: boolean;
+      largest_contribution: boolean;
+    };
+    warnings: Array<{ code: string; severity: 'info' | 'caution' | 'critical'; message: string }>;
+    population_note: string;
+  };
+  text_export: string;
+  filename: string;
+}
+
+export async function getScenarioEvidencePack(
+  workspaceId: string,
+  scenarioId: string,
+  metric: EvidenceMetric,
+  baseYear: number,
+  targetYear: number,
+): Promise<EvidencePackEnvelope> {
+  const params = new URLSearchParams({ metric, base_year: String(baseYear), target_year: String(targetYear) });
+  const response = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}/evidence-pack?${params}`);
+  return handleResponse<EvidencePackEnvelope>(response);
+}
+
+export function downloadEvidencePack(envelope: EvidencePackEnvelope): void {
+  saveBrowserDownload(
+    new Blob([envelope.text_export], { type: 'text/markdown;charset=utf-8' }),
+    envelope.filename,
   );
 }
 

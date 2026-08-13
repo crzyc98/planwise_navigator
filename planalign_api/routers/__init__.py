@@ -15,6 +15,7 @@ from .ndt import router as ndt_router
 from .imports import router as imports_router
 from .provenance import router as provenance_router
 from .timeline import router as timeline_router
+from .evidence_pack import router as evidence_pack_router
 
 __all__ = [
     "system_router",
@@ -32,4 +33,5 @@ __all__ = [
     "imports_router",
     "provenance_router",
     "timeline_router",
+    "evidence_pack_router",
 ]
