@@ -57,6 +57,20 @@ def decompose_row(
         total_change=_defined(
             row["total_change"], unit, "total_change", query, result_store
         ),
+        base_population=_defined(
+            row["base_population"],
+            "count",
+            "base_population",
+            query,
+            result_store,
+        ),
+        target_population=_defined(
+            row["target_population"],
+            "count",
+            "target_population",
+            query,
+            result_store,
+        ),
         shares_suppressed_reason=suppression_reason,
     )
     drivers = tuple(
@@ -134,6 +148,7 @@ def _driver(metric, definition, row, unit, suppression_reason, query, result_sto
         share = _share(
             row[share_column], share_column, suppression_reason, query, result_store
         )
+    rate_driver = "effective_" in definition.id and "payout_rate" in definition.id
     return DriverContribution(
         id=definition.id,
         label=definition.label,
@@ -146,7 +161,114 @@ def _driver(metric, definition, row, unit, suppression_reason, query, result_sto
                 row[population_column], "count", population_column, query, result_store
             ),
         ),
+        base_rate=(
+            _defined(
+                row["base_effective_rate"],
+                "rate",
+                "base_effective_rate",
+                query,
+                result_store,
+            )
+            if rate_driver
+            else None
+        ),
+        target_rate=(
+            _defined(
+                row["target_effective_rate"],
+                "rate",
+                "target_effective_rate",
+                query,
+                result_store,
+            )
+            if rate_driver
+            else None
+        ),
     )
+
+
+def build_executive_summary(
+    change: MetricChange, drivers: tuple[DriverContribution, ...]
+) -> tuple[str, ...]:
+    """Explain the cited decomposition in concise, deterministic business terms."""
+    base = Decimal(change.base_value.value or "0")
+    target = Decimal(change.target_value.value or "0")
+    delta = Decimal(change.total_change.value or "0")
+    direction = (
+        "increased" if delta > 0 else "decreased" if delta < 0 else "did not change"
+    )
+    percent = None if base == 0 else abs(delta / base * Decimal(100))
+    movement = (
+        f"{change.label} {direction} from {_display(base, change.base_value.unit)} "
+        f"to {_display(target, change.target_value.unit)}, a change of "
+        f"{_display(delta, change.total_change.unit, signed=True)}"
+        + (f" ({percent.quantize(Decimal('0.01'))}%)." if percent is not None else ".")
+    )
+    base_population = Decimal(change.base_population.value or "0")
+    target_population = Decimal(change.target_population.value or "0")
+    population = (
+        f"The endpoint population changed from {_display(base_population, 'count')} "
+        f"to {_display(target_population, 'count')} "
+        f"({_display(target_population - base_population, 'count', signed=True)})."
+    )
+    summary = [movement, population]
+    entering = next((item for item in drivers if item.id.startswith("entered_")), None)
+    leaving = next((item for item in drivers if item.id.startswith("left_")), None)
+    if (
+        entering
+        and leaving
+        and entering.contribution.value
+        and leaving.contribution.value
+    ):
+        net = Decimal(entering.contribution.value) + Decimal(leaving.contribution.value)
+        summary.append(
+            "Net entering/leaving population effect: "
+            f"{_display(net, change.total_change.unit, signed=True)}."
+        )
+    rate_driver = next((item for item in drivers if item.base_rate is not None), None)
+    exposure = next(
+        (item for item in drivers if item.id == "retained_compensation_exposure"),
+        None,
+    )
+    if (
+        rate_driver
+        and exposure
+        and rate_driver.contribution.value
+        and exposure.contribution.value
+        and rate_driver.base_rate
+        and rate_driver.target_rate
+        and rate_driver.base_rate.value
+        and rate_driver.target_rate.value
+    ):
+        summary.append(
+            "For retained records, compensation exposure contributed "
+            f"{_display(Decimal(exposure.contribution.value), change.total_change.unit, signed=True)}; "
+            "the effective payout-rate change contributed "
+            f"{_display(Decimal(rate_driver.contribution.value), change.total_change.unit, signed=True)}. "
+            "The effective retained payout rate changed from "
+            f"{_display(Decimal(rate_driver.base_rate.value), 'rate')} to "
+            f"{_display(Decimal(rate_driver.target_rate.value), 'rate')}."
+        )
+    if any(
+        item.share_of_change.value is not None
+        and abs(Decimal(item.share_of_change.value)) > 100
+        for item in drivers
+    ):
+        summary.append(
+            "Shares above 100% indicate a gross driver that was offset by one or more negative drivers; signed shares still reconcile to 100%."
+        )
+    return tuple(summary)
+
+
+def _display(value: Decimal, unit: str, *, signed: bool = False) -> str:
+    sign = "+" if signed and value > 0 else ""
+    if unit == "currency":
+        return f"{sign}${value:,.2f}" if value >= 0 else f"-${abs(value):,.2f}"
+    if unit == "rate":
+        percent = value * 100
+        return f"{sign}{percent:,.2f}%"
+    if unit == "count":
+        return f"{sign}{value:,.0f}"
+    return f"{sign}{value:,.2f}%"
 
 
 def _citation(result_store: str, query: str, column: str) -> Citation:
@@ -203,4 +325,4 @@ def _suppression_reason(row: Mapping[str, object]) -> str | None:
     return None
 
 
-__all__ = ["canonical_decimal", "decompose_row"]
+__all__ = ["build_executive_summary", "canonical_decimal", "decompose_row"]

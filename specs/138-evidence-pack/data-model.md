@@ -104,6 +104,8 @@ One fixed named component of a metric’s movement.
 | `contribution` | `EvidenceFigure` | yes | Signed absolute contribution |
 | `share_of_change` | `EvidenceFigure` | yes | Signed percent; may be suppressed |
 | `population` | `PopulationEvidence` | yes | Aggregate cohort/count behind the line |
+| `base_rate` | `EvidenceFigure` or null | no | Retained effective payout rate at the base endpoint |
+| `target_rate` | `EvidenceFigure` or null | no | Retained effective payout rate at the target endpoint |
 
 Drivers are emitted in registry order, never sorted by magnitude. This makes
 repeated packs and exports byte-stable.
@@ -135,6 +137,8 @@ visible in residual.
 | `base_value` | `EvidenceFigure` | yes | Canonical headline value in base year |
 | `target_value` | `EvidenceFigure` | yes | Canonical headline value in target year |
 | `total_change` | `EvidenceFigure` | yes | Target minus base |
+| `base_population` | `EvidenceFigure` | yes | Cited canonical denominator/population at the base endpoint |
+| `target_population` | `EvidenceFigure` | yes | Cited canonical denominator/population at the target endpoint |
 | `shares_suppressed_reason` | string or null | yes | Common reason applied to every share |
 
 Validation: `base_year < target_year`; both years must exist in the selected
@@ -196,6 +200,7 @@ The complete answer to one request.
 | `drivers` | ordered list[`DriverContribution`] | yes | Registry-defined lines |
 | `residual` | `Residual` | yes | Always present |
 | `warnings` | ordered list[`PackWarning`] | yes | May be empty |
+| `executive_summary` | ordered list[string] | yes | Deterministic business interpretation derived from cited figures |
 | `population_note` | string | yes | Defines snapshot/entering/leaving treatment |
 
 Cross-entity invariants:

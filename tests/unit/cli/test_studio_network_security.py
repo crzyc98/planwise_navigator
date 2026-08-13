@@ -58,3 +58,13 @@ def test_api_runner_defaults_to_loopback() -> None:
     source = (root / "planalign_api" / "run.py").read_text(encoding="utf-8")
 
     assert 'parser.add_argument("--host", default="127.0.0.1"' in source
+
+
+def test_studio_reload_watches_evidence_pack_sources() -> None:
+    root = Path(__file__).parents[3]
+    source = (root / "planalign_cli" / "commands" / "studio.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert '"planalign_evidence"' in source
+    assert '"planalign_ensemble"' in source

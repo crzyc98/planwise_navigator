@@ -24,9 +24,21 @@ interface Props {
   endYear: number;
 }
 
-function figureText(figure: EvidenceFigure): string {
-  if (figure.status === 'defined') return figure.value ?? '0';
+function formatFigure(figure: EvidenceFigure): string {
+  if (figure.status === 'defined') {
+    const value = Number(figure.value ?? 0);
+    if (figure.unit === 'currency') {
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+    }
+    if (figure.unit === 'count') return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value);
+    if (figure.unit === 'rate') return `${(value * 100).toFixed(2)}%`;
+    return `${value.toFixed(2)}%`;
+  }
   return `${figure.status === 'suppressed' ? 'Suppressed' : 'Undefined'} — ${figure.reason}`;
+}
+
+function FigureValue({ figure }: { figure: EvidenceFigure }) {
+  return <span title={figure.value === null ? figure.reason ?? undefined : `Canonical: ${figure.value}`}>{formatFigure(figure)}</span>;
 }
 
 export default function EvidencePackPanel({ workspaceId, scenarioId, startYear, endYear }: Props) {
@@ -94,18 +106,23 @@ export default function EvidencePackPanel({ workspaceId, scenarioId, startYear, 
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-4">
             <div>
               <h3 className="font-semibold text-gray-900">{envelope.pack.change.label}: {baseYear} to {targetYear}</h3>
-              <p className="text-sm text-gray-600">{figureText(envelope.pack.change.base_value)} → {figureText(envelope.pack.change.target_value)} · Change {figureText(envelope.pack.change.total_change)}</p>
+              <p className="text-sm text-gray-600"><FigureValue figure={envelope.pack.change.base_value} /> → <FigureValue figure={envelope.pack.change.target_value} /> · Change <FigureValue figure={envelope.pack.change.total_change} /></p>
+              <p className="mt-1 text-sm text-gray-600">Base population: <FigureValue figure={envelope.pack.change.base_population} /> · Target population: <FigureValue figure={envelope.pack.change.target_population} /></p>
               <p className="mt-1 text-xs text-gray-500">Run {envelope.pack.provenance.run_id} · {envelope.pack.provenance.verification_disposition}</p>
             </div>
             <button onClick={() => downloadEvidencePack(envelope)} disabled={loading} className="flex items-center rounded border border-fidelity-green px-3 py-2 text-sm font-medium text-fidelity-green disabled:opacity-50"><Download size={15} className="mr-2" />Export Evidence Pack</button>
           </div>
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+            <h4 className="font-semibold text-emerald-950">Executive interpretation</h4>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-emerald-950">{envelope.pack.executive_summary.map(item => <li key={item}>{item}</li>)}</ul>
+          </div>
           <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
             <table className="w-full text-left text-sm"><thead className="bg-gray-50"><tr><th className="p-3">Driver</th><th className="p-3">Contribution</th><th className="p-3">Share</th><th className="p-3">Population</th><th className="p-3">Citation</th></tr></thead>
-              <tbody>{envelope.pack.drivers.map(driver => <tr key={driver.id} className="border-t"><td className="p-3"><div className="font-medium">{driver.label}</div><div className="text-xs text-gray-500">{driver.description}</div></td><td className="p-3">{figureText(driver.contribution)}</td><td className="p-3">{figureText(driver.share_of_change)}</td><td className="p-3">{figureText(driver.population.count)} {driver.population.label}</td><td className="p-3"><details><summary className="cursor-pointer font-mono text-xs">Q1.{driver.contribution.citation.result_column}</summary><pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap rounded bg-gray-950 p-2 text-xs text-gray-100">{driver.contribution.citation.query}</pre></details></td></tr>)}</tbody>
+              <tbody>{envelope.pack.drivers.map(driver => <tr key={driver.id} className="border-t"><td className="p-3"><div className="font-medium">{driver.label}</div><div className="text-xs text-gray-500">{driver.description}</div>{driver.base_rate && driver.target_rate && <div className="mt-1 text-xs font-medium text-gray-700">Effective rate: <FigureValue figure={driver.base_rate} /> → <FigureValue figure={driver.target_rate} /></div>}</td><td className="p-3"><FigureValue figure={driver.contribution} /></td><td className="p-3"><FigureValue figure={driver.share_of_change} /></td><td className="p-3"><FigureValue figure={driver.population.count} /> {driver.population.label}</td><td className="p-3"><details><summary className="cursor-pointer font-mono text-xs">Q1.{driver.contribution.citation.result_column}</summary><pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap rounded bg-gray-950 p-2 text-xs text-gray-100">{driver.contribution.citation.query}</pre></details></td></tr>)}</tbody>
             </table>
           </div>
           <div className={`rounded-lg border p-4 ${envelope.pack.residual.largest_contribution ? 'border-red-300 bg-red-50' : envelope.pack.residual.material ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-white'}`}>
-            <h4 className="font-semibold">Residual</h4><p className="text-sm">{figureText(envelope.pack.residual.contribution)} · {figureText(envelope.pack.residual.share_of_change)}</p>
+            <h4 className="font-semibold">Residual</h4><p className="text-sm"><FigureValue figure={envelope.pack.residual.contribution} /> · <FigureValue figure={envelope.pack.residual.share_of_change} /></p>
           </div>
           <p className="rounded-lg bg-gray-100 p-3 text-sm text-gray-700">{envelope.pack.population_note}</p>
         </div>

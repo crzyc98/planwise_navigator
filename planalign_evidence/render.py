@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from decimal import Decimal
 
 from .models import EvidenceFigure, EvidencePack, EvidencePackEnvelope
 
@@ -34,6 +35,8 @@ def render_evidence_pack(pack: EvidencePack) -> str:
         ]
         or ["None"]
     )
+    lines.extend(["", "## Executive interpretation", ""])
+    lines.extend(f"- {item}" for item in pack.executive_summary)
     lines.extend(
         [
             "",
@@ -42,6 +45,8 @@ def render_evidence_pack(pack: EvidencePack) -> str:
             f"- Base ({change.base_year}): {_figure(change.base_value)}",
             f"- Target ({change.target_year}): {_figure(change.target_value)}",
             f"- Total change: {_figure(change.total_change)}",
+            f"- Base population: **{_human(change.base_population)}** (`Q1.base_population`)",
+            f"- Target population: **{_human(change.target_population)}** (`Q1.target_population`)",
         ]
     )
     if change.shares_suppressed_reason:
@@ -56,8 +61,14 @@ def render_evidence_pack(pack: EvidencePack) -> str:
         ]
     )
     for driver in pack.drivers:
+        rate_context = ""
+        if driver.base_rate is not None and driver.target_rate is not None:
+            rate_context = (
+                f"<br>Effective retained payout rate: {_figure(driver.base_rate)} → "
+                f"{_figure(driver.target_rate)}"
+            )
         lines.append(
-            f"| {driver.label} | {_figure(driver.contribution)} | {_figure(driver.share_of_change)} | "
+            f"| {driver.label}{rate_context} | {_figure(driver.contribution)} | {_figure(driver.share_of_change)} | "
             f"{_figure(driver.population.count)} {driver.population.label} | `Q1.{driver.contribution.citation.result_column}` |"
         )
     lines.extend(
@@ -109,18 +120,40 @@ def build_envelope(pack: EvidencePack) -> EvidencePackEnvelope:
 
 def _figure(figure: EvidenceFigure) -> str:
     if figure.status == "defined":
-        return str(figure.value)
+        human = _human(figure)
+        canonical = str(figure.value)
+        return (
+            human if human == canonical else f"**{human}** (canonical: `{canonical}`)"
+        )
     return f"{figure.status.title()} — {figure.reason}"
+
+
+def _human(figure: EvidenceFigure) -> str:
+    if figure.value is None:
+        return figure.status.title()
+    value = Decimal(figure.value)
+    if figure.unit == "currency":
+        return f"-${abs(value):,.2f}" if value < 0 else f"${value:,.2f}"
+    if figure.unit == "count":
+        return f"{value:,.0f}"
+    if figure.unit == "rate":
+        return f"{value * 100:,.2f}%"
+    return f"{value:,.2f}%"
 
 
 def _figure_mappings(pack: EvidencePack):
     yield "Base value", pack.change.base_value
     yield "Target value", pack.change.target_value
     yield "Total change", pack.change.total_change
+    yield "Base population", pack.change.base_population
+    yield "Target population", pack.change.target_population
     for driver in pack.drivers:
         yield f"{driver.label} contribution", driver.contribution
         yield f"{driver.label} share", driver.share_of_change
         yield f"{driver.label} population", driver.population.count
+        if driver.base_rate is not None and driver.target_rate is not None:
+            yield f"{driver.label} base effective rate", driver.base_rate
+            yield f"{driver.label} target effective rate", driver.target_rate
     yield "Residual contribution", pack.residual.contribution
     yield "Residual share", pack.residual.share_of_change
 

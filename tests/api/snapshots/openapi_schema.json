@@ -3337,6 +3337,16 @@
       "DriverContribution": {
         "additionalProperties": false,
         "properties": {
+          "base_rate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvidenceFigure"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "contribution": {
             "$ref": "#/components/schemas/EvidenceFigure"
           },
@@ -3360,6 +3370,16 @@
           },
           "share_of_change": {
             "$ref": "#/components/schemas/EvidenceFigure"
+          },
+          "target_rate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvidenceFigure"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -3880,6 +3900,14 @@
             "title": "Drivers",
             "type": "array"
           },
+          "executive_summary": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Executive Summary",
+            "type": "array"
+          },
           "population_note": {
             "minLength": 1,
             "title": "Population Note",
@@ -3914,6 +3942,7 @@
           "change",
           "drivers",
           "residual",
+          "executive_summary",
           "population_note"
         ],
         "title": "EvidencePack",
@@ -5482,6 +5511,9 @@
       "MetricChange": {
         "additionalProperties": false,
         "properties": {
+          "base_population": {
+            "$ref": "#/components/schemas/EvidenceFigure"
+          },
           "base_value": {
             "$ref": "#/components/schemas/EvidenceFigure"
           },
@@ -5516,6 +5548,9 @@
             ],
             "title": "Shares Suppressed Reason"
           },
+          "target_population": {
+            "$ref": "#/components/schemas/EvidenceFigure"
+          },
           "target_value": {
             "$ref": "#/components/schemas/EvidenceFigure"
           },
@@ -5534,7 +5569,9 @@
           "target_year",
           "base_value",
           "target_value",
-          "total_change"
+          "total_change",
+          "base_population",
+          "target_population"
         ],
         "title": "MetricChange",
         "type": "object"

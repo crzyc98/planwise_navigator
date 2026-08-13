@@ -26,6 +26,7 @@ def test_renderer_is_complete_deterministic_and_path_safe(tmp_path) -> None:
     for heading in (
         "## Provenance",
         "## Warnings",
+        "## Executive interpretation",
         "## Movement",
         "## Driver decomposition",
         "## Residual",
@@ -37,3 +38,26 @@ def test_renderer_is_complete_deterministic_and_path_safe(tmp_path) -> None:
     assert scenario.run_id in text
     assert str(tmp_path) not in text
     assert envelope.filename.endswith(".md")
+
+
+@pytest.mark.fast
+def test_cost_pack_explains_offsets_rates_and_population_in_human_units(
+    tmp_path,
+) -> None:
+    scenario = create_evidence_scenario(tmp_path)
+    target = EvidenceTarget(
+        scenario.database_path,
+        scenario.result_store,
+        scenario.scenario_id,
+        scenario.run_id,
+    )
+    pack = build_evidence_pack(target, "employer_match_cost", 2025, 2027)
+
+    text = render_evidence_pack(pack)
+
+    assert "Base population: **4**" in text
+    assert "Target population: **4**" in text
+    assert "effective retained payout rate changed from 1.43% to 3.21%" in text
+    assert "Shares above 100%" in text
+    assert "$11.00" in text and "canonical: `11`" in text
+    assert "Net entering/leaving population effect" in text

@@ -1079,6 +1079,8 @@ export interface EvidenceDriver {
   contribution: EvidenceFigure;
   share_of_change: EvidenceFigure;
   population: { label: string; count: EvidenceFigure };
+  base_rate: EvidenceFigure | null;
+  target_rate: EvidenceFigure | null;
 }
 
 export interface EvidencePackEnvelope {
@@ -1101,6 +1103,8 @@ export interface EvidencePackEnvelope {
       base_value: EvidenceFigure;
       target_value: EvidenceFigure;
       total_change: EvidenceFigure;
+      base_population: EvidenceFigure;
+      target_population: EvidenceFigure;
       shares_suppressed_reason: string | null;
     };
     drivers: EvidenceDriver[];
@@ -1111,6 +1115,7 @@ export interface EvidencePackEnvelope {
       largest_contribution: boolean;
     };
     warnings: Array<{ code: string; severity: 'info' | 'caution' | 'critical'; message: string }>;
+    executive_summary: string[];
     population_note: string;
   };
   text_export: string;

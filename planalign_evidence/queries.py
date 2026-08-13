@@ -273,6 +273,10 @@ SELECT
     CAST(base_value AS DECIMAL(38,12)) AS base_value,
     CAST(target_value AS DECIMAL(38,12)) AS target_value,
     CAST(total_change AS DECIMAL(38,12)) AS total_change,
+    CAST(base_population AS DECIMAL(38,12)) AS base_population,
+    CAST(target_population AS DECIMAL(38,12)) AS target_population,
+    CAST(base_effective_rate AS DECIMAL(38,12)) AS base_effective_rate,
+    CAST(target_effective_rate AS DECIMAL(38,12)) AS target_effective_rate,
     {contribution_columns},
     {share_columns},
     {population_columns},
@@ -305,6 +309,10 @@ def _active_body() -> str:
     return """  SELECT
     CAST(COUNT(*) FILTER (WHERE in_base AND base_active) AS DECIMAL(38,12)) AS base_value,
     CAST(COUNT(*) FILTER (WHERE in_target AND target_active) AS DECIMAL(38,12)) AS target_value,
+    CAST(COUNT(*) FILTER (WHERE in_base AND base_active) AS DECIMAL(38,12)) AS base_population,
+    CAST(COUNT(*) FILTER (WHERE in_target AND target_active) AS DECIMAL(38,12)) AS target_population,
+    NULL::DECIMAL(38,12) AS base_effective_rate,
+    NULL::DECIMAL(38,12) AS target_effective_rate,
     CAST(COUNT(*) FILTER (WHERE NOT in_base AND in_target AND target_active) AS DECIMAL(38,12)) AS new_active_records,
     -CAST(COUNT(*) FILTER (WHERE in_base AND NOT in_target AND base_active) AS DECIMAL(38,12)) AS removed_active_records,
     CAST(COUNT(*) FILTER (WHERE in_base AND in_target AND NOT base_active AND target_active) AS DECIMAL(38,12)) AS retained_became_active,
@@ -321,6 +329,10 @@ def _sum_body(column: str, suffix: str) -> str:
     return f"""  SELECT
     SUM(base_{column}) FILTER (WHERE in_base) AS base_value,
     SUM(target_{column}) FILTER (WHERE in_target) AS target_value,
+    CAST(COUNT(*) FILTER (WHERE in_base) AS DECIMAL(38,12)) AS base_population,
+    CAST(COUNT(*) FILTER (WHERE in_target) AS DECIMAL(38,12)) AS target_population,
+    NULL::DECIMAL(38,12) AS base_effective_rate,
+    NULL::DECIMAL(38,12) AS target_effective_rate,
     COALESCE(SUM(target_{column}) FILTER (WHERE NOT in_base AND in_target), 0) AS entered_population_{column},
     -COALESCE(SUM(base_{column}) FILTER (WHERE in_base AND NOT in_target), 0) AS left_population_{column},
     COALESCE(SUM(COALESCE(target_{column}, 0) - COALESCE(base_{column}, 0)) FILTER (WHERE in_base AND in_target), 0) AS retained_{suffix},
@@ -347,7 +359,12 @@ def _cost_body(column: str, rate_id: str) -> str:
       COUNT(*) FILTER (WHERE in_base AND in_target) AS retained_count
     FROM cohorts
   )
-  SELECT base_value, target_value, entered_population_cost, left_population_cost,
+  SELECT base_value, target_value,
+    CAST(entering_count + retained_count AS DECIMAL(38,12)) AS target_population,
+    CAST(leaving_count + retained_count AS DECIMAL(38,12)) AS base_population,
+    CASE WHEN c0 = 0 THEN NULL ELSE x0 / c0 END AS base_effective_rate,
+    CASE WHEN c1 = 0 THEN NULL ELSE x1 / c1 END AS target_effective_rate,
+    entered_population_cost, left_population_cost,
     CASE WHEN c0 = 0 OR c1 = 0 THEN NULL ELSE (c1 - c0) * ((x0 / c0) + (x1 / c1)) / 2 END AS retained_compensation_exposure,
     CASE WHEN c0 = 0 OR c1 = 0 THEN NULL ELSE ((x1 / c1) - (x0 / c0)) * (c0 + c1) / 2 END AS retained_effective_{rate_id}_payout_rate,
     CAST(entering_count AS DECIMAL(38,12)) AS entered_population_cost_population,
@@ -386,6 +403,10 @@ def _ratio_body(column: str, stem: str, *, nonnull: bool = False) -> str:
   SELECT
     CASE WHEN n0 = 0 THEN NULL ELSE s0 / n0 END AS base_value,
     CASE WHEN n1 = 0 THEN NULL ELSE s1 / n1 END AS target_value,
+    CAST(n0 AS DECIMAL(38,12)) AS base_population,
+    CAST(n1 AS DECIMAL(38,12)) AS target_population,
+    NULL::DECIMAL(38,12) AS base_effective_rate,
+    NULL::DECIMAL(38,12) AS target_effective_rate,
     w * retained_delta AS retained_{stem}_behavior,
     w * entered_sum AS entered_population_{stem},
     -w * left_sum AS left_population_{stem},

@@ -11,7 +11,7 @@ import duckdb
 
 from planalign_ensemble.models import METRIC_REGISTRY
 
-from .decompose import decompose_row
+from .decompose import build_executive_summary, decompose_row
 from .models import EvidencePack, PackProvenance, PackWarning
 from .queries import build_metric_query
 
@@ -202,6 +202,7 @@ def build_evidence_pack(
         drivers=drivers,
         residual=residual,
         warnings=ordered_warnings,
+        executive_summary=build_executive_summary(change, drivers),
         population_note=(
             "Canonical snapshot populations include all rows for compensation, employer cost, participation, and average deferral; "
             "only active headcount filters employment status. Entering and leaving refer to snapshot membership, while retained records persist across both selected years."

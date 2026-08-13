@@ -128,6 +128,14 @@ class DriverContribution(StrictModel):
     contribution: EvidenceFigure
     share_of_change: EvidenceFigure
     population: PopulationEvidence
+    base_rate: EvidenceFigure | None = None
+    target_rate: EvidenceFigure | None = None
+
+    @model_validator(mode="after")
+    def _rates_are_paired(self) -> "DriverContribution":
+        if (self.base_rate is None) != (self.target_rate is None):
+            raise ValueError("driver endpoint rates must be provided together")
+        return self
 
 
 class Residual(StrictModel):
@@ -145,6 +153,8 @@ class MetricChange(StrictModel):
     base_value: EvidenceFigure
     target_value: EvidenceFigure
     total_change: EvidenceFigure
+    base_population: EvidenceFigure
+    target_population: EvidenceFigure
     shares_suppressed_reason: str | None = None
 
     @model_validator(mode="after")
@@ -187,6 +197,7 @@ class EvidencePack(StrictModel):
     drivers: tuple[DriverContribution, ...]
     residual: Residual
     warnings: tuple[PackWarning, ...] = ()
+    executive_summary: tuple[str, ...] = Field(min_length=1)
     population_note: str = Field(min_length=1)
 
     @model_validator(mode="after")
@@ -226,6 +237,8 @@ class EvidencePack(StrictModel):
             self.change.base_value,
             self.change.target_value,
             self.change.total_change,
+            self.change.base_population,
+            self.change.target_population,
             self.residual.contribution,
             self.residual.share_of_change,
         ]
@@ -240,6 +253,11 @@ class EvidencePack(StrictModel):
                     driver.population.target_count,
                     driver.population.changed_count,
                 )
+                if figure is not None
+            )
+            figures.extend(
+                figure
+                for figure in (driver.base_rate, driver.target_rate)
                 if figure is not None
             )
         return tuple(figures)

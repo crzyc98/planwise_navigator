@@ -17,6 +17,7 @@ from _version import __version__
 from planalign_api.models.provenance import (
     AnnualEventCount,
     AnnualWorkforceReconciliation,
+    ArtifactFingerprint,
     CapturedValidationResult,
     ConfigurationEvidence,
     EvidenceFinding,
@@ -450,4 +451,17 @@ class ProvenanceRecorder:
         manifest.execution_timing.duration_seconds = duration_seconds
         manifest.run_identity.status = status
         manifest.capture_state = state  # type: ignore[assignment]
+        config_path = self.run_dir / "config.yaml"
+        if config_path.is_file():
+            digest, size = sha256_file(config_path)
+            manifest.archive_artifacts = [
+                item
+                for item in manifest.archive_artifacts
+                if item.logical_name != "config.yaml"
+            ]
+            manifest.archive_artifacts.append(
+                ArtifactFingerprint(
+                    logical_name="config.yaml", sha256=digest, size_bytes=size
+                )
+            )
         self.write(manifest)

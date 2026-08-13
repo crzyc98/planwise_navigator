@@ -93,3 +93,28 @@ def test_engine_event_types_are_supported(tmp_path: Path):
     assert not any(
         finding.field_path.endswith("event_type") for finding in report.missing_evidence
     )
+
+
+def test_archive_normalization_and_match_response_event_are_not_integrity_failures(
+    tmp_path: Path,
+):
+    run_dir = build_archive(tmp_path)
+    manifest_path = run_dir / "provenance.json"
+    payload = manifest_path.read_text(encoding="utf-8").replace(
+        '"event_type": "TOTAL"', '"event_type": "deferral_match_response"'
+    )
+    manifest_path.write_text(payload, encoding="utf-8")
+    config_path = run_dir / "config.yaml"
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8") + "compensation:\n  cola_rate: 0.02\n",
+        encoding="utf-8",
+    )
+
+    report = build_provenance_report(tmp_path, RUN_ID)
+
+    assert report.verification_disposition == "fully_verified"
+    assert not any(
+        finding.code == "integrity_mismatch"
+        or finding.field_path.endswith("event_type")
+        for finding in report.missing_evidence
+    )

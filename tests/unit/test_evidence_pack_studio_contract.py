@@ -26,6 +26,9 @@ def test_completed_run_surface_has_controls_states_citations_and_export() -> Non
         "Residual",
         "Q1.",
         "Export Evidence Pack",
+        "Executive interpretation",
+        "Base population",
+        "formatFigure",
     ):
         assert text in panel
     assert "baseYear < targetYear" in panel

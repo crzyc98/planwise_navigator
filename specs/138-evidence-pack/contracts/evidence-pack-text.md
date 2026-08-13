@@ -16,8 +16,13 @@ run-relative result store, verification disposition.
 ## Warnings
 Every warning in fixed severity/code order, or "None".
 
+## Executive interpretation
+Deterministic plain-language movement, endpoint population, net entering/leaving
+effect, retained exposure/rate effect, and offsetting-share explanation.
+
 ## Movement
-Base value, target value, total change, and any share-suppression reason.
+Human-formatted base value, target value, total change, cited endpoint
+populations, and any share-suppression reason.
 
 ## Driver decomposition
 Ordered Markdown table:
@@ -44,6 +49,8 @@ each displayed figure to `Q1.<result_column>`.
 - Negative and offsetting contributions retain their signs.
 - Population text states a count and cohort meaning; it never lists members.
 - Residual is always shown, including `0`.
+- Currency renders to cents, counts use grouping separators, and rates/shares
+  render as percentages; exact canonical strings remain alongside them.
 
 ## Citation rendering
 
