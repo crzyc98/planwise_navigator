@@ -16,7 +16,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-from .validators import quantize_amount, quantize_rate
+from .validators import quantize_positive_amount, quantize_rate
 
 
 class HirePayload(BaseModel):
@@ -33,7 +33,7 @@ class HirePayload(BaseModel):
     @classmethod
     def validate_compensation(cls, v: Decimal) -> Decimal:
         """Ensure compensation has proper precision"""
-        return quantize_amount(v)
+        return quantize_positive_amount(v)
 
 
 class PromotionPayload(BaseModel):
@@ -49,7 +49,7 @@ class PromotionPayload(BaseModel):
     @classmethod
     def validate_compensation(cls, v: Decimal) -> Decimal:
         """Ensure compensation has proper precision"""
-        return quantize_amount(v)
+        return quantize_positive_amount(v)
 
 
 class TerminationPayload(BaseModel):
@@ -75,7 +75,7 @@ class MeritPayload(BaseModel):
     @classmethod
     def validate_compensation(cls, v: Decimal) -> Decimal:
         """Ensure compensation has proper precision"""
-        return quantize_amount(v)
+        return quantize_positive_amount(v)
 
     @field_validator("merit_percentage")
     @classmethod
