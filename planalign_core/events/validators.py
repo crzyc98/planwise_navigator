@@ -54,6 +54,14 @@ def quantize_amount(v: Decimal) -> Decimal:
     return v.quantize(AMOUNT_PRECISION)
 
 
+def quantize_positive_amount(v: Decimal) -> Decimal:
+    """Quantize an amount and require the normalized value to remain positive."""
+    normalized = quantize_amount(v)
+    if normalized <= 0:
+        raise ValueError("amount must remain positive after quantization")
+    return normalized
+
+
 def quantize_rate(v: Decimal) -> Decimal:
     """
     Quantize a rate/percentage to 4 decimal places.

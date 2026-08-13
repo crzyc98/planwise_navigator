@@ -1128,7 +1128,7 @@ wheels = [
 
 [[package]]
 name = "fidelity-planalign-engine"
-version = "2.2.0"
+version = "2.4.0"
 source = { editable = "." }
 dependencies = [
     { name = "dbt-core" },
@@ -1136,7 +1136,6 @@ dependencies = [
     { name = "duckdb" },
     { name = "fastapi" },
     { name = "gitpython" },
-    { name = "hypothesis" },
     { name = "inquirer" },
     { name = "lz4" },
     { name = "matplotlib" },
@@ -1167,6 +1166,7 @@ dev = [
     { name = "factory-boy" },
     { name = "faker" },
     { name = "flake8" },
+    { name = "hypothesis" },
     { name = "ipdb" },
     { name = "ipython" },
     { name = "isort" },
@@ -1180,6 +1180,7 @@ dev = [
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "pytest-mock" },
+    { name = "pytest-split" },
     { name = "pytest-xdist" },
     { name = "ruff" },
     { name = "types-pyyaml" },
@@ -1196,7 +1197,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.109.0" },
     { name = "flake8", marker = "extra == 'dev'", specifier = "==6.1.0" },
     { name = "gitpython", specifier = ">=3.1.0" },
-    { name = "hypothesis", specifier = ">=6.0.0" },
+    { name = "hypothesis", marker = "extra == 'dev'", specifier = ">=6.0.0" },
     { name = "inquirer", specifier = ">=3.1.0" },
     { name = "ipdb", marker = "extra == 'dev'", specifier = "==0.13.13" },
     { name = "ipython", marker = "extra == 'dev'", specifier = "==8.14.0" },
@@ -1221,6 +1222,7 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = "==7.4.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = "==4.1.0" },
     { name = "pytest-mock", marker = "extra == 'dev'", specifier = "==3.11.1" },
+    { name = "pytest-split", marker = "extra == 'dev'", specifier = "==0.9.0" },
     { name = "pytest-xdist", marker = "extra == 'dev'", specifier = "==3.3.1" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "python-multipart", specifier = ">=0.0.6" },
@@ -3542,6 +3544,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/d8/2d/b3a811ec4fa24190a9ec5013e23c89421a7916167c6240c31fdc445f850c/pytest-mock-3.11.1.tar.gz", hash = "sha256:7f6b125602ac6d743e523ae0bfa71e1a697a2f5534064528c6ff84c2f7c2fc7f", size = 31251, upload-time = "2023-06-15T23:58:07.082Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/da/85/80ae98e019a429445bfb74e153d4cb47c3695e3e908515e95e95c18237e5/pytest_mock-3.11.1-py3-none-any.whl", hash = "sha256:21c279fff83d70763b05f8874cc9cfb3fcacd6d354247a976f9529d19f9acf39", size = 9590, upload-time = "2023-06-15T23:58:05.502Z" },
+]
+
+[[package]]
+name = "pytest-split"
+version = "0.9.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytest" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5e/a9/7b8327a605a48d5094b331de10e01f1f1aec0cb8c5790b5e4d98ac327f05/pytest_split-0.9.0.tar.gz", hash = "sha256:ca52527e4d9024f6ec3aba723527bd276d12096024999b1f5b8445a38da1e81c", size = 13599, upload-time = "2024-06-19T12:17:53.969Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6b/67/8cff7bf04d78ac7fbb88b0985061347943dc3cbeafada27b4accb4527579/pytest_split-0.9.0-py3-none-any.whl", hash = "sha256:9e197df601828d76a1ab615158d9c6253ec9f96e46c1d3ea27187aa5ac0ef9de", size = 11790, upload-time = "2024-06-19T12:17:48.888Z" },
 ]
 
 [[package]]
