@@ -47,6 +47,24 @@ class ScenarioProvenance(BaseModel):
     ] = Field(default_factory=list)
 
 
+class RunTrustResult(BaseModel):
+    """Run-ID-aware, read-only trust signals reusable outside comparison."""
+
+    available: bool
+    run_id: Optional[str] = None
+    config_fingerprint: Optional[str] = None
+    random_seed: Optional[int] = None
+    run_timestamp: Optional[datetime] = None
+    planalign_version: Optional[str] = None
+    reasons: List[
+        Literal[
+            "current_config_mismatch",
+            "current_seed_mismatch",
+            "mixed_generation",
+        ]
+    ] = Field(default_factory=list)
+
+
 class ConfigDiffResponse(BaseModel):
     """Effective configuration diff and provenance for exactly two scenarios."""
 

@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { downloadRunProvenanceBundle, getRunDetails, getArtifactDownloadUrl, getResultsExportUrl, listRuns, getRunById, RunDetails, Artifact, RunSummary } from '../services/api';
 import LogViewer from './simulation/LogViewer';
+import EvidencePackPanel from './EvidencePackPanel';
 
 const formatBytes = (bytes: number): string => {
   if (bytes === 0) return '0 B';
@@ -107,7 +108,7 @@ export default function SimulationDetail() {
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [expandedRuns, setExpandedRuns] = useState<Set<string>>(new Set());
   const [runArtifacts, setRunArtifacts] = useState<Record<string, Artifact[]>>({});
-  const [activeRunTab, setActiveRunTab] = useState<Record<string, 'artifacts' | 'logs'>>({});
+  const [activeRunTab, setActiveRunTab] = useState<Record<string, 'artifacts' | 'logs' | 'evidence'>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [configExpanded, setConfigExpanded] = useState(false);
@@ -446,6 +447,14 @@ export default function SimulationDetail() {
                         <ScrollText size={14} className="mr-1.5" />
                         Logs
                       </button>
+                      {run.status === 'completed' && index === 0 && run.start_year !== null && run.end_year !== null && (
+                        <button
+                          onClick={() => setActiveRunTab(t => ({ ...t, [run.id]: 'evidence' }))}
+                          className={`flex items-center px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeRunTab[run.id] === 'evidence' ? 'border-fidelity-green text-fidelity-green' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                        >
+                          <FileText size={14} className="mr-1.5" />Evidence Pack
+                        </button>
+                      )}
                     </div>
 
                     <div className="p-4">
@@ -515,13 +524,20 @@ export default function SimulationDetail() {
                             </div>
                           )}
                         </>
-                      ) : (
+                      ) : activeRunTab[run.id] === 'logs' ? (
                         <LogViewer
                           scenarioId={details.scenario_id}
                           runId={run.id}
                           isRunning={run.status === 'running'}
                         />
-                      )}
+                      ) : run.start_year !== null && run.end_year !== null ? (
+                        <EvidencePackPanel
+                          workspaceId={details.workspace_id}
+                          scenarioId={details.scenario_id}
+                          startYear={run.start_year}
+                          endYear={run.end_year}
+                        />
+                      ) : null}
 
                       {/* Run ID */}
                       <div className="mt-3 pt-3 border-t border-gray-200">

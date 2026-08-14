@@ -39,6 +39,10 @@ def test_capture_redacts_paths_and_secrets_and_ingests_annual_evidence(tmp_path:
         seed_root=seeds,
         project_root=tmp_path,
     )
+    (run_dir / "config.yaml").write_text(
+        "simulation:\n  start_year: 2025\n  end_year: 2025\n  random_seed: 17\n",
+        encoding="utf-8",
+    )
     manifest = recorder.read()
     payload = manifest.model_dump_json()
     assert str(tmp_path) not in payload
@@ -85,6 +89,8 @@ def test_capture_redacts_paths_and_secrets_and_ingests_annual_evidence(tmp_path:
     assert final.capture_state == "completed"
     assert final.event_counts[0].event_type == "TOTAL"
     assert final.validation_results[0].affected_record_count == 0
+    assert [item.logical_name for item in final.archive_artifacts] == ["config.yaml"]
+    assert final.archive_artifacts[0].sha256 == sha256_file(run_dir / "config.yaml")[0]
 
 
 def test_seed_capture_rejects_symlinks(tmp_path: Path):

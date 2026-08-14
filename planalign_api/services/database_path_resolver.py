@@ -243,6 +243,8 @@ class DatabasePathResolver:
         self,
         workspace_id: str,
         scenario_id: str,
+        *,
+        verify_database: bool = True,
     ) -> ResolvedDatabasePath:
         """
         Resolve the database path for a given workspace and scenario.
@@ -279,7 +281,9 @@ class DatabasePathResolver:
 
         # Step 2: A current-result pointer is authoritative whenever present.
         scenario_path = self._storage._scenario_path(workspace_id, scenario_id)
-        read_context = resolve_scenario_read_context(scenario_path)
+        read_context = resolve_scenario_read_context(
+            scenario_path, verify_database=verify_database
+        )
         context_fields = {
             "active_run_id": (
                 str(read_context.active_run_id) if read_context.active_run_id else None

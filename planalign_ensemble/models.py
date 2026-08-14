@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Literal
@@ -10,14 +11,113 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
-CANONICAL_METRICS = (
-    "active_headcount",
-    "total_compensation",
-    "employer_match_cost",
-    "total_employer_plan_cost",
-    "participation_rate",
-    "avg_deferral_rate",
-)
+@dataclass(frozen=True)
+class MetricDefinition:
+    """Stable public definition of one canonical headline metric."""
+
+    label: str
+    kind: Literal["active_count", "sum", "participation", "average"]
+    unit: Literal["count", "currency", "rate"]
+    required_columns: tuple[str, ...]
+    source_column: str | None = None
+    null_excludes_population: bool = False
+    driver_ids: tuple[str, ...] = ()
+
+
+METRIC_REGISTRY: dict[str, MetricDefinition] = {
+    "active_headcount": MetricDefinition(
+        label="Active headcount",
+        kind="active_count",
+        unit="count",
+        required_columns=("employee_id", "simulation_year", "employment_status"),
+        driver_ids=(
+            "new_active_records",
+            "removed_active_records",
+            "retained_became_active",
+            "retained_ceased_active",
+        ),
+    ),
+    "total_compensation": MetricDefinition(
+        label="Total compensation",
+        kind="sum",
+        unit="currency",
+        required_columns=(
+            "employee_id",
+            "simulation_year",
+            "prorated_annual_compensation",
+        ),
+        source_column="prorated_annual_compensation",
+        driver_ids=(
+            "entered_population_compensation",
+            "left_population_compensation",
+            "retained_compensation_and_proration",
+        ),
+    ),
+    "employer_match_cost": MetricDefinition(
+        label="Employer match cost",
+        kind="sum",
+        unit="currency",
+        required_columns=(
+            "employee_id",
+            "simulation_year",
+            "employer_match_amount",
+            "prorated_annual_compensation",
+        ),
+        source_column="employer_match_amount",
+        driver_ids=(
+            "entered_population_cost",
+            "left_population_cost",
+            "retained_compensation_exposure",
+            "retained_effective_match_payout_rate",
+        ),
+    ),
+    "total_employer_plan_cost": MetricDefinition(
+        label="Total employer plan cost",
+        kind="sum",
+        unit="currency",
+        required_columns=(
+            "employee_id",
+            "simulation_year",
+            "total_employer_contributions",
+            "prorated_annual_compensation",
+        ),
+        source_column="total_employer_contributions",
+        driver_ids=(
+            "entered_population_cost",
+            "left_population_cost",
+            "retained_compensation_exposure",
+            "retained_effective_plan_payout_rate",
+        ),
+    ),
+    "participation_rate": MetricDefinition(
+        label="Participation rate",
+        kind="participation",
+        unit="rate",
+        required_columns=("employee_id", "simulation_year", "participation_status"),
+        driver_ids=(
+            "retained_participation_behavior",
+            "entered_population_participation",
+            "left_population_participation",
+            "population_reweighting",
+        ),
+    ),
+    "avg_deferral_rate": MetricDefinition(
+        label="Average deferral rate",
+        kind="average",
+        unit="rate",
+        required_columns=("employee_id", "simulation_year", "current_deferral_rate"),
+        source_column="current_deferral_rate",
+        null_excludes_population=True,
+        driver_ids=(
+            "retained_deferral_behavior",
+            "entered_population_deferral",
+            "left_population_deferral",
+            "population_reweighting",
+        ),
+    ),
+}
+
+CANONICAL_METRICS = tuple(METRIC_REGISTRY)
 
 
 class Subsystem(str, Enum):

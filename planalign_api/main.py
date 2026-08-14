@@ -45,6 +45,7 @@ from .routers import (
     imports_router,
     provenance_router,
     timeline_router,
+    evidence_pack_router,
 )
 from .routers.vesting import router as vesting_router
 from .routers.sync import router as sync_router
@@ -114,6 +115,7 @@ SCENARIO_READ_ROUTES = {
     "run_adp_test",
     "search_employees",
     "get_employee_timeline",
+    "get_scenario_evidence_pack",
 }
 
 
@@ -360,6 +362,12 @@ def create_app() -> FastAPI:
         timeline_router,
         prefix="/api/workspaces",
         tags=["Timeline"],
+        dependencies=protected_dependencies,
+    )
+    app.include_router(
+        evidence_pack_router,
+        prefix="/api/workspaces",
+        tags=["Evidence Packs"],
         dependencies=protected_dependencies,
     )
 

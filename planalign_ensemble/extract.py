@@ -7,7 +7,13 @@ from typing import SupportsFloat, cast
 
 import duckdb
 
-from .models import CANONICAL_METRICS, MetricSeedValue, SeedRunOutcome
+from .models import (
+    CANONICAL_METRICS,
+    METRIC_REGISTRY,
+    MetricDefinition,
+    MetricSeedValue,
+    SeedRunOutcome,
+)
 
 
 _SNAPSHOT_TABLE = "fct_workforce_snapshot"
@@ -71,18 +77,9 @@ def _table_columns(conn: duckdb.DuckDBPyConnection, table_name: str) -> set[str]
 
 def _metric_query(columns: set[str]) -> str:
     """Build a projection only from verified, fixed snapshot identifiers."""
-    expressions = {
-        "active_headcount": _active_headcount_expression(columns),
-        "total_compensation": _sum_expression(columns, "prorated_annual_compensation"),
-        "employer_match_cost": _sum_expression(columns, "employer_match_amount"),
-        "total_employer_plan_cost": _sum_expression(
-            columns, "total_employer_contributions"
-        ),
-        "participation_rate": _participation_expression(columns),
-        "avg_deferral_rate": _average_expression(columns, "current_deferral_rate"),
-    }
     projection = ",\n                ".join(
-        f"{expressions[metric]} AS {metric}" for metric in CANONICAL_METRICS
+        f"{_metric_expression(METRIC_REGISTRY[metric], columns)} AS {metric}"
+        for metric in CANONICAL_METRICS
     )
     return f"""
         SELECT
@@ -92,6 +89,22 @@ def _metric_query(columns: set[str]) -> str:
         GROUP BY simulation_year
         ORDER BY simulation_year
     """
+
+
+def _metric_expression(definition: MetricDefinition, columns: set[str]) -> str:
+    # Extraction groups by year and does not need the employee key required by
+    # cohort-based evidence decompositions.
+    if not set(definition.required_columns[2:]).issubset(columns):
+        return "CAST(NULL AS DOUBLE)"
+    if definition.kind == "active_count":
+        return _active_headcount_expression(columns)
+    if definition.kind == "participation":
+        return _participation_expression(columns)
+    if definition.kind == "average":
+        assert definition.source_column is not None
+        return _average_expression(columns, definition.source_column)
+    assert definition.source_column is not None
+    return _sum_expression(columns, definition.source_column)
 
 
 def _active_headcount_expression(columns: set[str]) -> str:

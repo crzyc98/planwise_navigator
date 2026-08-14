@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 from typing import Any
 
@@ -18,7 +19,7 @@ from planalign_api.models.provenance import (
     RunProvenanceManifest,
     SoftwareEvidence,
 )
-from .capture import config_fingerprint, safe_effective_config
+from .capture import safe_effective_config
 from .locator import LocatedArchive, locate_run_archive
 from .render import attach_digest
 
@@ -46,6 +47,7 @@ _KNOWN_EVENT_TYPES = {
     "DC_PLAN_CONTRIBUTION",
     "DC_PLAN_VESTING",
     "MATCH_RESPONSE",
+    "DEFERRAL_MATCH_RESPONSE",
 }
 _KNOWN_SEVERITIES = {"error", "warning", "info"}
 
@@ -131,17 +133,11 @@ def _binding_findings(
     if "config.yaml" in archive.files:
         try:
             archived_config = yaml.safe_load(archive.files["config.yaml"]) or {}
-            if (
-                config_fingerprint(archived_config)
-                != manifest.configuration.fingerprint
-            ):
-                findings.append(
-                    _finding(
-                        "evidence.configuration.fingerprint",
-                        "integrity_mismatch",
-                        "archived configuration does not match its execution-time fingerprint",
-                    )
+            findings.extend(
+                _configuration_binding_findings(
+                    archive.files["config.yaml"], archived_config, manifest
                 )
+            )
         except (yaml.YAMLError, ValueError, TypeError):
             findings.append(
                 _finding(
@@ -149,6 +145,64 @@ def _binding_findings(
                 )
             )
     return findings
+
+
+def _configuration_binding_findings(
+    archived_bytes: bytes,
+    archived_config: dict[str, Any],
+    manifest: RunProvenanceManifest,
+) -> list[EvidenceFinding]:
+    """Verify exact new archives and identity-critical fields on older archives.
+
+    Since #523, ``config.yaml`` is an expanded, effective presentation of the
+    input while the execution fingerprint deliberately remains bound to the
+    original result-affecting config. Comparing those two hashes creates a
+    false integrity failure. New manifests bind the exact archived bytes;
+    older manifests retain deterministic checks for run identity and bounds.
+    """
+    artifact = next(
+        (
+            item
+            for item in manifest.archive_artifacts
+            if item.logical_name == "config.yaml"
+        ),
+        None,
+    )
+    if artifact is not None:
+        actual = hashlib.sha256(archived_bytes).hexdigest()
+        if actual != artifact.sha256 or len(archived_bytes) != artifact.size_bytes:
+            return [
+                _finding(
+                    "archive.config",
+                    "integrity_mismatch",
+                    "archived configuration bytes do not match their captured fingerprint",
+                )
+            ]
+        return []
+    simulation = archived_config.get("simulation") or {}
+    run = manifest.run_identity
+    checks = (
+        (simulation.get("start_year"), run.intended_start_year, "start year"),
+        (simulation.get("end_year"), run.intended_end_year, "end year"),
+        (simulation.get("random_seed"), manifest.random_seed, "random seed"),
+        (
+            archived_config.get("plan_design_id")
+            or (archived_config.get("plan_design") or {}).get("plan_design_id")
+            or "default",
+            run.plan_design_id,
+            "plan design",
+        ),
+    )
+    mismatched = [label for actual, expected, label in checks if actual != expected]
+    if not mismatched:
+        return []
+    return [
+        _finding(
+            "archive.config",
+            "integrity_mismatch",
+            "archived configuration conflicts with captured " + ", ".join(mismatched),
+        )
+    ]
 
 
 def _from_legacy(archive: LocatedArchive, malformed_manifest: bool = False):

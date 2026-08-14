@@ -15,7 +15,6 @@ from _version import __version__
 from planalign_orchestrator.config import SimulationConfig
 from planalign_orchestrator.run_metadata import (
     RUN_METADATA_TABLE,
-    DriftStatus,
     compute_config_fingerprint,
     evaluate_drift,
 )
@@ -27,6 +26,7 @@ from .database_path_resolver import (
     DatabasePathResolver,
     create_api_database_path_resolver,
 )
+from .run_trust import evaluate_run_trust
 
 logger = logging.getLogger(__name__)
 
@@ -244,12 +244,10 @@ def _current_drift_reasons(
 
 
 def _is_mixed_generation(latest: tuple[Any, ...], prior: tuple[Any, ...]) -> bool:
-    _, run_type, fingerprint, seed, full_reset, _version = latest
-    _, _, prior_fingerprint, prior_seed, _, _prior_version = prior
-    if full_reset or run_type == "calibration":
-        return False
-    drift = evaluate_drift(prior_fingerprint, prior_seed, fingerprint, seed)
-    return drift.status is DriftStatus.DRIFT
+    trust = evaluate_run_trust(
+        [("latest", *latest), ("prior", *prior)], selected_run_id="latest"
+    )
+    return "mixed_generation" in trust.reasons
 
 
 def _seeds_match(a: ScenarioProvenance, b: ScenarioProvenance) -> Optional[bool]:
