@@ -9,6 +9,7 @@ import {
   RefreshCw, AlertCircle, ChevronDown, Database, Loader2
 } from 'lucide-react';
 import { LayoutContextType } from './Layout';
+import { useChartTheme } from '../hooks/useChartTheme';
 import {
   listScenarios,
   getWinnersLosersComparison,
@@ -18,14 +19,21 @@ import {
   HeatmapCell,
 } from '../services/api';
 
+const KPI_ICON_STYLES: Record<string, string> = {
+  blue: 'bg-info-surface text-info-ink',
+  green: 'bg-success-surface text-success-ink',
+  red: 'bg-danger-surface text-danger-ink',
+  gray: 'bg-surface-subtle text-ink-muted',
+};
+
 const EmptyState = ({ message, onRefresh }: Readonly<{ message: string; onRefresh: () => void }>) => (
-  <div className="flex flex-col items-center justify-center h-96 text-gray-400">
+  <div className="flex flex-col items-center justify-center h-96 text-ink-subtle">
     <Database size={48} className="mb-4" />
-    <h3 className="text-lg font-semibold text-gray-600 mb-2">No Data Available</h3>
-    <p className="text-sm text-gray-500 mb-4 text-center max-w-md">{message}</p>
+    <h3 className="text-lg font-semibold text-ink-muted mb-2">No Data Available</h3>
+    <p className="text-sm text-ink-muted mb-4 text-center max-w-md">{message}</p>
     <button
       onClick={onRefresh}
-      className="flex items-center px-4 py-2 bg-fidelity-green text-white rounded-lg text-sm font-medium hover:bg-fidelity-dark transition-colors"
+      className="flex items-center px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-fidelity-dark transition-colors"
     >
       <RefreshCw size={16} className="mr-2" />
       Refresh
@@ -34,13 +42,13 @@ const EmptyState = ({ message, onRefresh }: Readonly<{ message: string; onRefres
 );
 
 const ErrorState = ({ message, onRetry }: Readonly<{ message: string; onRetry: () => void }>) => (
-  <div className="flex flex-col items-center justify-center h-96 text-red-400">
+  <div className="flex flex-col items-center justify-center h-96 text-danger-ink">
     <AlertCircle size={48} className="mb-4" />
-    <h3 className="text-lg font-semibold text-red-600 mb-2">Failed to Load Analysis</h3>
-    <p className="text-sm text-gray-500 mb-4 text-center max-w-md">{message}</p>
+    <h3 className="text-lg font-semibold text-danger-ink mb-2">Failed to Load Analysis</h3>
+    <p className="text-sm text-ink-muted mb-4 text-center max-w-md">{message}</p>
     <button
       onClick={onRetry}
-      className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+      className="flex items-center px-4 py-2 bg-danger-solid text-ink-inverse rounded-lg text-sm font-medium hover:bg-danger-solid-hover transition-colors"
     >
       <RefreshCw size={16} className="mr-2" />
       Retry
@@ -49,12 +57,12 @@ const ErrorState = ({ message, onRetry }: Readonly<{ message: string; onRetry: (
 );
 
 const KPICard = ({ title, value, icon: Icon, color }: Readonly<{ title: string; value: string | number; icon: React.ElementType; color: string }>) => (
-  <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex items-start justify-between">
+  <div className="bg-surface-raised p-5 rounded-xl shadow-sm border border-border flex items-start justify-between">
     <div>
-      <p className="text-sm font-medium text-gray-500">{title}</p>
-      <h3 className="text-2xl font-bold text-gray-900 mt-1">{typeof value === 'number' ? value.toLocaleString() : value}</h3>
+      <p className="text-sm font-medium text-ink-muted">{title}</p>
+      <h3 className="text-2xl font-bold text-ink mt-1">{typeof value === 'number' ? value.toLocaleString() : value}</h3>
     </div>
-    <div className={`p-2 rounded-lg bg-${color}-50 text-${color}-600`}>
+    <div className={`p-2 rounded-lg ${KPI_ICON_STYLES[color] ?? KPI_ICON_STYLES.gray}`}>
       <Icon size={20} />
     </div>
   </div>
@@ -64,18 +72,19 @@ const KPICard = ({ title, value, icon: Icon, color }: Readonly<{ title: string; 
  * Return a Tailwind background class for a heatmap cell based on net_pct.
  */
 function heatmapColor(cell: HeatmapCell): string {
-  if (cell.total === 0) return 'bg-gray-100';
+  if (cell.total === 0) return 'bg-surface-subtle';
   const pct = cell.net_pct;
-  if (pct > 30) return 'bg-green-500 text-white';
-  if (pct > 15) return 'bg-green-400 text-white';
-  if (pct > 0) return 'bg-green-200';
-  if (pct === 0) return 'bg-gray-100';
-  if (pct > -15) return 'bg-red-200';
-  if (pct > -30) return 'bg-red-400 text-white';
-  return 'bg-red-500 text-white';
+  if (pct > 30) return 'bg-success-solid text-ink-inverse';
+  if (pct > 15) return 'bg-success-solid text-ink-inverse';
+  if (pct > 0) return 'bg-success-surface';
+  if (pct === 0) return 'bg-surface-subtle';
+  if (pct > -15) return 'bg-danger-surface';
+  if (pct > -30) return 'bg-danger-solid text-ink-inverse';
+  return 'bg-danger-solid text-ink-inverse';
 }
 
 export default function WinnersLosersTab() {
+  const chartTheme = useChartTheme();
   const { activeWorkspace } = useOutletContext<LayoutContextType>();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -194,50 +203,50 @@ export default function WinnersLosersTab() {
       {/* Header & Controls */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Winners & Losers Analysis</h1>
-          <p className="text-gray-500 mt-1">Compare plan designs by demographic impact.</p>
+          <h1 className="text-2xl font-bold text-ink">Winners & Losers Analysis</h1>
+          <p className="text-ink-muted mt-1">Compare plan designs by demographic impact.</p>
         </div>
         <div className="flex space-x-2">
           {/* Plan A Selector */}
           <div className="relative">
-            <label htmlFor="wl-plan-a" className="absolute -top-5 left-0 text-xs font-medium text-gray-500">Plan A</label>
+            <label htmlFor="wl-plan-a" className="absolute -top-5 left-0 text-xs font-medium text-ink-muted">Plan A</label>
             <select
               id="wl-plan-a"
               value={planA}
               onChange={(e) => setPlanA(e.target.value)}
               disabled={loadingScenarios}
-              className="appearance-none bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[180px] disabled:bg-gray-50"
+              className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[180px] disabled:bg-surface-subtle"
             >
               <option value="">{loadingScenarios ? 'Loading...' : 'Select Plan A'}</option>
               {completedScenarios.map(s => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
-            <ChevronDown size={16} className="absolute right-3 top-2.5 text-gray-400 pointer-events-none" />
+            <ChevronDown size={16} className="absolute right-3 top-2.5 text-ink-subtle pointer-events-none" />
           </div>
 
           {/* Plan B Selector */}
           <div className="relative">
-            <label htmlFor="wl-plan-b" className="absolute -top-5 left-0 text-xs font-medium text-gray-500">Plan B</label>
+            <label htmlFor="wl-plan-b" className="absolute -top-5 left-0 text-xs font-medium text-ink-muted">Plan B</label>
             <select
               id="wl-plan-b"
               value={planB}
               onChange={(e) => setPlanB(e.target.value)}
               disabled={loadingScenarios}
-              className="appearance-none bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[180px] disabled:bg-gray-50"
+              className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[180px] disabled:bg-surface-subtle"
             >
               <option value="">{loadingScenarios ? 'Loading...' : 'Select Plan B'}</option>
               {completedScenarios.map(s => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
-            <ChevronDown size={16} className="absolute right-3 top-2.5 text-gray-400 pointer-events-none" />
+            <ChevronDown size={16} className="absolute right-3 top-2.5 text-ink-subtle pointer-events-none" />
           </div>
 
           <button
             onClick={fetchComparison}
             disabled={!planA || !planB || loading}
-            className="flex items-center px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 text-gray-700 shadow-sm transition-colors"
+            className="flex items-center px-3 py-2 bg-surface-raised border border-border-strong rounded-lg text-sm font-medium hover:bg-surface-subtle text-ink-muted shadow-sm transition-colors"
             title="Refresh"
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
@@ -274,7 +283,7 @@ export default function WinnersLosersTab() {
 
           {/* Excluded employees note */}
           {results.total_excluded > 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+            <div className="bg-warning-surface border border-warning-border rounded-lg p-3 text-sm text-warning-ink">
               {results.total_excluded} employee(s) were excluded from comparison because they exist in only one scenario.
             </div>
           )}
@@ -282,28 +291,28 @@ export default function WinnersLosersTab() {
           {/* Charts Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Age Band Chart */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-800 mb-6">Winners & Losers by Age Band</h3>
+            <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
+              <h3 className="text-lg font-semibold text-ink mb-6">Winners & Losers by Age Band</h3>
               <div className="h-80">
                 {results.age_band_results.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={toBandChartData(results.age_band_results)} barSize={28}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                      <XAxis dataKey="name" stroke="#9CA3AF" />
-                      <YAxis stroke="#9CA3AF" />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
+                      <XAxis dataKey="name" stroke={chartTheme.axis.line} />
+                      <YAxis stroke={chartTheme.axis.line} />
                       <Tooltip
-                        cursor={{ fill: '#F3F4F6' }}
-                        contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb' }}
+                        cursor={chartTheme.tooltip.cursorStyle}
+                        contentStyle={chartTheme.tooltip.contentStyle}
                         formatter={bandTooltipFormatter}
                       />
-                      <Legend verticalAlign="top" height={36} />
-                      <Bar dataKey="Winners" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="Losers" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="Neutral" fill="#9ca3af" radius={[4, 4, 0, 0]} />
+                      <Legend verticalAlign="top" height={36} formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
+                      <Bar dataKey="Winners" fill={chartTheme.semantic.positive} radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="Losers" fill={chartTheme.semantic.negative} radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="Neutral" fill={chartTheme.semantic.neutral} radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-full flex items-center justify-center text-gray-400">
+                  <div className="h-full flex items-center justify-center text-ink-subtle">
                     <p>No age band data available</p>
                   </div>
                 )}
@@ -311,28 +320,28 @@ export default function WinnersLosersTab() {
             </div>
 
             {/* Tenure Band Chart */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-800 mb-6">Winners & Losers by Tenure Band</h3>
+            <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
+              <h3 className="text-lg font-semibold text-ink mb-6">Winners & Losers by Tenure Band</h3>
               <div className="h-80">
                 {results.tenure_band_results.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={toBandChartData(results.tenure_band_results)} barSize={28}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                      <XAxis dataKey="name" stroke="#9CA3AF" />
-                      <YAxis stroke="#9CA3AF" />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
+                      <XAxis dataKey="name" stroke={chartTheme.axis.line} />
+                      <YAxis stroke={chartTheme.axis.line} />
                       <Tooltip
-                        cursor={{ fill: '#F3F4F6' }}
-                        contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb' }}
+                        cursor={chartTheme.tooltip.cursorStyle}
+                        contentStyle={chartTheme.tooltip.contentStyle}
                         formatter={bandTooltipFormatter}
                       />
-                      <Legend verticalAlign="top" height={36} />
-                      <Bar dataKey="Winners" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="Losers" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="Neutral" fill="#9ca3af" radius={[4, 4, 0, 0]} />
+                      <Legend verticalAlign="top" height={36} formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
+                      <Bar dataKey="Winners" fill={chartTheme.semantic.positive} radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="Losers" fill={chartTheme.semantic.negative} radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="Neutral" fill={chartTheme.semantic.neutral} radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-full flex items-center justify-center text-gray-400">
+                  <div className="h-full flex items-center justify-center text-ink-subtle">
                     <p>No tenure band data available</p>
                   </div>
                 )}
@@ -342,8 +351,8 @@ export default function WinnersLosersTab() {
 
           {/* Heatmap: Age × Tenure */}
           {ageBands.length > 0 && tenureBands.length > 0 && (
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-800 mb-6">Age × Tenure Heatmap</h3>
+            <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
+              <h3 className="text-lg font-semibold text-ink mb-6">Age × Tenure Heatmap</h3>
               <div className="overflow-x-auto">
                 <div
                   className="grid gap-1"
@@ -352,9 +361,9 @@ export default function WinnersLosersTab() {
                   }}
                 >
                   {/* Header row */}
-                  <div className="text-xs font-medium text-gray-500 p-2" />
+                  <div className="text-xs font-medium text-ink-muted p-2" />
                   {tenureBands.map(tb => (
-                    <div key={tb} className="text-xs font-medium text-gray-500 p-2 text-center">
+                    <div key={tb} className="text-xs font-medium text-ink-muted p-2 text-center">
                       {tb}
                     </div>
                   ))}
@@ -362,7 +371,7 @@ export default function WinnersLosersTab() {
                   {/* Data rows */}
                   {ageBands.map(ab => (
                     <React.Fragment key={ab}>
-                      <div className="text-xs font-medium text-gray-500 p-2 flex items-center">
+                      <div className="text-xs font-medium text-ink-muted p-2 flex items-center">
                         {ab}
                       </div>
                       {tenureBands.map(tb => {
@@ -371,14 +380,14 @@ export default function WinnersLosersTab() {
                         return (
                           <div
                             key={`${ab}-${tb}`}
-                            className={`relative group rounded-md p-3 text-center cursor-default transition-colors ${cell ? heatmapColor(cell) : 'bg-gray-100'}`}
+                            className={`relative group rounded-md p-3 text-center cursor-default transition-colors ${cell ? heatmapColor(cell) : 'bg-surface-subtle'}`}
                           >
                             <span className="text-sm font-semibold">
                               {isEmpty ? '—' : cell!.total}
                             </span>
                             {/* Tooltip */}
                             <div className="absolute z-10 bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block">
-                              <div className="bg-gray-900 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap shadow-lg">
+                              <div className="bg-surface-inverse text-ink-inverse text-xs rounded-lg px-3 py-2 whitespace-nowrap shadow-lg">
                                 {isEmpty ? (
                                   'No employees in this group'
                                 ) : (
@@ -397,15 +406,15 @@ export default function WinnersLosersTab() {
               </div>
 
               {/* Legend */}
-              <div className="flex items-center justify-center gap-4 mt-4 text-xs text-gray-500">
+              <div className="flex items-center justify-center gap-4 mt-4 text-xs text-ink-muted">
                 <div className="flex items-center gap-1">
-                  <div className="w-4 h-4 rounded bg-green-400" /> Net Winners
+                  <div className="w-4 h-4 rounded bg-success-solid" /> Net Winners
                 </div>
                 <div className="flex items-center gap-1">
-                  <div className="w-4 h-4 rounded bg-gray-100 border border-gray-200" /> Neutral / Empty
+                  <div className="w-4 h-4 rounded bg-surface-subtle border border-border" /> Neutral / Empty
                 </div>
                 <div className="flex items-center gap-1">
-                  <div className="w-4 h-4 rounded bg-red-400" /> Net Losers
+                  <div className="w-4 h-4 rounded bg-danger-solid" /> Net Losers
                 </div>
               </div>
             </div>
@@ -418,7 +427,7 @@ export default function WinnersLosersTab() {
             const summaryTotal = results.total_winners + results.total_losers + results.total_neutral;
             if (ageTotal !== tenureTotal || ageTotal !== summaryTotal) {
               return (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                <div className="bg-warning-surface border border-warning-border rounded-lg p-3 text-sm text-warning-ink">
                   Warning: Totals are inconsistent — age bands ({ageTotal}), tenure bands ({tenureTotal}), summary ({summaryTotal}).
                 </div>
               );

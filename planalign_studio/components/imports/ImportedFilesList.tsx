@@ -66,7 +66,7 @@ export default function ImportedFilesList({ workspaceId, currentUserId = 'system
 
   if (isLoading) {
     return (
-      <div className="flex items-center gap-2 text-sm text-gray-500 py-6">
+      <div className="flex items-center gap-2 text-sm text-ink-muted py-6">
         <Loader2 size={16} className="animate-spin" /> Loading imported files…
       </div>
     );
@@ -74,7 +74,7 @@ export default function ImportedFilesList({ workspaceId, currentUserId = 'system
 
   if (error) {
     return (
-      <div className="flex items-start gap-2 text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg p-3">
+      <div className="flex items-start gap-2 text-danger-ink text-sm bg-danger-surface border border-danger-border rounded-lg p-3">
         <AlertCircle size={16} className="shrink-0 mt-0.5" /> {error}
       </div>
     );
@@ -82,7 +82,7 @@ export default function ImportedFilesList({ workspaceId, currentUserId = 'system
 
   if (files.length === 0) {
     return (
-      <div className="text-sm text-gray-400 py-6 text-center">
+      <div className="text-sm text-ink-subtle py-6 text-center">
         No imported files yet. Use "Import Data" to create your first Parquet file.
       </div>
     );
@@ -91,39 +91,39 @@ export default function ImportedFilesList({ workspaceId, currentUserId = 'system
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-700">Imported Files ({files.length})</h3>
+        <h3 className="text-sm font-semibold text-ink-muted">Imported Files ({files.length})</h3>
         <button onClick={load} className="text-xs text-fidelity-green hover:underline">Refresh</button>
       </div>
-      <div className="border border-gray-200 rounded-lg overflow-hidden">
+      <div className="border border-border rounded-lg overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200">
+          <thead className="bg-surface-subtle border-b border-border">
             <tr>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Filename</th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Source</th>
-              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Rows</th>
-              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Size</th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">By</th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-ink-muted uppercase">Filename</th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-ink-muted uppercase">Source</th>
+              <th className="px-4 py-2 text-right text-xs font-medium text-ink-muted uppercase">Rows</th>
+              <th className="px-4 py-2 text-right text-xs font-medium text-ink-muted uppercase">Size</th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-ink-muted uppercase">Created</th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-ink-muted uppercase">By</th>
               <th className="px-4 py-2" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-border">
             {files.map((f) => (
-              <tr key={f.file_id} className="hover:bg-gray-50">
-                <td className="px-4 py-2 font-mono text-xs text-gray-800 max-w-xs truncate">{f.filename}</td>
-                <td className="px-4 py-2 text-xs text-gray-500 max-w-xs truncate">{f.original_filename}</td>
-                <td className="px-4 py-2 text-xs text-gray-700 text-right">{f.row_count.toLocaleString()}</td>
-                <td className="px-4 py-2 text-xs text-gray-700 text-right">{formatBytes(f.file_size_bytes)}</td>
-                <td className="px-4 py-2 text-xs text-gray-500">
+              <tr key={f.file_id} className="hover:bg-surface-subtle">
+                <td className="px-4 py-2 font-mono text-xs text-ink max-w-xs truncate">{f.filename}</td>
+                <td className="px-4 py-2 text-xs text-ink-muted max-w-xs truncate">{f.original_filename}</td>
+                <td className="px-4 py-2 text-xs text-ink-muted text-right">{f.row_count.toLocaleString()}</td>
+                <td className="px-4 py-2 text-xs text-ink-muted text-right">{formatBytes(f.file_size_bytes)}</td>
+                <td className="px-4 py-2 text-xs text-ink-muted">
                   {new Date(f.created_at).toLocaleDateString()}
                 </td>
-                <td className="px-4 py-2 text-xs text-gray-500">{f.created_by}</td>
+                <td className="px-4 py-2 text-xs text-ink-muted">{f.created_by}</td>
                 <td className="px-4 py-2">
                   <div className="flex items-center gap-3 justify-end">
                     {settingCensus === f.file_id ? (
                       <Loader2 size={14} className="animate-spin text-fidelity-green" />
                     ) : censusSuccess === f.file_id ? (
-                      <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                      <span className="flex items-center gap-1 text-xs text-success-ink font-medium">
                         <Check size={12} /> Set
                       </span>
                     ) : (
@@ -149,13 +149,13 @@ export default function ImportedFilesList({ workspaceId, currentUserId = 'system
                           <button
                             onClick={() => handleDelete(f.file_id)}
                             disabled={!!deletingId}
-                            className="text-xs text-red-600 hover:underline"
+                            className="text-xs text-danger-ink hover:underline"
                           >
                             {deletingId === f.file_id ? <Loader2 size={12} className="animate-spin inline" /> : 'Confirm'}
                           </button>
                           <button
                             onClick={() => setConfirmDelete(null)}
-                            className="text-xs text-gray-400 hover:underline"
+                            className="text-xs text-ink-subtle hover:underline"
                           >
                             Cancel
                           </button>
@@ -163,7 +163,7 @@ export default function ImportedFilesList({ workspaceId, currentUserId = 'system
                       ) : (
                         <button
                           onClick={() => setConfirmDelete(f.file_id)}
-                          className="text-gray-400 hover:text-red-500"
+                          className="text-ink-subtle hover:text-danger-ink"
                           title="Delete"
                         >
                           <Trash2 size={16} />

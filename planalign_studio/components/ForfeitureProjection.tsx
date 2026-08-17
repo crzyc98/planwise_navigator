@@ -21,7 +21,8 @@ import {
   VestingScheduleInfo,
   VestingScheduleType,
 } from '../services/api';
-import { COLORS, MAX_SCENARIO_SELECTION } from '../constants';
+import { MAX_SCENARIO_SELECTION } from '../constants';
+import { useChartTheme } from '../hooks/useChartTheme';
 
 const STORAGE_KEY_PREFIX = 'planalign_forfeiture_';
 
@@ -107,6 +108,7 @@ export default function ForfeitureProjection({
   completedScenarios,
   schedules,
 }: Props) {
+  const chartTheme = useChartTheme();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [scheduleType, setScheduleType] = useState<VestingScheduleType>('graded_5_year');
   const [requireHoursCredit, setRequireHoursCredit] = useState(false);
@@ -134,7 +136,7 @@ export default function ForfeitureProjection({
   const colorMap = useMemo(() => {
     const map: Record<string, string> = {};
     selectedIds.forEach((id, index) => {
-      map[id] = COLORS.charts[index % COLORS.charts.length];
+      map[id] = chartTheme.colorAt(index);
     });
     return map;
   }, [selectedIds]);
@@ -190,10 +192,10 @@ export default function ForfeitureProjection({
   return (
     <div className="space-y-6">
       {/* Controls */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-5">
+      <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border space-y-5">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label htmlFor="forfeiture-schedule" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="forfeiture-schedule" className="block text-sm font-medium text-ink-muted mb-1">
               Vesting Schedule
             </label>
             <select
@@ -203,7 +205,7 @@ export default function ForfeitureProjection({
                 setScheduleType(e.target.value as VestingScheduleType);
                 setData(null);
               }}
-              className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm"
+              className="w-full bg-surface-raised border border-border-strong rounded-lg px-3 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm"
             >
               {schedules.map(schedule => (
                 <option key={schedule.schedule_type} value={schedule.schedule_type}>
@@ -214,7 +216,7 @@ export default function ForfeitureProjection({
           </div>
 
           <div>
-            <label htmlFor="forfeiture-hours" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="forfeiture-hours" className="block text-sm font-medium text-ink-muted mb-1">
               Hours Threshold
             </label>
             <input
@@ -228,12 +230,12 @@ export default function ForfeitureProjection({
                 setHoursThreshold(Number(e.target.value));
                 setData(null);
               }}
-              className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm shadow-sm disabled:bg-gray-50 disabled:text-gray-400"
+              className="w-full bg-surface-raised border border-border-strong rounded-lg px-3 py-2 text-sm shadow-sm disabled:bg-surface-subtle disabled:text-ink-subtle"
             />
           </div>
 
           <div className="flex items-end">
-            <label className="flex items-center gap-2 text-sm text-gray-700 pb-2">
+            <label className="flex items-center gap-2 text-sm text-ink-muted pb-2">
               <input
                 type="checkbox"
                 checked={requireHoursCredit}
@@ -241,7 +243,7 @@ export default function ForfeitureProjection({
                   setRequireHoursCredit(e.target.checked);
                   setData(null);
                 }}
-                className="rounded border-gray-300 text-fidelity-green focus:ring-fidelity-green"
+                className="rounded border-border-strong text-fidelity-green focus:ring-fidelity-green"
               />
               Require hours credit
             </label>
@@ -250,14 +252,14 @@ export default function ForfeitureProjection({
 
         {/* Scenario multi-select */}
         <fieldset>
-          <legend className="block text-sm font-medium text-gray-700 mb-2">
+          <legend className="block text-sm font-medium text-ink-muted mb-2">
             Scenarios{' '}
-            <span className="font-normal text-gray-500">
+            <span className="font-normal text-ink-muted">
               ({selectedIds.length} of {MAX_SCENARIO_SELECTION} max)
             </span>
           </legend>
           {completedScenarios.length === 0 ? (
-            <p className="text-sm text-gray-500">No completed scenarios in this workspace.</p>
+            <p className="text-sm text-ink-muted">No completed scenarios in this workspace.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {completedScenarios.map(scenario => {
@@ -267,8 +269,8 @@ export default function ForfeitureProjection({
                     key={scenario.id}
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm cursor-pointer transition-colors ${
                       checked
-                        ? 'border-gray-300 bg-gray-50 text-gray-900'
-                        : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                        ? 'border-border-strong bg-surface-subtle text-ink'
+                        : 'border-border text-ink-muted hover:bg-surface-subtle'
                     } ${!checked && atSelectionLimit ? 'opacity-40 cursor-not-allowed' : ''}`}
                   >
                     <input
@@ -276,7 +278,7 @@ export default function ForfeitureProjection({
                       checked={checked}
                       disabled={!checked && atSelectionLimit}
                       onChange={() => toggleScenario(scenario.id)}
-                      className="rounded border-gray-300 text-fidelity-green focus:ring-fidelity-green"
+                      className="rounded border-border-strong text-fidelity-green focus:ring-fidelity-green"
                     />
                     {checked && (
                       <span
@@ -296,7 +298,7 @@ export default function ForfeitureProjection({
           <button
             onClick={runReport}
             disabled={loading || selectedIds.length === 0}
-            className="flex items-center gap-2 px-4 py-2 bg-fidelity-green text-white rounded-lg text-sm font-medium hover:bg-fidelity-dark disabled:bg-gray-300 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-fidelity-dark disabled:bg-surface-disabled transition-colors"
           >
             {loading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
             {loading ? 'Running...' : 'Run Report'}
@@ -304,7 +306,7 @@ export default function ForfeitureProjection({
           {data && (
             <button
               onClick={downloadCsv}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-surface-raised border border-border-strong rounded-lg text-sm font-medium text-ink-muted hover:bg-surface-subtle transition-colors"
             >
               <Download size={16} />
               Export CSV
@@ -314,14 +316,14 @@ export default function ForfeitureProjection({
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+        <div className="flex items-center gap-2 p-4 bg-danger-surface border border-danger-border rounded-lg text-sm text-danger-ink">
           <AlertCircle size={16} />
           {error}
         </div>
       )}
 
       {data && data.skipped.length > 0 && (
-        <div className="flex items-start gap-2 p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+        <div className="flex items-start gap-2 p-4 bg-warning-surface border border-warning-border rounded-lg text-sm text-warning-ink">
           <Info size={16} className="mt-0.5 shrink-0" />
           <div>
             {data.skipped.map(item => (
@@ -335,25 +337,25 @@ export default function ForfeitureProjection({
 
       {data && data.scenarios.length > 0 && (
         <>
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+          <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">
+                <h3 className="text-lg font-semibold text-ink">
                   {cumulative ? 'Cumulative' : 'Annual'} Forfeitures
                 </h3>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-ink-muted">
                   Under {data.schedule.name}, by simulation year
                 </p>
               </div>
-              <div className="flex rounded-lg border border-gray-300 overflow-hidden text-sm">
+              <div className="flex rounded-lg border border-border-strong overflow-hidden text-sm">
                 {(['annual', 'cumulative'] as const).map(mode => (
                   <button
                     key={mode}
                     onClick={() => setCumulative(mode === 'cumulative')}
                     className={`px-3 py-1.5 capitalize transition-colors ${
                       (mode === 'cumulative') === cumulative
-                        ? 'bg-fidelity-green text-white'
-                        : 'bg-white text-gray-600 hover:bg-gray-50'
+                        ? 'bg-fidelity-green text-ink-inverse'
+                        : 'bg-surface-raised text-ink-muted hover:bg-surface-subtle'
                     }`}
                   >
                     {mode}
@@ -366,13 +368,13 @@ export default function ForfeitureProjection({
               <ResponsiveContainer width="100%" height="100%">
                 {cumulative ? (
                   <AreaChart data={chartRows} margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="year" stroke="#94a3b8" fontSize={12} />
-                    <YAxis stroke="#94a3b8" fontSize={12} tickFormatter={formatCurrency} />
-                    <Tooltip formatter={(value: number) => formatExact(value)} />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
+                    <XAxis dataKey="year" stroke={chartTheme.axis.line} fontSize={12} />
+                    <YAxis stroke={chartTheme.axis.line} fontSize={12} tickFormatter={formatCurrency} />
+                    <Tooltip contentStyle={chartTheme.tooltip.contentStyle} formatter={(value: number) => formatExact(value)} />
                     {/* Legend text wears text ink, not the series colour: the palette's
                         lighter slots don't clear 3:1 on white. The swatch carries identity. */}
-                    <Legend formatter={(value: string) => <span className="text-gray-600">{value}</span>} />
+                    <Legend formatter={(value: string) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
                     {data.scenarios.map(series => (
                       <Area
                         key={series.scenario_id}
@@ -388,13 +390,13 @@ export default function ForfeitureProjection({
                   </AreaChart>
                 ) : (
                   <BarChart data={chartRows} margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="year" stroke="#94a3b8" fontSize={12} />
-                    <YAxis stroke="#94a3b8" fontSize={12} tickFormatter={formatCurrency} />
-                    <Tooltip cursor={{ fill: '#f8fafc' }} formatter={(value: number) => formatExact(value)} />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
+                    <XAxis dataKey="year" stroke={chartTheme.axis.line} fontSize={12} />
+                    <YAxis stroke={chartTheme.axis.line} fontSize={12} tickFormatter={formatCurrency} />
+                    <Tooltip contentStyle={chartTheme.tooltip.contentStyle} cursor={chartTheme.tooltip.cursorStyle} formatter={(value: number) => formatExact(value)} />
                     {/* Legend text wears text ink, not the series colour: the palette's
                         lighter slots don't clear 3:1 on white. The swatch carries identity. */}
-                    <Legend formatter={(value: string) => <span className="text-gray-600">{value}</span>} />
+                    <Legend formatter={(value: string) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
                     {data.scenarios.map(series => (
                       <Bar
                         key={series.scenario_id}
@@ -411,16 +413,16 @@ export default function ForfeitureProjection({
           </div>
 
           {/* Years x scenarios table */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="bg-surface-raised rounded-xl shadow-sm border border-border overflow-hidden">
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
+                <thead className="bg-surface-subtle border-b border-border">
                   <tr>
-                    <th className="px-4 py-3 text-left font-medium text-gray-700">Year</th>
+                    <th className="px-4 py-3 text-left font-medium text-ink-muted">Year</th>
                     {data.scenarios.map(series => (
                       <th
                         key={series.scenario_id}
-                        className="px-4 py-3 text-right font-medium text-gray-700"
+                        className="px-4 py-3 text-right font-medium text-ink-muted"
                       >
                         <span className="inline-flex items-center gap-2">
                           <span
@@ -433,10 +435,10 @@ export default function ForfeitureProjection({
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-border">
                   {chartRows.map(row => (
-                    <tr key={row.year} className="hover:bg-gray-50">
-                      <td className="px-4 py-2.5 text-gray-900">{row.year}</td>
+                    <tr key={row.year} className="hover:bg-surface-subtle">
+                      <td className="px-4 py-2.5 text-ink">{row.year}</td>
                       {data.scenarios.map(series => {
                         const value = row[series.scenario_id];
                         const covered = series.years.some(
@@ -445,16 +447,16 @@ export default function ForfeitureProjection({
                         return (
                           <td
                             key={series.scenario_id}
-                            className="px-4 py-2.5 text-right tabular-nums text-gray-700"
+                            className="px-4 py-2.5 text-right tabular-nums text-ink-muted"
                           >
                             {value !== null && formatExact(value)}
                             {value === null && covered && (
-                              <span className="text-gray-400 italic text-xs">
+                              <span className="text-ink-subtle italic text-xs">
                                 no prior-year basis
                               </span>
                             )}
                             {value === null && !covered && (
-                              <span className="text-gray-300">—</span>
+                              <span className="text-ink-subtle">—</span>
                             )}
                           </td>
                         );
@@ -462,13 +464,13 @@ export default function ForfeitureProjection({
                     </tr>
                   ))}
                 </tbody>
-                <tfoot className="bg-gray-50 border-t border-gray-200">
+                <tfoot className="bg-surface-subtle border-t border-border">
                   <tr>
-                    <td className="px-4 py-3 font-medium text-gray-900">Total</td>
+                    <td className="px-4 py-3 font-medium text-ink">Total</td>
                     {data.scenarios.map(series => (
                       <td
                         key={series.scenario_id}
-                        className="px-4 py-3 text-right font-medium tabular-nums text-gray-900"
+                        className="px-4 py-3 text-right font-medium tabular-nums text-ink"
                       >
                         {formatExact(series.total_forfeited)}
                       </td>
@@ -477,7 +479,7 @@ export default function ForfeitureProjection({
                 </tfoot>
               </table>
             </div>
-            <p className="px-4 py-3 text-xs text-gray-500 border-t border-gray-100">
+            <p className="px-4 py-3 text-xs text-ink-muted border-t border-border">
               A scenario&apos;s first simulation year has no prior year to source employer
               contributions from, so it is reported as &ldquo;no prior-year basis&rdquo;
               rather than $0. A dash means the scenario does not cover that year.

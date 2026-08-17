@@ -18,7 +18,7 @@ import {
   Scenario,
   SimulationResults
 } from '../services/api';
-import { COLORS } from '../constants';
+import { useChartTheme } from '../hooks/useChartTheme';
 
 interface LayoutContext {
   activeWorkspace: { id: string; name: string };
@@ -26,13 +26,22 @@ interface LayoutContext {
 }
 
 const trendIcons: Record<string, React.ReactNode> = {
-  up: <ArrowUpRight size={16} className="text-green-500 mr-1" />,
-  down: <ArrowDownRight size={16} className="text-red-500 mr-1" />,
+  up: <ArrowUpRight size={16} className="text-success-ink mr-1" />,
+  down: <ArrowDownRight size={16} className="text-danger-ink mr-1" />,
 };
 
 const trendColors: Record<string, string> = {
-  up: 'text-green-600',
-  down: 'text-red-600',
+  up: 'text-success-ink',
+  down: 'text-danger-ink',
+};
+
+const KPI_ICON_STYLES: Record<string, string> = {
+  blue: 'bg-info-surface text-info-ink',
+  green: 'bg-success-surface text-success-ink',
+  red: 'bg-danger-surface text-danger-ink',
+  gray: 'bg-surface-subtle text-ink-muted',
+  purple: 'bg-info-surface text-info-ink',
+  orange: 'bg-warning-surface text-warning-ink',
 };
 
 const titleCase = (value: string) => value
@@ -46,13 +55,6 @@ const titleCase = (value: string) => value
  * hexes this replaces put the two termination series at ΔE 7.1 for NORMAL
  * vision — they were not reliably separable by anyone.
  */
-const STATUS_SERIES_COLORS: Record<string, string> = {
-  continuous_active: COLORS.charts[0],
-  new_hire_active: COLORS.charts[1],
-  experienced_termination: COLORS.charts[2],
-  new_hire_termination: COLORS.charts[3],
-};
-
 interface EventTypeRow {
   name: string;
   value: number;
@@ -87,18 +89,18 @@ const buildEventTypeRows = (eventTrends: Record<string, number[]>): EventTypeRow
 };
 
 const KPICard = ({ title, value, subtext, trend, icon: Icon, color, loading }: any) => (
-  <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex items-start justify-between">
+  <div className="bg-surface-raised p-5 rounded-xl shadow-sm border border-border flex items-start justify-between">
     <div>
-      <p className="text-sm font-medium text-gray-500">{title}</p>
+      <p className="text-sm font-medium text-ink-muted">{title}</p>
       {loading ? (
-        <div className="h-8 w-20 bg-gray-200 rounded animate-pulse mt-1" />
+        <div className="h-8 w-20 bg-surface-disabled rounded animate-pulse mt-1" />
       ) : (
         <>
-          <h3 className="text-2xl font-bold text-gray-900 mt-1">{value}</h3>
+          <h3 className="text-2xl font-bold text-ink mt-1">{value}</h3>
           {subtext && (
             <div className="flex items-center mt-1">
               {trendIcons[trend] || null}
-              <span className={`text-xs font-medium ${trendColors[trend] || 'text-gray-500'}`}>
+              <span className={`text-xs font-medium ${trendColors[trend] || 'text-ink-muted'}`}>
                 {subtext}
               </span>
             </div>
@@ -106,22 +108,22 @@ const KPICard = ({ title, value, subtext, trend, icon: Icon, color, loading }: a
         </>
       )}
     </div>
-    <div className={`p-2 rounded-lg bg-${color}-50 text-${color}-600`}>
+    <div className={`p-2 rounded-lg ${KPI_ICON_STYLES[color] ?? KPI_ICON_STYLES.gray}`}>
       <Icon size={20} />
     </div>
   </div>
 );
 
 const EmptyState = ({ onRefresh }: { onRefresh: () => void }) => (
-  <div className="flex flex-col items-center justify-center h-96 text-gray-400">
+  <div className="flex flex-col items-center justify-center h-96 text-ink-subtle">
     <Database size={48} className="mb-4" />
-    <h3 className="text-lg font-semibold text-gray-600 mb-2">No Simulation Selected</h3>
-    <p className="text-sm text-gray-500 mb-4 text-center max-w-md">
+    <h3 className="text-lg font-semibold text-ink-muted mb-2">No Simulation Selected</h3>
+    <p className="text-sm text-ink-muted mb-4 text-center max-w-md">
       Select a completed simulation from the dropdown above to view analytics and insights.
     </p>
     <button
       onClick={onRefresh}
-      className="flex items-center px-4 py-2 bg-fidelity-green text-white rounded-lg text-sm font-medium hover:bg-fidelity-dark transition-colors"
+      className="flex items-center px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-fidelity-dark transition-colors"
     >
       <RefreshCw size={16} className="mr-2" />
       Refresh Data
@@ -130,13 +132,13 @@ const EmptyState = ({ onRefresh }: { onRefresh: () => void }) => (
 );
 
 const ErrorState = ({ message, onRetry }: { message: string; onRetry: () => void }) => (
-  <div className="flex flex-col items-center justify-center h-96 text-red-400">
+  <div className="flex flex-col items-center justify-center h-96 text-danger-ink">
     <AlertCircle size={48} className="mb-4" />
-    <h3 className="text-lg font-semibold text-red-600 mb-2">Failed to Load Results</h3>
-    <p className="text-sm text-gray-500 mb-4 text-center max-w-md">{message}</p>
+    <h3 className="text-lg font-semibold text-danger-ink mb-2">Failed to Load Results</h3>
+    <p className="text-sm text-ink-muted mb-4 text-center max-w-md">{message}</p>
     <button
       onClick={onRetry}
-      className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+      className="flex items-center px-4 py-2 bg-danger-solid text-ink-inverse rounded-lg text-sm font-medium hover:bg-danger-solid-hover transition-colors"
     >
       <RefreshCw size={16} className="mr-2" />
       Retry
@@ -145,6 +147,13 @@ const ErrorState = ({ message, onRetry }: { message: string; onRetry: () => void
 );
 
 export default function AnalyticsDashboard() {
+  const chartTheme = useChartTheme();
+  const statusSeriesColors: Record<string, string> = {
+    continuous_active: chartTheme.colorAt(0),
+    new_hire_active: chartTheme.colorAt(1),
+    experienced_termination: chartTheme.colorAt(2),
+    new_hire_termination: chartTheme.colorAt(3),
+  };
   const [searchParams] = useSearchParams();
   const { activeWorkspace: contextWorkspace, lastRunScenarioId } = useOutletContext<LayoutContext>();
 
@@ -333,8 +342,8 @@ export default function AnalyticsDashboard() {
       {/* Header & Controls */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Analytics & Insights</h1>
-          <p className="text-gray-500 mt-1">View simulation results and trend analysis.</p>
+          <h1 className="text-2xl font-bold text-ink">Analytics & Insights</h1>
+          <p className="text-ink-muted mt-1">View simulation results and trend analysis.</p>
         </div>
         <div className="flex space-x-2">
           {/* Workspace Selector */}
@@ -342,14 +351,14 @@ export default function AnalyticsDashboard() {
             <select
               value={selectedWorkspaceId}
               onChange={(e) => setSelectedWorkspaceId(e.target.value)}
-              className="appearance-none bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[160px]"
+              className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[160px]"
             >
               <option value="">Select Workspace</option>
               {workspaces.map(ws => (
                 <option key={ws.id} value={ws.id}>{ws.name}</option>
               ))}
             </select>
-            <ChevronDown size={16} className="absolute right-3 top-2.5 text-gray-400 pointer-events-none" />
+            <ChevronDown size={16} className="absolute right-3 top-2.5 text-ink-subtle pointer-events-none" />
           </div>
 
           {/* Scenario Selector */}
@@ -358,7 +367,7 @@ export default function AnalyticsDashboard() {
               value={selectedScenarioId}
               onChange={(e) => setSelectedScenarioId(e.target.value)}
               disabled={!selectedWorkspaceId || loadingScenarios}
-              className="appearance-none bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[200px] disabled:bg-gray-50 disabled:text-gray-400"
+              className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[200px] disabled:bg-surface-subtle disabled:text-ink-subtle"
             >
               <option value="">
                 {(() => {
@@ -373,16 +382,16 @@ export default function AnalyticsDashboard() {
                 </option>
               ))}
             </select>
-            <ChevronDown size={16} className="absolute right-3 top-2.5 text-gray-400 pointer-events-none" />
+            <ChevronDown size={16} className="absolute right-3 top-2.5 text-ink-subtle pointer-events-none" />
           </div>
 
           {/* Population Filter Toggle */}
-          <div className="flex rounded-lg border border-gray-300 overflow-hidden shadow-sm">
+          <div className="flex rounded-lg border border-border-strong overflow-hidden shadow-sm">
             {(['all', 'active', 'terminated'] as const).map((opt) => (
               <button
                 key={opt}
                 onClick={() => setPopulation(opt)}
-                className={`px-3 py-2 text-sm font-medium transition-colors ${population === opt ? 'bg-fidelity-green text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                className={`px-3 py-2 text-sm font-medium transition-colors ${population === opt ? 'bg-fidelity-green text-ink-inverse' : 'bg-surface-raised text-ink-muted hover:bg-surface-subtle'}`}
               >
                 {{ all: 'All', active: 'Active', terminated: 'Terminated' }[opt]}
               </button>
@@ -390,16 +399,16 @@ export default function AnalyticsDashboard() {
           </div>
 
           <button
-            className="flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 text-gray-700 shadow-sm transition-colors"
+            className="flex items-center px-4 py-2 bg-surface-raised border border-border-strong rounded-lg text-sm font-medium hover:bg-surface-subtle text-ink-muted shadow-sm transition-colors"
             disabled
           >
-            <Calendar size={16} className="mr-2 text-gray-500" />
+            <Calendar size={16} className="mr-2 text-ink-muted" />
             {yearRange}
           </button>
 
           <button
             onClick={handleRefresh}
-            className="flex items-center px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 text-gray-700 shadow-sm transition-colors"
+            className="flex items-center px-3 py-2 bg-surface-raised border border-border-strong rounded-lg text-sm font-medium hover:bg-surface-subtle text-ink-muted shadow-sm transition-colors"
             title="Refresh"
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
@@ -408,7 +417,7 @@ export default function AnalyticsDashboard() {
           <button
             onClick={() => handleExport('excel')}
             disabled={!selectedScenarioId || loading}
-            className="flex items-center px-4 py-2 bg-fidelity-green text-white border border-transparent rounded-lg text-sm font-medium hover:bg-fidelity-dark shadow-sm transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+            className="flex items-center px-4 py-2 bg-fidelity-green text-ink-inverse border border-transparent rounded-lg text-sm font-medium hover:bg-fidelity-dark shadow-sm transition-colors disabled:bg-surface-disabled disabled:cursor-not-allowed"
           >
             <Download size={16} className="mr-2" />
             Export Report
@@ -469,12 +478,12 @@ export default function AnalyticsDashboard() {
 
           {/* Scenario Info Banner */}
           {selectedScenario && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center justify-between">
+            <div className="bg-info-surface border border-info-border rounded-lg p-4 flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-blue-900">{selectedScenario.name}</h3>
-                <p className="text-sm text-blue-700">{selectedScenario.description || 'No description'}</p>
+                <h3 className="font-semibold text-info-ink">{selectedScenario.name}</h3>
+                <p className="text-sm text-info-ink">{selectedScenario.description || 'No description'}</p>
               </div>
-              <div className="text-right text-sm text-blue-600">
+              <div className="text-right text-sm text-info-ink">
                 <p>Last run: {selectedScenario.last_run_at ? new Date(selectedScenario.last_run_at).toLocaleDateString() : 'Never'}</p>
               </div>
             </div>
@@ -482,23 +491,23 @@ export default function AnalyticsDashboard() {
 
           {/* CAGR Summary Table */}
           {results.cagr_metrics && results.cagr_metrics.length > 0 && (
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
               <div className="flex items-center mb-4">
                 <TrendingUp size={20} className="text-fidelity-green mr-2" />
-                <h3 className="text-lg font-semibold text-gray-800">Compound Annual Growth Rate (CAGR)</h3>
+                <h3 className="text-lg font-semibold text-ink">Compound Annual Growth Rate (CAGR)</h3>
               </div>
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                <table className="min-w-full divide-y divide-border">
+                  <thead className="bg-surface-subtle">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metric</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Start Value</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">End Value</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Years</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">CAGR</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-ink-muted uppercase tracking-wider">Metric</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-ink-muted uppercase tracking-wider">Start Value</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-ink-muted uppercase tracking-wider">End Value</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-ink-muted uppercase tracking-wider">Years</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-ink-muted uppercase tracking-wider">CAGR</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-surface-raised divide-y divide-border">
                     {results.cagr_metrics.map((row, idx) => {
                       const isCompensation = row.metric.toLowerCase().includes('compensation');
                       const formatValue = (val: number) => {
@@ -514,18 +523,18 @@ export default function AnalyticsDashboard() {
                         ? `${cagrSign}${row.cagr_pct.toFixed(2)}%`
                         : 'N/A';
                       const cagrColor = (() => {
-                        if (row.years === 0) return 'text-gray-500';
-                        if (row.cagr_pct > 0) return 'text-green-600';
-                        if (row.cagr_pct < 0) return 'text-red-600';
-                        return 'text-gray-600';
+                        if (row.years === 0) return 'text-ink-muted';
+                        if (row.cagr_pct > 0) return 'text-success-ink';
+                        if (row.cagr_pct < 0) return 'text-danger-ink';
+                        return 'text-ink-muted';
                       })();
 
                       return (
-                        <tr key={row.metric} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{row.metric}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">{formatValue(row.start_value)}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">{formatValue(row.end_value)}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">{row.years}</td>
+                        <tr key={row.metric} className={idx % 2 === 0 ? 'bg-surface-raised' : 'bg-surface-subtle'}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-ink">{row.metric}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-ink-muted text-right">{formatValue(row.start_value)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-ink-muted text-right">{formatValue(row.end_value)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-ink-muted text-right">{row.years}</td>
                           <td className={`px-6 py-4 whitespace-nowrap text-sm font-semibold text-right ${cagrColor}`}>{cagrDisplay}</td>
                         </tr>
                       );
@@ -534,7 +543,7 @@ export default function AnalyticsDashboard() {
                 </table>
               </div>
               {results.cagr_metrics[0]?.years === 0 && (
-                <p className="mt-3 text-xs text-gray-400">CAGR requires more than one simulation year to calculate.</p>
+                <p className="mt-3 text-xs text-ink-subtle">CAGR requires more than one simulation year to calculate.</p>
               )}
             </div>
           )}
@@ -543,25 +552,25 @@ export default function AnalyticsDashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
             {/* Workforce Growth */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-800 mb-6">Workforce Headcount Over Time</h3>
+            <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
+              <h3 className="text-lg font-semibold text-ink mb-6">Workforce Headcount Over Time</h3>
               <div className="h-80">
                 {workforceChartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={workforceChartData}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                      <XAxis dataKey="year" stroke="#9CA3AF" />
-                      <YAxis stroke="#9CA3AF" />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
+                      <XAxis dataKey="year" stroke={chartTheme.axis.line} />
+                      <YAxis stroke={chartTheme.axis.line} />
                       <Tooltip
-                        contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                        contentStyle={chartTheme.tooltip.contentStyle}
                         formatter={(value: number, name: string) => [value.toLocaleString(), name === 'headcount' ? 'Headcount' : 'Avg Comp ($K)']}
                       />
-                      <Legend verticalAlign="top" height={36}/>
-                      <Line type="monotone" dataKey="headcount" name="Headcount" stroke={COLORS.primary} strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                      <Legend verticalAlign="top" height={36} formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
+                      <Line type="monotone" dataKey="headcount" name="Headcount" stroke={chartTheme.semantic.primary} strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
                     </LineChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-full flex items-center justify-center text-gray-400">
+                  <div className="h-full flex items-center justify-center text-ink-subtle">
                     <p>No workforce data available</p>
                   </div>
                 )}
@@ -569,27 +578,27 @@ export default function AnalyticsDashboard() {
             </div>
 
             {/* Event Distribution */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-800 mb-6">Event Distribution by Year</h3>
+            <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
+              <h3 className="text-lg font-semibold text-ink mb-6">Event Distribution by Year</h3>
               <div className="h-80">
                 {eventChartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={eventChartData} barSize={40}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                      <XAxis dataKey="year" stroke="#9CA3AF" />
-                      <YAxis stroke="#9CA3AF" />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
+                      <XAxis dataKey="year" stroke={chartTheme.axis.line} />
+                      <YAxis stroke={chartTheme.axis.line} />
                       <Tooltip
-                        cursor={{ fill: '#F3F4F6' }}
-                        contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb' }}
+                        cursor={chartTheme.tooltip.cursorStyle}
+                        contentStyle={chartTheme.tooltip.contentStyle}
                       />
-                      <Legend verticalAlign="top" height={36}/>
-                      <Bar dataKey="Hires" stackId="a" fill={COLORS.secondary} radius={[0, 0, 4, 4]} />
-                      <Bar dataKey="Promotions" stackId="a" fill={COLORS.accent} />
-                      <Bar dataKey="Terminations" stackId="a" fill={COLORS.danger} radius={[4, 4, 0, 0]} />
+                      <Legend verticalAlign="top" height={36} formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
+                      <Bar dataKey="Hires" stackId="a" fill={chartTheme.colorAt(1)} radius={[0, 0, 4, 4]} />
+                      <Bar dataKey="Promotions" stackId="a" fill={chartTheme.colorAt(2)} />
+                      <Bar dataKey="Terminations" stackId="a" fill={chartTheme.semantic.negative} radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-full flex items-center justify-center text-gray-400">
+                  <div className="h-full flex items-center justify-center text-ink-subtle">
                     <p>No event data available</p>
                   </div>
                 )}
@@ -597,28 +606,28 @@ export default function AnalyticsDashboard() {
             </div>
 
             {/* Compensation Trend - All Employees (E060: Average/Total toggle with CAGR) */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold text-gray-800">
+                <h3 className="text-lg font-semibold text-ink">
                   {compMetric === 'average'
                     ? 'Average Compensation - All Employees ($K)'
                     : 'Total Compensation - All Employees ($M)'}
                   {compCagrDisplay && (
-                    <span className="text-sm font-normal text-gray-500 ml-2">
+                    <span className="text-sm font-normal text-ink-muted ml-2">
                       — CAGR: {compCagrDisplay}
                     </span>
                   )}
                 </h3>
-                <div className="flex rounded-lg border border-gray-300 overflow-hidden">
+                <div className="flex rounded-lg border border-border-strong overflow-hidden">
                   <button
                     onClick={() => setCompMetric('average')}
-                    className={`px-3 py-1 text-xs font-medium transition-colors ${compMetric === 'average' ? 'bg-fidelity-green text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                    className={`px-3 py-1 text-xs font-medium transition-colors ${compMetric === 'average' ? 'bg-fidelity-green text-ink-inverse' : 'bg-surface-raised text-ink-muted hover:bg-surface-subtle'}`}
                   >
                     Average
                   </button>
                   <button
                     onClick={() => setCompMetric('total')}
-                    className={`px-3 py-1 text-xs font-medium transition-colors ${compMetric === 'total' ? 'bg-fidelity-green text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                    className={`px-3 py-1 text-xs font-medium transition-colors ${compMetric === 'total' ? 'bg-fidelity-green text-ink-inverse' : 'bg-surface-raised text-ink-muted hover:bg-surface-subtle'}`}
                   >
                     Total
                   </button>
@@ -628,35 +637,35 @@ export default function AnalyticsDashboard() {
                 {workforceChartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={workforceChartData}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                      <XAxis dataKey="year" stroke="#9CA3AF" />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
+                      <XAxis dataKey="year" stroke={chartTheme.axis.line} />
                       <YAxis
-                        stroke="#9CA3AF"
+                        stroke={chartTheme.axis.line}
                         tickFormatter={compMetric === 'average'
                           ? (value) => `$${value}K`
                           : (value) => `$${value}M`
                         }
                       />
                       <Tooltip
-                        contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb' }}
+                        contentStyle={chartTheme.tooltip.contentStyle}
                         formatter={compMetric === 'average'
                           ? (value: number) => [`$${value}K`, 'Avg Compensation']
                           : (value: number) => [`$${value}M`, 'Total Compensation']
                         }
                       />
-                      <Legend verticalAlign="top" height={36}/>
+                      <Legend verticalAlign="top" height={36} formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
                       <Line
                         type="monotone"
                         dataKey={compMetric === 'average' ? 'avgCompensation' : 'totalCompensation'}
                         name={compMetric === 'average' ? 'Avg Compensation' : 'Total Compensation'}
-                        stroke={COLORS.accent}
+                        stroke={chartTheme.colorAt(2)}
                         strokeWidth={3}
                         dot={{ r: 4 }}
                       />
                     </LineChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-full flex items-center justify-center text-gray-400">
+                  <div className="h-full flex items-center justify-center text-ink-subtle">
                     <p>No compensation data available</p>
                   </div>
                 )}
@@ -664,8 +673,8 @@ export default function AnalyticsDashboard() {
             </div>
 
             {/* Event Type Breakdown */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-800 mb-6">Event Types (Total)</h3>
+            <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
+              <h3 className="text-lg font-semibold text-ink mb-6">Event Types (Total)</h3>
               {results.event_trends && Object.keys(results.event_trends).length > 0 ? (() => {
                 const rows = buildEventTypeRows(results.event_trends);
 
@@ -676,10 +685,10 @@ export default function AnalyticsDashboard() {
                         {/* Every bar is directly labelled, so a value axis and its
                             gridlines would only restate what the labels already say. */}
                         <XAxis type="number" hide />
-                        <YAxis dataKey="name" type="category" stroke="#D1D5DB" width={150} fontSize={12} tick={{ fill: '#374151' }} />
+                        <YAxis dataKey="name" type="category" stroke={chartTheme.axis.line} width={150} fontSize={12} tick={{ fill: chartTheme.axis.tick }} />
                         <Tooltip
-                          cursor={{ fill: '#F3F4F6' }}
-                          contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb' }}
+                          cursor={chartTheme.tooltip.cursorStyle}
+                          contentStyle={chartTheme.tooltip.contentStyle}
                           formatter={(value: number, _name: string, props: any) => [
                             `${value.toLocaleString()} (${props.payload.share.toFixed(1)}%)`,
                             'Events',
@@ -687,11 +696,11 @@ export default function AnalyticsDashboard() {
                         />
                         {/* One measure, one hue: length carries the magnitude, so the
                             categorical palette stays reserved for identity. */}
-                        <Bar dataKey="value" fill={COLORS.primary} name="Events" radius={[0, 4, 4, 0]}>
+                        <Bar dataKey="value" fill={chartTheme.semantic.primary} name="Events" radius={[0, 4, 4, 0]}>
                           <LabelList
                             dataKey="label"
                             position="right"
-                            style={{ fill: '#6B7280', fontSize: 12 }}
+                            style={{ fill: chartTheme.axis.label, fontSize: 12 }}
                           />
                         </Bar>
                       </BarChart>
@@ -699,7 +708,7 @@ export default function AnalyticsDashboard() {
                   </div>
                 );
               })() : (
-                <div className="h-80 flex items-center justify-center text-gray-400">
+                <div className="h-80 flex items-center justify-center text-ink-subtle">
                   <p>No event breakdown available</p>
                 </div>
               )}
@@ -713,8 +722,8 @@ export default function AnalyticsDashboard() {
             const formatStatus = (status: string) => status ? titleCase(status) : status;
 
             return (
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-800 mb-6">Average Compensation by Detailed Status ($K)</h3>
+              <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
+                <h3 className="text-lg font-semibold text-ink mb-6">Average Compensation by Detailed Status ($K)</h3>
                 <div className="h-96">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
@@ -736,12 +745,12 @@ export default function AnalyticsDashboard() {
                       })()}
                       barSize={24}
                     >
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                      <XAxis dataKey="year" stroke="#9CA3AF" />
-                      <YAxis stroke="#9CA3AF" tickFormatter={(value) => `$${value}K`} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
+                      <XAxis dataKey="year" stroke={chartTheme.axis.line} />
+                      <YAxis stroke={chartTheme.axis.line} tickFormatter={(value) => `$${value}K`} />
                       <Tooltip
-                        cursor={{ fill: '#F3F4F6' }}
-                        contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb' }}
+                        cursor={chartTheme.tooltip.cursorStyle}
+                        contentStyle={chartTheme.tooltip.contentStyle}
                         formatter={(value: number, name: string, props: any) => {
                           const count = props.payload[`${name}_count`];
                           return [`$${value}K (n=${count})`, formatStatus(name)];
@@ -753,14 +762,14 @@ export default function AnalyticsDashboard() {
                         // Recharts tints legend text with the series colour; the palette's
                         // lighter slots don't clear 3:1 on white, so labels wear text ink
                         // and the swatch beside them carries the identity.
-                        formatter={(value) => <span className="text-gray-600">{formatStatus(value)}</span>}
+                        formatter={(value) => <span style={{ color: chartTheme.legendText }}>{formatStatus(value)}</span>}
                       />
                       {[...new Set(results.compensation_by_status.map(r => r.employment_status))].map((status: string) => (
                         <Bar
                           key={status}
                           dataKey={status}
                           name={status}
-                          fill={STATUS_SERIES_COLORS[status] || COLORS.charts[0]}
+                          fill={statusSeriesColors[status] || chartTheme.colorAt(0)}
                           radius={[4, 4, 0, 0]}
                         />
                       ))}
@@ -769,31 +778,31 @@ export default function AnalyticsDashboard() {
                 </div>
                 {/* Summary table */}
                 <div className="mt-6 overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+                  <table className="min-w-full divide-y divide-border">
+                    <thead className="bg-surface-subtle">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Year</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Count</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Comp</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ink-muted uppercase tracking-wider">Year</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ink-muted uppercase tracking-wider">Status</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-ink-muted uppercase tracking-wider">Count</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-ink-muted uppercase tracking-wider">Avg Comp</th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="bg-surface-raised divide-y divide-border">
                       {results.compensation_by_status.map((row, idx) => (
-                        <tr key={`${row.simulation_year}-${row.employment_status}`} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                          <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{row.simulation_year}</td>
-                          <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
+                        <tr key={`${row.simulation_year}-${row.employment_status}`} className={idx % 2 === 0 ? 'bg-surface-raised' : 'bg-surface-subtle'}>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-ink">{row.simulation_year}</td>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-ink">
                             {/* Swatch matches the bar fill, so this table doubles as the chart's legend. */}
                             <span className="inline-flex items-center gap-2">
                               <span
                                 className="w-3 h-3 rounded-sm shrink-0"
-                                style={{ backgroundColor: STATUS_SERIES_COLORS[row.employment_status] || COLORS.charts[0] }}
+                                style={{ backgroundColor: statusSeriesColors[row.employment_status] || chartTheme.colorAt(0) }}
                               />
                               {formatStatus(row.employment_status)}
                             </span>
                           </td>
-                          <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 text-right">{row.employee_count?.toLocaleString()}</td>
-                          <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 text-right">${Math.round(row.avg_compensation / 1000)}K</td>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-ink text-right">{row.employee_count?.toLocaleString()}</td>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-ink text-right">${Math.round(row.avg_compensation / 1000)}K</td>
                         </tr>
                       ))}
                     </tbody>
@@ -805,13 +814,13 @@ export default function AnalyticsDashboard() {
 
           {/* Growth Analysis Summary */}
           {results.growth_analysis && Object.keys(results.growth_analysis).length > 0 && (
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Growth Analysis Summary</h3>
+            <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
+              <h3 className="text-lg font-semibold text-ink mb-4">Growth Analysis Summary</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {Object.entries(results.growth_analysis).map(([key, value]) => (
-                  <div key={key} className="bg-gray-50 p-4 rounded-lg">
-                    <p className="text-sm text-gray-500 capitalize">{key.replace(/_/g, ' ')}</p>
-                    <p className="text-xl font-bold text-gray-900">
+                  <div key={key} className="bg-surface-subtle p-4 rounded-lg">
+                    <p className="text-sm text-ink-muted capitalize">{key.replace(/_/g, ' ')}</p>
+                    <p className="text-xl font-bold text-ink">
                       {(() => {
                         if (typeof value !== 'number') return value;
                         if (key.includes('pct') || key.includes('rate')) return `${value.toFixed(1)}%`;

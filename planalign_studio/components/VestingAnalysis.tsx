@@ -22,6 +22,7 @@ import {
   EmployeeVestingDetail,
 } from '../services/api';
 import ForfeitureProjection from './ForfeitureProjection';
+import { useChartTheme } from '../hooks/useChartTheme';
 
 type VestingView = 'comparison' | 'forfeitures';
 
@@ -29,6 +30,15 @@ type SortField = 'employee_id' | 'tenure_years' | 'total_employer_contributions'
   'current_vesting_pct' | 'current_forfeiture' | 'proposed_vesting_pct' |
   'proposed_forfeiture' | 'forfeiture_variance';
 type SortDirection = 'asc' | 'desc';
+
+const KPI_ICON_STYLES: Record<string, string> = {
+  blue: 'bg-info-surface text-info-ink',
+  green: 'bg-success-surface text-success-ink',
+  red: 'bg-danger-surface text-danger-ink',
+  gray: 'bg-surface-subtle text-ink-muted',
+  purple: 'bg-info-surface text-info-ink',
+  orange: 'bg-warning-surface text-warning-ink',
+};
 
 const formatCurrency = (value: number): string => {
   if (value >= 1000000) {
@@ -44,45 +54,45 @@ const formatPercent = (value: number): string => {
 };
 
 const TREND_COLOR_MAP: Record<string, string> = {
-  up: 'text-red-500',
-  down: 'text-green-500',
+  up: 'text-danger-ink',
+  down: 'text-success-ink',
 };
 
 const KPICard = ({ title, value, subtext, icon: Icon, color, trend, loading }: Readonly<{ title: string; value: string; subtext?: string; icon: React.ElementType; color: string; trend?: string; loading?: boolean }>) => (
-  <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex items-start justify-between">
+  <div className="bg-surface-raised p-5 rounded-xl shadow-sm border border-border flex items-start justify-between">
     <div>
-      <p className="text-sm font-medium text-gray-500">{title}</p>
+      <p className="text-sm font-medium text-ink-muted">{title}</p>
       {loading ? (
-        <div className="h-8 w-20 bg-gray-200 rounded animate-pulse mt-1" />
+        <div className="h-8 w-20 bg-surface-disabled rounded animate-pulse mt-1" />
       ) : (
         <>
-          <h3 className="text-2xl font-bold text-gray-900 mt-1">{value}</h3>
+          <h3 className="text-2xl font-bold text-ink mt-1">{value}</h3>
           {subtext && (
             <div className="flex items-center mt-1">
-              {trend === 'up' && <TrendingUp size={14} className="text-red-500 mr-1" />}
-              {trend === 'down' && <TrendingDown size={14} className="text-green-500 mr-1" />}
-              <span className={`text-xs font-medium ${TREND_COLOR_MAP[trend] || 'text-gray-500'}`}>{subtext}</span>
+              {trend === 'up' && <TrendingUp size={14} className="text-danger-ink mr-1" />}
+              {trend === 'down' && <TrendingDown size={14} className="text-success-ink mr-1" />}
+              <span className={`text-xs font-medium ${TREND_COLOR_MAP[trend] || 'text-ink-muted'}`}>{subtext}</span>
             </div>
           )}
         </>
       )}
     </div>
-    <div className={`p-2 rounded-lg bg-${color}-50 text-${color}-600`}>
+    <div className={`p-2 rounded-lg ${KPI_ICON_STYLES[color] ?? KPI_ICON_STYLES.gray}`}>
       <Icon size={20} />
     </div>
   </div>
 );
 
 const EmptyState = ({ onRefresh }: Readonly<{ onRefresh: () => void }>) => (
-  <div className="flex flex-col items-center justify-center h-96 text-gray-400">
+  <div className="flex flex-col items-center justify-center h-96 text-ink-subtle">
     <Database size={48} className="mb-4" />
-    <h3 className="text-lg font-semibold text-gray-600 mb-2">No Analysis Results</h3>
-    <p className="text-sm text-gray-500 mb-4 text-center max-w-md">
+    <h3 className="text-lg font-semibold text-ink-muted mb-2">No Analysis Results</h3>
+    <p className="text-sm text-ink-muted mb-4 text-center max-w-md">
       Select a completed simulation and vesting schedules to compare, then click "Analyze" to see forfeiture projections.
     </p>
     <button
       onClick={onRefresh}
-      className="flex items-center px-4 py-2 bg-fidelity-green text-white rounded-lg text-sm font-medium hover:bg-fidelity-dark transition-colors"
+      className="flex items-center px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-fidelity-dark transition-colors"
     >
       <RefreshCw size={16} className="mr-2" />
       Refresh Data
@@ -91,13 +101,13 @@ const EmptyState = ({ onRefresh }: Readonly<{ onRefresh: () => void }>) => (
 );
 
 const ErrorState = ({ message, onRetry }: Readonly<{ message: string; onRetry: () => void }>) => (
-  <div className="flex flex-col items-center justify-center h-96 text-red-400">
+  <div className="flex flex-col items-center justify-center h-96 text-danger-ink">
     <AlertCircle size={48} className="mb-4" />
-    <h3 className="text-lg font-semibold text-red-600 mb-2">Failed to Load Analysis</h3>
-    <p className="text-sm text-gray-500 mb-4 text-center max-w-md">{message}</p>
+    <h3 className="text-lg font-semibold text-danger-ink mb-2">Failed to Load Analysis</h3>
+    <p className="text-sm text-ink-muted mb-4 text-center max-w-md">{message}</p>
     <button
       onClick={onRetry}
-      className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+      className="flex items-center px-4 py-2 bg-danger-solid text-ink-inverse rounded-lg text-sm font-medium hover:bg-danger-solid-hover transition-colors"
     >
       <RefreshCw size={16} className="mr-2" />
       Retry
@@ -113,7 +123,7 @@ const SortHeader = ({ field, label, sortField, sortDirection, onSort }: Readonly
   onSort: (field: SortField) => void;
 }>) => (
   <th
-    className="text-right py-3 px-4 font-semibold text-gray-600 cursor-pointer hover:bg-gray-50 select-none"
+    className="text-right py-3 px-4 font-semibold text-ink-muted cursor-pointer hover:bg-surface-subtle select-none"
     onClick={() => onSort(field)}
   >
     <div className="flex items-center justify-end gap-1">
@@ -125,18 +135,14 @@ const SortHeader = ({ field, label, sortField, sortDirection, onSort }: Readonly
           <ChevronDown size={14} className="text-fidelity-green" />
         )
       ) : (
-        <ChevronDown size={14} className="text-gray-300" />
+        <ChevronDown size={14} className="text-ink-subtle" />
       )}
     </div>
   </th>
 );
 
-const TENURE_COLORS = {
-  current: '#0088FE',
-  proposed: '#00C49F',
-};
-
 export default function VestingAnalysis() {
+  const chartTheme = useChartTheme();
   // State for workspace/scenario selection
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
@@ -377,8 +383,8 @@ export default function VestingAnalysis() {
       {/* Header & Controls */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Vesting Analysis</h1>
-          <p className="text-gray-500 mt-1">
+          <h1 className="text-2xl font-bold text-ink">Vesting Analysis</h1>
+          <p className="text-ink-muted mt-1">
             {view === 'comparison'
               ? 'Compare vesting schedules and project forfeiture differences.'
               : 'Report annual forfeitures under one schedule across scenarios.'}
@@ -386,7 +392,7 @@ export default function VestingAnalysis() {
         </div>
         <button
           onClick={handleRefresh}
-          className="flex items-center px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 text-gray-700 shadow-sm transition-colors"
+          className="flex items-center px-3 py-2 bg-surface-raised border border-border-strong rounded-lg text-sm font-medium hover:bg-surface-subtle text-ink-muted shadow-sm transition-colors"
           title="Refresh"
         >
           <RefreshCw size={16} />
@@ -394,7 +400,7 @@ export default function VestingAnalysis() {
       </div>
 
       {/* View switcher */}
-      <div className="border-b border-gray-200">
+      <div className="border-b border-border">
         <nav className="flex gap-6" aria-label="Vesting views">
           {([
             ['comparison', 'Schedule Comparison'],
@@ -407,7 +413,7 @@ export default function VestingAnalysis() {
               className={`pb-3 -mb-px text-sm font-medium border-b-2 transition-colors ${
                 view === id
                   ? 'border-fidelity-green text-fidelity-green'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  : 'border-transparent text-ink-muted hover:text-ink-muted'
               }`}
             >
               {label}
@@ -418,8 +424,8 @@ export default function VestingAnalysis() {
 
       {view === 'forfeitures' && (
         <div className="space-y-6">
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <label htmlFor="forfeiture-workspace" className="block text-sm font-medium text-gray-700 mb-1">
+          <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
+            <label htmlFor="forfeiture-workspace" className="block text-sm font-medium text-ink-muted mb-1">
               Workspace
             </label>
             <div className="relative max-w-sm">
@@ -427,14 +433,14 @@ export default function VestingAnalysis() {
                 id="forfeiture-workspace"
                 value={selectedWorkspaceId}
                 onChange={(e) => setSelectedWorkspaceId(e.target.value)}
-                className="appearance-none w-full bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm"
+                className="appearance-none w-full bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm"
               >
                 <option value="">Select Workspace</option>
                 {workspaces.map(ws => (
                   <option key={ws.id} value={ws.id}>{ws.name}</option>
                 ))}
               </select>
-              <ChevronDown size={16} className="absolute right-3 top-2.5 text-gray-400 pointer-events-none" />
+              <ChevronDown size={16} className="absolute right-3 top-2.5 text-ink-subtle pointer-events-none" />
             </div>
           </div>
           {selectedWorkspaceId && (
@@ -451,11 +457,11 @@ export default function VestingAnalysis() {
       {view === 'comparison' && (
       <>
       {/* Selection Controls */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+      <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Workspace Selector */}
           <div>
-            <label htmlFor="vesting-workspace" className="block text-sm font-medium text-gray-700 mb-1">Workspace</label>
+            <label htmlFor="vesting-workspace" className="block text-sm font-medium text-ink-muted mb-1">Workspace</label>
             <div className="relative">
               <select
                 id="vesting-workspace"
@@ -465,20 +471,20 @@ export default function VestingAnalysis() {
                   setSelectedScenarioId('');
                   setAnalysisResult(null);
                 }}
-                className="appearance-none w-full bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm"
+                className="appearance-none w-full bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm"
               >
                 <option value="">Select Workspace</option>
                 {workspaces.map(ws => (
                   <option key={ws.id} value={ws.id}>{ws.name}</option>
                 ))}
               </select>
-              <ChevronDown size={16} className="absolute right-3 top-2.5 text-gray-400 pointer-events-none" />
+              <ChevronDown size={16} className="absolute right-3 top-2.5 text-ink-subtle pointer-events-none" />
             </div>
           </div>
 
           {/* Scenario Selector */}
           <div>
-            <label htmlFor="vesting-scenario" className="block text-sm font-medium text-gray-700 mb-1">Scenario</label>
+            <label htmlFor="vesting-scenario" className="block text-sm font-medium text-ink-muted mb-1">Scenario</label>
             <div className="relative">
               <select
                 id="vesting-scenario"
@@ -490,7 +496,7 @@ export default function VestingAnalysis() {
                   setAnalysisResult(null);
                 }}
                 disabled={!selectedWorkspaceId || loadingScenarios}
-                className="appearance-none w-full bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm disabled:bg-gray-50 disabled:text-gray-400"
+                className="appearance-none w-full bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm disabled:bg-surface-subtle disabled:text-ink-subtle"
               >
                 <option value="">
                   {loadingScenarios && 'Loading...'}
@@ -503,19 +509,19 @@ export default function VestingAnalysis() {
                   </option>
                 ))}
               </select>
-              <ChevronDown size={16} className="absolute right-3 top-2.5 text-gray-400 pointer-events-none" />
+              <ChevronDown size={16} className="absolute right-3 top-2.5 text-ink-subtle pointer-events-none" />
             </div>
           </div>
 
           {/* Current Schedule Selector */}
           <div>
-            <label htmlFor="vesting-current-schedule" className="block text-sm font-medium text-gray-700 mb-1">Current Schedule</label>
+            <label htmlFor="vesting-current-schedule" className="block text-sm font-medium text-ink-muted mb-1">Current Schedule</label>
             <div className="relative">
               <select
                 id="vesting-current-schedule"
                 value={currentSchedule?.schedule_type || ''}
                 onChange={(e) => handleScheduleChange('current', e.target.value)}
-                className="appearance-none w-full bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm"
+                className="appearance-none w-full bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm"
               >
                 <option value="">Select Schedule</option>
                 {schedules.map(schedule => (
@@ -524,17 +530,17 @@ export default function VestingAnalysis() {
                   </option>
                 ))}
               </select>
-              <ChevronDown size={16} className="absolute right-3 top-2.5 text-gray-400 pointer-events-none" />
+              <ChevronDown size={16} className="absolute right-3 top-2.5 text-ink-subtle pointer-events-none" />
             </div>
             {/* T007/T008: Hours Requirement Toggle for Current Schedule (FR-001, FR-002, FR-003, FR-007) */}
             <div className="mt-2">
-              <label htmlFor="vesting-current-hours-toggle" className="flex items-center text-sm text-gray-600">
+              <label htmlFor="vesting-current-hours-toggle" className="flex items-center text-sm text-ink-muted">
                 <input
                   id="vesting-current-hours-toggle"
                   type="checkbox"
                   checked={currentSchedule?.require_hours_credit ?? false}
                   onChange={(e) => handleHoursToggle('current', e.target.checked)}
-                  className="mr-2 rounded border-gray-300 text-fidelity-green focus:ring-fidelity-green"
+                  className="mr-2 rounded border-border-strong text-fidelity-green focus:ring-fidelity-green"
                 />{' '}
                 <span>Require 1,000 hours</span>
               </label>
@@ -546,12 +552,12 @@ export default function VestingAnalysis() {
                     max={2080}
                     value={currentSchedule.hours_threshold ?? 1000}
                     onChange={(e) => handleHoursThresholdChange('current', parseInt(e.target.value) || 0)}
-                    className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-fidelity-green focus:border-fidelity-green"
+                    className="w-20 px-2 py-1 text-sm border border-border-strong rounded focus:ring-fidelity-green focus:border-fidelity-green"
                   />
-                  <span className="text-xs text-gray-500">hours/year</span>
+                  <span className="text-xs text-ink-muted">hours/year</span>
                 </div>
               )}
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-ink-subtle mt-1">
                 Employees below threshold lose 1 year vesting credit
               </p>
             </div>
@@ -559,13 +565,13 @@ export default function VestingAnalysis() {
 
           {/* Proposed Schedule Selector */}
           <div>
-            <label htmlFor="vesting-proposed-schedule" className="block text-sm font-medium text-gray-700 mb-1">Proposed Schedule</label>
+            <label htmlFor="vesting-proposed-schedule" className="block text-sm font-medium text-ink-muted mb-1">Proposed Schedule</label>
             <div className="relative">
               <select
                 id="vesting-proposed-schedule"
                 value={proposedSchedule?.schedule_type || ''}
                 onChange={(e) => handleScheduleChange('proposed', e.target.value)}
-                className="appearance-none w-full bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm"
+                className="appearance-none w-full bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm"
               >
                 <option value="">Select Schedule</option>
                 {schedules.map(schedule => (
@@ -574,17 +580,17 @@ export default function VestingAnalysis() {
                   </option>
                 ))}
               </select>
-              <ChevronDown size={16} className="absolute right-3 top-2.5 text-gray-400 pointer-events-none" />
+              <ChevronDown size={16} className="absolute right-3 top-2.5 text-ink-subtle pointer-events-none" />
             </div>
             {/* T009/T010: Hours Requirement Toggle for Proposed Schedule (FR-001, FR-002, FR-003, FR-007) */}
             <div className="mt-2">
-              <label htmlFor="vesting-proposed-hours-toggle" className="flex items-center text-sm text-gray-600">
+              <label htmlFor="vesting-proposed-hours-toggle" className="flex items-center text-sm text-ink-muted">
                 <input
                   id="vesting-proposed-hours-toggle"
                   type="checkbox"
                   checked={proposedSchedule?.require_hours_credit ?? false}
                   onChange={(e) => handleHoursToggle('proposed', e.target.checked)}
-                  className="mr-2 rounded border-gray-300 text-fidelity-green focus:ring-fidelity-green"
+                  className="mr-2 rounded border-border-strong text-fidelity-green focus:ring-fidelity-green"
                 />{' '}
                 <span>Require 1,000 hours</span>
               </label>
@@ -596,12 +602,12 @@ export default function VestingAnalysis() {
                     max={2080}
                     value={proposedSchedule.hours_threshold ?? 1000}
                     onChange={(e) => handleHoursThresholdChange('proposed', parseInt(e.target.value) || 0)}
-                    className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-fidelity-green focus:border-fidelity-green"
+                    className="w-20 px-2 py-1 text-sm border border-border-strong rounded focus:ring-fidelity-green focus:border-fidelity-green"
                   />
-                  <span className="text-xs text-gray-500">hours/year</span>
+                  <span className="text-xs text-ink-muted">hours/year</span>
                 </div>
               )}
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-ink-subtle mt-1">
                 Employees below threshold lose 1 year vesting credit
               </p>
             </div>
@@ -611,8 +617,8 @@ export default function VestingAnalysis() {
         {/* Analysis Year Selector */}
         <div className="mt-4 flex items-end gap-4">
           <div className="w-48">
-            <label htmlFor="vesting-analysis-year" className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-              <Calendar size={14} className="mr-1.5 text-gray-400" />
+            <label htmlFor="vesting-analysis-year" className="block text-sm font-medium text-ink-muted mb-1 flex items-center">
+              <Calendar size={14} className="mr-1.5 text-ink-subtle" />
               Analysis Year
             </label>
             <div className="relative">
@@ -624,7 +630,7 @@ export default function VestingAnalysis() {
                   setAnalysisResult(null);
                 }}
                 disabled={!selectedScenarioId || loadingYears || availableYears.length === 0}
-                className="appearance-none w-full bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm disabled:bg-gray-50 disabled:text-gray-400"
+                className="appearance-none w-full bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm disabled:bg-surface-subtle disabled:text-ink-subtle"
               >
                 {loadingYears ? (
                   <option value="">Loading...</option>
@@ -636,7 +642,7 @@ export default function VestingAnalysis() {
                   ))
                 )}
               </select>
-              <ChevronDown size={16} className="absolute right-3 top-2.5 text-gray-400 pointer-events-none" />
+              <ChevronDown size={16} className="absolute right-3 top-2.5 text-ink-subtle pointer-events-none" />
             </div>
           </div>
           <div className="flex-1" />
@@ -644,7 +650,7 @@ export default function VestingAnalysis() {
           <button
             onClick={handleAnalyze}
             disabled={!canAnalyze || analyzing}
-            className="flex items-center px-6 py-2 bg-fidelity-green text-white rounded-lg text-sm font-medium hover:bg-fidelity-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center px-6 py-2 bg-fidelity-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-fidelity-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {analyzing ? (
               <>
@@ -714,25 +720,25 @@ export default function VestingAnalysis() {
           </div>
 
           {/* Scenario Info Banner */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="bg-info-surface border border-info-border rounded-lg p-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-blue-900">{analysisResult.scenario_name}</h3>
-                <p className="text-sm text-blue-700">
+                <h3 className="font-semibold text-info-ink">{analysisResult.scenario_name}</h3>
+                <p className="text-sm text-info-ink">
                   Total Employer Contributions: {formatCurrency(analysisResult.summary.total_employer_contributions)}
                 </p>
-                <p className="text-sm text-blue-700 mt-1">
+                <p className="text-sm text-info-ink mt-1">
                   Vesting calculations include employees who terminated this year and had employer contributions while active in the prior year.
                 </p>
               </div>
-              <div className="text-right text-sm text-blue-600">
+              <div className="text-right text-sm text-info-ink">
                 <p>Analysis Year: {analysisResult.summary.analysis_year}</p>
               </div>
             </div>
             {/* T016-T019: Hours Requirement Display (FR-006) */}
             {(analysisResult.current_schedule.require_hours_credit ||
               analysisResult.proposed_schedule.require_hours_credit) && (
-              <div className="mt-2 pt-2 border-t border-blue-200 text-xs text-blue-600">
+              <div className="mt-2 pt-2 border-t border-info-border text-xs text-info-ink">
                 <span className="font-medium">Hours Requirement:</span>
                 {analysisResult.current_schedule.require_hours_credit && (
                   <span className="ml-2">
@@ -749,28 +755,28 @@ export default function VestingAnalysis() {
           </div>
 
           {/* Tenure Band Chart */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-800 mb-6">Forfeitures by Tenure Band</h3>
+          <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
+            <h3 className="text-lg font-semibold text-ink mb-6">Forfeitures by Tenure Band</h3>
             <div className="h-80">
               {tenureBandChartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={tenureBandChartData} barSize={40}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                    <XAxis dataKey="tenure_band" stroke="#9CA3AF" />
-                    <YAxis stroke="#9CA3AF" tickFormatter={(value) => formatCurrency(value)} />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
+                    <XAxis dataKey="tenure_band" stroke={chartTheme.axis.line} />
+                    <YAxis stroke={chartTheme.axis.line} tickFormatter={(value) => formatCurrency(value)} />
                     <Tooltip
-                      cursor={{ fill: '#F3F4F6' }}
-                      contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb' }}
+                      cursor={chartTheme.tooltip.cursorStyle}
+                      contentStyle={chartTheme.tooltip.contentStyle}
                       formatter={(value: number, name: string) => [formatCurrency(value), name]}
                       labelFormatter={(label) => `Tenure: ${label} years`}
                     />
-                    <Legend verticalAlign="top" height={36} />
-                    <Bar dataKey="Current Forfeitures" fill={TENURE_COLORS.current} name="Current Schedule" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="Proposed Forfeitures" fill={TENURE_COLORS.proposed} name="Proposed Schedule" radius={[4, 4, 0, 0]} />
+                    <Legend verticalAlign="top" height={36} formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
+                    <Bar dataKey="Current Forfeitures" fill={chartTheme.colorAt(0)} name="Current Schedule" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Proposed Forfeitures" fill={chartTheme.colorAt(1)} name="Proposed Schedule" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-full flex items-center justify-center text-gray-400">
+                <div className="h-full flex items-center justify-center text-ink-subtle">
                   <p>No tenure band data available</p>
                 </div>
               )}
@@ -778,42 +784,42 @@ export default function VestingAnalysis() {
           </div>
 
           {/* Tenure Band Summary Table */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Tenure Band Summary</h3>
+          <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
+            <h3 className="text-lg font-semibold text-ink mb-4">Tenure Band Summary</h3>
             <div className="overflow-x-auto">
               <table className="min-w-full">
                 <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-3 px-4 font-semibold text-gray-600">Tenure Band</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-600">Vesting-Eligible Employees</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-600">Contributions</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-600">Current Forfeitures</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-600">Proposed Forfeitures</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-600">Variance</th>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-3 px-4 font-semibold text-ink-muted">Tenure Band</th>
+                    <th className="text-right py-3 px-4 font-semibold text-ink-muted">Vesting-Eligible Employees</th>
+                    <th className="text-right py-3 px-4 font-semibold text-ink-muted">Contributions</th>
+                    <th className="text-right py-3 px-4 font-semibold text-ink-muted">Current Forfeitures</th>
+                    <th className="text-right py-3 px-4 font-semibold text-ink-muted">Proposed Forfeitures</th>
+                    <th className="text-right py-3 px-4 font-semibold text-ink-muted">Variance</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-border">
                   {analysisResult.by_tenure_band.map((band) => (
                     <tr key={band.tenure_band}>
-                      <td className="py-3 px-4 text-gray-700 font-medium">{band.tenure_band} years</td>
+                      <td className="py-3 px-4 text-ink-muted font-medium">{band.tenure_band} years</td>
                       <td className="py-3 px-4 text-right">{band.employee_count.toLocaleString()}</td>
                       <td className="py-3 px-4 text-right">{formatCurrency(band.total_contributions)}</td>
                       <td className="py-3 px-4 text-right">{formatCurrency(band.current_forfeitures)}</td>
                       <td className="py-3 px-4 text-right">{formatCurrency(band.proposed_forfeitures)}</td>
-                      <td className={`py-3 px-4 text-right font-medium ${band.forfeiture_variance >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      <td className={`py-3 px-4 text-right font-medium ${band.forfeiture_variance >= 0 ? 'text-danger-ink' : 'text-success-ink'}`}>
                         {band.forfeiture_variance >= 0 ? '+' : ''}{formatCurrency(band.forfeiture_variance)}
                       </td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr className="bg-gray-50 font-semibold">
-                    <td className="py-3 px-4 text-gray-900">Total</td>
+                  <tr className="bg-surface-subtle font-semibold">
+                    <td className="py-3 px-4 text-ink">Total</td>
                     <td className="py-3 px-4 text-right">{analysisResult.summary.vesting_eligible_terminated_employee_count.toLocaleString()}</td>
                     <td className="py-3 px-4 text-right">{formatCurrency(analysisResult.summary.total_employer_contributions)}</td>
                     <td className="py-3 px-4 text-right">{formatCurrency(analysisResult.summary.current_total_forfeited)}</td>
                     <td className="py-3 px-4 text-right">{formatCurrency(analysisResult.summary.proposed_total_forfeited)}</td>
-                    <td className={`py-3 px-4 text-right ${analysisResult.summary.forfeiture_variance >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    <td className={`py-3 px-4 text-right ${analysisResult.summary.forfeiture_variance >= 0 ? 'text-danger-ink' : 'text-success-ink'}`}>
                       {analysisResult.summary.forfeiture_variance >= 0 ? '+' : ''}{formatCurrency(analysisResult.summary.forfeiture_variance)}
                     </td>
                   </tr>
@@ -823,15 +829,15 @@ export default function VestingAnalysis() {
           </div>
 
           {/* Employee Details Table (T044-T046) */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+          <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-800 flex items-center">
+              <h3 className="text-lg font-semibold text-ink flex items-center">
                 <Table size={20} className="mr-2" />
                 Vesting-Eligible Employee Details
               </h3>
               <button
                 onClick={() => setShowEmployeeDetails(!showEmployeeDetails)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                className="px-4 py-2 text-sm font-medium text-ink-muted bg-surface-subtle rounded-lg hover:bg-surface-disabled transition-colors"
               >
                 {showEmployeeDetails ? 'Hide Details' : `Show Details (${analysisResult.employee_details.length})`}
               </button>
@@ -841,9 +847,9 @@ export default function VestingAnalysis() {
               <div className="overflow-x-auto">
                 <table className="min-w-full">
                   <thead>
-                    <tr className="border-b border-gray-200">
+                    <tr className="border-b border-border">
                       <th
-                        className="text-left py-3 px-4 font-semibold text-gray-600 cursor-pointer hover:bg-gray-50 select-none"
+                        className="text-left py-3 px-4 font-semibold text-ink-muted cursor-pointer hover:bg-surface-subtle select-none"
                         onClick={() => handleSort('employee_id')}
                       >
                         <div className="flex items-center gap-1">
@@ -855,7 +861,7 @@ export default function VestingAnalysis() {
                               <ChevronDown size={14} className="text-fidelity-green" />
                             )
                           ) : (
-                            <ChevronDown size={14} className="text-gray-300" />
+                            <ChevronDown size={14} className="text-ink-subtle" />
                           )}
                         </div>
                       </th>
@@ -868,17 +874,17 @@ export default function VestingAnalysis() {
                       <SortHeader field="forfeiture_variance" label="Variance" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-border">
                     {sortedEmployeeDetails.slice(0, 100).map((emp) => (
-                      <tr key={emp.employee_id} className="hover:bg-gray-50">
-                        <td className="py-3 px-4 text-gray-700 font-mono text-sm">{emp.employee_id}</td>
+                      <tr key={emp.employee_id} className="hover:bg-surface-subtle">
+                        <td className="py-3 px-4 text-ink-muted font-mono text-sm">{emp.employee_id}</td>
                         <td className="py-3 px-4 text-right">{emp.tenure_years} yrs</td>
                         <td className="py-3 px-4 text-right">{formatCurrency(emp.total_employer_contributions)}</td>
                         <td className="py-3 px-4 text-right">{(emp.current_vesting_pct * 100).toFixed(1)}%</td>
                         <td className="py-3 px-4 text-right">{formatCurrency(emp.current_forfeiture)}</td>
                         <td className="py-3 px-4 text-right">{(emp.proposed_vesting_pct * 100).toFixed(1)}%</td>
                         <td className="py-3 px-4 text-right">{formatCurrency(emp.proposed_forfeiture)}</td>
-                        <td className={`py-3 px-4 text-right font-medium ${emp.forfeiture_variance >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        <td className={`py-3 px-4 text-right font-medium ${emp.forfeiture_variance >= 0 ? 'text-danger-ink' : 'text-success-ink'}`}>
                           {emp.forfeiture_variance >= 0 ? '+' : ''}{formatCurrency(emp.forfeiture_variance)}
                         </td>
                       </tr>
@@ -886,7 +892,7 @@ export default function VestingAnalysis() {
                   </tbody>
                 </table>
                 {analysisResult.employee_details.length > 100 && (
-                  <p className="text-sm text-gray-500 mt-4 text-center">
+                  <p className="text-sm text-ink-muted mt-4 text-center">
                     Showing first 100 of {analysisResult.employee_details.length} employees.
                     Sort by different columns to view other employees.
                   </p>

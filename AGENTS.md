@@ -142,6 +142,8 @@ When adding or changing dbt models: add/adjust `schema.yml` tests, keep types an
 - Python 3.11 + Pydantic 2.7.4; Hypothesis 6.155.1 currently resolved from `hypothesis>=6.0.0` (development only after implementation) (437-property-based-event-factories)
 - Python 3.11; TypeScript 5.8 + Existing DuckDB 1.0.0, Pydantic 2.7.4, FastAPI, Typer/Rich, React 19, React Router 7, Tailwind CSS 4, and the existing `planalign_ensemble` canonical metric registry; no new dependency (138-evidence-pack)
 - Existing scenario result `simulation.duckdb`, `current_result.json`, archived `run_metadata.json`/`provenance.json`, and append-only in-database `run_metadata`; all access is read-only and no new table or file is persisted in a run archive (138-evidence-pack)
+- TypeScript 5.8; CSS/Tailwind CSS 4.2; HTML; Python 3.11 for dependency-free contract/palette tests + Existing React 19.2, React Router 7.9, Recharts 3.5, Tailwind CSS 4.2 through `@tailwindcss/vite`, Lucide React, Vite 6, pytest 7.4; no new runtime or test dependency (139-dark-mode-tokens)
+- Browser `localStorage` for one non-sensitive explicit theme value (`light` or `dark`); missing/invalid means `system`; no DuckDB, workspace, API, or server persistence change (139-dark-mode-tokens)
 
 ## Recent Changes
 - 106-fail-dbt-stage: Added Python >=3.11 + dbt Core/dbt DuckDB execution via the existing orchestrator, Pydantic configuration models, DuckDB-backed simulation state, pytest for tests

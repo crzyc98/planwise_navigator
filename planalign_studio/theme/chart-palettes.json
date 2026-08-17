@@ -1,0 +1,23 @@
+{
+  "surfaces": {
+    "light": "#FFFFFF",
+    "dark": "#1A1A19"
+  },
+  "hue_order": [
+    "blue",
+    "orange",
+    "bluish-green",
+    "reddish-purple",
+    "sky-blue",
+    "vermillion"
+  ],
+  "fixtures": {
+    "retired": ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8", "#E91E63"],
+    "accepted_light": ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00"]
+  },
+  "runtime": {
+    "light": ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00"],
+    "dark": ["#0072B2", "#B97800", "#007A59", "#C0709E", "#2C89B8", "#D55E00"]
+  },
+  "warning_mitigation": "Every categorical consumer provides a neutral legend plus a table or direct labels."
+}

@@ -74,16 +74,16 @@ export function ApplyWorkforceParamsModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
+    <div className="fixed inset-0 bg-overlay bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-surface-raised rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
         {/* Header */}
-        <div className="p-6 border-b border-gray-200 flex-shrink-0">
-          <h2 className="text-xl font-bold text-gray-900">
+        <div className="p-6 border-b border-border flex-shrink-0">
+          <h2 className="text-xl font-bold text-ink">
             {step === 'select' && 'Apply Workforce Params to Other Scenarios'}
             {step === 'confirm' && 'Confirm Changes'}
             {step === 'result' && 'Apply Results'}
           </h2>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-ink-muted mt-1">
             {step === 'select' && 'Select scenarios to receive this scenario\'s workforce parameters'}
             {step === 'confirm' && 'Review what will be overwritten before applying'}
             {step === 'result' && 'Summary of applied changes'}
@@ -109,19 +109,19 @@ export function ApplyWorkforceParamsModal({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0 rounded-b-xl flex justify-between">
+        <div className="p-4 border-t border-border bg-surface-subtle flex-shrink-0 rounded-b-xl flex justify-between">
           {step === 'select' && (
             <>
               <button
                 onClick={onClose}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+                className="px-4 py-2 text-ink-muted hover:bg-surface-disabled rounded-lg transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={() => setStep('confirm')}
                 disabled={selectedIds.size === 0}
-                className="px-4 py-2 bg-fidelity-green text-white rounded-lg hover:bg-fidelity-dark transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed font-medium"
+                className="px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg hover:bg-fidelity-dark transition-colors disabled:bg-surface-disabled disabled:cursor-not-allowed font-medium"
               >
                 Apply to {selectedIds.size} Scenario{selectedIds.size !== 1 ? 's' : ''}
               </button>
@@ -132,7 +132,7 @@ export function ApplyWorkforceParamsModal({
               <button
                 onClick={() => setStep('select')}
                 disabled={applying}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors flex items-center"
+                className="px-4 py-2 text-ink-muted hover:bg-surface-disabled rounded-lg transition-colors flex items-center"
               >
                 <ArrowLeft size={16} className="mr-1" />
                 Back
@@ -140,11 +140,11 @@ export function ApplyWorkforceParamsModal({
               <button
                 onClick={handleApply}
                 disabled={applying}
-                className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed font-medium"
+                className="px-4 py-2 bg-warning-solid text-ink-inverse rounded-lg hover:bg-warning-solid-hover transition-colors disabled:bg-surface-disabled disabled:cursor-not-allowed font-medium"
               >
                 {applying ? (
                   <>
-                    <span className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2 align-middle" />
+                    <span className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-border mr-2 align-middle" />
                     Applying...
                   </>
                 ) : (
@@ -158,14 +158,14 @@ export function ApplyWorkforceParamsModal({
               {error && !result && (
                 <button
                   onClick={() => { setError(null); setStep('confirm'); }}
-                  className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors mr-2"
+                  className="px-4 py-2 text-ink-muted hover:bg-surface-disabled rounded-lg transition-colors mr-2"
                 >
                   Retry
                 </button>
               )}
               <button
                 onClick={onClose}
-                className="px-4 py-2 bg-fidelity-green text-white rounded-lg hover:bg-fidelity-dark transition-colors font-medium"
+                className="px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg hover:bg-fidelity-dark transition-colors font-medium"
               >
                 Done
               </button>
@@ -190,7 +190,7 @@ function SelectStep({
 }) {
   if (scenarios.length === 0) {
     return (
-      <p className="text-gray-500 text-center py-8">No other scenarios available</p>
+      <p className="text-ink-muted text-center py-8">No other scenarios available</p>
     );
   }
 
@@ -199,7 +199,7 @@ function SelectStep({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-sm text-gray-500">
+        <span className="text-sm text-ink-muted">
           {selectedIds.size} of {scenarios.length} selected
         </span>
         <button
@@ -214,30 +214,30 @@ function SelectStep({
           key={scenario.id}
           className={`flex items-start p-4 border rounded-lg cursor-pointer transition-colors ${
             selectedIds.has(scenario.id)
-              ? 'border-fidelity-green bg-green-50'
-              : 'border-gray-200 hover:border-gray-300'
+              ? 'border-fidelity-green bg-success-surface'
+              : 'border-border hover:border-border-strong'
           }`}
         >
           <input
             type="checkbox"
             checked={selectedIds.has(scenario.id)}
             onChange={() => onToggle(scenario.id)}
-            className="mt-1 mr-3 h-4 w-4 text-fidelity-green rounded border-gray-300 focus:ring-fidelity-green"
+            className="mt-1 mr-3 h-4 w-4 text-fidelity-green rounded border-border-strong focus:ring-fidelity-green"
           />
           <div className="flex-1">
             <div className="flex justify-between items-start">
               <div>
-                <span className="font-semibold text-gray-900">{scenario.name}</span>
-                <p className="text-sm text-gray-500 mt-0.5">
+                <span className="font-semibold text-ink">{scenario.name}</span>
+                <p className="text-sm text-ink-muted mt-0.5">
                   {scenario.description || 'No description'}
                 </p>
               </div>
               <span className={`px-2 py-1 text-xs font-medium rounded ml-2 ${
                 scenario.status === 'completed'
-                  ? 'bg-green-100 text-green-700'
+                  ? 'bg-success-surface text-success-ink'
                   : scenario.status === 'running'
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'bg-gray-100 text-gray-600'
+                    ? 'bg-info-surface text-info-ink'
+                    : 'bg-surface-subtle text-ink-muted'
               }`}>
                 {scenario.status || 'draft'}
               </span>
@@ -252,9 +252,9 @@ function SelectStep({
 function ConfirmStep({ scenarios }: { readonly scenarios: Scenario[] }) {
   return (
     <div className="space-y-5">
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start">
-        <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
-        <p className="ml-3 text-sm text-amber-800">
+      <div className="bg-warning-surface border border-warning-border rounded-lg p-4 flex items-start">
+        <AlertTriangle className="h-5 w-5 text-warning-ink mt-0.5 flex-shrink-0" />
+        <p className="ml-3 text-sm text-warning-ink">
           This will overwrite workforce parameters in{' '}
           <strong>{scenarios.length} scenario{scenarios.length !== 1 ? 's' : ''}</strong>.
           DC plan parameters will not be affected.
@@ -262,11 +262,11 @@ function ConfirmStep({ scenarios }: { readonly scenarios: Scenario[] }) {
       </div>
 
       <div>
-        <h3 className="text-sm font-semibold text-gray-700 mb-2">Target Scenarios</h3>
+        <h3 className="text-sm font-semibold text-ink-muted mb-2">Target Scenarios</h3>
         <ul className="space-y-1">
           {scenarios.map(s => (
-            <li key={s.id} className="text-sm text-gray-600 flex items-center">
-              <span className="w-1.5 h-1.5 bg-gray-400 rounded-full mr-2" />
+            <li key={s.id} className="text-sm text-ink-muted flex items-center">
+              <span className="w-1.5 h-1.5 bg-surface-disabled rounded-full mr-2" />
               {s.name}
             </li>
           ))}
@@ -274,20 +274,20 @@ function ConfirmStep({ scenarios }: { readonly scenarios: Scenario[] }) {
       </div>
 
       <div>
-        <h3 className="text-sm font-semibold text-gray-700 mb-2">Parameters That Will Be Overwritten</h3>
+        <h3 className="text-sm font-semibold text-ink-muted mb-2">Parameters That Will Be Overwritten</h3>
         <ul className="space-y-1">
           {WORKFORCE_CATEGORIES.map(cat => (
-            <li key={cat} className="text-sm text-gray-600 flex items-center">
-              <span className="w-1.5 h-1.5 bg-amber-400 rounded-full mr-2" />
+            <li key={cat} className="text-sm text-ink-muted flex items-center">
+              <span className="w-1.5 h-1.5 bg-warning-solid rounded-full mr-2" />
               {cat}
             </li>
           ))}
         </ul>
       </div>
 
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start">
-        <Info className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
-        <p className="ml-2 text-xs text-blue-700">
+      <div className="bg-info-surface border border-info-border rounded-lg p-3 flex items-start">
+        <Info className="h-4 w-4 text-info-ink mt-0.5 flex-shrink-0" />
+        <p className="ml-2 text-xs text-info-ink">
           DC plan parameters (match formula, core contribution, deferral escalation, eligibility, enrollment) will remain unchanged in target scenarios.
         </p>
       </div>
@@ -305,11 +305,11 @@ function ResultStep({
   if (error && !result) {
     return (
       <div className="text-center py-6">
-        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mb-3">
-          <X className="h-6 w-6 text-red-600" />
+        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-danger-surface mb-3">
+          <X className="h-6 w-6 text-danger-ink" />
         </div>
-        <p className="text-gray-900 font-medium">Failed to apply workforce parameters</p>
-        <p className="text-sm text-gray-500 mt-1">{error}</p>
+        <p className="text-ink font-medium">Failed to apply workforce parameters</p>
+        <p className="text-sm text-ink-muted mt-1">{error}</p>
       </div>
     );
   }
@@ -322,15 +322,15 @@ function ResultStep({
     <div className="space-y-4">
       <div className="text-center py-2">
         <div className={`inline-flex items-center justify-center w-12 h-12 rounded-full mb-3 ${
-          allSuccess ? 'bg-green-100' : 'bg-amber-100'
+          allSuccess ? 'bg-success-surface' : 'bg-warning-surface'
         }`}>
           {allSuccess ? (
-            <Check className="h-6 w-6 text-green-600" />
+            <Check className="h-6 w-6 text-success-ink" />
           ) : (
-            <AlertTriangle className="h-6 w-6 text-amber-600" />
+            <AlertTriangle className="h-6 w-6 text-warning-ink" />
           )}
         </div>
-        <p className="text-gray-900 font-medium">
+        <p className="text-ink font-medium">
           {allSuccess
             ? `Workforce parameters applied to ${result.total_applied} scenario${result.total_applied !== 1 ? 's' : ''}`
             : `Applied to ${result.total_applied}, failed for ${result.total_failed}`}
@@ -343,17 +343,17 @@ function ResultStep({
             key={r.scenario_id}
             className={`flex items-center justify-between p-3 rounded-lg border ${
               r.success
-                ? 'border-green-200 bg-green-50'
-                : 'border-red-200 bg-red-50'
+                ? 'border-success-border bg-success-surface'
+                : 'border-danger-border bg-danger-surface'
             }`}
           >
-            <span className="text-sm font-medium text-gray-800">
+            <span className="text-sm font-medium text-ink">
               {r.scenario_name || r.scenario_id}
             </span>
             {r.success ? (
-              <Check className="h-4 w-4 text-green-600" />
+              <Check className="h-4 w-4 text-success-ink" />
             ) : (
-              <span className="text-xs text-red-600">{r.error}</span>
+              <span className="text-xs text-danger-ink">{r.error}</span>
             )}
           </div>
         ))}

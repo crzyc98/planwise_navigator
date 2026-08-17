@@ -23,11 +23,11 @@ const TILES: Array<{
   icon: React.ComponentType<{ size?: number; className?: string }>;
   accent: string;
 }> = [
-  { key: 'HIRE', label: 'Hires', icon: UserPlus, accent: 'text-green-600' },
-  { key: 'TERMINATION', label: 'Terminations', icon: UserMinus, accent: 'text-red-600' },
-  { key: 'PROMOTION', label: 'Promotions', icon: TrendingUp, accent: 'text-blue-600' },
-  { key: 'RAISE', label: 'Raises', icon: DollarSign, accent: 'text-amber-600' },
-  { key: 'ENROLLMENT', label: 'Enrollments', icon: ClipboardCheck, accent: 'text-purple-600' },
+  { key: 'HIRE', label: 'Hires', icon: UserPlus, accent: 'text-success-ink' },
+  { key: 'TERMINATION', label: 'Terminations', icon: UserMinus, accent: 'text-danger-ink' },
+  { key: 'PROMOTION', label: 'Promotions', icon: TrendingUp, accent: 'text-info-ink' },
+  { key: 'RAISE', label: 'Raises', icon: DollarSign, accent: 'text-warning-ink' },
+  { key: 'ENROLLMENT', label: 'Enrollments', icon: ClipboardCheck, accent: 'text-info-ink' },
 ];
 
 interface LiveStatsPanelProps {
@@ -48,7 +48,7 @@ export default function LiveStatsPanel({ snapshot }: LiveStatsPanelProps) {
     <div>
       {/* Year progress header */}
       <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center text-sm font-medium text-gray-700">
+        <div className="flex items-center text-sm font-medium text-ink-muted">
           <CalendarRange size={16} className="mr-2 text-fidelity-green" />
           {yearIndex > 0 ? (
             <span>
@@ -59,7 +59,7 @@ export default function LiveStatsPanel({ snapshot }: LiveStatsPanelProps) {
             <span>Preparing simulation…</span>
           )}
         </div>
-        <span className="text-xs text-gray-400">
+        <span className="text-xs text-ink-subtle">
           {counts.as_of_year !== null
             ? `Counts exact through ${counts.as_of_year}`
             : 'Counts appear as each year completes'}
@@ -82,10 +82,10 @@ export default function LiveStatsPanel({ snapshot }: LiveStatsPanelProps) {
                       ? 'bg-fidelity-green'
                       : isCurrent
                         ? 'bg-fidelity-light animate-pulse'
-                        : 'bg-gray-200'
+                        : 'bg-surface-disabled'
                   }`}
                 />
-                <p className="text-[10px] text-center text-gray-400 mt-0.5">{year}</p>
+                <p className="text-[10px] text-center text-ink-subtle mt-0.5">{year}</p>
               </div>
             );
           })}
@@ -95,12 +95,12 @@ export default function LiveStatsPanel({ snapshot }: LiveStatsPanelProps) {
       {/* Event count tiles */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {TILES.map(({ key, label, icon: Icon, accent }) => (
-          <div key={key} className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+          <div key={key} className="p-3 bg-surface-subtle rounded-lg border border-border">
             <div className="flex items-center mb-1">
               <Icon size={16} className={`mr-2 ${accent}`} />
-              <p className="text-xs text-gray-500">{label}</p>
+              <p className="text-xs text-ink-muted">{label}</p>
             </div>
-            <p className="text-lg font-bold text-gray-900">
+            <p className="text-lg font-bold text-ink">
               {(counts.by_type[key] ?? 0).toLocaleString()}
             </p>
           </div>
@@ -108,7 +108,7 @@ export default function LiveStatsPanel({ snapshot }: LiveStatsPanelProps) {
         <div className="p-3 bg-fidelity-green/5 rounded-lg border border-fidelity-green/20">
           <div className="flex items-center mb-1">
             <Sigma size={16} className="mr-2 text-fidelity-green" />
-            <p className="text-xs text-gray-500">Total Events</p>
+            <p className="text-xs text-ink-muted">Total Events</p>
           </div>
           <p className="text-lg font-bold text-fidelity-dark">
             {counts.total.toLocaleString()}

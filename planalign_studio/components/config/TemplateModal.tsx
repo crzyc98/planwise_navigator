@@ -10,11 +10,11 @@ export function TemplateModal({ templates, onClose }: TemplateModalProps) {
   const { setFormData } = useConfigContext();
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
-        <div className="p-6 border-b border-gray-200 flex-shrink-0">
-          <h2 className="text-xl font-bold text-gray-900">Load Configuration Template</h2>
-          <p className="text-sm text-gray-500 mt-1">Select a template to pre-fill configuration values</p>
+    <div className="fixed inset-0 bg-overlay bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-surface-raised rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
+        <div className="p-6 border-b border-border flex-shrink-0">
+          <h2 className="text-xl font-bold text-ink">Load Configuration Template</h2>
+          <p className="text-sm text-ink-muted mt-1">Select a template to pre-fill configuration values</p>
         </div>
         <div className="p-6 overflow-y-auto flex-1 space-y-3">
           {templates.map(template => (
@@ -70,24 +70,24 @@ export function TemplateModal({ templates, onClose }: TemplateModalProps) {
                 }));
                 onClose();
               }}
-              className="w-full text-left p-4 border border-gray-200 rounded-lg hover:border-fidelity-green hover:bg-green-50 transition-colors"
+              className="w-full text-left p-4 border border-border rounded-lg hover:border-fidelity-green hover:bg-success-surface transition-colors"
             >
               <div className="flex justify-between items-start">
                 <div>
-                  <h3 className="font-semibold text-gray-900">{template.name}</h3>
-                  <p className="text-sm text-gray-500 mt-1">{template.description}</p>
+                  <h3 className="font-semibold text-ink">{template.name}</h3>
+                  <p className="text-sm text-ink-muted mt-1">{template.description}</p>
                 </div>
-                <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-600 rounded capitalize">
+                <span className="px-2 py-1 text-xs font-medium bg-surface-subtle text-ink-muted rounded capitalize">
                   {template.category}
                 </span>
               </div>
             </button>
           ))}
         </div>
-        <div className="p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0 rounded-b-xl">
+        <div className="p-4 border-t border-border bg-surface-subtle flex-shrink-0 rounded-b-xl">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+            className="px-4 py-2 text-ink-muted hover:bg-surface-disabled rounded-lg transition-colors"
           >
             Cancel
           </button>

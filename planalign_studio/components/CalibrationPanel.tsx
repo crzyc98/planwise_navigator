@@ -21,6 +21,7 @@ import {
   Workspace,
 } from '../services/api';
 import { extractCensusPath } from './config/ConfigContext';
+import { useChartTheme } from '../hooks/useChartTheme';
 
 interface CalibrationOutletContext {
   activeWorkspace: Workspace | null;
@@ -142,9 +143,9 @@ const DEFAULT_END_YEAR = DEFAULT_START_YEAR + 5;
  *  Workforce config Turnover section). */
 function confidenceBadge(confidence: string) {
   const colors: Record<string, string> = {
-    high: 'bg-green-100 text-green-800',
-    moderate: 'bg-yellow-100 text-yellow-800',
-    low: 'bg-red-100 text-red-800',
+    high: 'bg-success-surface text-success-ink',
+    moderate: 'bg-warning-surface text-warning-ink',
+    low: 'bg-danger-surface text-danger-ink',
   };
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${colors[confidence] ?? colors.low}`}>
@@ -165,12 +166,12 @@ function StepHeader({
 }) {
   return (
     <div className="flex items-start gap-3">
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-fidelity-green text-sm font-semibold text-white">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-fidelity-green text-sm font-semibold text-ink-inverse">
         {n}
       </span>
       <div>
-        <h2 className="text-base font-semibold text-gray-900">{title}</h2>
-        <p className="text-sm text-gray-500">{children}</p>
+        <h2 className="text-base font-semibold text-ink">{title}</h2>
+        <p className="text-sm text-ink-muted">{children}</p>
       </div>
     </div>
   );
@@ -188,10 +189,10 @@ function SliderRow({
 }) {
   return (
     <div>
-      <div className="flex justify-between text-sm font-medium text-gray-700">
+      <div className="flex justify-between text-sm font-medium text-ink-muted">
         <span>
           {s.label}
-          {s.hint && <span className="ml-2 text-xs font-normal text-gray-400">{s.hint}</span>}
+          {s.hint && <span className="ml-2 text-xs font-normal text-ink-subtle">{s.hint}</span>}
         </span>
         <span className="text-fidelity-green">{pct(value)}</span>
       </div>
@@ -209,6 +210,7 @@ function SliderRow({
 }
 
 export default function CalibrationPanel() {
+  const chartTheme = useChartTheme();
   const [startYear, setStartYear] = useState(DEFAULT_START_YEAR);
   const [endYear, setEndYear] = useState(DEFAULT_END_YEAR);
   const [values, setValues] = useState<Record<string, number>>({
@@ -546,9 +548,9 @@ export default function CalibrationPanel() {
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-2">
         <SlidersHorizontal className="text-fidelity-green" size={24} />
-        <h1 className="text-2xl font-bold text-gray-900">Compensation Calibration</h1>
+        <h1 className="text-2xl font-bold text-ink">Compensation Calibration</h1>
       </div>
-      <p className="text-gray-600">
+      <p className="text-ink-muted">
         Tune compensation policy and read per-year growth in minutes — exact vs. a
         full simulation, without rebuilding the retirement-plan stack.
       </p>
@@ -557,7 +559,7 @@ export default function CalibrationPanel() {
       <div className="space-y-6">
 
         {/* ── Step 1: Growth targets & scope ────────────────────────── */}
-        <div className="bg-white rounded-lg shadow p-6 space-y-4">
+        <div className="bg-surface-raised rounded-lg shadow p-6 space-y-4">
           <StepHeader n={1} title="Set your growth targets and scope">
             Confirm the workspace and year range, then set the two growth drivers:
             Workforce Growth sizes hiring deterministically, and Target Salary Growth
@@ -565,43 +567,43 @@ export default function CalibrationPanel() {
           </StepHeader>
 
           {/* Active workspace + its census (no selection needed) */}
-          <div className="flex items-center gap-2 text-sm text-gray-600">
-            <Database size={16} className="text-gray-400" />
+          <div className="flex items-center gap-2 text-sm text-ink-muted">
+            <Database size={16} className="text-ink-subtle" />
             <span>
-              Workspace: <span className="font-medium text-gray-800">{activeWorkspace?.name ?? '—'}</span>
+              Workspace: <span className="font-medium text-ink">{activeWorkspace?.name ?? '—'}</span>
             </span>
-            <span className="text-gray-300">|</span>
+            <span className="text-ink-subtle">|</span>
             <span>
               Census:{' '}
               {censusPath ? (
-                <span className="font-mono text-xs text-gray-700">{censusPath}</span>
+                <span className="font-mono text-xs text-ink-muted">{censusPath}</span>
               ) : (
-                <span className="text-amber-600">none uploaded</span>
+                <span className="text-warning-ink">none uploaded</span>
               )}
             </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <label className="block">
-              <span className="text-sm font-medium text-gray-700">Start Year</span>
+              <span className="text-sm font-medium text-ink-muted">Start Year</span>
               <input
                 type="number"
                 value={startYear}
                 onChange={(e) => setStartYear(Number(e.target.value))}
-                className="mt-1 w-full rounded-md border border-gray-300 p-2 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+                className="mt-1 w-full rounded-md border border-border-strong p-2 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
               />
             </label>
             <label className="block">
-              <span className="text-sm font-medium text-gray-700">End Year</span>
+              <span className="text-sm font-medium text-ink-muted">End Year</span>
               <input
                 type="number"
                 value={endYear}
                 onChange={(e) => setEndYear(Number(e.target.value))}
-                className="mt-1 w-full rounded-md border border-gray-300 p-2 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+                className="mt-1 w-full rounded-md border border-border-strong p-2 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
               />
             </label>
           </div>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-ink-muted">
             Calibration always runs against an isolated copy of the database — the shared dev database is never touched.
           </p>
 
@@ -625,7 +627,7 @@ export default function CalibrationPanel() {
         </div>
 
         {/* ── Step 2: Choose what to solve for ──────────────────────── */}
-        <div className="bg-white rounded-lg shadow p-6 space-y-4">
+        <div className="bg-surface-raised rounded-lg shadow p-6 space-y-4">
           <StepHeader n={2} title="Choose what calibration solves for">
             Pick the lever calibration should adjust to hit your growth target. The
             other lever is held fixed at whatever you set below, and the options that
@@ -641,15 +643,15 @@ export default function CalibrationPanel() {
                   onClick={() => setSearchMode(m.key)}
                   className={`text-left rounded-lg border p-4 transition ${
                     selected
-                      ? 'border-fidelity-green ring-2 ring-fidelity-green/30 bg-green-50'
-                      : 'border-gray-200 hover:border-gray-300'
+                      ? 'border-fidelity-green ring-2 ring-fidelity-green/30 bg-success-surface'
+                      : 'border-border hover:border-border-strong'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-semibold text-gray-900">{m.title}</span>
+                    <span className="text-sm font-semibold text-ink">{m.title}</span>
                     {selected && <Check size={16} className="text-fidelity-green shrink-0" />}
                   </div>
-                  <p className="mt-1 text-xs text-gray-500">{m.description}</p>
+                  <p className="mt-1 text-xs text-ink-muted">{m.description}</p>
                 </button>
               );
             })}
@@ -657,7 +659,7 @@ export default function CalibrationPanel() {
         </div>
 
         {/* ── Step 3: Fixed inputs ──────────────────────────────────── */}
-        <div className="bg-white rounded-lg shadow p-6 space-y-4">
+        <div className="bg-surface-raised rounded-lg shadow p-6 space-y-4">
           <StepHeader n={3} title="Set the levers calibration holds fixed">
             Provide the inputs calibration keeps constant — new-hire age mix, and
             whichever of new-hire ranges / COLA &amp; merit you're not solving for.
@@ -668,58 +670,58 @@ export default function CalibrationPanel() {
               the editor is collapsed to a label — the analyst shouldn't fill in
               something the solver derives. When held fixed, the full editor shows. */}
           {solvingNewHireRanges ? (
-            <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4 flex items-start gap-2">
+            <div className="rounded-md border border-dashed border-border-strong bg-surface-subtle p-4 flex items-start gap-2">
               <Sparkles size={16} className="mt-0.5 shrink-0 text-fidelity-green" />
-              <div className="text-sm text-gray-600">
-                <span className="font-medium text-gray-800">Job Level Compensation Ranges — solved automatically.</span>{' '}
+              <div className="text-sm text-ink-muted">
+                <span className="font-medium text-ink">Job Level Compensation Ranges — solved automatically.</span>{' '}
                 Calibration scales census-derived new-hire ranges to hit your target,
                 so there's nothing to set here. Switch Step 2 to “COLA &amp; merit” if you'd
                 rather set the ranges by hand.
               </div>
             </div>
           ) : (
-            <div className="rounded-md border border-gray-200 p-4">
-              <div className="text-sm font-medium text-gray-700 mb-2 flex flex-wrap items-center gap-2">
+            <div className="rounded-md border border-border p-4">
+              <div className="text-sm font-medium text-ink-muted mb-2 flex flex-wrap items-center gap-2">
                 Job Level Compensation Ranges
-                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+                <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs font-medium text-ink-muted">
                   Held fixed
                 </span>
-                <span className="text-xs font-normal text-gray-500">
+                <span className="text-xs font-normal text-ink-muted">
                   used as-is; set your starting point below
                 </span>
               </div>
               <div className="flex flex-wrap items-end gap-4">
                 <label className="block">
-                  <span className="text-xs text-gray-600">Scale (×)</span>
+                  <span className="text-xs text-ink-muted">Scale (×)</span>
                   <input
                     type="number" step="0.1" min={0.1} max={3.0} value={scaleFactor}
                     onChange={(e) => setScaleFactor(Number(e.target.value))}
-                    className="mt-1 w-24 rounded-md border border-gray-300 p-1.5 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+                    className="mt-1 w-24 rounded-md border border-border-strong p-1.5 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
                   />
                 </label>
                 <label className="block">
-                  <span className="text-xs text-gray-600">Lookback (years)</span>
+                  <span className="text-xs text-ink-muted">Lookback (years)</span>
                   <input
                     type="number" min={0} max={20} value={lookbackYears}
                     onChange={(e) => setLookbackYears(Number(e.target.value))}
-                    className="mt-1 w-28 rounded-md border border-gray-300 p-1.5 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+                    className="mt-1 w-28 rounded-md border border-border-strong p-1.5 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
                   />
                 </label>
                 <button
                   onClick={handleMatchCensus}
                   disabled={matchLoading || !censusPath}
-                  className="inline-flex items-center gap-2 rounded bg-gray-700 px-3 py-2 text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded bg-surface-disabled px-3 py-2 text-ink-inverse text-sm font-medium hover:bg-surface-inverse disabled:opacity-50"
                 >
                   {matchLoading ? <Loader2 className="animate-spin" size={16} /> : <Database size={16} />}
                   Match Census
                 </button>
               </div>
               {matchError && (
-                <p className="mt-2 text-xs text-red-600">{matchError}</p>
+                <p className="mt-2 text-xs text-danger-ink">{matchError}</p>
               )}
               {jobRanges.length > 0 && (
                 <table className="mt-3 text-xs w-full max-w-md">
-                  <thead className="text-gray-500">
+                  <thead className="text-ink-muted">
                     <tr><th className="text-left">Level</th><th className="text-right">Min</th><th className="text-right">Max</th></tr>
                   </thead>
                   <tbody>
@@ -734,7 +736,7 @@ export default function CalibrationPanel() {
                 </table>
               )}
               {jobRanges.length === 0 && (
-                <p className="mt-2 text-xs text-gray-500">
+                <p className="mt-2 text-xs text-ink-muted">
                   No ranges set — calibration uses the scenario/config's existing ranges.
                 </p>
               )}
@@ -743,10 +745,10 @@ export default function CalibrationPanel() {
 
           {/* New-hire age distribution — flows through the same
               new_hire_age_distribution dbt var the full simulation uses. */}
-          <div className="rounded-md border border-gray-200 p-4">
-            <div className="text-sm font-medium text-gray-700 mb-2">New-Hire Age Distribution</div>
+          <div className="rounded-md border border-border p-4">
+            <div className="text-sm font-medium text-ink-muted mb-2">New-Hire Age Distribution</div>
             <div className="flex flex-wrap gap-4">
-              <label className="flex items-center gap-1.5 text-sm text-gray-700">
+              <label className="flex items-center gap-1.5 text-sm text-ink-muted">
                 <input
                   type="radio"
                   name="ageDistMode"
@@ -756,7 +758,7 @@ export default function CalibrationPanel() {
                 />
                 Scenario/seed defaults
               </label>
-              <label className="flex items-center gap-1.5 text-sm text-gray-700">
+              <label className="flex items-center gap-1.5 text-sm text-ink-muted">
                 <input
                   type="radio"
                   name="ageDistMode"
@@ -767,10 +769,10 @@ export default function CalibrationPanel() {
                 />
                 Match census
                 {ageDistLoading && ageDistMode === 'census' && (
-                  <Loader2 className="animate-spin text-gray-400" size={14} />
+                  <Loader2 className="animate-spin text-ink-subtle" size={14} />
                 )}
               </label>
-              <label className="flex items-center gap-1.5 text-sm text-gray-700">
+              <label className="flex items-center gap-1.5 text-sm text-ink-muted">
                 <input
                   type="radio"
                   name="ageDistMode"
@@ -782,21 +784,21 @@ export default function CalibrationPanel() {
               </label>
             </div>
             {!censusPath && (
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-1 text-xs text-ink-muted">
                 Upload a census to this workspace to enable "Match census".
               </p>
             )}
-            {ageDistError && <p className="mt-2 text-xs text-red-600">{ageDistError}</p>}
+            {ageDistError && <p className="mt-2 text-xs text-danger-ink">{ageDistError}</p>}
             {ageDistEnabled && (
               <div className="mt-3 space-y-2">
                 {ageDist.map((row, idx) => (
                   <div key={idx} className="flex items-center gap-3">
-                    <label className="flex items-center gap-1 text-xs text-gray-600">
+                    <label className="flex items-center gap-1 text-xs text-ink-muted">
                       Age
                       <input
                         type="number" min={16} max={80} value={row.age}
                         onChange={(e) => setAgeRow(idx, { age: Number(e.target.value) })}
-                        className="w-16 rounded-md border border-gray-300 p-1 text-xs shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+                        className="w-16 rounded-md border border-border-strong p-1 text-xs shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
                       />
                     </label>
                     <input
@@ -804,11 +806,11 @@ export default function CalibrationPanel() {
                       onChange={(e) => setAgeRow(idx, { weight: Number(e.target.value) })}
                       className="flex-1 accent-fidelity-green"
                     />
-                    <span className="w-12 text-right text-xs text-gray-700">{pct(row.weight)}</span>
+                    <span className="w-12 text-right text-xs text-ink-muted">{pct(row.weight)}</span>
                     <button
                       onClick={() => setAgeDist((prev) => prev.filter((_, i) => i !== idx))}
                       disabled={ageDist.length <= 1}
-                      className="text-gray-400 hover:text-red-500 disabled:opacity-30"
+                      className="text-ink-subtle hover:text-danger-ink disabled:opacity-30"
                       title="Remove age bucket"
                     >
                       <X size={14} />
@@ -827,7 +829,7 @@ export default function CalibrationPanel() {
                   >
                     <Plus size={14} /> Add age bucket
                   </button>
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-ink-muted">
                     Total weight: {pct(ageDist.reduce((s, r) => s + r.weight, 0))}
                   </span>
                 </div>
@@ -838,37 +840,37 @@ export default function CalibrationPanel() {
           {/* Core termination rates — deterministic workforce-dynamics inputs,
               always held fixed by calibration. Higher attrition replaces tenured
               staff with lower-paid hires, diluting avg-comp growth. */}
-          <div className="rounded-md border border-gray-200 p-4">
+          <div className="rounded-md border border-border p-4">
             <div className="mb-2 flex flex-wrap items-center gap-2">
-              <span className="text-sm font-medium text-gray-700">Termination Rates</span>
-              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+              <span className="text-sm font-medium text-ink-muted">Termination Rates</span>
+              <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs font-medium text-ink-muted">
                 Held fixed
               </span>
-              <span className="text-xs font-normal text-gray-500">
+              <span className="text-xs font-normal text-ink-muted">
                 attrition dilutes avg comp, so it shapes salary growth
               </span>
-              <label className="ml-auto text-xs text-gray-600">Census year
-                <input value={termAsOfYear} onChange={(event) => setTermAsOfYear(event.target.value)} placeholder="Inferred" inputMode="numeric" className="ml-1 w-20 rounded border border-gray-300 px-1 py-0.5" />
+              <label className="ml-auto text-xs text-ink-muted">Census year
+                <input value={termAsOfYear} onChange={(event) => setTermAsOfYear(event.target.value)} placeholder="Inferred" inputMode="numeric" className="ml-1 w-20 rounded border border-border-strong px-1 py-0.5" />
               </label>
               <button
                 onClick={handleTermMatchCensus}
                 disabled={termLoading || !censusPath}
                 title={!censusPath ? 'Upload a census to this workspace first' : 'Derive termination rates from the census'}
-                className="inline-flex items-center gap-2 rounded bg-gray-700 px-3 py-1.5 text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded bg-surface-disabled px-3 py-1.5 text-ink-inverse text-sm font-medium hover:bg-surface-inverse disabled:opacity-50"
               >
                 {termLoading ? <Loader2 className="animate-spin" size={16} /> : <Database size={16} />}
                 Match Census
               </button>
             </div>
-            {termError && <p className="mb-2 text-xs text-red-600">{termError}</p>}
+            {termError && <p className="mb-2 text-xs text-danger-ink">{termError}</p>}
 
             {/* Census-derived suggestion panel (suggested vs. current + confidence). */}
             {termAnalysis && (
-              <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-3">
+              <div className="mb-3 rounded-lg border border-info-border bg-info-surface p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h4 className="text-sm font-medium text-blue-800">Suggested Termination Rates</h4>
-                    <p className="mt-0.5 text-xs text-blue-600">
+                    <h4 className="text-sm font-medium text-info-ink">Suggested Termination Rates</h4>
+                    <p className="mt-0.5 text-xs text-info-ink">
                       Based on {termAnalysis.total_employees.toLocaleString()} employees
                       {' '}({termAnalysis.total_terminated.toLocaleString()} terminated)
                       {' '}as of {termAnalysis.as_of_date} ({termAnalysis.as_of_date_source})
@@ -877,14 +879,14 @@ export default function CalibrationPanel() {
                   <div className="flex shrink-0 gap-2">
                     <button
                       onClick={() => setTermAnalysis(null)}
-                      className="rounded border border-gray-300 bg-white px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                      className="rounded border border-border-strong bg-surface-raised px-3 py-1 text-xs text-ink-muted hover:bg-surface-subtle"
                     >
                       Cancel
                     </button>
                     {(termAnalysis.experienced_rate || termAnalysis.new_hire_rate) && (
                       <button
                         onClick={applyTermSuggestions}
-                        className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
+                        className="rounded bg-info-solid px-3 py-1 text-xs font-medium text-ink-inverse hover:bg-info-solid-hover"
                       >
                         Apply Suggestions
                       </button>
@@ -893,8 +895,8 @@ export default function CalibrationPanel() {
                 </div>
                 {(termAnalysis.experienced_rate || termAnalysis.new_hire_rate) ? (
                   <table className="mt-2 w-full text-xs">
-                    <thead className="text-blue-700">
-                      <tr className="border-b border-blue-200">
+                    <thead className="text-info-ink">
+                      <tr className="border-b border-info-border">
                         <th className="py-1 text-left font-medium">Rate</th>
                         <th className="py-1 text-right font-medium">Suggested</th>
                         <th className="py-1 text-right font-medium">Current</th>
@@ -904,11 +906,11 @@ export default function CalibrationPanel() {
                     </thead>
                     <tbody>
                       {termAnalysis.experienced_rate && (
-                        <tr className="border-b border-blue-100">
-                          <td className="py-1 text-blue-900">Experienced</td>
-                          <td className="py-1 text-right font-semibold text-blue-900">{pct(termAnalysis.experienced_rate.rate)}</td>
-                          <td className="py-1 text-right text-gray-500">{pct(values.total_termination_rate)}</td>
-                          <td className="py-1 text-right text-blue-700">
+                        <tr className="border-b border-info-border">
+                          <td className="py-1 text-info-ink">Experienced</td>
+                          <td className="py-1 text-right font-semibold text-info-ink">{pct(termAnalysis.experienced_rate.rate)}</td>
+                          <td className="py-1 text-right text-ink-muted">{pct(values.total_termination_rate)}</td>
+                          <td className="py-1 text-right text-info-ink">
                             {termAnalysis.experienced_rate.terminated_count} / {termAnalysis.experienced_rate.sample_size}
                           </td>
                           <td className="py-1 pl-3">{confidenceBadge(termAnalysis.experienced_rate.confidence)}</td>
@@ -916,10 +918,10 @@ export default function CalibrationPanel() {
                       )}
                       {termAnalysis.new_hire_rate && (
                         <tr>
-                          <td className="py-1 text-blue-900">New Hire</td>
-                          <td className="py-1 text-right font-semibold text-blue-900">{pct(termAnalysis.new_hire_rate.rate)}</td>
-                          <td className="py-1 text-right text-gray-500">{pct(values.new_hire_termination_rate)}</td>
-                          <td className="py-1 text-right text-blue-700">
+                          <td className="py-1 text-info-ink">New Hire</td>
+                          <td className="py-1 text-right font-semibold text-info-ink">{pct(termAnalysis.new_hire_rate.rate)}</td>
+                          <td className="py-1 text-right text-ink-muted">{pct(values.new_hire_termination_rate)}</td>
+                          <td className="py-1 text-right text-info-ink">
                             {termAnalysis.new_hire_rate.terminated_count} / {termAnalysis.new_hire_rate.sample_size}
                           </td>
                           <td className="py-1 pl-3">{confidenceBadge(termAnalysis.new_hire_rate.confidence)}</td>
@@ -928,44 +930,44 @@ export default function CalibrationPanel() {
                     </tbody>
                   </table>
                 ) : (
-                  <p className="mt-2 rounded bg-yellow-50 p-2 text-xs text-yellow-800">
+                  <p className="mt-2 rounded bg-warning-surface p-2 text-xs text-warning-ink">
                     {termAnalysis.message ?? 'The census had no termination data to derive rates from.'}
                   </p>
                 )}
                 {termAnalysis.message && (termAnalysis.experienced_rate || termAnalysis.new_hire_rate) && (
-                  <p className="mt-2 text-xs italic text-blue-600">{termAnalysis.message}</p>
+                  <p className="mt-2 text-xs italic text-info-ink">{termAnalysis.message}</p>
                 )}
               </div>
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label className="block">
-                <span className="text-xs text-gray-600">Total (experienced) termination</span>
+                <span className="text-xs text-ink-muted">Total (experienced) termination</span>
                 <div className="mt-1 flex items-center gap-1">
                   <input
                     type="number" step="0.1" min={0} max={100}
                     value={Number((values.total_termination_rate * 100).toFixed(1))}
                     onChange={(e) => setValue('total_termination_rate', Number(e.target.value) / 100)}
-                    className="w-24 rounded-md border border-gray-300 p-1.5 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+                    className="w-24 rounded-md border border-border-strong p-1.5 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
                   />
-                  <span className="text-xs text-gray-500">%</span>
+                  <span className="text-xs text-ink-muted">%</span>
                 </div>
               </label>
               <label className="block">
-                <span className="text-xs text-gray-600">New-hire termination</span>
+                <span className="text-xs text-ink-muted">New-hire termination</span>
                 <div className="mt-1 flex items-center gap-1">
                   <input
                     type="number" step="0.1" min={0} max={100}
                     value={Number((values.new_hire_termination_rate * 100).toFixed(1))}
                     onChange={(e) => setValue('new_hire_termination_rate', Number(e.target.value) / 100)}
-                    className="w-24 rounded-md border border-gray-300 p-1.5 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+                    className="w-24 rounded-md border border-border-strong p-1.5 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
                   />
-                  <span className="text-xs text-gray-500">%</span>
+                  <span className="text-xs text-ink-muted">%</span>
                 </div>
               </label>
             </div>
             {values.new_hire_termination_rate < values.total_termination_rate && (
-              <p className="mt-2 text-xs text-amber-600">
+              <p className="mt-2 text-xs text-warning-ink">
                 New-hire termination is normally ≥ total termination — the engine expects this.
               </p>
             )}
@@ -974,13 +976,13 @@ export default function CalibrationPanel() {
           {/* COLA & merit: a fixed policy input when calibration is solving
               new-hire ranges; collapsed to a label when they're the chosen lever. */}
           {solvingNewHireRanges ? (
-            <div className="rounded-md border border-gray-200 p-4">
-              <div className="text-sm font-medium text-gray-700 mb-2 flex flex-wrap items-center gap-2">
+            <div className="rounded-md border border-border p-4">
+              <div className="text-sm font-medium text-ink-muted mb-2 flex flex-wrap items-center gap-2">
                 COLA &amp; Merit
-                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+                <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs font-medium text-ink-muted">
                   Held fixed
                 </span>
-                <span className="text-xs font-normal text-gray-500">
+                <span className="text-xs font-normal text-ink-muted">
                   the annual policy calibration keeps constant while it scales new-hire ranges
                 </span>
               </div>
@@ -996,10 +998,10 @@ export default function CalibrationPanel() {
               </div>
             </div>
           ) : (
-            <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4 flex items-start gap-2">
+            <div className="rounded-md border border-dashed border-border-strong bg-surface-subtle p-4 flex items-start gap-2">
               <Sparkles size={16} className="mt-0.5 shrink-0 text-fidelity-green" />
-              <div className="text-sm text-gray-600">
-                <span className="font-medium text-gray-800">COLA &amp; merit — solved automatically.</span>{' '}
+              <div className="text-sm text-ink-muted">
+                <span className="font-medium text-ink">COLA &amp; merit — solved automatically.</span>{' '}
                 Calibration finds the COLA and merit budget that hit your Target Salary
                 Growth, so there's nothing to set here.
               </div>
@@ -1008,7 +1010,7 @@ export default function CalibrationPanel() {
         </div>
 
         {/* ── Step 4: Auto-calibrate, then apply ────────────────────── */}
-        <div className="bg-white rounded-lg shadow p-6 space-y-4">
+        <div className="bg-surface-raised rounded-lg shadow p-6 space-y-4">
           <StepHeader n={4} title="Auto-calibrate to your target, then apply">
             {solvingNewHireRanges
               ? 'Run the auto-calibration — it searches the new-hire salary scale across real comp-only simulations until per-year salary growth lands on your target. Then apply the result to the workspace.'
@@ -1017,16 +1019,16 @@ export default function CalibrationPanel() {
 
         {/* Auto-Calibrate: the single run action. Iterated comp-only runs that
             solve the chosen lever; workforce growth is deterministic. */}
-        <div className="rounded-md border border-blue-200 bg-blue-50 p-4">
+        <div className="rounded-md border border-info-border bg-info-surface p-4">
           <div className="space-y-3">
-            <p className="text-xs text-blue-900">
+            <p className="text-xs text-info-ink">
               Solving <span className="font-semibold">{solvingNewHireRanges ? 'new-hire salary ranges' : 'COLA & merit'}</span> to
               hit Target Salary Growth ({pct(values.target_growth_pct)}) at Workforce Growth
               ({pct(values.workforce_growth_rate)}) by running real comp-only simulations.
               Typically 3–6 runs (a few minutes).
             </p>
             {solvingNewHireRanges && baseRanges.length === 0 && (
-              <p className="text-xs text-gray-600">
+              <p className="text-xs text-ink-muted">
                 {censusPath
                   ? 'Census ranges will be derived automatically (Match Census).'
                   : 'Needs a census — upload one to this workspace first.'}
@@ -1037,36 +1039,36 @@ export default function CalibrationPanel() {
                 onClick={runAutoCalibrate}
                 disabled={autoLoading || endYear <= startYear}
                 title={endYear <= startYear ? 'Needs a multi-year range to measure YoY growth' : undefined}
-                className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-md bg-info-solid px-4 py-2 text-ink-inverse text-sm font-medium hover:bg-info-solid-hover disabled:opacity-50"
               >
                 {autoLoading ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
                 {autoLoading ? 'Searching…' : 'Auto-Calibrate'}
               </button>
               <label className="block">
-                <span className="text-xs font-medium text-blue-800">Tolerance (± pp)</span>
+                <span className="text-xs font-medium text-info-ink">Tolerance (± pp)</span>
                 <input
                   type="number" step="0.01" min={0.01} max={1} value={tolerancePct}
                   onChange={(e) => setTolerancePct(Number(e.target.value))}
-                  className="mt-1 w-28 rounded-md border border-blue-300 p-1.5 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  className="mt-1 w-28 rounded-md border border-info-border p-1.5 text-sm shadow-sm focus:border-info-border focus:ring-focus"
                 />
               </label>
               <label className="block">
-                <span className="text-xs font-medium text-blue-800">Max runs</span>
+                <span className="text-xs font-medium text-info-ink">Max runs</span>
                 <input
                   type="number" min={1} max={25} value={maxIterations}
                   onChange={(e) => setMaxIterations(Number(e.target.value))}
-                  className="mt-1 w-24 rounded-md border border-blue-300 p-1.5 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  className="mt-1 w-24 rounded-md border border-info-border p-1.5 text-sm shadow-sm focus:border-info-border focus:ring-focus"
                 />
               </label>
             </div>
           </div>
-          {autoError && <p className="mt-2 text-xs text-red-600">{autoError}</p>}
+          {autoError && <p className="mt-2 text-xs text-danger-ink">{autoError}</p>}
           {autoOutcome && (
             <div className="mt-3">
-              <p className={`text-xs font-medium ${autoOutcome.converged ? 'text-green-700' : 'text-amber-700'}`}>
+              <p className={`text-xs font-medium ${autoOutcome.converged ? 'text-success-ink' : 'text-warning-ink'}`}>
                 {autoOutcome.message}
               </p>
-              <p className="mt-1 text-xs text-blue-900">
+              <p className="mt-1 text-xs text-info-ink">
                 Best config: COLA {pct(autoOutcome.best_params.cola_rate ?? 0)}, merit{' '}
                 {pct(autoOutcome.best_params.merit_budget ?? 0)}
                 {autoOutcome.best_scale != null && (
@@ -1076,7 +1078,7 @@ export default function CalibrationPanel() {
                 full simulation.
               </p>
               <table className="mt-2 text-xs w-full max-w-lg">
-                <thead className="text-blue-800">
+                <thead className="text-info-ink">
                   <tr>
                     <th className="text-left">Run</th>
                     <th className="text-right">COLA</th>
@@ -1088,7 +1090,7 @@ export default function CalibrationPanel() {
                 </thead>
                 <tbody>
                   {autoOutcome.iterations.map((it) => (
-                    <tr key={it.iteration} className="border-t border-blue-100">
+                    <tr key={it.iteration} className="border-t border-info-border">
                       <td>{it.iteration}</td>
                       <td className="text-right">{pct(it.cola_rate)}</td>
                       <td className="text-right">{pct(it.merit_budget)}</td>
@@ -1111,7 +1113,7 @@ export default function CalibrationPanel() {
                 onClick={handleApplyToWorkspace}
                 disabled={applyStatus === 'applying' || !activeWorkspace?.id || results.length === 0}
                 title={results.length === 0 ? 'Auto-calibrate first' : 'Write these levers to the workspace base config and all its scenarios'}
-                className="inline-flex items-center gap-2 rounded bg-fidelity-green px-4 py-2 text-white font-medium hover:bg-fidelity-dark disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded bg-fidelity-green px-4 py-2 text-ink-inverse font-medium hover:bg-fidelity-dark disabled:opacity-50"
               >
                 {applyStatus === 'applying' ? <Loader2 className="animate-spin" size={18} /> : <Database size={18} />}
                 {applyStatus === 'applying'
@@ -1121,15 +1123,15 @@ export default function CalibrationPanel() {
                   : 'Apply to Workspace + Scenarios'}
               </button>
               {applyStatus === 'applied' && (
-                <span className="text-xs text-gray-600">
+                <span className="text-xs text-ink-muted">
                   {applySummary ?? 'Applied.'} Run the full simulation to make it official.
                 </span>
               )}
               {applyStatus === 'error' && applyError && (
-                <span className="text-xs text-red-600">{applyError}</span>
+                <span className="text-xs text-danger-ink">{applyError}</span>
               )}
             </div>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-ink-muted">
               Writes the calibrated levers (COLA, merit, target/workforce growth, termination
               rates, new-hire age &amp; ranges) into the workspace base config and every scenario's
               overrides — leaving each scenario's other settings untouched.
@@ -1141,53 +1143,53 @@ export default function CalibrationPanel() {
       {results.length > 0 && (
         <>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white rounded-lg shadow p-4">
-              <h2 className="font-semibold text-gray-800 mb-2">Average Compensation</h2>
+            <div className="bg-surface-raised rounded-lg shadow p-4">
+              <h2 className="font-semibold text-ink mb-2">Average Compensation</h2>
               <ResponsiveContainer width="100%" height={260}>
                 <LineChart data={results}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="simulation_year" />
-                  <YAxis tickFormatter={(v) => `$${(v / 1000).toFixed(0)}K`} />
-                  <Tooltip formatter={(v: number) => money(v)} />
-                  <Legend />
+                  <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid.line} />
+                  <XAxis dataKey="simulation_year" stroke={chartTheme.axis.line} />
+                  <YAxis stroke={chartTheme.axis.line} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}K`} />
+                  <Tooltip contentStyle={chartTheme.tooltip.contentStyle} formatter={(v: number) => money(v)} />
+                  <Legend formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
                   <Line
                     type="monotone"
                     dataKey="avg_compensation"
                     name="Avg Comp"
-                    stroke="#00853F"
+                    stroke={chartTheme.semantic.primary}
                     strokeWidth={2}
                   />
                 </LineChart>
               </ResponsiveContainer>
             </div>
 
-            <div className="bg-white rounded-lg shadow p-4">
-              <h2 className="font-semibold text-gray-800 mb-2">YoY Growth vs. Target</h2>
+            <div className="bg-surface-raised rounded-lg shadow p-4">
+              <h2 className="font-semibold text-ink mb-2">YoY Growth vs. Target</h2>
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={results}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="simulation_year" />
-                  <YAxis tickFormatter={(v) => `${v}%`} />
-                  <Tooltip formatter={(v: number) => `${v?.toFixed(2)}%`} />
-                  <Legend />
+                  <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid.line} />
+                  <XAxis dataKey="simulation_year" stroke={chartTheme.axis.line} />
+                  <YAxis stroke={chartTheme.axis.line} tickFormatter={(v) => `${v}%`} />
+                  <Tooltip contentStyle={chartTheme.tooltip.contentStyle} formatter={(v: number) => `${v?.toFixed(2)}%`} />
+                  <Legend formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
                   {targetLine !== null && (
                     <ReferenceLine
                       y={targetLine}
-                      stroke="#d97706"
+                      stroke={chartTheme.semantic.warning}
                       strokeDasharray="4 4"
                       label={{ value: `Target ${targetLine.toFixed(1)}%`, position: 'right' }}
                     />
                   )}
-                  <Bar dataKey="yoy_growth_pct" name="YoY Growth" fill="#4CAF50" />
+                  <Bar dataKey="yoy_growth_pct" name="YoY Growth" fill={chartTheme.semantic.positive} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
 
           {/* Per-year table */}
-          <div className="bg-white rounded-lg shadow overflow-x-auto">
+          <div className="bg-surface-raised rounded-lg shadow overflow-x-auto">
             <table className="min-w-full text-sm">
-              <thead className="bg-gray-50 text-gray-600">
+              <thead className="bg-surface-subtle text-ink-muted">
                 <tr>
                   <th className="px-4 py-2 text-left">Year</th>
                   <th className="px-4 py-2 text-right">Avg Comp</th>

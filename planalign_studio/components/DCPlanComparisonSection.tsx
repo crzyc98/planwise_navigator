@@ -7,7 +7,7 @@ import {
   Loader2, AlertCircle, DollarSign, TrendingUp, TrendingDown
 } from 'lucide-react';
 import { DCPlanComparisonResponse, DCPlanAnalytics, ContributionYearSummary } from '../services/api';
-import { COLORS, CONTRIBUTION_COLORS } from '../constants';
+import { useChartTheme } from '../hooks/useChartTheme';
 
 // --- Props ---
 
@@ -64,20 +64,11 @@ const formatPercent = (value: number, decimals: number = 1): string => {
 
 // E066: Contribution rate series colors
 const RATE_SERIES = [
-  { key: 'employee_contribution_rate', label: 'Employee Contribution Rate', color: CONTRIBUTION_COLORS.employee },
-  { key: 'match_contribution_rate', label: 'Employer Match Rate', color: CONTRIBUTION_COLORS.match },
-  { key: 'core_contribution_rate', label: 'Employer Core Rate', color: CONTRIBUTION_COLORS.core },
-  { key: 'total_contribution_rate', label: 'Total Contribution Rate', color: COLORS.charts[3] },
+  { key: 'employee_contribution_rate', label: 'Employee Contribution Rate', colorKey: 'employee' },
+  { key: 'match_contribution_rate', label: 'Employer Match Rate', colorKey: 'match' },
+  { key: 'core_contribution_rate', label: 'Employer Core Rate', colorKey: 'core' },
+  { key: 'total_contribution_rate', label: 'Total Contribution Rate', colorKey: 'total' },
 ] as const;
-
-// --- Tooltip style ---
-
-const tooltipStyle = {
-  backgroundColor: '#fff',
-  borderRadius: '8px',
-  border: '1px solid #e5e7eb',
-  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-};
 
 // --- Reusable chart card with empty-state fallback ---
 
@@ -93,17 +84,17 @@ function ChartCard({
   headerRight?: React.ReactNode;
 }) {
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+    <div className="bg-surface-raised rounded-xl shadow-sm border border-border p-6">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
-          <p className="text-sm text-gray-500">{subtitle}</p>
+          <h3 className="text-lg font-semibold text-ink">{title}</h3>
+          <p className="text-sm text-ink-muted">{subtitle}</p>
         </div>
         {headerRight}
       </div>
       <div className={height}>
         {hasData ? children : (
-          <div className="h-full flex items-center justify-center text-gray-400">
+          <div className="h-full flex items-center justify-center text-ink-subtle">
             <p>{emptyMessage}</p>
           </div>
         )}
@@ -123,17 +114,18 @@ function TrendLineChart({
   yDomain?: [number, number];
   yDecimals?: number;
 }) {
+  const chartTheme = useChartTheme();
   return (
     <ResponsiveContainer width="100%" height="100%">
       <LineChart data={data}>
-        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-        <XAxis dataKey="year" stroke="#9CA3AF" />
-        <YAxis stroke="#9CA3AF" domain={yDomain} tickFormatter={v => formatPercent(v, 0)} />
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
+        <XAxis dataKey="year" stroke={chartTheme.axis.line} />
+        <YAxis stroke={chartTheme.axis.line} domain={yDomain} tickFormatter={v => formatPercent(v, 0)} />
         <Tooltip
-          contentStyle={tooltipStyle}
+          contentStyle={chartTheme.tooltip.contentStyle}
           formatter={(value: number) => [formatPercent(value, yDecimals), '']}
         />
-        <Legend verticalAlign="top" height={36} />
+        <Legend verticalAlign="top" height={36} formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
         {scenarioNames.map(name => (
           <Line
             key={name}
@@ -176,16 +168,16 @@ function SummaryComparisonTable({
     row.unit === 'percent' ? formatPercent(value) : formatCurrency(value);
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+    <div className="bg-surface-raised rounded-xl shadow-sm border border-border p-6">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-800">DC Plan Summary Comparison</h3>
+        <h3 className="text-lg font-semibold text-ink">DC Plan Summary Comparison</h3>
         {headerRight}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-200">
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <tr className="border-b border-border">
+              <th className="px-4 py-3 text-left text-xs font-medium text-ink-muted uppercase tracking-wider">
                 Metric
               </th>
               {scenarioNames.map((name, idx) => (
@@ -199,20 +191,20 @@ function SummaryComparisonTable({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-border">
             {summaryRows.map(row => (
-              <tr key={row.metric} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-medium text-gray-900">{row.metric}</td>
+              <tr key={row.metric} className="hover:bg-surface-subtle">
+                <td className="px-4 py-3 font-medium text-ink">{row.metric}</td>
                 {scenarioNames.map((name, idx) => {
                   const value = row.values[name];
                   const delta = row.deltas[name];
                   const isBaseline = idx === 0;
                   const favorable = !isBaseline && delta !== undefined && isFavorable(row, delta);
-                  const colorClass = favorable ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700';
+                  const colorClass = favorable ? 'bg-success-surface text-success-ink' : 'bg-danger-surface text-danger-ink';
 
                   return (
                     <td key={name} className="px-4 py-3">
-                      <div className="text-gray-800 font-semibold">{formatValue(row, value)}</div>
+                      <div className="text-ink font-semibold">{formatValue(row, value)}</div>
                       {!isBaseline && delta !== undefined && (
                         <span className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium ${colorClass}`}>
                           {formatDelta(row, delta)}
@@ -239,6 +231,7 @@ function ContributionRateLines({
   analytics: DCPlanComparisonResponse['analytics'];
   scenarioNames: Record<string, string>;
 }) {
+  const chartTheme = useChartTheme();
   const isSingleScenario = analytics.length === 1;
   const lines: React.ReactElement[] = [];
 
@@ -251,7 +244,8 @@ function ContributionRateLines({
       const label = isSingleScenario ? series.label : `${scenarioName} - ${series.label}`;
       lines.push(
         <Line
-          key={label} type="monotone" dataKey={label} stroke={series.color}
+          key={label} type="monotone" dataKey={label}
+          stroke={chartTheme.semantic.contribution[series.colorKey]}
           strokeWidth={series.key === 'total_contribution_rate' ? 3 : 2}
           strokeDasharray={dashArray}
           dot={{ r: 3 }} activeDot={{ r: 5 }}
@@ -272,6 +266,7 @@ export default function DCPlanComparisonSection({
   scenarioNames,
   scenarioColors,
 }: DCPlanComparisonSectionProps) {
+  const chartTheme = useChartTheme();
 
   // --- Data Transformations ---
 
@@ -569,7 +564,7 @@ export default function DCPlanComparisonSection({
       <div className="flex items-center justify-center h-48">
         <div className="text-center">
           <Loader2 size={32} className="animate-spin text-fidelity-green mx-auto mb-3" />
-          <p className="text-gray-500 text-sm">Loading DC plan data...</p>
+          <p className="text-ink-muted text-sm">Loading DC plan data...</p>
         </div>
       </div>
     );
@@ -579,9 +574,9 @@ export default function DCPlanComparisonSection({
     return (
       <div className="flex items-center justify-center h-48">
         <div className="text-center">
-          <AlertCircle size={32} className="text-red-400 mx-auto mb-3" />
-          <p className="text-red-600 text-sm font-medium">Failed to load DC plan data</p>
-          <p className="text-gray-500 text-xs mt-1">{error}</p>
+          <AlertCircle size={32} className="text-danger-ink mx-auto mb-3" />
+          <p className="text-danger-ink text-sm font-medium">Failed to load DC plan data</p>
+          <p className="text-ink-muted text-xs mt-1">{error}</p>
         </div>
       </div>
     );
@@ -591,8 +586,8 @@ export default function DCPlanComparisonSection({
     return (
       <div className="flex items-center justify-center h-48">
         <div className="text-center">
-          <DollarSign size={32} className="text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500 text-sm">No DC plan data available</p>
+          <DollarSign size={32} className="text-ink-subtle mx-auto mb-3" />
+          <p className="text-ink-muted text-sm">No DC plan data available</p>
         </div>
       </div>
     );
@@ -609,7 +604,7 @@ export default function DCPlanComparisonSection({
     <select
       value={selectedDistributionYear ?? ''}
       onChange={e => setSelectedDistributionYear(Number(e.target.value))}
-      className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+      className="px-3 py-1.5 text-sm border border-border-strong rounded-lg bg-surface-raised text-ink-muted focus:outline-none focus:ring-2 focus:ring-focus focus:border-success-border"
     >
       {availableDistributionYears.map(y => {
         const isFinal = y === availableDistributionYears[availableDistributionYears.length - 1];
@@ -618,7 +613,7 @@ export default function DCPlanComparisonSection({
       })}
     </select>
   ) : availableDistributionYears.length === 1 && selectedDistributionYear !== null ? (
-    <span className="text-sm text-gray-500">Year {selectedDistributionYear}</span>
+    <span className="text-sm text-ink-muted">Year {selectedDistributionYear}</span>
   ) : undefined;
 
   // Shared year selector for the year-specific comparison (summary table + contribution mix).
@@ -626,7 +621,7 @@ export default function DCPlanComparisonSection({
     <select
       value={selectedComparisonYear ?? ''}
       onChange={e => setSelectedComparisonYear(Number(e.target.value))}
-      className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+      className="px-3 py-1.5 text-sm border border-border-strong rounded-lg bg-surface-raised text-ink-muted focus:outline-none focus:ring-2 focus:ring-focus focus:border-success-border"
     >
       {availableYears.map(y => {
         const isFinal = y === availableYears[availableYears.length - 1];
@@ -635,7 +630,7 @@ export default function DCPlanComparisonSection({
       })}
     </select>
   ) : availableYears.length === 1 && selectedComparisonYear !== null ? (
-    <span className="text-sm text-gray-500">Year {selectedComparisonYear}</span>
+    <span className="text-sm text-ink-muted">Year {selectedComparisonYear}</span>
   ) : undefined;
 
   return (
@@ -659,11 +654,11 @@ export default function DCPlanComparisonSection({
       >
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={contributionRateTrendData}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-            <XAxis dataKey="year" stroke="#9CA3AF" />
-            <YAxis stroke="#9CA3AF" tickFormatter={v => formatPercent(v)} />
-            <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [formatPercent(value, 2), '']} />
-            <Legend verticalAlign="top" height={36} />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
+            <XAxis dataKey="year" stroke={chartTheme.axis.line} />
+            <YAxis stroke={chartTheme.axis.line} tickFormatter={v => formatPercent(v)} />
+            <Tooltip contentStyle={chartTheme.tooltip.contentStyle} formatter={(value: number) => [formatPercent(value, 2), '']} />
+            <Legend verticalAlign="top" height={36} formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
             <ContributionRateLines analytics={comparisonData.analytics} scenarioNames={comparisonData.scenario_names} />
           </LineChart>
         </ResponsiveContainer>
@@ -700,11 +695,11 @@ export default function DCPlanComparisonSection({
       >
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={distributionChartData}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-            <XAxis dataKey="bucket" stroke="#9CA3AF" />
-            <YAxis stroke="#9CA3AF" tickFormatter={v => formatPercent(v, 0)} />
-            <Tooltip contentStyle={tooltipStyle} formatter={(value: number, name: string) => [formatPercent(value, 1), name]} />
-            <Legend verticalAlign="top" height={36} />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
+            <XAxis dataKey="bucket" stroke={chartTheme.axis.line} />
+            <YAxis stroke={chartTheme.axis.line} tickFormatter={v => formatPercent(v, 0)} />
+            <Tooltip contentStyle={chartTheme.tooltip.contentStyle} formatter={(value: number, name: string) => [formatPercent(value, 1), name]} />
+            <Legend verticalAlign="top" height={36} formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
             {scenarioNames.map(name => (
               <Bar key={name} dataKey={name} fill={scenarioColors[name]} radius={[4, 4, 0, 0]} barSize={barWidth} />
             ))}
@@ -722,14 +717,14 @@ export default function DCPlanComparisonSection({
       >
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={contributionBreakdownData}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-            <XAxis dataKey="name" stroke="#9CA3AF" />
-            <YAxis stroke="#9CA3AF" tickFormatter={v => formatCurrency(v)} />
-            <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [formatCurrency(value), '']} />
-            <Legend verticalAlign="top" height={36} />
-            <Bar dataKey="employee" name="Employee Contributions" fill={CONTRIBUTION_COLORS.employee} radius={[4, 4, 0, 0]} barSize={contributionBarSize} />
-            <Bar dataKey="match" name="Employer Match" fill={CONTRIBUTION_COLORS.match} radius={[4, 4, 0, 0]} barSize={contributionBarSize} />
-            <Bar dataKey="core" name="Employer Core" fill={CONTRIBUTION_COLORS.core} radius={[4, 4, 0, 0]} barSize={contributionBarSize} />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
+            <XAxis dataKey="name" stroke={chartTheme.axis.line} />
+            <YAxis stroke={chartTheme.axis.line} tickFormatter={v => formatCurrency(v)} />
+            <Tooltip contentStyle={chartTheme.tooltip.contentStyle} formatter={(value: number) => [formatCurrency(value), '']} />
+            <Legend verticalAlign="top" height={36} formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
+            <Bar dataKey="employee" name="Employee Contributions" fill={chartTheme.semantic.contribution.employee} radius={[4, 4, 0, 0]} barSize={contributionBarSize} />
+            <Bar dataKey="match" name="Employer Match" fill={chartTheme.semantic.contribution.match} radius={[4, 4, 0, 0]} barSize={contributionBarSize} />
+            <Bar dataKey="core" name="Employer Core" fill={chartTheme.semantic.contribution.core} radius={[4, 4, 0, 0]} barSize={contributionBarSize} />
           </BarChart>
         </ResponsiveContainer>
       </ChartCard>

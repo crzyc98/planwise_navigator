@@ -30,7 +30,7 @@ import {
   OptimizerValidateResponse,
   OptimizerJob,
 } from '../services/api';
-import { COLORS } from '../constants';
+import { useChartTheme } from '../hooks/useChartTheme';
 
 interface OptimizerOutletContext {
   activeWorkspace: Workspace | null;
@@ -104,12 +104,12 @@ function errorText(e: unknown): string {
 function StepHeader({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
     <div className="flex items-start gap-3">
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-fidelity-green text-sm font-semibold text-white">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-fidelity-green text-sm font-semibold text-ink-inverse">
         {n}
       </span>
       <div>
-        <h2 className="text-base font-semibold text-gray-900">{title}</h2>
-        <p className="text-sm text-gray-500">{children}</p>
+        <h2 className="text-base font-semibold text-ink">{title}</h2>
+        <p className="text-sm text-ink-muted">{children}</p>
       </div>
     </div>
   );
@@ -162,6 +162,7 @@ function leverRowToSpec(row: LeverRow): LeverSpec {
 }
 
 export default function OptimizerPanel() {
+  const chartTheme = useChartTheme();
   const { activeWorkspace } = useOutletContext<OptimizerOutletContext>();
 
   // Step 1 -- design space
@@ -340,7 +341,7 @@ export default function OptimizerPanel() {
   const colorByCandidate = useMemo(() => {
     const map: Record<string, string> = {};
     (run?.candidates ?? []).forEach((c, i) => {
-      map[c.candidate_id] = COLORS.charts[i % COLORS.charts.length];
+      map[c.candidate_id] = chartTheme.colorAt(i);
     });
     return map;
   }, [run]);
@@ -358,24 +359,24 @@ export default function OptimizerPanel() {
   return (
     <div className="space-y-6 pb-12">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">Plan-Design Optimizer</h1>
-        <p className="text-sm text-gray-500">
+        <h1 className="text-xl font-bold text-ink">Plan-Design Optimizer</h1>
+        <p className="text-sm text-ink-muted">
           State objectives and constraints; PlanAlign searches match, auto-enrollment, escalation,
           eligibility, and vesting design and returns the best candidates found within your run budget.
         </p>
       </div>
 
       {/* Step 1: Design space */}
-      <div className="bg-white rounded-lg shadow p-6 space-y-4">
+      <div className="bg-surface-raised rounded-lg shadow p-6 space-y-4">
         <StepHeader n={1} title="Declare the design space">
           Which levers can the search adjust? Up to {MAX_LEVERS} at a time.
         </StepHeader>
 
         <div className="space-y-3">
           {leverRows.map((row) => (
-            <div key={row.id} className="flex flex-wrap items-center gap-2 rounded-md border border-gray-200 p-3">
+            <div key={row.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border p-3">
               <select
-                className="rounded-md border border-gray-300 p-2 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+                className="rounded-md border border-border-strong p-2 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
                 value={row.name}
                 onChange={(e) => updateLeverRow(row.id, { name: e.target.value })}
               >
@@ -385,13 +386,13 @@ export default function OptimizerPanel() {
                   </option>
                 ))}
               </select>
-              <div className="flex rounded-md border border-gray-300 overflow-hidden text-sm">
+              <div className="flex rounded-md border border-border-strong overflow-hidden text-sm">
                 {(['continuous', 'discrete'] as LeverKind[]).map((kind) => (
                   <button
                     key={kind}
                     type="button"
                     onClick={() => updateLeverRow(row.id, { kind })}
-                    className={`px-3 py-2 ${row.kind === kind ? 'bg-fidelity-green text-white' : 'bg-white text-gray-600'}`}
+                    className={`px-3 py-2 ${row.kind === kind ? 'bg-fidelity-green text-ink-inverse' : 'bg-surface-raised text-ink-muted'}`}
                   >
                     {kind}
                   </button>
@@ -402,14 +403,14 @@ export default function OptimizerPanel() {
                   <input
                     type="number"
                     placeholder="min"
-                    className="w-24 rounded-md border border-gray-300 p-2 text-sm shadow-sm"
+                    className="w-24 rounded-md border border-border-strong p-2 text-sm shadow-sm"
                     value={row.min}
                     onChange={(e) => updateLeverRow(row.id, { min: e.target.value })}
                   />
                   <input
                     type="number"
                     placeholder="max"
-                    className="w-24 rounded-md border border-gray-300 p-2 text-sm shadow-sm"
+                    className="w-24 rounded-md border border-border-strong p-2 text-sm shadow-sm"
                     value={row.max}
                     onChange={(e) => updateLeverRow(row.id, { max: e.target.value })}
                   />
@@ -419,7 +420,7 @@ export default function OptimizerPanel() {
                   {row.choices.map((choice, i) => (
                     <span
                       key={i}
-                      className="inline-flex items-center gap-1 rounded bg-gray-100 px-2 py-1 text-xs"
+                      className="inline-flex items-center gap-1 rounded bg-surface-subtle px-2 py-1 text-xs"
                     >
                       {String(choice)}
                       <button
@@ -437,7 +438,7 @@ export default function OptimizerPanel() {
                   <input
                     type="text"
                     placeholder="add value, Enter"
-                    className="w-32 rounded-md border border-gray-300 p-1.5 text-xs shadow-sm"
+                    className="w-32 rounded-md border border-border-strong p-1.5 text-xs shadow-sm"
                     value={row.choiceDraft}
                     onChange={(e) => updateLeverRow(row.id, { choiceDraft: e.target.value })}
                     onKeyDown={(e) => {
@@ -455,7 +456,7 @@ export default function OptimizerPanel() {
               <button
                 type="button"
                 onClick={() => removeLeverRow(row.id)}
-                className="ml-auto text-gray-400 hover:text-red-500"
+                className="ml-auto text-ink-subtle hover:text-danger-ink"
                 aria-label="Remove lever"
               >
                 <X size={16} />
@@ -466,24 +467,24 @@ export default function OptimizerPanel() {
             type="button"
             onClick={addLeverRow}
             disabled={leverRows.length >= MAX_LEVERS}
-            className="inline-flex items-center gap-1 text-sm font-medium text-fidelity-green disabled:text-gray-300"
+            className="inline-flex items-center gap-1 text-sm font-medium text-fidelity-green disabled:text-ink-subtle"
           >
             <Plus size={16} /> Add lever
           </button>
         </div>
 
-        <div className="border-t border-gray-100 pt-3">
+        <div className="border-t border-border pt-3">
           <button
             type="button"
             onClick={() => setShowImport((v) => !v)}
-            className="inline-flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-gray-800"
+            className="inline-flex items-center gap-1 text-sm font-medium text-ink-muted hover:text-ink"
           >
             <Upload size={14} /> {showImport ? 'Hide' : 'Import from YAML'}
           </button>
           {showImport && (
             <div className="mt-2 space-y-2">
               <textarea
-                className="w-full rounded-md border border-gray-300 p-2 font-mono text-xs shadow-sm"
+                className="w-full rounded-md border border-border-strong p-2 font-mono text-xs shadow-sm"
                 rows={8}
                 placeholder="Paste an existing spec.yaml, or upload one below."
                 value={importYaml}
@@ -504,19 +505,19 @@ export default function OptimizerPanel() {
                   type="button"
                   onClick={handleImport}
                   disabled={importLoading || importYaml.trim() === ''}
-                  className="rounded-md bg-gray-700 px-3 py-1.5 text-sm font-medium text-white disabled:bg-gray-300"
+                  className="rounded-md bg-surface-disabled px-3 py-1.5 text-sm font-medium text-ink-inverse disabled:bg-surface-disabled"
                 >
                   {importLoading ? <Loader2 className="animate-spin" size={14} /> : 'Import'}
                 </button>
               </div>
-              {importError && <p className="text-sm text-red-600">{errorText(importError)}</p>}
+              {importError && <p className="text-sm text-danger-ink">{errorText(importError)}</p>}
             </div>
           )}
         </div>
       </div>
 
       {/* Step 2: Objective & constraints */}
-      <div className="bg-white rounded-lg shadow p-6 space-y-4">
+      <div className="bg-surface-raised rounded-lg shadow p-6 space-y-4">
         <StepHeader n={2} title="Set the objective and constraints">
           1-2 objectives (a second one unlocks the Pareto frontier). Constraints are hard guardrails.
         </StepHeader>
@@ -525,7 +526,7 @@ export default function OptimizerPanel() {
           {objectiveRows.map((row) => (
             <div key={row.id} className="flex items-center gap-2">
               <select
-                className="rounded-md border border-gray-300 p-2 text-sm shadow-sm"
+                className="rounded-md border border-border-strong p-2 text-sm shadow-sm"
                 value={row.metric}
                 onChange={(e) => updateObjectiveRow(row.id, { metric: e.target.value })}
               >
@@ -535,20 +536,20 @@ export default function OptimizerPanel() {
                   </option>
                 ))}
               </select>
-              <div className="flex rounded-md border border-gray-300 overflow-hidden text-sm">
+              <div className="flex rounded-md border border-border-strong overflow-hidden text-sm">
                 {(['minimize', 'maximize'] as ObjectiveDirection[]).map((dir) => (
                   <button
                     key={dir}
                     type="button"
                     onClick={() => updateObjectiveRow(row.id, { direction: dir })}
-                    className={`px-3 py-2 ${row.direction === dir ? 'bg-fidelity-green text-white' : 'bg-white text-gray-600'}`}
+                    className={`px-3 py-2 ${row.direction === dir ? 'bg-fidelity-green text-ink-inverse' : 'bg-surface-raised text-ink-muted'}`}
                   >
                     {dir}
                   </button>
                 ))}
               </div>
               {objectiveRows.length > 1 && (
-                <button type="button" onClick={() => removeObjectiveRow(row.id)} className="text-gray-400 hover:text-red-500">
+                <button type="button" onClick={() => removeObjectiveRow(row.id)} className="text-ink-subtle hover:text-danger-ink">
                   <X size={16} />
                 </button>
               )}
@@ -558,17 +559,17 @@ export default function OptimizerPanel() {
             type="button"
             onClick={addObjectiveRow}
             disabled={objectiveRows.length >= 2}
-            className="inline-flex items-center gap-1 text-sm font-medium text-fidelity-green disabled:text-gray-300"
+            className="inline-flex items-center gap-1 text-sm font-medium text-fidelity-green disabled:text-ink-subtle"
           >
             <Plus size={16} /> Add objective (unlocks Pareto frontier)
           </button>
         </div>
 
-        <div className="space-y-2 border-t border-gray-100 pt-3">
+        <div className="space-y-2 border-t border-border pt-3">
           {constraintRows.map((row) => (
             <div key={row.id} className="flex flex-wrap items-center gap-2">
               <select
-                className="rounded-md border border-gray-300 p-2 text-sm shadow-sm"
+                className="rounded-md border border-border-strong p-2 text-sm shadow-sm"
                 value={row.metric}
                 onChange={(e) => updateConstraintRow(row.id, { metric: e.target.value })}
               >
@@ -579,7 +580,7 @@ export default function OptimizerPanel() {
                 ))}
               </select>
               <select
-                className="rounded-md border border-gray-300 p-2 text-sm shadow-sm"
+                className="rounded-md border border-border-strong p-2 text-sm shadow-sm"
                 value={row.operator}
                 onChange={(e) => updateConstraintRow(row.id, { operator: e.target.value as ConstraintOperator })}
               >
@@ -592,7 +593,7 @@ export default function OptimizerPanel() {
               <input
                 type="number"
                 placeholder="threshold"
-                className="w-28 rounded-md border border-gray-300 p-2 text-sm shadow-sm"
+                className="w-28 rounded-md border border-border-strong p-2 text-sm shadow-sm"
                 value={row.threshold}
                 onChange={(e) => updateConstraintRow(row.id, { threshold: e.target.value })}
               />
@@ -605,11 +606,11 @@ export default function OptimizerPanel() {
                     : 'Set an ensemble database below to enable percentile evaluation -- otherwise this falls back to a point estimate'
                 }
                 disabled={!percentileEnabled}
-                className="w-24 rounded-md border border-gray-300 p-2 text-sm shadow-sm disabled:bg-gray-50 disabled:text-gray-300"
+                className="w-24 rounded-md border border-border-strong p-2 text-sm shadow-sm disabled:bg-surface-subtle disabled:text-ink-subtle"
                 value={row.percentile}
                 onChange={(e) => updateConstraintRow(row.id, { percentile: e.target.value })}
               />
-              <button type="button" onClick={() => removeConstraintRow(row.id)} className="text-gray-400 hover:text-red-500">
+              <button type="button" onClick={() => removeConstraintRow(row.id)} className="text-ink-subtle hover:text-danger-ink">
                 <X size={16} />
               </button>
             </div>
@@ -625,13 +626,13 @@ export default function OptimizerPanel() {
       </div>
 
       {/* Step 3: Baseline & run parameters */}
-      <div className="bg-white rounded-lg shadow p-6 space-y-4">
+      <div className="bg-surface-raised rounded-lg shadow p-6 space-y-4">
         <StepHeader n={3} title="Baseline and run budget">
           Every candidate overlays your declared levers onto this baseline configuration.
         </StepHeader>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <label className="flex items-center gap-2 text-sm text-gray-700">
+          <label className="flex items-center gap-2 text-sm text-ink-muted">
             <input
               type="checkbox"
               checked={useWorkspaceBaseline}
@@ -642,40 +643,40 @@ export default function OptimizerPanel() {
           </label>
           {!useWorkspaceBaseline && (
             <div>
-              <label className="block text-sm font-medium text-gray-700">Baseline config path</label>
+              <label className="block text-sm font-medium text-ink-muted">Baseline config path</label>
               <input
                 type="text"
-                className="mt-1 w-full rounded-md border border-gray-300 p-2 text-sm shadow-sm"
+                className="mt-1 w-full rounded-md border border-border-strong p-2 text-sm shadow-sm"
                 value={configPath}
                 onChange={(e) => setConfigPath(e.target.value)}
               />
             </div>
           )}
           <div>
-            <label className="block text-sm font-medium text-gray-700">Ensemble database (optional)</label>
+            <label className="block text-sm font-medium text-ink-muted">Ensemble database (optional)</label>
             <input
               type="text"
               placeholder="/path/to/ensemble.duckdb"
-              className="mt-1 w-full rounded-md border border-gray-300 p-2 text-sm shadow-sm"
+              className="mt-1 w-full rounded-md border border-border-strong p-2 text-sm shadow-sm"
               value={ensembleDatabase}
               onChange={(e) => setEnsembleDatabase(e.target.value)}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Max runs</label>
+            <label className="block text-sm font-medium text-ink-muted">Max runs</label>
             <input
               type="number"
               min={1}
-              className="mt-1 w-full rounded-md border border-gray-300 p-2 text-sm shadow-sm"
+              className="mt-1 w-full rounded-md border border-border-strong p-2 text-sm shadow-sm"
               value={maxRuns}
               onChange={(e) => setMaxRuns(Number(e.target.value))}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Search seed (optional)</label>
+            <label className="block text-sm font-medium text-ink-muted">Search seed (optional)</label>
             <input
               type="number"
-              className="mt-1 w-full rounded-md border border-gray-300 p-2 text-sm shadow-sm"
+              className="mt-1 w-full rounded-md border border-border-strong p-2 text-sm shadow-sm"
               value={searchSeed}
               onChange={(e) => setSearchSeed(e.target.value)}
             />
@@ -685,36 +686,36 @@ export default function OptimizerPanel() {
         <button
           type="button"
           onClick={() => setShowAdvanced((v) => !v)}
-          className="text-sm font-medium text-gray-500 hover:text-gray-700"
+          className="text-sm font-medium text-ink-muted hover:text-ink-muted"
         >
           {showAdvanced ? 'Hide advanced options' : 'Show advanced options'}
         </button>
         {showAdvanced && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Parallel workers</label>
+              <label className="block text-sm font-medium text-ink-muted">Parallel workers</label>
               <input
                 type="number"
                 min={1}
-                className="mt-1 w-full rounded-md border border-gray-300 p-2 text-sm shadow-sm"
+                className="mt-1 w-full rounded-md border border-border-strong p-2 text-sm shadow-sm"
                 value={parallel}
                 onChange={(e) => setParallel(e.target.value)}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Database dir override</label>
+              <label className="block text-sm font-medium text-ink-muted">Database dir override</label>
               <input
                 type="text"
-                className="mt-1 w-full rounded-md border border-gray-300 p-2 text-sm shadow-sm"
+                className="mt-1 w-full rounded-md border border-border-strong p-2 text-sm shadow-sm"
                 value={databaseDir}
                 onChange={(e) => setDatabaseDir(e.target.value)}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Output dir override</label>
+              <label className="block text-sm font-medium text-ink-muted">Output dir override</label>
               <input
                 type="text"
-                className="mt-1 w-full rounded-md border border-gray-300 p-2 text-sm shadow-sm"
+                className="mt-1 w-full rounded-md border border-border-strong p-2 text-sm shadow-sm"
                 value={outputDir}
                 onChange={(e) => setOutputDir(e.target.value)}
               />
@@ -722,7 +723,7 @@ export default function OptimizerPanel() {
           </div>
         )}
 
-        <div className="flex items-center gap-3 border-t border-gray-100 pt-3">
+        <div className="flex items-center gap-3 border-t border-border pt-3">
           <button
             type="button"
             onClick={handleValidate}
@@ -731,9 +732,9 @@ export default function OptimizerPanel() {
           >
             {validateLoading ? <Loader2 className="animate-spin" size={14} /> : 'Validate'}
           </button>
-          {validateError && <p className="text-sm text-red-600">{validateError}</p>}
+          {validateError && <p className="text-sm text-danger-ink">{validateError}</p>}
           {validation?.valid && (
-            <p className="text-sm text-green-700">
+            <p className="text-sm text-success-ink">
               Spec is valid -- seed phase will try {validation.seed_phase_count} candidate(s).
             </p>
           )}
@@ -741,7 +742,7 @@ export default function OptimizerPanel() {
       </div>
 
       {/* Step 4: Run + results */}
-      <div className="bg-white rounded-lg shadow p-6 space-y-4">
+      <div className="bg-surface-raised rounded-lg shadow p-6 space-y-4">
         <StepHeader n={4} title="Run the search and review candidates">
           Each candidate is an isolated scenario simulation, so a search of {maxRuns} candidates can
           take several minutes.
@@ -751,7 +752,7 @@ export default function OptimizerPanel() {
           type="button"
           onClick={handleRun}
           disabled={runLoading}
-          className="rounded-md bg-fidelity-green px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="rounded-md bg-fidelity-green px-4 py-2 text-sm font-medium text-ink-inverse disabled:opacity-50"
         >
           {runLoading ? (
             <span className="inline-flex items-center gap-2">
@@ -761,12 +762,12 @@ export default function OptimizerPanel() {
             'Start Optimizer Search'
           )}
         </button>
-        {runError && <p className="text-sm text-red-600">{errorText(runError)}</p>}
+        {runError && <p className="text-sm text-danger-ink">{errorText(runError)}</p>}
 
         {run && (
           <div className="space-y-4">
             {run.binding_infeasible_constraints && run.binding_infeasible_constraints.length > 0 && (
-              <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+              <div className="flex items-start gap-2 rounded-md border border-warning-border bg-warning-surface p-3 text-sm text-warning-ink">
                 <AlertTriangle size={18} className="mt-0.5 shrink-0" />
                 <span>
                   No feasible candidates -- every evaluated design failed:{' '}
@@ -776,20 +777,21 @@ export default function OptimizerPanel() {
             )}
 
             {isTwoObjective && run.pareto_frontier !== null && frontierMetrics && (
-              <div className="bg-white rounded-lg shadow p-4">
-                <h3 className="mb-2 font-semibold text-gray-800">Pareto frontier</h3>
+              <div className="bg-surface-raised rounded-lg shadow p-4">
+                <h3 className="mb-2 font-semibold text-ink">Pareto frontier</h3>
                 <ResponsiveContainer width="100%" height={320}>
                   <ScatterChart margin={{ top: 10, right: 20, bottom: 20, left: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" dataKey="x" name={frontierMetrics[0]} />
-                    <YAxis type="number" dataKey="y" name={frontierMetrics[1]} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid.line} />
+                    <XAxis type="number" dataKey="x" name={frontierMetrics[0]} stroke={chartTheme.axis.line} />
+                    <YAxis type="number" dataKey="y" name={frontierMetrics[1]} stroke={chartTheme.axis.line} />
                     <ZAxis range={[80, 80]} />
                     <Tooltip
-                      cursor={{ strokeDasharray: '3 3' }}
+                      cursor={{ stroke: chartTheme.grid.cursor, strokeDasharray: '3 3' }}
+                      contentStyle={chartTheme.tooltip.contentStyle}
                       formatter={(value: number) => value}
                       labelFormatter={() => ''}
                     />
-                    <Legend />
+                    <Legend formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
                     <Scatter
                       name="Candidates"
                       data={run.candidates
@@ -808,23 +810,23 @@ export default function OptimizerPanel() {
                           <Cell
                             key={c.candidate_id}
                             fill={colorByCandidate[c.candidate_id]}
-                            stroke={run.pareto_frontier?.includes(c.candidate_id) ? '#000' : 'none'}
+                            stroke={run.pareto_frontier?.includes(c.candidate_id) ? chartTheme.semantic.frontierOutline : 'none'}
                             strokeWidth={run.pareto_frontier?.includes(c.candidate_id) ? 2 : 0}
                           />
                         ))}
                     </Scatter>
                   </ScatterChart>
                 </ResponsiveContainer>
-                <p className="mt-1 text-xs text-gray-400">
+                <p className="mt-1 text-xs text-ink-subtle">
                   Outlined points are on the Pareto frontier ({run.pareto_frontier.length} candidate(s)).
                 </p>
               </div>
             )}
 
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <table className="min-w-full divide-y divide-border text-sm">
                 <thead>
-                  <tr className="text-left text-xs font-medium uppercase text-gray-500">
+                  <tr className="text-left text-xs font-medium uppercase text-ink-muted">
                     {!isTwoObjective && <th className="px-3 py-2">Rank</th>}
                     <th className="px-3 py-2">Candidate</th>
                     <th className="px-3 py-2">Status</th>
@@ -833,15 +835,15 @@ export default function OptimizerPanel() {
                     <th className="px-3 py-2">Constraints</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-border">
                   {run.candidates.map((c) => (
                     <tr
                       key={c.candidate_id}
                       onClick={() => setSelectedCandidateId(c.candidate_id)}
-                      className={`cursor-pointer hover:bg-gray-50 ${selectedCandidateId === c.candidate_id ? 'bg-blue-50' : ''}`}
+                      className={`cursor-pointer hover:bg-surface-subtle ${selectedCandidateId === c.candidate_id ? 'bg-info-surface' : ''}`}
                     >
                       {!isTwoObjective && (
-                        <td className="px-3 py-2 text-gray-500">{rankedOrder.get(c.candidate_id) ?? '—'}</td>
+                        <td className="px-3 py-2 text-ink-muted">{rankedOrder.get(c.candidate_id) ?? '—'}</td>
                       )}
                       <td className="px-3 py-2 font-mono text-xs">
                         <span
@@ -850,7 +852,7 @@ export default function OptimizerPanel() {
                         />
                         {c.candidate_id}
                         {c.is_duplicate_of && (
-                          <span className="ml-1 rounded bg-gray-100 px-1 text-[10px] text-gray-500">
+                          <span className="ml-1 rounded bg-surface-subtle px-1 text-[10px] text-ink-muted">
                             dup of {c.is_duplicate_of}
                           </span>
                         )}
@@ -859,21 +861,21 @@ export default function OptimizerPanel() {
                         <span
                           className={`rounded px-2 py-0.5 text-xs font-medium ${
                             c.status === 'feasible'
-                              ? 'bg-green-100 text-green-800'
+                              ? 'bg-success-surface text-success-ink'
                               : c.status === 'infeasible'
-                              ? 'bg-red-100 text-red-800'
-                              : 'bg-gray-100 text-gray-600'
+                              ? 'bg-danger-surface text-danger-ink'
+                              : 'bg-surface-subtle text-ink-muted'
                           }`}
                         >
                           {c.status}
                         </span>
                       </td>
-                      <td className="max-w-xs truncate px-3 py-2 text-xs text-gray-500">
+                      <td className="max-w-xs truncate px-3 py-2 text-xs text-ink-muted">
                         {Object.entries(c.lever_values)
                           .map(([k, v]) => `${k}=${v}`)
                           .join(', ')}
                       </td>
-                      <td className="px-3 py-2 text-xs text-gray-700">
+                      <td className="px-3 py-2 text-xs text-ink-muted">
                         {Object.entries(c.objective_values)
                           .map(([k, v]) => `${k}=${v ?? '—'}`)
                           .join(', ')}
@@ -884,7 +886,7 @@ export default function OptimizerPanel() {
                           : c.constraint_results.map((r) => (
                               <span
                                 key={r.metric}
-                                className={`mr-1 ${r.satisfied ? 'text-green-700' : 'text-red-700'}`}
+                                className={`mr-1 ${r.satisfied ? 'text-success-ink' : 'text-danger-ink'}`}
                               >
                                 {r.satisfied ? '✓' : '✗'} {r.metric}
                               </span>
@@ -897,9 +899,9 @@ export default function OptimizerPanel() {
             </div>
 
             {selectedCandidate && (
-              <div className="rounded-md border border-gray-200 bg-gray-50 p-4 text-sm">
-                <h4 className="mb-2 font-semibold text-gray-800">{selectedCandidate.candidate_id} detail</h4>
-                <pre className="overflow-x-auto whitespace-pre-wrap text-xs text-gray-600">
+              <div className="rounded-md border border-border bg-surface-subtle p-4 text-sm">
+                <h4 className="mb-2 font-semibold text-ink">{selectedCandidate.candidate_id} detail</h4>
+                <pre className="overflow-x-auto whitespace-pre-wrap text-xs text-ink-muted">
                   {JSON.stringify(selectedCandidate, null, 2)}
                 </pre>
               </div>

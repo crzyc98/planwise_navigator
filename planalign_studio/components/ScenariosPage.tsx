@@ -109,11 +109,11 @@ export default function ScenariosPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'completed': return 'bg-green-100 text-green-700';
-      case 'running': return 'bg-blue-100 text-blue-700';
-      case 'failed': return 'bg-red-100 text-red-700';
-      case 'queued': return 'bg-yellow-100 text-yellow-700';
-      default: return 'bg-gray-100 text-gray-600';
+      case 'completed': return 'bg-success-surface text-success-ink';
+      case 'running': return 'bg-info-surface text-info-ink';
+      case 'failed': return 'bg-danger-surface text-danger-ink';
+      case 'queued': return 'bg-warning-surface text-warning-ink';
+      default: return 'bg-surface-subtle text-ink-muted';
     }
   };
 
@@ -167,9 +167,9 @@ export default function ScenariosPage() {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
-          <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <h2 className="text-lg font-medium text-gray-900">No Workspace Selected</h2>
-          <p className="text-sm text-gray-500 mt-1">Please select a workspace from the sidebar.</p>
+          <AlertCircle className="w-12 h-12 text-ink-subtle mx-auto mb-4" />
+          <h2 className="text-lg font-medium text-ink">No Workspace Selected</h2>
+          <p className="text-sm text-ink-muted mt-1">Please select a workspace from the sidebar.</p>
         </div>
       </div>
     );
@@ -180,22 +180,22 @@ export default function ScenariosPage() {
       {/* Header */}
       <div className="flex-shrink-0 flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Scenarios</h1>
-          <p className="text-gray-500 text-sm">
+          <h1 className="text-2xl font-bold text-ink">Scenarios</h1>
+          <p className="text-ink-muted text-sm">
             Manage simulation scenarios for <span className="font-medium">{activeWorkspace.name}</span>
           </p>
         </div>
         <div className="flex items-center space-x-3">
           {selectMode ? (
             <>
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-ink-muted">
                 {selectedIds.size} selected
               </span>
               <button
                 onClick={handleDiff}
                 disabled={!canDiff}
                 title={canDiff ? 'Open focused scenario diff' : 'Select exactly two completed scenarios'}
-                className={`px-4 py-2 rounded-lg flex items-center font-medium shadow-sm transition-colors ${canDiff ? 'bg-fidelity-green text-white hover:bg-fidelity-dark' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+                className={`px-4 py-2 rounded-lg flex items-center font-medium shadow-sm transition-colors ${canDiff ? 'bg-fidelity-green text-ink-inverse hover:bg-fidelity-dark' : 'bg-surface-disabled text-ink-subtle cursor-not-allowed'}`}
               >
                 <ArrowLeftRight size={18} className="mr-2" />
                 Diff A vs B
@@ -203,14 +203,14 @@ export default function ScenariosPage() {
               <button
                 onClick={handleRunBatch}
                 disabled={selectedIds.size === 0}
-                className={`px-4 py-2 rounded-lg flex items-center font-medium shadow-sm transition-colors ${selectedIds.size === 0 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                className={`px-4 py-2 rounded-lg flex items-center font-medium shadow-sm transition-colors ${selectedIds.size === 0 ? 'bg-surface-disabled text-ink-subtle cursor-not-allowed' : 'bg-info-solid text-ink-inverse hover:bg-info-solid-hover'}`}
               >
                 <PlayCircle size={18} className="mr-2" />
                 Run as Batch
               </button>
               <button
                 onClick={exitSelectMode}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg flex items-center font-medium hover:bg-gray-200 transition-colors"
+                className="px-4 py-2 bg-surface-subtle text-ink-muted rounded-lg flex items-center font-medium hover:bg-surface-disabled transition-colors"
               >
                 <X size={18} className="mr-2" />
                 Cancel
@@ -221,7 +221,7 @@ export default function ScenariosPage() {
               {scenarios.length >= 2 && (
                 <button
                   onClick={() => setSelectMode(true)}
-                  className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg flex items-center font-medium hover:bg-gray-50 transition-colors"
+                  className="px-4 py-2 bg-surface-raised border border-border-strong text-ink-muted rounded-lg flex items-center font-medium hover:bg-surface-subtle transition-colors"
                 >
                   <CheckSquare size={18} className="mr-2" />
                   Select for Batch
@@ -229,7 +229,7 @@ export default function ScenariosPage() {
               )}
               <button
                 onClick={() => setShowCreateForm(true)}
-                className="px-4 py-2 bg-fidelity-green text-white rounded-lg flex items-center font-medium shadow-sm hover:bg-fidelity-dark transition-colors"
+                className="px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg flex items-center font-medium shadow-sm hover:bg-fidelity-dark transition-colors"
               >
                 <Plus size={18} className="mr-2" />
                 New Scenario
@@ -243,30 +243,30 @@ export default function ScenariosPage() {
       <div className="flex-1 min-h-0 overflow-y-auto">
         {/* Create Form */}
         {showCreateForm && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-          <h3 className="font-semibold text-gray-900 mb-4">Create New Scenario</h3>
+          <div className="bg-surface-raised rounded-xl shadow-sm border border-border p-6 mb-6">
+          <h3 className="font-semibold text-ink mb-4">Create New Scenario</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
-              <label htmlFor="scenario-create-name" className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+              <label htmlFor="scenario-create-name" className="block text-sm font-medium text-ink-muted mb-1">Name *</label>
               <input
                 id="scenario-create-name"
                 type="text"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="e.g., Baseline 2025, High Growth"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-fidelity-green focus:border-fidelity-green"
+                className="w-full px-3 py-2 border border-border-strong rounded-lg text-sm focus:ring-fidelity-green focus:border-fidelity-green"
                 autoFocus
               />
             </div>
             <div>
-              <label htmlFor="scenario-create-desc" className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <label htmlFor="scenario-create-desc" className="block text-sm font-medium text-ink-muted mb-1">Description</label>
               <input
                 id="scenario-create-desc"
                 type="text"
                 value={newDesc}
                 onChange={(e) => setNewDesc(e.target.value)}
                 placeholder="Brief description..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-fidelity-green focus:border-fidelity-green"
+                className="w-full px-3 py-2 border border-border-strong rounded-lg text-sm focus:ring-fidelity-green focus:border-fidelity-green"
               />
             </div>
           </div>
@@ -274,11 +274,11 @@ export default function ScenariosPage() {
             <button
               onClick={handleCreate}
               disabled={!newName.trim() || creating}
-              className="px-4 py-2 bg-fidelity-green text-white rounded-lg text-sm font-medium hover:bg-fidelity-dark disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center"
+              className="px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-fidelity-dark disabled:bg-surface-disabled disabled:cursor-not-allowed flex items-center"
             >
               {creating ? (
                 <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-border mr-2"></div>
                   Creating...
                 </>
               ) : (
@@ -294,7 +294,7 @@ export default function ScenariosPage() {
                 setNewName('');
                 setNewDesc('');
               }}
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200"
+              className="px-4 py-2 bg-surface-subtle text-ink-muted rounded-lg text-sm font-medium hover:bg-surface-disabled"
             >
               Cancel
             </button>
@@ -303,30 +303,30 @@ export default function ScenariosPage() {
       )}
 
         {/* Content */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col overflow-hidden">
+        <div className="bg-surface-raised rounded-xl shadow-sm border border-border flex flex-col overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-fidelity-green mx-auto mb-3"></div>
-              <p className="text-sm text-gray-500">Loading scenarios...</p>
+              <p className="text-sm text-ink-muted">Loading scenarios...</p>
             </div>
           </div>
         ) : error ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
-              <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
-              <p className="text-sm text-red-600">{error}</p>
+              <AlertCircle className="w-10 h-10 text-danger-ink mx-auto mb-3" />
+              <p className="text-sm text-danger-ink">{error}</p>
             </div>
           </div>
         ) : scenarios.length === 0 ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
-              <Layers className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-1">No scenarios yet</h3>
-              <p className="text-sm text-gray-500 mb-4">Create your first scenario to get started.</p>
+              <Layers className="w-12 h-12 text-ink-subtle mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-ink mb-1">No scenarios yet</h3>
+              <p className="text-sm text-ink-muted mb-4">Create your first scenario to get started.</p>
               <button
                 onClick={() => setShowCreateForm(true)}
-                className="px-4 py-2 bg-fidelity-green text-white rounded-lg text-sm font-medium hover:bg-fidelity-dark inline-flex items-center"
+                className="px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-fidelity-dark inline-flex items-center"
               >
                 <Plus size={16} className="mr-2" />
                 Create Scenario
@@ -334,13 +334,13 @@ export default function ScenariosPage() {
             </div>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto divide-y divide-gray-200">
+          <div className="flex-1 overflow-y-auto divide-y divide-border">
             {/* Select All header when in select mode */}
             {selectMode && scenarios.length > 0 && (
-              <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center">
+              <div className="px-4 py-2 bg-surface-subtle border-b border-border flex items-center">
                 <button
                   onClick={selectAll}
-                  className="flex items-center text-sm text-gray-600 hover:text-gray-900"
+                  className="flex items-center text-sm text-ink-muted hover:text-ink"
                 >
                   {selectedIds.size === scenarios.length ? (
                     <CheckSquare size={18} className="mr-2 text-fidelity-green" />
@@ -357,7 +357,7 @@ export default function ScenariosPage() {
                 role={selectMode ? "checkbox" : undefined}
                 aria-checked={selectMode ? selectedIds.has(scenario.id) : undefined}
                 tabIndex={selectMode ? 0 : undefined}
-                className={`p-4 hover:bg-gray-50 transition-colors ${selectMode && selectedIds.has(scenario.id) ? 'bg-blue-50' : ''} ${selectMode ? 'cursor-pointer' : ''}`}
+                className={`p-4 hover:bg-surface-subtle transition-colors ${selectMode && selectedIds.has(scenario.id) ? 'bg-info-surface' : ''} ${selectMode ? 'cursor-pointer' : ''}`}
                 onClick={selectMode ? () => toggleSelection(scenario.id) : undefined}
                 onKeyDown={selectMode ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSelection(scenario.id); } } : undefined}
               >
@@ -366,24 +366,24 @@ export default function ScenariosPage() {
                   <div className="space-y-3">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
-                        <label htmlFor="scenario-edit-name" className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                        <label htmlFor="scenario-edit-name" className="block text-sm font-medium text-ink-muted mb-1">Name</label>
                         <input
                           id="scenario-edit-name"
                           type="text"
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-fidelity-green focus:border-fidelity-green"
+                          className="w-full px-3 py-2 border border-border-strong rounded-lg text-sm focus:ring-fidelity-green focus:border-fidelity-green"
                           autoFocus
                         />
                       </div>
                       <div>
-                        <label htmlFor="scenario-edit-desc" className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                        <label htmlFor="scenario-edit-desc" className="block text-sm font-medium text-ink-muted mb-1">Description</label>
                         <input
                           id="scenario-edit-desc"
                           type="text"
                           value={editDesc}
                           onChange={(e) => setEditDesc(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-fidelity-green focus:border-fidelity-green"
+                          className="w-full px-3 py-2 border border-border-strong rounded-lg text-sm focus:ring-fidelity-green focus:border-fidelity-green"
                         />
                       </div>
                     </div>
@@ -391,14 +391,14 @@ export default function ScenariosPage() {
                       <button
                         onClick={handleSaveEdit}
                         disabled={!editName.trim()}
-                        className="px-3 py-1.5 bg-fidelity-green text-white rounded-lg text-sm hover:bg-fidelity-dark flex items-center disabled:bg-gray-300"
+                        className="px-3 py-1.5 bg-fidelity-green text-ink-inverse rounded-lg text-sm hover:bg-fidelity-dark flex items-center disabled:bg-surface-disabled"
                       >
                         <Check size={14} className="mr-1" />
                         Save
                       </button>
                       <button
                         onClick={handleCancelEdit}
-                        className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 flex items-center"
+                        className="px-3 py-1.5 bg-surface-subtle text-ink-muted rounded-lg text-sm hover:bg-surface-disabled flex items-center"
                       >
                         <X size={14} className="mr-1" />
                         Cancel
@@ -414,21 +414,21 @@ export default function ScenariosPage() {
                         {selectedIds.has(scenario.id) ? (
                           <CheckSquare size={20} className="text-fidelity-green" />
                         ) : (
-                          <Square size={20} className="text-gray-400" />
+                          <Square size={20} className="text-ink-subtle" />
                         )}
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center">
-                        <h3 className="font-medium text-gray-900 truncate">{scenario.name}</h3>
+                        <h3 className="font-medium text-ink truncate">{scenario.name}</h3>
                         <span className={`ml-3 px-2 py-0.5 text-xs rounded-full ${getStatusColor(scenario.status)}`}>
                           {getStatusLabel(scenario.status)}
                         </span>
                       </div>
                       {scenario.description && (
-                        <p className="text-sm text-gray-500 mt-1 truncate">{scenario.description}</p>
+                        <p className="text-sm text-ink-muted mt-1 truncate">{scenario.description}</p>
                       )}
-                      <div className="flex items-center text-xs text-gray-400 mt-1 space-x-4">
+                      <div className="flex items-center text-xs text-ink-subtle mt-1 space-x-4">
                         <span className="flex items-center">
                           <Clock size={12} className="mr-1" />
                           Created {new Date(scenario.created_at).toLocaleDateString()}
@@ -443,7 +443,7 @@ export default function ScenariosPage() {
                     <div className="flex items-center space-x-2 ml-4">
                       <button
                         onClick={() => navigate(`/config/${scenario.id}`)}
-                        className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 flex items-center"
+                        className="px-3 py-1.5 bg-surface-subtle text-ink-muted rounded-lg text-sm hover:bg-surface-disabled flex items-center"
                         title="Configure scenario"
                       >
                         <Settings size={14} className="mr-1" />
@@ -452,7 +452,7 @@ export default function ScenariosPage() {
                       <button
                         onClick={() => navigate(`/simulate?scenario=${scenario.id}`)}
                         disabled={isSimulationRunning}
-                        className={`px-3 py-1.5 rounded-lg text-sm flex items-center ${isSimulationRunning ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-fidelity-green text-white hover:bg-fidelity-dark'}`}
+                        className={`px-3 py-1.5 rounded-lg text-sm flex items-center ${isSimulationRunning ? 'bg-surface-disabled text-ink-muted cursor-not-allowed' : 'bg-fidelity-green text-ink-inverse hover:bg-fidelity-dark'}`}
                         title={isSimulationRunning ? 'A simulation is already running' : 'Run simulation'}
                       >
                         {isSimulationRunning && scenario.id === runningScenarioId ? (
@@ -475,7 +475,7 @@ export default function ScenariosPage() {
                       {scenario.last_run_at && (
                         <button
                           onClick={() => navigate(`/simulate/${scenario.id}`)}
-                          className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-sm hover:bg-blue-200 flex items-center"
+                          className="px-3 py-1.5 bg-info-surface text-info-ink rounded-lg text-sm hover:bg-info-surface flex items-center"
                           title="View last run results"
                         >
                           <Eye size={14} className="mr-1" />
@@ -484,14 +484,14 @@ export default function ScenariosPage() {
                       )}
                       <button
                         onClick={() => handleStartEdit(scenario)}
-                        className="p-1.5 text-gray-400 hover:text-blue-500 rounded"
+                        className="p-1.5 text-ink-subtle hover:text-info-ink rounded"
                         title="Edit scenario"
                       >
                         <Pencil size={16} />
                       </button>
                       <button
                         onClick={() => handleDelete(scenario.id)}
-                        className="p-1.5 text-gray-400 hover:text-red-500 rounded"
+                        className="p-1.5 text-ink-subtle hover:text-danger-ink rounded"
                         title="Delete scenario"
                       >
                         <Trash2 size={16} />
@@ -507,12 +507,12 @@ export default function ScenariosPage() {
         </div>
 
         {/* Info Box */}
-        <div className="mt-6 bg-blue-50 rounded-xl p-4 border border-blue-100 flex-shrink-0">
+        <div className="mt-6 bg-info-surface rounded-xl p-4 border border-info-border flex-shrink-0">
           <div className="flex items-start">
-            <Layers className="w-5 h-5 text-blue-500 mr-3 mt-0.5 flex-shrink-0" />
+            <Layers className="w-5 h-5 text-info-ink mr-3 mt-0.5 flex-shrink-0" />
             <div>
-              <h4 className="font-semibold text-blue-900 mb-1">How Scenarios Work</h4>
-              <ul className="text-sm text-blue-700 space-y-1">
+              <h4 className="font-semibold text-info-ink mb-1">How Scenarios Work</h4>
+              <ul className="text-sm text-info-ink space-y-1">
                 <li>Each scenario inherits the workspace's base configuration</li>
                 <li>Configure scenario-specific overrides by clicking "Configure"</li>
                 <li>Run simulations independently and compare results across scenarios</li>

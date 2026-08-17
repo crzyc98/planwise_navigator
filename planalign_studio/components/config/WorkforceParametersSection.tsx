@@ -16,12 +16,12 @@ import { TurnoverSection } from './TurnoverSection';
 export function WorkforceParametersSection() {
   return (
     <div className="space-y-10 animate-fadeIn">
-      <div className="border-b border-gray-100 pb-4">
+      <div className="border-b border-border pb-4">
         <div className="flex items-center gap-2">
           <Gauge className="h-5 w-5 text-fidelity-green" />
-          <h2 className="text-lg font-bold text-gray-900">Workforce Parameters</h2>
+          <h2 className="text-lg font-bold text-ink">Workforce Parameters</h2>
         </div>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-ink-muted">
           The essentials for a typical scenario. Everything else lives under Advanced Settings.
         </p>
       </div>

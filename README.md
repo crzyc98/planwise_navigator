@@ -243,6 +243,7 @@ planalign studio --no-browser --verbose
 
 - **API** (FastAPI): http://localhost:8000 — REST + WebSocket telemetry; docs at `/api/docs`
 - **Frontend** (React/Vite): http://localhost:5173 — scenario management, real-time progress, comparison tools, calibration panel
+- **Theme**: Settings offers System, Light, and Dark. Explicit choices are stored per browser origin; System follows live OS changes.
 
 The API binds to `127.0.0.1` by default. For any non-loopback deployment, set `PLANALIGN_API_TOKEN` and explicit CORS origins — see [SECURITY.md](SECURITY.md).
 

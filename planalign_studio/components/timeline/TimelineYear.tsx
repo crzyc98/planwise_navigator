@@ -7,24 +7,24 @@ const percent = (value: number | null) => value == null ? '—' : `${(value * 10
 export default function TimelineYear({ year }: Readonly<{ year: TimelineYearData }>) {
   const state = year.state;
   return (
-    <section className="grid gap-4 rounded-xl border border-gray-200 bg-white p-4 lg:grid-cols-[minmax(0,2fr)_minmax(240px,1fr)]">
+    <section className="grid gap-4 rounded-xl border border-border bg-surface-raised p-4 lg:grid-cols-[minmax(0,2fr)_minmax(240px,1fr)]">
       <div>
-        <h3 className="mb-3 text-lg font-semibold text-gray-900">{year.simulation_year}</h3>
+        <h3 className="mb-3 text-lg font-semibold text-ink">{year.simulation_year}</h3>
         {year.events.length === 0 ? (
-          <p className="rounded-lg bg-gray-50 p-3 text-sm text-gray-500">No events this year</p>
+          <p className="rounded-lg bg-surface-subtle p-3 text-sm text-ink-muted">No events this year</p>
         ) : (
           <ol className="relative ml-2 space-y-4 border-l-2 border-fidelity-green/30 pl-5">
             {year.events.map((event) => (
               <li key={`${event.source}-${event.event_id}`}>
                 <span className="absolute -left-1.5 mt-1.5 h-2.5 w-2.5 rounded-full bg-fidelity-green" />
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-semibold text-fidelity-green">{event.event_type.replaceAll('_', ' ')}</span>
-                  <time className="text-xs text-gray-500">{event.effective_date}</time>
+                  <span className="rounded-full bg-success-surface px-2 py-0.5 text-xs font-semibold text-fidelity-green">{event.event_type.replaceAll('_', ' ')}</span>
+                  <time className="text-xs text-ink-muted">{event.effective_date}</time>
                 </div>
                 {event.event_details && (
-                  <p className="mt-1 break-all text-sm text-gray-700">{event.event_details}</p>
+                  <p className="mt-1 break-all text-sm text-ink-muted">{event.event_details}</p>
                 )}
-                <div className="mt-1 flex flex-wrap gap-x-4 text-xs text-gray-500">
+                <div className="mt-1 flex flex-wrap gap-x-4 text-xs text-ink-muted">
                   {event.compensation_amount != null && <span>Amount {money(event.compensation_amount)}</span>}
                   {event.previous_compensation != null && <span>Previous {money(event.previous_compensation)}</span>}
                   {event.deferral_rate != null && <span>Deferral {percent(event.deferral_rate)}</span>}
@@ -36,9 +36,9 @@ export default function TimelineYear({ year }: Readonly<{ year: TimelineYearData
           </ol>
         )}
       </div>
-      <aside className="rounded-lg bg-slate-50 p-3 text-sm">
-        <h4 className="mb-2 font-semibold text-gray-800">Year-end state</h4>
-        {!state ? <p className="text-gray-500">No snapshot for this year</p> : (
+      <aside className="rounded-lg bg-surface-subtle p-3 text-sm">
+        <h4 className="mb-2 font-semibold text-ink">Year-end state</h4>
+        {!state ? <p className="text-ink-muted">No snapshot for this year</p> : (
           <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
             <dt>Status</dt><dd>{state.employment_status ?? '—'}</dd>
             <dt>Compensation</dt><dd>{money(state.current_compensation)}</dd>

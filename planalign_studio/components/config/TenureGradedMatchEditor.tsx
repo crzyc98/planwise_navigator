@@ -75,8 +75,8 @@ export function TenureGradedMatchEditor({ bands, onChange }: TenureGradedMatchEd
   );
 
   return (
-    <div className="sm:col-span-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
-      <span className="block text-sm font-medium text-gray-700 mb-3">Tenure-Graded Match Bands</span>
+    <div className="sm:col-span-6 bg-surface-subtle p-4 rounded-lg border border-border">
+      <span className="block text-sm font-medium text-ink-muted mb-3">Tenure-Graded Match Bands</span>
 
       <div className="space-y-4">
         {bands.map((band, bandIdx) => {
@@ -87,61 +87,61 @@ export function TenureGradedMatchEditor({ bands, onChange }: TenureGradedMatchEd
           const maxMatchPct = calculateTenureGradedBandCap(band) * 100;
 
           return (
-            <div key={bandIdx} className="bg-white p-3 rounded border border-gray-300">
+            <div key={bandIdx} className="bg-surface-raised p-3 rounded border border-border-strong">
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs text-gray-500">Band {bandIdx + 1}:</span>
+                <span className="text-xs text-ink-muted">Band {bandIdx + 1}:</span>
                 <input type="number" min={0} value={band.minYears}
                   onChange={(e) => updateBand(bandIdx, { minYears: parseInt(e.target.value) || 0 })}
-                  className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
+                  className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
                 />
-                <span className="text-sm text-gray-600">to</span>
+                <span className="text-sm text-ink-muted">to</span>
                 <input type="number" min={0} value={band.maxYears ?? ''}
                   placeholder="&#8734;"
                   onChange={(e) => updateBand(bandIdx, { maxYears: e.target.value === '' ? null : parseInt(e.target.value) || 0 })}
-                  className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
+                  className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
                 />
-                <span className="text-sm text-gray-600">yrs</span>
-                <span className="ml-auto text-xs text-gray-500">Max effective match: {maxMatchPct.toFixed(1)}%</span>
+                <span className="text-sm text-ink-muted">yrs</span>
+                <span className="ml-auto text-xs text-ink-muted">Max effective match: {maxMatchPct.toFixed(1)}%</span>
                 {bands.length > 1 && (
                   <button type="button" onClick={() => removeBand(bandIdx)}
-                    className="text-red-500 hover:text-red-700 p-1"
+                    className="text-danger-ink hover:text-danger-ink p-1"
                   ><X size={16} /></button>
                 )}
               </div>
 
               <div className="space-y-1 ml-4">
                 {band.tiers.map((tier, tierIdx) => (
-                  <div key={tierIdx} className="flex items-center gap-2 bg-gray-50 p-1.5 rounded border border-gray-200">
-                    <span className="text-xs text-gray-500 w-4">{tierIdx + 1}.</span>
+                  <div key={tierIdx} className="flex items-center gap-2 bg-surface-subtle p-1.5 rounded border border-border">
+                    <span className="text-xs text-ink-muted w-4">{tierIdx + 1}.</span>
                     <input type="number" step="1" min={0} max={100} value={tier.deferralMin}
                       onChange={(e) => updateTier(bandIdx, tierIdx, { deferralMin: parseFloat(e.target.value) || 0 })}
-                      className="w-14 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
+                      className="w-14 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
                     />
-                    <span className="text-sm text-gray-600">% to</span>
+                    <span className="text-sm text-ink-muted">% to</span>
                     <input type="number" step="1" min={0} max={100} value={tier.deferralMax}
                       onChange={(e) => updateTier(bandIdx, tierIdx, { deferralMax: parseFloat(e.target.value) || 0 })}
-                      className="w-14 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
+                      className="w-14 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
                     />
-                    <span className="text-sm text-gray-600">% deferral &#8594;</span>
+                    <span className="text-sm text-ink-muted">% deferral &#8594;</span>
                     <input type="number" step="5" min={0} max={200} value={tier.matchRate}
                       onChange={(e) => updateTier(bandIdx, tierIdx, { matchRate: parseFloat(e.target.value) || 0 })}
-                      className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
+                      className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
                     />
-                    <span className="text-sm text-gray-600">% match</span>
+                    <span className="text-sm text-ink-muted">% match</span>
                     {band.tiers.length > 1 && (
                       <button type="button" onClick={() => removeTier(bandIdx, tierIdx)}
-                        className="ml-auto text-red-500 hover:text-red-700 p-1"
+                        className="ml-auto text-danger-ink hover:text-danger-ink p-1"
                       ><X size={14} /></button>
                     )}
                   </div>
                 ))}
               </div>
               <button type="button" onClick={() => addTier(bandIdx)}
-                className="mt-2 ml-4 text-xs text-fidelity-green hover:text-green-700 flex items-center gap-1"
+                className="mt-2 ml-4 text-xs text-fidelity-green hover:text-success-ink flex items-center gap-1"
               >+ Add Tier</button>
 
               {tierWarnings.length > 0 && (
-                <div className="mt-2 ml-4 text-xs text-amber-600 space-y-0.5">
+                <div className="mt-2 ml-4 text-xs text-warning-ink space-y-0.5">
                   {tierWarnings.map((w, i) => <p key={i}>{w}</p>)}
                 </div>
               )}
@@ -151,15 +151,15 @@ export function TenureGradedMatchEditor({ bands, onChange }: TenureGradedMatchEd
       </div>
 
       <button type="button" onClick={addBand}
-        className="mt-3 text-sm text-fidelity-green hover:text-green-700 flex items-center gap-1"
+        className="mt-3 text-sm text-fidelity-green hover:text-success-ink flex items-center gap-1"
       >+ Add Band</button>
 
       {bands.length === 0 && (
-        <p className="mt-2 text-xs text-amber-600">Add at least one tenure band to configure tenure-graded matching</p>
+        <p className="mt-2 text-xs text-warning-ink">Add at least one tenure band to configure tenure-graded matching</p>
       )}
 
       {bandWarnings.length > 0 && (
-        <div className="mt-2 text-xs text-amber-600 space-y-0.5">
+        <div className="mt-2 text-xs text-warning-ink space-y-0.5">
           {bandWarnings.map((w, i) => <p key={i}>{w}</p>)}
         </div>
       )}

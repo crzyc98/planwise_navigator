@@ -9,10 +9,10 @@ interface LayoutContext {
 }
 
 const colorClasses: Record<string, { hoverBorder: string; bg: string; text: string; hoverBg: string }> = {
-  green:  { hoverBorder: 'hover:border-green-200',  bg: 'bg-green-50',  text: 'text-green-600',  hoverBg: 'group-hover:bg-green-100' },
-  blue:   { hoverBorder: 'hover:border-blue-200',   bg: 'bg-blue-50',   text: 'text-blue-600',   hoverBg: 'group-hover:bg-blue-100' },
-  purple: { hoverBorder: 'hover:border-purple-200', bg: 'bg-purple-50', text: 'text-purple-600', hoverBg: 'group-hover:bg-purple-100' },
-  orange: { hoverBorder: 'hover:border-orange-200', bg: 'bg-orange-50', text: 'text-orange-600', hoverBg: 'group-hover:bg-orange-100' },
+  green:  { hoverBorder: 'hover:border-success-border',  bg: 'bg-success-surface',  text: 'text-success-ink',  hoverBg: 'group-hover:bg-success-surface' },
+  blue:   { hoverBorder: 'hover:border-info-border',   bg: 'bg-info-surface',   text: 'text-info-ink',   hoverBg: 'group-hover:bg-info-surface' },
+  purple: { hoverBorder: 'hover:border-info-border', bg: 'bg-info-surface', text: 'text-info-ink', hoverBg: 'group-hover:bg-info-surface' },
+  orange: { hoverBorder: 'hover:border-warning-border', bg: 'bg-warning-surface', text: 'text-warning-ink', hoverBg: 'group-hover:bg-warning-surface' },
 };
 
 const StatCard = ({ title, value, subtext, icon, color, onClick }: Readonly<{ title: string; value: string | number; subtext: string; icon: React.ReactNode; color: string; onClick?: () => void }>) => {
@@ -23,12 +23,12 @@ const StatCard = ({ title, value, subtext, icon, color, onClick }: Readonly<{ ti
       tabIndex={0}
       onClick={onClick}
       onKeyDown={(e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(); } }}
-      className={`bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex items-start justify-between cursor-pointer transition-all hover:shadow-md ${c.hoverBorder} group`}
+      className={`bg-surface-raised rounded-xl shadow-sm border border-border p-6 flex items-start justify-between cursor-pointer transition-all hover:shadow-md ${c.hoverBorder} group`}
     >
       <div>
-        <p className="text-sm font-medium text-gray-500 group-hover:text-gray-700 transition-colors">{title}</p>
-        <h3 className="text-2xl font-bold text-gray-900 mt-1">{value}</h3>
-        <p className={`text-xs mt-2 font-medium ${subtext.includes('+') ? 'text-green-600' : 'text-gray-500'}`}>
+        <p className="text-sm font-medium text-ink-muted group-hover:text-ink-muted transition-colors">{title}</p>
+        <h3 className="text-2xl font-bold text-ink mt-1">{value}</h3>
+        <p className={`text-xs mt-2 font-medium ${subtext.includes('+') ? 'text-success-ink' : 'text-ink-muted'}`}>
           {subtext}
         </p>
       </div>
@@ -78,8 +78,8 @@ export default function Dashboard() {
   return (
     <div className="space-y-8 animate-fadeIn">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500 mt-1">System overview and quick actions.</p>
+        <h1 className="text-2xl font-bold text-ink">Dashboard</h1>
+        <p className="text-ink-muted mt-1">System overview and quick actions.</p>
       </div>
 
       {/* Stats Grid */}
@@ -96,7 +96,7 @@ export default function Dashboard() {
           title="Total Workspaces"
           value={systemStatus?.workspace_count ?? '-'}
           subtext={`${systemStatus?.scenario_count ?? 0} scenarios`}
-          icon={<Users className="text-blue-600" />}
+          icon={<Users className="text-info-ink" />}
           color="blue"
           onClick={() => navigate('/analytics')}
         />
@@ -104,7 +104,7 @@ export default function Dashboard() {
           title="Storage Used"
           value={`${systemStatus?.total_storage_mb?.toFixed(1) ?? '0'} MB`}
           subtext={`${systemStatus?.storage_percent?.toFixed(1) ?? '0'}% of limit`}
-          icon={<Database className="text-purple-600" />}
+          icon={<Database className="text-info-ink" />}
           color="purple"
           onClick={() => navigate('/analytics')}
         />
@@ -112,7 +112,7 @@ export default function Dashboard() {
           title="Thread Count"
           value={systemStatus?.thread_count ?? '-'}
           subtext="Available CPUs"
-          icon={<Briefcase className="text-orange-600" />}
+          icon={<Briefcase className="text-warning-ink" />}
           color="orange"
           onClick={() => navigate('/config')}
         />
@@ -120,9 +120,9 @@ export default function Dashboard() {
 
       {/* Recent Activity Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-            <h2 className="text-lg font-semibold text-gray-800">Recent Simulations</h2>
+        <div className="lg:col-span-2 bg-surface-raised rounded-xl shadow-sm border border-border overflow-hidden">
+          <div className="px-6 py-4 border-b border-border flex justify-between items-center">
+            <h2 className="text-lg font-semibold text-ink">Recent Simulations</h2>
             <button
               onClick={() => navigate('/simulate')}
               className="text-sm text-fidelity-green hover:text-fidelity-dark font-medium"
@@ -130,14 +130,14 @@ export default function Dashboard() {
               View All
             </button>
           </div>
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-border">
             {isLoading ? (
-              <div className="p-6 flex items-center justify-center text-gray-500">
+              <div className="p-6 flex items-center justify-center text-ink-muted">
                 <Loader2 className="animate-spin mr-2" size={20} />
                 Loading scenarios...
               </div>
             ) : scenarios.length === 0 ? (
-              <div className="p-6 text-center text-gray-500">
+              <div className="p-6 text-center text-ink-muted">
                 No scenarios found. Create one in Configuration.
               </div>
             ) : (
@@ -151,23 +151,23 @@ export default function Dashboard() {
                     tabIndex={0}
                     onClick={() => handleSimulationClick(scenario)}
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSimulationClick(scenario); } }}
-                    className="p-6 flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer group"
+                    className="p-6 flex items-center justify-between hover:bg-surface-subtle transition-colors cursor-pointer group"
                   >
                     <div className="flex items-center">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isRunning ? 'bg-blue-100 text-blue-600' : isCompleted ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isRunning ? 'bg-info-surface text-info-ink' : isCompleted ? 'bg-success-surface text-success-ink' : 'bg-surface-subtle text-ink-muted'}`}>
                         {isRunning ? <TrendingUp size={20} /> : <CheckCircle size={20} />}
                       </div>
                       <div className="ml-4">
-                        <p className="text-sm font-medium text-gray-900 group-hover:text-fidelity-green transition-colors">
+                        <p className="text-sm font-medium text-ink group-hover:text-fidelity-green transition-colors">
                           {scenario.name}
                         </p>
-                        <div className="text-xs text-gray-500 flex items-center mt-0.5">
+                        <div className="text-xs text-ink-muted flex items-center mt-0.5">
                           <span>{scenario.description || 'No description'}</span>
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${isRunning ? 'bg-blue-50 text-blue-700 border-blue-100' : isCompleted ? 'bg-green-50 text-green-700 border-green-100' : scenario.status === 'failed' ? 'bg-red-50 text-red-700 border-red-100' : 'bg-gray-50 text-gray-700 border-gray-100'}`}>
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${isRunning ? 'bg-info-surface text-info-ink border-info-border' : isCompleted ? 'bg-success-surface text-success-ink border-success-border' : scenario.status === 'failed' ? 'bg-danger-surface text-danger-ink border-danger-border' : 'bg-surface-subtle text-ink-muted border-border'}`}>
                         {scenario.status === 'not_run' ? 'Not Run' : scenario.status}
                       </span>
                     </div>
@@ -179,26 +179,26 @@ export default function Dashboard() {
         </div>
 
         {/* Quick Actions */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">Quick Actions</h2>
+        <div className="bg-surface-raised rounded-xl shadow-sm border border-border p-6">
+          <h2 className="text-lg font-semibold text-ink mb-4">Quick Actions</h2>
           <div className="space-y-3">
              <button
                onClick={() => navigate('/simulate')}
-               className="w-full flex items-center p-3 bg-fidelity-green text-white rounded-lg hover:bg-fidelity-dark transition-colors shadow-sm"
+               className="w-full flex items-center p-3 bg-fidelity-green text-ink-inverse rounded-lg hover:bg-fidelity-dark transition-colors shadow-sm"
              >
                 <PlayCircle size={20} className="mr-3" />
                 <span className="font-medium">New Simulation</span>
              </button>
              <button
                onClick={() => navigate('/batch')}
-               className="w-full flex items-center p-3 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+               className="w-full flex items-center p-3 bg-surface-raised border border-border text-ink-muted rounded-lg hover:bg-surface-subtle transition-colors"
              >
                 <Database size={20} className="mr-3" />
                 <span className="font-medium">New Batch Run</span>
              </button>
              <button
                onClick={() => navigate('/analytics')}
-               className="w-full flex items-center p-3 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+               className="w-full flex items-center p-3 bg-surface-raised border border-border text-ink-muted rounded-lg hover:bg-surface-subtle transition-colors"
              >
                 <TrendingUp size={20} className="mr-3" />
                 <span className="font-medium">Compare Results</span>

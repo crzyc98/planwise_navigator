@@ -118,11 +118,11 @@ export default function SimulationControl() {
 
   const getPressureColor = (pressure: string) => {
     switch (pressure) {
-      case 'low': return 'text-green-600 bg-green-50 border-green-200';
-      case 'moderate': return 'text-yellow-600 bg-yellow-50 border-yellow-200';
-      case 'high': return 'text-orange-600 bg-orange-50 border-orange-200';
-      case 'critical': return 'text-red-600 bg-red-50 border-red-200';
-      default: return 'text-gray-600 bg-gray-50 border-gray-200';
+      case 'low': return 'text-success-ink bg-success-surface border-success-border';
+      case 'moderate': return 'text-warning-ink bg-warning-surface border-warning-border';
+      case 'high': return 'text-warning-ink bg-warning-surface border-warning-border';
+      case 'critical': return 'text-danger-ink bg-danger-surface border-danger-border';
+      default: return 'text-ink-muted bg-surface-subtle border-border';
     }
   };
 
@@ -155,11 +155,11 @@ export default function SimulationControl() {
       <div className="lg:col-span-2 space-y-6 flex flex-col">
 
         {/* Status Card */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="bg-surface-raised rounded-xl shadow-sm border border-border p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
-               <h2 className="text-xl font-bold text-gray-900">Simulation Control Center</h2>
-               <p className="text-sm text-gray-500">Workspace: <span className="font-semibold text-gray-700">{activeWorkspace.name}</span></p>
+               <h2 className="text-xl font-bold text-ink">Simulation Control Center</h2>
+               <p className="text-sm text-ink-muted">Workspace: <span className="font-semibold text-ink-muted">{activeWorkspace.name}</span></p>
             </div>
             <div className="flex items-center space-x-3">
               {activeRunId && (
@@ -169,7 +169,7 @@ export default function SimulationControl() {
                 <button
                   onClick={handleStart}
                   disabled={!selectedScenarioId || isLoading || isSimulationRunning}
-                  className={`flex items-center px-6 py-2 text-white rounded-lg transition-all shadow-md font-medium ${!selectedScenarioId || isLoading || isSimulationRunning ? 'bg-gray-300 cursor-not-allowed' : 'bg-fidelity-green hover:bg-fidelity-dark'}`}
+                  className={`flex items-center px-6 py-2 text-ink-inverse rounded-lg transition-all shadow-md font-medium ${!selectedScenarioId || isLoading || isSimulationRunning ? 'bg-surface-disabled cursor-not-allowed' : 'bg-fidelity-green hover:bg-fidelity-dark'}`}
                 >
                   {isSimulationRunning ? (
                     <>
@@ -187,7 +187,7 @@ export default function SimulationControl() {
                 <button
                   onClick={handleStop}
                   disabled={!!terminalStatus}
-                  className="flex items-center px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 font-medium disabled:opacity-50"
+                  className="flex items-center px-4 py-2 bg-danger-surface text-danger-ink rounded-lg hover:bg-danger-surface font-medium disabled:opacity-50"
                 >
                   <Square size={18} className="mr-2" /> Stop
                 </button>
@@ -196,29 +196,29 @@ export default function SimulationControl() {
           </div>
 
           {!activeRunId ? (
-            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-              <label htmlFor="sim-scenario-select" className="block text-sm font-medium text-gray-700 mb-2">Select Scenario to Run</label>
+            <div className="bg-surface-subtle p-4 rounded-lg border border-border">
+              <label htmlFor="sim-scenario-select" className="block text-sm font-medium text-ink-muted mb-2">Select Scenario to Run</label>
               {error && (
-                <div className="flex items-center text-red-600 text-sm p-2 bg-red-50 rounded mb-2">
+                <div className="flex items-center text-danger-ink text-sm p-2 bg-danger-surface rounded mb-2">
                   <AlertCircle size={16} className="mr-2" />
                   {error}
                 </div>
               )}
               {isLoading ? (
-                <div className="text-gray-500 text-sm p-2">Loading scenarios...</div>
+                <div className="text-ink-muted text-sm p-2">Loading scenarios...</div>
               ) : scenarios.length > 0 ? (
                 <select
                   id="sim-scenario-select"
                   value={selectedScenarioId}
                   onChange={(e) => setSelectedScenarioId(e.target.value)}
-                  className="block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-fidelity-green focus:border-fidelity-green"
+                  className="block w-full border border-border-strong rounded-md shadow-sm p-2 focus:ring-fidelity-green focus:border-fidelity-green"
                 >
                   {scenarios.map(s => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
               ) : (
-                <div className="flex items-center text-yellow-600 text-sm p-2 bg-yellow-50 rounded">
+                <div className="flex items-center text-warning-ink text-sm p-2 bg-warning-surface rounded">
                   <AlertCircle size={16} className="mr-2" />
                   No scenarios found in this workspace. Please create one in Configuration.
                 </div>
@@ -228,7 +228,7 @@ export default function SimulationControl() {
              <div className="space-y-6">
                {/* Main Progress Bar */}
                <div>
-                 <div className="flex justify-between text-sm font-medium text-gray-700 mb-2">
+                 <div className="flex justify-between text-sm font-medium text-ink-muted mb-2">
                    <span>
                      {terminalStatus
                        ? `Run ${terminalStatus.toUpperCase()}`
@@ -236,9 +236,9 @@ export default function SimulationControl() {
                    </span>
                    <span>{snapshot ? Math.round(snapshot.progress) : 0}%</span>
                  </div>
-                 <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                 <div className="w-full bg-surface-disabled rounded-full h-4 overflow-hidden">
                    <div
-                     className={`h-4 rounded-full transition-all duration-500 ease-out ${terminalStatus === 'failed' ? 'bg-red-500' : terminalStatus === 'cancelled' ? 'bg-gray-400' : 'bg-fidelity-green'}`}
+                     className={`h-4 rounded-full transition-all duration-500 ease-out ${terminalStatus === 'failed' ? 'bg-danger-solid' : terminalStatus === 'cancelled' ? 'bg-surface-disabled' : 'bg-fidelity-green'}`}
                      style={{ width: `${snapshot?.progress ?? 0}%` }}
                    ></div>
                  </div>
@@ -248,10 +248,10 @@ export default function SimulationControl() {
                <div className="grid grid-cols-6 gap-2">
                  {STAGE_LABELS.map((stage, idx) => {
                     const currentIdx = STAGE_NAMES.indexOf(snapshot?.current_stage || '');
-                    let colorClass = 'bg-gray-100 text-gray-400';
-                    if (snapshot?.status === 'completed') colorClass = 'bg-green-100 text-green-700 border-green-200';
-                    else if (idx < currentIdx) colorClass = 'bg-green-100 text-green-700 border-green-200';
-                    else if (idx === currentIdx) colorClass = 'bg-blue-100 text-blue-700 border-blue-200 ring-2 ring-blue-400';
+                    let colorClass = 'bg-surface-subtle text-ink-subtle';
+                    if (snapshot?.status === 'completed') colorClass = 'bg-success-surface text-success-ink border-success-border';
+                    else if (idx < currentIdx) colorClass = 'bg-success-surface text-success-ink border-success-border';
+                    else if (idx === currentIdx) colorClass = 'bg-info-surface text-info-ink border-info-border ring-2 ring-focus';
 
                     return (
                       <div key={stage} className={`text-center py-2 rounded border text-xs font-bold ${colorClass}`}>
@@ -265,8 +265,8 @@ export default function SimulationControl() {
         </div>
 
         {/* Live Run Dashboard (feature 094) */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex-1">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Live Run Dashboard</h3>
+        <div className="bg-surface-raised rounded-xl shadow-sm border border-border p-6 flex-1">
+          <h3 className="text-lg font-semibold text-ink mb-4">Live Run Dashboard</h3>
 
           {activeRunId && snapshot ? (
             <div className="space-y-6">
@@ -275,22 +275,22 @@ export default function SimulationControl() {
 
               {/* Performance tiles */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                 <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                 <div className="p-3 bg-surface-subtle rounded-lg border border-border">
                     <div className="flex items-center mb-1">
-                      <Activity className="text-blue-500 mr-2" size={16} />
-                      <p className="text-xs text-gray-500">Throughput</p>
+                      <Activity className="text-info-ink mr-2" size={16} />
+                      <p className="text-xs text-ink-muted">Throughput</p>
                     </div>
-                    <p className="text-lg font-bold text-gray-900">{(metrics?.events_per_second || 0).toFixed(1)}</p>
-                    <p className="text-[10px] text-gray-400">events/sec</p>
+                    <p className="text-lg font-bold text-ink">{(metrics?.events_per_second || 0).toFixed(1)}</p>
+                    <p className="text-[10px] text-ink-subtle">events/sec</p>
                  </div>
 
-                 <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                 <div className="p-3 bg-surface-subtle rounded-lg border border-border">
                     <div className="flex items-center mb-1">
-                      <Server className="text-purple-500 mr-2" size={16} />
-                      <p className="text-xs text-gray-500">Memory</p>
+                      <Server className="text-info-ink mr-2" size={16} />
+                      <p className="text-xs text-ink-muted">Memory</p>
                     </div>
-                    <p className="text-lg font-bold text-gray-900">{Math.round(metrics?.memory_mb || 0)}</p>
-                    <p className="text-[10px] text-gray-400">MB Used</p>
+                    <p className="text-lg font-bold text-ink">{Math.round(metrics?.memory_mb || 0)}</p>
+                    <p className="text-[10px] text-ink-subtle">MB Used</p>
                  </div>
 
                  <div className={`p-3 rounded-lg border ${getPressureColor(metrics?.memory_pressure || 'low')}`}>
@@ -302,13 +302,13 @@ export default function SimulationControl() {
                     <p className="text-[10px] opacity-75">System Load</p>
                  </div>
 
-                 <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                 <div className="p-3 bg-surface-subtle rounded-lg border border-border">
                     <div className="flex items-center mb-1">
-                      <Clock className="text-orange-500 mr-2" size={16} />
-                      <p className="text-xs text-gray-500">Elapsed</p>
+                      <Clock className="text-warning-ink mr-2" size={16} />
+                      <p className="text-xs text-ink-muted">Elapsed</p>
                     </div>
-                    <p className="text-lg font-bold text-gray-900">{formatTime(metrics?.elapsed_seconds || 0)}</p>
-                    <p className="text-[10px] text-gray-400">mm:ss</p>
+                    <p className="text-lg font-bold text-ink">{formatTime(metrics?.elapsed_seconds || 0)}</p>
+                    <p className="text-[10px] text-ink-subtle">mm:ss</p>
                  </div>
               </div>
 
@@ -318,17 +318,17 @@ export default function SimulationControl() {
           ) : (
             /* Idle state (FR-007): meaningful summary instead of placeholders */
             <div className="flex flex-col items-center justify-center py-10 text-center">
-              <BarChart3 size={40} className="text-gray-300 mb-3" />
+              <BarChart3 size={40} className="text-ink-subtle mb-3" />
               {lastRunScenario ? (
                 <>
-                  <p className="text-gray-600 font-medium">
-                    Last run: <span className="text-gray-900">{lastRunScenario.name}</span>
+                  <p className="text-ink-muted font-medium">
+                    Last run: <span className="text-ink">{lastRunScenario.name}</span>
                     {' — '}
-                    <span className={lastRunScenario.status === 'completed' ? 'text-fidelity-green' : 'text-red-600'}>
+                    <span className={lastRunScenario.status === 'completed' ? 'text-fidelity-green' : 'text-danger-ink'}>
                       {lastRunScenario.status.toUpperCase()}
                     </span>
                   </p>
-                  <p className="text-sm text-gray-400 mt-1">
+                  <p className="text-sm text-ink-subtle mt-1">
                     {lastRunScenario.last_run_at ? new Date(lastRunScenario.last_run_at).toLocaleString() : ''}
                   </p>
                   <button
@@ -339,7 +339,7 @@ export default function SimulationControl() {
                   </button>
                 </>
               ) : (
-                <p className="text-gray-500">
+                <p className="text-ink-muted">
                   Start a simulation to see live event counts, per-year progress, and performance trends here.
                 </p>
               )}
@@ -349,22 +349,22 @@ export default function SimulationControl() {
       </div>
 
       {/* Right Column: Run Activity feed (replaces raw event stream — FR-003) */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col overflow-hidden max-h-[600px]">
+      <div className="bg-surface-raised rounded-xl shadow-sm border border-border flex flex-col overflow-hidden max-h-[600px]">
         <ActivityFeed milestones={snapshot?.milestones ?? []} />
       </div>
 
       {/* Bottom Row: Simulation History */}
-      <div className="lg:col-span-3 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div className="lg:col-span-3 bg-surface-raised rounded-xl shadow-sm border border-border p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-800 flex items-center">
-            <History size={20} className="mr-2 text-gray-500" />
+          <h3 className="text-lg font-semibold text-ink flex items-center">
+            <History size={20} className="mr-2 text-ink-muted" />
             Simulation History
           </h3>
-          <span className="text-sm text-gray-500">{scenarios.length} scenario(s)</span>
+          <span className="text-sm text-ink-muted">{scenarios.length} scenario(s)</span>
         </div>
 
         {scenarios.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-8 text-ink-muted">
             <History size={48} className="mx-auto mb-3 opacity-30" />
             <p>No scenarios found. Create one in Configuration.</p>
           </div>
@@ -372,58 +372,58 @@ export default function SimulationControl() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Scenario</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Status</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Last Run</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Run ID</th>
-                  <th className="text-right py-3 px-4 text-sm font-semibold text-gray-600">Actions</th>
+                <tr className="border-b border-border">
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-ink-muted">Scenario</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-ink-muted">Status</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-ink-muted">Last Run</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-ink-muted">Run ID</th>
+                  <th className="text-right py-3 px-4 text-sm font-semibold text-ink-muted">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {scenarios.map((scenario) => (
                   <tr
                     key={scenario.id}
-                    className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer group"
+                    className="border-b border-border hover:bg-surface-subtle transition-colors cursor-pointer group"
                     onClick={() => navigate(`/simulate/${scenario.id}`)}
                   >
                     <td className="py-3 px-4">
                       <div className="flex items-center">
                         <div className="flex-1">
-                          <p className="font-medium text-gray-900 group-hover:text-fidelity-green transition-colors">
+                          <p className="font-medium text-ink group-hover:text-fidelity-green transition-colors">
                             {scenario.name}
                           </p>
                           {scenario.description && (
-                            <p className="text-xs text-gray-500 mt-0.5">{scenario.description}</p>
+                            <p className="text-xs text-ink-muted mt-0.5">{scenario.description}</p>
                           )}
                         </div>
-                        <ExternalLink size={14} className="text-gray-300 group-hover:text-fidelity-green ml-2 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <ExternalLink size={14} className="text-ink-subtle group-hover:text-fidelity-green ml-2 opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
                     </td>
                     <td className="py-3 px-4">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${({ completed: 'bg-green-100 text-green-700', running: 'bg-blue-100 text-blue-700', failed: 'bg-red-100 text-red-700', queued: 'bg-yellow-100 text-yellow-700' } as Record<string, string>)[scenario.status] ?? 'bg-gray-100 text-gray-600'}`}>
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${({ completed: 'bg-success-surface text-success-ink', running: 'bg-info-surface text-info-ink', failed: 'bg-danger-surface text-danger-ink', queued: 'bg-warning-surface text-warning-ink' } as Record<string, string>)[scenario.status] ?? 'bg-surface-subtle text-ink-muted'}`}>
                         {scenario.status === 'completed' && <CheckCircle size={12} className="mr-1" />}
                         {scenario.status === 'running' && <CircleDot size={12} className="mr-1 animate-pulse" />}
                         {scenario.status === 'failed' && <XCircle size={12} className="mr-1" />}
                         {scenario.status.replace('_', ' ').toUpperCase()}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-sm text-gray-600">
+                    <td className="py-3 px-4 text-sm text-ink-muted">
                       {scenario.last_run_at ? (
                         <span title={new Date(scenario.last_run_at).toLocaleString()}>
                           {new Date(scenario.last_run_at).toLocaleDateString()} {new Date(scenario.last_run_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       ) : (
-                        <span className="text-gray-400 italic">Never</span>
+                        <span className="text-ink-subtle italic">Never</span>
                       )}
                     </td>
                     <td className="py-3 px-4">
                       {scenario.last_run_id ? (
-                        <code className="text-xs bg-gray-100 px-2 py-1 rounded font-mono text-gray-600">
+                        <code className="text-xs bg-surface-subtle px-2 py-1 rounded font-mono text-ink-muted">
                           {scenario.last_run_id.slice(0, 8)}...
                         </code>
                       ) : (
-                        <span className="text-gray-400">—</span>
+                        <span className="text-ink-subtle">—</span>
                       )}
                     </td>
                     <td className="py-3 px-4 text-right space-x-2">
@@ -442,7 +442,7 @@ export default function SimulationControl() {
                               setError(err instanceof Error ? err.message : 'Failed to reset simulation');
                             }
                           }}
-                          className="text-sm px-3 py-1.5 rounded font-medium bg-orange-100 text-orange-700 hover:bg-orange-200"
+                          className="text-sm px-3 py-1.5 rounded font-medium bg-warning-surface text-warning-ink hover:bg-warning-surface"
                         >
                           <RefreshCw size={14} className="inline mr-1" />
                           Force Reset
@@ -463,7 +463,7 @@ export default function SimulationControl() {
                           }
                         }}
                         disabled={isSimulationRunning}
-                        className={`text-sm px-3 py-1.5 rounded font-medium transition-colors ${isSimulationRunning ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-fidelity-green text-white hover:bg-fidelity-dark'}`}
+                        className={`text-sm px-3 py-1.5 rounded font-medium transition-colors ${isSimulationRunning ? 'bg-surface-subtle text-ink-subtle cursor-not-allowed' : 'bg-fidelity-green text-ink-inverse hover:bg-fidelity-dark'}`}
                       >
                         {isSimulationRunning && scenario.id === runningScenarioId && (
                           <>
