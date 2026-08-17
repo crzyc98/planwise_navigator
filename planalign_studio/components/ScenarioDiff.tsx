@@ -18,7 +18,7 @@ import {
   YAxis,
 } from 'recharts';
 
-import { COMPARISON_COLORS } from '../constants';
+import { useChartTheme } from '../hooks/useChartTheme';
 import {
   compareScenarios,
   ComparisonResponse,
@@ -132,18 +132,19 @@ function MetricPanel({
   nameA: string;
   nameB: string;
 }>) {
+  const chartTheme = useChartTheme();
   const data = buildChartData(comparison, metric, scenarioA, scenarioB);
   const finalDelta = [...data].reverse().find(point => point.delta !== undefined)?.delta;
   return (
-    <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+    <section className="rounded-xl border border-border bg-surface-raised p-5 shadow-sm">
       <div className="mb-4 flex items-start justify-between gap-4">
-        <h2 className="font-semibold text-gray-900">{metric.label}</h2>
+        <h2 className="font-semibold text-ink">{metric.label}</h2>
         <span className={`rounded-full px-3 py-1 text-sm font-semibold ${
           finalDelta === undefined || finalDelta === 0
-            ? 'bg-gray-100 text-gray-700'
+            ? 'bg-surface-subtle text-ink-muted'
             : finalDelta > 0
-              ? 'bg-emerald-100 text-emerald-800'
-              : 'bg-red-100 text-red-800'
+              ? 'bg-success-surface text-success-ink'
+              : 'bg-danger-surface text-danger-ink'
         }`}>
           Final Δ {finalDelta === undefined ? 'Unavailable' : formatMetric(finalDelta, metric.format)}
         </span>
@@ -151,13 +152,13 @@ function MetricPanel({
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 16 }}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="year" />
-            <YAxis tickFormatter={value => formatMetric(Number(value), metric.format)} width={84} />
-            <Tooltip />
-            <Legend />
-            <Line type="monotone" dataKey="a" name={nameA} stroke={COMPARISON_COLORS[0]} strokeWidth={3} connectNulls={false} />
-            <Line type="monotone" dataKey="b" name={nameB} stroke={COMPARISON_COLORS[1]} strokeWidth={3} connectNulls={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid.line} />
+            <XAxis dataKey="year" stroke={chartTheme.axis.line} />
+            <YAxis stroke={chartTheme.axis.line} tickFormatter={value => formatMetric(Number(value), metric.format)} width={84} />
+            <Tooltip contentStyle={chartTheme.tooltip.contentStyle} />
+            <Legend formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
+            <Line type="monotone" dataKey="a" name={nameA} stroke={chartTheme.colorAt(0)} strokeWidth={3} connectNulls={false} />
+            <Line type="monotone" dataKey="b" name={nameB} stroke={chartTheme.colorAt(1)} strokeWidth={3} connectNulls={false} />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -172,16 +173,16 @@ function ConfigDeltaRow({ delta }: Readonly<{ delta: ConfigDelta }>) {
     only_b: 'Only in B',
   }[delta.status];
   return (
-    <tr className="border-t border-gray-100 align-top">
+    <tr className="border-t border-border align-top">
       <td className="px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium text-gray-900">{friendlyLabel(delta.path)}</span>
-          <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">{statusLabel}</span>
+          <span className="font-medium text-ink">{friendlyLabel(delta.path)}</span>
+          <span className="rounded-full bg-info-surface px-2 py-0.5 text-xs font-medium text-info-ink">{statusLabel}</span>
         </div>
-        <code className="text-xs text-gray-500">{delta.path}</code>
+        <code className="text-xs text-ink-muted">{delta.path}</code>
       </td>
-      <td className="px-4 py-3 text-sm text-gray-700">{displayConfigValue(delta.a)}</td>
-      <td className="px-4 py-3 text-sm text-gray-700">{displayConfigValue(delta.b)}</td>
+      <td className="px-4 py-3 text-sm text-ink-muted">{displayConfigValue(delta.a)}</td>
+      <td className="px-4 py-3 text-sm text-ink-muted">{displayConfigValue(delta.b)}</td>
     </tr>
   );
 }
@@ -240,10 +241,10 @@ export default function ScenarioDiff() {
   if (error || !comparison || !configDiff) {
     return (
       <div className="flex h-96 flex-col items-center justify-center text-center">
-        <AlertCircle className="mb-3 text-red-500" size={44} />
-        <h1 className="text-xl font-semibold text-gray-900">Unable to open scenario diff</h1>
-        <p className="mt-2 max-w-xl text-gray-600">{error ?? 'Comparison data is unavailable.'}</p>
-        <button onClick={() => navigate('/scenarios')} className="mt-5 rounded-lg bg-fidelity-green px-4 py-2 font-medium text-white">Choose scenarios</button>
+        <AlertCircle className="mb-3 text-danger-ink" size={44} />
+        <h1 className="text-xl font-semibold text-ink">Unable to open scenario diff</h1>
+        <p className="mt-2 max-w-xl text-ink-muted">{error ?? 'Comparison data is unavailable.'}</p>
+        <button onClick={() => navigate('/scenarios')} className="mt-5 rounded-lg bg-fidelity-green px-4 py-2 font-medium text-ink-inverse">Choose scenarios</button>
       </div>
     );
   }
@@ -256,13 +257,13 @@ export default function ScenarioDiff() {
   return (
     <div className="space-y-6 pb-8">
       <header className="flex items-start gap-4">
-        <button onClick={() => navigate(-1)} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"><ArrowLeft size={20} /></button>
+        <button onClick={() => navigate(-1)} className="rounded-lg p-2 text-ink-muted hover:bg-surface-subtle"><ArrowLeft size={20} /></button>
         <div className="flex-1">
           <p className="text-sm font-medium uppercase tracking-wide text-fidelity-green">Scenario diff</p>
-          <h1 className="text-2xl font-bold text-gray-900">{nameA} <span className="text-gray-400">vs</span> {nameB}</h1>
+          <h1 className="text-2xl font-bold text-ink">{nameA} <span className="text-ink-subtle">vs</span> {nameB}</h1>
           <div className="mt-3 flex flex-wrap gap-2 text-xs">
             {[provenanceA, provenanceB].map((item, index) => (
-              <span key={index} className="rounded-full bg-gray-100 px-3 py-1 text-gray-700">
+              <span key={index} className="rounded-full bg-surface-subtle px-3 py-1 text-ink-muted">
                 {index === 0 ? nameA : nameB}: {item?.available ? `seed ${item.random_seed ?? 'unknown'} · ${item.config_fingerprint ?? 'unknown'} · ${item.run_timestamp ? new Date(item.run_timestamp).toLocaleString() : 'time unknown'}` : 'provenance unavailable'}
               </span>
             ))}
@@ -271,26 +272,26 @@ export default function ScenarioDiff() {
       </header>
 
       {configDiff.seeds_match === false && (
-        <div className="flex gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-900"><AlertTriangle className="shrink-0" /><span><strong>Seeds differ.</strong> Differences may include seed noise.</span></div>
+        <div className="flex gap-3 rounded-lg border border-warning-border bg-warning-surface p-4 text-warning-ink"><AlertTriangle className="shrink-0" /><span><strong>Seeds differ.</strong> Differences may include seed noise.</span></div>
       )}
       {configDiff.drift_warning && (
-        <div className="flex gap-3 rounded-lg border border-red-300 bg-red-50 p-4 text-red-900"><AlertTriangle className="shrink-0" /><span><strong>Provenance warning.</strong> Results may be mixed-generation or no longer match the displayed configuration.</span></div>
+        <div className="flex gap-3 rounded-lg border border-danger-border bg-danger-surface p-4 text-danger-ink"><AlertTriangle className="shrink-0" /><span><strong>Provenance warning.</strong> Results may be mixed-generation or no longer match the displayed configuration.</span></div>
       )}
       {!configDiff.drift_warning && (provenanceA?.available === false || provenanceB?.available === false) && (
-        <div className="flex gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-900"><AlertTriangle className="shrink-0" /><span><strong>Provenance unavailable.</strong> At least one scenario predates run tracking, so drift cannot be verified — results may still be mixed-generation.</span></div>
+        <div className="flex gap-3 rounded-lg border border-warning-border bg-warning-surface p-4 text-warning-ink"><AlertTriangle className="shrink-0" /><span><strong>Provenance unavailable.</strong> At least one scenario predates run tracking, so drift cannot be verified — results may still be mixed-generation.</span></div>
       )}
 
-      <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      <section className="overflow-hidden rounded-xl border border-border bg-surface-raised shadow-sm">
         <div className="flex items-center justify-between px-5 py-4">
-          <div><h2 className="font-semibold text-gray-900">Configuration changes</h2><p className="text-sm text-gray-500">Effective settings used by the workspace and scenario overrides</p></div>
-          <span className="rounded-full bg-gray-100 px-3 py-1 text-sm text-gray-700">{configDiff.differences.length} changed</span>
+          <div><h2 className="font-semibold text-ink">Configuration changes</h2><p className="text-sm text-ink-muted">Effective settings used by the workspace and scenario overrides</p></div>
+          <span className="rounded-full bg-surface-subtle px-3 py-1 text-sm text-ink-muted">{configDiff.differences.length} changed</span>
         </div>
         {configDiff.differences.length === 0 ? (
-          <div className="flex items-center gap-2 border-t border-gray-100 px-5 py-5 text-gray-600"><CheckCircle className="text-emerald-600" />No effective settings differ.</div>
+          <div className="flex items-center gap-2 border-t border-border px-5 py-5 text-ink-muted"><CheckCircle className="text-success-ink" />No effective settings differ.</div>
         ) : (
-          <div className="overflow-x-auto"><table className="min-w-full"><thead className="bg-gray-50 text-left text-xs uppercase text-gray-500"><tr><th className="px-4 py-3">Setting</th><th className="px-4 py-3">{nameA}</th><th className="px-4 py-3">{nameB}</th></tr></thead><tbody>{configDiff.differences.map(delta => <ConfigDeltaRow key={delta.path} delta={delta} />)}</tbody></table></div>
+          <div className="overflow-x-auto"><table className="min-w-full"><thead className="bg-surface-subtle text-left text-xs uppercase text-ink-muted"><tr><th className="px-4 py-3">Setting</th><th className="px-4 py-3">{nameA}</th><th className="px-4 py-3">{nameB}</th></tr></thead><tbody>{configDiff.differences.map(delta => <ConfigDeltaRow key={delta.path} delta={delta} />)}</tbody></table></div>
         )}
-        <div className="border-t border-gray-100 px-5 py-3 text-sm text-gray-600">
+        <div className="border-t border-border px-5 py-3 text-sm text-ink-muted">
           {configDiff.unchanged_count} unchanged settings omitted
         </div>
       </section>

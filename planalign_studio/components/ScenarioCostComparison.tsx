@@ -26,6 +26,7 @@ import {
   Eye, Copy, Check, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
+import { useChartTheme } from '../hooks/useChartTheme';
 import { PlanDesignModal, formatMatchMode } from './PlanDesignModal';
 import { LayoutContextType } from './Layout';
 import {
@@ -38,7 +39,7 @@ import {
   ContributionYearSummary,
   DCPlanCohort,
 } from '../services/api';
-import { COLORS, MAX_SCENARIO_SELECTION } from '../constants';
+import { MAX_SCENARIO_SELECTION } from '../constants';
 
 // ============================================================================
 // Utility Functions
@@ -198,6 +199,7 @@ interface CustomLegendProps {
 }
 
 const CustomLegend: React.FC<CustomLegendProps> = ({ items }) => {
+  const chartTheme = useChartTheme();
   return (
     <div className="flex flex-wrap justify-center gap-4 mt-2">
       {items.map((item, index) => (
@@ -206,7 +208,7 @@ const CustomLegend: React.FC<CustomLegendProps> = ({ items }) => {
             className="w-3 h-3 rounded-full"
             style={{ backgroundColor: item.color }}
           />
-          <span className="text-xs text-gray-600">{item.name}</span>
+          <span className="text-xs" style={{ color: chartTheme.legendText }}>{item.name}</span>
         </div>
       ))}
     </div>
@@ -214,14 +216,14 @@ const CustomLegend: React.FC<CustomLegendProps> = ({ items }) => {
 };
 
 const EmptyState = ({ message, onRefresh }: { message: string; onRefresh?: () => void }) => (
-  <div className="flex flex-col items-center justify-center h-96 text-gray-400">
+  <div className="flex flex-col items-center justify-center h-96 text-ink-subtle">
     <AlertCircle size={48} className="mb-4" />
-    <h3 className="text-lg font-semibold text-gray-600 mb-2">No Data Available</h3>
-    <p className="text-sm text-gray-500 mb-4 text-center max-w-md">{message}</p>
+    <h3 className="text-lg font-semibold text-ink-muted mb-2">No Data Available</h3>
+    <p className="text-sm text-ink-muted mb-4 text-center max-w-md">{message}</p>
     {onRefresh && (
       <button
         onClick={onRefresh}
-        className="flex items-center px-4 py-2 bg-fidelity-green text-white rounded-lg text-sm font-medium hover:bg-fidelity-dark transition-colors"
+        className="flex items-center px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-fidelity-dark transition-colors"
       >
         <RefreshCw size={16} className="mr-2" />
         Refresh Data
@@ -231,13 +233,13 @@ const EmptyState = ({ message, onRefresh }: { message: string; onRefresh?: () =>
 );
 
 const ErrorState = ({ message, onRetry }: { message: string; onRetry: () => void }) => (
-  <div className="flex flex-col items-center justify-center h-96 text-red-400">
+  <div className="flex flex-col items-center justify-center h-96 text-danger-ink">
     <AlertCircle size={48} className="mb-4" />
-    <h3 className="text-lg font-semibold text-red-600 mb-2">Failed to Load Data</h3>
-    <p className="text-sm text-gray-500 mb-4 text-center max-w-md">{message}</p>
+    <h3 className="text-lg font-semibold text-danger-ink mb-2">Failed to Load Data</h3>
+    <p className="text-sm text-ink-muted mb-4 text-center max-w-md">{message}</p>
     <button
       onClick={onRetry}
-      className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+      className="flex items-center px-4 py-2 bg-danger-solid text-ink-inverse rounded-lg text-sm font-medium hover:bg-danger-solid-hover transition-colors"
     >
       <RefreshCw size={16} className="mr-2" />
       Retry
@@ -253,16 +255,16 @@ const CohortBadge = ({ cohort, resolvedFirstSimulationYear }: {
 }) => {
   if (cohort === 'all') return null;
   return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-purple-100 text-purple-700 border border-purple-200">
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-info-surface text-info-ink border border-info-border">
       {cohortBadgeLabel(cohort, resolvedFirstSimulationYear)}
     </span>
   );
 };
 
 const LoadingState = () => (
-  <div className="flex flex-col items-center justify-center h-96 text-gray-400">
+  <div className="flex flex-col items-center justify-center h-96 text-ink-subtle">
     <Loader2 size={48} className="mb-4 animate-spin" />
-    <h3 className="text-lg font-semibold text-gray-600">Loading comparison data...</h3>
+    <h3 className="text-lg font-semibold text-ink-muted">Loading comparison data...</h3>
   </div>
 );
 
@@ -271,6 +273,7 @@ const LoadingState = () => (
 // ============================================================================
 
 export default function ScenarioCostComparison() {
+  const chartTheme = useChartTheme();
   // -------------------------------------------------------------------------
   // Context: Active Workspace from Layout
   // -------------------------------------------------------------------------
@@ -443,7 +446,7 @@ export default function ScenarioCostComparison() {
     // Use orderedScenarioIds so colors are stable relative to display order
     orderedScenarioIds.forEach(id => {
       if (id !== anchorScenarioId) {
-        map[id] = COLORS.charts[colorIdx % COLORS.charts.length];
+        map[id] = chartTheme.colorAt(colorIdx);
         colorIdx++;
       }
     });
@@ -757,28 +760,28 @@ export default function ScenarioCostComparison() {
   return (
     <div className="flex h-full gap-6 animate-fadeIn">
       {/* ===== Sidebar Selector ===== */}
-      <aside className="w-80 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col overflow-hidden flex-shrink-0">
+      <aside className="w-80 bg-surface-raised rounded-xl shadow-sm border border-border flex flex-col overflow-hidden flex-shrink-0">
         {/* Sidebar Header */}
-        <div className="p-4 border-b border-gray-100 bg-gray-50">
+        <div className="p-4 border-b border-border bg-surface-subtle">
           <div className="flex items-center justify-between">
-            <h3 className="font-bold text-gray-800 flex items-center">
-              <Filter size={18} className="mr-2 text-gray-500" />
+            <h3 className="font-bold text-ink flex items-center">
+              <Filter size={18} className="mr-2 text-ink-muted" />
               Scenarios
             </h3>
-            <span className="text-[10px] font-bold bg-fidelity-green text-white px-1.5 py-0.5 rounded">
+            <span className="text-[10px] font-bold bg-fidelity-green text-ink-inverse px-1.5 py-0.5 rounded">
               {selectedScenarioIds.length} SELECTED
             </span>
           </div>
 
           {/* Search Input */}
           <div className="mt-3 relative">
-            <Search size={14} className="absolute left-2.5 top-2.5 text-gray-400" />
+            <Search size={14} className="absolute left-2.5 top-2.5 text-ink-subtle" />
             <input
               type="text"
               placeholder="Search scenarios..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-gray-200 rounded-md focus:ring-1 focus:ring-fidelity-green outline-none"
+              className="w-full pl-8 pr-3 py-1.5 text-xs bg-surface-raised border border-border rounded-md focus:ring-1 focus:ring-fidelity-green outline-none"
             />
           </div>
         </div>
@@ -786,12 +789,12 @@ export default function ScenarioCostComparison() {
         {/* Scenario List */}
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {loadingScenarios ? (
-            <div className="flex items-center justify-center py-8 text-gray-400">
+            <div className="flex items-center justify-center py-8 text-ink-subtle">
               <Loader2 size={20} className="animate-spin mr-2" />
               <span className="text-xs">Loading scenarios...</span>
             </div>
           ) : filteredScenarios.length === 0 ? (
-            <div className="text-center py-8 text-gray-400 text-xs">
+            <div className="text-center py-8 text-ink-subtle text-xs">
               {completedScenarios.length === 0
                 ? 'No completed scenarios in this workspace'
                 : 'No scenarios match your search'
@@ -802,7 +805,7 @@ export default function ScenarioCostComparison() {
               {/* Selected scenarios - anchor first, then rest in order */}
               {orderedScenarioIds.length > 0 && (
                 <>
-                  <div className="px-2 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                  <div className="px-2 py-1 text-[10px] font-bold text-ink-subtle uppercase tracking-widest">
                     Selected ({orderedScenarioIds.length})
                   </div>
                   {orderedScenarioIds.map((id, index) => {
@@ -816,20 +819,20 @@ export default function ScenarioCostComparison() {
                     return (
                       <div
                         key={id}
-                        className={`group w-full text-left px-3 py-2 rounded-lg flex items-center justify-between transition-all border ${isAnchor ? 'bg-blue-50 border-blue-200 shadow-sm' : 'bg-fidelity-green/5 border-fidelity-green/20'}`}
+                        className={`group w-full text-left px-3 py-2 rounded-lg flex items-center justify-between transition-all border ${isAnchor ? 'bg-info-surface border-info-border shadow-sm' : 'bg-fidelity-green/5 border-fidelity-green/20'}`}
                       >
                         <button
                           onClick={() => toggleSelection(id)}
                           className="flex items-start flex-1 min-w-0"
                         >
                           <div className="mt-1 mr-3 flex-shrink-0">
-                            <CheckSquare size={16} className={isAnchor ? 'text-blue-600' : 'text-fidelity-green'} />
+                            <CheckSquare size={16} className={isAnchor ? 'text-info-ink' : 'text-fidelity-green'} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <span className={`text-xs font-semibold block truncate ${isAnchor ? 'text-blue-700' : 'text-fidelity-green'}`}>
+                            <span className={`text-xs font-semibold block truncate ${isAnchor ? 'text-info-ink' : 'text-fidelity-green'}`}>
                               {scenario.name}
                             </span>
-                            <p className="text-[9px] text-gray-500 uppercase tracking-tight">
+                            <p className="text-[9px] text-ink-muted uppercase tracking-tight">
                               {isAnchor ? 'Baseline Anchor' : 'Scenario'}
                             </p>
                           </div>
@@ -842,7 +845,7 @@ export default function ScenarioCostComparison() {
                               <button
                                 onClick={() => moveScenarioUp(id)}
                                 disabled={!canMoveUp}
-                                className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                className="p-0.5 rounded text-ink-subtle hover:text-ink-muted hover:bg-surface-subtle disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                 title="Move up"
                               >
                                 <ArrowUp size={12} />
@@ -850,7 +853,7 @@ export default function ScenarioCostComparison() {
                               <button
                                 onClick={() => moveScenarioDown(id)}
                                 disabled={!canMoveDown}
-                                className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                className="p-0.5 rounded text-ink-subtle hover:text-ink-muted hover:bg-surface-subtle disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                 title="Move down"
                               >
                                 <ArrowDown size={12} />
@@ -860,7 +863,7 @@ export default function ScenarioCostComparison() {
                           {/* Anchor button */}
                           <button
                             onClick={() => handleSetAnchor(id)}
-                            className={`p-1 rounded-md transition-colors ${isAnchor ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'}`}
+                            className={`p-1 rounded-md transition-colors ${isAnchor ? 'bg-info-solid text-ink-inverse' : 'text-ink-subtle hover:text-info-ink hover:bg-info-surface'}`}
                             title={isAnchor ? 'Current Anchor' : 'Set as Anchor'}
                           >
                             <Anchor size={14} />
@@ -875,7 +878,7 @@ export default function ScenarioCostComparison() {
               {/* Unselected scenarios */}
               {filteredScenarios.filter(s => !selectedScenarioIds.includes(s.id)).length > 0 && (
                 <>
-                  <div className="px-2 py-1 mt-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                  <div className="px-2 py-1 mt-2 text-[10px] font-bold text-ink-subtle uppercase tracking-widest">
                     Available
                   </div>
                   {filteredScenarios.filter(s => !selectedScenarioIds.includes(s.id)).map((scenario) => {
@@ -884,7 +887,7 @@ export default function ScenarioCostComparison() {
                     return (
                       <div
                         key={scenario.id}
-                        className={`group w-full text-left px-3 py-2 rounded-lg flex items-center justify-between transition-all border ${isAtLimit ? 'bg-gray-50 border-transparent' : 'hover:bg-gray-50 border-transparent'}`}
+                        className={`group w-full text-left px-3 py-2 rounded-lg flex items-center justify-between transition-all border ${isAtLimit ? 'bg-surface-subtle border-transparent' : 'hover:bg-surface-subtle border-transparent'}`}
                       >
                         <button
                           onClick={() => toggleSelection(scenario.id)}
@@ -893,13 +896,13 @@ export default function ScenarioCostComparison() {
                           className={`flex items-start flex-1 min-w-0 ${isAtLimit ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                           <div className="mt-1 mr-3 flex-shrink-0">
-                            <Square size={16} className={isAtLimit ? 'text-gray-200' : 'text-gray-300'} />
+                            <Square size={16} className={isAtLimit ? 'text-ink-subtle' : 'text-ink-subtle'} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <span className="text-xs font-semibold block truncate text-gray-700">
+                            <span className="text-xs font-semibold block truncate text-ink-muted">
                               {scenario.name}
                             </span>
-                            <p className="text-[9px] text-gray-500 uppercase tracking-tight">
+                            <p className="text-[9px] text-ink-muted uppercase tracking-tight">
                               Scenario
                             </p>
                           </div>
@@ -914,16 +917,16 @@ export default function ScenarioCostComparison() {
         </div>
 
         {/* Sidebar Footer */}
-        <div className="p-4 border-t border-gray-100 bg-gray-50 space-y-2">
-          <div className="bg-white p-3 rounded-lg border border-gray-200">
-            <div className="flex items-center text-[10px] font-bold text-gray-400 uppercase mb-2">
+        <div className="p-4 border-t border-border bg-surface-subtle space-y-2">
+          <div className="bg-surface-raised p-3 rounded-lg border border-border">
+            <div className="flex items-center text-[10px] font-bold text-ink-subtle uppercase mb-2">
               <Anchor size={10} className="mr-1" /> Active Anchor
             </div>
-            <div className="text-xs font-bold text-gray-800 truncate">
+            <div className="text-xs font-bold text-ink truncate">
               {anchorAnalytics?.scenario_name || 'None selected'}
             </div>
           </div>
-          <button className="w-full py-2 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-700 hover:bg-gray-100 flex items-center justify-center transition-colors">
+          <button className="w-full py-2 bg-surface-raised border border-border-strong rounded-lg text-xs font-bold text-ink-muted hover:bg-surface-subtle flex items-center justify-center transition-colors">
             <Download size={14} className="mr-2" /> Download Report
           </button>
         </div>
@@ -956,18 +959,18 @@ export default function ScenarioCostComparison() {
           <>
             {/* Anchor Header Panel */}
             {anchorSummary && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col md:flex-row gap-8 items-start md:items-center justify-between">
+              <div className="bg-surface-raised rounded-xl shadow-sm border border-border p-6 flex flex-col md:flex-row gap-8 items-start md:items-center justify-between">
                 <div className="flex-1">
-                  <div className="flex items-center space-x-2 text-blue-600 font-bold text-[10px] uppercase tracking-widest mb-1.5">
+                  <div className="flex items-center space-x-2 text-info-ink font-bold text-[10px] uppercase tracking-widest mb-1.5">
                     <Anchor size={12} />
                     <span>Anchored Baseline Context</span>
                   </div>
-                  <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight">{anchorSummary.name}</h2>
+                  <h2 className="text-2xl font-extrabold text-ink tracking-tight">{anchorSummary.name}</h2>
                   <div className="flex items-center mt-3 space-x-3">
-                    <span className="flex items-center text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                    <span className="flex items-center text-xs font-medium text-ink-muted bg-surface-subtle px-2 py-1 rounded">
                       <Calendar size={12} className="mr-1.5" /> {anchorSummary.yearCount}-Year Plan
                     </span>
-                    <span className="flex items-center text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                    <span className="flex items-center text-xs font-medium text-ink-muted bg-surface-subtle px-2 py-1 rounded">
                       <DollarSign size={12} className="mr-1.5" /> {formatCurrency(anchorSummary.totalCost)} Total
                     </span>
                   </div>
@@ -975,7 +978,7 @@ export default function ScenarioCostComparison() {
 
                 <button
                   onClick={() => setShowPlanDesign(true)}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition-colors text-sm font-medium"
+                  className="flex items-center gap-2 px-4 py-2.5 bg-info-surface border border-info-border rounded-xl text-info-ink hover:bg-info-surface hover:border-info-border transition-colors text-sm font-medium"
                 >
                   <Eye size={16} />
                   View Plan Design
@@ -984,24 +987,24 @@ export default function ScenarioCostComparison() {
             )}
 
             {/* Primary Chart: Employer Cost Trends */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
               <div className="flex items-center justify-between mb-8">
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <h3 className="text-lg font-bold text-ink flex items-center gap-2">
                     Employer Cost Trends
                     <CohortBadge cohort={cohort} resolvedFirstSimulationYear={anchorAnalytics?.resolved_first_simulation_year} />
                   </h3>
-                  <p className="text-sm text-gray-500">Comparing total contributions for the selected horizon.</p>
+                  <p className="text-sm text-ink-muted">Comparing total contributions for the selected horizon.</p>
                 </div>
 
                 <div className="flex items-center gap-2">
                   {/* Cohort Control (134-new-hire-cohort, FR-001) */}
-                  <div className="flex bg-gray-100 p-1 rounded-lg">
+                  <div className="flex bg-surface-subtle p-1 rounded-lg">
                     {VALID_COHORTS.map((value) => (
                       <button
                         key={value}
                         onClick={() => setCohort(value)}
-                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${cohort === value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${cohort === value ? 'bg-surface-raised text-ink shadow-sm' : 'text-ink-muted hover:text-ink-muted'}`}
                       >
                         {COHORT_TOGGLE_LABELS[value]}
                       </button>
@@ -1009,16 +1012,16 @@ export default function ScenarioCostComparison() {
                   </div>
 
                   {/* View Mode Toggle */}
-                  <div className="flex bg-gray-100 p-1 rounded-lg">
+                  <div className="flex bg-surface-subtle p-1 rounded-lg">
                     <button
                       onClick={() => setViewMode('annual')}
-                      className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'annual' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                      className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'annual' ? 'bg-surface-raised text-ink shadow-sm' : 'text-ink-muted hover:text-ink-muted'}`}
                     >
                       Annual Spend
                     </button>
                     <button
                       onClick={() => setViewMode('cumulative')}
-                      className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'cumulative' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                      className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'cumulative' ? 'bg-surface-raised text-ink shadow-sm' : 'text-ink-muted hover:text-ink-muted'}`}
                     >
                       Cumulative Cost
                     </button>
@@ -1030,12 +1033,12 @@ export default function ScenarioCostComparison() {
                 <ResponsiveContainer width="100%" height="100%">
                   {viewMode === 'annual' ? (
                     <BarChart key={selectedScenarioIds.join(',')} data={processedData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis dataKey="year" stroke="#94a3b8" fontSize={12} />
-                      <YAxis stroke="#94a3b8" fontSize={12} tickFormatter={v => formatCurrency(v)} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
+                      <XAxis dataKey="year" stroke={chartTheme.axis.line} fontSize={12} />
+                      <YAxis stroke={chartTheme.axis.line} fontSize={12} tickFormatter={v => formatCurrency(v)} />
                       <Tooltip
-                        cursor={{ fill: '#f8fafc' }}
-                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                        cursor={chartTheme.tooltip.cursorStyle}
+                        contentStyle={chartTheme.tooltip.contentStyle}
                         formatter={(value: number) => formatCurrency(value)}
                       />
                       <Legend
@@ -1043,7 +1046,7 @@ export default function ScenarioCostComparison() {
                           <CustomLegend
                             items={orderedScenarioIds.map(id => ({
                               name: comparisonData.scenario_names[id] || id,
-                              color: id === anchorScenarioId ? '#1e293b' : scenarioColorMap[id],
+                              color: id === anchorScenarioId ? chartTheme.semantic.anchor : scenarioColorMap[id],
                             }))}
                           />
                         )}
@@ -1053,7 +1056,7 @@ export default function ScenarioCostComparison() {
                           key={id}
                           dataKey={id}
                           name={comparisonData.scenario_names[id] || id}
-                          fill={id === anchorScenarioId ? '#1e293b' : scenarioColorMap[id]}
+                          fill={id === anchorScenarioId ? chartTheme.semantic.anchor : scenarioColorMap[id]}
                           radius={[4, 4, 0, 0]}
                           barSize={selectedScenarioIds.length > 4 ? 12 : 30}
                         />
@@ -1061,11 +1064,11 @@ export default function ScenarioCostComparison() {
                     </BarChart>
                   ) : (
                     <AreaChart key={selectedScenarioIds.join(',')} data={processedData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis dataKey="year" stroke="#94a3b8" fontSize={12} />
-                      <YAxis stroke="#94a3b8" fontSize={12} tickFormatter={v => formatCurrency(v)} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
+                      <XAxis dataKey="year" stroke={chartTheme.axis.line} fontSize={12} />
+                      <YAxis stroke={chartTheme.axis.line} fontSize={12} tickFormatter={v => formatCurrency(v)} />
                       <Tooltip
-                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                        contentStyle={chartTheme.tooltip.contentStyle}
                         formatter={(value: number) => formatCurrency(value)}
                       />
                       <Legend
@@ -1073,7 +1076,7 @@ export default function ScenarioCostComparison() {
                           <CustomLegend
                             items={orderedScenarioIds.map(id => ({
                               name: comparisonData.scenario_names[id] || id,
-                              color: id === anchorScenarioId ? '#1e293b' : scenarioColorMap[id],
+                              color: id === anchorScenarioId ? chartTheme.semantic.anchor : scenarioColorMap[id],
                             }))}
                           />
                         )}
@@ -1084,8 +1087,8 @@ export default function ScenarioCostComparison() {
                           type="monotone"
                           dataKey={id}
                           name={comparisonData.scenario_names[id] || id}
-                          stroke={id === anchorScenarioId ? '#1e293b' : scenarioColorMap[id]}
-                          fill={id === anchorScenarioId ? '#1e293b' : scenarioColorMap[id]}
+                          stroke={id === anchorScenarioId ? chartTheme.semantic.anchor : scenarioColorMap[id]}
+                          fill={id === anchorScenarioId ? chartTheme.semantic.anchor : scenarioColorMap[id]}
                           fillOpacity={0.1}
                           strokeWidth={id === anchorScenarioId ? 3 : 2}
                         />
@@ -1098,14 +1101,14 @@ export default function ScenarioCostComparison() {
 
             {/* Secondary Chart: Incremental Costs */}
             {selectedScenarioIds.length > 1 && (
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+              <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                    <Calculator size={18} className="mr-2 text-blue-600" />
+                  <h3 className="text-lg font-bold text-ink flex items-center gap-2">
+                    <Calculator size={18} className="mr-2 text-info-ink" />
                     Incremental Costs vs. {anchorAnalytics?.scenario_name}
                     <CohortBadge cohort={cohort} resolvedFirstSimulationYear={anchorAnalytics?.resolved_first_simulation_year} />
                   </h3>
-                  <div className="px-3 py-1 bg-blue-50 text-blue-700 text-[10px] font-bold rounded-md uppercase tracking-wide">
+                  <div className="px-3 py-1 bg-info-surface text-info-ink text-[10px] font-bold rounded-md uppercase tracking-wide">
                     Values represent cost delta
                   </div>
                 </div>
@@ -1113,11 +1116,11 @@ export default function ScenarioCostComparison() {
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart key={selectedScenarioIds.join(',')} data={processedData} margin={{ bottom: 30 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis dataKey="year" stroke="#94a3b8" fontSize={12} />
-                      <YAxis stroke="#94a3b8" fontSize={12} tickFormatter={v => formatCurrency(v)} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
+                      <XAxis dataKey="year" stroke={chartTheme.axis.line} fontSize={12} />
+                      <YAxis stroke={chartTheme.axis.line} fontSize={12} tickFormatter={v => formatCurrency(v)} />
                       <Tooltip
-                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                        contentStyle={chartTheme.tooltip.contentStyle}
                         formatter={(value: number) => formatCurrency(value)}
                       />
                       <Legend
@@ -1130,7 +1133,7 @@ export default function ScenarioCostComparison() {
                                   name: `Delta: ${comparisonData.scenario_names[id]}`,
                                   color: scenarioColorMap[id],
                                 })),
-                              { name: 'Baseline Zero', color: '#1e293b' },
+                              { name: 'Baseline Zero', color: chartTheme.semantic.anchor },
                             ]}
                           />
                         )}
@@ -1149,7 +1152,7 @@ export default function ScenarioCostComparison() {
                       <Line
                         dataKey={() => 0}
                         name="Baseline Zero"
-                        stroke="#1e293b"
+                        stroke={chartTheme.semantic.anchor}
                         strokeDasharray="5 5"
                         dot={false}
                         strokeWidth={2}
@@ -1157,26 +1160,26 @@ export default function ScenarioCostComparison() {
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
-                <p className="mt-4 text-xs text-gray-500 italic text-center">
+                <p className="mt-4 text-xs text-ink-muted italic text-center">
                   Highlights additional costs relative to the {viewMode} values of the anchored baseline.
                 </p>
               </div>
             )}
 
             {/* Multi-Year Cost Matrix Table */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
-                <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider flex items-center gap-2">
+            <div className="bg-surface-raised rounded-xl shadow-sm border border-border overflow-hidden">
+              <div className="px-6 py-4 border-b border-border bg-surface-subtle flex items-center justify-between">
+                <h3 className="text-sm font-bold text-ink uppercase tracking-wider flex items-center gap-2">
                   Multi-Year Cost Matrix
                   <CohortBadge cohort={cohort} resolvedFirstSimulationYear={anchorAnalytics?.resolved_first_simulation_year} />
                 </h3>
                 <div className="flex items-center space-x-2">
-                  <span className="text-[10px] bg-white border border-gray-200 text-gray-600 px-2 py-0.5 rounded font-bold flex items-center">
+                  <span className="text-[10px] bg-surface-raised border border-border text-ink-muted px-2 py-0.5 rounded font-bold flex items-center">
                     <DollarSign size={8} className="mr-0.5" /> VALUES IN $
                   </span>
                   <button
                     onClick={handleCopy}
-                    className={`p-1.5 rounded-md transition-colors ${copied ? 'text-green-600 bg-green-50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+                    className={`p-1.5 rounded-md transition-colors ${copied ? 'text-success-ink bg-success-surface' : 'text-ink-subtle hover:text-ink-muted hover:bg-surface-subtle'}`}
                     title={copied ? 'Copied!' : 'Copy to clipboard'}
                   >
                     {copied ? <Check size={16} /> : <Copy size={16} />}
@@ -1184,26 +1187,26 @@ export default function ScenarioCostComparison() {
                 </div>
               </div>
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50 font-bold">
+                <table className="min-w-full divide-y divide-border">
+                  <thead className="bg-surface-subtle font-bold">
                     <tr>
-                      <th className="px-6 py-4 text-left text-xs text-gray-500 uppercase tracking-wider border-r border-gray-200">
+                      <th className="px-6 py-4 text-left text-xs text-ink-muted uppercase tracking-wider border-r border-border">
                         Scenario Name
                       </th>
                       {years.map(y => (
-                        <th key={y} className="px-6 py-2 text-center text-[10px] text-gray-400 uppercase">
+                        <th key={y} className="px-6 py-2 text-center text-[10px] text-ink-subtle uppercase">
                           {y}
                         </th>
                       ))}
-                      <th className="px-6 py-4 text-right text-xs text-gray-900 uppercase tracking-wider bg-gray-100 border-l border-gray-200">
+                      <th className="px-6 py-4 text-right text-xs text-ink uppercase tracking-wider bg-surface-subtle border-l border-border">
                         Total
                       </th>
-                      <th className="px-6 py-4 text-right text-xs text-gray-900 uppercase tracking-wider bg-gray-50">
+                      <th className="px-6 py-4 text-right text-xs text-ink uppercase tracking-wider bg-surface-subtle">
                         Variance
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100 bg-white">
+                  <tbody className="divide-y divide-border bg-surface-raised">
                     {orderedScenarioIds.map((id) => {
                       const analytics = comparisonData.analytics.find(a => a.scenario_id === id);
                       if (!analytics) return null;
@@ -1222,14 +1225,14 @@ export default function ScenarioCostComparison() {
                       }
 
                       return (
-                        <tr key={id} className={`hover:bg-gray-50 transition-colors ${isAnchor ? 'bg-blue-50/30' : ''}`}>
-                          <td className="px-6 py-4 whitespace-nowrap border-r border-gray-100">
+                        <tr key={id} className={`hover:bg-surface-subtle transition-colors ${isAnchor ? 'bg-info-surface/30' : ''}`}>
+                          <td className="px-6 py-4 whitespace-nowrap border-r border-border">
                             <div className="flex items-center">
-                              <div className={`w-2 h-2 rounded-full mr-2 ${isAnchor ? 'bg-blue-600' : 'bg-fidelity-green'}`} />
-                              <span className={`text-sm font-bold ${isAnchor ? 'text-blue-700' : 'text-gray-900'}`}>
+                              <div className={`w-2 h-2 rounded-full mr-2 ${isAnchor ? 'bg-info-solid' : 'bg-fidelity-green'}`} />
+                              <span className={`text-sm font-bold ${isAnchor ? 'text-info-ink' : 'text-ink'}`}>
                                 {comparisonData.scenario_names[id] || analytics.scenario_name || id}
                                 {isAnchor && (
-                                  <span className="ml-2 text-[8px] font-bold bg-blue-100 text-blue-600 px-1 py-0.5 rounded uppercase">
+                                  <span className="ml-2 text-[8px] font-bold bg-info-surface text-info-ink px-1 py-0.5 rounded uppercase">
                                     Anchor
                                   </span>
                                 )}
@@ -1243,7 +1246,7 @@ export default function ScenarioCostComparison() {
                               // contribution_by_year means zero cohort-matching
                               // employees — distinguishable from a computed $0.
                               return (
-                                <td key={year} className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-400 font-mono italic">
+                                <td key={year} className="px-6 py-4 whitespace-nowrap text-right text-sm text-ink-subtle font-mono italic">
                                   {cohort !== 'all' ? (
                                     <span title="No employees in cohort">—</span>
                                   ) : (
@@ -1253,19 +1256,19 @@ export default function ScenarioCostComparison() {
                               );
                             }
                             return (
-                              <td key={year} className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-600 font-mono">
+                              <td key={year} className="px-6 py-4 whitespace-nowrap text-right text-sm text-ink-muted font-mono">
                                 {formatCurrency(yearData.total_employer_cost)}
                               </td>
                             );
                           })}
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900 font-bold font-mono bg-gray-50/50 border-l border-gray-100">
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-ink font-bold font-mono bg-surface-subtle/50 border-l border-border">
                             {formatCurrency(total)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right">
                             {isAnchor ? (
-                              <span className="text-xs text-gray-400 italic">--</span>
+                              <span className="text-xs text-ink-subtle italic">--</span>
                             ) : (
-                              <span className={`px-2 py-1 text-xs font-bold rounded ${delta >= 0 ? 'bg-orange-50 text-orange-700' : 'bg-green-50 text-green-700'}`}>
+                              <span className={`px-2 py-1 text-xs font-bold rounded ${delta >= 0 ? 'bg-warning-surface text-warning-ink' : 'bg-success-surface text-success-ink'}`}>
                                 {delta >= 0 ? '+' : ''}{formatCurrency(delta)}
                               </span>
                             )}
@@ -1279,16 +1282,16 @@ export default function ScenarioCostComparison() {
             </div>
 
             {/* Multi-Year Compensation Matrix Table */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
-                <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider">Multi-Year Compensation Matrix</h3>
+            <div className="bg-surface-raised rounded-xl shadow-sm border border-border overflow-hidden">
+              <div className="px-6 py-4 border-b border-border bg-surface-subtle flex items-center justify-between">
+                <h3 className="text-sm font-bold text-ink uppercase tracking-wider">Multi-Year Compensation Matrix</h3>
                 <div className="flex items-center space-x-2">
-                  <span className="text-[10px] bg-white border border-gray-200 text-gray-600 px-2 py-0.5 rounded font-bold flex items-center">
+                  <span className="text-[10px] bg-surface-raised border border-border text-ink-muted px-2 py-0.5 rounded font-bold flex items-center">
                     <DollarSign size={8} className="mr-0.5" /> VALUES IN $
                   </span>
                   <button
                     onClick={handleCompensationCopy}
-                    className={`p-1.5 rounded-md transition-colors ${copiedCompensation ? 'text-green-600 bg-green-50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+                    className={`p-1.5 rounded-md transition-colors ${copiedCompensation ? 'text-success-ink bg-success-surface' : 'text-ink-subtle hover:text-ink-muted hover:bg-surface-subtle'}`}
                     title={copiedCompensation ? 'Copied!' : 'Copy to clipboard'}
                   >
                     {copiedCompensation ? <Check size={16} /> : <Copy size={16} />}
@@ -1296,26 +1299,26 @@ export default function ScenarioCostComparison() {
                 </div>
               </div>
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50 font-bold">
+                <table className="min-w-full divide-y divide-border">
+                  <thead className="bg-surface-subtle font-bold">
                     <tr>
-                      <th className="px-6 py-4 text-left text-xs text-gray-500 uppercase tracking-wider border-r border-gray-200">
+                      <th className="px-6 py-4 text-left text-xs text-ink-muted uppercase tracking-wider border-r border-border">
                         Scenario Name
                       </th>
                       {years.map(y => (
-                        <th key={y} className="px-6 py-2 text-center text-[10px] text-gray-400 uppercase">
+                        <th key={y} className="px-6 py-2 text-center text-[10px] text-ink-subtle uppercase">
                           {y}
                         </th>
                       ))}
-                      <th className="px-6 py-4 text-right text-xs text-gray-900 uppercase tracking-wider bg-gray-100 border-l border-gray-200">
+                      <th className="px-6 py-4 text-right text-xs text-ink uppercase tracking-wider bg-surface-subtle border-l border-border">
                         Total
                       </th>
-                      <th className="px-6 py-4 text-right text-xs text-gray-900 uppercase tracking-wider bg-gray-50">
+                      <th className="px-6 py-4 text-right text-xs text-ink uppercase tracking-wider bg-surface-subtle">
                         Variance
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100 bg-white">
+                  <tbody className="divide-y divide-border bg-surface-raised">
                     {orderedScenarioIds.map((id) => {
                       const analytics = comparisonData.analytics.find(a => a.scenario_id === id);
                       if (!analytics) return null;
@@ -1334,14 +1337,14 @@ export default function ScenarioCostComparison() {
                       }
 
                       return (
-                        <tr key={id} className={`hover:bg-gray-50 transition-colors ${isAnchor ? 'bg-blue-50/30' : ''}`}>
-                          <td className="px-6 py-4 whitespace-nowrap border-r border-gray-100">
+                        <tr key={id} className={`hover:bg-surface-subtle transition-colors ${isAnchor ? 'bg-info-surface/30' : ''}`}>
+                          <td className="px-6 py-4 whitespace-nowrap border-r border-border">
                             <div className="flex items-center">
-                              <div className={`w-2 h-2 rounded-full mr-2 ${isAnchor ? 'bg-blue-600' : 'bg-fidelity-green'}`} />
-                              <span className={`text-sm font-bold ${isAnchor ? 'text-blue-700' : 'text-gray-900'}`}>
+                              <div className={`w-2 h-2 rounded-full mr-2 ${isAnchor ? 'bg-info-solid' : 'bg-fidelity-green'}`} />
+                              <span className={`text-sm font-bold ${isAnchor ? 'text-info-ink' : 'text-ink'}`}>
                                 {comparisonData.scenario_names[id] || analytics.scenario_name || id}
                                 {isAnchor && (
-                                  <span className="ml-2 text-[8px] font-bold bg-blue-100 text-blue-600 px-1 py-0.5 rounded uppercase">
+                                  <span className="ml-2 text-[8px] font-bold bg-info-surface text-info-ink px-1 py-0.5 rounded uppercase">
                                     Anchor
                                   </span>
                                 )}
@@ -1351,19 +1354,19 @@ export default function ScenarioCostComparison() {
                           {years.map((year) => {
                             const yearData = analytics.contribution_by_year.find(y => y.year === year);
                             return (
-                              <td key={year} className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-600 font-mono">
+                              <td key={year} className="px-6 py-4 whitespace-nowrap text-right text-sm text-ink-muted font-mono">
                                 {yearData ? formatCurrency(yearData.total_compensation) : '-'}
                               </td>
                             );
                           })}
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900 font-bold font-mono bg-gray-50/50 border-l border-gray-100">
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-ink font-bold font-mono bg-surface-subtle/50 border-l border-border">
                             {formatCurrency(total)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right">
                             {isAnchor ? (
-                              <span className="text-xs text-gray-400 italic">--</span>
+                              <span className="text-xs text-ink-subtle italic">--</span>
                             ) : (
-                              <span className={`px-2 py-1 text-xs font-bold rounded ${delta >= 0 ? 'bg-orange-50 text-orange-700' : 'bg-green-50 text-green-700'}`}>
+                              <span className={`px-2 py-1 text-xs font-bold rounded ${delta >= 0 ? 'bg-warning-surface text-warning-ink' : 'bg-success-surface text-success-ink'}`}>
                                 {delta >= 0 ? '+' : ''}{formatCurrency(delta)}
                               </span>
                             )}
@@ -1378,19 +1381,19 @@ export default function ScenarioCostComparison() {
 
             {/* Methodology Footer Section */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-gray-900 text-gray-300 p-6 rounded-xl border border-gray-800 shadow-lg">
+              <div className="bg-surface-inverse text-ink-subtle p-6 rounded-xl border border-border-strong shadow-lg">
                 <div className="flex items-center text-fidelity-light mb-4 font-bold">
                   <TrendingDown size={18} className="mr-2" />
                   How these figures are measured
                 </div>
                 <div className="space-y-4 text-sm leading-relaxed">
                   <p>
-                    <span className="text-white font-bold">Employer cost</span> is employer match
+                    <span className="text-ink-inverse font-bold">Employer cost</span> is employer match
                     plus employer core, summed across every employee in the workforce snapshot for
                     each simulation year. Employee deferrals and salary are not included.
                   </p>
                   <p>
-                    <span className="text-white font-bold">Incremental cost</span> is a scenario's
+                    <span className="text-ink-inverse font-bold">Incremental cost</span> is a scenario's
                     employer cost minus {anchorAnalytics?.scenario_name ?? 'the anchor'}'s, so it
                     reflects <strong>every</strong> difference between the two runs — workforce
                     growth, compensation and census as well as plan design. It does not isolate the
@@ -1398,7 +1401,7 @@ export default function ScenarioCostComparison() {
                   </p>
                   {cohort !== 'all' && (
                     <p>
-                      <span className="text-white font-bold">Cohort:</span> figures reflect only
+                      <span className="text-ink-inverse font-bold">Cohort:</span> figures reflect only
                       the <strong>{cohortBadgeLabel(cohort, anchorAnalytics?.resolved_first_simulation_year)}</strong> cohort
                       {cohort === 'new_hires'
                         ? ` — employees hired on or after ${anchorAnalytics?.resolved_first_simulation_year ?? 'the first simulation year'}.`
@@ -1408,8 +1411,8 @@ export default function ScenarioCostComparison() {
                 </div>
               </div>
 
-              <div className="bg-blue-50 p-6 rounded-xl border border-blue-100">
-                <div className="flex items-center text-blue-700 mb-4 font-bold">
+              <div className="bg-info-surface p-6 rounded-xl border border-info-border">
+                <div className="flex items-center text-info-ink mb-4 font-bold">
                   <Info size={18} className="mr-2" />
                   {anchorAnalytics?.scenario_name ?? 'Anchor'} employer contributions
                 </div>
@@ -1417,24 +1420,24 @@ export default function ScenarioCostComparison() {
                   const summary = derivePlanSummary(anchorConfig);
                   if (!summary) {
                     return (
-                      <p className="text-sm text-blue-800">
+                      <p className="text-sm text-info-ink">
                         Plan design unavailable for this scenario.
                       </p>
                     );
                   }
                   return (
                     <>
-                      <ul className="space-y-3 text-sm text-blue-800">
+                      <ul className="space-y-3 text-sm text-info-ink">
                         <li className="flex items-start">
-                          <div className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-1.5 mr-2 flex-shrink-0" />
+                          <div className="w-1.5 h-1.5 rounded-full bg-info-solid mt-1.5 mr-2 flex-shrink-0" />
                           <span><strong>Employer core:</strong> {summary.core}</span>
                         </li>
                         <li className="flex items-start">
-                          <div className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-1.5 mr-2 flex-shrink-0" />
+                          <div className="w-1.5 h-1.5 rounded-full bg-info-solid mt-1.5 mr-2 flex-shrink-0" />
                           <span><strong>Employer match:</strong> {summary.match}</span>
                         </li>
                       </ul>
-                      <p className="mt-4 text-xs text-blue-700">
+                      <p className="mt-4 text-xs text-info-ink">
                         Eligibility gates, vesting and the full tier schedule are in
                         {' '}<strong>View Plan Design</strong>. Other scenarios in this comparison
                         may use a different design.

@@ -17,7 +17,7 @@ import {
   compareDCPlanAnalytics,
   DCPlanComparisonResponse,
 } from '../services/api';
-import { COLORS } from '../constants';
+import { useChartTheme } from '../hooks/useChartTheme';
 import DCPlanComparisonSection from './DCPlanComparisonSection';
 
 interface ScenarioData {
@@ -27,16 +27,8 @@ interface ScenarioData {
   error: string | null;
 }
 
-const COMPARISON_COLORS = [
-  '#00875A', // Fidelity green
-  '#2563EB', // Blue
-  '#7C3AED', // Purple
-  '#DC2626', // Red
-  '#F59E0B', // Amber
-  '#06B6D4', // Cyan
-];
-
 export default function ScenarioComparison() {
+  const chartTheme = useChartTheme();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
@@ -169,7 +161,7 @@ export default function ScenarioComparison() {
   // Build scenario color map (shared between workforce and DC plan charts)
   const scenarioColors: Record<string, string> = {};
   scenariosWithResults.forEach((d, idx) => {
-    scenarioColors[d.scenario.name] = COMPARISON_COLORS[idx % COMPARISON_COLORS.length];
+    scenarioColors[d.scenario.name] = chartTheme.colorAt(idx);
   });
 
   // Build comparison data for charts
@@ -219,7 +211,7 @@ export default function ScenarioComparison() {
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
           <Loader2 size={48} className="animate-spin text-fidelity-green mx-auto mb-4" />
-          <p className="text-gray-500">Loading scenario data...</p>
+          <p className="text-ink-muted">Loading scenario data...</p>
         </div>
       </div>
     );
@@ -228,12 +220,12 @@ export default function ScenarioComparison() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-96">
-        <AlertCircle size={48} className="text-red-400 mb-4" />
-        <h3 className="text-lg font-semibold text-red-600 mb-2">Error Loading Comparison</h3>
-        <p className="text-sm text-gray-500 mb-4">{error}</p>
+        <AlertCircle size={48} className="text-danger-ink mb-4" />
+        <h3 className="text-lg font-semibold text-danger-ink mb-2">Error Loading Comparison</h3>
+        <p className="text-sm text-ink-muted mb-4">{error}</p>
         <button
           onClick={() => navigate('/batch')}
-          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+          className="px-4 py-2 bg-surface-subtle text-ink-muted rounded-lg hover:bg-surface-disabled"
         >
           Back to Batches
         </button>
@@ -244,12 +236,12 @@ export default function ScenarioComparison() {
   if (scenarioIds.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-96">
-        <LayoutGrid size={48} className="text-gray-400 mb-4" />
-        <h3 className="text-lg font-semibold text-gray-600 mb-2">No Scenarios to Compare</h3>
-        <p className="text-sm text-gray-500 mb-4">Select scenarios from a batch to compare.</p>
+        <LayoutGrid size={48} className="text-ink-subtle mb-4" />
+        <h3 className="text-lg font-semibold text-ink-muted mb-2">No Scenarios to Compare</h3>
+        <p className="text-sm text-ink-muted mb-4">Select scenarios from a batch to compare.</p>
         <button
           onClick={() => navigate('/batch')}
-          className="px-4 py-2 bg-fidelity-green text-white rounded-lg hover:bg-fidelity-dark"
+          className="px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg hover:bg-fidelity-dark"
         >
           Go to Batches
         </button>
@@ -264,13 +256,13 @@ export default function ScenarioComparison() {
         <div className="flex items-center">
           <button
             onClick={() => navigate(-1)}
-            className="mr-4 p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+            className="mr-4 p-2 text-ink-muted hover:text-ink-muted hover:bg-surface-subtle rounded-lg"
           >
             <ArrowLeft size={20} />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Scenario Comparison</h1>
-            <p className="text-gray-500 mt-1">
+            <h1 className="text-2xl font-bold text-ink">Scenario Comparison</h1>
+            <p className="text-ink-muted mt-1">
               Comparing {scenariosWithResults.length} scenario{scenariosWithResults.length !== 1 ? 's' : ''}
             </p>
           </div>
@@ -279,14 +271,14 @@ export default function ScenarioComparison() {
           {scenarioIds.length === 2 && (
             <Link
               to={`/analytics/diff?a=${scenarioIds[0]}&b=${scenarioIds[1]}`}
-              className="flex items-center px-4 py-2 bg-fidelity-green rounded-lg text-white hover:bg-fidelity-dark"
+              className="flex items-center px-4 py-2 bg-fidelity-green rounded-lg text-ink-inverse hover:bg-fidelity-dark"
             >
               Diff A vs B
             </Link>
           )}
           <Link
             to="/analytics"
-            className="flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+            className="flex items-center px-4 py-2 bg-surface-raised border border-border-strong rounded-lg text-ink-muted hover:bg-surface-subtle"
           >
             <LayoutGrid size={16} className="mr-2" />
             Full Analytics
@@ -295,28 +287,28 @@ export default function ScenarioComparison() {
       </div>
 
       {/* Scenario Legend */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+      <div className="bg-surface-raised rounded-xl shadow-sm border border-border p-4">
         <div className="flex flex-wrap gap-4">
           {scenariosWithResults.map((d, idx) => (
             <div key={d.scenario.id} className="flex items-center">
               <div
                 className="w-4 h-4 rounded mr-2"
-                style={{ backgroundColor: COMPARISON_COLORS[idx % COMPARISON_COLORS.length] }}
+                style={{ backgroundColor: chartTheme.colorAt(idx) }}
               />
-              <span className="text-sm font-medium text-gray-700">{d.scenario.name}</span>
+              <span className="text-sm font-medium text-ink-muted">{d.scenario.name}</span>
             </div>
           ))}
         </div>
       </div>
 
       {/* Key Metrics Comparison Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-surface-raised rounded-xl shadow-sm border border-border overflow-hidden">
         <button
           onClick={() => setExpandedMetrics(!expandedMetrics)}
-          className="w-full px-6 py-4 flex items-center justify-between bg-gray-50 border-b border-gray-200 hover:bg-gray-100 transition-colors"
+          className="w-full px-6 py-4 flex items-center justify-between bg-surface-subtle border-b border-border hover:bg-surface-subtle transition-colors"
         >
-          <h2 className="text-lg font-semibold text-gray-800 flex items-center">
-            <LayoutGrid size={20} className="mr-2 text-gray-500" />
+          <h2 className="text-lg font-semibold text-ink flex items-center">
+            <LayoutGrid size={20} className="mr-2 text-ink-muted" />
             Key Metrics Comparison
           </h2>
           {expandedMetrics ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
@@ -324,41 +316,41 @@ export default function ScenarioComparison() {
 
         {expandedMetrics && (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-border">
+              <thead className="bg-surface-subtle">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-ink-muted uppercase tracking-wider">
                     Metric
                   </th>
                   {scenariosWithResults.map((d, idx) => (
                     <th
                       key={d.scenario.id}
                       className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
-                      style={{ color: COMPARISON_COLORS[idx % COMPARISON_COLORS.length] }}
+                      style={{ color: chartTheme.colorAt(idx) }}
                     >
                       {d.scenario.name}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-surface-raised divide-y divide-border">
                 <tr>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-ink">
                     <div className="flex items-center">
-                      <Users size={16} className="mr-2 text-gray-400" />
+                      <Users size={16} className="mr-2 text-ink-subtle" />
                       Final Headcount
                     </div>
                   </td>
                   {scenariosWithResults.map(d => (
-                    <td key={d.scenario.id} className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 font-semibold">
+                    <td key={d.scenario.id} className="px-6 py-4 whitespace-nowrap text-sm text-ink-muted font-semibold">
                       {d.results?.final_headcount.toLocaleString() || '—'}
                     </td>
                   ))}
                 </tr>
-                <tr className="bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                <tr className="bg-surface-subtle">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-ink">
                     <div className="flex items-center">
-                      <TrendingUp size={16} className="mr-2 text-gray-400" />
+                      <TrendingUp size={16} className="mr-2 text-ink-subtle" />
                       Total Growth
                     </div>
                   </td>
@@ -367,7 +359,7 @@ export default function ScenarioComparison() {
                     const growthDisplay = d.results ? `${growthSign}${d.results.total_growth_pct.toFixed(1)}%` : '\u2014';
                     return (
                     <td key={d.scenario.id} className="px-6 py-4 whitespace-nowrap text-sm">
-                      <span className={d.results && d.results.total_growth_pct >= 0 ? 'text-green-600' : 'text-red-600'}>
+                      <span className={d.results && d.results.total_growth_pct >= 0 ? 'text-success-ink' : 'text-danger-ink'}>
                         {growthDisplay}
                       </span>
                     </td>
@@ -375,40 +367,40 @@ export default function ScenarioComparison() {
                   })}
                 </tr>
                 <tr>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-ink">
                     <div className="flex items-center">
-                      <TrendingUp size={16} className="mr-2 text-gray-400" />
+                      <TrendingUp size={16} className="mr-2 text-ink-subtle" />
                       CAGR
                     </div>
                   </td>
                   {scenariosWithResults.map(d => (
-                    <td key={d.scenario.id} className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                    <td key={d.scenario.id} className="px-6 py-4 whitespace-nowrap text-sm text-ink-muted">
                       {d.results ? `${d.results.cagr.toFixed(2)}%` : '—'}
                     </td>
                   ))}
                 </tr>
-                <tr className="bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                <tr className="bg-surface-subtle">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-ink">
                     <div className="flex items-center">
-                      <Calendar size={16} className="mr-2 text-gray-400" />
+                      <Calendar size={16} className="mr-2 text-ink-subtle" />
                       Simulation Period
                     </div>
                   </td>
                   {scenariosWithResults.map(d => (
-                    <td key={d.scenario.id} className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                    <td key={d.scenario.id} className="px-6 py-4 whitespace-nowrap text-sm text-ink-muted">
                       {d.results ? `${d.results.start_year} - ${d.results.end_year}` : '—'}
                     </td>
                   ))}
                 </tr>
                 <tr>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-ink">
                     <div className="flex items-center">
-                      <DollarSign size={16} className="mr-2 text-gray-400" />
+                      <DollarSign size={16} className="mr-2 text-ink-subtle" />
                       Participation Rate
                     </div>
                   </td>
                   {scenariosWithResults.map(d => (
-                    <td key={d.scenario.id} className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                    <td key={d.scenario.id} className="px-6 py-4 whitespace-nowrap text-sm text-ink-muted">
                       {d.results ? `${(d.results.participation_rate * 100).toFixed(0)}%` : '—'}
                     </td>
                   ))}
@@ -422,31 +414,26 @@ export default function ScenarioComparison() {
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Headcount Comparison Chart */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-800 mb-6">Headcount Over Time</h3>
+        <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
+          <h3 className="text-lg font-semibold text-ink mb-6">Headcount Over Time</h3>
           <div className="h-80">
             {comparisonData.workforce.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={comparisonData.workforce}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                  <XAxis dataKey="year" stroke="#9CA3AF" />
-                  <YAxis stroke="#9CA3AF" />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
+                  <XAxis dataKey="year" stroke={chartTheme.axis.line} />
+                  <YAxis stroke={chartTheme.axis.line} />
                   <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#fff',
-                      borderRadius: '8px',
-                      border: '1px solid #e5e7eb',
-                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                    }}
+                    contentStyle={chartTheme.tooltip.contentStyle}
                     formatter={(value: number) => [value.toLocaleString(), '']}
                   />
-                  <Legend verticalAlign="top" height={36} />
+                  <Legend verticalAlign="top" height={36} formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
                   {scenariosWithResults.map((d, idx) => (
                     <Line
                       key={d.scenario.id}
                       type="monotone"
                       dataKey={d.scenario.name}
-                      stroke={COMPARISON_COLORS[idx % COMPARISON_COLORS.length]}
+                      stroke={chartTheme.colorAt(idx)}
                       strokeWidth={3}
                       dot={{ r: 4 }}
                       activeDot={{ r: 6 }}
@@ -455,7 +442,7 @@ export default function ScenarioComparison() {
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-gray-400">
+              <div className="h-full flex items-center justify-center text-ink-subtle">
                 <p>No workforce data available</p>
               </div>
             )}
@@ -463,8 +450,8 @@ export default function ScenarioComparison() {
         </div>
 
         {/* Final Headcount Bar Chart */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-800 mb-6">Final Headcount Comparison</h3>
+        <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
+          <h3 className="text-lg font-semibold text-ink mb-6">Final Headcount Comparison</h3>
           <div className="h-80">
             {scenariosWithResults.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -472,33 +459,29 @@ export default function ScenarioComparison() {
                   data={scenariosWithResults.map((d, idx) => ({
                     name: d.scenario.name,
                     headcount: d.results?.final_headcount || 0,
-                    fill: COMPARISON_COLORS[idx % COMPARISON_COLORS.length],
+                    fill: chartTheme.colorAt(idx),
                   }))}
                   layout="vertical"
                 >
-                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#E5E7EB" />
-                  <XAxis type="number" stroke="#9CA3AF" />
-                  <YAxis type="category" dataKey="name" stroke="#9CA3AF" width={120} />
+                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke={chartTheme.grid.line} />
+                  <XAxis type="number" stroke={chartTheme.axis.line} />
+                  <YAxis type="category" dataKey="name" stroke={chartTheme.axis.line} width={120} />
                   <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#fff',
-                      borderRadius: '8px',
-                      border: '1px solid #e5e7eb',
-                    }}
+                    contentStyle={chartTheme.tooltip.contentStyle}
                     formatter={(value: number) => [value.toLocaleString(), 'Headcount']}
                   />
                   <Bar dataKey="headcount" radius={[0, 4, 4, 0]}>
                     {scenariosWithResults.map((d, idx) => (
                       <rect
                         key={d.scenario.id}
-                        fill={COMPARISON_COLORS[idx % COMPARISON_COLORS.length]}
+                        fill={chartTheme.colorAt(idx)}
                       />
                     ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-gray-400">
+              <div className="h-full flex items-center justify-center text-ink-subtle">
                 <p>No data available</p>
               </div>
             )}
@@ -506,8 +489,8 @@ export default function ScenarioComparison() {
         </div>
 
         {/* Growth Rate Comparison */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-800 mb-6">Growth Rate Comparison</h3>
+        <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
+          <h3 className="text-lg font-semibold text-ink mb-6">Growth Rate Comparison</h3>
           <div className="h-80">
             {scenariosWithResults.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -518,24 +501,20 @@ export default function ScenarioComparison() {
                     cagr: d.results?.cagr || 0,
                   }))}
                 >
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                  <XAxis dataKey="name" stroke="#9CA3AF" />
-                  <YAxis stroke="#9CA3AF" tickFormatter={(v) => `${v}%`} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
+                  <XAxis dataKey="name" stroke={chartTheme.axis.line} />
+                  <YAxis stroke={chartTheme.axis.line} tickFormatter={(v) => `${v}%`} />
                   <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#fff',
-                      borderRadius: '8px',
-                      border: '1px solid #e5e7eb',
-                    }}
+                    contentStyle={chartTheme.tooltip.contentStyle}
                     formatter={(value: number, name: string) => [`${value.toFixed(1)}%`, name === 'growth' ? 'Total Growth' : 'CAGR']}
                   />
-                  <Legend verticalAlign="top" height={36} />
-                  <Bar dataKey="growth" name="Total Growth" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="cagr" name="CAGR" fill={COLORS.accent} radius={[4, 4, 0, 0]} />
+                  <Legend verticalAlign="top" height={36} formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
+                  <Bar dataKey="growth" name="Total Growth" fill={chartTheme.semantic.primary} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="cagr" name="CAGR" fill={chartTheme.colorAt(2)} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-gray-400">
+              <div className="h-full flex items-center justify-center text-ink-subtle">
                 <p>No data available</p>
               </div>
             )}
@@ -543,8 +522,8 @@ export default function ScenarioComparison() {
         </div>
 
         {/* Participation Rate Comparison */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-800 mb-6">Plan Participation Rate</h3>
+        <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
+          <h3 className="text-lg font-semibold text-ink mb-6">Plan Participation Rate</h3>
           <div className="h-80">
             {scenariosWithResults.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -552,33 +531,29 @@ export default function ScenarioComparison() {
                   data={scenariosWithResults.map((d, idx) => ({
                     name: d.scenario.name,
                     participation: (d.results?.participation_rate || 0) * 100,
-                    fill: COMPARISON_COLORS[idx % COMPARISON_COLORS.length],
+                    fill: chartTheme.colorAt(idx),
                   }))}
                   layout="vertical"
                 >
-                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#E5E7EB" />
-                  <XAxis type="number" stroke="#9CA3AF" domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
-                  <YAxis type="category" dataKey="name" stroke="#9CA3AF" width={120} />
+                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke={chartTheme.grid.line} />
+                  <XAxis type="number" stroke={chartTheme.axis.line} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                  <YAxis type="category" dataKey="name" stroke={chartTheme.axis.line} width={120} />
                   <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#fff',
-                      borderRadius: '8px',
-                      border: '1px solid #e5e7eb',
-                    }}
+                    contentStyle={chartTheme.tooltip.contentStyle}
                     formatter={(value: number) => [`${value.toFixed(0)}%`, 'Participation']}
                   />
                   <Bar dataKey="participation" radius={[0, 4, 4, 0]}>
                     {scenariosWithResults.map((d, idx) => (
                       <rect
                         key={d.scenario.id}
-                        fill={COMPARISON_COLORS[idx % COMPARISON_COLORS.length]}
+                        fill={chartTheme.colorAt(idx)}
                       />
                     ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-gray-400">
+              <div className="h-full flex items-center justify-center text-ink-subtle">
                 <p>No data available</p>
               </div>
             )}
@@ -587,13 +562,13 @@ export default function ScenarioComparison() {
       </div>
 
       {/* DC Plan Comparison Section */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-surface-raised rounded-xl shadow-sm border border-border overflow-hidden">
         <button
           onClick={() => setExpandedDCPlan(!expandedDCPlan)}
-          className="w-full px-6 py-4 flex items-center justify-between bg-gray-50 border-b border-gray-200 hover:bg-gray-100 transition-colors"
+          className="w-full px-6 py-4 flex items-center justify-between bg-surface-subtle border-b border-border hover:bg-surface-subtle transition-colors"
         >
-          <h2 className="text-lg font-semibold text-gray-800 flex items-center">
-            <DollarSign size={20} className="mr-2 text-gray-500" />
+          <h2 className="text-lg font-semibold text-ink flex items-center">
+            <DollarSign size={20} className="mr-2 text-ink-muted" />
             DC Plan Comparison
           </h2>
           {expandedDCPlan ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
@@ -614,22 +589,22 @@ export default function ScenarioComparison() {
 
       {/* Loading states for individual scenarios */}
       {Array.from(scenarioData.values()).some(d => d.loading) && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <div className="bg-warning-surface border border-warning-border rounded-lg p-4">
           <div className="flex items-center">
-            <Loader2 size={16} className="animate-spin text-yellow-600 mr-2" />
-            <span className="text-yellow-700 text-sm">Loading additional scenario data...</span>
+            <Loader2 size={16} className="animate-spin text-warning-ink mr-2" />
+            <span className="text-warning-ink text-sm">Loading additional scenario data...</span>
           </div>
         </div>
       )}
 
       {/* Errors for individual scenarios */}
       {Array.from(scenarioData.values()).filter(d => d.error).length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+        <div className="bg-danger-surface border border-danger-border rounded-lg p-4">
           <div className="flex items-start">
-            <AlertCircle size={16} className="text-red-600 mr-2 mt-0.5" />
+            <AlertCircle size={16} className="text-danger-ink mr-2 mt-0.5" />
             <div>
-              <p className="text-red-700 text-sm font-medium">Some scenarios failed to load:</p>
-              <ul className="text-red-600 text-sm mt-1">
+              <p className="text-danger-ink text-sm font-medium">Some scenarios failed to load:</p>
+              <ul className="text-danger-ink text-sm mt-1">
                 {Array.from(scenarioData.values())
                   .filter(d => d.error)
                   .map(d => (

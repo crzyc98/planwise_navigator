@@ -24,9 +24,9 @@ export default function TimelineColumn({ workspaceId, scenarioId, employeeId, sc
     return () => { active = false; };
   }, [workspaceId, scenarioId, employeeId, onLoaded]);
 
-  if (error) return <div className="rounded-lg bg-red-50 p-4 text-red-700">{error}</div>;
-  if (!data) return <div className="p-6 text-center text-gray-500">Loading timeline…</div>;
-  if (!data.employee) return <div className="rounded-lg bg-amber-50 p-4 text-amber-800">No records found for this employee in this scenario.</div>;
+  if (error) return <div className="rounded-lg bg-danger-surface p-4 text-danger-ink">{error}</div>;
+  if (!data) return <div className="p-6 text-center text-ink-muted">Loading timeline…</div>;
+  if (!data.employee) return <div className="rounded-lg bg-warning-surface p-4 text-warning-ink">No records found for this employee in this scenario.</div>;
 
   const byYear = new Map(data.years.map((year) => [year.simulation_year, year]));
   const displayYears = alignedYears ?? data.available_years;
@@ -44,9 +44,9 @@ export default function TimelineColumn({ workspaceId, scenarioId, employeeId, sc
   };
   return (
     <div className="min-w-0 space-y-4">
-      {scenarioLabel && <h2 className="text-xl font-bold text-gray-900">{scenarioLabel}</h2>}
-      <div className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-600">
-        <strong className="text-gray-900">{data.employee.employee_id}</strong>
+      {scenarioLabel && <h2 className="text-xl font-bold text-ink">{scenarioLabel}</h2>}
+      <div className="rounded-lg border border-border bg-surface-raised p-3 text-sm text-ink-muted">
+        <strong className="text-ink">{data.employee.employee_id}</strong>
         <span className="ml-3">SSN {data.employee.employee_ssn ?? '—'}</span>
         <span className="ml-3">Born {data.employee.employee_birth_date ?? '—'}</span>
         <span className="ml-3">Hired {data.employee.employee_hire_date ?? '—'}</span>
@@ -55,7 +55,7 @@ export default function TimelineColumn({ workspaceId, scenarioId, employeeId, sc
         ? <TimelineYear key={year} year={byYear.get(year)!} />
         : data.available_years.includes(year)
           ? null
-          : <div key={year} className="rounded-xl border border-dashed border-gray-300 p-4 text-sm text-gray-500"><strong>{year}</strong>: not simulated in this scenario</div>)}
+          : <div key={year} className="rounded-xl border border-dashed border-border-strong p-4 text-sm text-ink-muted"><strong>{year}</strong>: not simulated in this scenario</div>)}
       {nextYear !== undefined && <button onClick={loadMore} className="w-full rounded-lg border border-fidelity-green px-4 py-2 text-sm font-medium text-fidelity-green">Load more years</button>}
     </div>
   );

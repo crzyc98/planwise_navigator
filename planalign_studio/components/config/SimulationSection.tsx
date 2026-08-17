@@ -8,9 +8,9 @@ export function SimulationSection({ variant = 'full' }: { variant?: 'full' | 'es
 
   return (
     <div className="space-y-8 animate-fadeIn">
-      <div className="border-b border-gray-100 pb-4">
-        <h2 className="text-lg font-bold text-gray-900">Simulation Parameters</h2>
-        <p className="text-sm text-gray-500">Define the temporal scope and reproducibility settings.</p>
+      <div className="border-b border-border pb-4">
+        <h2 className="text-lg font-bold text-ink">Simulation Parameters</h2>
+        <p className="text-sm text-ink-muted">Define the temporal scope and reproducibility settings.</p>
       </div>
 
       <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
@@ -38,12 +38,12 @@ export function SimulationSection({ variant = 'full' }: { variant?: 'full' | 'es
         />
 
         <div className="sm:col-span-6 pt-4">
-          <div className="rounded-md bg-yellow-50 p-4 border border-yellow-100">
+          <div className="rounded-md bg-warning-surface p-4 border border-warning-border">
             <div className="flex">
-              <AlertTriangle className="h-5 w-5 text-yellow-400" />
+              <AlertTriangle className="h-5 w-5 text-warning-ink" />
               <div className="ml-3">
-                <h3 className="text-sm font-medium text-yellow-800">Validation Note</h3>
-                <div className="mt-1 text-sm text-yellow-700">
+                <h3 className="text-sm font-medium text-warning-ink">Validation Note</h3>
+                <div className="mt-1 text-sm text-warning-ink">
                   <p>End year must be greater than Start year. Large gaps ({'>'} 10 years) may significantly increase processing time.</p>
                 </div>
               </div>

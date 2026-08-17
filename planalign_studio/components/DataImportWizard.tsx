@@ -29,12 +29,12 @@ function StepIndicator({ current }: { current: WizardStep }) {
         return (
           <React.Fragment key={step.id}>
             <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors
-              ${isActive ? 'bg-fidelity-green text-white' : isDone ? 'text-fidelity-green' : 'text-gray-400'}`}>
+              ${isActive ? 'bg-fidelity-green text-ink-inverse' : isDone ? 'text-fidelity-green' : 'text-ink-subtle'}`}>
               {step.icon}
               <span className="hidden sm:inline">{step.label}</span>
             </div>
             {i < STEPS.length - 1 && (
-              <div className={`h-0.5 w-6 ${isDone ? 'bg-fidelity-green' : 'bg-gray-200'}`} />
+              <div className={`h-0.5 w-6 ${isDone ? 'bg-fidelity-green' : 'bg-surface-disabled'}`} />
             )}
           </React.Fragment>
         );
@@ -59,7 +59,7 @@ export default function DataImportWizard() {
 
   if (!workspaceId) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-gray-400">
+      <div className="flex flex-col items-center justify-center h-full text-ink-subtle">
         <p>Select a workspace to import data.</p>
       </div>
     );
@@ -118,8 +118,8 @@ export default function DataImportWizard() {
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-800">Import Data</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Import census data from CSV, Excel, or Parquet</p>
+          <h1 className="text-xl font-bold text-ink">Import Data</h1>
+          <p className="text-sm text-ink-muted mt-0.5">Import census data from CSV, Excel, or Parquet</p>
         </div>
         <button
           onClick={() => setShowFilesView(true)}
@@ -131,7 +131,7 @@ export default function DataImportWizard() {
 
       <StepIndicator current={step} />
 
-      <div className="border border-gray-200 rounded-xl p-6 bg-white shadow-sm">
+      <div className="border border-border rounded-xl p-6 bg-surface-raised shadow-sm">
         {step === 'upload' && (
           <FileUploadStep workspaceId={workspaceId} onDone={handleUploadDone} onParquetDone={handleParquetDone} />
         )}
@@ -153,21 +153,21 @@ export default function DataImportWizard() {
         {step === 'done' && parquetResult && (
           <div className="text-center space-y-4 py-6">
             <CheckCircle2 size={48} className="mx-auto text-fidelity-green" />
-            <h2 className="text-lg font-semibold text-gray-800">Census Data Ready</h2>
-            <p className="text-sm text-gray-500">
+            <h2 className="text-lg font-semibold text-ink">Census Data Ready</h2>
+            <p className="text-sm text-ink-muted">
               <span className="font-mono">{parquetResult.file_name}</span> — {parquetResult.row_count.toLocaleString()} rows
             </p>
-            <p className="text-xs text-gray-400">Your workspace census has been updated.</p>
+            <p className="text-xs text-ink-subtle">Your workspace census has been updated.</p>
             <div className="flex items-center justify-center gap-3">
               <button
                 onClick={handleStartNew}
-                className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50"
+                className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-surface-subtle"
               >
                 Import Another File
               </button>
               <Link
                 to="/config"
-                className="px-4 py-2 text-sm bg-fidelity-green text-white rounded-lg hover:bg-fidelity-dark"
+                className="px-4 py-2 text-sm bg-fidelity-green text-ink-inverse rounded-lg hover:bg-fidelity-dark"
               >
                 View in Configure
               </Link>
@@ -177,23 +177,23 @@ export default function DataImportWizard() {
         {step === 'done' && generatedFile && (
           <div className="text-center space-y-4 py-6">
             <CheckCircle2 size={48} className="mx-auto text-fidelity-green" />
-            <h2 className="text-lg font-semibold text-gray-800">Parquet File Generated!</h2>
-            <p className="text-sm text-gray-500">
+            <h2 className="text-lg font-semibold text-ink">Parquet File Generated!</h2>
+            <p className="text-sm text-ink-muted">
               <span className="font-mono">{generatedFile.filename}</span> — {generatedFile.row_count.toLocaleString()} rows
             </p>
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-ink-subtle">
               This file is now set as the workspace census and will be used by your scenarios.
             </p>
             <div className="flex items-center justify-center gap-3">
               <button
                 onClick={handleStartNew}
-                className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50"
+                className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-surface-subtle"
               >
                 Import Another File
               </button>
               <button
                 onClick={() => setShowFilesView(true)}
-                className="px-4 py-2 text-sm bg-fidelity-green text-white rounded-lg hover:bg-fidelity-dark"
+                className="px-4 py-2 text-sm bg-fidelity-green text-ink-inverse rounded-lg hover:bg-fidelity-dark"
               >
                 View All Files
               </button>
@@ -211,27 +211,27 @@ export default function DataImportWizard() {
               setStep(step === 'preview' ? 'mapping' : 'upload');
             }
           }}
-          className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-600"
+          className="flex items-center gap-1 text-sm text-ink-subtle hover:text-ink-muted"
         >
           <ArrowLeft size={14} /> Back
         </button>
       )}
 
       {showLeaveWarning && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm space-y-4">
-            <h3 className="font-semibold text-gray-800">Unsaved mapping changes</h3>
-            <p className="text-sm text-gray-500">You have unsaved mapping changes. Navigating away will discard them.</p>
+        <div className="fixed inset-0 bg-overlay flex items-center justify-center z-50">
+          <div className="bg-surface-raised rounded-xl shadow-xl p-6 max-w-sm space-y-4">
+            <h3 className="font-semibold text-ink">Unsaved mapping changes</h3>
+            <p className="text-sm text-ink-muted">You have unsaved mapping changes. Navigating away will discard them.</p>
             <div className="flex gap-3">
               <button
                 onClick={() => { setShowLeaveWarning(false); setStep('upload'); setMappingDirty(false); }}
-                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg"
+                className="px-4 py-2 text-sm bg-danger-solid text-ink-inverse rounded-lg"
               >
                 Discard & Leave
               </button>
               <button
                 onClick={() => setShowLeaveWarning(false)}
-                className="px-4 py-2 text-sm border border-gray-200 rounded-lg"
+                className="px-4 py-2 text-sm border border-border rounded-lg"
               >
                 Stay
               </button>

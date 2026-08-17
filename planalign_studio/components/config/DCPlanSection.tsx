@@ -145,24 +145,24 @@ export function DCPlanSection() {
 
   return (
     <div className="space-y-8 animate-fadeIn">
-      <div className="border-b border-gray-100 pb-4">
-        <h2 className="text-lg font-bold text-gray-900">401(k) / DC Plan Config</h2>
-        <p className="text-sm text-gray-500">Configure retirement plan eligibility, matching rules, and vesting.</p>
+      <div className="border-b border-border pb-4">
+        <h2 className="text-lg font-bold text-ink">401(k) / DC Plan Config</h2>
+        <p className="text-sm text-ink-muted">Configure retirement plan eligibility, matching rules, and vesting.</p>
       </div>
 
       <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
-         <div className="sm:col-span-6 bg-green-50 p-4 rounded-lg border border-green-100 mb-2 flex items-start">
+         <div className="sm:col-span-6 bg-success-surface p-4 rounded-lg border border-success-border mb-2 flex items-start">
             <input
                  type="checkbox"
                  name="dcAutoEnroll"
                  id="dcAutoEnroll"
                  checked={formData.dcAutoEnroll}
                  onChange={handleChange}
-                 className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300 rounded mt-1"
+                 className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-border-strong rounded mt-1"
             />
             <div className="ml-3">
-               <label htmlFor="dcAutoEnroll" className="block text-sm font-medium text-green-900">Enable Auto-Enrollment</label>
-               <p className="text-xs text-green-700 mt-0.5">New hires will be automatically enrolled upon eligibility.</p>
+               <label htmlFor="dcAutoEnroll" className="block text-sm font-medium text-success-ink">Enable Auto-Enrollment</label>
+               <p className="text-xs text-success-ink mt-0.5">New hires will be automatically enrolled upon eligibility.</p>
             </div>
          </div>
 
@@ -175,43 +175,43 @@ export function DCPlanSection() {
              <InputField label="Enrollment Window" {...inputProps('dcAutoEnrollWindowDays')} type="number" suffix="Days" helper="Days after hire for auto-enrollment" min={30} />
              <InputField label="Opt-Out Grace Period" {...inputProps('dcAutoEnrollOptOutGracePeriod')} type="number" suffix="Days" helper="Days to opt out without penalty" min={0} />
              <div className="sm:col-span-3">
-               <label htmlFor="dcplan-enrollment-scope" className="block text-sm font-medium text-gray-700">Enrollment Scope</label>
+               <label htmlFor="dcplan-enrollment-scope" className="block text-sm font-medium text-ink-muted">Enrollment Scope</label>
                <select
                  id="dcplan-enrollment-scope"
                  name="dcAutoEnrollScope"
                  value={formData.dcAutoEnrollScope}
                  onChange={handleChange}
-                 className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
+                 className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-border-strong focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
                >
                  <option value="new_hires_only">New Hires Only</option>
                  <option value="all_eligible">All Eligible Employees</option>
                </select>
-               <p className="mt-1 text-xs text-gray-500">Who gets auto-enrolled</p>
+               <p className="mt-1 text-xs text-ink-muted">Who gets auto-enrolled</p>
              </div>
              <div className="sm:col-span-3">
-               <label htmlFor="dcplan-enroll-hire-cutoff" className="block text-sm font-medium text-gray-700">Hire Date Cutoff</label>
+               <label htmlFor="dcplan-enroll-hire-cutoff" className="block text-sm font-medium text-ink-muted">Hire Date Cutoff</label>
                <input
                  id="dcplan-enroll-hire-cutoff"
                  type="date"
                  name="dcAutoEnrollHireDateCutoff"
                  value={formData.dcAutoEnrollHireDateCutoff}
                  onChange={handleChange}
-                 className="mt-1 block w-full pl-3 pr-3 py-2 text-base border-gray-300 focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
+                 className="mt-1 block w-full pl-3 pr-3 py-2 text-base border-border-strong focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
                />
-               <p className="mt-1 text-xs text-gray-500">Auto-enroll employees hired on/after this date</p>
+               <p className="mt-1 text-xs text-ink-muted">Auto-enroll employees hired on/after this date</p>
              </div>
 
              {/* Opt-Out Assumptions Section */}
              <div className="sm:col-span-6 mt-4">
                <div className="flex items-center justify-between mb-3">
-                 <h4 className="text-sm font-semibold text-gray-900">Opt-Out Assumptions</h4>
+                 <h4 className="text-sm font-semibold text-ink">Opt-Out Assumptions</h4>
                  <div className="flex items-center gap-2">
                    <button
                      type="button"
                      onClick={() => handleMatchCensus()}
                      disabled={analyzing || !formData.censusDataPath}
                      title={!formData.censusDataPath ? 'Upload a census file first' : 'Analyze census to suggest opt-out rate'}
-                     className="flex items-center gap-1 px-2 py-1 text-xs bg-fidelity-green text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                     className="flex items-center gap-1 px-2 py-1 text-xs bg-fidelity-green text-ink-inverse rounded hover:bg-success-solid-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                    >
                      <BarChart3 size={12} />
                      {analyzing ? 'Analyzing…' : 'Match Census'}
@@ -222,34 +222,34 @@ export function DCPlanSection() {
                        ...prev,
                        dcOptOutRateTarget: DEFAULT_FORM_DATA.dcOptOutRateTarget,
                      }))}
-                     className="text-xs text-fidelity-green hover:text-green-700 font-medium"
+                     className="text-xs text-fidelity-green hover:text-success-ink font-medium"
                    >
                      Reset to Default
                    </button>
                  </div>
                </div>
-               <p className="text-xs text-gray-500 mb-3">Set the overall target opt-out rate. Demographic sensitivity is applied automatically behind the scenes.</p>
+               <p className="text-xs text-ink-muted mb-3">Set the overall target opt-out rate. Demographic sensitivity is applied automatically behind the scenes.</p>
 
                {/* Match Census error */}
                {analysisError && (
-                 <div className="mb-3 flex items-start gap-2 p-2 rounded bg-red-50 border border-red-200 text-xs text-red-700">
+                 <div className="mb-3 flex items-start gap-2 p-2 rounded bg-danger-surface border border-danger-border text-xs text-danger-ink">
                    <X size={12} className="mt-0.5 shrink-0" />
                    <span>{analysisError}</span>
-                   <button type="button" onClick={() => setAnalysisError(null)} className="ml-auto text-red-400 hover:text-red-600"><X size={12} /></button>
+                   <button type="button" onClick={() => setAnalysisError(null)} className="ml-auto text-danger-ink hover:text-danger-ink"><X size={12} /></button>
                  </div>
                )}
 
                {/* Match Census preview panel */}
                {analysis && (
-                 <div className="mb-4 p-3 rounded-lg border border-green-200 bg-green-50 text-xs">
+                 <div className="mb-4 p-3 rounded-lg border border-success-border bg-success-surface text-xs">
                    <div className="flex items-center justify-between mb-2">
-                     <span className="font-semibold text-green-900">Census Match Preview</span>
-                     <button type="button" onClick={() => setAnalysis(null)} className="text-green-600 hover:text-green-800"><X size={12} /></button>
+                     <span className="font-semibold text-success-ink">Census Match Preview</span>
+                     <button type="button" onClick={() => setAnalysis(null)} className="text-success-ink hover:text-success-ink"><X size={12} /></button>
                    </div>
 
                    {/* Lookback input (US2) */}
                    <div className="flex items-center gap-2 mb-3">
-                     <label className="text-green-800 font-medium whitespace-nowrap">Lookback (years):</label>
+                     <label className="text-success-ink font-medium whitespace-nowrap">Lookback (years):</label>
                      <input
                        type="number"
                        min={1}
@@ -257,13 +257,13 @@ export function DCPlanSection() {
                        step={1}
                        value={lookbackYears}
                        onChange={e => setLookbackYears(Math.max(1, parseInt(e.target.value) || 1))}
-                       className="w-16 px-2 py-0.5 border border-green-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-fidelity-green"
+                       className="w-16 px-2 py-0.5 border border-success-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-fidelity-green"
                      />
                    </div>
 
                    {/* Low-confidence warning (T025) */}
                    {analysis.eligible_count > 0 && analysis.eligible_count < 20 && (
-                     <div className="flex items-center gap-1 mb-2 text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                     <div className="flex items-center gap-1 mb-2 text-warning-ink bg-warning-surface border border-warning-border rounded px-2 py-1">
                        <AlertTriangle size={11} />
                        <span>Small sample — only {analysis.eligible_count} employee(s) in window. Consider a longer lookback.</span>
                      </div>
@@ -271,35 +271,35 @@ export function DCPlanSection() {
 
                    {/* Excluded null tenure note (T026) */}
                    {analysis.excluded_null_tenure > 0 && (
-                     <p className="text-gray-500 mb-2">{analysis.excluded_null_tenure} employee(s) excluded (missing hire date)</p>
+                     <p className="text-ink-muted mb-2">{analysis.excluded_null_tenure} employee(s) excluded (missing hire date)</p>
                    )}
 
                    {analysis.suggested_rate !== null ? (
                      <>
-                       <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-3 text-green-800">
+                       <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-3 text-success-ink">
                          <span>Employees in window:</span><span className="font-medium">{analysis.eligible_count}</span>
                          <span>Non-participants:</span><span className="font-medium">{analysis.non_participant_count}</span>
-                         <span>Suggested rate:</span><span className="font-semibold text-base text-green-900">{(analysis.suggested_rate * 100).toFixed(1)}%</span>
+                         <span>Suggested rate:</span><span className="font-semibold text-base text-success-ink">{(analysis.suggested_rate * 100).toFixed(1)}%</span>
                        </div>
                        <div className="flex gap-2">
                          <button
                            type="button"
                            onClick={handleApply}
-                           className="px-3 py-1 text-xs bg-fidelity-green text-white rounded hover:bg-green-700 transition-colors font-medium"
+                           className="px-3 py-1 text-xs bg-fidelity-green text-ink-inverse rounded hover:bg-success-solid-hover transition-colors font-medium"
                          >
                            Apply {(analysis.suggested_rate * 100).toFixed(1)}%
                          </button>
                          <button
                            type="button"
                            onClick={() => setAnalysis(null)}
-                           className="px-3 py-1 text-xs border border-green-300 text-green-700 rounded hover:bg-green-100 transition-colors"
+                           className="px-3 py-1 text-xs border border-success-border text-success-ink rounded hover:bg-success-surface transition-colors"
                          >
                            Dismiss
                          </button>
                        </div>
                      </>
                    ) : (
-                     <p className="text-green-700">{analysis.message ?? 'No eligible employees found in the lookback window.'}</p>
+                     <p className="text-success-ink">{analysis.message ?? 'No eligible employees found in the lookback window.'}</p>
                    )}
                  </div>
                )}
@@ -309,15 +309,15 @@ export function DCPlanSection() {
                </div>
 
                {/* Derived rates preview */}
-               <details className="text-xs text-gray-500">
-                 <summary className="cursor-pointer hover:text-gray-700 font-medium">View derived demographic rates</summary>
+               <details className="text-xs text-ink-muted">
+                 <summary className="cursor-pointer hover:text-ink-muted font-medium">View derived demographic rates</summary>
                  <div className="mt-2 grid grid-cols-2 gap-x-8 gap-y-1 pl-2">
-                   <p className="font-medium text-gray-600 col-span-2 mt-1">By Age</p>
+                   <p className="font-medium text-ink-muted col-span-2 mt-1">By Age</p>
                    <span>Young (18-30): {(Number(formData.dcOptOutRateTarget) * 1.8).toFixed(1)}%</span>
                    <span>Mid-Career (31-45): {(Number(formData.dcOptOutRateTarget) * 1.1).toFixed(1)}%</span>
                    <span>Mature (46-55): {(Number(formData.dcOptOutRateTarget) * 0.7).toFixed(1)}%</span>
                    <span>Senior (55+): {(Number(formData.dcOptOutRateTarget) * 0.4).toFixed(1)}%</span>
-                   <p className="font-medium text-gray-600 col-span-2 mt-1">By Income</p>
+                   <p className="font-medium text-ink-muted col-span-2 mt-1">By Income</p>
                    <span>Low Income: {(Number(formData.dcOptOutRateTarget) * 1.3).toFixed(1)}%</span>
                    <span>Moderate: {(Number(formData.dcOptOutRateTarget) * 1.0).toFixed(1)}%</span>
                    <span>High: {(Number(formData.dcOptOutRateTarget) * 0.8).toFixed(1)}%</span>
@@ -330,8 +330,8 @@ export function DCPlanSection() {
 
          {/* Voluntary Enrollment Rate */}
          <div className="sm:col-span-6 mt-4">
-           <h4 className="text-sm font-semibold text-gray-900 mb-1">Voluntary Enrollment Rate</h4>
-           <p className="text-xs text-gray-500 mb-3">Set the overall voluntary enrollment rate. This scales demographic-based enrollment probabilities. Leave empty to use default demographic rates.</p>
+           <h4 className="text-sm font-semibold text-ink mb-1">Voluntary Enrollment Rate</h4>
+           <p className="text-xs text-ink-muted mb-3">Set the overall voluntary enrollment rate. This scales demographic-based enrollment probabilities. Leave empty to use default demographic rates.</p>
            <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-6">
              <InputField
                label="Voluntary Enrollment Rate"
@@ -348,14 +348,14 @@ export function DCPlanSection() {
              />
            </div>
            {formData.dcVoluntaryEnrollmentRate !== '' && (Number(formData.dcVoluntaryEnrollmentRate) < 0 || Number(formData.dcVoluntaryEnrollmentRate) > 100) && (
-             <p className="mt-1 text-xs text-red-600">Voluntary enrollment rate must be between 0% and 100%.</p>
+             <p className="mt-1 text-xs text-danger-ink">Voluntary enrollment rate must be between 0% and 100%.</p>
            )}
          </div>
 
          {/* Match Magnet dial (Feature 102) */}
          <div className="sm:col-span-6 mt-4">
            <div className="flex items-center justify-between mb-1">
-             <h4 className="text-sm font-semibold text-gray-900">Match Magnet</h4>
+             <h4 className="text-sm font-semibold text-ink">Match Magnet</h4>
              <label htmlFor="dcplan-match-magnet-enabled" className="flex items-center">
                <input
                  id="dcplan-match-magnet-enabled"
@@ -365,20 +365,20 @@ export function DCPlanSection() {
                  onChange={handleChange}
                  className="h-4 w-4 text-fidelity-green rounded"
                />
-               <span className="ml-2 text-sm text-gray-600">Enabled</span>
+               <span className="ml-2 text-sm text-ink-muted">Enabled</span>
              </label>
            </div>
-           <p className="text-xs text-gray-500 mb-3">Models employees who defer just enough to capture the full employer match: a fraction of below-ceiling voluntary enrollees snap up to the match ceiling. Raise the "snap" share to counteract a declining average deferral when there is no auto-enrollment.</p>
+           <p className="text-xs text-ink-muted mb-3">Models employees who defer just enough to capture the full employer match: a fraction of below-ceiling voluntary enrollees snap up to the match ceiling. Raise the "snap" share to counteract a declining average deferral when there is no auto-enrollment.</p>
            <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-6">
              <InputField label="Snap to Match" {...inputProps('dcMatchMagnetProbability')} type="number" step="1" suffix="%" helper="Share of below-ceiling enrollees who snap to the match ceiling (0–100%)." min={0} max={100} />
              <InputField label="Max Voluntary Deferral" {...inputProps('dcMaxVoluntaryDeferral')} type="number" step="1" suffix="%" helper="Upper bound on voluntary deferral selection, including magnet-snapped rates." min={1} max={100} />
            </div>
          </div>
 
-         <div className="col-span-6 h-px bg-gray-200 my-2"></div>
+         <div className="col-span-6 h-px bg-surface-disabled my-2"></div>
          <div className="sm:col-span-6 mt-2">
            <div className="flex items-center justify-between mb-1">
-             <h4 className="text-sm font-semibold text-gray-900">Match-Responsive Deferral Adjustment</h4>
+             <h4 className="text-sm font-semibold text-ink">Match-Responsive Deferral Adjustment</h4>
              <label htmlFor="dcplan-match-response-enabled" className="flex items-center">
                <input
                  id="dcplan-match-response-enabled"
@@ -388,10 +388,10 @@ export function DCPlanSection() {
                  onChange={handleChange}
                  className="h-4 w-4 text-fidelity-green rounded"
                />
-               <span className="ml-2 text-sm text-gray-600">Enabled</span>
+               <span className="ml-2 text-sm text-ink-muted">Enabled</span>
              </label>
            </div>
-           <p className="text-xs text-gray-500 mb-3">In the first projection year, models active enrolled employees changing deferrals in response to the employer-match ceiling. This is distinct from Match Magnet, which affects voluntary enrollment behavior.</p>
+           <p className="text-xs text-ink-muted mb-3">In the first projection year, models active enrolled employees changing deferrals in response to the employer-match ceiling. This is distinct from Match Magnet, which affects voluntary enrollment behavior.</p>
            <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-6">
              <InputField
                label="Increase Deferral Response"
@@ -413,7 +413,7 @@ export function DCPlanSection() {
                    onChange={handleChange}
                    className="h-4 w-4 text-fidelity-green rounded"
                  />
-                 <span className="ml-2 text-sm text-gray-700">Allow Deferral Decreases</span>
+                 <span className="ml-2 text-sm text-ink-muted">Allow Deferral Decreases</span>
                </label>
                <InputField
                  label="Decrease Deferral Response"
@@ -429,9 +429,9 @@ export function DCPlanSection() {
            </div>
          </div>
 
-         <div className="col-span-6 h-px bg-gray-200 my-2"></div>
+         <div className="col-span-6 h-px bg-surface-disabled my-2"></div>
          <div className="sm:col-span-6 flex items-center justify-between mb-2">
-           <h4 className="text-sm font-semibold text-gray-900">Employer Match Formula</h4>
+           <h4 className="text-sm font-semibold text-ink">Employer Match Formula</h4>
            <label htmlFor="dcplan-match-enabled" className="flex items-center">
              <input
                id="dcplan-match-enabled"
@@ -441,27 +441,27 @@ export function DCPlanSection() {
                onChange={handleChange}
                className="h-4 w-4 text-fidelity-green rounded"
              />
-             <span className="ml-2 text-sm text-gray-600">Enabled</span>
+             <span className="ml-2 text-sm text-ink-muted">Enabled</span>
            </label>
          </div>
-         <p className="col-span-6 text-xs text-gray-500 -mt-4 mb-2">Configure employer matching contributions on employee deferrals</p>
+         <p className="col-span-6 text-xs text-ink-muted -mt-4 mb-2">Configure employer matching contributions on employee deferrals</p>
 
          {formData.dcMatchEnabled && (<>
          {/* E046: Match Mode Selector */}
          <div className="sm:col-span-3">
-           <label htmlFor="dcplan-match-mode" className="block text-sm font-medium text-gray-700">Match Calculation Mode</label>
+           <label htmlFor="dcplan-match-mode" className="block text-sm font-medium text-ink-muted">Match Calculation Mode</label>
            <select
              id="dcplan-match-mode"
              value={formData.dcMatchMode}
              onChange={(e) => setFormData(prev => ({ ...prev, dcMatchMode: e.target.value }))}
-             className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
+             className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-border-strong focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
            >
              <option value="deferral_based">Deferral-Based (match varies by deferral %)</option>
              <option value="graded_by_service">Graded by Service (existing service tiers)</option>
              <option value="tenure_graded">Tenure-Graded (multi-tier schedule by years of service)</option>
              <option value="points_based">Points-Based (match varies by age + tenure points)</option>
            </select>
-           <p className="mt-1 text-xs text-gray-500">
+           <p className="mt-1 text-xs text-ink-muted">
              {formData.dcMatchMode === 'tenure_graded' && 'Each tenure band has its own multi-tier deferral schedule (e.g. 100% on first 2%, 50% on next 6%)'}
              {formData.dcMatchMode === 'points_based' && 'Points = FLOOR(age) + FLOOR(tenure). Higher points = higher match'}
              {formData.dcMatchMode === 'deferral_based' && 'Traditional: match rate varies by employee deferral percentage'}
@@ -479,22 +479,22 @@ export function DCPlanSection() {
 
          {/* E046: Points-Based Tier Editor */}
          {formData.dcMatchMode === 'points_based' && (
-           <div className="sm:col-span-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
-             <span className="block text-sm font-medium text-gray-700 mb-1">Points Match Tiers</span>
-             <p className="text-xs text-gray-500 mb-3">Points = FLOOR(age) + FLOOR(years of service). Uses [min, max) intervals.</p>
+           <div className="sm:col-span-6 bg-surface-subtle p-4 rounded-lg border border-border">
+             <span className="block text-sm font-medium text-ink-muted mb-1">Points Match Tiers</span>
+             <p className="text-xs text-ink-muted mb-3">Points = FLOOR(age) + FLOOR(years of service). Uses [min, max) intervals.</p>
              <div className="space-y-2">
                {formData.dcPointsMatchTiers.map((tier, idx) => (
-                 <div key={idx} className="flex items-center gap-2 bg-white p-2 rounded border border-gray-200">
-                   <span className="text-xs text-gray-500 w-4">{idx + 1}.</span>
+                 <div key={idx} className="flex items-center gap-2 bg-surface-raised p-2 rounded border border-border">
+                   <span className="text-xs text-ink-muted w-4">{idx + 1}.</span>
                    <input type="number" min={0} value={tier.minPoints}
                      onChange={(e) => {
                        const newTiers = [...formData.dcPointsMatchTiers];
                        newTiers[idx] = { ...newTiers[idx], minPoints: parseInt(e.target.value) || 0 };
                        setFormData(prev => ({ ...prev, dcPointsMatchTiers: newTiers }));
                      }}
-                     className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
+                     className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
                    />
-                   <span className="text-sm text-gray-600">to</span>
+                   <span className="text-sm text-ink-muted">to</span>
                    <input type="number" min={0} value={tier.maxPoints ?? ''}
                      placeholder="&#8734;"
                      onChange={(e) => {
@@ -502,34 +502,34 @@ export function DCPlanSection() {
                        newTiers[idx] = { ...newTiers[idx], maxPoints: e.target.value === '' ? null : parseInt(e.target.value) || 0 };
                        setFormData(prev => ({ ...prev, dcPointsMatchTiers: newTiers }));
                      }}
-                     className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
+                     className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
                    />
-                   <span className="text-sm text-gray-600">pts | 0% to</span>
+                   <span className="text-sm text-ink-muted">pts | 0% to</span>
                    <input type="number" step="1" min={0} max={100} value={tier.maxDeferralPct}
                      onChange={(e) => {
                        const newTiers = [...formData.dcPointsMatchTiers];
                        newTiers[idx] = { ...newTiers[idx], maxDeferralPct: parseFloat(e.target.value) || 0 };
                        setFormData(prev => ({ ...prev, dcPointsMatchTiers: newTiers }));
                      }}
-                     className="w-14 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
+                     className="w-14 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
                    />
-                   <span className="text-sm text-gray-600">% deferrals &#8594;</span>
+                   <span className="text-sm text-ink-muted">% deferrals &#8594;</span>
                    <input type="number" step="5" min={0} max={200} value={tier.matchRate}
                      onChange={(e) => {
                        const newTiers = [...formData.dcPointsMatchTiers];
                        newTiers[idx] = { ...newTiers[idx], matchRate: parseFloat(e.target.value) || 0 };
                        setFormData(prev => ({ ...prev, dcPointsMatchTiers: newTiers }));
                      }}
-                     className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
+                     className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
                    />
-                   <span className="text-sm text-gray-600">% match</span>
+                   <span className="text-sm text-ink-muted">% match</span>
                    {formData.dcPointsMatchTiers.length > 1 && (
                      <button type="button"
                        onClick={() => {
                          const newTiers = formData.dcPointsMatchTiers.filter((_, i) => i !== idx);
                          setFormData(prev => ({ ...prev, dcPointsMatchTiers: newTiers }));
                        }}
-                       className="ml-auto text-red-500 hover:text-red-700 p-1"
+                       className="ml-auto text-danger-ink hover:text-danger-ink p-1"
                      ><X size={16} /></button>
                    )}
                  </div>
@@ -547,10 +547,10 @@ export function DCPlanSection() {
                  const newTier = { minPoints: newMin, maxPoints: null, matchRate: 100, maxDeferralPct: 6 };
                  setFormData(prev => ({ ...prev, dcPointsMatchTiers: [...updatedTiers, newTier] }));
                }}
-               className="mt-3 text-sm text-fidelity-green hover:text-green-700 flex items-center gap-1"
+               className="mt-3 text-sm text-fidelity-green hover:text-success-ink flex items-center gap-1"
              >+ Add Tier</button>
              {formData.dcPointsMatchTiers.length === 0 && (
-               <p className="mt-2 text-xs text-amber-600">Add at least one tier to configure points-based matching</p>
+               <p className="mt-2 text-xs text-warning-ink">Add at least one tier to configure points-based matching</p>
              )}
              {/* E046: Points tier gap/overlap warnings */}
              {(() => {
@@ -559,14 +559,14 @@ export function DCPlanSection() {
                  'points',
                );
                return warnings.length > 0 ? (
-                 <div className="mt-3 bg-amber-50 border border-amber-300 rounded-md p-3">
-                   <p className="text-xs font-medium text-amber-800 mb-1">Tier configuration warnings:</p>
+                 <div className="mt-3 bg-warning-surface border border-warning-border rounded-md p-3">
+                   <p className="text-xs font-medium text-warning-ink mb-1">Tier configuration warnings:</p>
                    <ul className="list-disc list-inside space-y-0.5">
                      {warnings.map((w, i) => (
-                       <li key={i} className="text-xs text-amber-700">{w}</li>
+                       <li key={i} className="text-xs text-warning-ink">{w}</li>
                      ))}
                    </ul>
-                   <p className="text-xs text-amber-600 mt-1.5">Tiers use [min, max) intervals — min is inclusive, max is exclusive.</p>
+                   <p className="text-xs text-warning-ink mt-1.5">Tiers use [min, max) intervals — min is inclusive, max is exclusive.</p>
                  </div>
                ) : null;
              })()}
@@ -576,7 +576,7 @@ export function DCPlanSection() {
          {/* E084 Phase B: Template selector + editable tiers (only for deferral_based mode) */}
          {formData.dcMatchMode === 'deferral_based' && (
          <div className="sm:col-span-3">
-           <label htmlFor="dcplan-match-template" className="block text-sm font-medium text-gray-700">Start from Template</label>
+           <label htmlFor="dcplan-match-template" className="block text-sm font-medium text-ink-muted">Start from Template</label>
            <select
              id="dcplan-match-template"
              value={formData.dcMatchTemplate}
@@ -591,35 +591,35 @@ export function DCPlanSection() {
                  }));
                }
              }}
-             className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
+             className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-border-strong focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
            >
              {Object.entries(MATCH_TEMPLATES).map(([key, t]) => (
                <option key={key} value={key}>{t.name}</option>
              ))}
            </select>
-           <p className="mt-1 text-xs text-gray-500">Select a template, then customize tiers below</p>
+           <p className="mt-1 text-xs text-ink-muted">Select a template, then customize tiers below</p>
          </div>
          )}
 
          {formData.dcMatchMode === 'deferral_based' && (<>
          <div className="sm:col-span-3">
-           <span className="block text-sm font-medium text-gray-700">Max Employer Match</span>
-           <div className="mt-1 bg-gray-100 rounded-md p-2 border border-gray-200">
-             <span className="text-lg font-semibold text-gray-900">
+           <span className="block text-sm font-medium text-ink-muted">Max Employer Match</span>
+           <div className="mt-1 bg-surface-subtle rounded-md p-2 border border-border">
+             <span className="text-lg font-semibold text-ink">
                {(calculateMatchCap(formData.dcMatchTiers) * 100).toFixed(2)}%
              </span>
-             <span className="text-sm text-gray-500 ml-1">of compensation</span>
+             <span className="text-sm text-ink-muted ml-1">of compensation</span>
            </div>
-           <p className="mt-1 text-xs text-gray-500">Auto-calculated from tiers below</p>
+           <p className="mt-1 text-xs text-ink-muted">Auto-calculated from tiers below</p>
          </div>
 
          {/* Editable Match Tiers */}
-         <div className="sm:col-span-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
-           <span className="block text-sm font-medium text-gray-700 mb-3">Match Tiers (editable)</span>
+         <div className="sm:col-span-6 bg-surface-subtle p-4 rounded-lg border border-border">
+           <span className="block text-sm font-medium text-ink-muted mb-3">Match Tiers (editable)</span>
            <div className="space-y-2">
              {formData.dcMatchTiers.map((tier, idx) => (
-               <div key={idx} className="flex items-center gap-2 bg-white p-2 rounded border border-gray-200">
-                 <span className="text-xs text-gray-500 w-4">{idx + 1}.</span>
+               <div key={idx} className="flex items-center gap-2 bg-surface-raised p-2 rounded border border-border">
+                 <span className="text-xs text-ink-muted w-4">{idx + 1}.</span>
                  <input
                    type="number"
                    step="0.5"
@@ -631,9 +631,9 @@ export function DCPlanSection() {
                      newTiers[idx] = { ...newTiers[idx], deferralMin: parseFloat(e.target.value) || 0 };
                      setFormData(prev => ({ ...prev, dcMatchTiers: newTiers }));
                    }}
-                   className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
+                   className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
                  />
-                 <span className="text-sm text-gray-600">% to</span>
+                 <span className="text-sm text-ink-muted">% to</span>
                  <input
                    type="number"
                    step="0.5"
@@ -645,9 +645,9 @@ export function DCPlanSection() {
                      newTiers[idx] = { ...newTiers[idx], deferralMax: parseFloat(e.target.value) || 0 };
                      setFormData(prev => ({ ...prev, dcMatchTiers: newTiers }));
                    }}
-                   className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
+                   className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
                  />
-                 <span className="text-sm text-gray-600">% deferrals &#8594;</span>
+                 <span className="text-sm text-ink-muted">% deferrals &#8594;</span>
                  <input
                    type="number"
                    step="5"
@@ -659,9 +659,9 @@ export function DCPlanSection() {
                      newTiers[idx] = { ...newTiers[idx], matchRate: parseFloat(e.target.value) || 0 };
                      setFormData(prev => ({ ...prev, dcMatchTiers: newTiers }));
                    }}
-                   className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-center"
+                   className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
                  />
-                 <span className="text-sm text-gray-600">% match</span>
+                 <span className="text-sm text-ink-muted">% match</span>
                  {formData.dcMatchTiers.length > 1 && (
                    <button
                      type="button"
@@ -669,7 +669,7 @@ export function DCPlanSection() {
                        const newTiers = formData.dcMatchTiers.filter((_, i) => i !== idx);
                        setFormData(prev => ({ ...prev, dcMatchTiers: newTiers }));
                      }}
-                     className="ml-auto text-red-500 hover:text-red-700 p-1"
+                     className="ml-auto text-danger-ink hover:text-danger-ink p-1"
                    >
                      <X size={16} />
                    </button>
@@ -684,7 +684,7 @@ export function DCPlanSection() {
                const newTier = { deferralMin: lastTier?.deferralMax || 0, deferralMax: (lastTier?.deferralMax || 0) + 2, matchRate: 50 };
                setFormData(prev => ({ ...prev, dcMatchTiers: [...prev.dcMatchTiers, newTier] }));
              }}
-             className="mt-3 text-sm text-fidelity-green hover:text-green-700 flex items-center gap-1"
+             className="mt-3 text-sm text-fidelity-green hover:text-success-ink flex items-center gap-1"
            >
              + Add Tier
            </button>
@@ -692,11 +692,11 @@ export function DCPlanSection() {
 
          {/* Safe Harbor Notice */}
          {(formData.dcMatchTemplate === 'safe_harbor' || formData.dcMatchTemplate === 'qaca') && (
-           <div className="col-span-6 bg-blue-50 border border-blue-200 p-3 rounded-lg flex items-start gap-2">
-             <Info size={16} className="text-blue-600 mt-0.5 flex-shrink-0" />
+           <div className="col-span-6 bg-info-surface border border-info-border p-3 rounded-lg flex items-start gap-2">
+             <Info size={16} className="text-info-ink mt-0.5 flex-shrink-0" />
              <div>
-               <p className="text-sm text-blue-800 font-medium">Safe Harbor Plan Selected</p>
-               <p className="text-xs text-blue-700 mt-1">
+               <p className="text-sm text-info-ink font-medium">Safe Harbor Plan Selected</p>
+               <p className="text-xs text-info-ink mt-1">
                  {formData.dcMatchTemplate === 'safe_harbor'
                    ? 'Safe Harbor Basic: 100% match on first 3% + 50% match on next 2%. Satisfies ADP/ACP nondiscrimination tests.'
                    : 'QACA Safe Harbor: 100% match on first 1% + 50% match on next 5%. Includes automatic enrollment requirements.'}
@@ -707,9 +707,9 @@ export function DCPlanSection() {
          </>)}
 
          {/* E084: Match Eligibility Section */}
-         <div className="col-span-6 h-px bg-gray-200 my-2"></div>
-         <h4 className="col-span-6 text-sm font-semibold text-gray-900">Match Eligibility Requirements</h4>
-         <p className="col-span-6 text-xs text-gray-500 -mt-4 mb-2">Configure who qualifies for employer match contributions</p>
+         <div className="col-span-6 h-px bg-surface-disabled my-2"></div>
+         <h4 className="col-span-6 text-sm font-semibold text-ink">Match Eligibility Requirements</h4>
+         <p className="col-span-6 text-xs text-ink-muted -mt-4 mb-2">Configure who qualifies for employer match contributions</p>
 
          <InputField label="Min. Tenure" {...inputProps('dcMatchMinTenureYears')} type="number" suffix="Years" helper="Years of service required" min={0} />
          <InputField label="Min. Annual Hours" {...inputProps('dcMatchMinHoursAnnual')} type="number" suffix="Hours" helper="Hours worked per year" min={0} />
@@ -728,11 +728,11 @@ export function DCPlanSection() {
                  dcMatchAllowExperiencedTerminations: !checked,
                }));
              }}
-             className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300 rounded"
+             className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-border-strong rounded"
            />
            <div className="ml-2">
-             <label htmlFor="dcMatchRequireYearEndActive" className="block text-sm text-gray-700">Last Day Working Rule</label>
-             <p className="text-xs text-gray-500">
+             <label htmlFor="dcMatchRequireYearEndActive" className="block text-sm text-ink-muted">Last Day Working Rule</label>
+             <p className="text-xs text-ink-muted">
                {formData.dcMatchRequireYearEndActive
                  ? 'Enabled — only employees active at year-end receive match contributions'
                  : 'Disabled — terminated employees may still receive match contributions'}
@@ -742,9 +742,9 @@ export function DCPlanSection() {
          </>)}
 
          {/* E084: Core Contribution Section */}
-         <div className="col-span-6 h-px bg-gray-200 my-2"></div>
+         <div className="col-span-6 h-px bg-surface-disabled my-2"></div>
          <div className="sm:col-span-6 flex items-center justify-between mb-2">
-           <h4 className="text-sm font-semibold text-gray-900">Employer Core (Non-Elective) Contribution</h4>
+           <h4 className="text-sm font-semibold text-ink">Employer Core (Non-Elective) Contribution</h4>
            <label htmlFor="dcplan-core-enabled" className="flex items-center">
              <input
                id="dcplan-core-enabled"
@@ -754,22 +754,22 @@ export function DCPlanSection() {
                onChange={handleChange}
                className="h-4 w-4 text-fidelity-green rounded"
              />
-             <span className="ml-2 text-sm text-gray-600">Enabled</span>
+             <span className="ml-2 text-sm text-ink-muted">Enabled</span>
            </label>
          </div>
-         <p className="col-span-6 text-xs text-gray-500 -mt-4 mb-2">Automatic employer contribution regardless of employee deferral</p>
+         <p className="col-span-6 text-xs text-ink-muted -mt-4 mb-2">Automatic employer contribution regardless of employee deferral</p>
 
          {formData.dcCoreEnabled && (
            <>
              {/* E084: Core Contribution Type */}
              <div className="sm:col-span-3">
-               <label htmlFor="dcplan-core-type" className="block text-sm font-medium text-gray-700">Contribution Type</label>
+               <label htmlFor="dcplan-core-type" className="block text-sm font-medium text-ink-muted">Contribution Type</label>
                <select
                  id="dcplan-core-type"
                  name="dcCoreStatus"
                  value={formData.dcCoreStatus}
                  onChange={handleChange}
-                 className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
+                 className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-border-strong focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
                >
                  <option value="flat">Flat Rate (same for all)</option>
                  <option value="graded_by_service">Graded by Service (increases with tenure)</option>
@@ -784,32 +784,32 @@ export function DCPlanSection() {
              )}
 
              {formData.dcCoreStatus === 'age_banded' && (
-               <div className="sm:col-span-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                 <span className="block text-sm font-medium text-gray-700 mb-1">Age-Banded Core Schedule</span>
-                 <p className="text-xs text-gray-500 mb-3">Annual age tiers use [min, max) intervals; the final maximum may be blank.</p>
+               <div className="sm:col-span-6 bg-surface-subtle p-4 rounded-lg border border-border">
+                 <span className="block text-sm font-medium text-ink-muted mb-1">Age-Banded Core Schedule</span>
+                 <p className="text-xs text-ink-muted mb-3">Annual age tiers use [min, max) intervals; the final maximum may be blank.</p>
                  <div className="space-y-2">
                    {formData.dcCoreAgeSchedule.map((tier, idx) => (
                      <div key={idx} className="flex items-center gap-3 text-sm">
-                       <span className="text-gray-500 w-8">{idx + 1}.</span>
+                       <span className="text-ink-muted w-8">{idx + 1}.</span>
                        <input type="number" min={0} value={tier.minAge} onChange={(e) => {
                          const schedule = [...formData.dcCoreAgeSchedule];
                          schedule[idx] = { ...tier, minAge: Number(e.target.value) };
                          setFormData((prev: any) => ({ ...prev, dcCoreAgeSchedule: schedule }));
-                       }} className="w-16 px-2 py-1 border border-gray-300 rounded text-center" />
-                       <span className="text-gray-500">to</span>
+                       }} className="w-16 px-2 py-1 border border-border-strong rounded text-center" />
+                       <span className="text-ink-muted">to</span>
                        <input type="number" min={0} value={tier.maxAge ?? ''} placeholder="∞" onChange={(e) => {
                          const schedule = [...formData.dcCoreAgeSchedule];
                          schedule[idx] = { ...tier, maxAge: e.target.value ? Number(e.target.value) : null };
                          setFormData((prev: any) => ({ ...prev, dcCoreAgeSchedule: schedule }));
-                       }} className="w-16 px-2 py-1 border border-gray-300 rounded text-center" />
-                       <span className="text-gray-500">age →</span>
+                       }} className="w-16 px-2 py-1 border border-border-strong rounded text-center" />
+                       <span className="text-ink-muted">age →</span>
                        <input type="number" min={0} step="0.5" value={tier.rate} onChange={(e) => {
                          const schedule = [...formData.dcCoreAgeSchedule];
                          schedule[idx] = { ...tier, rate: Number(e.target.value) };
                          setFormData((prev: any) => ({ ...prev, dcCoreAgeSchedule: schedule }));
-                       }} className="w-20 px-2 py-1 border border-gray-300 rounded text-center" />
-                       <span className="text-gray-500">%</span>
-                       {formData.dcCoreAgeSchedule.length > 1 && <button type="button" onClick={() => setFormData((prev: any) => ({ ...prev, dcCoreAgeSchedule: prev.dcCoreAgeSchedule.filter((_: any, i: number) => i !== idx) }))} className="text-red-500 hover:text-red-700 px-2">✕</button>}
+                       }} className="w-20 px-2 py-1 border border-border-strong rounded text-center" />
+                       <span className="text-ink-muted">%</span>
+                       {formData.dcCoreAgeSchedule.length > 1 && <button type="button" onClick={() => setFormData((prev: any) => ({ ...prev, dcCoreAgeSchedule: prev.dcCoreAgeSchedule.filter((_: any, i: number) => i !== idx) }))} className="text-danger-ink hover:text-danger-ink px-2">✕</button>}
                      </div>
                    ))}
                  </div>
@@ -820,22 +820,22 @@ export function DCPlanSection() {
                      ? [...formData.dcCoreAgeSchedule.slice(0, -1), { ...last, maxAge: newMin }]
                      : [...formData.dcCoreAgeSchedule];
                    setFormData((prev: any) => ({ ...prev, dcCoreAgeSchedule: [...schedule, { minAge: newMin, maxAge: null, rate: last?.rate ?? 1 }] }));
-                 }} className="mt-3 text-sm text-fidelity-green hover:text-green-700 font-medium">+ Add Tier</button>
+                 }} className="mt-3 text-sm text-fidelity-green hover:text-success-ink font-medium">+ Add Tier</button>
                  {(() => {
                    const warnings = validateMatchTiers(formData.dcCoreAgeSchedule.map(t => ({ min: t.minAge, max: t.maxAge })), 'age');
-                   return warnings.length ? <div className="mt-3 bg-amber-50 border border-amber-300 rounded-md p-3"><p className="text-xs font-medium text-amber-800">Tier configuration warnings:</p><ul className="list-disc list-inside">{warnings.map((warning, index) => <li key={index} className="text-xs text-amber-700">{warning}</li>)}</ul></div> : null;
+                   return warnings.length ? <div className="mt-3 bg-warning-surface border border-warning-border rounded-md p-3"><p className="text-xs font-medium text-warning-ink">Tier configuration warnings:</p><ul className="list-disc list-inside">{warnings.map((warning, index) => <li key={index} className="text-xs text-warning-ink">{warning}</li>)}</ul></div> : null;
                  })()}
                </div>
              )}
 
              {/* E084: Graded Schedule Editor */}
              {formData.dcCoreStatus === 'graded_by_service' && (
-               <div className="sm:col-span-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                 <span className="block text-sm font-medium text-gray-700 mb-3">Graded Core Schedule</span>
+               <div className="sm:col-span-6 bg-surface-subtle p-4 rounded-lg border border-border">
+                 <span className="block text-sm font-medium text-ink-muted mb-3">Graded Core Schedule</span>
                  <div className="space-y-2">
                    {formData.dcCoreGradedSchedule.map((tier: any, idx: number) => (
                      <div key={idx} className="flex items-center gap-3 text-sm">
-                       <span className="text-gray-500 w-8">{idx + 1}.</span>
+                       <span className="text-ink-muted w-8">{idx + 1}.</span>
                        <input
                          type="number"
                          value={tier.serviceYearsMin}
@@ -844,10 +844,10 @@ export function DCPlanSection() {
                            newSchedule[idx] = { ...tier, serviceYearsMin: Number(e.target.value) };
                            setFormData((prev: any) => ({ ...prev, dcCoreGradedSchedule: newSchedule }));
                          }}
-                         className="w-16 px-2 py-1 border border-gray-300 rounded text-center"
+                         className="w-16 px-2 py-1 border border-border-strong rounded text-center"
                          min={0}
                        />
-                       <span className="text-gray-500">to</span>
+                       <span className="text-ink-muted">to</span>
                        <input
                          type="number"
                          value={tier.serviceYearsMax ?? ''}
@@ -857,10 +857,10 @@ export function DCPlanSection() {
                            newSchedule[idx] = { ...tier, serviceYearsMax: e.target.value ? Number(e.target.value) : null };
                            setFormData((prev: any) => ({ ...prev, dcCoreGradedSchedule: newSchedule }));
                          }}
-                         className="w-16 px-2 py-1 border border-gray-300 rounded text-center"
+                         className="w-16 px-2 py-1 border border-border-strong rounded text-center"
                          min={0}
                        />
-                       <span className="text-gray-500">years &#8594;</span>
+                       <span className="text-ink-muted">years &#8594;</span>
                        <input
                          type="number"
                          value={tier.rate}
@@ -870,10 +870,10 @@ export function DCPlanSection() {
                            setFormData((prev: any) => ({ ...prev, dcCoreGradedSchedule: newSchedule }));
                          }}
                          step="0.5"
-                         className="w-20 px-2 py-1 border border-gray-300 rounded text-center"
+                         className="w-20 px-2 py-1 border border-border-strong rounded text-center"
                          min={0}
                        />
-                       <span className="text-gray-500">%</span>
+                       <span className="text-ink-muted">%</span>
                        {formData.dcCoreGradedSchedule.length > 1 && (
                          <button
                            type="button"
@@ -881,7 +881,7 @@ export function DCPlanSection() {
                              const newSchedule = formData.dcCoreGradedSchedule.filter((_: any, i: number) => i !== idx);
                              setFormData((prev: any) => ({ ...prev, dcCoreGradedSchedule: newSchedule }));
                            }}
-                           className="text-red-500 hover:text-red-700 px-2"
+                           className="text-danger-ink hover:text-danger-ink px-2"
                          >
                            &#10005;
                          </button>
@@ -904,7 +904,7 @@ export function DCPlanSection() {
                      ];
                      setFormData((prev: any) => ({ ...prev, dcCoreGradedSchedule: newSchedule }));
                    }}
-                   className="mt-3 text-sm text-fidelity-green hover:text-green-700 font-medium"
+                   className="mt-3 text-sm text-fidelity-green hover:text-success-ink font-medium"
                  >
                    + Add Tier
                  </button>
@@ -915,14 +915,14 @@ export function DCPlanSection() {
                     'service years',
                   );
                   return warnings.length > 0 ? (
-                    <div className="mt-3 bg-amber-50 border border-amber-300 rounded-md p-3">
-                      <p className="text-xs font-medium text-amber-800 mb-1">Tier configuration warnings:</p>
+                    <div className="mt-3 bg-warning-surface border border-warning-border rounded-md p-3">
+                      <p className="text-xs font-medium text-warning-ink mb-1">Tier configuration warnings:</p>
                       <ul className="list-disc list-inside space-y-0.5">
                         {warnings.map((w, i) => (
-                          <li key={i} className="text-xs text-amber-700">{w}</li>
+                          <li key={i} className="text-xs text-warning-ink">{w}</li>
                         ))}
                       </ul>
-                      <p className="text-xs text-amber-600 mt-1.5">Tiers use [min, max) intervals — min is inclusive, max is exclusive.</p>
+                      <p className="text-xs text-warning-ink mt-1.5">Tiers use [min, max) intervals — min is inclusive, max is exclusive.</p>
                     </div>
                   ) : null;
                 })()}
@@ -931,13 +931,13 @@ export function DCPlanSection() {
 
             {/* E053: Points-Based Core Tier Editor */}
             {formData.dcCoreStatus === 'points_based' && (
-              <div className="sm:col-span-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                <span className="block text-sm font-medium text-gray-700 mb-1">Points Core Schedule</span>
-                <p className="text-xs text-gray-500 mb-3">Points = FLOOR(age) + FLOOR(years of service). Uses [min, max) intervals.</p>
+              <div className="sm:col-span-6 bg-surface-subtle p-4 rounded-lg border border-border">
+                <span className="block text-sm font-medium text-ink-muted mb-1">Points Core Schedule</span>
+                <p className="text-xs text-ink-muted mb-3">Points = FLOOR(age) + FLOOR(years of service). Uses [min, max) intervals.</p>
                 <div className="space-y-2">
                   {formData.dcCorePointsSchedule.map((tier, idx) => (
                     <div key={idx} className="flex items-center gap-3 text-sm">
-                      <span className="text-gray-500 w-8">{idx + 1}.</span>
+                      <span className="text-ink-muted w-8">{idx + 1}.</span>
                       <input
                         type="number"
                         value={tier.minPoints}
@@ -946,10 +946,10 @@ export function DCPlanSection() {
                           newSchedule[idx] = { ...tier, minPoints: Number(e.target.value) };
                           setFormData((prev: any) => ({ ...prev, dcCorePointsSchedule: newSchedule }));
                         }}
-                        className="w-16 px-2 py-1 border border-gray-300 rounded text-center"
+                        className="w-16 px-2 py-1 border border-border-strong rounded text-center"
                         min={0}
                       />
-                      <span className="text-gray-500">to</span>
+                      <span className="text-ink-muted">to</span>
                       <input
                         type="number"
                         value={tier.maxPoints ?? ''}
@@ -959,10 +959,10 @@ export function DCPlanSection() {
                           newSchedule[idx] = { ...tier, maxPoints: e.target.value ? Number(e.target.value) : null };
                           setFormData((prev: any) => ({ ...prev, dcCorePointsSchedule: newSchedule }));
                         }}
-                        className="w-16 px-2 py-1 border border-gray-300 rounded text-center"
+                        className="w-16 px-2 py-1 border border-border-strong rounded text-center"
                         min={0}
                       />
-                      <span className="text-gray-500">pts &#8594;</span>
+                      <span className="text-ink-muted">pts &#8594;</span>
                       <input
                         type="number"
                         value={tier.rate}
@@ -972,10 +972,10 @@ export function DCPlanSection() {
                           setFormData((prev: any) => ({ ...prev, dcCorePointsSchedule: newSchedule }));
                         }}
                         step="0.5"
-                        className="w-20 px-2 py-1 border border-gray-300 rounded text-center"
+                        className="w-20 px-2 py-1 border border-border-strong rounded text-center"
                         min={0}
                       />
-                      <span className="text-gray-500">%</span>
+                      <span className="text-ink-muted">%</span>
                       {formData.dcCorePointsSchedule.length > 1 && (
                         <button
                           type="button"
@@ -983,7 +983,7 @@ export function DCPlanSection() {
                             const newSchedule = formData.dcCorePointsSchedule.filter((_: any, i: number) => i !== idx);
                             setFormData((prev: any) => ({ ...prev, dcCorePointsSchedule: newSchedule }));
                           }}
-                          className="text-red-500 hover:text-red-700 px-2"
+                          className="text-danger-ink hover:text-danger-ink px-2"
                         >
                           &#10005;
                         </button>
@@ -1006,12 +1006,12 @@ export function DCPlanSection() {
                     ];
                     setFormData((prev: any) => ({ ...prev, dcCorePointsSchedule: newSchedule }));
                   }}
-                  className="mt-3 text-sm text-fidelity-green hover:text-green-700 font-medium"
+                  className="mt-3 text-sm text-fidelity-green hover:text-success-ink font-medium"
                 >
                   + Add Tier
                 </button>
                 {formData.dcCorePointsSchedule.length === 0 && (
-                  <p className="mt-2 text-xs text-amber-600">Add at least one tier to configure points-based core contributions</p>
+                  <p className="mt-2 text-xs text-warning-ink">Add at least one tier to configure points-based core contributions</p>
                 )}
                 {/* E053: Points core tier gap/overlap warnings */}
                 {(() => {
@@ -1020,14 +1020,14 @@ export function DCPlanSection() {
                     'points',
                   );
                   return warnings.length > 0 ? (
-                    <div className="mt-3 bg-amber-50 border border-amber-300 rounded-md p-3">
-                      <p className="text-xs font-medium text-amber-800 mb-1">Tier configuration warnings:</p>
+                    <div className="mt-3 bg-warning-surface border border-warning-border rounded-md p-3">
+                      <p className="text-xs font-medium text-warning-ink mb-1">Tier configuration warnings:</p>
                       <ul className="list-disc list-inside space-y-0.5">
                         {warnings.map((w, i) => (
-                          <li key={i} className="text-xs text-amber-700">{w}</li>
+                          <li key={i} className="text-xs text-warning-ink">{w}</li>
                         ))}
                       </ul>
-                      <p className="text-xs text-amber-600 mt-1.5">Tiers use [min, max) intervals — min is inclusive, max is exclusive.</p>
+                      <p className="text-xs text-warning-ink mt-1.5">Tiers use [min, max) intervals — min is inclusive, max is exclusive.</p>
                     </div>
                   ) : null;
                 })()}
@@ -1037,18 +1037,18 @@ export function DCPlanSection() {
              {/* Social Security integration (permitted disparity, §401(l)).
                  Rendered for every contribution type: it modifies whichever base
                  rate the schedule above resolved, rather than replacing it. */}
-             <div className="sm:col-span-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
-               <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+             <div className="sm:col-span-6 bg-surface-subtle p-4 rounded-lg border border-border">
+               <label className="flex items-center gap-2 text-sm font-medium text-ink-muted">
                  <input
                    type="checkbox"
                    name="dcCoreIntegrationEnabled"
                    checked={formData.dcCoreIntegrationEnabled}
                    onChange={handleChange}
-                   className="h-4 w-4 text-fidelity-green border-gray-300 rounded focus:ring-fidelity-green"
+                   className="h-4 w-4 text-fidelity-green border-border-strong rounded focus:ring-fidelity-green"
                  />
                  Social Security Integration (Permitted Disparity)
                </label>
-               <p className="text-xs text-gray-500 mt-1">
+               <p className="text-xs text-ink-muted mt-1">
                  Adds an extra rate on compensation above an integration level, on top of the
                  contribution type selected above. Off by default.
                </p>
@@ -1056,13 +1056,13 @@ export function DCPlanSection() {
                {formData.dcCoreIntegrationEnabled && (
                  <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
                    <div>
-                     <label htmlFor="dcplan-core-integration-mode" className="block text-sm font-medium text-gray-700">Integration Level</label>
+                     <label htmlFor="dcplan-core-integration-mode" className="block text-sm font-medium text-ink-muted">Integration Level</label>
                      <select
                        id="dcplan-core-integration-mode"
                        name="dcCoreIntegrationLevelMode"
                        value={formData.dcCoreIntegrationLevelMode}
                        onChange={handleChange}
-                       className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
+                       className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-border-strong focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
                      >
                        <option value="ss_wage_base">Social Security wage base</option>
                        <option value="percent_of_ss_wage_base">% of the wage base</option>
@@ -1092,7 +1092,7 @@ export function DCPlanSection() {
                      min={0}
                    />
 
-                   <p className="sm:col-span-3 text-xs text-gray-500">
+                   <p className="sm:col-span-3 text-xs text-ink-muted">
                      Under §401(l) the disparity rate may not exceed the lesser of the base
                      contribution rate and the permitted disparity factor (5.7% when the level is
                      the wage base, lower for reduced levels). An excessive rate is rejected when
@@ -1102,13 +1102,13 @@ export function DCPlanSection() {
                    {(() => {
                      const warnings = validateCoreIntegration(formData);
                      return warnings.length ? (
-                       <div className="sm:col-span-3 bg-amber-50 border border-amber-300 rounded-md p-3">
-                         <p className="text-xs font-medium text-amber-800 mb-1">
+                       <div className="sm:col-span-3 bg-warning-surface border border-warning-border rounded-md p-3">
+                         <p className="text-xs font-medium text-warning-ink mb-1">
                            §401(l) permitted disparity:
                          </p>
                          <ul className="list-disc list-inside space-y-0.5">
                            {warnings.map((warning, index) => (
-                             <li key={index} className="text-xs text-amber-700">{warning}</li>
+                             <li key={index} className="text-xs text-warning-ink">{warning}</li>
                            ))}
                          </ul>
                        </div>
@@ -1135,11 +1135,11 @@ export function DCPlanSection() {
                      dcCoreAllowExperiencedTerminations: !checked,
                    }));
                  }}
-                 className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300 rounded"
+                 className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-border-strong rounded"
                />
                <div className="ml-2">
-                 <label htmlFor="dcCoreRequireYearEndActive" className="block text-sm text-gray-700">Last Day Working Rule</label>
-                 <p className="text-xs text-gray-500">
+                 <label htmlFor="dcCoreRequireYearEndActive" className="block text-sm text-ink-muted">Last Day Working Rule</label>
+                 <p className="text-xs text-ink-muted">
                    {formData.dcCoreRequireYearEndActive
                      ? 'Enabled — only employees active at year-end receive core contributions'
                      : 'Disabled — terminated employees may still receive core contributions'}
@@ -1149,9 +1149,9 @@ export function DCPlanSection() {
            </>
          )}
 
-         <div className="col-span-6 h-px bg-gray-200 my-2"></div>
+         <div className="col-span-6 h-px bg-surface-disabled my-2"></div>
          <div className="sm:col-span-6 flex items-center justify-between mb-2">
-             <h4 className="text-sm font-semibold text-gray-900">Auto-Escalation</h4>
+             <h4 className="text-sm font-semibold text-ink">Auto-Escalation</h4>
              <label htmlFor="dcplan-auto-escalation" className="flex items-center">
                  <input id="dcplan-auto-escalation" type="checkbox" name="dcAutoEscalation" checked={formData.dcAutoEscalation} onChange={(e) => {
                   const checked = e.target.checked;
@@ -1162,7 +1162,7 @@ export function DCPlanSection() {
                     ...(checked && !prev.dcEscalationHireDateCutoff ? { dcEscalationHireDateCutoff: `${prev.startYear}-01-01` } : {}),
                   }));
                 }} className="h-4 w-4 text-fidelity-green rounded" />
-                 <span className="ml-2 text-sm text-gray-600">Enabled</span>
+                 <span className="ml-2 text-sm text-ink-muted">Enabled</span>
              </label>
          </div>
          {formData.dcAutoEscalation && (
@@ -1170,7 +1170,7 @@ export function DCPlanSection() {
              <InputField label="Annual Increase" {...inputProps('dcEscalationRate')} type="number" step="0.5" suffix="%" helper="Yearly step-up" />
              <InputField label="Escalation Cap" {...inputProps('dcEscalationCap')} type="number" suffix="%" helper="Max deferral rate" />
              <div className="sm:col-span-3">
-               <label htmlFor="dcplan-escalation-effective-date" className="block text-sm font-medium text-gray-700">Effective Date (MM-DD)</label>
+               <label htmlFor="dcplan-escalation-effective-date" className="block text-sm font-medium text-ink-muted">Effective Date (MM-DD)</label>
                <input
                  id="dcplan-escalation-effective-date"
                  type="text"
@@ -1179,22 +1179,22 @@ export function DCPlanSection() {
                  onChange={handleChange}
                  placeholder="01-01"
                  pattern="\d{2}-\d{2}"
-                 className="mt-1 block w-full pl-3 pr-3 py-2 text-base border-gray-300 focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
+                 className="mt-1 block w-full pl-3 pr-3 py-2 text-base border-border-strong focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
                />
-               <p className="mt-1 text-xs text-gray-500">Annual escalation date (e.g., 01-01 for Jan 1)</p>
+               <p className="mt-1 text-xs text-ink-muted">Annual escalation date (e.g., 01-01 for Jan 1)</p>
              </div>
              <InputField label="First Escalation Delay" {...inputProps('dcEscalationDelayYears')} type="number" suffix="Years" helper="Wait after enrollment" min={0} />
              <div className="sm:col-span-3">
-               <label htmlFor="dcplan-escalation-hire-cutoff" className="block text-sm font-medium text-gray-700">Hire Date Cutoff</label>
+               <label htmlFor="dcplan-escalation-hire-cutoff" className="block text-sm font-medium text-ink-muted">Hire Date Cutoff</label>
                <input
                  id="dcplan-escalation-hire-cutoff"
                  type="date"
                  name="dcEscalationHireDateCutoff"
                  value={formData.dcEscalationHireDateCutoff}
                  onChange={handleChange}
-                 className="mt-1 block w-full pl-3 pr-3 py-2 text-base border-gray-300 focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
+                 className="mt-1 block w-full pl-3 pr-3 py-2 text-base border-border-strong focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
                />
-               <p className="mt-1 text-xs text-gray-500">Only escalate employees hired on/after this date</p>
+               <p className="mt-1 text-xs text-ink-muted">Only escalate employees hired on/after this date</p>
              </div>
            </>
          )}

@@ -27,7 +27,8 @@ const COHORT_TOGGLE_LABELS: Record<DCPlanCohort, string> = {
   baseline: 'Starting census',
 };
 const VALID_COHORTS: DCPlanCohort[] = ['all', 'new_hires', 'baseline'];
-import { COLORS, CONTRIBUTION_COLORS, MAX_SCENARIO_SELECTION } from '../constants';
+import { MAX_SCENARIO_SELECTION } from '../constants';
+import { useChartTheme } from '../hooks/useChartTheme';
 
 const formatCurrency = (value: number): string => {
   if (value >= 1000000) {
@@ -38,39 +39,48 @@ const formatCurrency = (value: number): string => {
   return `$${value.toFixed(0)}`;
 };
 
+const KPI_ICON_STYLES: Record<string, string> = {
+  blue: 'bg-info-surface text-info-ink',
+  green: 'bg-success-surface text-success-ink',
+  red: 'bg-danger-surface text-danger-ink',
+  gray: 'bg-surface-subtle text-ink-muted',
+  purple: 'bg-info-surface text-info-ink',
+  orange: 'bg-warning-surface text-warning-ink',
+};
+
 const KPICard = ({ title, value, subtext, icon: Icon, color, loading }: any) => (
-  <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex items-start justify-between">
+  <div className="bg-surface-raised p-5 rounded-xl shadow-sm border border-border flex items-start justify-between">
     <div>
-      <p className="text-sm font-medium text-gray-500">{title}</p>
+      <p className="text-sm font-medium text-ink-muted">{title}</p>
       {loading ? (
-        <div className="h-8 w-20 bg-gray-200 rounded animate-pulse mt-1" />
+        <div className="h-8 w-20 bg-surface-disabled rounded animate-pulse mt-1" />
       ) : (
         <>
-          <h3 className="text-2xl font-bold text-gray-900 mt-1">{value}</h3>
+          <h3 className="text-2xl font-bold text-ink mt-1">{value}</h3>
           {subtext && (
             <div className="flex items-center mt-1">
-              <span className="text-xs font-medium text-gray-500">{subtext}</span>
+              <span className="text-xs font-medium text-ink-muted">{subtext}</span>
             </div>
           )}
         </>
       )}
     </div>
-    <div className={`p-2 rounded-lg bg-${color}-50 text-${color}-600`}>
+    <div className={`p-2 rounded-lg ${KPI_ICON_STYLES[color] ?? KPI_ICON_STYLES.gray}`}>
       <Icon size={20} />
     </div>
   </div>
 );
 
 const EmptyState = ({ onRefresh }: { onRefresh: () => void }) => (
-  <div className="flex flex-col items-center justify-center h-96 text-gray-400">
+  <div className="flex flex-col items-center justify-center h-96 text-ink-subtle">
     <Database size={48} className="mb-4" />
-    <h3 className="text-lg font-semibold text-gray-600 mb-2">No Simulation Selected</h3>
-    <p className="text-sm text-gray-500 mb-4 text-center max-w-md">
+    <h3 className="text-lg font-semibold text-ink-muted mb-2">No Simulation Selected</h3>
+    <p className="text-sm text-ink-muted mb-4 text-center max-w-md">
       Select a completed simulation from the dropdown above to view DC Plan analytics.
     </p>
     <button
       onClick={onRefresh}
-      className="flex items-center px-4 py-2 bg-fidelity-green text-white rounded-lg text-sm font-medium hover:bg-fidelity-dark transition-colors"
+      className="flex items-center px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-fidelity-dark transition-colors"
     >
       <RefreshCw size={16} className="mr-2" />
       Refresh Data
@@ -79,13 +89,13 @@ const EmptyState = ({ onRefresh }: { onRefresh: () => void }) => (
 );
 
 const ErrorState = ({ message, onRetry }: { message: string; onRetry: () => void }) => (
-  <div className="flex flex-col items-center justify-center h-96 text-red-400">
+  <div className="flex flex-col items-center justify-center h-96 text-danger-ink">
     <AlertCircle size={48} className="mb-4" />
-    <h3 className="text-lg font-semibold text-red-600 mb-2">Failed to Load Analytics</h3>
-    <p className="text-sm text-gray-500 mb-4 text-center max-w-md">{message}</p>
+    <h3 className="text-lg font-semibold text-danger-ink mb-2">Failed to Load Analytics</h3>
+    <p className="text-sm text-ink-muted mb-4 text-center max-w-md">{message}</p>
     <button
       onClick={onRetry}
-      className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+      className="flex items-center px-4 py-2 bg-danger-solid text-ink-inverse rounded-lg text-sm font-medium hover:bg-danger-solid-hover transition-colors"
     >
       <RefreshCw size={16} className="mr-2" />
       Retry
@@ -97,14 +107,14 @@ const DeferralTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   const { count, percentage } = payload[0].payload;
   return (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-lg px-4 py-3 min-w-[160px]">
-      <p className="font-semibold text-gray-800 mb-2 text-sm">{label} deferral</p>
+    <div className="bg-surface-raised border border-border rounded-lg shadow-lg px-4 py-3 min-w-[160px]">
+      <p className="font-semibold text-ink mb-2 text-sm">{label} deferral</p>
       <div className="space-y-1">
-        <p className="text-sm text-gray-600">
-          <span className="font-semibold text-gray-900">{count.toLocaleString()}</span>{' '}
+        <p className="text-sm text-ink-muted">
+          <span className="font-semibold text-ink">{count.toLocaleString()}</span>{' '}
           employees
         </p>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-ink-muted">
           <span className="font-semibold text-fidelity-green">{percentage.toFixed(1)}%</span>{' '}
           of participants
         </p>
@@ -113,9 +123,8 @@ const DeferralTooltip = ({ active, payload, label }: any) => {
   );
 };
 
-const PARTICIPATION_COLORS = ['#00853F', '#4CAF50', '#81C784'];
-
 export default function DCPlanAnalytics() {
+  const chartTheme = useChartTheme();
   // Workspace context from Layout (shared across all pages)
   const { activeWorkspace } = useOutletContext<LayoutContextType>();
 
@@ -324,8 +333,8 @@ export default function DCPlanAnalytics() {
       {/* Header & Controls */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">DC Plan Analytics</h1>
-          <p className="text-gray-500 mt-1">Analyze retirement plan contributions and participation.</p>
+          <h1 className="text-2xl font-bold text-ink">DC Plan Analytics</h1>
+          <p className="text-ink-muted mt-1">Analyze retirement plan contributions and participation.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {/* Scenario Selector */}
@@ -334,7 +343,7 @@ export default function DCPlanAnalytics() {
               value={comparisonMode ? '' : selectedScenarioIds[0] || ''}
               onChange={(e) => handleScenarioToggle(e.target.value)}
               disabled={!activeWorkspace?.id || loadingScenarios || comparisonMode}
-              className="appearance-none bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[200px] disabled:bg-gray-50 disabled:text-gray-400"
+              className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[200px] disabled:bg-surface-subtle disabled:text-ink-subtle"
             >
               <option value="">
                 {loadingScenarios ? 'Loading...' : completedScenarios.length === 0 ? 'No completed runs' : 'Select Scenario'}
@@ -345,7 +354,7 @@ export default function DCPlanAnalytics() {
                 </option>
               ))}
             </select>
-            <ChevronDown size={16} className="absolute right-3 top-2.5 text-gray-400 pointer-events-none" />
+            <ChevronDown size={16} className="absolute right-3 top-2.5 text-ink-subtle pointer-events-none" />
           </div>
 
           {/* Year Picker */}
@@ -356,7 +365,7 @@ export default function DCPlanAnalytics() {
                 onChange={(e) =>
                   setSelectedYear(e.target.value ? Number(e.target.value) : null)
                 }
-                className="appearance-none bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm"
+                className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm"
               >
                 <option value="">All Years</option>
                 {availableYears.map((year) => (
@@ -365,7 +374,7 @@ export default function DCPlanAnalytics() {
                   </option>
                 ))}
               </select>
-              <ChevronDown size={16} className="absolute right-3 top-2.5 text-gray-400 pointer-events-none" />
+              <ChevronDown size={16} className="absolute right-3 top-2.5 text-ink-subtle pointer-events-none" />
             </div>
           )}
 
@@ -377,18 +386,18 @@ export default function DCPlanAnalytics() {
                 setSelectedScenarioIds([]);
               }
             }}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${comparisonMode ? 'bg-fidelity-green text-white' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${comparisonMode ? 'bg-fidelity-green text-ink-inverse' : 'bg-surface-raised border border-border-strong text-ink-muted hover:bg-surface-subtle'}`}
           >
             Compare {comparisonMode && `(${selectedScenarioIds.length}/3)`}
           </button>
 
           {/* Cohort Control (134-new-hire-cohort, FR-006) */}
-          <div className="flex bg-gray-100 p-1 rounded-lg">
+          <div className="flex bg-surface-subtle p-1 rounded-lg">
             {VALID_COHORTS.map((value) => (
               <button
                 key={value}
                 onClick={() => setCohort(value)}
-                className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${cohort === value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${cohort === value ? 'bg-surface-raised text-ink shadow-sm' : 'text-ink-muted hover:text-ink-muted'}`}
               >
                 {COHORT_TOGGLE_LABELS[value]}
               </button>
@@ -396,20 +405,20 @@ export default function DCPlanAnalytics() {
           </div>
 
           {/* Active Employees Only Toggle */}
-          <label htmlFor="dc-active-only" className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm cursor-pointer hover:bg-gray-50 transition-colors">
+          <label htmlFor="dc-active-only" className="flex items-center gap-2 px-3 py-2 bg-surface-raised border border-border-strong rounded-lg text-sm cursor-pointer hover:bg-surface-subtle transition-colors">
             <input
               id="dc-active-only"
               type="checkbox"
               checked={activeOnly}
               onChange={(e) => setActiveOnly(e.target.checked)}
-              className="w-4 h-4 text-fidelity-green rounded border-gray-300 focus:ring-fidelity-green"
+              className="w-4 h-4 text-fidelity-green rounded border-border-strong focus:ring-fidelity-green"
             />
-            <span className="font-medium text-gray-700 whitespace-nowrap">Active employees only</span>
+            <span className="font-medium text-ink-muted whitespace-nowrap">Active employees only</span>
           </label>
 
           <button
             onClick={handleRefresh}
-            className="flex items-center px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 text-gray-700 shadow-sm transition-colors"
+            className="flex items-center px-3 py-2 bg-surface-raised border border-border-strong rounded-lg text-sm font-medium hover:bg-surface-subtle text-ink-muted shadow-sm transition-colors"
             title="Refresh"
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
@@ -419,8 +428,8 @@ export default function DCPlanAnalytics() {
 
       {/* Comparison Mode Scenario Selection */}
       {comparisonMode && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="text-sm font-medium text-blue-900 mb-2">
+        <div className="bg-info-surface border border-info-border rounded-lg p-4">
+          <p className="text-sm font-medium text-info-ink mb-2">
             Select 2-{MAX_SCENARIO_SELECTION} scenarios to compare (click to select/deselect):
           </p>
           <div className="flex flex-wrap gap-2">
@@ -429,7 +438,7 @@ export default function DCPlanAnalytics() {
                 key={scenario.id}
                 onClick={() => handleScenarioToggle(scenario.id)}
                 disabled={!selectedScenarioIds.includes(scenario.id) && selectedScenarioIds.length >= MAX_SCENARIO_SELECTION}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${selectedScenarioIds.includes(scenario.id) ? 'bg-fidelity-green text-white' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed'}`}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${selectedScenarioIds.includes(scenario.id) ? 'bg-fidelity-green text-ink-inverse' : 'bg-surface-raised border border-border-strong text-ink-muted hover:bg-surface-subtle disabled:opacity-50 disabled:cursor-not-allowed'}`}
               >
                 {scenario.name}
               </button>
@@ -450,23 +459,23 @@ export default function DCPlanAnalytics() {
       ) : comparisonData ? (
         /* Comparison View */
         <>
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Scenario Comparison</h3>
+          <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
+            <h3 className="text-lg font-semibold text-ink mb-4">Scenario Comparison</h3>
             <div className="overflow-x-auto">
               <table className="min-w-full">
                 <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-3 px-4 font-semibold text-gray-600">Metric</th>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-3 px-4 font-semibold text-ink-muted">Metric</th>
                     {comparisonData.analytics.map(a => (
-                      <th key={a.scenario_id} className="text-right py-3 px-4 font-semibold text-gray-600">
+                      <th key={a.scenario_id} className="text-right py-3 px-4 font-semibold text-ink-muted">
                         {a.scenario_name}
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-border">
                   <tr>
-                    <td className="py-3 px-4 text-gray-700">Participation Rate</td>
+                    <td className="py-3 px-4 text-ink-muted">Participation Rate</td>
                     {comparisonData.analytics.map((a) => {
                       const yd = selectedYear !== null
                         ? a.contribution_by_year.find((y) => y.year === selectedYear)
@@ -479,7 +488,7 @@ export default function DCPlanAnalytics() {
                     })}
                   </tr>
                   <tr>
-                    <td className="py-3 px-4 text-gray-700">Total Employee Contributions</td>
+                    <td className="py-3 px-4 text-ink-muted">Total Employee Contributions</td>
                     {comparisonData.analytics.map((a) => {
                       const yd = selectedYear !== null
                         ? a.contribution_by_year.find((y) => y.year === selectedYear)
@@ -492,7 +501,7 @@ export default function DCPlanAnalytics() {
                     })}
                   </tr>
                   <tr>
-                    <td className="py-3 px-4 text-gray-700">Total Employer Match</td>
+                    <td className="py-3 px-4 text-ink-muted">Total Employer Match</td>
                     {comparisonData.analytics.map((a) => {
                       const yd = selectedYear !== null
                         ? a.contribution_by_year.find((y) => y.year === selectedYear)
@@ -505,7 +514,7 @@ export default function DCPlanAnalytics() {
                     })}
                   </tr>
                   <tr>
-                    <td className="py-3 px-4 text-gray-700">Total Employer Core</td>
+                    <td className="py-3 px-4 text-ink-muted">Total Employer Core</td>
                     {comparisonData.analytics.map((a) => {
                       const yd = selectedYear !== null
                         ? a.contribution_by_year.find((y) => y.year === selectedYear)
@@ -517,8 +526,8 @@ export default function DCPlanAnalytics() {
                       );
                     })}
                   </tr>
-                  <tr className="bg-gray-50">
-                    <td className="py-3 px-4 text-gray-900 font-semibold">Total All Contributions</td>
+                  <tr className="bg-surface-subtle">
+                    <td className="py-3 px-4 text-ink font-semibold">Total All Contributions</td>
                     {comparisonData.analytics.map((a) => {
                       const yd = selectedYear !== null
                         ? a.contribution_by_year.find((y) => y.year === selectedYear)
@@ -531,10 +540,10 @@ export default function DCPlanAnalytics() {
                     })}
                   </tr>
                   <tr>
-                    <td className="py-3 px-4 text-gray-700">
+                    <td className="py-3 px-4 text-ink-muted">
                       Employees at IRS Limit
                       {selectedYear !== null && (
-                        <span className="ml-1 text-xs text-gray-400">(final year)</span>
+                        <span className="ml-1 text-xs text-ink-subtle">(final year)</span>
                       )}
                     </td>
                     {comparisonData.analytics.map((a) => (
@@ -551,23 +560,23 @@ export default function DCPlanAnalytics() {
           </div>
 
           {/* Comparison Bar Chart */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-800 mb-6">Contribution Totals by Scenario</h3>
+          <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
+            <h3 className="text-lg font-semibold text-ink mb-6">Contribution Totals by Scenario</h3>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={comparisonContributionData} barSize={60}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                  <XAxis dataKey="scenario" stroke="#9CA3AF" />
-                  <YAxis stroke="#9CA3AF" tickFormatter={(value) => formatCurrency(value)} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
+                  <XAxis dataKey="scenario" stroke={chartTheme.axis.line} />
+                  <YAxis stroke={chartTheme.axis.line} tickFormatter={(value) => formatCurrency(value)} />
                   <Tooltip
-                    cursor={{ fill: '#F3F4F6' }}
-                    contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb' }}
+                    cursor={chartTheme.tooltip.cursorStyle}
+                    contentStyle={chartTheme.tooltip.contentStyle}
                     formatter={(value: number) => [formatCurrency(value), '']}
                   />
-                  <Legend verticalAlign="top" height={36} />
-                  <Bar dataKey="Employee" stackId="a" fill={CONTRIBUTION_COLORS.employee} name="Employee" />
-                  <Bar dataKey="Match" stackId="a" fill={CONTRIBUTION_COLORS.match} name="Employer Match" />
-                  <Bar dataKey="Core" stackId="a" fill={CONTRIBUTION_COLORS.core} name="Employer Core" />
+                  <Legend verticalAlign="top" height={36} formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
+                  <Bar dataKey="Employee" stackId="a" fill={chartTheme.semantic.contribution.employee} name="Employee" />
+                  <Bar dataKey="Match" stackId="a" fill={chartTheme.semantic.contribution.match} name="Employer Match" />
+                  <Bar dataKey="Core" stackId="a" fill={chartTheme.semantic.contribution.core} name="Employer Core" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -627,14 +636,14 @@ export default function DCPlanAnalytics() {
           </div>
 
           {/* Scenario Info Banner */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center justify-between">
+          <div className="bg-info-surface border border-info-border rounded-lg p-4 flex items-center justify-between">
             <div>
-              <h3 className="font-semibold text-blue-900">{analytics.scenario_name}</h3>
-              <p className="text-sm text-blue-700">
+              <h3 className="font-semibold text-info-ink">{analytics.scenario_name}</h3>
+              <p className="text-sm text-info-ink">
                 Total All Contributions: {formatCurrency(analytics.total_all_contributions)}
               </p>
             </div>
-            <div className="text-right text-sm text-blue-600">
+            <div className="text-right text-sm text-info-ink">
               <p>{analytics.contribution_by_year.length} year(s) of data</p>
             </div>
           </div>
@@ -642,44 +651,44 @@ export default function DCPlanAnalytics() {
           {/* Main Charts Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Contribution Stacked Bar Chart */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-800 mb-6">Contributions by Year</h3>
+            <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
+              <h3 className="text-lg font-semibold text-ink mb-6">Contributions by Year</h3>
               <div className="h-80">
                 {contributionChartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={contributionChartData} barSize={50}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                      <XAxis dataKey="year" stroke="#9CA3AF" />
-                      <YAxis stroke="#9CA3AF" tickFormatter={(value) => formatCurrency(value)} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
+                      <XAxis dataKey="year" stroke={chartTheme.axis.line} />
+                      <YAxis stroke={chartTheme.axis.line} tickFormatter={(value) => formatCurrency(value)} />
                       <Tooltip
-                        cursor={{ fill: '#F3F4F6' }}
-                        contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb' }}
+                        cursor={chartTheme.tooltip.cursorStyle}
+                        contentStyle={chartTheme.tooltip.contentStyle}
                         formatter={(value: number) => [formatCurrency(value), '']}
                       />
-                      <Legend verticalAlign="top" height={36} />
-                      <Bar dataKey="Employee" stackId="a" fill={CONTRIBUTION_COLORS.employee} name="Employee" radius={[0, 0, 4, 4]}>
+                      <Legend verticalAlign="top" height={36} formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
+                      <Bar dataKey="Employee" stackId="a" fill={chartTheme.semantic.contribution.employee} name="Employee" radius={[0, 0, 4, 4]}>
                         {contributionChartData.map((entry) => (
                           <Cell
                             key={`emp-${entry.year}`}
-                            fill={CONTRIBUTION_COLORS.employee}
+                            fill={chartTheme.semantic.contribution.employee}
                             opacity={selectedYear === null || entry.year === selectedYear ? 1 : 0.35}
                           />
                         ))}
                       </Bar>
-                      <Bar dataKey="Match" stackId="a" fill={CONTRIBUTION_COLORS.match} name="Employer Match">
+                      <Bar dataKey="Match" stackId="a" fill={chartTheme.semantic.contribution.match} name="Employer Match">
                         {contributionChartData.map((entry) => (
                           <Cell
                             key={`match-${entry.year}`}
-                            fill={CONTRIBUTION_COLORS.match}
+                            fill={chartTheme.semantic.contribution.match}
                             opacity={selectedYear === null || entry.year === selectedYear ? 1 : 0.35}
                           />
                         ))}
                       </Bar>
-                      <Bar dataKey="Core" stackId="a" fill={CONTRIBUTION_COLORS.core} name="Employer Core" radius={[4, 4, 0, 0]}>
+                      <Bar dataKey="Core" stackId="a" fill={chartTheme.semantic.contribution.core} name="Employer Core" radius={[4, 4, 0, 0]}>
                         {contributionChartData.map((entry) => (
                           <Cell
                             key={`core-${entry.year}`}
-                            fill={CONTRIBUTION_COLORS.core}
+                            fill={chartTheme.semantic.contribution.core}
                             opacity={selectedYear === null || entry.year === selectedYear ? 1 : 0.35}
                           />
                         ))}
@@ -687,7 +696,7 @@ export default function DCPlanAnalytics() {
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-full flex items-center justify-center text-gray-400">
+                  <div className="h-full flex items-center justify-center text-ink-subtle">
                     <p>No contribution data available</p>
                   </div>
                 )}
@@ -695,23 +704,23 @@ export default function DCPlanAnalytics() {
             </div>
 
             {/* Deferral Rate Distribution */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800">Deferral Rate Distribution</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <h3 className="text-lg font-semibold text-ink">Deferral Rate Distribution</h3>
+                  <p className="text-xs text-ink-muted mt-0.5">
                     {deferralView === 'effective'
                       ? 'Rate used for contribution calculation — 0% aligns with non-participants'
                       : 'Year-end snapshot — reflects escalations and mid-year opt-outs'}
                   </p>
                 </div>
-                <div className="flex items-center bg-gray-100 rounded-lg p-1 shrink-0 ml-4">
+                <div className="flex items-center bg-surface-subtle rounded-lg p-1 shrink-0 ml-4">
                   <button
                     onClick={() => setDeferralView('effective')}
                     className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
                       deferralView === 'effective'
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-500 hover:text-gray-700'
+                        ? 'bg-surface-raised text-ink shadow-sm'
+                        : 'text-ink-muted hover:text-ink-muted'
                     }`}
                   >
                     Effective Rate
@@ -720,8 +729,8 @@ export default function DCPlanAnalytics() {
                     onClick={() => setDeferralView('yearend')}
                     className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
                       deferralView === 'yearend'
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-500 hover:text-gray-700'
+                        ? 'bg-surface-raised text-ink shadow-sm'
+                        : 'text-ink-muted hover:text-ink-muted'
                     }`}
                   >
                     Year-End
@@ -732,25 +741,25 @@ export default function DCPlanAnalytics() {
                 {deferralDistributionData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={deferralDistributionData} layout="vertical" barSize={20} margin={{ right: 56 }}>
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E5E7EB" />
-                      <XAxis type="number" stroke="#9CA3AF" />
-                      <YAxis dataKey="bucket" type="category" stroke="#9CA3AF" width={50} />
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={chartTheme.grid.line} />
+                      <XAxis type="number" stroke={chartTheme.axis.line} />
+                      <YAxis dataKey="bucket" type="category" stroke={chartTheme.axis.line} width={50} />
                       <Tooltip
-                        cursor={{ fill: '#F3F4F6' }}
+                        cursor={chartTheme.tooltip.cursorStyle}
                         content={<DeferralTooltip />}
                       />
-                      <Bar dataKey="count" fill={COLORS.primary} name="count" radius={[0, 4, 4, 0]}>
+                      <Bar dataKey="count" fill={chartTheme.semantic.primary} name="count" radius={[0, 4, 4, 0]}>
                         <LabelList
                           dataKey="percentage"
                           position="right"
                           formatter={(v: number) => `${v.toFixed(1)}%`}
-                          style={{ fill: '#6B7280', fontSize: 12 }}
+                          style={{ fill: chartTheme.axis.label, fontSize: 12 }}
                         />
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-full flex items-center justify-center text-gray-400">
+                  <div className="h-full flex items-center justify-center text-ink-subtle">
                     <p>No deferral data available</p>
                   </div>
                 )}
@@ -758,8 +767,8 @@ export default function DCPlanAnalytics() {
             </div>
 
             {/* Participation Breakdown Pie Chart */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-800 mb-6">Participation by Enrollment Method</h3>
+            <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
+              <h3 className="text-lg font-semibold text-ink mb-6">Participation by Enrollment Method</h3>
               <div className="h-80">
                 {participationPieData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
@@ -776,15 +785,15 @@ export default function DCPlanAnalytics() {
                         labelLine={false}
                       >
                         {participationPieData.map((_, index) => (
-                          <Cell key={`cell-${index}`} fill={PARTICIPATION_COLORS[index % PARTICIPATION_COLORS.length]} />
+                          <Cell key={`cell-${index}`} fill={chartTheme.colorAt(index)} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Employees']} />
-                      <Legend layout="vertical" verticalAlign="middle" align="right" />
+                      <Tooltip contentStyle={chartTheme.tooltip.contentStyle} formatter={(value: number) => [value.toLocaleString(), 'Employees']} />
+                      <Legend layout="vertical" verticalAlign="middle" align="right" formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-full flex items-center justify-center text-gray-400">
+                  <div className="h-full flex items-center justify-center text-ink-subtle">
                     <p>No participation data available</p>
                   </div>
                 )}
@@ -792,35 +801,35 @@ export default function DCPlanAnalytics() {
             </div>
 
             {/* Escalation Summary */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Escalation Summary</h3>
+            <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
+              <h3 className="text-lg font-semibold text-ink mb-4">Escalation Summary</h3>
               <div className="space-y-4">
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500">Employees with Escalations</p>
-                  <p className="text-2xl font-bold text-gray-900">
+                <div className="bg-surface-subtle p-4 rounded-lg">
+                  <p className="text-sm text-ink-muted">Employees with Escalations</p>
+                  <p className="text-2xl font-bold text-ink">
                     {analytics.escalation_metrics.employees_with_escalations.toLocaleString()}
-                    <span className="text-sm font-normal text-gray-500 ml-2">
+                    <span className="text-sm font-normal text-ink-muted ml-2">
                       ({((analytics.escalation_metrics.employees_with_escalations / analytics.total_enrolled) * 100).toFixed(1)}% of enrolled)
                     </span>
                   </p>
                 </div>
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500">Average Escalations per Employee</p>
-                  <p className="text-2xl font-bold text-gray-900">
+                <div className="bg-surface-subtle p-4 rounded-lg">
+                  <p className="text-sm text-ink-muted">Average Escalations per Employee</p>
+                  <p className="text-2xl font-bold text-ink">
                     {analytics.escalation_metrics.avg_escalation_count.toFixed(1)}
                   </p>
                 </div>
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500">Total Rate Increase from Escalations</p>
-                  <p className="text-2xl font-bold text-gray-900">
+                <div className="bg-surface-subtle p-4 rounded-lg">
+                  <p className="text-sm text-ink-muted">Total Rate Increase from Escalations</p>
+                  <p className="text-2xl font-bold text-ink">
                     {(analytics.escalation_metrics.total_escalation_amount * 100).toFixed(2)}%
                   </p>
                 </div>
-                <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-                  <p className="text-sm text-orange-700">Employees at IRS 402(g) Limit</p>
-                  <p className="text-2xl font-bold text-orange-900">
+                <div className="bg-warning-surface p-4 rounded-lg border border-warning-border">
+                  <p className="text-sm text-warning-ink">Employees at IRS 402(g) Limit</p>
+                  <p className="text-2xl font-bold text-warning-ink">
                     {analytics.irs_limit_metrics.employees_at_irs_limit.toLocaleString()}
-                    <span className="text-sm font-normal text-orange-700 ml-2">
+                    <span className="text-sm font-normal text-warning-ink ml-2">
                       ({analytics.irs_limit_metrics.irs_limit_rate.toFixed(1)}% of participants)
                     </span>
                   </p>

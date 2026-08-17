@@ -65,7 +65,7 @@ function ConfigShell() {
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-fidelity-green mx-auto mb-3"></div>
-          <p className="text-sm text-gray-500">Loading scenario...</p>
+          <p className="text-sm text-ink-muted">Loading scenario...</p>
         </div>
       </div>
     );
@@ -80,17 +80,17 @@ function ConfigShell() {
             {currentScenario && (
               <button
                 onClick={() => navigate('/scenarios')}
-                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-1.5 text-ink-subtle hover:text-ink-muted hover:bg-surface-subtle rounded-lg transition-colors"
                 title="Back to Scenarios"
               >
                 <ArrowLeft size={20} />
               </button>
             )}
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">
+              <h1 className="text-2xl font-bold text-ink">
                 {currentScenario ? `Configure: ${currentScenario.name}` : 'Base Configuration'}
               </h1>
-              <p className="text-gray-500 text-sm">
+              <p className="text-ink-muted text-sm">
                 {currentScenario
                   ? 'Edit scenario-specific configuration overrides.'
                   : 'Edit workspace default simulation parameters.'}
@@ -114,10 +114,10 @@ function ConfigShell() {
                 }
               }}
               disabled={copyingScenariosLoading}
-              className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 flex items-center font-medium shadow-sm transition-colors"
+              className="px-4 py-2 bg-surface-raised border border-border-strong rounded-lg text-ink-muted hover:bg-surface-subtle flex items-center font-medium shadow-sm transition-colors"
             >
               {copyingScenariosLoading ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-700 mr-2" />
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-border-strong mr-2" />
               ) : (
                 <Copy size={18} className="mr-2" />
               )}
@@ -140,10 +140,10 @@ function ConfigShell() {
                 }
               }}
               disabled={applyWorkforceLoading}
-              className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 flex items-center font-medium shadow-sm transition-colors"
+              className="px-4 py-2 bg-surface-raised border border-border-strong rounded-lg text-ink-muted hover:bg-surface-subtle flex items-center font-medium shadow-sm transition-colors"
             >
               {applyWorkforceLoading ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-700 mr-2" />
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-border-strong mr-2" />
               ) : (
                 <Share2 size={18} className="mr-2" />
               )}
@@ -164,10 +164,10 @@ function ConfigShell() {
               }
             }}
             disabled={templatesLoading}
-            className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 flex items-center font-medium shadow-sm transition-colors"
+            className="px-4 py-2 bg-surface-raised border border-border-strong rounded-lg text-ink-muted hover:bg-surface-subtle flex items-center font-medium shadow-sm transition-colors"
           >
             {templatesLoading ? (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-700 mr-2" />
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-border-strong mr-2" />
             ) : (
               <FileText size={18} className="mr-2" />
             )}
@@ -176,11 +176,11 @@ function ConfigShell() {
           <button
             onClick={handleSaveConfig}
             disabled={saveStatus === 'saving'}
-            className={`px-4 py-2 text-white rounded-lg flex items-center font-medium shadow-sm transition-colors ${saveStatus === 'saving' ? 'bg-gray-400 cursor-not-allowed' : saveStatus === 'success' ? 'bg-green-600 hover:bg-green-700' : isDirty ? 'bg-amber-600 hover:bg-amber-700 ring-2 ring-amber-300' : 'bg-fidelity-green hover:bg-fidelity-dark'}`}
+            className={`px-4 py-2 text-ink-inverse rounded-lg flex items-center font-medium shadow-sm transition-colors ${saveStatus === 'saving' ? 'bg-surface-disabled cursor-not-allowed' : saveStatus === 'success' ? 'bg-success-solid hover:bg-success-solid-hover' : isDirty ? 'bg-warning-solid hover:bg-warning-solid-hover ring-2 ring-focus' : 'bg-fidelity-green hover:bg-fidelity-dark'}`}
           >
             {saveStatus === 'saving' ? (
               <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-border mr-2"></div>
                 Saving...
               </>
             ) : saveStatus === 'success' ? (
@@ -202,7 +202,7 @@ function ConfigShell() {
           </button>
           <button
             onClick={() => navigate(`/simulate?scenario=${scenarioId}`)}
-            className={`px-4 py-2 rounded-lg flex items-center font-medium shadow-sm transition-all ${saveStatus === 'success' ? 'bg-blue-600 hover:bg-blue-700 text-white animate-pulse' : 'bg-blue-100 hover:bg-blue-200 text-blue-700 border border-blue-300'}`}
+            className={`px-4 py-2 rounded-lg flex items-center font-medium shadow-sm transition-all ${saveStatus === 'success' ? 'bg-info-solid hover:bg-info-solid-hover text-ink-inverse animate-pulse' : 'bg-info-surface hover:bg-info-surface text-info-ink border border-info-border'}`}
           >
             <Play size={18} className="mr-2" />
             Run Simulation
@@ -212,49 +212,49 @@ function ConfigShell() {
 
       {/* Validation error banner */}
       {saveStatus === 'error' && saveMessage && (
-        <div className="mb-4 rounded-lg bg-red-50 border border-red-200 p-4 flex items-start">
-          <AlertTriangle className="h-5 w-5 text-red-400 mt-0.5 flex-shrink-0" />
-          <p className="ml-3 text-sm text-red-700">{saveMessage}</p>
+        <div className="mb-4 rounded-lg bg-danger-surface border border-danger-border p-4 flex items-start">
+          <AlertTriangle className="h-5 w-5 text-danger-ink mt-0.5 flex-shrink-0" />
+          <p className="ml-3 text-sm text-danger-ink">{saveMessage}</p>
         </div>
       )}
 
       {/* Content: Sidebar + Form */}
-      <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 flex overflow-hidden">
+      <div className="flex-1 bg-surface-raised rounded-xl shadow-sm border border-border flex overflow-hidden">
         {/* Sidebar */}
-        <div className="w-64 bg-gray-50 border-r border-gray-200 p-4 flex-shrink-0 overflow-y-auto">
+        <div className="w-64 bg-surface-subtle border-r border-border p-4 flex-shrink-0 overflow-y-auto">
           <nav className="space-y-1">
             {PRIMARY_NAV.map((item) => (
               <button
                 key={item.id}
                 onClick={() => setActiveSection(item.id)}
-                className={`w-full text-left px-3 py-3 rounded-md text-sm font-medium transition-colors flex items-center justify-between ${activeSection === item.id ? 'bg-white text-fidelity-green shadow-sm border border-gray-200' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}
+                className={`w-full text-left px-3 py-3 rounded-md text-sm font-medium transition-colors flex items-center justify-between ${activeSection === item.id ? 'bg-surface-raised text-fidelity-green shadow-sm border border-border' : 'text-ink-muted hover:bg-surface-subtle hover:text-ink'}`}
               >
                 <span className="flex items-center">
-                  <item.icon size={16} className={`mr-3 ${activeSection === item.id ? 'text-fidelity-green' : 'text-gray-400'}`} />
+                  <item.icon size={16} className={`mr-3 ${activeSection === item.id ? 'text-fidelity-green' : 'text-ink-subtle'}`} />
                   {item.label}
                 </span>
                 {dirtySections.has(item.id) && (
-                  <span className="w-2 h-2 bg-amber-500 rounded-full" title="Unsaved changes" />
+                  <span className="w-2 h-2 bg-warning-solid rounded-full" title="Unsaved changes" />
                 )}
               </button>
             ))}
 
             <div className="px-3 pt-5 pb-1">
-              <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Advanced</span>
+              <span className="text-xs font-semibold uppercase tracking-wider text-ink-subtle">Advanced</span>
             </div>
 
             {ADVANCED_NAV.map((item) => (
               <button
                 key={item.id}
                 onClick={() => setActiveSection(item.id)}
-                className={`w-full text-left px-3 py-3 rounded-md text-sm font-medium transition-colors flex items-center justify-between ${activeSection === item.id ? 'bg-white text-fidelity-green shadow-sm border border-gray-200' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}
+                className={`w-full text-left px-3 py-3 rounded-md text-sm font-medium transition-colors flex items-center justify-between ${activeSection === item.id ? 'bg-surface-raised text-fidelity-green shadow-sm border border-border' : 'text-ink-muted hover:bg-surface-subtle hover:text-ink'}`}
               >
                 <span className="flex items-center">
-                  <item.icon size={16} className={`mr-3 ${activeSection === item.id ? 'text-fidelity-green' : 'text-gray-400'}`} />
+                  <item.icon size={16} className={`mr-3 ${activeSection === item.id ? 'text-fidelity-green' : 'text-ink-subtle'}`} />
                   {item.label}
                 </span>
                 {dirtySections.has(item.id) && (
-                  <span className="w-2 h-2 bg-amber-500 rounded-full" title="Unsaved changes" />
+                  <span className="w-2 h-2 bg-warning-solid rounded-full" title="Unsaved changes" />
                 )}
               </button>
             ))}

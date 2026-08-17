@@ -10,15 +10,15 @@ export function CopyScenarioModal({ availableScenarios, onClose }: CopyScenarioM
   const { setFormData, setPromotionHazardConfig, setBandConfig, activeWorkspace } = useConfigContext();
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
-        <div className="p-6 border-b border-gray-200 flex-shrink-0">
-          <h2 className="text-xl font-bold text-gray-900">Copy Configuration from Scenario</h2>
-          <p className="text-sm text-gray-500 mt-1">Select a scenario to copy its settings into this one</p>
+    <div className="fixed inset-0 bg-overlay bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-surface-raised rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
+        <div className="p-6 border-b border-border flex-shrink-0">
+          <h2 className="text-xl font-bold text-ink">Copy Configuration from Scenario</h2>
+          <p className="text-sm text-ink-muted mt-1">Select a scenario to copy its settings into this one</p>
         </div>
         <div className="p-6 overflow-y-auto flex-1 space-y-3">
           {availableScenarios.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">No other scenarios available to copy from</p>
+            <p className="text-ink-muted text-center py-8">No other scenarios available to copy from</p>
           ) : (
             availableScenarios.map(scenario => (
               <button
@@ -72,14 +72,14 @@ export function CopyScenarioModal({ availableScenarios, onClose }: CopyScenarioM
                     console.error('Failed to copy scenario config:', error);
                   }
                 }}
-                className="w-full text-left p-4 border border-gray-200 rounded-lg hover:border-fidelity-green hover:bg-green-50 transition-colors"
+                className="w-full text-left p-4 border border-border rounded-lg hover:border-fidelity-green hover:bg-success-surface transition-colors"
               >
                 <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="font-semibold text-gray-900">{scenario.name}</h3>
-                    <p className="text-sm text-gray-500 mt-1">{scenario.description || 'No description'}</p>
+                    <h3 className="font-semibold text-ink">{scenario.name}</h3>
+                    <p className="text-sm text-ink-muted mt-1">{scenario.description || 'No description'}</p>
                   </div>
-                  <span className={`px-2 py-1 text-xs font-medium rounded ${scenario.status === 'completed' ? 'bg-green-100 text-green-700' : scenario.status === 'running' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
+                  <span className={`px-2 py-1 text-xs font-medium rounded ${scenario.status === 'completed' ? 'bg-success-surface text-success-ink' : scenario.status === 'running' ? 'bg-info-surface text-info-ink' : 'bg-surface-subtle text-ink-muted'}`}>
                     {scenario.status || 'draft'}
                   </span>
                 </div>
@@ -87,10 +87,10 @@ export function CopyScenarioModal({ availableScenarios, onClose }: CopyScenarioM
             ))
           )}
         </div>
-        <div className="p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0 rounded-b-xl">
+        <div className="p-4 border-t border-border bg-surface-subtle flex-shrink-0 rounded-b-xl">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+            className="px-4 py-2 text-ink-muted hover:bg-surface-disabled rounded-lg transition-colors"
           >
             Cancel
           </button>

@@ -52,15 +52,15 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
     if (hasError) {
       return (
-        <div className="p-8 bg-red-50 min-h-screen">
-          <h1 className="text-2xl font-bold text-red-700 mb-4">Something went wrong</h1>
-          <pre className="bg-red-100 p-4 rounded text-sm overflow-auto">
+        <div className="p-8 bg-danger-surface min-h-screen">
+          <h1 className="text-2xl font-bold text-danger-ink mb-4">Something went wrong</h1>
+          <pre className="bg-danger-surface p-4 rounded text-sm overflow-auto">
             {error?.message}
             {'\n\n'}
             {error?.stack}
           </pre>
           <button
-            className="mt-4 px-4 py-2 bg-red-600 text-white rounded"
+            className="mt-4 px-4 py-2 bg-danger-solid text-ink-inverse rounded"
             onClick={() => window.location.reload()}
           >
             Reload Page
@@ -73,7 +73,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 }
 
 const Placeholder = ({ title }: { title: string }) => (
-  <div className="flex flex-col items-center justify-center h-full text-gray-400">
+  <div className="flex flex-col items-center justify-center h-full text-ink-subtle">
     <h2 className="text-xl font-semibold mb-2">{title}</h2>
     <p>This module is currently under development.</p>
   </div>

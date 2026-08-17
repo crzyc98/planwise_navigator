@@ -176,49 +176,49 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
 
   return (
     <div className="space-y-8 animate-fadeIn">
-      <div className="border-b border-gray-100 pb-4">
-        <h2 className="text-lg font-bold text-gray-900">New Hire Compensation</h2>
-        <p className="text-sm text-gray-500">Define how offers are constructed for external candidates.</p>
+      <div className="border-b border-border pb-4">
+        <h2 className="text-lg font-bold text-ink">New Hire Compensation</h2>
+        <p className="text-sm text-ink-muted">Define how offers are constructed for external candidates.</p>
       </div>
 
       <div className="space-y-4">
         {!essentials && (<>
         {/* Strategy Selector */}
         <div className="flex items-center space-x-4 mb-6">
-          <label htmlFor="newhire-strategy-percentile" className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors w-1/2 ${formData.newHireStrategy === 'percentile' ? 'bg-green-50 border-fidelity-green ring-1 ring-fidelity-green' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
-            <input id="newhire-strategy-percentile" type="radio" name="newHireStrategy" value="percentile" checked={formData.newHireStrategy === 'percentile'} onChange={handleChange} className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300" />
+          <label htmlFor="newhire-strategy-percentile" className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors w-1/2 ${formData.newHireStrategy === 'percentile' ? 'bg-success-surface border-fidelity-green ring-1 ring-fidelity-green' : 'bg-surface-raised border-border hover:bg-surface-subtle'}`}>
+            <input id="newhire-strategy-percentile" type="radio" name="newHireStrategy" value="percentile" checked={formData.newHireStrategy === 'percentile'} onChange={handleChange} className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-border-strong" />
             <div className="ml-3">
-              <span className="block text-sm font-medium text-gray-900">Percentile Based</span>
-              <span className="block text-xs text-gray-500">Offers target market percentiles (e.g., P50)</span>
+              <span className="block text-sm font-medium text-ink">Percentile Based</span>
+              <span className="block text-xs text-ink-muted">Offers target market percentiles (e.g., P50)</span>
             </div>
           </label>
-          <label htmlFor="newhire-strategy-fixed" className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors w-1/2 ${formData.newHireStrategy === 'fixed' ? 'bg-green-50 border-fidelity-green ring-1 ring-fidelity-green' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
-            <input id="newhire-strategy-fixed" type="radio" name="newHireStrategy" value="fixed" checked={formData.newHireStrategy === 'fixed'} onChange={handleChange} className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300" />
+          <label htmlFor="newhire-strategy-fixed" className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors w-1/2 ${formData.newHireStrategy === 'fixed' ? 'bg-success-surface border-fidelity-green ring-1 ring-fidelity-green' : 'bg-surface-raised border-border hover:bg-surface-subtle'}`}>
+            <input id="newhire-strategy-fixed" type="radio" name="newHireStrategy" value="fixed" checked={formData.newHireStrategy === 'fixed'} onChange={handleChange} className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-border-strong" />
             <div className="ml-3">
-              <span className="block text-sm font-medium text-gray-900">Fixed Bands</span>
-              <span className="block text-xs text-gray-500">Offers use rigid salary structures</span>
+              <span className="block text-sm font-medium text-ink">Fixed Bands</span>
+              <span className="block text-xs text-ink-muted">Offers use rigid salary structures</span>
             </div>
           </label>
         </div>
 
         {/* Percentile Options */}
         {formData.newHireStrategy === 'percentile' && (
-          <div className="bg-blue-50 p-6 rounded-lg border border-blue-100 space-y-4">
+          <div className="bg-info-surface p-6 rounded-lg border border-info-border space-y-4">
             <div>
-              <label htmlFor="newhire-target-percentile" className="block text-sm font-medium text-blue-900 mb-2">Target Market Percentile</label>
+              <label htmlFor="newhire-target-percentile" className="block text-sm font-medium text-info-ink mb-2">Target Market Percentile</label>
               <div className="flex items-center">
-                <input id="newhire-target-percentile" type="range" min="0" max="100" value={formData.targetPercentile} onChange={(e) => setFormData({...formData, targetPercentile: parseInt(e.target.value)})} className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer" />
-                <span className="ml-4 font-bold text-blue-700 w-12">P{formData.targetPercentile}</span>
+                <input id="newhire-target-percentile" type="range" min="0" max="100" value={formData.targetPercentile} onChange={(e) => setFormData({...formData, targetPercentile: parseInt(e.target.value)})} className="w-full h-2 bg-info-surface rounded-lg appearance-none cursor-pointer" />
+                <span className="ml-4 font-bold text-info-ink w-12">P{formData.targetPercentile}</span>
               </div>
-              <p className="text-xs text-blue-600 mt-2">New hires will be offered salaries at the {formData.targetPercentile}th percentile.</p>
+              <p className="text-xs text-info-ink mt-2">New hires will be offered salaries at the {formData.targetPercentile}th percentile.</p>
             </div>
             <div className="grid grid-cols-2 gap-4 pt-2">
               <div>
-                <label htmlFor="newhire-offer-variance" className="block text-sm font-medium text-blue-900 mb-1">Offer Variance</label>
+                <label htmlFor="newhire-offer-variance" className="block text-sm font-medium text-info-ink mb-1">Offer Variance</label>
                 <div className="relative rounded-md shadow-sm">
-                  <input id="newhire-offer-variance" type="number" step="0.5" value={formData.newHireCompVariance} onChange={(e) => setFormData({...formData, newHireCompVariance: parseFloat(e.target.value)})} className="focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-blue-300 rounded-md p-2" />
+                  <input id="newhire-offer-variance" type="number" step="0.5" value={formData.newHireCompVariance} onChange={(e) => setFormData({...formData, newHireCompVariance: parseFloat(e.target.value)})} className="focus:ring-focus focus:border-info-border block w-full sm:text-sm border-info-border rounded-md p-2" />
                   <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                    <span className="text-blue-500 sm:text-sm">± %</span>
+                    <span className="text-info-ink sm:text-sm">± %</span>
                   </div>
                 </div>
               </div>
@@ -228,14 +228,14 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
         </>)}
 
         {/* E082: Age Distribution Section */}
-        <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 mt-6">
+        <div className="bg-surface-subtle p-6 rounded-lg border border-border mt-6">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-semibold text-gray-900">New Hire Age Profile</h3>
+            <h3 className="text-sm font-semibold text-ink">New Hire Age Profile</h3>
             <button
               type="button"
               onClick={handleMatchCensus}
               disabled={matchCensusLoading || !formData.censusDataPath || formData.censusDataStatus !== 'loaded'}
-              className={`inline-flex items-center px-3 py-1.5 border rounded-md text-xs font-medium transition-colors ${matchCensusSuccess ? 'bg-green-100 border-green-300 text-green-800' : (formData.censusDataPath && formData.censusDataStatus === 'loaded') ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100' : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'}`}
+              className={`inline-flex items-center px-3 py-1.5 border rounded-md text-xs font-medium transition-colors ${matchCensusSuccess ? 'bg-success-surface border-success-border text-success-ink' : (formData.censusDataPath && formData.censusDataStatus === 'loaded') ? 'bg-info-surface border-info-border text-info-ink hover:bg-info-surface' : 'bg-surface-subtle border-border text-ink-subtle cursor-not-allowed'}`}
               title={formData.censusDataStatus !== 'loaded' ? 'Load a census file first' : 'Analyze census to match current workforce age distribution'}
             >
               {matchCensusLoading ? (
@@ -253,46 +253,46 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
               )}
             </button>
           </div>
-          <p className="text-xs text-gray-500 mb-4">
+          <p className="text-xs text-ink-muted mb-4">
             Define the age distribution for new hires. Weights should sum to 100%.
             {formData.censusDataStatus === 'loaded' && (
-              <span className="text-blue-600 ml-1">Click "Match Census" to auto-fill based on your workforce.</span>
+              <span className="text-info-ink ml-1">Click "Match Census" to auto-fill based on your workforce.</span>
             )}
           </p>
           {matchCensusError && (
-            <div className="mb-4 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">{matchCensusError}</div>
+            <div className="mb-4 p-2 bg-danger-surface border border-danger-border rounded text-xs text-danger-ink">{matchCensusError}</div>
           )}
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-100">
+            <table className="min-w-full divide-y divide-border">
+              <thead className="bg-surface-subtle">
                 <tr>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Age</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Weight (%)</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-ink-muted uppercase">Age</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-ink-muted uppercase">Weight (%)</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-ink-muted uppercase">Description</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-surface-raised divide-y divide-border">
                 {formData.newHireAgeDistribution.map((row, idx) => (
                   <tr key={row.age}>
-                    <td className="px-4 py-2 text-sm text-gray-900 font-medium">{row.age}</td>
+                    <td className="px-4 py-2 text-sm text-ink font-medium">{row.age}</td>
                     <td className="px-4 py-2">
-                      <input type="number" step="1" min="0" max="100" value={Math.round(row.weight * 100)} onChange={(e) => handleAgeWeightChange(idx, e.target.value)} className="w-20 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-right" />
+                      <input type="number" step="1" min="0" max="100" value={Math.round(row.weight * 100)} onChange={(e) => handleAgeWeightChange(idx, e.target.value)} className="w-20 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-right" />
                     </td>
-                    <td className="px-4 py-2 text-sm text-gray-500">{row.description}</td>
+                    <td className="px-4 py-2 text-sm text-ink-muted">{row.description}</td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot className="bg-gray-50">
+              <tfoot className="bg-surface-subtle">
                 <tr>
-                  <td className="px-4 py-2 text-sm font-semibold text-gray-900">Total</td>
+                  <td className="px-4 py-2 text-sm font-semibold text-ink">Total</td>
                   <td className="px-4 py-2 text-sm font-semibold">
-                    <span className={`${Math.abs(formData.newHireAgeDistribution.reduce((sum, r) => sum + r.weight, 0) - 1) > 0.01 ? 'text-red-600' : 'text-green-600'}`}>
+                    <span className={`${Math.abs(formData.newHireAgeDistribution.reduce((sum, r) => sum + r.weight, 0) - 1) > 0.01 ? 'text-danger-ink' : 'text-success-ink'}`}>
                       {Math.round(formData.newHireAgeDistribution.reduce((sum, r) => sum + r.weight, 0) * 100)}%
                     </span>
                   </td>
-                  <td className="px-4 py-2 text-xs text-gray-500">
+                  <td className="px-4 py-2 text-xs text-ink-muted">
                     {Math.abs(formData.newHireAgeDistribution.reduce((sum, r) => sum + r.weight, 0) - 1) > 0.01 && (
-                      <span className="text-red-600">Weights should sum to 100%</span>
+                      <span className="text-danger-ink">Weights should sum to 100%</span>
                     )}
                   </td>
                 </tr>
@@ -303,14 +303,14 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
 
         {!essentials && (<>
         {/* 093: Part-Time New Hires Section */}
-        <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 mt-6">
+        <div className="bg-surface-subtle p-6 rounded-lg border border-border mt-6">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-semibold text-gray-900">Part-Time New Hires</h3>
+            <h3 className="text-sm font-semibold text-ink">Part-Time New Hires</h3>
             <button
               type="button"
               onClick={handleMatchPartTime}
               disabled={matchPartTimeLoading || !formData.censusDataPath || formData.censusDataStatus !== 'loaded'}
-              className={`inline-flex items-center px-3 py-1.5 border rounded-md text-xs font-medium transition-colors ${matchPartTimeSuccess ? 'bg-green-100 border-green-300 text-green-800' : (formData.censusDataPath && formData.censusDataStatus === 'loaded') ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100' : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'}`}
+              className={`inline-flex items-center px-3 py-1.5 border rounded-md text-xs font-medium transition-colors ${matchPartTimeSuccess ? 'bg-success-surface border-success-border text-success-ink' : (formData.censusDataPath && formData.censusDataStatus === 'loaded') ? 'bg-info-surface border-info-border text-info-ink hover:bg-info-surface' : 'bg-surface-subtle border-border text-ink-subtle cursor-not-allowed'}`}
               title={formData.censusDataStatus !== 'loaded' ? 'Load a census file first' : 'Analyze census to match current part-time workforce percentage'}
             >
               {matchPartTimeLoading ? (
@@ -328,18 +328,18 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
               )}
             </button>
           </div>
-          <p className="text-xs text-gray-500 mb-4">
+          <p className="text-xs text-ink-muted mb-4">
             Fraction of new hires assigned a 20 hrs/week part-time schedule. Part-time employees accrue
             fewer annual hours, which affects 1,000-hour eligibility requirements.
             {formData.censusDataStatus === 'loaded' && (
-              <span className="text-blue-600 ml-1">Click "Match Census" to derive from your workforce's scheduled hours.</span>
+              <span className="text-info-ink ml-1">Click "Match Census" to derive from your workforce's scheduled hours.</span>
             )}
           </p>
           {matchPartTimeError && (
-            <div className="mb-4 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">{matchPartTimeError}</div>
+            <div className="mb-4 p-2 bg-danger-surface border border-danger-border rounded text-xs text-danger-ink">{matchPartTimeError}</div>
           )}
           <div className="flex items-center space-x-3">
-            <label htmlFor="part-time-new-hire-pct" className="text-sm font-medium text-gray-700">
+            <label htmlFor="part-time-new-hire-pct" className="text-sm font-medium text-ink-muted">
               Part-Time New Hire %
             </label>
             <input
@@ -350,63 +350,63 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
               max="100"
               value={formData.partTimeNewHirePct}
               onChange={(e) => setFormData(prev => ({ ...prev, partTimeNewHirePct: parseFloat(e.target.value) || 0 }))}
-              className="w-24 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1.5 border text-right"
+              className="w-24 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1.5 border text-right"
             />
-            <span className="text-sm text-gray-500">%</span>
+            <span className="text-sm text-ink-muted">%</span>
           </div>
         </div>
 
         {/* E082: Level Distribution Section */}
-        <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 mt-6">
-          <h3 className="text-sm font-semibold text-gray-900 mb-2">New Hire Level Distribution</h3>
-          <p className="text-xs text-gray-500 mb-4">Choose how new hires are distributed across job levels.</p>
+        <div className="bg-surface-subtle p-6 rounded-lg border border-border mt-6">
+          <h3 className="text-sm font-semibold text-ink mb-2">New Hire Level Distribution</h3>
+          <p className="text-xs text-ink-muted mb-4">Choose how new hires are distributed across job levels.</p>
           <div className="flex items-center space-x-4 mb-4">
-            <label htmlFor="newhire-level-dist-adaptive" className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${formData.levelDistributionMode === 'adaptive' ? 'bg-green-50 border-fidelity-green ring-1 ring-fidelity-green' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
-              <input id="newhire-level-dist-adaptive" type="radio" name="levelDistributionMode" value="adaptive" checked={formData.levelDistributionMode === 'adaptive'} onChange={(e) => setFormData({...formData, levelDistributionMode: e.target.value})} className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300" />
+            <label htmlFor="newhire-level-dist-adaptive" className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${formData.levelDistributionMode === 'adaptive' ? 'bg-success-surface border-fidelity-green ring-1 ring-fidelity-green' : 'bg-surface-raised border-border hover:bg-surface-subtle'}`}>
+              <input id="newhire-level-dist-adaptive" type="radio" name="levelDistributionMode" value="adaptive" checked={formData.levelDistributionMode === 'adaptive'} onChange={(e) => setFormData({...formData, levelDistributionMode: e.target.value})} className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-border-strong" />
               <div className="ml-2">
-                <span className="block text-sm font-medium text-gray-900">Adaptive</span>
-                <span className="block text-xs text-gray-500">Maintain current workforce composition</span>
+                <span className="block text-sm font-medium text-ink">Adaptive</span>
+                <span className="block text-xs text-ink-muted">Maintain current workforce composition</span>
               </div>
             </label>
-            <label htmlFor="newhire-level-dist-fixed" className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${formData.levelDistributionMode === 'fixed' ? 'bg-green-50 border-fidelity-green ring-1 ring-fidelity-green' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
-              <input id="newhire-level-dist-fixed" type="radio" name="levelDistributionMode" value="fixed" checked={formData.levelDistributionMode === 'fixed'} onChange={(e) => setFormData({...formData, levelDistributionMode: e.target.value})} className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-gray-300" />
+            <label htmlFor="newhire-level-dist-fixed" className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${formData.levelDistributionMode === 'fixed' ? 'bg-success-surface border-fidelity-green ring-1 ring-fidelity-green' : 'bg-surface-raised border-border hover:bg-surface-subtle'}`}>
+              <input id="newhire-level-dist-fixed" type="radio" name="levelDistributionMode" value="fixed" checked={formData.levelDistributionMode === 'fixed'} onChange={(e) => setFormData({...formData, levelDistributionMode: e.target.value})} className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-border-strong" />
               <div className="ml-2">
-                <span className="block text-sm font-medium text-gray-900">Fixed Percentages</span>
-                <span className="block text-xs text-gray-500">Specify exact distribution below</span>
+                <span className="block text-sm font-medium text-ink">Fixed Percentages</span>
+                <span className="block text-xs text-ink-muted">Specify exact distribution below</span>
               </div>
             </label>
           </div>
 
           {formData.levelDistributionMode === 'fixed' && (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-100">
+              <table className="min-w-full divide-y divide-border">
+                <thead className="bg-surface-subtle">
                   <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Level</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Percentage (%)</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-ink-muted uppercase">Level</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-ink-muted uppercase">Name</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-ink-muted uppercase">Percentage (%)</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-surface-raised divide-y divide-border">
                   {formData.newHireLevelDistribution.map((row, idx) => (
                     <tr key={row.level}>
-                      <td className="px-4 py-2 text-sm text-gray-900 font-medium">{row.level}</td>
-                      <td className="px-4 py-2 text-sm text-gray-700">{row.name}</td>
+                      <td className="px-4 py-2 text-sm text-ink font-medium">{row.level}</td>
+                      <td className="px-4 py-2 text-sm text-ink-muted">{row.name}</td>
                       <td className="px-4 py-2">
-                        <input type="number" step="1" min="0" max="100" value={row.percentage} onChange={(e) => handleLevelPercentageChange(idx, e.target.value)} className="w-20 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-gray-300 rounded-md p-1 border text-right" />
+                        <input type="number" step="1" min="0" max="100" value={row.percentage} onChange={(e) => handleLevelPercentageChange(idx, e.target.value)} className="w-20 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-right" />
                       </td>
                     </tr>
                   ))}
                 </tbody>
-                <tfoot className="bg-gray-50">
+                <tfoot className="bg-surface-subtle">
                   <tr>
-                    <td className="px-4 py-2 text-sm font-semibold text-gray-900" colSpan={2}>Total</td>
+                    <td className="px-4 py-2 text-sm font-semibold text-ink" colSpan={2}>Total</td>
                     <td className="px-4 py-2 text-sm font-semibold">
-                      <span className={`${Math.abs(formData.newHireLevelDistribution.reduce((sum, r) => sum + r.percentage, 0) - 100) > 1 ? 'text-red-600' : 'text-green-600'}`}>
+                      <span className={`${Math.abs(formData.newHireLevelDistribution.reduce((sum, r) => sum + r.percentage, 0) - 100) > 1 ? 'text-danger-ink' : 'text-success-ink'}`}>
                         {formData.newHireLevelDistribution.reduce((sum, r) => sum + r.percentage, 0)}%
                       </span>
                       {Math.abs(formData.newHireLevelDistribution.reduce((sum, r) => sum + r.percentage, 0) - 100) > 1 && (
-                        <span className="text-red-600 text-xs ml-2">Should sum to 100%</span>
+                        <span className="text-danger-ink text-xs ml-2">Should sum to 100%</span>
                       )}
                     </td>
                   </tr>
@@ -416,8 +416,8 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
           )}
 
           {formData.levelDistributionMode === 'adaptive' && (
-            <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-              <p className="text-sm text-blue-800">
+            <div className="bg-info-surface p-4 rounded-lg border border-info-border">
+              <p className="text-sm text-info-ink">
                 <strong>Adaptive mode:</strong> New hires will be distributed across levels proportionally to match your current workforce composition. This maintains your existing organizational structure.
               </p>
             </div>
@@ -426,13 +426,13 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
         </>)}
 
         {/* E082: Job Level Compensation Ranges */}
-        <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 mt-6">
+        <div className="bg-surface-subtle p-6 rounded-lg border border-border mt-6">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-semibold text-gray-900">Job Level Compensation Ranges</h3>
+            <h3 className="text-sm font-semibold text-ink">Job Level Compensation Ranges</h3>
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1">
-                <label htmlFor="newhire-comp-source" className="text-xs text-gray-500">Source:</label>
-                <select id="newhire-comp-source" value={compLookbackYears} onChange={(e) => setCompLookbackYears(parseInt(e.target.value))} className="text-xs border border-gray-300 rounded px-1.5 py-1 bg-white focus:ring-blue-500 focus:border-blue-500">
+                <label htmlFor="newhire-comp-source" className="text-xs text-ink-muted">Source:</label>
+                <select id="newhire-comp-source" value={compLookbackYears} onChange={(e) => setCompLookbackYears(parseInt(e.target.value))} className="text-xs border border-border-strong rounded px-1.5 py-1 bg-surface-raised focus:ring-focus focus:border-info-border">
                   <option value={0}>All employees</option>
                   <option value={1}>Last 1 year</option>
                   <option value={2}>Last 2 years</option>
@@ -442,7 +442,7 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
                 </select>
               </div>
               <div className="flex items-center gap-1">
-                <label htmlFor="newhire-comp-scale" className="text-xs text-gray-500">Scale:</label>
+                <label htmlFor="newhire-comp-scale" className="text-xs text-ink-muted">Scale:</label>
                 <input
                   id="newhire-comp-scale"
                   type="number"
@@ -456,16 +456,16 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
                   }}
                   onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                   min={0.5} max={3.0} step={0.1}
-                  className="text-xs border border-gray-300 rounded px-1.5 py-1 w-16 bg-white focus:ring-blue-500 focus:border-blue-500"
+                  className="text-xs border border-border-strong rounded px-1.5 py-1 w-16 bg-surface-raised focus:ring-focus focus:border-info-border"
                   title="Scale up ranges to match tenured employee compensation levels (0.5x - 3.0x)"
                 />
-                <span className="text-xs text-gray-400">x</span>
+                <span className="text-xs text-ink-subtle">x</span>
               </div>
               <button
                 type="button"
                 onClick={handleMatchCompensation}
                 disabled={matchCompLoading || !formData.censusDataPath || formData.censusDataStatus !== 'loaded'}
-                className={`inline-flex items-center px-3 py-1.5 border rounded-md text-xs font-medium transition-colors ${matchCompSuccess ? 'bg-green-100 border-green-300 text-green-800' : (formData.censusDataPath && formData.censusDataStatus === 'loaded') ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100' : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'}`}
+                className={`inline-flex items-center px-3 py-1.5 border rounded-md text-xs font-medium transition-colors ${matchCompSuccess ? 'bg-success-surface border-success-border text-success-ink' : (formData.censusDataPath && formData.censusDataStatus === 'loaded') ? 'bg-info-surface border-info-border text-info-ink hover:bg-info-surface' : 'bg-surface-subtle border-border text-ink-subtle cursor-not-allowed'}`}
                 title={formData.censusDataStatus !== 'loaded' ? 'Load a census file first' : 'Analyze census to suggest compensation ranges'}
               >
                 {matchCompLoading ? (
@@ -484,39 +484,39 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
               </button>
             </div>
           </div>
-          <p className="text-xs text-gray-500 mb-4">
+          <p className="text-xs text-ink-muted mb-4">
             Define min/max compensation for each job level. Used for new hire offers.
             {formData.censusDataStatus === 'loaded' && (
-              <span className="text-blue-600 ml-1">Select lookback period and click "Match Census" to derive ranges from recent hire data.</span>
+              <span className="text-info-ink ml-1">Select lookback period and click "Match Census" to derive ranges from recent hire data.</span>
             )}
           </p>
           {matchCompError && (
-            <div className="mb-4 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">{matchCompError}</div>
+            <div className="mb-4 p-2 bg-danger-surface border border-danger-border rounded text-xs text-danger-ink">{matchCompError}</div>
           )}
           {compensationAnalysis && (
-            <div className={`mb-4 p-2 rounded text-xs ${compensationAnalysis.recent_hires_only ? 'bg-blue-50 border border-blue-200 text-blue-700' : 'bg-yellow-50 border border-yellow-200 text-yellow-700'}`}>
+            <div className={`mb-4 p-2 rounded text-xs ${compensationAnalysis.recent_hires_only ? 'bg-info-surface border border-info-border text-info-ink' : 'bg-warning-surface border border-warning-border text-warning-ink'}`}>
               <strong>Analysis:</strong> {compensationAnalysis.analysis_type} ({compensationAnalysis.total_employees} employees)
               {compensationAnalysis.message && <div className="mt-1">{compensationAnalysis.message}</div>}
             </div>
           )}
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-100">
+            <table className="min-w-full divide-y divide-border">
+              <thead className="bg-surface-subtle">
                 <tr>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Level</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Min Compensation ($)</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Max Compensation ($)</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-ink-muted uppercase">Level</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-ink-muted uppercase">Name</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-ink-muted uppercase">Min Compensation ($)</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-ink-muted uppercase">Max Compensation ($)</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-surface-raised divide-y divide-border">
                 {formData.jobLevelCompensation.map((row, idx) => {
                   const hasRangeError = row.minComp > row.maxComp && row.minComp > 0 && row.maxComp > 0;
                   return (
                     <React.Fragment key={row.level}>
                       <tr>
-                        <td className="px-4 py-2 text-sm text-gray-900 font-medium">{row.level}</td>
-                        <td className="px-4 py-2 text-sm text-gray-700">{row.name}</td>
+                        <td className="px-4 py-2 text-sm text-ink font-medium">{row.level}</td>
+                        <td className="px-4 py-2 text-sm text-ink-muted">{row.name}</td>
                         <td className="px-4 py-2">
                           <CompensationInput value={row.minComp} onCommit={(v) => handleJobLevelCompChange(idx, 'minComp', String(v))} hasError={hasRangeError} />
                         </td>
@@ -527,7 +527,7 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
                       {hasRangeError && (
                         <tr>
                           <td colSpan={4} className="px-4 pb-1 pt-0">
-                            <span className="text-xs text-red-600">Min exceeds max</span>
+                            <span className="text-xs text-danger-ink">Min exceeds max</span>
                           </td>
                         </tr>
                       )}
@@ -541,37 +541,37 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
 
         {!essentials && (<>
         {/* E082: Market Positioning Section */}
-        <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 mt-6">
-          <h3 className="text-sm font-semibold text-gray-900 mb-2">Market Positioning</h3>
-          <p className="text-xs text-gray-500 mb-4">Choose your overall compensation strategy relative to market rates.</p>
+        <div className="bg-surface-subtle p-6 rounded-lg border border-border mt-6">
+          <h3 className="text-sm font-semibold text-ink mb-2">Market Positioning</h3>
+          <p className="text-xs text-ink-muted mb-4">Choose your overall compensation strategy relative to market rates.</p>
           <div className="flex gap-2 mb-4">
             {(['conservative', 'baseline', 'competitive', 'aggressive'] as const).map(scenario => (
               <button
                 key={scenario}
                 type="button"
                 onClick={() => setFormData(prev => ({...prev, marketScenario: scenario}))}
-                className={`px-3 py-2 rounded ${formData.marketScenario === scenario ? 'bg-green-500 text-white' : 'bg-gray-200'}`}
+                className={`px-3 py-2 rounded ${formData.marketScenario === scenario ? 'bg-success-solid text-ink-inverse' : 'bg-surface-disabled'}`}
               >
                 {marketMultipliers[scenario].label} ({marketMultipliers[scenario].adjustment >= 0 ? '+' : ''}{marketMultipliers[scenario].adjustment}%)
               </button>
             ))}
           </div>
-          <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 mb-4">
-            <p className="text-xs text-blue-800">
+          <div className="bg-info-surface p-3 rounded-lg border border-info-border mb-4">
+            <p className="text-xs text-info-ink">
               <strong>{marketMultipliers[formData.marketScenario]?.label || 'Baseline'}:</strong>{' '}
               {marketMultipliers[formData.marketScenario]?.description || 'At market (competitive positioning)'}
             </p>
           </div>
           <div className="mt-4">
-            <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-3">Level-Specific Adjustments</h4>
-            <p className="text-xs text-gray-500 mb-3">Fine-tune market positioning by job level (in addition to overall scenario).</p>
+            <h4 className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-3">Level-Specific Adjustments</h4>
+            <p className="text-xs text-ink-muted mb-3">Fine-tune market positioning by job level (in addition to overall scenario).</p>
             <div className="grid grid-cols-5 gap-2">
               {(formData.levelMarketAdjustments || []).map((row, idx) => (
-                <div key={row.level} className="bg-white p-2 rounded border border-gray-200">
-                  <label htmlFor={`newhire-level-adj-${row.level}`} className="block text-xs text-gray-500 mb-1 text-center">Level {row.level}</label>
+                <div key={row.level} className="bg-surface-raised p-2 rounded border border-border">
+                  <label htmlFor={`newhire-level-adj-${row.level}`} className="block text-xs text-ink-muted mb-1 text-center">Level {row.level}</label>
                   <div className="relative">
-                    <input id={`newhire-level-adj-${row.level}`} type="number" step="1" value={row.adjustment} onChange={(e) => handleLevelAdjustmentChange(idx, e.target.value)} className="w-full shadow-sm focus:ring-fidelity-green focus:border-fidelity-green text-xs border-gray-300 rounded-md p-1 border text-center" />
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">%</span>
+                    <input id={`newhire-level-adj-${row.level}`} type="number" step="1" value={row.adjustment} onChange={(e) => handleLevelAdjustmentChange(idx, e.target.value)} className="w-full shadow-sm focus:ring-fidelity-green focus:border-fidelity-green text-xs border-border-strong rounded-md p-1 border text-center" />
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-subtle text-xs">%</span>
                   </div>
                 </div>
               ))}

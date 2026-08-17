@@ -25,12 +25,12 @@ const TRANSFORM_TYPES: { value: TransformType; label: string }[] = [
 
 function ConfidenceBadge({ confidence }: { confidence: 'high' | 'medium' | 'low' | null }) {
   if (!confidence || confidence === 'low') {
-    return <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">Low</span>;
+    return <span className="text-xs px-1.5 py-0.5 rounded bg-surface-subtle text-ink-muted">Low</span>;
   }
   if (confidence === 'medium') {
-    return <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">Medium</span>;
+    return <span className="text-xs px-1.5 py-0.5 rounded bg-warning-surface text-warning-ink">Medium</span>;
   }
-  return <span className="text-xs px-1.5 py-0.5 rounded bg-green-100 text-green-700">High</span>;
+  return <span className="text-xs px-1.5 py-0.5 rounded bg-success-surface text-success-ink">High</span>;
 }
 
 function FormatPanel({ detection }: { detection: FormatDetectionResult }) {
@@ -40,8 +40,8 @@ function FormatPanel({ detection }: { detection: FormatDetectionResult }) {
 
   if (detection.detected_format === 'boolean_alias') {
     return (
-      <div className="mt-1 text-xs text-gray-500 bg-gray-50 rounded px-2 py-1.5 flex items-center gap-1.5">
-        <Info size={12} className="shrink-0 text-blue-400" />
+      <div className="mt-1 text-xs text-ink-muted bg-surface-subtle rounded px-2 py-1.5 flex items-center gap-1.5">
+        <Info size={12} className="shrink-0 text-info-ink" />
         <span>Boolean detected: {detection.parsed_sample_values[0]}</span>
       </div>
     );
@@ -49,8 +49,8 @@ function FormatPanel({ detection }: { detection: FormatDetectionResult }) {
 
   if (detection.detected_format === 'currency_string') {
     return (
-      <div className="mt-1 text-xs text-gray-500 bg-gray-50 rounded px-2 py-1.5 flex items-center gap-1.5">
-        <Info size={12} className="shrink-0 text-blue-400" />
+      <div className="mt-1 text-xs text-ink-muted bg-surface-subtle rounded px-2 py-1.5 flex items-center gap-1.5">
+        <Info size={12} className="shrink-0 text-info-ink" />
         <span>
           Currency symbols and commas will be stripped automatically.
           Samples: {detection.parsed_sample_values.join(', ')}
@@ -61,8 +61,8 @@ function FormatPanel({ detection }: { detection: FormatDetectionResult }) {
 
   if (detection.is_ambiguous && detection.format_options) {
     return (
-      <div className="mt-1 text-xs bg-amber-50 border border-amber-200 rounded px-2 py-1.5 space-y-1">
-        <div className="flex items-center gap-1 text-amber-700 font-medium">
+      <div className="mt-1 text-xs bg-warning-surface border border-warning-border rounded px-2 py-1.5 space-y-1">
+        <div className="flex items-center gap-1 text-warning-ink font-medium">
           <AlertCircle size={12} />
           <span>Ambiguous date format — please confirm:</span>
         </div>
@@ -87,8 +87,8 @@ function FormatPanel({ detection }: { detection: FormatDetectionResult }) {
 
   if (detection.detected_format) {
     return (
-      <div className="mt-1 text-xs text-gray-500 bg-gray-50 rounded px-2 py-1.5 flex items-center gap-1.5">
-        <Info size={12} className="shrink-0 text-blue-400" />
+      <div className="mt-1 text-xs text-ink-muted bg-surface-subtle rounded px-2 py-1.5 flex items-center gap-1.5">
+        <Info size={12} className="shrink-0 text-info-ink" />
         <span>
           Detected format: <span className="font-mono">{detection.detected_format}</span>
           {detection.parsed_sample_values.length > 0 && (
@@ -110,7 +110,7 @@ function TransformParams({ type, params, onChange }: {
   if (type === 'string_case') {
     return (
       <select
-        className="text-xs border border-gray-200 rounded px-2 py-1"
+        className="text-xs border border-border rounded px-2 py-1"
         value={(params.case as string) || 'lower'}
         onChange={(e) => onChange({ case: e.target.value })}
       >
@@ -125,7 +125,7 @@ function TransformParams({ type, params, onChange }: {
       <input
         type="text"
         placeholder="%m/%d/%Y"
-        className="text-xs border border-gray-200 rounded px-2 py-1 w-32"
+        className="text-xs border border-border rounded px-2 py-1 w-32"
         value={(params.format as string) || ''}
         onChange={(e) => onChange({ format: e.target.value })}
       />
@@ -136,7 +136,7 @@ function TransformParams({ type, params, onChange }: {
       <input
         type="text"
         placeholder="replacement value"
-        className="text-xs border border-gray-200 rounded px-2 py-1 w-32"
+        className="text-xs border border-border rounded px-2 py-1 w-32"
         value={(params.value as string) ?? ''}
         onChange={(e) => onChange({ value: e.target.value })}
       />
@@ -147,7 +147,7 @@ function TransformParams({ type, params, onChange }: {
       <input
         type="text"
         placeholder="e.g. COL_A + ' ' + COL_B"
-        className="text-xs border border-gray-200 rounded px-2 py-1 w-48"
+        className="text-xs border border-border rounded px-2 py-1 w-48"
         value={(params.expression as string) || ''}
         onChange={(e) => onChange({ expression: e.target.value })}
       />
@@ -298,7 +298,7 @@ export default function FieldMappingStep({ workspaceId, session, onSaved }: Prop
 
   if (isLoadingSuggestions) {
     return (
-      <div className="flex items-center gap-2 text-sm text-gray-500 py-8 justify-center">
+      <div className="flex items-center gap-2 text-sm text-ink-muted py-8 justify-center">
         <Loader2 size={16} className="animate-spin" />
         Analyzing columns and generating suggestions…
       </div>
@@ -314,7 +314,7 @@ export default function FieldMappingStep({ workspaceId, session, onSaved }: Prop
   return (
     <div className="space-y-4">
       {requiredFieldErrors.length > 0 && (
-        <div className="flex items-start gap-2 text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg p-3">
+        <div className="flex items-start gap-2 text-danger-ink text-sm bg-danger-surface border border-danger-border rounded-lg p-3">
           <AlertCircle size={16} className="shrink-0 mt-0.5" />
           <div>
             <div className="font-medium mb-1">Required fields not mapped:</div>
@@ -328,7 +328,7 @@ export default function FieldMappingStep({ workspaceId, session, onSaved }: Prop
       )}
 
       {validationErrors.length > 0 && (
-        <div className="flex items-start gap-2 text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg p-3">
+        <div className="flex items-start gap-2 text-danger-ink text-sm bg-danger-surface border border-danger-border rounded-lg p-3">
           <AlertCircle size={16} className="shrink-0 mt-0.5" />
           <div>
             {validationErrors.map((e, i) => <div key={i}>{e.message}</div>)}
@@ -336,33 +336,33 @@ export default function FieldMappingStep({ workspaceId, session, onSaved }: Prop
         </div>
       )}
 
-      <div className="border border-gray-200 rounded-lg overflow-hidden">
+      <div className="border border-border rounded-lg overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200">
+          <thead className="bg-surface-subtle border-b border-border">
             <tr>
-              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Source Column</th>
-              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Confidence</th>
-              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                Census Field <span className="text-red-500">*</span> = required
+              <th className="px-3 py-2 text-left text-xs font-medium text-ink-muted uppercase">Source Column</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-ink-muted uppercase">Confidence</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-ink-muted uppercase">
+                Census Field <span className="text-danger-ink">*</span> = required
               </th>
-              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Exclude</th>
-              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Transforms</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-ink-muted uppercase">Exclude</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-ink-muted uppercase">Transforms</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-border">
             {mappings.map((m, idx) => {
               const suggestion = suggestionMap.get(m.input_column);
               const formatDetection = suggestion?.format_detection ?? null;
               const rowBg = m.is_excluded
                 ? 'opacity-40'
                 : suggestion?.confidence === 'medium'
-                ? 'bg-amber-50'
-                : 'hover:bg-gray-50';
+                ? 'bg-warning-surface'
+                : 'hover:bg-surface-subtle';
 
               return (
                 <React.Fragment key={m.input_column}>
                   <tr className={rowBg}>
-                    <td className="px-3 py-2 font-mono text-xs text-gray-600">{m.input_column}</td>
+                    <td className="px-3 py-2 font-mono text-xs text-ink-muted">{m.input_column}</td>
                     <td className="px-3 py-2">
                       <ConfidenceBadge confidence={suggestion?.confidence ?? null} />
                     </td>
@@ -372,7 +372,7 @@ export default function FieldMappingStep({ workspaceId, session, onSaved }: Prop
                           value={m.output_column}
                           onChange={(e) => updateMapping(idx, { output_column: e.target.value })}
                           disabled={m.is_excluded}
-                          className="text-xs border border-gray-200 rounded px-2 py-1 w-52"
+                          className="text-xs border border-border rounded px-2 py-1 w-52"
                         >
                           <option value="">— not mapped —</option>
                           {sortedSchema.map((f) => (
@@ -391,7 +391,7 @@ export default function FieldMappingStep({ workspaceId, session, onSaved }: Prop
                         type="checkbox"
                         checked={m.is_excluded || false}
                         onChange={(e) => updateMapping(idx, { is_excluded: e.target.checked })}
-                        className="rounded border-gray-300"
+                        className="rounded border-border-strong"
                       />
                     </td>
                     <td className="px-3 py-2">
@@ -407,14 +407,14 @@ export default function FieldMappingStep({ workspaceId, session, onSaved }: Prop
                   </tr>
                   {expandedRows.has(m.input_column) && !m.is_excluded && (
                     <tr>
-                      <td colSpan={5} className="px-6 py-3 bg-gray-50">
+                      <td colSpan={5} className="px-6 py-3 bg-surface-subtle">
                         <div className="space-y-2">
                           {m.transformations.map((t, tIdx) => (
                             <div key={tIdx} className="flex items-center gap-2">
                               <select
                                 value={t.transform_type}
                                 onChange={(e) => updateTransform(idx, tIdx, { transform_type: e.target.value as TransformType, params: {} })}
-                                className="text-xs border border-gray-200 rounded px-2 py-1"
+                                className="text-xs border border-border rounded px-2 py-1"
                               >
                                 {TRANSFORM_TYPES.map((tt) => (
                                   <option key={tt.value} value={tt.value}>{tt.label}</option>
@@ -427,7 +427,7 @@ export default function FieldMappingStep({ workspaceId, session, onSaved }: Prop
                               />
                               <button
                                 onClick={() => removeTransform(idx, tIdx)}
-                                className="text-red-400 hover:text-red-600 text-xs"
+                                className="text-danger-ink hover:text-danger-ink text-xs"
                               >
                                 ✕
                               </button>
@@ -456,7 +456,7 @@ export default function FieldMappingStep({ workspaceId, session, onSaved }: Prop
         <button
           onClick={handleSave}
           disabled={isSaving}
-          className="flex items-center gap-2 px-4 py-2 bg-fidelity-green text-white text-sm rounded-lg hover:bg-fidelity-dark disabled:opacity-50"
+          className="flex items-center gap-2 px-4 py-2 bg-fidelity-green text-ink-inverse text-sm rounded-lg hover:bg-fidelity-dark disabled:opacity-50"
         >
           {isSaving ? <Loader2 size={16} className="animate-spin" /> : null}
           Save Mapping & Continue

@@ -19,6 +19,7 @@ import {
   RunConsistencyDetail,
   Workspace as ApiWorkspace,
 } from '../services/api';
+import { useTheme } from '../hooks/useTheme';
 
 export interface LayoutContextType {
   activeWorkspace: Workspace;
@@ -48,7 +49,7 @@ const NavItem = ({ to, icon, label, end, collapsed }: Readonly<{ to: string; ico
     end={end}
     title={collapsed ? label : undefined}
     className={({ isActive }) =>
-      `flex items-center ${collapsed ? 'justify-center px-2' : 'px-4'} py-3 text-sm font-medium transition-colors rounded-lg mb-1 ${isActive ? 'bg-fidelity-green text-white shadow-md' : 'text-gray-600 hover:bg-gray-100 hover:text-fidelity-green'}`
+      `flex items-center ${collapsed ? 'justify-center px-2' : 'px-4'} py-3 text-sm font-medium transition-colors rounded-lg mb-1 ${isActive ? 'bg-fidelity-green text-ink-inverse shadow-md' : 'text-ink-muted hover:bg-surface-subtle hover:text-fidelity-green'}`
     }
   >
     <span className={collapsed ? '' : 'mr-3'}>{icon}</span>
@@ -109,6 +110,7 @@ const toFrontendWorkspace = (ws: ApiWorkspace): Workspace => ({
 
 export default function Layout() {
   const navigate = useNavigate();
+  const { preference, setPreference } = useTheme();
 
   // Global Workspace State
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
@@ -219,7 +221,6 @@ export default function Layout() {
   const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
 
   const workspaceDropdownRef = useRef<HTMLDivElement>(null);
   const notificationDropdownRef = useRef<HTMLDivElement>(null);
@@ -385,20 +386,20 @@ export default function Layout() {
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
-      case 'success': return <CheckCircle size={16} className="text-green-500" />;
-      case 'warning': return <AlertTriangle size={16} className="text-yellow-500" />;
-      case 'error': return <AlertCircle size={16} className="text-red-500" />;
-      default: return <Info size={16} className="text-blue-500" />;
+      case 'success': return <CheckCircle size={16} className="text-success-ink" />;
+      case 'warning': return <AlertTriangle size={16} className="text-warning-ink" />;
+      case 'error': return <AlertCircle size={16} className="text-danger-ink" />;
+      default: return <Info size={16} className="text-info-ink" />;
     }
   };
 
   // Show loading state while fetching workspaces
   if (isWorkspaceLoading && workspaces.length === 0) {
     return (
-      <div className="flex h-screen bg-gray-50 items-center justify-center">
+      <div className="flex h-screen bg-surface-subtle items-center justify-center">
         <div className="flex flex-col items-center">
           <Loader2 className="w-10 h-10 text-fidelity-green animate-spin mb-3" />
-          <p className="text-sm font-medium text-gray-600">Loading workspaces...</p>
+          <p className="text-sm font-medium text-ink-muted">Loading workspaces...</p>
         </div>
       </div>
     );
@@ -407,14 +408,14 @@ export default function Layout() {
   // Show error state
   if (workspaceError && workspaces.length === 0) {
     return (
-      <div className="flex h-screen bg-gray-50 items-center justify-center">
+      <div className="flex h-screen bg-surface-subtle items-center justify-center">
         <div className="flex flex-col items-center text-center max-w-md">
-          <AlertCircle className="w-10 h-10 text-red-500 mb-3" />
-          <p className="text-sm font-medium text-gray-800 mb-2">Failed to load workspaces</p>
-          <p className="text-xs text-gray-500 mb-4">{workspaceError}</p>
+          <AlertCircle className="w-10 h-10 text-danger-ink mb-3" />
+          <p className="text-sm font-medium text-ink mb-2">Failed to load workspaces</p>
+          <p className="text-xs text-ink-muted mb-4">{workspaceError}</p>
           <button
             onClick={() => loadWorkspaces()}
-            className="px-4 py-2 bg-fidelity-green text-white rounded-lg text-sm"
+            className="px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg text-sm"
           >
             Retry
           </button>
@@ -427,14 +428,14 @@ export default function Layout() {
   if (!activeWorkspace && workspaces.length === 0) {
     return (
       <>
-        <div className="flex h-screen bg-gray-50 items-center justify-center">
+        <div className="flex h-screen bg-surface-subtle items-center justify-center">
           <div className="flex flex-col items-center text-center max-w-md">
-            <Briefcase className="w-10 h-10 text-gray-400 mb-3" />
-            <p className="text-lg font-medium text-gray-800 mb-2">No Workspaces Found</p>
-            <p className="text-sm text-gray-500 mb-4">Create your first workspace to get started.</p>
+            <Briefcase className="w-10 h-10 text-ink-subtle mb-3" />
+            <p className="text-lg font-medium text-ink mb-2">No Workspaces Found</p>
+            <p className="text-sm text-ink-muted mb-4">Create your first workspace to get started.</p>
             <button
               onClick={() => setIsCreateModalOpen(true)}
-              className="px-4 py-2 bg-fidelity-green text-white rounded-lg text-sm flex items-center"
+              className="px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg text-sm flex items-center"
             >
               <Plus size={16} className="mr-2" />
               Create Workspace
@@ -445,50 +446,50 @@ export default function Layout() {
         {/* Create Workspace Modal */}
         {isCreateModalOpen && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" role="presentation" tabIndex={0} onClick={() => setIsCreateModalOpen(false)} onKeyDown={(e) => { if (e.key === 'Escape' || e.key === 'Enter') setIsCreateModalOpen(false); }}></div>
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md relative z-10 overflow-hidden animate-fadeIn">
-              <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                <h3 className="font-semibold text-gray-800">Create New Workspace</h3>
-                <button onClick={() => setIsCreateModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+            <div className="absolute inset-0 bg-overlay backdrop-blur-sm" role="presentation" tabIndex={0} onClick={() => setIsCreateModalOpen(false)} onKeyDown={(e) => { if (e.key === 'Escape' || e.key === 'Enter') setIsCreateModalOpen(false); }}></div>
+            <div className="bg-surface-raised rounded-xl shadow-2xl w-full max-w-md relative z-10 overflow-hidden animate-fadeIn">
+              <div className="px-6 py-4 border-b border-border flex justify-between items-center bg-surface-subtle">
+                <h3 className="font-semibold text-ink">Create New Workspace</h3>
+                <button onClick={() => setIsCreateModalOpen(false)} className="text-ink-subtle hover:text-ink-muted">
                   <X size={20} />
                 </button>
               </div>
               <form onSubmit={(e) => { handleCreateWorkspace(e); }} className="p-6 space-y-4">
                 <div>
-                  <label htmlFor="layout-empty-workspace-name" className="block text-sm font-medium text-gray-700 mb-1">Workspace Name</label>
+                  <label htmlFor="layout-empty-workspace-name" className="block text-sm font-medium text-ink-muted mb-1">Workspace Name</label>
                   <input
                     id="layout-empty-workspace-name"
                     type="text"
                     value={newWorkspaceName}
                     onChange={(e) => setNewWorkspaceName(e.target.value)}
                     placeholder="e.g., Q2 2025 Budgeting"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-fidelity-green focus:border-fidelity-green"
+                    className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-fidelity-green focus:border-fidelity-green"
                     autoFocus
                   />
                 </div>
                 <div>
-                  <label htmlFor="layout-empty-workspace-desc" className="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
+                  <label htmlFor="layout-empty-workspace-desc" className="block text-sm font-medium text-ink-muted mb-1">Description (Optional)</label>
                   <textarea
                     id="layout-empty-workspace-desc"
                     value={newWorkspaceDesc}
                     onChange={(e) => setNewWorkspaceDesc(e.target.value)}
                     placeholder="Brief description of this workspace's purpose..."
                     rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-fidelity-green focus:border-fidelity-green"
+                    className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-fidelity-green focus:border-fidelity-green"
                   />
                 </div>
                 <div className="flex justify-end space-x-3 pt-2">
                   <button
                     type="button"
                     onClick={() => setIsCreateModalOpen(false)}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg"
+                    className="px-4 py-2 text-sm font-medium text-ink-muted hover:bg-surface-subtle rounded-lg"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={!newWorkspaceName.trim()}
-                    className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${!newWorkspaceName.trim() ? 'bg-gray-300 cursor-not-allowed' : 'bg-fidelity-green hover:bg-fidelity-dark'}`}
+                    className={`px-4 py-2 text-sm font-medium text-ink-inverse rounded-lg transition-colors ${!newWorkspaceName.trim() ? 'bg-surface-disabled cursor-not-allowed' : 'bg-fidelity-green hover:bg-fidelity-dark'}`}
                   >
                     Create Workspace
                   </button>
@@ -525,13 +526,13 @@ export default function Layout() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden relative">
+    <div className="flex h-screen bg-surface-subtle overflow-hidden relative">
       {/* Loading Overlay */}
       {isWorkspaceLoading && workspaces.length > 0 && (
-        <div className="absolute inset-0 bg-white/80 z-50 flex items-center justify-center backdrop-blur-sm animate-fadeIn">
+        <div className="absolute inset-0 bg-surface-raised/80 z-50 flex items-center justify-center backdrop-blur-sm animate-fadeIn">
           <div className="flex flex-col items-center">
             <Loader2 className="w-10 h-10 text-fidelity-green animate-spin mb-3" />
-            <p className="text-sm font-medium text-gray-600">Switching Workspace...</p>
+            <p className="text-sm font-medium text-ink-muted">Switching Workspace...</p>
           </div>
         </div>
       )}
@@ -539,50 +540,50 @@ export default function Layout() {
       {/* Create Workspace Modal */}
       {isCreateModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" role="presentation" tabIndex={0} onClick={() => setIsCreateModalOpen(false)} onKeyDown={(e) => { if (e.key === 'Escape' || e.key === 'Enter') setIsCreateModalOpen(false); }}></div>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md relative z-10 overflow-hidden animate-fadeIn">
-            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-              <h3 className="font-semibold text-gray-800">Create New Workspace</h3>
-              <button onClick={() => setIsCreateModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+          <div className="absolute inset-0 bg-overlay backdrop-blur-sm" role="presentation" tabIndex={0} onClick={() => setIsCreateModalOpen(false)} onKeyDown={(e) => { if (e.key === 'Escape' || e.key === 'Enter') setIsCreateModalOpen(false); }}></div>
+          <div className="bg-surface-raised rounded-xl shadow-2xl w-full max-w-md relative z-10 overflow-hidden animate-fadeIn">
+            <div className="px-6 py-4 border-b border-border flex justify-between items-center bg-surface-subtle">
+              <h3 className="font-semibold text-ink">Create New Workspace</h3>
+              <button onClick={() => setIsCreateModalOpen(false)} className="text-ink-subtle hover:text-ink-muted">
                 <X size={20} />
               </button>
             </div>
             <form onSubmit={(e) => { handleCreateWorkspace(e); }} className="p-6 space-y-4">
               <div>
-                <label htmlFor="layout-workspace-name" className="block text-sm font-medium text-gray-700 mb-1">Workspace Name</label>
+                <label htmlFor="layout-workspace-name" className="block text-sm font-medium text-ink-muted mb-1">Workspace Name</label>
                 <input
                   id="layout-workspace-name"
                   type="text"
                   value={newWorkspaceName}
                   onChange={(e) => setNewWorkspaceName(e.target.value)}
                   placeholder="e.g., Q2 2025 Budgeting"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-fidelity-green focus:border-fidelity-green"
+                  className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-fidelity-green focus:border-fidelity-green"
                   autoFocus
                 />
               </div>
               <div>
-                <label htmlFor="layout-workspace-desc" className="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
+                <label htmlFor="layout-workspace-desc" className="block text-sm font-medium text-ink-muted mb-1">Description (Optional)</label>
                 <textarea
                   id="layout-workspace-desc"
                   value={newWorkspaceDesc}
                   onChange={(e) => setNewWorkspaceDesc(e.target.value)}
                   placeholder="Brief description of this workspace's purpose..."
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-fidelity-green focus:border-fidelity-green"
+                  className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-fidelity-green focus:border-fidelity-green"
                 />
               </div>
               <div className="flex justify-end space-x-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setIsCreateModalOpen(false)}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg"
+                  className="px-4 py-2 text-sm font-medium text-ink-muted hover:bg-surface-subtle rounded-lg"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={!newWorkspaceName.trim()}
-                  className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${!newWorkspaceName.trim() ? 'bg-gray-300 cursor-not-allowed' : 'bg-fidelity-green hover:bg-fidelity-dark'}`}
+                  className={`px-4 py-2 text-sm font-medium text-ink-inverse rounded-lg transition-colors ${!newWorkspaceName.trim() ? 'bg-surface-disabled cursor-not-allowed' : 'bg-fidelity-green hover:bg-fidelity-dark'}`}
                 >
                   Create Workspace
                 </button>
@@ -593,12 +594,12 @@ export default function Layout() {
       )}
 
       {/* Sidebar */}
-      <aside className={`${sidebarCollapsed ? 'w-16' : 'w-64'} bg-white border-r border-gray-200 flex flex-col z-10 flex-shrink-0 transition-all duration-200`}>
-        <div className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'px-6'} h-16 border-b border-gray-200`}>
+      <aside className={`${sidebarCollapsed ? 'w-16' : 'w-64'} bg-surface-raised border-r border-border flex flex-col z-10 flex-shrink-0 transition-all duration-200`}>
+        <div className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'px-6'} h-16 border-b border-border`}>
           {sidebarCollapsed ? (
             <button
               onClick={() => setSidebarCollapsed(false)}
-              className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-fidelity-green transition-colors"
+              className="p-1.5 rounded-lg text-ink-muted hover:bg-surface-subtle hover:text-fidelity-green transition-colors"
               title="Expand sidebar"
             >
               <PanelLeftOpen size={20} />
@@ -606,10 +607,10 @@ export default function Layout() {
           ) : (
             <>
               <Activity className="w-8 h-8 text-fidelity-green mr-3 flex-shrink-0" />
-              <span className="text-lg font-bold text-gray-800 tracking-tight flex-1 truncate">{APP_NAME}</span>
+              <span className="text-lg font-bold text-ink tracking-tight flex-1 truncate">{APP_NAME}</span>
               <button
                 onClick={() => setSidebarCollapsed(true)}
-                className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors flex-shrink-0"
+                className="p-1.5 rounded-lg text-ink-subtle hover:bg-surface-subtle hover:text-ink-muted transition-colors flex-shrink-0"
                 title="Collapse sidebar"
               >
                 <PanelLeftClose size={18} />
@@ -622,10 +623,10 @@ export default function Layout() {
           {NAV_SECTIONS.map((section, sectionIndex) => (
             <div key={section.heading ?? 'top'}>
               {sectionIndex > 0 && sidebarCollapsed && (
-                <div className="border-t border-gray-200 my-2 mx-3" />
+                <div className="border-t border-border my-2 mx-3" />
               )}
               {!sidebarCollapsed && section.heading && (
-                <div className={`${sectionIndex > 0 ? 'mt-6' : ''} mb-2 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider`}>
+                <div className={`${sectionIndex > 0 ? 'mt-6' : ''} mb-2 px-4 text-xs font-semibold text-ink-subtle uppercase tracking-wider`}>
                   {section.heading}
                 </div>
               )}
@@ -647,37 +648,37 @@ export default function Layout() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top Header */}
-        <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8 shadow-sm flex-shrink-0 z-20">
+        <header className="h-16 bg-surface-raised border-b border-border flex items-center justify-between px-8 shadow-sm flex-shrink-0 z-20">
 
           {/* Workspace Selector (Global Context) */}
           <div className="flex items-center" ref={workspaceDropdownRef}>
             <div className="relative">
               <button
                 onClick={() => setIsWorkspaceMenuOpen(!isWorkspaceMenuOpen)}
-                className="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors border border-transparent hover:border-gray-200"
+                className="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-surface-subtle transition-colors border border-transparent hover:border-border"
               >
-                <div className="p-1.5 bg-blue-50 text-blue-600 rounded-md">
+                <div className="p-1.5 bg-info-surface text-info-ink rounded-md">
                   <Briefcase size={18} />
                 </div>
                 <div className="text-left hidden sm:block">
-                  <p className="text-xs text-gray-500 font-medium">Active Workspace</p>
-                  <p className="text-sm font-bold text-gray-900 flex items-center">
+                  <p className="text-xs text-ink-muted font-medium">Active Workspace</p>
+                  <p className="text-sm font-bold text-ink flex items-center">
                     {activeWorkspace.name}
-                    <ChevronDown size={14} className="ml-2 text-gray-400" />
+                    <ChevronDown size={14} className="ml-2 text-ink-subtle" />
                   </p>
                 </div>
               </button>
 
               {/* Dropdown Menu */}
               {isWorkspaceMenuOpen && (
-                <div className="absolute top-full left-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 py-2 animate-fadeIn z-50">
-                  <div className="px-4 py-2 border-b border-gray-100 mb-2">
+                <div className="absolute top-full left-0 mt-2 w-80 bg-surface-raised rounded-xl shadow-lg border border-border py-2 animate-fadeIn z-50">
+                  <div className="px-4 py-2 border-b border-border mb-2">
                     <div className="relative">
-                      <Search size={14} className="absolute left-2.5 top-2.5 text-gray-400" />
+                      <Search size={14} className="absolute left-2.5 top-2.5 text-ink-subtle" />
                       <input
                         type="text"
                         placeholder="Switch workspace..."
-                        className="w-full pl-8 pr-3 py-1.5 text-sm bg-gray-50 border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-fidelity-green"
+                        className="w-full pl-8 pr-3 py-1.5 text-sm bg-surface-subtle border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-fidelity-green"
                       />
                     </div>
                   </div>
@@ -687,28 +688,28 @@ export default function Layout() {
                       <button
                         key={workspace.id}
                         onClick={() => handleWorkspaceSelect(workspace)}
-                        className={`w-full text-left px-4 py-3 flex items-start hover:bg-gray-50 transition-colors ${activeWorkspace.id === workspace.id ? 'bg-blue-50' : ''}`}
+                        className={`w-full text-left px-4 py-3 flex items-start hover:bg-surface-subtle transition-colors ${activeWorkspace.id === workspace.id ? 'bg-info-surface' : ''}`}
                       >
-                        <div className={`mt-1 flex-shrink-0 w-2 h-2 rounded-full mr-3 ${activeWorkspace.id === workspace.id ? 'bg-fidelity-green' : 'bg-gray-300'}`} />
+                        <div className={`mt-1 flex-shrink-0 w-2 h-2 rounded-full mr-3 ${activeWorkspace.id === workspace.id ? 'bg-fidelity-green' : 'bg-surface-disabled'}`} />
                         <div className="flex-1 min-w-0">
                           <div className="flex justify-between items-center">
-                            <span className={`text-sm font-medium truncate pr-2 ${activeWorkspace.id === workspace.id ? 'text-fidelity-green' : 'text-gray-900'}`}>
+                            <span className={`text-sm font-medium truncate pr-2 ${activeWorkspace.id === workspace.id ? 'text-fidelity-green' : 'text-ink'}`}>
                               {workspace.name}
                             </span>
                             {activeWorkspace.id === workspace.id && <Check size={14} className="text-fidelity-green flex-shrink-0" />}
                           </div>
                           <div className="group relative">
-                            <p className="text-xs text-gray-500 mt-0.5 truncate">{workspace.description || 'No description'}</p>
+                            <p className="text-xs text-ink-muted mt-0.5 truncate">{workspace.description || 'No description'}</p>
                             {/* Tooltip on hover */}
                             {workspace.description && (
-                              <div className="absolute left-0 top-full mt-1 hidden group-hover:block z-50 w-full bg-gray-800 text-white text-xs rounded px-2 py-1 shadow-lg pointer-events-none">
+                              <div className="absolute left-0 top-full mt-1 hidden group-hover:block z-50 w-full bg-surface-inverse text-ink-inverse text-xs rounded px-2 py-1 shadow-lg pointer-events-none">
                                 {workspace.description}
                               </div>
                             )}
                           </div>
-                          <p className="text-[10px] text-gray-400 mt-1 uppercase flex items-center justify-between">
+                          <p className="text-[10px] text-ink-subtle mt-1 uppercase flex items-center justify-between">
                             <span>Last Run: {workspace.lastRun || 'Never'}</span>
-                            <span className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-500 font-mono">
+                            <span className="bg-surface-subtle px-1.5 py-0.5 rounded text-ink-muted font-mono">
                               {workspace.scenarios.length} Scenarios
                             </span>
                           </p>
@@ -717,13 +718,13 @@ export default function Layout() {
                     ))}
                   </div>
 
-                  <div className="border-t border-gray-100 mt-2 pt-2 px-2 space-y-1">
+                  <div className="border-t border-border mt-2 pt-2 px-2 space-y-1">
                     <button
                       onClick={() => {
                         setIsWorkspaceMenuOpen(false);
                         setIsCreateModalOpen(true);
                       }}
-                      className="w-full py-2 text-xs font-medium text-white bg-fidelity-green hover:bg-fidelity-dark rounded-md transition-colors flex items-center justify-center"
+                      className="w-full py-2 text-xs font-medium text-ink-inverse bg-fidelity-green hover:bg-fidelity-dark rounded-md transition-colors flex items-center justify-center"
                     >
                       <Plus size={14} className="mr-1.5" /> Create New Workspace
                     </button>
@@ -732,7 +733,7 @@ export default function Layout() {
                         setIsWorkspaceMenuOpen(false);
                         navigate('/workspaces');
                       }}
-                      className="w-full py-2 text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-md transition-colors flex items-center justify-center"
+                      className="w-full py-2 text-xs font-medium text-ink-muted hover:text-ink hover:bg-surface-subtle rounded-md transition-colors flex items-center justify-center"
                     >
                       Manage Workspaces →
                     </button>
@@ -741,8 +742,8 @@ export default function Layout() {
               )}
             </div>
 
-            <div className="h-8 w-px bg-gray-200 mx-4 hidden sm:block"></div>
-            <span className="text-xs text-gray-400 hidden lg:block">Fidelity Internal Use Only</span>
+            <div className="h-8 w-px bg-surface-disabled mx-4 hidden sm:block"></div>
+            <span className="text-xs text-ink-subtle hidden lg:block">Fidelity Internal Use Only</span>
           </div>
 
           {/* Right Header Controls */}
@@ -751,22 +752,22 @@ export default function Layout() {
              <div className="relative" ref={notificationDropdownRef}>
                <button
                  onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
-                 className={`relative p-2 text-gray-500 hover:text-fidelity-green hover:bg-gray-50 rounded-full transition-colors ${isNotificationsOpen ? 'bg-gray-50 text-fidelity-green' : ''}`}
+                 className={`relative p-2 text-ink-muted hover:text-fidelity-green hover:bg-surface-subtle rounded-full transition-colors ${isNotificationsOpen ? 'bg-surface-subtle text-fidelity-green' : ''}`}
                >
                  <Bell size={20} />
                  {unreadCount > 0 && (
-                   <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+                   <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-danger-solid rounded-full border border-border"></span>
                  )}
                </button>
 
                {isNotificationsOpen && (
-                 <div className="absolute top-full right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 z-50 animate-fadeIn overflow-hidden">
-                    <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                       <h3 className="text-sm font-semibold text-gray-800">Notifications</h3>
+                 <div className="absolute top-full right-0 mt-2 w-80 bg-surface-raised rounded-xl shadow-lg border border-border z-50 animate-fadeIn overflow-hidden">
+                    <div className="px-4 py-3 border-b border-border flex justify-between items-center bg-surface-subtle">
+                       <h3 className="text-sm font-semibold text-ink">Notifications</h3>
                        {notifications.length > 0 && (
                          <button
                            onClick={clearAllNotifications}
-                           className="text-xs text-gray-500 hover:text-red-500"
+                           className="text-xs text-ink-muted hover:text-danger-ink"
                          >
                            Clear All
                          </button>
@@ -774,18 +775,18 @@ export default function Layout() {
                     </div>
                     <div className="max-h-80 overflow-y-auto">
                        {notifications.length === 0 ? (
-                         <div className="p-8 text-center text-gray-500 text-sm">
-                           <Bell size={24} className="mx-auto mb-2 text-gray-300" />
+                         <div className="p-8 text-center text-ink-muted text-sm">
+                           <Bell size={24} className="mx-auto mb-2 text-ink-subtle" />
                            No new notifications
                          </div>
                        ) : (
-                         <div className="divide-y divide-gray-100">
+                         <div className="divide-y divide-border">
                            {notifications.map((note) => (
                              <div
                                key={note.id}
                                role="button"
                                tabIndex={0}
-                               className={`p-4 hover:bg-gray-50 transition-colors flex items-start ${!note.read ? 'bg-blue-50/50' : ''}`}
+                               className={`p-4 hover:bg-surface-subtle transition-colors flex items-start ${!note.read ? 'bg-info-surface/50' : ''}`}
                                onClick={() => markAsRead(note.id)}
                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); markAsRead(note.id); } }}
                              >
@@ -794,22 +795,22 @@ export default function Layout() {
                                 </div>
                                 <div className="flex-1">
                                    <div className="flex justify-between items-start">
-                                      <p className={`text-sm ${!note.read ? 'font-semibold text-gray-900' : 'font-medium text-gray-700'}`}>
+                                      <p className={`text-sm ${!note.read ? 'font-semibold text-ink' : 'font-medium text-ink-muted'}`}>
                                         {note.title}
                                       </p>
-                                      <span className="text-[10px] text-gray-400 whitespace-nowrap ml-2">{note.timestamp}</span>
+                                      <span className="text-[10px] text-ink-subtle whitespace-nowrap ml-2">{note.timestamp}</span>
                                    </div>
-                                   <p className="text-xs text-gray-500 mt-1">{note.message}</p>
+                                   <p className="text-xs text-ink-muted mt-1">{note.message}</p>
                                 </div>
                                 {!note.read && (
-                                  <div className="ml-2 w-2 h-2 bg-blue-500 rounded-full mt-1.5"></div>
+                                  <div className="ml-2 w-2 h-2 bg-info-solid rounded-full mt-1.5"></div>
                                 )}
                              </div>
                            ))}
                          </div>
                        )}
                     </div>
-                    <div className="p-2 border-t border-gray-100 bg-gray-50 text-center">
+                    <div className="p-2 border-t border-border bg-surface-subtle text-center">
                       <button className="text-xs font-medium text-fidelity-green hover:underline">View All Notifications</button>
                     </div>
                  </div>
@@ -820,44 +821,79 @@ export default function Layout() {
              <div className="relative" ref={settingsDropdownRef}>
                <button
                  onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                 className={`p-2 text-gray-500 hover:text-fidelity-green hover:bg-gray-50 rounded-full transition-colors ${isSettingsOpen ? 'bg-gray-50 text-fidelity-green' : ''}`}
+                 aria-label="Open settings"
+                 aria-expanded={isSettingsOpen}
+                 className={`p-2 text-ink-muted hover:text-fidelity-green hover:bg-surface-subtle rounded-full transition-colors ${isSettingsOpen ? 'bg-surface-subtle text-fidelity-green' : ''}`}
                >
                  <Settings size={20} />
                </button>
 
                {isSettingsOpen && (
-                 <div className="absolute top-full right-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-gray-200 z-50 animate-fadeIn overflow-hidden">
-                    <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-                       <h3 className="text-sm font-semibold text-gray-800">Settings</h3>
+                 <div className="absolute top-full right-0 mt-2 w-64 bg-surface-raised rounded-xl shadow-lg border border-border z-50 animate-fadeIn overflow-hidden">
+                    <div className="px-4 py-3 border-b border-border bg-surface-subtle">
+                       <h3 className="text-sm font-semibold text-ink">Settings</h3>
                     </div>
                     <div className="p-2 space-y-1">
-                       <button className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg flex items-center justify-between group">
+                       <button className="w-full text-left px-3 py-2 text-sm text-ink-muted hover:bg-surface-subtle rounded-lg flex items-center justify-between group">
                           <span className="flex items-center">
-                            <Activity size={16} className="mr-3 text-gray-400 group-hover:text-fidelity-green" />
+                            <Activity size={16} className="mr-3 text-ink-subtle group-hover:text-fidelity-green" />
                             System Preferences
                           </span>
                        </button>
-                       <button
-                         onClick={() => setIsDarkMode(!isDarkMode)}
-                         className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg flex items-center justify-between group"
-                       >
-                          <span className="flex items-center">
-                            {isDarkMode ? <Moon size={16} className="mr-3 text-gray-400" /> : <Sun size={16} className="mr-3 text-gray-400" />}
-                            Theme: {isDarkMode ? 'Dark' : 'Light'}
-                          </span>
-                       </button>
+                       <div role="radiogroup" aria-label="Theme preference" className="px-1 py-1">
+                         <p className="px-2 pb-1 text-xs font-medium text-ink-muted">Theme</p>
+                         <button
+                           type="button"
+                           role="radio"
+                           aria-checked={preference === 'system'}
+                           onClick={() => setPreference('system')}
+                           className="w-full px-2 py-2 text-sm text-ink-muted hover:bg-surface-subtle rounded-lg flex items-center justify-between"
+                         >
+                           <span className="flex items-center">
+                             <Activity size={16} className="mr-3 text-ink-subtle" />
+                             System
+                           </span>
+                           {preference === 'system' && <Check size={16} className="text-fidelity-green" />}
+                         </button>
+                         <button
+                           type="button"
+                           role="radio"
+                           aria-checked={preference === 'light'}
+                           onClick={() => setPreference('light')}
+                           className="w-full px-2 py-2 text-sm text-ink-muted hover:bg-surface-subtle rounded-lg flex items-center justify-between"
+                         >
+                           <span className="flex items-center">
+                             <Sun size={16} className="mr-3 text-ink-subtle" />
+                             Light
+                           </span>
+                           {preference === 'light' && <Check size={16} className="text-fidelity-green" />}
+                         </button>
+                         <button
+                           type="button"
+                           role="radio"
+                           aria-checked={preference === 'dark'}
+                           onClick={() => setPreference('dark')}
+                           className="w-full px-2 py-2 text-sm text-ink-muted hover:bg-surface-subtle rounded-lg flex items-center justify-between"
+                         >
+                           <span className="flex items-center">
+                             <Moon size={16} className="mr-3 text-ink-subtle" />
+                             Dark
+                           </span>
+                           {preference === 'dark' && <Check size={16} className="text-fidelity-green" />}
+                         </button>
+                       </div>
                     </div>
 
-                    <div className="border-t border-gray-100 p-2 space-y-1">
-                       <button className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg flex items-center">
-                          <HelpCircle size={16} className="mr-3 text-gray-400" />
+                    <div className="border-t border-border p-2 space-y-1">
+                       <button className="w-full text-left px-3 py-2 text-sm text-ink-muted hover:bg-surface-subtle rounded-lg flex items-center">
+                          <HelpCircle size={16} className="mr-3 text-ink-subtle" />
                           Help & Support
                        </button>
                     </div>
 
-                    <div className="bg-gray-50 px-4 py-3 border-t border-gray-100 text-center">
-                       <p className="text-xs font-medium text-gray-500">{APP_NAME}</p>
-                       <p className="text-[10px] text-gray-400">v{APP_VERSION}</p>
+                    <div className="bg-surface-subtle px-4 py-3 border-t border-border text-center">
+                       <p className="text-xs font-medium text-ink-muted">{APP_NAME}</p>
+                       <p className="text-[10px] text-ink-subtle">v{APP_VERSION}</p>
                     </div>
                  </div>
                )}
@@ -868,7 +904,7 @@ export default function Layout() {
         {runConsistency?.warning === 'run_in_progress' && (
           <div
             role="status"
-            className="flex items-center gap-3 border-b border-amber-200 bg-amber-50 px-8 py-3 text-sm text-amber-900"
+            className="flex items-center gap-3 border-b border-warning-border bg-warning-surface px-8 py-3 text-sm text-warning-ink"
           >
             <AlertTriangle size={18} className="flex-shrink-0" />
             <span>

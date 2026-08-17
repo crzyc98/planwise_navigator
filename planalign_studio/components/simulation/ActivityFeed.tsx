@@ -40,18 +40,18 @@ function severityClasses(milestone: TelemetryMilestone): {
   icon: string;
 } {
   if (milestone.severity === 'error') {
-    return { container: 'bg-red-50 border-l-red-500', icon: 'text-red-600' };
+    return { container: 'bg-danger-surface border-l-red-500', icon: 'text-danger-ink' };
   }
   if (milestone.severity === 'warning') {
-    return { container: 'bg-yellow-50 border-l-yellow-500', icon: 'text-yellow-600' };
+    return { container: 'bg-warning-surface border-l-yellow-500', icon: 'text-warning-ink' };
   }
   if (milestone.kind === 'year_completed') {
-    return { container: 'bg-green-50 border-l-fidelity-green', icon: 'text-fidelity-green' };
+    return { container: 'bg-success-surface border-l-fidelity-green', icon: 'text-fidelity-green' };
   }
   if (milestone.kind === 'terminal') {
-    return { container: 'bg-gray-100 border-l-gray-500', icon: 'text-gray-600' };
+    return { container: 'bg-surface-subtle border-l-gray-500', icon: 'text-ink-muted' };
   }
-  return { container: 'border-l-transparent', icon: 'text-gray-400' };
+  return { container: 'border-l-transparent', icon: 'text-ink-subtle' };
 }
 
 export default function ActivityFeed({ milestones }: ActivityFeedProps) {
@@ -77,12 +77,12 @@ export default function ActivityFeed({ milestones }: ActivityFeedProps) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-        <h3 className="font-semibold text-gray-800 flex items-center">
-          <Activity size={16} className="mr-2 text-gray-500" />
+      <div className="p-4 border-b border-border bg-surface-subtle flex justify-between items-center">
+        <h3 className="font-semibold text-ink flex items-center">
+          <Activity size={16} className="mr-2 text-ink-muted" />
           Run Activity
         </h3>
-        <span className="bg-gray-200 text-gray-600 px-2 py-0.5 rounded text-xs">
+        <span className="bg-surface-disabled text-ink-muted px-2 py-0.5 rounded text-xs">
           {newestFirst.length} milestone{newestFirst.length === 1 ? '' : 's'}
         </span>
       </div>
@@ -92,11 +92,11 @@ export default function ActivityFeed({ milestones }: ActivityFeedProps) {
         className="flex-1 overflow-y-auto text-sm"
       >
         {newestFirst.length === 0 ? (
-          <div className="p-4 text-gray-400 italic">
+          <div className="p-4 text-ink-subtle italic">
             Milestones will appear as the run progresses…
           </div>
         ) : (
-          <ul className="divide-y divide-gray-100">
+          <ul className="divide-y divide-border">
             {newestFirst.map((milestone) => {
               const Icon = KIND_ICONS[milestone.kind] ?? CircleDot;
               const classes = severityClasses(milestone);
@@ -108,8 +108,8 @@ export default function ActivityFeed({ milestones }: ActivityFeedProps) {
                   <div className="flex items-start">
                     <Icon size={14} className={`mr-2 mt-0.5 shrink-0 ${classes.icon}`} />
                     <div className="min-w-0 flex-1">
-                      <p className="text-gray-800 break-words">{milestone.message}</p>
-                      <p className="text-[11px] text-gray-400 mt-0.5">
+                      <p className="text-ink break-words">{milestone.message}</p>
+                      <p className="text-[11px] text-ink-subtle mt-0.5">
                         {new Date(milestone.timestamp).toLocaleTimeString()}
                       </p>
                     </div>

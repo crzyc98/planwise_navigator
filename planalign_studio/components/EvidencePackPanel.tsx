@@ -68,63 +68,63 @@ export default function EvidencePackPanel({ workspaceId, scenarioId, startYear, 
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 rounded-lg border border-gray-200 bg-white p-4 md:grid-cols-4">
-        <label className="text-sm text-gray-700">Metric
-          <select aria-label="Evidence metric" value={metric} onChange={event => setMetric(event.target.value as EvidenceMetric)} className="mt-1 w-full rounded border border-gray-300 p-2">
+      <div className="grid gap-3 rounded-lg border border-border bg-surface-raised p-4 md:grid-cols-4">
+        <label className="text-sm text-ink-muted">Metric
+          <select aria-label="Evidence metric" value={metric} onChange={event => setMetric(event.target.value as EvidenceMetric)} className="mt-1 w-full rounded border border-border-strong p-2">
             {METRICS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
           </select>
         </label>
-        <label className="text-sm text-gray-700">Base year
-          <select aria-label="Base year" value={baseYear} onChange={event => setBaseYear(Number(event.target.value))} className="mt-1 w-full rounded border border-gray-300 p-2">
+        <label className="text-sm text-ink-muted">Base year
+          <select aria-label="Base year" value={baseYear} onChange={event => setBaseYear(Number(event.target.value))} className="mt-1 w-full rounded border border-border-strong p-2">
             {years.map(year => <option key={year} value={year}>{year}</option>)}
           </select>
         </label>
-        <label className="text-sm text-gray-700">Target year
-          <select aria-label="Target year" value={targetYear} onChange={event => setTargetYear(Number(event.target.value))} className="mt-1 w-full rounded border border-gray-300 p-2">
+        <label className="text-sm text-ink-muted">Target year
+          <select aria-label="Target year" value={targetYear} onChange={event => setTargetYear(Number(event.target.value))} className="mt-1 w-full rounded border border-border-strong p-2">
             {years.map(year => <option key={year} value={year}>{year}</option>)}
           </select>
         </label>
         <div className="flex items-end">
-          <button onClick={() => void load()} disabled={loading || !validYears} className="flex w-full items-center justify-center rounded bg-fidelity-green px-3 py-2 text-sm font-medium text-white disabled:opacity-50">
+          <button onClick={() => void load()} disabled={loading || !validYears} className="flex w-full items-center justify-center rounded bg-fidelity-green px-3 py-2 text-sm font-medium text-ink-inverse disabled:opacity-50">
             {loading ? <Loader2 size={15} className="mr-2 animate-spin" /> : <RefreshCw size={15} className="mr-2" />}
             {loading ? 'Computing evidence pack…' : 'Build evidence pack'}
           </button>
         </div>
-        {!validYears && <p className="text-sm text-red-700 md:col-span-4">Target year must be later than base year.</p>}
+        {!validYears && <p className="text-sm text-danger-ink md:col-span-4">Target year must be later than base year.</p>}
       </div>
 
-      {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error} <button onClick={() => void load()} className="ml-2 font-medium underline">Retry</button></div>}
-      {!envelope && !loading && !error && <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500"><FileSearch className="mx-auto mb-2" />Choose a metric and year pair, then build an evidence pack.</div>}
+      {error && <div className="rounded-lg border border-danger-border bg-danger-surface p-3 text-sm text-danger-ink">{error} <button onClick={() => void load()} className="ml-2 font-medium underline">Retry</button></div>}
+      {!envelope && !loading && !error && <div className="rounded-lg border border-dashed border-border-strong p-8 text-center text-sm text-ink-muted"><FileSearch className="mx-auto mb-2" />Choose a metric and year pair, then build an evidence pack.</div>}
 
       {envelope && (
         <div className="space-y-4">
           {envelope.pack.warnings.map(warning => (
-            <div key={warning.code} className={`flex rounded-lg border p-3 text-sm ${warning.severity === 'critical' ? 'border-red-300 bg-red-50 text-red-900' : 'border-amber-300 bg-amber-50 text-amber-900'}`}>
+            <div key={warning.code} className={`flex rounded-lg border p-3 text-sm ${warning.severity === 'critical' ? 'border-danger-border bg-danger-surface text-danger-ink' : 'border-warning-border bg-warning-surface text-warning-ink'}`}>
               <AlertTriangle size={17} className="mr-2 shrink-0" />{warning.message}
             </div>
           ))}
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface-raised p-4">
             <div>
-              <h3 className="font-semibold text-gray-900">{envelope.pack.change.label}: {baseYear} to {targetYear}</h3>
-              <p className="text-sm text-gray-600"><FigureValue figure={envelope.pack.change.base_value} /> → <FigureValue figure={envelope.pack.change.target_value} /> · Change <FigureValue figure={envelope.pack.change.total_change} /></p>
-              <p className="mt-1 text-sm text-gray-600">Base population: <FigureValue figure={envelope.pack.change.base_population} /> · Target population: <FigureValue figure={envelope.pack.change.target_population} /></p>
-              <p className="mt-1 text-xs text-gray-500">Run {envelope.pack.provenance.run_id} · {envelope.pack.provenance.verification_disposition}</p>
+              <h3 className="font-semibold text-ink">{envelope.pack.change.label}: {baseYear} to {targetYear}</h3>
+              <p className="text-sm text-ink-muted"><FigureValue figure={envelope.pack.change.base_value} /> → <FigureValue figure={envelope.pack.change.target_value} /> · Change <FigureValue figure={envelope.pack.change.total_change} /></p>
+              <p className="mt-1 text-sm text-ink-muted">Base population: <FigureValue figure={envelope.pack.change.base_population} /> · Target population: <FigureValue figure={envelope.pack.change.target_population} /></p>
+              <p className="mt-1 text-xs text-ink-muted">Run {envelope.pack.provenance.run_id} · {envelope.pack.provenance.verification_disposition}</p>
             </div>
             <button onClick={() => downloadEvidencePack(envelope)} disabled={loading} className="flex items-center rounded border border-fidelity-green px-3 py-2 text-sm font-medium text-fidelity-green disabled:opacity-50"><Download size={15} className="mr-2" />Export Evidence Pack</button>
           </div>
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-            <h4 className="font-semibold text-emerald-950">Executive interpretation</h4>
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-emerald-950">{envelope.pack.executive_summary.map(item => <li key={item}>{item}</li>)}</ul>
+          <div className="rounded-lg border border-success-border bg-success-surface p-4">
+            <h4 className="font-semibold text-success-ink">Executive interpretation</h4>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-success-ink">{envelope.pack.executive_summary.map(item => <li key={item}>{item}</li>)}</ul>
           </div>
-          <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-            <table className="w-full text-left text-sm"><thead className="bg-gray-50"><tr><th className="p-3">Driver</th><th className="p-3">Contribution</th><th className="p-3">Share</th><th className="p-3">Population</th><th className="p-3">Citation</th></tr></thead>
-              <tbody>{envelope.pack.drivers.map(driver => <tr key={driver.id} className="border-t"><td className="p-3"><div className="font-medium">{driver.label}</div><div className="text-xs text-gray-500">{driver.description}</div>{driver.base_rate && driver.target_rate && <div className="mt-1 text-xs font-medium text-gray-700">Effective rate: <FigureValue figure={driver.base_rate} /> → <FigureValue figure={driver.target_rate} /></div>}</td><td className="p-3"><FigureValue figure={driver.contribution} /></td><td className="p-3"><FigureValue figure={driver.share_of_change} /></td><td className="p-3"><FigureValue figure={driver.population.count} /> {driver.population.label}</td><td className="p-3"><details><summary className="cursor-pointer font-mono text-xs">Q1.{driver.contribution.citation.result_column}</summary><pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap rounded bg-gray-950 p-2 text-xs text-gray-100">{driver.contribution.citation.query}</pre></details></td></tr>)}</tbody>
+          <div className="overflow-x-auto rounded-lg border border-border bg-surface-raised">
+            <table className="w-full text-left text-sm"><thead className="bg-surface-subtle"><tr><th className="p-3">Driver</th><th className="p-3">Contribution</th><th className="p-3">Share</th><th className="p-3">Population</th><th className="p-3">Citation</th></tr></thead>
+              <tbody>{envelope.pack.drivers.map(driver => <tr key={driver.id} className="border-t"><td className="p-3"><div className="font-medium">{driver.label}</div><div className="text-xs text-ink-muted">{driver.description}</div>{driver.base_rate && driver.target_rate && <div className="mt-1 text-xs font-medium text-ink-muted">Effective rate: <FigureValue figure={driver.base_rate} /> → <FigureValue figure={driver.target_rate} /></div>}</td><td className="p-3"><FigureValue figure={driver.contribution} /></td><td className="p-3"><FigureValue figure={driver.share_of_change} /></td><td className="p-3"><FigureValue figure={driver.population.count} /> {driver.population.label}</td><td className="p-3"><details><summary className="cursor-pointer font-mono text-xs">Q1.{driver.contribution.citation.result_column}</summary><pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap rounded bg-surface-inverse p-2 text-xs text-ink-subtle">{driver.contribution.citation.query}</pre></details></td></tr>)}</tbody>
             </table>
           </div>
-          <div className={`rounded-lg border p-4 ${envelope.pack.residual.largest_contribution ? 'border-red-300 bg-red-50' : envelope.pack.residual.material ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-white'}`}>
+          <div className={`rounded-lg border p-4 ${envelope.pack.residual.largest_contribution ? 'border-danger-border bg-danger-surface' : envelope.pack.residual.material ? 'border-warning-border bg-warning-surface' : 'border-border bg-surface-raised'}`}>
             <h4 className="font-semibold">Residual</h4><p className="text-sm"><FigureValue figure={envelope.pack.residual.contribution} /> · <FigureValue figure={envelope.pack.residual.share_of_change} /></p>
           </div>
-          <p className="rounded-lg bg-gray-100 p-3 text-sm text-gray-700">{envelope.pack.population_note}</p>
+          <p className="rounded-lg bg-surface-subtle p-3 text-sm text-ink-muted">{envelope.pack.population_note}</p>
         </div>
       )}
     </div>

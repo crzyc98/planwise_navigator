@@ -86,34 +86,34 @@ export function SegmentationSection() {
 
   return (
     <div className="space-y-8 animate-fadeIn">
-      <div className="border-b border-gray-100 pb-4">
-        <h2 className="text-lg font-bold text-gray-900">Workforce Segmentation</h2>
-        <p className="text-sm text-gray-500">Configure age and tenure band definitions used for workforce analytics and simulations.</p>
+      <div className="border-b border-border pb-4">
+        <h2 className="text-lg font-bold text-ink">Workforce Segmentation</h2>
+        <p className="text-sm text-ink-muted">Configure age and tenure band definitions used for workforce analytics and simulations.</p>
       </div>
 
       {bandConfigError && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+        <div className="bg-danger-surface border border-danger-border rounded-lg p-4">
           <div className="flex items-center">
-            <AlertTriangle className="w-5 h-5 text-red-600 mr-2" />
-            <span className="text-red-800">{bandConfigError}</span>
+            <AlertTriangle className="w-5 h-5 text-danger-ink mr-2" />
+            <span className="text-danger-ink">{bandConfigError}</span>
           </div>
         </div>
       )}
 
       {bandConfig && (
         <>
-          <label className="block text-sm text-gray-700">Census year
-            <input value={asOfYear} onChange={(event) => setAsOfYear(event.target.value)} placeholder="Inferred from census" inputMode="numeric" className="ml-2 w-32 rounded border border-gray-300 px-2 py-1 text-sm" />
+          <label className="block text-sm text-ink-muted">Census year
+            <input value={asOfYear} onChange={(event) => setAsOfYear(event.target.value)} placeholder="Inferred from census" inputMode="numeric" className="ml-2 w-32 rounded border border-border-strong px-2 py-1 text-sm" />
           </label>
           {bandValidationErrors.length > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="bg-danger-surface border border-danger-border rounded-lg p-4">
               <div className="flex items-start">
-                <AlertTriangle className="w-5 h-5 text-red-600 mr-2 mt-0.5" />
+                <AlertTriangle className="w-5 h-5 text-danger-ink mr-2 mt-0.5" />
                 <div>
-                  <h4 className="text-red-800 font-medium">Validation Errors</h4>
+                  <h4 className="text-danger-ink font-medium">Validation Errors</h4>
                   <ul className="mt-2 space-y-1">
                     {bandValidationErrors.map((error, idx) => (
-                      <li key={idx} className="text-sm text-red-700">
+                      <li key={idx} className="text-sm text-danger-ink">
                         <span className="font-medium capitalize">{error.band_type} bands:</span> {error.message}
                       </li>
                     ))}
@@ -124,28 +124,28 @@ export function SegmentationSection() {
           )}
 
           {saveStatus === 'success' && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <div className="bg-success-surface border border-success-border rounded-lg p-4">
               <div className="flex items-center">
-                <Check className="w-5 h-5 text-green-600 mr-2" />
-                <span className="text-green-800">Configuration saved successfully.</span>
+                <Check className="w-5 h-5 text-success-ink mr-2" />
+                <span className="text-success-ink">Configuration saved successfully.</span>
               </div>
             </div>
           )}
 
           {/* Age Bands Section */}
-          <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+          <div className="bg-surface-subtle rounded-xl p-6 border border-border">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center">
                 <Users className="w-5 h-5 text-fidelity-green mr-3" />
-                <h3 className="font-semibold text-gray-900">Age Bands</h3>
+                <h3 className="font-semibold text-ink">Age Bands</h3>
               </div>
               <button
                 onClick={handleMatchCensusAgeBands}
                 disabled={ageBandAnalyzing || !formData.censusDataPath}
-                className="flex items-center px-3 py-1.5 text-sm bg-fidelity-green text-white rounded-lg hover:bg-fidelity-green-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center px-3 py-1.5 text-sm bg-fidelity-green text-ink-inverse rounded-lg hover:bg-fidelity-green-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {ageBandAnalyzing ? (
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-border mr-2" />
                 ) : (
                   <Sparkles size={16} className="mr-2" />
                 )}
@@ -154,24 +154,24 @@ export function SegmentationSection() {
             </div>
 
             {ageBandAnalysis && (
-              <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="mb-4 bg-info-surface border border-info-border rounded-lg p-4">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h4 className="text-blue-800 font-medium">Suggested Age Bands</h4>
-                    <p className="text-sm text-blue-600 mt-1">
+                    <h4 className="text-info-ink font-medium">Suggested Age Bands</h4>
+                    <p className="text-sm text-info-ink mt-1">
                       Based on {ageBandAnalysis.distribution_stats.total_employees} employees ({ageBandAnalysis.analysis_type})
                       {' '}as of {ageBandAnalysis.as_of_date} ({ageBandAnalysis.as_of_date_source})
                     </p>
-                    <div className="mt-2 text-xs text-blue-700">
+                    <div className="mt-2 text-xs text-info-ink">
                       <span>Age range: {ageBandAnalysis.distribution_stats.min_value} - {ageBandAnalysis.distribution_stats.max_value}</span>
                       <span className="mx-2">|</span>
                       <span>Median: {ageBandAnalysis.distribution_stats.median_value.toFixed(1)}</span>
                     </div>
-                    {ageBandAnalysis.fallback_notice && <p className="mt-2 text-xs text-amber-700">{ageBandAnalysis.fallback_notice}</p>}
+                    {ageBandAnalysis.fallback_notice && <p className="mt-2 text-xs text-warning-ink">{ageBandAnalysis.fallback_notice}</p>}
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => setAgeBandAnalysis(null)} className="px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
-                    <button onClick={handleApplyAgeBandSuggestions} className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">Apply</button>
+                    <button onClick={() => setAgeBandAnalysis(null)} className="px-3 py-1.5 text-sm text-ink-muted bg-surface-raised border border-border-strong rounded-lg hover:bg-surface-subtle">Cancel</button>
+                    <button onClick={handleApplyAgeBandSuggestions} className="px-3 py-1.5 text-sm bg-info-solid text-ink-inverse rounded-lg hover:bg-info-solid-hover">Apply</button>
                   </div>
                 </div>
               </div>
@@ -180,31 +180,31 @@ export function SegmentationSection() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-2 px-3 font-medium text-gray-700">ID</th>
-                    <th className="text-left py-2 px-3 font-medium text-gray-700">Label</th>
-                    <th className="text-left py-2 px-3 font-medium text-gray-700">Min (inclusive)</th>
-                    <th className="text-left py-2 px-3 font-medium text-gray-700">Max (exclusive)</th>
-                    <th className="text-left py-2 px-3 font-medium text-gray-700">Order</th>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-2 px-3 font-medium text-ink-muted">ID</th>
+                    <th className="text-left py-2 px-3 font-medium text-ink-muted">Label</th>
+                    <th className="text-left py-2 px-3 font-medium text-ink-muted">Min (inclusive)</th>
+                    <th className="text-left py-2 px-3 font-medium text-ink-muted">Max (exclusive)</th>
+                    <th className="text-left py-2 px-3 font-medium text-ink-muted">Order</th>
                   </tr>
                 </thead>
                 <tbody>
                   {[...bandConfig.age_bands].sort((a, b) => a.display_order - b.display_order).map((band) => {
                     const hasError = bandValidationErrors.some(e => e.band_type === 'age' && e.band_ids.includes(band.band_id));
                     return (
-                      <tr key={band.band_id} className={`border-b border-gray-100 ${hasError ? 'bg-red-50' : ''}`}>
-                        <td className="py-2 px-3 text-gray-600">{band.band_id}</td>
+                      <tr key={band.band_id} className={`border-b border-border ${hasError ? 'bg-danger-surface' : ''}`}>
+                        <td className="py-2 px-3 text-ink-muted">{band.band_id}</td>
                         <td className="py-2 px-3">
-                          <input type="text" value={band.band_label} onChange={(e) => handleBandChange('age', band.band_id, 'band_label', e.target.value)} className={`w-full px-2 py-1 border rounded text-sm ${hasError ? 'border-red-300' : 'border-gray-300'}`} />
+                          <input type="text" value={band.band_label} onChange={(e) => handleBandChange('age', band.band_id, 'band_label', e.target.value)} className={`w-full px-2 py-1 border rounded text-sm ${hasError ? 'border-danger-border' : 'border-border-strong'}`} />
                         </td>
                         <td className="py-2 px-3">
-                          <input type="number" value={band.min_value} onChange={(e) => handleBandChange('age', band.band_id, 'min_value', e.target.value)} className={`w-20 px-2 py-1 border rounded text-sm ${hasError ? 'border-red-300' : 'border-gray-300'}`} min="0" />
+                          <input type="number" value={band.min_value} onChange={(e) => handleBandChange('age', band.band_id, 'min_value', e.target.value)} className={`w-20 px-2 py-1 border rounded text-sm ${hasError ? 'border-danger-border' : 'border-border-strong'}`} min="0" />
                         </td>
                         <td className="py-2 px-3">
-                          <input type="number" value={band.max_value} onChange={(e) => handleBandChange('age', band.band_id, 'max_value', e.target.value)} className={`w-20 px-2 py-1 border rounded text-sm ${hasError ? 'border-red-300' : 'border-gray-300'}`} min="1" />
+                          <input type="number" value={band.max_value} onChange={(e) => handleBandChange('age', band.band_id, 'max_value', e.target.value)} className={`w-20 px-2 py-1 border rounded text-sm ${hasError ? 'border-danger-border' : 'border-border-strong'}`} min="1" />
                         </td>
                         <td className="py-2 px-3">
-                          <input type="number" value={band.display_order} onChange={(e) => handleBandChange('age', band.band_id, 'display_order', e.target.value)} className={`w-16 px-2 py-1 border rounded text-sm ${hasError ? 'border-red-300' : 'border-gray-300'}`} min="1" />
+                          <input type="number" value={band.display_order} onChange={(e) => handleBandChange('age', band.band_id, 'display_order', e.target.value)} className={`w-16 px-2 py-1 border rounded text-sm ${hasError ? 'border-danger-border' : 'border-border-strong'}`} min="1" />
                         </td>
                       </tr>
                     );
@@ -212,25 +212,25 @@ export function SegmentationSection() {
                 </tbody>
               </table>
             </div>
-            <p className="mt-2 text-xs text-gray-500">
+            <p className="mt-2 text-xs text-ink-muted">
               Bands use [min, max) interval convention: min_value is inclusive, max_value is exclusive.
             </p>
           </div>
 
           {/* Tenure Bands Section */}
-          <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+          <div className="bg-surface-subtle rounded-xl p-6 border border-border">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center">
                 <TrendingUp className="w-5 h-5 text-fidelity-green mr-3" />
-                <h3 className="font-semibold text-gray-900">Tenure Bands</h3>
+                <h3 className="font-semibold text-ink">Tenure Bands</h3>
               </div>
               <button
                 onClick={handleMatchCensusTenureBands}
                 disabled={tenureBandAnalyzing || !formData.censusDataPath}
-                className="flex items-center px-3 py-1.5 text-sm bg-fidelity-green text-white rounded-lg hover:bg-fidelity-green-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center px-3 py-1.5 text-sm bg-fidelity-green text-ink-inverse rounded-lg hover:bg-fidelity-green-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {tenureBandAnalyzing ? (
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-border mr-2" />
                 ) : (
                   <Sparkles size={16} className="mr-2" />
                 )}
@@ -239,23 +239,23 @@ export function SegmentationSection() {
             </div>
 
             {tenureBandAnalysis && (
-              <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="mb-4 bg-info-surface border border-info-border rounded-lg p-4">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h4 className="text-blue-800 font-medium">Suggested Tenure Bands</h4>
-                    <p className="text-sm text-blue-600 mt-1">
+                    <h4 className="text-info-ink font-medium">Suggested Tenure Bands</h4>
+                    <p className="text-sm text-info-ink mt-1">
                       Based on {tenureBandAnalysis.distribution_stats.total_employees} employees ({tenureBandAnalysis.analysis_type})
                       {' '}as of {tenureBandAnalysis.as_of_date} ({tenureBandAnalysis.as_of_date_source})
                     </p>
-                    <div className="mt-2 text-xs text-blue-700">
+                    <div className="mt-2 text-xs text-info-ink">
                       <span>Tenure range: {tenureBandAnalysis.distribution_stats.min_value} - {tenureBandAnalysis.distribution_stats.max_value} years</span>
                       <span className="mx-2">|</span>
                       <span>Median: {tenureBandAnalysis.distribution_stats.median_value.toFixed(1)} years</span>
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => setTenureBandAnalysis(null)} className="px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
-                    <button onClick={handleApplyTenureBandSuggestions} className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">Apply</button>
+                    <button onClick={() => setTenureBandAnalysis(null)} className="px-3 py-1.5 text-sm text-ink-muted bg-surface-raised border border-border-strong rounded-lg hover:bg-surface-subtle">Cancel</button>
+                    <button onClick={handleApplyTenureBandSuggestions} className="px-3 py-1.5 text-sm bg-info-solid text-ink-inverse rounded-lg hover:bg-info-solid-hover">Apply</button>
                   </div>
                 </div>
               </div>
@@ -264,31 +264,31 @@ export function SegmentationSection() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-2 px-3 font-medium text-gray-700">ID</th>
-                    <th className="text-left py-2 px-3 font-medium text-gray-700">Label</th>
-                    <th className="text-left py-2 px-3 font-medium text-gray-700">Min Years (inclusive)</th>
-                    <th className="text-left py-2 px-3 font-medium text-gray-700">Max Years (exclusive)</th>
-                    <th className="text-left py-2 px-3 font-medium text-gray-700">Order</th>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-2 px-3 font-medium text-ink-muted">ID</th>
+                    <th className="text-left py-2 px-3 font-medium text-ink-muted">Label</th>
+                    <th className="text-left py-2 px-3 font-medium text-ink-muted">Min Years (inclusive)</th>
+                    <th className="text-left py-2 px-3 font-medium text-ink-muted">Max Years (exclusive)</th>
+                    <th className="text-left py-2 px-3 font-medium text-ink-muted">Order</th>
                   </tr>
                 </thead>
                 <tbody>
                   {[...bandConfig.tenure_bands].sort((a, b) => a.display_order - b.display_order).map((band) => {
                     const hasError = bandValidationErrors.some(e => e.band_type === 'tenure' && e.band_ids.includes(band.band_id));
                     return (
-                      <tr key={band.band_id} className={`border-b border-gray-100 ${hasError ? 'bg-red-50' : ''}`}>
-                        <td className="py-2 px-3 text-gray-600">{band.band_id}</td>
+                      <tr key={band.band_id} className={`border-b border-border ${hasError ? 'bg-danger-surface' : ''}`}>
+                        <td className="py-2 px-3 text-ink-muted">{band.band_id}</td>
                         <td className="py-2 px-3">
-                          <input type="text" value={band.band_label} onChange={(e) => handleBandChange('tenure', band.band_id, 'band_label', e.target.value)} className={`w-full px-2 py-1 border rounded text-sm ${hasError ? 'border-red-300' : 'border-gray-300'}`} />
+                          <input type="text" value={band.band_label} onChange={(e) => handleBandChange('tenure', band.band_id, 'band_label', e.target.value)} className={`w-full px-2 py-1 border rounded text-sm ${hasError ? 'border-danger-border' : 'border-border-strong'}`} />
                         </td>
                         <td className="py-2 px-3">
-                          <input type="number" value={band.min_value} onChange={(e) => handleBandChange('tenure', band.band_id, 'min_value', e.target.value)} className={`w-20 px-2 py-1 border rounded text-sm ${hasError ? 'border-red-300' : 'border-gray-300'}`} min="0" />
+                          <input type="number" value={band.min_value} onChange={(e) => handleBandChange('tenure', band.band_id, 'min_value', e.target.value)} className={`w-20 px-2 py-1 border rounded text-sm ${hasError ? 'border-danger-border' : 'border-border-strong'}`} min="0" />
                         </td>
                         <td className="py-2 px-3">
-                          <input type="number" value={band.max_value} onChange={(e) => handleBandChange('tenure', band.band_id, 'max_value', e.target.value)} className={`w-20 px-2 py-1 border rounded text-sm ${hasError ? 'border-red-300' : 'border-gray-300'}`} min="1" />
+                          <input type="number" value={band.max_value} onChange={(e) => handleBandChange('tenure', band.band_id, 'max_value', e.target.value)} className={`w-20 px-2 py-1 border rounded text-sm ${hasError ? 'border-danger-border' : 'border-border-strong'}`} min="1" />
                         </td>
                         <td className="py-2 px-3">
-                          <input type="number" value={band.display_order} onChange={(e) => handleBandChange('tenure', band.band_id, 'display_order', e.target.value)} className={`w-16 px-2 py-1 border rounded text-sm ${hasError ? 'border-red-300' : 'border-gray-300'}`} min="1" />
+                          <input type="number" value={band.display_order} onChange={(e) => handleBandChange('tenure', band.band_id, 'display_order', e.target.value)} className={`w-16 px-2 py-1 border rounded text-sm ${hasError ? 'border-danger-border' : 'border-border-strong'}`} min="1" />
                         </td>
                       </tr>
                     );
@@ -296,7 +296,7 @@ export function SegmentationSection() {
                 </tbody>
               </table>
             </div>
-            <p className="mt-2 text-xs text-gray-500">
+            <p className="mt-2 text-xs text-ink-muted">
               Bands use [min, max) interval convention: min_value is inclusive, max_value is exclusive.
             </p>
           </div>

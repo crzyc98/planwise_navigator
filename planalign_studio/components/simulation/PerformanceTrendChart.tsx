@@ -18,6 +18,7 @@ import {
   YAxis,
 } from 'recharts';
 import { PerformanceSample } from '../../services/api';
+import { useChartTheme } from '../../hooks/useChartTheme';
 
 interface PerformanceTrendChartProps {
   samples: PerformanceSample[];
@@ -30,6 +31,7 @@ function formatElapsed(seconds: number): string {
 }
 
 export default function PerformanceTrendChart({ samples }: PerformanceTrendChartProps) {
+  const chartTheme = useChartTheme();
   const data = useMemo(
     () =>
       samples.map((s) => ({
@@ -42,7 +44,7 @@ export default function PerformanceTrendChart({ samples }: PerformanceTrendChart
 
   if (data.length < 2) {
     return (
-      <div className="h-40 bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-center text-gray-400 text-sm">
+      <div className="h-40 bg-surface-subtle rounded-lg border border-border flex items-center justify-center text-ink-subtle text-sm">
         Collecting performance samples…
       </div>
     );
@@ -52,36 +54,36 @@ export default function PerformanceTrendChart({ samples }: PerformanceTrendChart
     <div className="h-40">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 5, right: 5, bottom: 0, left: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+          <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid.line} />
           <XAxis
             dataKey="elapsed"
             tickFormatter={formatElapsed}
-            tick={{ fontSize: 10, fill: '#9ca3af' }}
+            tick={{ fontSize: 10, fill: chartTheme.axis.tick }}
             type="number"
             domain={['dataMin', 'dataMax']}
           />
           <YAxis
             yAxisId="throughput"
-            tick={{ fontSize: 10, fill: '#9ca3af' }}
+            tick={{ fontSize: 10, fill: chartTheme.axis.tick }}
             width={40}
           />
           <YAxis
             yAxisId="memory"
             orientation="right"
-            tick={{ fontSize: 10, fill: '#9ca3af' }}
+            tick={{ fontSize: 10, fill: chartTheme.axis.tick }}
             width={45}
           />
           <Tooltip
             labelFormatter={(value: number) => `Elapsed ${formatElapsed(value)}`}
-            contentStyle={{ fontSize: 12 }}
+            contentStyle={{ ...chartTheme.tooltip.contentStyle, fontSize: 12 }}
           />
-          <Legend wrapperStyle={{ fontSize: 11 }} />
+          <Legend wrapperStyle={{ fontSize: 11 }} formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
           <Line
             yAxisId="throughput"
             type="monotone"
             dataKey="eventsPerSecond"
             name="Events/sec"
-            stroke="#00853F"
+            stroke={chartTheme.semantic.primary}
             dot={false}
             strokeWidth={2}
             isAnimationActive={false}
@@ -91,7 +93,7 @@ export default function PerformanceTrendChart({ samples }: PerformanceTrendChart
             type="monotone"
             dataKey="memoryMb"
             name="Memory (MB)"
-            stroke="#8b5cf6"
+            stroke={chartTheme.colorAt(3)}
             dot={false}
             strokeWidth={2}
             isAnimationActive={false}

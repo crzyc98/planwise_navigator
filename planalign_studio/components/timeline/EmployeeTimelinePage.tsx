@@ -41,7 +41,7 @@ export default function EmployeeTimelinePage() {
   return (
     <main className="space-y-5 p-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <div><h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900"><Users className="text-fidelity-green" />Employee Timeline</h1><p className="text-sm text-gray-500">Read the event story alongside each year-end state.</p></div>
+        <div><h1 className="flex items-center gap-2 text-2xl font-bold text-ink"><Users className="text-fidelity-green" />Employee Timeline</h1><p className="text-sm text-ink-muted">Read the event story alongside each year-end state.</p></div>
         {employeeId && <button onClick={copyLink} className="flex items-center gap-2 rounded border px-3 py-2 text-sm"><Copy size={16} />Copy link</button>}
       </header>
       <div className="grid gap-3 md:grid-cols-2">
@@ -55,7 +55,7 @@ export default function EmployeeTimelinePage() {
           {compareId && <TimelineColumn workspaceId={workspaceId} scenarioId={compareId} employeeId={employeeId} scenarioLabel={scenarios.find((item) => item.id === compareId)?.name ?? compareId} alignedYears={alignedYears} onLoaded={rightLoaded} />}
         </div>
       )}
-      {!employeeId && <div className="rounded-xl border border-dashed border-gray-300 p-10 text-center text-gray-500">Choose a scenario, then search for an employee.</div>}
+      {!employeeId && <div className="rounded-xl border border-dashed border-border-strong p-10 text-center text-ink-muted">Choose a scenario, then search for an employee.</div>}
     </main>
   );
 }

@@ -17,25 +17,25 @@ interface PlanDesignModalProps {
 // Read-only display field
 const Field = ({ label, value, suffix }: Readonly<{ label: string; value: React.ReactNode; suffix?: string }>) => (
   <div className="sm:col-span-3">
-    <dt className="text-xs font-medium text-gray-500">{label}</dt>
-    <dd className="mt-0.5 text-sm text-gray-900">
-      {value}{suffix ? <span className="text-gray-500 ml-0.5">{suffix}</span> : null}
+    <dt className="text-xs font-medium text-ink-muted">{label}</dt>
+    <dd className="mt-0.5 text-sm text-ink">
+      {value}{suffix ? <span className="text-ink-muted ml-0.5">{suffix}</span> : null}
     </dd>
   </div>
 );
 
 const StatusBadge = ({ enabled }: Readonly<{ enabled: boolean }>) => (
-  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${enabled ? 'bg-success-surface text-success-ink' : 'bg-surface-subtle text-ink-muted'}`}>
     {enabled ? <CheckCircle size={12} /> : <XCircle size={12} />}
     {enabled ? 'Enabled' : 'Disabled'}
   </span>
 );
 
 const SectionHeader = ({ icon: Icon, title, children }: Readonly<{ icon: React.ElementType; title: string; children?: React.ReactNode }>) => (
-  <div className="flex items-center justify-between border-b border-gray-200 pb-2 mb-4">
+  <div className="flex items-center justify-between border-b border-border pb-2 mb-4">
     <div className="flex items-center gap-2">
-      <Icon size={16} className="text-gray-600" />
-      <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+      <Icon size={16} className="text-ink-muted" />
+      <h3 className="text-sm font-semibold text-ink">{title}</h3>
     </div>
     {children}
   </div>
@@ -117,22 +117,22 @@ export function PlanDesignModal({ config, onClose }: PlanDesignModalProps) {
     <div
       role="button"
       tabIndex={0}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-overlay backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
     >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col mx-4">
+      <div className="bg-surface-raised rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col mx-4">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gray-50">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-surface-subtle">
           <div>
-            <h2 className="text-lg font-bold text-gray-900">Plan Design Summary</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Read-only view of the DC plan configuration</p>
+            <h2 className="text-lg font-bold text-ink">Plan Design Summary</h2>
+            <p className="text-xs text-ink-muted mt-0.5">Read-only view of the DC plan configuration</p>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+            className="p-2 hover:bg-surface-disabled rounded-lg transition-colors"
           >
-            <X size={18} className="text-gray-500" />
+            <X size={18} className="text-ink-muted" />
           </button>
         </div>
 
@@ -172,14 +172,14 @@ export function PlanDesignModal({ config, onClose }: PlanDesignModalProps) {
 
                 {/* Deferral-based tiers */}
                 {matchMode === 'deferral_based' && matchTiers.length > 0 && (
-                  <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
-                    <p className="text-xs font-medium text-gray-700 mb-2">Match Tiers</p>
+                  <div className="bg-surface-subtle rounded-lg border border-border p-3">
+                    <p className="text-xs font-medium text-ink-muted mb-2">Match Tiers</p>
                     <div className="space-y-1">
                       {matchTiers.map((t: any, i: number) => (
-                        <div key={i} className="flex items-center gap-2 text-xs text-gray-700">
-                          <span className="text-gray-400 w-4">{i + 1}.</span>
+                        <div key={i} className="flex items-center gap-2 text-xs text-ink-muted">
+                          <span className="text-ink-subtle w-4">{i + 1}.</span>
                           <span>{toPercent(t.employee_min)}% to {toPercent(t.employee_max)}% deferrals</span>
-                          <span className="text-gray-400">&rarr;</span>
+                          <span className="text-ink-subtle">&rarr;</span>
                           <span className="font-medium">{toPercent(t.match_rate)}% match</span>
                         </div>
                       ))}
@@ -189,14 +189,14 @@ export function PlanDesignModal({ config, onClose }: PlanDesignModalProps) {
 
                 {/* Tenure-based tiers */}
                 {matchMode === 'tenure_based' && tenureMatchTiers.length > 0 && (
-                  <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
-                    <p className="text-xs font-medium text-gray-700 mb-2">Tenure Match Tiers</p>
+                  <div className="bg-surface-subtle rounded-lg border border-border p-3">
+                    <p className="text-xs font-medium text-ink-muted mb-2">Tenure Match Tiers</p>
                     <div className="space-y-1">
                       {tenureMatchTiers.map((t: any, i: number) => (
-                        <div key={i} className="flex items-center gap-2 text-xs text-gray-700">
-                          <span className="text-gray-400 w-4">{i + 1}.</span>
+                        <div key={i} className="flex items-center gap-2 text-xs text-ink-muted">
+                          <span className="text-ink-subtle w-4">{i + 1}.</span>
                           <span>{t.min_years} to {t.max_years ?? '\u221E'} yrs</span>
-                          <span className="text-gray-400">&rarr;</span>
+                          <span className="text-ink-subtle">&rarr;</span>
                           <span className="font-medium">{toPercent(t.match_rate)}% match, max {toPercent(t.max_deferral_pct)}% def</span>
                         </div>
                       ))}
@@ -206,15 +206,15 @@ export function PlanDesignModal({ config, onClose }: PlanDesignModalProps) {
 
                 {/* Points-based tiers */}
                 {matchMode === 'points_based' && pointsMatchTiers.length > 0 && (
-                  <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
-                    <p className="text-xs font-medium text-gray-700 mb-2">Points Match Tiers</p>
-                    <p className="text-[10px] text-gray-500 mb-2">Points = FLOOR(age) + FLOOR(tenure)</p>
+                  <div className="bg-surface-subtle rounded-lg border border-border p-3">
+                    <p className="text-xs font-medium text-ink-muted mb-2">Points Match Tiers</p>
+                    <p className="text-[10px] text-ink-muted mb-2">Points = FLOOR(age) + FLOOR(tenure)</p>
                     <div className="space-y-1">
                       {pointsMatchTiers.map((t: any, i: number) => (
-                        <div key={i} className="flex items-center gap-2 text-xs text-gray-700">
-                          <span className="text-gray-400 w-4">{i + 1}.</span>
+                        <div key={i} className="flex items-center gap-2 text-xs text-ink-muted">
+                          <span className="text-ink-subtle w-4">{i + 1}.</span>
                           <span>{t.min_points} to {t.max_points ?? '\u221E'} pts</span>
-                          <span className="text-gray-400">&rarr;</span>
+                          <span className="text-ink-subtle">&rarr;</span>
                           <span className="font-medium">{toPercent(t.match_rate)}% match, max {toPercent(t.max_deferral_pct)}% def</span>
                         </div>
                       ))}
@@ -232,8 +232,8 @@ export function PlanDesignModal({ config, onClose }: PlanDesignModalProps) {
               <Field label="Min. Tenure" value={dc.match_min_tenure_years ?? 0} suffix="years" />
               <Field label="Min. Annual Hours" value={dc.match_min_hours_annual ?? 0} suffix="hours" />
               <div className="sm:col-span-6">
-                <dt className="text-xs font-medium text-gray-500">Last Day Working Rule</dt>
-                <dd className="mt-0.5 text-sm text-gray-900">
+                <dt className="text-xs font-medium text-ink-muted">Last Day Working Rule</dt>
+                <dd className="mt-0.5 text-sm text-ink">
                   {dc.match_require_year_end_active
                     ? 'Enabled \u2014 only employees active at year-end receive match'
                     : 'Disabled \u2014 terminated employees may still receive match'}
@@ -258,14 +258,14 @@ export function PlanDesignModal({ config, onClose }: PlanDesignModalProps) {
 
                 {/* Graded schedule */}
                 {coreStatus === 'graded_by_service' && coreGradedSchedule.length > 0 && (
-                  <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
-                    <p className="text-xs font-medium text-gray-700 mb-2">Graded Core Schedule</p>
+                  <div className="bg-surface-subtle rounded-lg border border-border p-3">
+                    <p className="text-xs font-medium text-ink-muted mb-2">Graded Core Schedule</p>
                     <div className="space-y-1">
                       {coreGradedSchedule.map((t: any, i: number) => (
-                        <div key={i} className="flex items-center gap-2 text-xs text-gray-700">
-                          <span className="text-gray-400 w-4">{i + 1}.</span>
+                        <div key={i} className="flex items-center gap-2 text-xs text-ink-muted">
+                          <span className="text-ink-subtle w-4">{i + 1}.</span>
                           <span>{t.service_years_min} to {t.service_years_max ?? '\u221E'} years</span>
-                          <span className="text-gray-400">&rarr;</span>
+                          <span className="text-ink-subtle">&rarr;</span>
                           <span className="font-medium">{toPercent(t.contribution_rate)}%</span>
                         </div>
                       ))}
@@ -275,15 +275,15 @@ export function PlanDesignModal({ config, onClose }: PlanDesignModalProps) {
 
                 {/* Points-based schedule */}
                 {coreStatus === 'points_based' && corePointsSchedule.length > 0 && (
-                  <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
-                    <p className="text-xs font-medium text-gray-700 mb-2">Points Core Schedule</p>
-                    <p className="text-[10px] text-gray-500 mb-2">Points = FLOOR(age) + FLOOR(tenure)</p>
+                  <div className="bg-surface-subtle rounded-lg border border-border p-3">
+                    <p className="text-xs font-medium text-ink-muted mb-2">Points Core Schedule</p>
+                    <p className="text-[10px] text-ink-muted mb-2">Points = FLOOR(age) + FLOOR(tenure)</p>
                     <div className="space-y-1">
                       {corePointsSchedule.map((t: any, i: number) => (
-                        <div key={i} className="flex items-center gap-2 text-xs text-gray-700">
-                          <span className="text-gray-400 w-4">{i + 1}.</span>
+                        <div key={i} className="flex items-center gap-2 text-xs text-ink-muted">
+                          <span className="text-ink-subtle w-4">{i + 1}.</span>
                           <span>{t.min_points} to {t.max_points ?? '\u221E'} pts</span>
-                          <span className="text-gray-400">&rarr;</span>
+                          <span className="text-ink-subtle">&rarr;</span>
                           <span className="font-medium">{toPercent(t.contribution_rate)}%</span>
                         </div>
                       ))}
@@ -292,15 +292,15 @@ export function PlanDesignModal({ config, onClose }: PlanDesignModalProps) {
                 )}
 
                 {coreStatus === 'age_banded' && coreAgeSchedule.length > 0 && (
-                  <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
-                    <p className="text-xs font-medium text-gray-700 mb-2">Age-Banded Core Schedule</p>
-                    <p className="text-[10px] text-gray-500 mb-2">Annual age; [min, max) intervals.</p>
+                  <div className="bg-surface-subtle rounded-lg border border-border p-3">
+                    <p className="text-xs font-medium text-ink-muted mb-2">Age-Banded Core Schedule</p>
+                    <p className="text-[10px] text-ink-muted mb-2">Annual age; [min, max) intervals.</p>
                     <div className="space-y-1">
                       {coreAgeSchedule.map((t: any, i: number) => (
-                        <div key={i} className="flex items-center gap-2 text-xs text-gray-700">
-                          <span className="text-gray-400 w-4">{i + 1}.</span>
+                        <div key={i} className="flex items-center gap-2 text-xs text-ink-muted">
+                          <span className="text-ink-subtle w-4">{i + 1}.</span>
                           <span>Age {t.min_age} to {t.max_age ?? '∞'}</span>
-                          <span className="text-gray-400">→</span>
+                          <span className="text-ink-subtle">→</span>
                           <span className="font-medium">{toPercent(t.contribution_rate)}%</span>
                         </div>
                       ))}
@@ -311,20 +311,20 @@ export function PlanDesignModal({ config, onClose }: PlanDesignModalProps) {
                 {/* §401(l) integration — shown for any core status, since it
                     modifies the resolved base rate rather than replacing it. */}
                 {dc.core_integration_enabled && (
-                  <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
-                    <p className="text-xs font-medium text-gray-700 mb-2">Social Security Integration</p>
-                    <div className="space-y-1 text-xs text-gray-700">
+                  <div className="bg-surface-subtle rounded-lg border border-border p-3">
+                    <p className="text-xs font-medium text-ink-muted mb-2">Social Security Integration</p>
+                    <div className="space-y-1 text-xs text-ink-muted">
                       <div className="flex items-center gap-2">
-                        <span className="text-gray-500">Integration level</span>
-                        <span className="text-gray-400">→</span>
+                        <span className="text-ink-muted">Integration level</span>
+                        <span className="text-ink-subtle">→</span>
                         <span className="font-medium">{formatIntegrationLevel(dc)}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-gray-500">Disparity rate</span>
-                        <span className="text-gray-400">→</span>
+                        <span className="text-ink-muted">Disparity rate</span>
+                        <span className="text-ink-subtle">→</span>
                         <span className="font-medium">{toPercent(dc.core_integration_disparity_rate)}%</span>
                       </div>
-                      <p className="text-[10px] text-gray-500 pt-1">
+                      <p className="text-[10px] text-ink-muted pt-1">
                         Applied to compensation above the level, on top of the base rate.
                       </p>
                     </div>
@@ -336,8 +336,8 @@ export function PlanDesignModal({ config, onClose }: PlanDesignModalProps) {
                   <Field label="Min. Tenure" value={dc.core_min_tenure_years ?? 0} suffix="years" />
                   <Field label="Min. Annual Hours" value={dc.core_min_hours_annual ?? 0} suffix="hours" />
                   <div className="sm:col-span-6">
-                    <dt className="text-xs font-medium text-gray-500">Last Day Working Rule</dt>
-                    <dd className="mt-0.5 text-sm text-gray-900">
+                    <dt className="text-xs font-medium text-ink-muted">Last Day Working Rule</dt>
+                    <dd className="mt-0.5 text-sm text-ink">
                       {dc.core_require_year_end_active
                         ? 'Enabled \u2014 only employees active at year-end receive core'
                         : 'Disabled \u2014 terminated employees may still receive core'}
@@ -366,10 +366,10 @@ export function PlanDesignModal({ config, onClose }: PlanDesignModalProps) {
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 border-t border-gray-200 bg-gray-50 flex justify-end">
+        <div className="px-6 py-3 border-t border-border bg-surface-subtle flex justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            className="px-4 py-2 text-sm font-medium text-ink-muted bg-surface-raised border border-border-strong rounded-lg hover:bg-surface-subtle transition-colors"
           >
             Close
           </button>

@@ -170,20 +170,20 @@ export default function WorkspaceManager() {
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Manage Workspaces</h1>
-          <p className="text-gray-500 mt-1">Organize your simulation environments and projects.</p>
+          <h1 className="text-2xl font-bold text-ink">Manage Workspaces</h1>
+          <p className="text-ink-muted mt-1">Organize your simulation environments and projects.</p>
         </div>
         <div className="flex gap-2">
           <button
             onClick={() => setIsImportOpen(true)}
-            className="flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
+            className="flex items-center px-4 py-2 bg-surface-raised border border-border-strong text-ink-muted rounded-lg hover:bg-surface-subtle transition-colors shadow-sm"
           >
             <Upload size={20} className="mr-2" />
             Import
           </button>
           <button
             onClick={() => setIsCreateOpen(true)}
-            className="flex items-center px-4 py-2 bg-fidelity-green text-white rounded-lg hover:bg-fidelity-dark transition-colors shadow-sm"
+            className="flex items-center px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg hover:bg-fidelity-dark transition-colors shadow-sm"
           >
             <Plus size={20} className="mr-2" />
             Create New Workspace
@@ -192,15 +192,15 @@ export default function WorkspaceManager() {
       </div>
 
       {/* Search Bar */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6">
+      <div className="bg-surface-raised p-4 rounded-xl shadow-sm border border-border mb-6">
         <div className="relative">
-          <Search size={20} className="absolute left-3 top-2.5 text-gray-400" />
+          <Search size={20} className="absolute left-3 top-2.5 text-ink-subtle" />
           <input
             type="text"
             placeholder="Search workspaces by name or description..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-fidelity-green focus:border-fidelity-green"
+            className="w-full pl-10 pr-4 py-2 border border-border-strong rounded-lg focus:ring-fidelity-green focus:border-fidelity-green"
           />
         </div>
       </div>
@@ -210,7 +210,7 @@ export default function WorkspaceManager() {
         {filteredWorkspaces.map(ws => (
           <div
             key={ws.id}
-            className={`bg-white rounded-xl border p-6 flex flex-col transition-all ${activeWorkspace.id === ws.id ? 'border-fidelity-green shadow-md ring-1 ring-fidelity-green' : 'border-gray-200 shadow-sm hover:shadow-md'}`}
+            className={`bg-surface-raised rounded-xl border p-6 flex flex-col transition-all ${activeWorkspace.id === ws.id ? 'border-fidelity-green shadow-md ring-1 ring-fidelity-green' : 'border-border shadow-sm hover:shadow-md'}`}
           >
             {editingId === ws.id ? (
               // Editing Mode
@@ -219,20 +219,20 @@ export default function WorkspaceManager() {
                   type="text"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-fidelity-green focus:border-fidelity-green text-lg font-bold"
+                  className="w-full px-2 py-1 border border-border-strong rounded focus:ring-fidelity-green focus:border-fidelity-green text-lg font-bold"
                   autoFocus
                 />
                 <textarea
                   value={editDesc}
                   onChange={(e) => setEditDesc(e.target.value)}
-                  className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-fidelity-green focus:border-fidelity-green text-sm"
+                  className="w-full px-2 py-1 border border-border-strong rounded focus:ring-fidelity-green focus:border-fidelity-green text-sm"
                   rows={2}
                 />
                 <div className="flex justify-end space-x-2 pt-2">
-                  <button onClick={cancelEdit} className="p-1 text-gray-500 hover:text-gray-700">
+                  <button onClick={cancelEdit} className="p-1 text-ink-muted hover:text-ink-muted">
                     <X size={20} />
                   </button>
-                  <button onClick={() => saveEdit(ws.id)} className="p-1 text-green-600 hover:text-green-800">
+                  <button onClick={() => saveEdit(ws.id)} className="p-1 text-success-ink hover:text-success-ink">
                     <Check size={20} />
                   </button>
                 </div>
@@ -242,24 +242,24 @@ export default function WorkspaceManager() {
               <div className="flex-1">
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex items-center">
-                    <div className={`p-2 rounded-lg mr-3 ${activeWorkspace.id === ws.id ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                    <div className={`p-2 rounded-lg mr-3 ${activeWorkspace.id === ws.id ? 'bg-success-surface text-success-ink' : 'bg-surface-subtle text-ink-muted'}`}>
                       <Briefcase size={20} />
                     </div>
                     <div>
-                      <h3 className="font-bold text-gray-900">{ws.name}</h3>
-                      <span className="text-xs text-gray-400 font-mono">{ws.id}</span>
+                      <h3 className="font-bold text-ink">{ws.name}</h3>
+                      <span className="text-xs text-ink-subtle font-mono">{ws.id}</span>
                     </div>
                   </div>
                   {activeWorkspace.id === ws.id && (
-                    <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
+                    <span className="px-2 py-1 bg-success-surface text-success-ink text-xs font-medium rounded-full">
                       Active
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-gray-600 mb-4 line-clamp-2 min-h-[40px]">
+                <p className="text-sm text-ink-muted mb-4 line-clamp-2 min-h-[40px]">
                   {ws.description || 'No description'}
                 </p>
-                <div className="flex items-center text-xs text-gray-500 mb-4 space-x-4">
+                <div className="flex items-center text-xs text-ink-muted mb-4 space-x-4">
                   <span className="flex items-center">
                     <Layout size={14} className="mr-1" />
                     {ws.scenarios.length} Scenarios
@@ -273,13 +273,13 @@ export default function WorkspaceManager() {
             )}
 
             {/* Actions Footer */}
-            <div className="pt-4 border-t border-gray-100 flex justify-between items-center mt-auto">
+            <div className="pt-4 border-t border-border flex justify-between items-center mt-auto">
               {editingId !== ws.id && (
                 <>
                   <div className="flex space-x-2">
                     <button
                       onClick={() => startEditing(ws)}
-                      className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
+                      className="p-1.5 text-ink-subtle hover:text-ink-muted hover:bg-surface-subtle rounded-md transition-colors"
                       title="Edit"
                     >
                       <Edit2 size={16} />
@@ -287,7 +287,7 @@ export default function WorkspaceManager() {
                     <button
                       onClick={() => handleExport(ws.id)}
                       disabled={exportingId === ws.id}
-                      className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors disabled:opacity-50"
+                      className="p-1.5 text-ink-subtle hover:text-info-ink hover:bg-info-surface rounded-md transition-colors disabled:opacity-50"
                       title="Export"
                     >
                       {exportingId === ws.id ? (
@@ -299,7 +299,7 @@ export default function WorkspaceManager() {
                     {workspaces.length > 1 && (
                       <button
                         onClick={() => handleDelete(ws.id)}
-                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                        className="p-1.5 text-ink-subtle hover:text-danger-ink hover:bg-danger-surface rounded-md transition-colors"
                         title="Delete"
                       >
                         <Trash2 size={16} />
@@ -323,9 +323,9 @@ export default function WorkspaceManager() {
         {/* Empty State / Add New Card */}
         <button
           onClick={() => setIsCreateOpen(true)}
-          className="border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center text-gray-400 hover:border-fidelity-green hover:text-fidelity-green hover:bg-green-50/30 transition-all group min-h-[200px]"
+          className="border-2 border-dashed border-border-strong rounded-xl p-6 flex flex-col items-center justify-center text-ink-subtle hover:border-fidelity-green hover:text-fidelity-green hover:bg-success-surface/30 transition-all group min-h-[200px]"
         >
-           <div className="p-3 bg-gray-50 rounded-full mb-3 group-hover:bg-white group-hover:shadow-sm transition-colors">
+           <div className="p-3 bg-surface-subtle rounded-full mb-3 group-hover:bg-surface-raised group-hover:shadow-sm transition-colors">
              <Plus size={24} />
            </div>
            <span className="font-medium">Create Workspace</span>
@@ -335,50 +335,50 @@ export default function WorkspaceManager() {
       {/* Create Modal */}
       {isCreateOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" role="presentation" tabIndex={0} onClick={() => setIsCreateOpen(false)} onKeyDown={(e) => { if (e.key === 'Escape' || e.key === 'Enter') setIsCreateOpen(false); }}></div>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md relative z-10 overflow-hidden animate-fadeIn">
-            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-              <h3 className="font-semibold text-gray-800">Create New Workspace</h3>
-              <button onClick={() => setIsCreateOpen(false)} className="text-gray-400 hover:text-gray-600">
+          <div className="absolute inset-0 bg-overlay backdrop-blur-sm" role="presentation" tabIndex={0} onClick={() => setIsCreateOpen(false)} onKeyDown={(e) => { if (e.key === 'Escape' || e.key === 'Enter') setIsCreateOpen(false); }}></div>
+          <div className="bg-surface-raised rounded-xl shadow-2xl w-full max-w-md relative z-10 overflow-hidden animate-fadeIn">
+            <div className="px-6 py-4 border-b border-border flex justify-between items-center bg-surface-subtle">
+              <h3 className="font-semibold text-ink">Create New Workspace</h3>
+              <button onClick={() => setIsCreateOpen(false)} className="text-ink-subtle hover:text-ink-muted">
                 <X size={20} />
               </button>
             </div>
             <form onSubmit={handleCreate} className="p-6 space-y-4">
               <div>
-                <label htmlFor="workspace-create-name" className="block text-sm font-medium text-gray-700 mb-1">Workspace Name</label>
+                <label htmlFor="workspace-create-name" className="block text-sm font-medium text-ink-muted mb-1">Workspace Name</label>
                 <input
                   id="workspace-create-name"
                   type="text"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   placeholder="e.g., Q2 2025 Budgeting"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-fidelity-green focus:border-fidelity-green"
+                  className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-fidelity-green focus:border-fidelity-green"
                   autoFocus
                 />
               </div>
               <div>
-                <label htmlFor="workspace-create-description" className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <label htmlFor="workspace-create-description" className="block text-sm font-medium text-ink-muted mb-1">Description</label>
                 <textarea
                   id="workspace-create-description"
                   value={newDesc}
                   onChange={(e) => setNewDesc(e.target.value)}
                   placeholder="Brief description of this workspace's purpose..."
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-fidelity-green focus:border-fidelity-green"
+                  className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-fidelity-green focus:border-fidelity-green"
                 />
               </div>
               <div className="flex justify-end space-x-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setIsCreateOpen(false)}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg"
+                  className="px-4 py-2 text-sm font-medium text-ink-muted hover:bg-surface-subtle rounded-lg"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={!newName.trim()}
-                  className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${!newName.trim() ? 'bg-gray-300 cursor-not-allowed' : 'bg-fidelity-green hover:bg-fidelity-dark'}`}
+                  className={`px-4 py-2 text-sm font-medium text-ink-inverse rounded-lg transition-colors ${!newName.trim() ? 'bg-surface-disabled cursor-not-allowed' : 'bg-fidelity-green hover:bg-fidelity-dark'}`}
                 >
                   Create Workspace
                 </button>
@@ -391,18 +391,18 @@ export default function WorkspaceManager() {
       {/* Import Modal */}
       {isImportOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" role="presentation" tabIndex={0} onClick={closeImportDialog} onKeyDown={(e) => { if (e.key === 'Escape' || e.key === 'Enter') closeImportDialog(); }}></div>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg relative z-10 overflow-hidden animate-fadeIn">
-            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-              <h3 className="font-semibold text-gray-800">Import Workspace</h3>
-              <button onClick={closeImportDialog} className="text-gray-400 hover:text-gray-600">
+          <div className="absolute inset-0 bg-overlay backdrop-blur-sm" role="presentation" tabIndex={0} onClick={closeImportDialog} onKeyDown={(e) => { if (e.key === 'Escape' || e.key === 'Enter') closeImportDialog(); }}></div>
+          <div className="bg-surface-raised rounded-xl shadow-2xl w-full max-w-lg relative z-10 overflow-hidden animate-fadeIn">
+            <div className="px-6 py-4 border-b border-border flex justify-between items-center bg-surface-subtle">
+              <h3 className="font-semibold text-ink">Import Workspace</h3>
+              <button onClick={closeImportDialog} className="text-ink-subtle hover:text-ink-muted">
                 <X size={20} />
               </button>
             </div>
             <div className="p-6 space-y-4">
               {/* File Selection */}
               <div>
-                <label htmlFor="workspace-import-file" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="workspace-import-file" className="block text-sm font-medium text-ink-muted mb-2">
                   Select Archive File (.7z)
                 </label>
                 <input
@@ -411,13 +411,13 @@ export default function WorkspaceManager() {
                   type="file"
                   accept=".7z"
                   onChange={handleFileSelect}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-fidelity-green focus:border-fidelity-green file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-fidelity-green file:text-white hover:file:bg-fidelity-dark"
+                  className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-fidelity-green focus:border-fidelity-green file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-fidelity-green file:text-ink-inverse hover:file:bg-fidelity-dark"
                 />
               </div>
 
               {/* Validation Status */}
               {isValidating && (
-                <div className="flex items-center text-gray-600">
+                <div className="flex items-center text-ink-muted">
                   <Loader2 size={16} className="animate-spin mr-2" />
                   Validating archive...
                 </div>
@@ -425,17 +425,17 @@ export default function WorkspaceManager() {
 
               {/* Validation Error */}
               {importError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start">
-                  <AlertCircle size={20} className="text-red-500 mr-2 flex-shrink-0 mt-0.5" />
-                  <div className="text-sm text-red-700">{importError}</div>
+                <div className="p-3 bg-danger-surface border border-danger-border rounded-lg flex items-start">
+                  <AlertCircle size={20} className="text-danger-ink mr-2 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-danger-ink">{importError}</div>
                 </div>
               )}
 
               {/* Validation Results */}
               {importValidation && !importValidation.valid && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <div className="font-medium text-red-800 mb-2">Validation Failed</div>
-                  <ul className="text-sm text-red-700 list-disc list-inside">
+                <div className="p-3 bg-danger-surface border border-danger-border rounded-lg">
+                  <div className="font-medium text-danger-ink mb-2">Validation Failed</div>
+                  <ul className="text-sm text-danger-ink list-disc list-inside">
                     {importValidation.errors.map((err, i) => (
                       <li key={i}>{err}</li>
                     ))}
@@ -446,9 +446,9 @@ export default function WorkspaceManager() {
               {importValidation?.valid && (
                 <>
                   {/* Manifest Info */}
-                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                    <div className="font-medium text-green-800 mb-2">Archive Valid</div>
-                    <div className="text-sm text-green-700 space-y-1">
+                  <div className="p-3 bg-success-surface border border-success-border rounded-lg">
+                    <div className="font-medium text-success-ink mb-2">Archive Valid</div>
+                    <div className="text-sm text-success-ink space-y-1">
                       <div><span className="font-medium">Name:</span> {importValidation.manifest?.workspace_name}</div>
                       <div><span className="font-medium">Scenarios:</span> {importValidation.manifest?.contents.scenario_count}</div>
                       <div><span className="font-medium">Exported:</span> {importValidation.manifest?.export_date ? new Date(importValidation.manifest.export_date).toLocaleString() : 'Unknown'}</div>
@@ -457,9 +457,9 @@ export default function WorkspaceManager() {
 
                   {/* Warnings */}
                   {importValidation.warnings.length > 0 && (
-                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                      <div className="font-medium text-yellow-800 mb-2">Warnings</div>
-                      <ul className="text-sm text-yellow-700 list-disc list-inside">
+                    <div className="p-3 bg-warning-surface border border-warning-border rounded-lg">
+                      <div className="font-medium text-warning-ink mb-2">Warnings</div>
+                      <ul className="text-sm text-warning-ink list-disc list-inside">
                         {importValidation.warnings.map((warn, i) => (
                           <li key={i}>{warn}</li>
                         ))}
@@ -469,9 +469,9 @@ export default function WorkspaceManager() {
 
                   {/* Conflict Resolution */}
                   {importValidation.conflict && (
-                    <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                      <div className="font-medium text-orange-800 mb-2">Name Conflict</div>
-                      <p className="text-sm text-orange-700 mb-3">
+                    <div className="p-3 bg-warning-surface border border-warning-border rounded-lg">
+                      <div className="font-medium text-warning-ink mb-2">Name Conflict</div>
+                      <p className="text-sm text-warning-ink mb-3">
                         A workspace named "{importValidation.conflict.existing_workspace_name}" already exists.
                       </p>
                       <div className="space-y-2">
@@ -485,14 +485,14 @@ export default function WorkspaceManager() {
                             onChange={() => setConflictResolution('rename')}
                             className="mr-2"
                           />
-                          <span className="text-sm text-gray-700">Rename to:</span>
+                          <span className="text-sm text-ink-muted">Rename to:</span>
                         </label>
                         {conflictResolution === 'rename' && (
                           <input
                             type="text"
                             value={customName}
                             onChange={(e) => setCustomName(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-fidelity-green focus:border-fidelity-green text-sm"
+                            className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-fidelity-green focus:border-fidelity-green text-sm"
                           />
                         )}
                         <label htmlFor="workspace-conflict-replace" className="flex items-center">
@@ -505,7 +505,7 @@ export default function WorkspaceManager() {
                             onChange={() => setConflictResolution('replace')}
                             className="mr-2"
                           />
-                          <span className="text-sm text-gray-700">Replace existing workspace</span>
+                          <span className="text-sm text-ink-muted">Replace existing workspace</span>
                         </label>
                       </div>
                     </div>
@@ -518,14 +518,14 @@ export default function WorkspaceManager() {
                 <button
                   type="button"
                   onClick={closeImportDialog}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg"
+                  className="px-4 py-2 text-sm font-medium text-ink-muted hover:bg-surface-subtle rounded-lg"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleImport}
                   disabled={!importValidation?.valid || isImporting}
-                  className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors flex items-center ${!importValidation?.valid || isImporting ? 'bg-gray-300 cursor-not-allowed' : 'bg-fidelity-green hover:bg-fidelity-dark'}`}
+                  className={`px-4 py-2 text-sm font-medium text-ink-inverse rounded-lg transition-colors flex items-center ${!importValidation?.valid || isImporting ? 'bg-surface-disabled cursor-not-allowed' : 'bg-fidelity-green hover:bg-fidelity-dark'}`}
                 >
                   {isImporting && <Loader2 size={16} className="animate-spin mr-2" />}
                   Import Workspace

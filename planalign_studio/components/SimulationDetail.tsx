@@ -57,18 +57,18 @@ const isArchivedProvenanceRun = (run: RunSummary): boolean => (
 const getStatusColor = (status: string) => {
   switch (status) {
     case 'completed':
-      return 'bg-green-100 text-green-700 border-green-200';
+      return 'bg-success-surface text-success-ink border-success-border';
     case 'running':
-      return 'bg-blue-100 text-blue-700 border-blue-200';
+      return 'bg-info-surface text-info-ink border-info-border';
     case 'failed':
-      return 'bg-red-100 text-red-700 border-red-200';
+      return 'bg-danger-surface text-danger-ink border-danger-border';
     case 'cancelled':
-      return 'bg-orange-100 text-orange-700 border-orange-200';
+      return 'bg-warning-surface text-warning-ink border-warning-border';
     case 'pending':
     case 'queued':
-      return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+      return 'bg-warning-surface text-warning-ink border-warning-border';
     default:
-      return 'bg-gray-100 text-gray-600 border-gray-200';
+      return 'bg-surface-subtle text-ink-muted border-border';
   }
 };
 
@@ -88,15 +88,15 @@ const getStatusIcon = (status: string) => {
 const getArtifactIcon = (type: string) => {
   switch (type) {
     case 'excel':
-      return <FileSpreadsheet size={18} className="text-green-600" />;
+      return <FileSpreadsheet size={18} className="text-success-ink" />;
     case 'yaml':
-      return <FileText size={18} className="text-blue-600" />;
+      return <FileText size={18} className="text-info-ink" />;
     case 'duckdb':
-      return <Database size={18} className="text-purple-600" />;
+      return <Database size={18} className="text-info-ink" />;
     case 'json':
-      return <FileText size={18} className="text-yellow-600" />;
+      return <FileText size={18} className="text-warning-ink" />;
     default:
-      return <FileText size={18} className="text-gray-500" />;
+      return <FileText size={18} className="text-ink-muted" />;
   }
 };
 
@@ -198,7 +198,7 @@ export default function SimulationDetail() {
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-fidelity-green mx-auto mb-4"></div>
-          <p className="text-gray-500">Loading simulation details...</p>
+          <p className="text-ink-muted">Loading simulation details...</p>
         </div>
       </div>
     );
@@ -208,12 +208,12 @@ export default function SimulationDetail() {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
-          <AlertCircle size={48} className="text-red-400 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">Error Loading Details</h2>
-          <p className="text-gray-500 mb-4">{error || 'Simulation details not found'}</p>
+          <AlertCircle size={48} className="text-danger-ink mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-ink mb-2">Error Loading Details</h2>
+          <p className="text-ink-muted mb-4">{error || 'Simulation details not found'}</p>
           <button
             onClick={() => navigate('/simulate')}
-            className="px-4 py-2 bg-fidelity-green text-white rounded-lg hover:bg-fidelity-dark"
+            className="px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg hover:bg-fidelity-dark"
           >
             Back to Simulations
           </button>
@@ -225,19 +225,19 @@ export default function SimulationDetail() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div className="bg-surface-raised rounded-xl shadow-sm border border-border p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center">
             <button
               onClick={() => navigate('/simulate')}
-              className="mr-4 p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="mr-4 p-2 hover:bg-surface-subtle rounded-lg transition-colors"
               title="Back to Simulations"
             >
-              <ArrowLeft size={20} className="text-gray-600" />
+              <ArrowLeft size={20} className="text-ink-muted" />
             </button>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">{details.scenario_name}</h1>
-              <p className="text-sm text-gray-500">
+              <h1 className="text-2xl font-bold text-ink">{details.scenario_name}</h1>
+              <p className="text-sm text-ink-muted">
                 Workspace: <span className="font-medium">{details.workspace_name}</span>
               </p>
             </div>
@@ -250,7 +250,7 @@ export default function SimulationDetail() {
             {details.status === 'completed' && (
               <Link
                 to={`/analytics?scenario=${details.scenario_id}`}
-                className="flex items-center px-4 py-2 bg-fidelity-green text-white hover:bg-fidelity-dark rounded-lg font-medium shadow-sm"
+                className="flex items-center px-4 py-2 bg-fidelity-green text-ink-inverse hover:bg-fidelity-dark rounded-lg font-medium shadow-sm"
               >
                 <Activity size={18} className="mr-2" />
                 View Analytics
@@ -261,67 +261,67 @@ export default function SimulationDetail() {
 
         {/* Quick Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-          <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
-            <div className="flex items-center text-gray-500 text-sm mb-1">
+          <div className="bg-surface-subtle rounded-lg p-4 border border-border">
+            <div className="flex items-center text-ink-muted text-sm mb-1">
               <Clock size={14} className="mr-1.5" />
               Duration
             </div>
-            <p className="text-xl font-bold text-gray-900">{formatDuration(details.duration_seconds)}</p>
+            <p className="text-xl font-bold text-ink">{formatDuration(details.duration_seconds)}</p>
           </div>
 
-          <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
-            <div className="flex items-center text-gray-500 text-sm mb-1">
+          <div className="bg-surface-subtle rounded-lg p-4 border border-border">
+            <div className="flex items-center text-ink-muted text-sm mb-1">
               <Calendar size={14} className="mr-1.5" />
               Years Simulated
             </div>
-            <p className="text-xl font-bold text-gray-900">
+            <p className="text-xl font-bold text-ink">
               {details.start_year && details.end_year
                 ? `${details.start_year}-${details.end_year}`
                 : '--'}
             </p>
           </div>
 
-          <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
-            <div className="flex items-center text-gray-500 text-sm mb-1">
+          <div className="bg-surface-subtle rounded-lg p-4 border border-border">
+            <div className="flex items-center text-ink-muted text-sm mb-1">
               <Users size={14} className="mr-1.5" />
               Final Headcount
             </div>
-            <p className="text-xl font-bold text-gray-900">
+            <p className="text-xl font-bold text-ink">
               {details.final_headcount?.toLocaleString() || '--'}
             </p>
           </div>
 
-          <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
-            <div className="flex items-center text-gray-500 text-sm mb-1">
+          <div className="bg-surface-subtle rounded-lg p-4 border border-border">
+            <div className="flex items-center text-ink-muted text-sm mb-1">
               <Activity size={14} className="mr-1.5" />
               Total Events
             </div>
-            <p className="text-xl font-bold text-gray-900">
+            <p className="text-xl font-bold text-ink">
               {details.total_events?.toLocaleString() || '--'}
             </p>
           </div>
         </div>
 
         {/* Run Info */}
-        <div className="mt-6 pt-4 border-t border-gray-200">
+        <div className="mt-6 pt-4 border-t border-border">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
             <div>
-              <span className="text-gray-500">Run ID:</span>
-              <code className="ml-2 bg-gray-100 px-2 py-0.5 rounded text-xs font-mono">
+              <span className="text-ink-muted">Run ID:</span>
+              <code className="ml-2 bg-surface-subtle px-2 py-0.5 rounded text-xs font-mono">
                 {details.id !== 'none' ? details.id : 'N/A'}
               </code>
             </div>
             <div>
-              <span className="text-gray-500">Started:</span>
-              <span className="ml-2 text-gray-900">
+              <span className="text-ink-muted">Started:</span>
+              <span className="ml-2 text-ink">
                 {details.started_at
                   ? new Date(details.started_at).toLocaleString()
                   : 'Never run'}
               </span>
             </div>
             <div>
-              <span className="text-gray-500">Completed:</span>
-              <span className="ml-2 text-gray-900">
+              <span className="text-ink-muted">Completed:</span>
+              <span className="ml-2 text-ink">
                 {details.completed_at
                   ? new Date(details.completed_at).toLocaleString()
                   : '--'}
@@ -332,11 +332,11 @@ export default function SimulationDetail() {
 
         {/* E087: Storage Location Section */}
         {details.storage_path && (
-          <div className="mt-6 pt-4 border-t border-gray-200">
+          <div className="mt-6 pt-4 border-t border-border">
             <div className="flex items-center text-sm">
-              <FolderOpen size={16} className="text-gray-500 mr-2" />
-              <span className="text-gray-500">Storage Location:</span>
-              <code className="ml-2 bg-gray-100 px-3 py-1 rounded text-xs font-mono text-gray-700 break-all">
+              <FolderOpen size={16} className="text-ink-muted mr-2" />
+              <span className="text-ink-muted">Storage Location:</span>
+              <code className="ml-2 bg-surface-subtle px-3 py-1 rounded text-xs font-mono text-ink-muted break-all">
                 {details.storage_path}
               </code>
             </div>
@@ -345,19 +345,19 @@ export default function SimulationDetail() {
       </div>
 
       {/* Run History Section - Full Width */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div className="bg-surface-raised rounded-xl shadow-sm border border-border p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-800 flex items-center">
-            <History size={20} className="mr-2 text-gray-500" />
+          <h2 className="text-lg font-semibold text-ink flex items-center">
+            <History size={20} className="mr-2 text-ink-muted" />
             Run History
           </h2>
-          <span className="text-sm text-gray-500">
+          <span className="text-sm text-ink-muted">
             {runs.length} run{runs.length !== 1 ? 's' : ''}
           </span>
         </div>
 
         {runs.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-8 text-ink-muted">
             <Play size={40} className="mx-auto mb-3 opacity-30" />
             <p>No runs yet.</p>
             <p className="text-sm mt-1">Start a simulation to see run history.</p>
@@ -367,18 +367,18 @@ export default function SimulationDetail() {
             {runs.map((run, index) => (
               <div
                 key={run.id}
-                className={`border rounded-lg overflow-hidden ${index === 0 ? 'border-fidelity-green' : 'border-gray-200'}`}
+                className={`border rounded-lg overflow-hidden ${index === 0 ? 'border-fidelity-green' : 'border-border'}`}
               >
                 {/* Run Header */}
                 <button
                   onClick={() => toggleRunExpanded(run.id)}
-                  className={`w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors ${expandedRuns.has(run.id) ? 'bg-gray-50' : 'bg-white'}`}
+                  className={`w-full flex items-center justify-between p-4 hover:bg-surface-subtle transition-colors ${expandedRuns.has(run.id) ? 'bg-surface-subtle' : 'bg-surface-raised'}`}
                 >
                   <div className="flex items-center space-x-4">
                     {expandedRuns.has(run.id) ? (
-                      <ChevronDown size={18} className="text-gray-400" />
+                      <ChevronDown size={18} className="text-ink-subtle" />
                     ) : (
-                      <ChevronRight size={18} className="text-gray-400" />
+                      <ChevronRight size={18} className="text-ink-subtle" />
                     )}
                     <div className="text-left">
                       <div className="flex items-center space-x-2">
@@ -392,15 +392,15 @@ export default function SimulationDetail() {
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-gray-500 mt-1">
+                      <p className="text-sm text-ink-muted mt-1">
                         {new Date(run.started_at).toLocaleString()}
                         {run.duration_seconds && (
-                          <span className="ml-2 text-gray-400">({formatDuration(run.duration_seconds)})</span>
+                          <span className="ml-2 text-ink-subtle">({formatDuration(run.duration_seconds)})</span>
                         )}
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-4 text-sm text-gray-500">
+                  <div className="flex items-center space-x-4 text-sm text-ink-muted">
                     {run.start_year && run.end_year && (
                       <span className="flex items-center">
                         <Calendar size={14} className="mr-1" />
@@ -422,15 +422,15 @@ export default function SimulationDetail() {
 
                 {/* Expanded Run Panel */}
                 {expandedRuns.has(run.id) && (
-                  <div className="border-t border-gray-200 bg-gray-50">
+                  <div className="border-t border-border bg-surface-subtle">
                     {/* Tab bar */}
-                    <div className="flex border-b border-gray-200 bg-white">
+                    <div className="flex border-b border-border bg-surface-raised">
                       <button
                         onClick={() => setActiveRunTab(t => ({ ...t, [run.id]: 'artifacts' }))}
                         className={`flex items-center px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                           (activeRunTab[run.id] ?? 'artifacts') === 'artifacts'
                             ? 'border-fidelity-green text-fidelity-green'
-                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                            : 'border-transparent text-ink-muted hover:text-ink-muted'
                         }`}
                       >
                         <Download size={14} className="mr-1.5" />
@@ -441,7 +441,7 @@ export default function SimulationDetail() {
                         className={`flex items-center px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                           activeRunTab[run.id] === 'logs'
                             ? 'border-fidelity-green text-fidelity-green'
-                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                            : 'border-transparent text-ink-muted hover:text-ink-muted'
                         }`}
                       >
                         <ScrollText size={14} className="mr-1.5" />
@@ -450,7 +450,7 @@ export default function SimulationDetail() {
                       {run.status === 'completed' && index === 0 && run.start_year !== null && run.end_year !== null && (
                         <button
                           onClick={() => setActiveRunTab(t => ({ ...t, [run.id]: 'evidence' }))}
-                          className={`flex items-center px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeRunTab[run.id] === 'evidence' ? 'border-fidelity-green text-fidelity-green' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                          className={`flex items-center px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeRunTab[run.id] === 'evidence' ? 'border-fidelity-green text-fidelity-green' : 'border-transparent text-ink-muted hover:text-ink-muted'}`}
                         >
                           <FileText size={14} className="mr-1.5" />Evidence Pack
                         </button>
@@ -459,14 +459,14 @@ export default function SimulationDetail() {
 
                     <div className="p-4">
                       {isArchivedProvenanceRun(run) && (
-                        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-success-border bg-success-surface p-3">
                           <ShieldCheck size={18} className="text-fidelity-green" />
-                          <span className="mr-auto text-sm text-emerald-900">
+                          <span className="mr-auto text-sm text-success-ink">
                             Review the execution evidence and integrity digest for this archived run.
                           </span>
                           <Link
                             to={`/simulate/${details.scenario_id}/runs/${run.id}/provenance`}
-                            className="flex items-center rounded-lg border border-fidelity-green bg-white px-3 py-2 text-sm font-medium text-fidelity-green hover:bg-emerald-50"
+                            className="flex items-center rounded-lg border border-fidelity-green bg-surface-raised px-3 py-2 text-sm font-medium text-fidelity-green hover:bg-success-surface"
                           >
                             <ShieldCheck size={15} className="mr-1.5" />
                             View Provenance
@@ -474,7 +474,7 @@ export default function SimulationDetail() {
                           <button
                             onClick={() => void handleProvenanceDownload(run.id)}
                             disabled={provenanceDownloadRun !== null}
-                            className="flex items-center rounded-lg bg-fidelity-green px-3 py-2 text-sm font-medium text-white hover:bg-fidelity-dark disabled:opacity-60"
+                            className="flex items-center rounded-lg bg-fidelity-green px-3 py-2 text-sm font-medium text-ink-inverse hover:bg-fidelity-dark disabled:opacity-60"
                           >
                             {provenanceDownloadRun === run.id ? (
                               <Loader2 size={15} className="mr-1.5 animate-spin" />
@@ -486,7 +486,7 @@ export default function SimulationDetail() {
                         </div>
                       )}
                       {provenanceError && (
-                        <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+                        <p className="mb-3 rounded-lg bg-danger-surface px-3 py-2 text-sm text-danger-ink">
                           {provenanceError}
                         </p>
                       )}
@@ -499,28 +499,28 @@ export default function SimulationDetail() {
                                   <a
                                     key={artifact.path}
                                     href={getArtifactDownloadUrl(details.scenario_id, artifact.path)}
-                                    className="flex items-center p-3 bg-white hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors group"
+                                    className="flex items-center p-3 bg-surface-raised hover:bg-surface-subtle rounded-lg border border-border transition-colors group"
                                   >
                                     {getArtifactIcon(artifact.type)}
                                     <div className="ml-3 flex-1 min-w-0">
-                                      <p className="font-medium text-sm text-gray-900 group-hover:text-fidelity-green truncate">
+                                      <p className="font-medium text-sm text-ink group-hover:text-fidelity-green truncate">
                                         {artifact.name}
                                       </p>
-                                      <p className="text-xs text-gray-500">
+                                      <p className="text-xs text-ink-muted">
                                         {formatBytes(artifact.size_bytes)}
                                       </p>
                                     </div>
-                                    <ExternalLink size={14} className="text-gray-400 group-hover:text-fidelity-green ml-2" />
+                                    <ExternalLink size={14} className="text-ink-subtle group-hover:text-fidelity-green ml-2" />
                                   </a>
                                 ))}
                               </div>
                             ) : (
-                              <p className="text-sm text-gray-500 text-center py-2">No artifacts found for this run.</p>
+                              <p className="text-sm text-ink-muted text-center py-2">No artifacts found for this run.</p>
                             )
                           ) : (
                             <div className="flex items-center justify-center py-2">
                               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-fidelity-green"></div>
-                              <span className="ml-2 text-sm text-gray-500">Loading artifacts...</span>
+                              <span className="ml-2 text-sm text-ink-muted">Loading artifacts...</span>
                             </div>
                           )}
                         </>
@@ -540,8 +540,8 @@ export default function SimulationDetail() {
                       ) : null}
 
                       {/* Run ID */}
-                      <div className="mt-3 pt-3 border-t border-gray-200">
-                        <code className="text-xs text-gray-400 font-mono">
+                      <div className="mt-3 pt-3 border-t border-border">
+                        <code className="text-xs text-ink-subtle font-mono">
                           Run ID: {run.id}
                         </code>
                       </div>
@@ -555,16 +555,16 @@ export default function SimulationDetail() {
       </div>
 
       {/* Configuration Panel - Collapsible */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div className="bg-surface-raised rounded-xl shadow-sm border border-border p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-800 flex items-center">
-            <Settings size={20} className="mr-2 text-gray-500" />
+          <h2 className="text-lg font-semibold text-ink flex items-center">
+            <Settings size={20} className="mr-2 text-ink-muted" />
             Configuration
           </h2>
           <div className="flex items-center space-x-2">
             <button
               onClick={handleCopyConfig}
-              className="flex items-center px-3 py-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg text-sm"
+              className="flex items-center px-3 py-1.5 text-ink-muted hover:text-ink hover:bg-surface-subtle rounded-lg text-sm"
               title="Copy configuration"
             >
               <Copy size={14} className="mr-1.5" />
@@ -572,7 +572,7 @@ export default function SimulationDetail() {
             </button>
             <button
               onClick={() => setConfigExpanded(!configExpanded)}
-              className="flex items-center px-3 py-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg text-sm"
+              className="flex items-center px-3 py-1.5 text-ink-muted hover:text-ink hover:bg-surface-subtle rounded-lg text-sm"
             >
               {configExpanded ? (
                 <>
@@ -593,27 +593,27 @@ export default function SimulationDetail() {
         {details.config && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             {details.config.simulation?.seed !== undefined && (
-              <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                <span className="text-gray-500 block text-xs">Seed</span>
-                <span className="font-mono text-gray-900">{details.config.simulation.seed}</span>
+              <div className="bg-surface-subtle rounded-lg p-3 border border-border">
+                <span className="text-ink-muted block text-xs">Seed</span>
+                <span className="font-mono text-ink">{details.config.simulation.seed}</span>
               </div>
             )}
             {details.config.simulation?.growth_target !== undefined && (
-              <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                <span className="text-gray-500 block text-xs">Growth Target</span>
-                <span className="text-gray-900">{(details.config.simulation.growth_target * 100).toFixed(1)}%</span>
+              <div className="bg-surface-subtle rounded-lg p-3 border border-border">
+                <span className="text-ink-muted block text-xs">Growth Target</span>
+                <span className="text-ink">{(details.config.simulation.growth_target * 100).toFixed(1)}%</span>
               </div>
             )}
             {details.config.compensation?.merit_budget !== undefined && (
-              <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                <span className="text-gray-500 block text-xs">Merit Budget</span>
-                <span className="text-gray-900">{(details.config.compensation.merit_budget * 100).toFixed(1)}%</span>
+              <div className="bg-surface-subtle rounded-lg p-3 border border-border">
+                <span className="text-ink-muted block text-xs">Merit Budget</span>
+                <span className="text-ink">{(details.config.compensation.merit_budget * 100).toFixed(1)}%</span>
               </div>
             )}
             {details.config.turnover?.base_rate !== undefined && (
-              <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                <span className="text-gray-500 block text-xs">Turnover Rate</span>
-                <span className="text-gray-900">{(details.config.turnover.base_rate * 100).toFixed(1)}%</span>
+              <div className="bg-surface-subtle rounded-lg p-3 border border-border">
+                <span className="text-ink-muted block text-xs">Turnover Rate</span>
+                <span className="text-ink">{(details.config.turnover.base_rate * 100).toFixed(1)}%</span>
               </div>
             )}
           </div>
@@ -621,15 +621,15 @@ export default function SimulationDetail() {
 
         {/* Full config JSON - Expandable */}
         {configExpanded && details.config && (
-          <div className="mt-4 bg-gray-900 rounded-lg overflow-hidden max-h-[400px] overflow-y-auto">
-            <pre className="p-4 text-sm text-gray-300 font-mono whitespace-pre-wrap">
+          <div className="mt-4 bg-surface-inverse rounded-lg overflow-hidden max-h-[400px] overflow-y-auto">
+            <pre className="p-4 text-sm text-ink-subtle font-mono whitespace-pre-wrap">
               {JSON.stringify(details.config, null, 2)}
             </pre>
           </div>
         )}
 
         {!details.config && (
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-8 text-ink-muted">
             <Settings size={40} className="mx-auto mb-3 opacity-30" />
             <p>No configuration available.</p>
           </div>
@@ -638,23 +638,23 @@ export default function SimulationDetail() {
 
       {/* Error Message if Failed */}
       {details.status === 'failed' && details.error_message && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-red-800 flex items-center mb-2">
+        <div className="bg-danger-surface border border-danger-border rounded-xl p-6">
+          <h3 className="text-lg font-semibold text-danger-ink flex items-center mb-2">
             <XCircle size={20} className="mr-2" />
             Simulation Error
           </h3>
-          <pre className="bg-red-100 p-4 rounded-lg text-sm text-red-900 font-mono whitespace-pre-wrap overflow-x-auto">
+          <pre className="bg-danger-surface p-4 rounded-lg text-sm text-danger-ink font-mono whitespace-pre-wrap overflow-x-auto">
             {details.error_message}
           </pre>
         </div>
       )}
 
       {/* Actions Footer */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div className="bg-surface-raised rounded-xl shadow-sm border border-border p-6">
         <div className="flex items-center justify-between">
           <button
             onClick={() => navigate('/simulate')}
-            className="flex items-center px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg"
+            className="flex items-center px-4 py-2 text-ink-muted hover:text-ink hover:bg-surface-subtle rounded-lg"
           >
             <ArrowLeft size={18} className="mr-2" />
             Back to Simulations
@@ -662,7 +662,7 @@ export default function SimulationDetail() {
           <div className="flex items-center space-x-3">
             <Link
               to={`/config?scenario=${details.scenario_id}`}
-              className="flex items-center px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium"
+              className="flex items-center px-4 py-2 text-ink-muted bg-surface-subtle hover:bg-surface-disabled rounded-lg font-medium"
             >
               <Settings size={18} className="mr-2" />
               Edit Configuration
@@ -670,7 +670,7 @@ export default function SimulationDetail() {
             {details.status === 'completed' && (
               <Link
                 to={`/analytics?scenario=${details.scenario_id}`}
-                className="flex items-center px-4 py-2 bg-fidelity-green text-white hover:bg-fidelity-dark rounded-lg font-medium"
+                className="flex items-center px-4 py-2 bg-fidelity-green text-ink-inverse hover:bg-fidelity-dark rounded-lg font-medium"
               >
                 <Activity size={18} className="mr-2" />
                 View Analytics
