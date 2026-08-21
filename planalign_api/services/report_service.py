@@ -11,6 +11,7 @@ import base64
 import io
 import os
 import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -245,7 +246,7 @@ def render_report(
 
 def _configure_macos_weasyprint_paths() -> None:
     """Expose Homebrew's native libraries to WeasyPrint on macOS."""
-    if os.sys.platform != "darwin":
+    if sys.platform != "darwin":
         return
     candidates = [
         "/opt/homebrew/lib",
