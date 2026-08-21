@@ -166,14 +166,18 @@ correctness workaround:
    measured `time.sleep()` retry. cProfile can only see the visible retry
    sleep, not the invisible wait that provoked it.
 
-## Recommendations (not implemented — this is a breakdown, not a fix)
+## Recommendations
 
-- **Monitor lifecycle**: don't spin up a new thread per operation. A single
-  sampler thread reused for the whole run (or the whole year), or skipping
-  background monitoring for operations below some duration threshold, would
-  remove most of the ~9s directly-measured cost with no loss of the metrics
-  the sampler collects (peak memory/CPU are still observable at coarser
-  granularity).
+### Monitor lifecycle — implemented on the #567 branch
+
+`PerformanceMonitor` now reuses one sampler across nested and short sequential
+operations, tracks all active metrics from that sampler, and lets the sampler
+exit after a brief idle period. Operation teardown no longer blocks on a thread
+join; explicit observability cleanup performs the final join. Peak-memory
+sampling remains available while an operation is active.
+
+The DuckDB connection/retry work below remains open.
+
 - **DB retry churn**: investigate what is actually contending for the
   DuckDB writer lock during `_clear_snapshot_rows_if_needed()` — is it a
   concurrently-open read connection from the resource monitors themselves,
@@ -182,9 +186,9 @@ correctness workaround:
   a single-process, single-writer run)? If a `_clear` call never needs to
   retry, both the sleep and its opening/closing of a fresh connection
   disappear.
-- Neither fix touches dbt semantics, model SQL, or event generation — both
-  are pure orchestrator-side plumbing, matching #521's framing that this
-  residue is "pure Python we control."
+- The monitor and retry work do not touch dbt semantics, model SQL, or event
+  generation — both are pure orchestrator-side plumbing, matching #521's
+  framing that this residue is "pure Python we control."
 
 ## Caveats
 

@@ -126,6 +126,46 @@ class TestPerformanceMonitor:
         assert metrics.error_message == "Test error"
 
     @pytest.mark.fast
+    def test_nested_operations_share_sampler(self, performance_monitor):
+        """Nested run/year operations must not stop each other's sampler."""
+        with patch("planalign_orchestrator.monitoring.base.threading.Thread") as thread:
+            thread_instance = thread.return_value
+            thread_instance.is_alive.return_value = True
+
+            with performance_monitor.time_operation("outer"):
+                assert thread.call_count == 1
+                assert len(performance_monitor._active_metrics) == 1
+
+                with performance_monitor.time_operation("inner"):
+                    assert thread.call_count == 1
+                    assert len(performance_monitor._active_metrics) == 2
+
+                assert len(performance_monitor._active_metrics) == 1
+                assert not performance_monitor._stop_event.is_set()
+
+            assert len(performance_monitor._active_metrics) == 0
+            thread_instance.join.assert_not_called()
+
+            performance_monitor.close()
+            thread_instance.join.assert_called_once_with(timeout=1.0)
+
+    @pytest.mark.fast
+    def test_sequential_operations_reuse_live_sampler(self, performance_monitor):
+        """Short sequential operations should reuse a sampler without joining."""
+        with patch("planalign_orchestrator.monitoring.base.threading.Thread") as thread:
+            thread_instance = thread.return_value
+            thread_instance.is_alive.return_value = True
+
+            with performance_monitor.time_operation("first"):
+                pass
+            with performance_monitor.time_operation("second"):
+                pass
+
+            assert thread.call_count == 1
+            thread_instance.join.assert_not_called()
+            performance_monitor.close()
+
+    @pytest.mark.fast
     def test_get_metrics_empty(self, performance_monitor):
         """Test get_metrics when no operations have been timed."""
         assert performance_monitor.get_metrics() == {}
