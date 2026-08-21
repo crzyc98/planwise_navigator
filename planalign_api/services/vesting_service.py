@@ -22,11 +22,13 @@ from ..models.vesting import (
     VestingScheduleListResponse,
     VestingScheduleType,
 )
+from ..models.employer_cost import ForfeiturePolicy
 from ..storage.workspace_storage import WorkspaceStorage
 from .database_path_resolver import (
     DatabasePathResolver,
     create_api_database_path_resolver,
 )
+from .employer_cost_service import build_employer_cost_offsets
 
 logger = logging.getLogger(__name__)
 
@@ -182,6 +184,167 @@ def get_schedule_list() -> VestingScheduleListResponse:
     return VestingScheduleListResponse(schedules=list(SCHEDULE_INFO.values()))
 
 
+# ---------------------------------------------------------------------------
+# Connection-level forfeiture projection
+# ---------------------------------------------------------------------------
+# These take a DuckDB connection rather than a workspace, so the CLI, the Excel
+# export and the net-cost service (#444) can reach the same numbers the Vesting
+# screens show without going through workspace storage.
+
+
+def _terminated_employees_all_years(conn) -> List[dict]:
+    """Every contribution-qualified termination, all years, in one query.
+
+    Same cumulative basis as :meth:`VestingService._get_terminated_employees`
+    (issue #444): an employee's forfeiture basis is the sum of the employer
+    contributions they accrued in every simulation year before the year they
+    terminated, not the single prior year.
+    """
+    query = """
+        WITH terminated AS (
+            SELECT
+                simulation_year,
+                employee_id,
+                current_tenure,
+                tenure_band,
+                COALESCE(annual_hours_worked, 0) AS annual_hours_worked
+            FROM fct_workforce_snapshot
+            WHERE UPPER(employment_status) = 'TERMINATED'
+        ),
+        contributions AS (
+            SELECT
+                simulation_year,
+                employee_id,
+                COALESCE(total_employer_contributions, 0)
+                    AS total_employer_contributions
+            FROM fct_workforce_snapshot
+            WHERE UPPER(employment_status) = 'ACTIVE'
+        )
+        SELECT
+            t.simulation_year,
+            t.employee_id,
+            t.current_tenure,
+            t.tenure_band,
+            t.annual_hours_worked,
+            COALESCE(SUM(c.total_employer_contributions), 0)
+                AS total_employer_contributions
+        FROM terminated t
+        LEFT JOIN contributions c
+          ON c.employee_id = t.employee_id
+         AND c.simulation_year < t.simulation_year
+        GROUP BY
+            t.simulation_year,
+            t.employee_id,
+            t.current_tenure,
+            t.tenure_band,
+            t.annual_hours_worked
+        HAVING COALESCE(SUM(c.total_employer_contributions), 0) > 0
+        ORDER BY t.simulation_year, t.employee_id
+    """
+    columns = [
+        "simulation_year",
+        "employee_id",
+        "current_tenure",
+        "tenure_band",
+        "annual_hours_worked",
+        "total_employer_contributions",
+    ]
+    return [dict(zip(columns, row)) for row in conn.execute(query).fetchall()]
+
+
+def _terminated_counts_by_year(conn) -> dict[int, int]:
+    """All terminations per year, regardless of contribution basis."""
+    rows = conn.execute(
+        """
+        SELECT simulation_year, COUNT(*)
+        FROM fct_workforce_snapshot
+        WHERE UPPER(employment_status) = 'TERMINATED'
+        GROUP BY simulation_year
+        """
+    ).fetchall()
+    return {int(year): int(count) for year, count in rows}
+
+
+def _simulation_years(conn) -> List[int]:
+    rows = conn.execute(
+        """
+        SELECT DISTINCT simulation_year
+        FROM fct_workforce_snapshot
+        ORDER BY simulation_year
+        """
+    ).fetchall()
+    return [int(row[0]) for row in rows]
+
+
+def _forfeiture_row(
+    year: int,
+    employees: List[dict],
+    terminated_count: int,
+    schedule: VestingScheduleConfig,
+    has_prior_year_basis: bool,
+) -> ForfeitureYearRow:
+    """Apply one schedule to one year's qualified terminations."""
+    contributions = Decimal("0")
+    vested = Decimal("0")
+    forfeited = Decimal("0")
+
+    for emp in employees:
+        amount = Decimal(str(emp["total_employer_contributions"]))
+        pct = get_vesting_percentage(
+            schedule.schedule_type,
+            emp["current_tenure"] or 0,
+            emp["annual_hours_worked"] or 0,
+            schedule.require_hours_credit,
+            schedule.hours_threshold,
+        )
+        contributions += amount
+        vested += (amount * pct).quantize(Decimal("0.01"))
+        forfeited += calculate_forfeiture(amount, pct)
+
+    return ForfeitureYearRow(
+        simulation_year=year,
+        has_prior_year_basis=has_prior_year_basis,
+        terminated_employee_count=terminated_count,
+        vesting_eligible_count=len(employees),
+        total_employer_contributions=contributions,
+        vested_amount=vested,
+        forfeited_amount=forfeited,
+    )
+
+
+def project_forfeitures_for_connection(
+    conn, schedule: VestingScheduleConfig
+) -> List[ForfeitureYearRow]:
+    """Forfeitures under one schedule for every year in an open database.
+
+    Returns an empty list when the database contains no simulation years. The
+    scenario's first year is flagged ``has_prior_year_basis=False``: its
+    terminations accrued their employer money before the horizon, so their
+    forfeiture is unmeasurable rather than zero.
+    """
+    years = _simulation_years(conn)
+    if not years:
+        return []
+
+    by_year: dict[int, List[dict]] = {year: [] for year in years}
+    for emp in _terminated_employees_all_years(conn):
+        by_year.setdefault(int(emp["simulation_year"]), []).append(emp)
+
+    terminated_counts = _terminated_counts_by_year(conn)
+    first_year = min(years)
+
+    return [
+        _forfeiture_row(
+            year,
+            by_year.get(year, []),
+            terminated_counts.get(year, 0),
+            schedule,
+            has_prior_year_basis=year != first_year,
+        )
+        for year in years
+    ]
+
+
 class VestingService:
     """Service for vesting analysis comparing schedules."""
 
@@ -228,11 +391,19 @@ class VestingService:
             conn.close()
 
     def _get_terminated_employees(self, conn, year: int) -> List[dict]:
-        """Query terminated employees with employer contributions (T025).
+        """Query terminated employees with their cumulative employer balance.
 
-        Note: When employees are terminated, their total_employer_contributions
-        is reset to 0 in the snapshot. We need to look up their contributions
-        from the prior year when they were still active.
+        The forfeiture basis is the employee's *cumulative* employer
+        contributions across every simulation year before the termination year
+        (issue #444), not the single prior year. An employee on a 3-year cliff
+        who terminates in year three forfeits three years of employer money, not
+        one. Termination zeroes the current year's columns in the snapshot and
+        the pipeline funds no employer contribution in the termination year, so
+        summing the prior active years is the whole in-horizon balance.
+
+        Contributions made before the first simulation year are outside the run
+        and are not in the basis; that limitation is stated in the methodology
+        copy on every surface that reports these figures.
         """
         query = """
             WITH terminated_this_year AS (
@@ -247,13 +418,15 @@ class VestingService:
                 WHERE t.simulation_year = ?
                   AND UPPER(t.employment_status) = 'TERMINATED'
             ),
-            prior_year_contributions AS (
+            cumulative_contributions AS (
                 SELECT
                     employee_id,
-                    total_employer_contributions
+                    SUM(COALESCE(total_employer_contributions, 0))
+                        AS total_employer_contributions
                 FROM fct_workforce_snapshot
-                WHERE simulation_year = ? - 1
+                WHERE simulation_year < ?
                   AND UPPER(employment_status) = 'ACTIVE'
+                GROUP BY employee_id
             )
             SELECT
                 t.employee_id,
@@ -264,7 +437,7 @@ class VestingService:
                 COALESCE(p.total_employer_contributions, 0) as total_employer_contributions,
                 t.annual_hours_worked
             FROM terminated_this_year t
-            LEFT JOIN prior_year_contributions p
+            LEFT JOIN cumulative_contributions p
               ON t.employee_id = p.employee_id
             WHERE COALESCE(p.total_employer_contributions, 0) > 0
             ORDER BY p.total_employer_contributions DESC
@@ -458,77 +631,15 @@ class VestingService:
         ]
 
     def _get_terminated_employees_all_years(self, conn) -> List[dict]:
-        """Every contribution-qualified termination, all years, in one query.
-
-        Same basis as :meth:`_get_terminated_employees` — contributions come from
-        the prior year, because termination zeroes them in the current snapshot —
-        but grouped across years instead of looped one year at a time.
-        """
-        query = """
-            WITH terminated AS (
-                SELECT
-                    simulation_year,
-                    employee_id,
-                    current_tenure,
-                    tenure_band,
-                    COALESCE(annual_hours_worked, 0) AS annual_hours_worked
-                FROM fct_workforce_snapshot
-                WHERE UPPER(employment_status) = 'TERMINATED'
-            ),
-            prior_year_contributions AS (
-                SELECT
-                    simulation_year,
-                    employee_id,
-                    total_employer_contributions
-                FROM fct_workforce_snapshot
-                WHERE UPPER(employment_status) = 'ACTIVE'
-            )
-            SELECT
-                t.simulation_year,
-                t.employee_id,
-                t.current_tenure,
-                t.tenure_band,
-                t.annual_hours_worked,
-                COALESCE(p.total_employer_contributions, 0)
-                    AS total_employer_contributions
-            FROM terminated t
-            LEFT JOIN prior_year_contributions p
-              ON t.employee_id = p.employee_id
-             AND p.simulation_year = t.simulation_year - 1
-            WHERE COALESCE(p.total_employer_contributions, 0) > 0
-            ORDER BY t.simulation_year, t.employee_id
-        """
-        columns = [
-            "simulation_year",
-            "employee_id",
-            "current_tenure",
-            "tenure_band",
-            "annual_hours_worked",
-            "total_employer_contributions",
-        ]
-        return [dict(zip(columns, row)) for row in conn.execute(query).fetchall()]
+        """Every contribution-qualified termination, all years, in one query."""
+        return _terminated_employees_all_years(conn)
 
     def _get_terminated_counts_by_year(self, conn) -> dict[int, int]:
         """All terminations per year, regardless of contribution basis."""
-        rows = conn.execute(
-            """
-            SELECT simulation_year, COUNT(*)
-            FROM fct_workforce_snapshot
-            WHERE UPPER(employment_status) = 'TERMINATED'
-            GROUP BY simulation_year
-            """
-        ).fetchall()
-        return {int(year): int(count) for year, count in rows}
+        return _terminated_counts_by_year(conn)
 
     def _get_simulation_years(self, conn) -> List[int]:
-        rows = conn.execute(
-            """
-            SELECT DISTINCT simulation_year
-            FROM fct_workforce_snapshot
-            ORDER BY simulation_year
-            """
-        ).fetchall()
-        return [int(row[0]) for row in rows]
+        return _simulation_years(conn)
 
     def _forfeiture_row(
         self,
@@ -539,31 +650,8 @@ class VestingService:
         has_prior_year_basis: bool,
     ) -> ForfeitureYearRow:
         """Apply one schedule to one year's qualified terminations."""
-        contributions = Decimal("0")
-        vested = Decimal("0")
-        forfeited = Decimal("0")
-
-        for emp in employees:
-            amount = Decimal(str(emp["total_employer_contributions"]))
-            pct = get_vesting_percentage(
-                schedule.schedule_type,
-                emp["current_tenure"] or 0,
-                emp["annual_hours_worked"] or 0,
-                schedule.require_hours_credit,
-                schedule.hours_threshold,
-            )
-            contributions += amount
-            vested += (amount * pct).quantize(Decimal("0.01"))
-            forfeited += calculate_forfeiture(amount, pct)
-
-        return ForfeitureYearRow(
-            simulation_year=year,
-            has_prior_year_basis=has_prior_year_basis,
-            terminated_employee_count=terminated_count,
-            vesting_eligible_count=len(employees),
-            total_employer_contributions=contributions,
-            vested_amount=vested,
-            forfeited_amount=forfeited,
+        return _forfeiture_row(
+            year, employees, terminated_count, schedule, has_prior_year_basis
         )
 
     def _build_scenario_series(
@@ -572,29 +660,12 @@ class VestingService:
         scenario_name: str,
         conn,
         schedule: VestingScheduleConfig,
+        policy: ForfeiturePolicy,
     ) -> Optional[ScenarioForfeitureSeries]:
         """Build one scenario's full year series, or None if it has no years."""
-        years = self._get_simulation_years(conn)
-        if not years:
+        rows = project_forfeitures_for_connection(conn, schedule)
+        if not rows:
             return None
-
-        by_year: dict[int, List[dict]] = {year: [] for year in years}
-        for emp in self._get_terminated_employees_all_years(conn):
-            by_year.setdefault(int(emp["simulation_year"]), []).append(emp)
-
-        terminated_counts = self._get_terminated_counts_by_year(conn)
-        first_year = min(years)
-
-        rows = [
-            self._forfeiture_row(
-                year,
-                by_year.get(year, []),
-                terminated_counts.get(year, 0),
-                schedule,
-                has_prior_year_basis=year != first_year,
-            )
-            for year in years
-        ]
 
         return ScenarioForfeitureSeries(
             scenario_id=scenario_id,
@@ -605,6 +676,7 @@ class VestingService:
             ),
             total_vested=sum((row.vested_amount for row in rows), Decimal("0")),
             total_forfeited=sum((row.forfeited_amount for row in rows), Decimal("0")),
+            employer_cost_offsets=build_employer_cost_offsets(rows, policy),
         )
 
     def project_forfeitures(
@@ -612,11 +684,14 @@ class VestingService:
         workspace_id: str,
         scenarios: List[tuple[str, str]],
         schedule: VestingScheduleConfig,
+        policy: ForfeiturePolicy = ForfeiturePolicy.OFFSET_EMPLOYER_CONTRIBUTIONS,
     ) -> ForfeitureProjectionResponse:
         """Forfeitures under one schedule, every year, across several scenarios.
 
         A scenario whose database is missing or empty is skipped with a reason
-        rather than failing the whole request.
+        rather than failing the whole request. Each series also carries the
+        per-year employer cost offsets implied by ``policy`` (#444), so the
+        Cost Comparison page never has to re-implement the policy semantics.
         """
         import duckdb
 
@@ -641,7 +716,7 @@ class VestingService:
             conn = duckdb.connect(str(resolved.path), read_only=True)
             try:
                 built = self._build_scenario_series(
-                    scenario_id, scenario_name, conn, schedule
+                    scenario_id, scenario_name, conn, schedule, policy
                 )
             finally:
                 conn.close()
@@ -662,6 +737,7 @@ class VestingService:
         )
         return ForfeitureProjectionResponse(
             schedule=schedule,
+            forfeiture_policy=policy,
             years=all_years,
             scenarios=series,
             skipped=skipped,

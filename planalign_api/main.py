@@ -46,6 +46,7 @@ from .routers import (
     provenance_router,
     timeline_router,
     evidence_pack_router,
+    report_router,
 )
 from .routers.vesting import router as vesting_router
 from .routers.sync import router as sync_router
@@ -368,6 +369,12 @@ def create_app() -> FastAPI:
         evidence_pack_router,
         prefix="/api/workspaces",
         tags=["Evidence Packs"],
+        dependencies=protected_dependencies,
+    )
+    app.include_router(
+        report_router,
+        prefix="/api/workspaces",
+        tags=["Reports"],
         dependencies=protected_dependencies,
     )
 

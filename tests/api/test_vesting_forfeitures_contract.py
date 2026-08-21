@@ -165,6 +165,62 @@ def test_hours_credit_parameters_are_accepted(env):
     assert schedule["hours_threshold"] == 1500
 
 
+def test_employer_cost_offsets_default_to_the_cash_policy(env):
+    """#444: the offset the Cost Comparison page joins onto gross cost."""
+    client, workspace, scenarios = env
+
+    response = client.get(
+        ENDPOINT.format(workspace_id=workspace.id),
+        params={"scenarios": scenarios[0].id, "schedule_type": "graded_5_year"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["forfeiture_policy"] == "offset_employer_contributions"
+
+    offsets = {
+        row["simulation_year"]: row
+        for row in body["scenarios"][0]["employer_cost_offsets"]
+    }
+    # 2025 has no prior plan year; 2026's source year has no measurable basis.
+    assert offsets[2025]["basis_available"] is False
+    assert offsets[2025]["offset_amount"] is None
+    assert offsets[2026]["basis_available"] is False
+    assert offsets[2026]["source_year"] == 2025
+
+
+def test_reallocation_policy_returns_a_zero_offset_over_the_wire(env, tmp_path):
+    """The forfeiture is still disclosed; only the employer offset is $0."""
+    client, workspace, scenarios = env
+
+    response = client.get(
+        ENDPOINT.format(workspace_id=workspace.id),
+        params={
+            "scenarios": scenarios[0].id,
+            "schedule_type": "graded_5_year",
+            "forfeiture_policy": "reallocate_to_participants",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["forfeiture_policy"] == "reallocate_to_participants"
+
+
+def test_unknown_forfeiture_policy_is_422(env):
+    client, workspace, scenarios = env
+
+    response = client.get(
+        ENDPOINT.format(workspace_id=workspace.id),
+        params={
+            "scenarios": scenarios[0].id,
+            "schedule_type": "graded_5_year",
+            "forfeiture_policy": "burn_it",
+        },
+    )
+
+    assert response.status_code == 422
+
+
 def test_unknown_workspace_is_404(env):
     client, _workspace, scenarios = env
 

@@ -85,6 +85,18 @@ def _graded_5() -> VestingScheduleConfig:
     )
 
 
+# Scenario C accrues employer money for three consecutive years before the
+# employee leaves, which is where the prior-year-only basis used to understate
+# the forfeiture by two thirds (issue #444).
+SCENARIO_C_ROWS = """
+    INSERT INTO fct_workforce_snapshot VALUES
+        ('c1', 2025, 'ACTIVE',     DATE '2024-01-01', NULL,              1, '<2',  2080, 1000.00),
+        ('c1', 2026, 'ACTIVE',     DATE '2024-01-01', NULL,              2, '2-4', 2080, 1000.00),
+        ('c1', 2027, 'ACTIVE',     DATE '2024-01-01', NULL,              3, '2-4', 2080, 1000.00),
+        ('c1', 2028, 'TERMINATED', DATE '2024-01-01', DATE '2028-06-30', 3, '2-4', 1040,    0.00)
+"""
+
+
 @pytest.fixture
 def scenario_a(tmp_path: Path) -> Path:
     return _write_scenario(tmp_path / "a.duckdb", SCENARIO_A_ROWS)
@@ -93,6 +105,54 @@ def scenario_a(tmp_path: Path) -> Path:
 @pytest.fixture
 def scenario_b(tmp_path: Path) -> Path:
     return _write_scenario(tmp_path / "b.duckdb", SCENARIO_B_ROWS)
+
+
+@pytest.fixture
+def scenario_c(tmp_path: Path) -> Path:
+    return _write_scenario(tmp_path / "c.duckdb", SCENARIO_C_ROWS)
+
+
+def test_basis_is_the_cumulative_employer_balance(scenario_c: Path):
+    """A 3-year-cliff termination in year three forfeits three years of money."""
+    service = _service({"c": scenario_c})
+
+    result = service.project_forfeitures(
+        "ws",
+        [("c", "Scenario C")],
+        VestingScheduleConfig(
+            schedule_type=VestingScheduleType.CLIFF_4_YEAR, name="4-Year Cliff"
+        ),
+    )
+
+    termination_year = next(
+        row for row in result.scenarios[0].years if row.simulation_year == 2028
+    )
+    # The prior-year-only basis would have found $1,000.
+    assert termination_year.total_employer_contributions == Decimal("3000.00")
+    assert termination_year.forfeited_amount == Decimal("3000.00")
+
+
+def test_projection_carries_employer_cost_offsets(scenario_c: Path):
+    """#444: the page joins these onto gross cost instead of re-deriving them."""
+    service = _service({"c": scenario_c})
+
+    result = service.project_forfeitures(
+        "ws",
+        [("c", "Scenario C")],
+        VestingScheduleConfig(
+            schedule_type=VestingScheduleType.CLIFF_4_YEAR, name="4-Year Cliff"
+        ),
+    )
+
+    offsets = {
+        row.simulation_year: row for row in result.scenarios[0].employer_cost_offsets
+    }
+    # 2028's forfeiture is recognized and applied in 2029 — but scenario C has
+    # no 2029, so the offset simply has no year to land in.
+    assert 2029 not in offsets
+    assert offsets[2028].source_year == 2027
+    assert offsets[2028].offset_amount == Decimal("0.00")
+    assert offsets[2025].basis_available is False
 
 
 def test_first_year_is_flagged_rather_than_reported_as_zero(scenario_a: Path):

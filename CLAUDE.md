@@ -725,6 +725,37 @@ Key invariants:
 
 Verify exactness in an isolated DB (per the isolated-DB rule): build a full sim, copy it, `calibrate` the copy, and confirm `fct_workforce_snapshot` per-employee prorated comp matches the baseline.
 
+### **Net Employer Cost (issue #444)**
+
+Employer cost is reported gross **and net of forfeitures** on the Studio Cost
+Comparison page, `planalign analyze cost`, and the Excel export — from one
+shared function in `planalign_api/services/employer_cost_service.py`.
+
+```bash
+planalign analyze cost --database iso.duckdb
+planalign analyze cost --database a.duckdb,b.duckdb --export excel --output cost.xlsx
+```
+
+Key invariants:
+- **The forfeiture basis is cumulative**, not the prior year alone: an employee
+  forfeits the unvested share of the employer money they accrued across *every*
+  simulation year before they terminated. Contributions made before the first
+  simulation year are outside the run and are not in the basis.
+- **Policy is not cosmetic**: `offset_employer_contributions` and
+  `pay_plan_expenses` reduce sponsor outlay; `reallocate_to_participants`
+  applies a **$0** employer offset with the forfeiture still disclosed as a
+  participant allocation.
+- **Timing**: year N terminations offset year N+1 employer cost. A year with no
+  measurable source renders gross-only and flagged — never a $0 offset. That is
+  always the first two simulation years.
+- **Additive UI**: with the Cost Comparison toggle on Gross, the page renders
+  numerically identical output to before the feature.
+- **Tie-out**: gross match/core tie to `fct_employer_match_events` /
+  `int_employer_core_contributions` to the cent; offsets tie to
+  `VestingService` totals exactly (same projection function).
+
+Full guide: `docs/guides/net_employer_cost.md`
+
 ### **PlanAlign Studio (Web Interface)**
 
 Launch the modern web-based scenario management interface:

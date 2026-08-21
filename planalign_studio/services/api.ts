@@ -741,6 +741,10 @@ export function getResultsExportUrl(workspaceId: string, scenarioId: string, for
   return `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}/results/export?format=${format}`;
 }
 
+export function getScenarioReportUrl(workspaceId: string, scenarioId: string, format: 'pdf' | 'pptx' | 'html' = 'pdf'): string {
+  return `${API_BASE}/api/workspaces/${encodeURIComponent(workspaceId)}/scenarios/${encodeURIComponent(scenarioId)}/report?format=${format}`;
+}
+
 // ============================================================================
 // Batch Processing Endpoints
 // ============================================================================
@@ -2037,6 +2041,39 @@ export interface ForfeitureYearRow {
 }
 
 /**
+ * What the plan does with forfeited employer money (issue #444).
+ *
+ * These are not three flavours of the same subtraction: only the first two
+ * reduce the sponsor's outlay. Under `reallocate_to_participants` the money
+ * goes to remaining participants' accounts and the sponsor still funds the
+ * full match, so the employer cost offset is $0.
+ */
+export type ForfeiturePolicy =
+  | 'offset_employer_contributions'
+  | 'pay_plan_expenses'
+  | 'reallocate_to_participants';
+
+/**
+ * The forfeiture offset applied to one simulation year's employer cost.
+ *
+ * Forfeitures from year N terminations are recognized and applied in year
+ * N + 1, so `source_year` is always `simulation_year - 1`.
+ */
+export interface EmployerCostOffsetRow {
+  simulation_year: number;
+  source_year: number | null;
+  /** Disclosed regardless of policy; null when no measurable basis exists. */
+  forfeitures_generated: number | null;
+  /** $0 under reallocate_to_participants; null when unmeasurable. */
+  offset_amount: number | null;
+  /** Non-zero only under reallocate_to_participants. */
+  participant_allocation: number | null;
+  /** False means render gross-only and flagged — never a $0 offset. */
+  basis_available: boolean;
+  unavailable_reason: string | null;
+}
+
+/**
  * One scenario's forfeitures across every simulation year it contains.
  */
 export interface ScenarioForfeitureSeries {
@@ -2046,6 +2083,8 @@ export interface ScenarioForfeitureSeries {
   total_employer_contributions: number;
   total_vested: number;
   total_forfeited: number;
+  /** Per-year employer cost offsets under the requested policy (#444). */
+  employer_cost_offsets: EmployerCostOffsetRow[];
 }
 
 /**
@@ -2062,6 +2101,8 @@ export interface SkippedScenario {
  */
 export interface ForfeitureProjectionResponse {
   schedule: VestingScheduleConfig;
+  /** The policy the employer cost offsets were computed under. */
+  forfeiture_policy: ForfeiturePolicy;
   /** Union of years across included scenarios; a scenario may not cover all. */
   years: number[];
   scenarios: ScenarioForfeitureSeries[];
@@ -2073,6 +2114,7 @@ export interface ForfeitureProjectionParams {
   scheduleType: VestingScheduleType;
   requireHoursCredit?: boolean;
   hoursThreshold?: number;
+  forfeiturePolicy?: ForfeiturePolicy;
 }
 
 /**
@@ -2125,6 +2167,9 @@ export async function getForfeitureProjection(
   }
   if (params.hoursThreshold !== undefined) {
     query.set('hours_threshold', String(params.hoursThreshold));
+  }
+  if (params.forfeiturePolicy !== undefined) {
+    query.set('forfeiture_policy', params.forfeiturePolicy);
   }
   const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/analytics/vesting/forfeitures?${query}`

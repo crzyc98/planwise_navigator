@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from ..constants import MAX_SCENARIO_COMPARISON
+from ..models.employer_cost import ForfeiturePolicy
 from ..models.vesting import (
     ForfeitureProjectionResponse,
     ScenarioYearsResponse,
@@ -150,6 +151,13 @@ async def project_vesting_forfeitures(
     hours_threshold: int = Query(
         1000, ge=0, le=2080, description="Minimum annual hours for vesting credit"
     ),
+    forfeiture_policy: ForfeiturePolicy = Query(
+        ForfeiturePolicy.OFFSET_EMPLOYER_CONTRIBUTIONS,
+        description=(
+            "What the plan does with forfeited money. Determines whether the "
+            "returned employer cost offsets reduce sponsor outlay at all."
+        ),
+    ),
     vesting_service: VestingService = Depends(get_vesting_service),
 ) -> ForfeitureProjectionResponse:
     """
@@ -160,6 +168,11 @@ async def project_vesting_forfeitures(
     POST .../analytics/vesting. A scenario's first simulation year has no prior
     year to source employer contributions from, so its row is flagged
     `has_prior_year_basis: false` rather than reported as a measured zero.
+
+    Each series also carries `employer_cost_offsets` (issue #444): the per-year
+    reduction to employer cost implied by `forfeiture_policy`, with year N
+    terminations offsetting year N+1 cost. The Cost Comparison page joins these
+    onto gross cost rather than re-deriving the policy semantics client-side.
     """
     storage = vesting_service.storage
     if not storage.get_workspace(workspace_id):
@@ -174,7 +187,9 @@ async def project_vesting_forfeitures(
         require_hours_credit=require_hours_credit,
         hours_threshold=hours_threshold,
     )
-    return vesting_service.project_forfeitures(workspace_id, selected, schedule)
+    return vesting_service.project_forfeitures(
+        workspace_id, selected, schedule, forfeiture_policy
+    )
 
 
 @router.post(
