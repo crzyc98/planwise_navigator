@@ -33,11 +33,18 @@ import {
   listScenarios,
   compareDCPlanAnalytics,
   getScenarioConfig,
+  getForfeitureProjection,
+  listVestingSchedules,
   Scenario,
   DCPlanComparisonResponse,
   DCPlanAnalytics,
   ContributionYearSummary,
   DCPlanCohort,
+  EmployerCostOffsetRow,
+  ForfeiturePolicy,
+  ForfeitureProjectionResponse,
+  VestingScheduleInfo,
+  VestingScheduleType,
 } from '../services/api';
 import { MAX_SCENARIO_SELECTION } from '../constants';
 
@@ -84,14 +91,77 @@ function isValidCohort(value: unknown): value is DCPlanCohort {
 }
 
 // ============================================================================
+// Net-of-forfeitures view (issue #444)
+// ============================================================================
+
+/** Gross is the default; the page renders exactly as it always has. */
+type CostView = 'gross' | 'net';
+
+const VALID_COST_VIEWS: CostView[] = ['gross', 'net'];
+
+const COST_VIEW_LABELS: Record<CostView, string> = {
+  gross: 'Gross',
+  net: 'Net of forfeitures',
+};
+
+const VALID_POLICIES: ForfeiturePolicy[] = [
+  'offset_employer_contributions',
+  'pay_plan_expenses',
+  'reallocate_to_participants',
+];
+
+const POLICY_LABELS: Record<ForfeiturePolicy, string> = {
+  offset_employer_contributions: 'Offset employer contributions',
+  pay_plan_expenses: 'Pay plan expenses',
+  reallocate_to_participants: 'Reallocate to participants',
+};
+
+const POLICY_DESCRIPTIONS: Record<ForfeiturePolicy, string> = {
+  offset_employer_contributions:
+    "Forfeitures are applied against the next plan year's employer contributions, reducing the sponsor's outlay.",
+  pay_plan_expenses:
+    "Forfeitures pay plan expenses the sponsor would otherwise fund in cash, reducing the sponsor's outlay.",
+  reallocate_to_participants:
+    "Forfeitures are reallocated to remaining participants' accounts. The sponsor still funds the full match, so employer cost is not reduced.",
+};
+
+/** Only the first two policies reduce what the sponsor actually pays. */
+const POLICY_REDUCES_EMPLOYER_COST: Record<ForfeiturePolicy, boolean> = {
+  offset_employer_contributions: true,
+  pay_plan_expenses: true,
+  reallocate_to_participants: false,
+};
+
+const DEFAULT_VESTING_SCHEDULE: VestingScheduleType = 'graded_5_year';
+const DEFAULT_FORFEITURE_POLICY: ForfeiturePolicy = 'offset_employer_contributions';
+
+function isValidCostView(value: unknown): value is CostView {
+  return typeof value === 'string' && (VALID_COST_VIEWS as string[]).includes(value);
+}
+
+function isValidPolicy(value: unknown): value is ForfeiturePolicy {
+  return typeof value === 'string' && (VALID_POLICIES as string[]).includes(value);
+}
+
+// ============================================================================
 // LocalStorage Helpers for Persisting Comparison Preferences
 // ============================================================================
 
 const STORAGE_KEY_PREFIX = 'planalign_comparison_';
 
+interface ComparisonPrefs {
+  selectedIds: string[];
+  anchorId: string;
+  cohort: DCPlanCohort;
+  // #444: the net-of-forfeitures selections persist alongside the existing keys.
+  costView?: CostView;
+  vestingSchedule?: VestingScheduleType;
+  forfeiturePolicy?: ForfeiturePolicy;
+}
+
 function saveComparisonPrefs(
   workspaceId: string,
-  prefs: { selectedIds: string[]; anchorId: string; cohort: DCPlanCohort }
+  prefs: ComparisonPrefs
 ) {
   try {
     localStorage.setItem(`${STORAGE_KEY_PREFIX}${workspaceId}`, JSON.stringify(prefs));
@@ -102,7 +172,14 @@ function saveComparisonPrefs(
 
 function loadComparisonPrefs(
   workspaceId: string
-): { selectedIds: string[]; anchorId: string; cohort?: unknown } | null {
+): {
+  selectedIds: string[];
+  anchorId: string;
+  cohort?: unknown;
+  costView?: unknown;
+  vestingSchedule?: unknown;
+  forfeiturePolicy?: unknown;
+} | null {
   try {
     const stored = localStorage.getItem(`${STORAGE_KEY_PREFIX}${workspaceId}`);
     if (stored) {
@@ -195,7 +272,7 @@ const derivePlanSummary = (config: Record<string, any> | null) => {
 
 // Custom legend that respects the order of items passed to it
 interface CustomLegendProps {
-  items: Array<{ name: string; color: string }>;
+  items: Array<{ name: string; color: string; opacity?: number }>;
 }
 
 const CustomLegend: React.FC<CustomLegendProps> = ({ items }) => {
@@ -206,7 +283,7 @@ const CustomLegend: React.FC<CustomLegendProps> = ({ items }) => {
         <div key={index} className="flex items-center gap-1.5">
           <div
             className="w-3 h-3 rounded-full"
-            style={{ backgroundColor: item.color }}
+            style={{ backgroundColor: item.color, opacity: item.opacity ?? 1 }}
           />
           <span className="text-xs" style={{ color: chartTheme.legendText }}>{item.name}</span>
         </div>
@@ -306,6 +383,18 @@ export default function ScenarioCostComparison() {
   const [showPlanDesign, setShowPlanDesign] = useState(false);
 
   // -------------------------------------------------------------------------
+  // Net of forfeitures (issue #444). Default is Gross: with this off the page
+  // renders exactly the numbers it always has.
+  // -------------------------------------------------------------------------
+  const [costView, setCostView] = useState<CostView>('gross');
+  const [vestingSchedule, setVestingSchedule] = useState<VestingScheduleType>(DEFAULT_VESTING_SCHEDULE);
+  const [forfeiturePolicy, setForfeiturePolicy] = useState<ForfeiturePolicy>(DEFAULT_FORFEITURE_POLICY);
+  const [schedules, setSchedules] = useState<VestingScheduleInfo[]>([]);
+  const [forfeitureData, setForfeitureData] = useState<ForfeitureProjectionResponse | null>(null);
+  const [forfeitureLoading, setForfeitureLoading] = useState(false);
+  const [forfeitureError, setForfeitureError] = useState<string | null>(null);
+
+  // -------------------------------------------------------------------------
   // Copy to Clipboard Hooks
   // -------------------------------------------------------------------------
   const { copy, copied } = useCopyToClipboard();
@@ -348,6 +437,45 @@ export default function ScenarioCostComparison() {
     });
     return Array.from(allYears).sort((a, b) => a - b);
   }, [comparisonData]);
+
+  // -------------------------------------------------------------------------
+  // Derived Data: Forfeiture offsets (#444)
+  // -------------------------------------------------------------------------
+  /** Net figures only render once the offsets have actually arrived. */
+  const netActive = costView === 'net' && forfeitureData !== null;
+
+  const policyReducesCost = POLICY_REDUCES_EMPLOYER_COST[forfeiturePolicy];
+
+  const offsetsByScenario = useMemo(() => {
+    const map = new Map<string, Map<number, EmployerCostOffsetRow>>();
+    forfeitureData?.scenarios.forEach(series => {
+      const byYear = new Map<number, EmployerCostOffsetRow>();
+      series.employer_cost_offsets.forEach(row => byYear.set(row.simulation_year, row));
+      map.set(series.scenario_id, byYear);
+    });
+    return map;
+  }, [forfeitureData]);
+
+  const offsetFor = useCallback(
+    (scenarioId: string, year: number): EmployerCostOffsetRow | null =>
+      offsetsByScenario.get(scenarioId)?.get(year) ?? null,
+    [offsetsByScenario]
+  );
+
+  /**
+   * The applied offset for one scenario-year, or null when it has no measurable
+   * basis — a scenario's first year, and any year whose source terminations
+   * accrued their employer money before the horizon. Null renders as a flagged
+   * gap; it is never collapsed to $0.
+   */
+  const appliedOffset = useCallback(
+    (scenarioId: string, year: number): number | null => {
+      const row = offsetFor(scenarioId, year);
+      if (!row || !row.basis_available) return null;
+      return row.offset_amount ?? 0;
+    },
+    [offsetFor]
+  );
 
   // -------------------------------------------------------------------------
   // Derived Data: Processed Chart Data
@@ -413,6 +541,51 @@ export default function ScenarioCostComparison() {
   }, [comparisonData, selectedScenarioIds, anchorScenarioId, viewMode, years]);
 
   // -------------------------------------------------------------------------
+  // Derived Data: Chart rows augmented with offset / net series (#444)
+  // -------------------------------------------------------------------------
+  /**
+   * In Gross view this is the same array the chart has always been given.
+   * In Net view each scenario gains `<id>_offset` and `<id>_net` keys.
+   *
+   * Cumulative net is cumulative gross minus the offsets accumulated so far,
+   * and stays null until the first year with a measurable offset — a running
+   * total that silently treated unmeasurable years as zero-offset would
+   * overstate the saving.
+   */
+  const chartData = useMemo<Array<Record<string, number | null>>>(() => {
+    if (!netActive) return processedData;
+
+    const runningOffset: Record<string, number> = {};
+    const anyBasisYet: Record<string, boolean> = {};
+
+    return processedData.map(row => {
+      const year = row.year;
+      const augmented: Record<string, number | null> = { ...row };
+
+      selectedScenarioIds.forEach(id => {
+        const applied = appliedOffset(id, year);
+        if (applied !== null) {
+          runningOffset[id] = (runningOffset[id] ?? 0) + applied;
+          anyBasisYet[id] = true;
+        }
+
+        const grossValue = row[id] ?? 0;
+        if (viewMode === 'cumulative') {
+          augmented[`${id}_offset`] = anyBasisYet[id] ? runningOffset[id] : null;
+          augmented[`${id}_net`] = anyBasisYet[id]
+            ? grossValue - (runningOffset[id] ?? 0)
+            : null;
+        } else {
+          augmented[`${id}_offset`] = applied;
+          augmented[`${id}_net`] = applied === null ? null : grossValue - applied;
+        }
+      });
+
+      return augmented;
+    });
+  }, [netActive, processedData, selectedScenarioIds, appliedOffset, viewMode]);
+
+  // -------------------------------------------------------------------------
   // Derived Data: Anchor Summary
   // -------------------------------------------------------------------------
   const anchorSummary = useMemo(() => {
@@ -427,6 +600,21 @@ export default function ScenarioCostComparison() {
       avgAnnualCost: totalCost / anchorAnalytics.contribution_by_year.length,
     };
   }, [anchorAnalytics]);
+
+  /**
+   * #444: the anchor's net horizon total, so non-anchor scenarios can show a
+   * net variance rather than reusing the gross one.
+   */
+  const anchorNetTotal = useMemo(() => {
+    if (!anchorAnalytics || !netActive) return 0;
+    const gross = anchorAnalytics.contribution_by_year.reduce(
+      (sum, y) => sum + y.total_employer_cost, 0
+    );
+    const offset = years.reduce(
+      (sum, year) => sum + (appliedOffset(anchorScenarioId, year) ?? 0), 0
+    );
+    return gross - offset;
+  }, [anchorAnalytics, netActive, years, appliedOffset, anchorScenarioId]);
 
   // -------------------------------------------------------------------------
   // Derived Data: Ordered Scenario IDs (anchor first, then rest in user order)
@@ -474,6 +662,17 @@ export default function ScenarioCostComparison() {
         // FR-008: an unrecognized/corrupted stored cohort value falls back to 'all'
         // rather than blocking selectedIds/anchorId restoration.
         setCohort(isValidCohort(savedPrefs.cohort) ? savedPrefs.cohort : 'all');
+        // #444: same tolerance as the cohort — a corrupted value falls back to
+        // the default rather than blocking the selection restore.
+        setCostView(isValidCostView(savedPrefs.costView) ? savedPrefs.costView : 'gross');
+        setForfeiturePolicy(
+          isValidPolicy(savedPrefs.forfeiturePolicy)
+            ? savedPrefs.forfeiturePolicy
+            : DEFAULT_FORFEITURE_POLICY
+        );
+        if (typeof savedPrefs.vestingSchedule === 'string') {
+          setVestingSchedule(savedPrefs.vestingSchedule as VestingScheduleType);
+        }
 
         if (validSelectedIds.length > 0) {
           // Restore saved selection
@@ -547,6 +746,38 @@ export default function ScenarioCostComparison() {
     }
   }, [activeWorkspace?.id, selectedScenarioIds, cohort]);
 
+  /**
+   * #444: the forfeiture offset comes from the endpoint the Vesting screens
+   * already use, so the offsets shown here tie to those screens exactly. It is
+   * fetched in parallel with the cost comparison and joined on
+   * (scenario_id, simulation_year) — no second page visit, no new endpoint.
+   */
+  const fetchForfeitures = useCallback(async () => {
+    if (!activeWorkspace?.id || selectedScenarioIds.length === 0) {
+      setForfeitureData(null);
+      return;
+    }
+
+    setForfeitureLoading(true);
+    setForfeitureError(null);
+    try {
+      const data = await getForfeitureProjection(activeWorkspace.id, {
+        scenarioIds: selectedScenarioIds,
+        scheduleType: vestingSchedule,
+        forfeiturePolicy,
+      });
+      setForfeitureData(data);
+    } catch (err) {
+      console.error('Failed to fetch forfeiture projection:', err);
+      setForfeitureError(
+        err instanceof Error ? err.message : 'Failed to load forfeiture projection'
+      );
+      setForfeitureData(null);
+    } finally {
+      setForfeitureLoading(false);
+    }
+  }, [activeWorkspace?.id, selectedScenarioIds, vestingSchedule, forfeiturePolicy]);
+
   // -------------------------------------------------------------------------
   // Effects
   // -------------------------------------------------------------------------
@@ -570,6 +801,26 @@ export default function ScenarioCostComparison() {
       setComparisonData(null);
     }
   }, [selectedScenarioIds, fetchComparison, loadingScenarios]);
+
+  // #444: only pay for the forfeiture projection when the Net view is showing.
+  useEffect(() => {
+    if (loadingScenarios) return;
+
+    if (costView === 'net' && selectedScenarioIds.length > 0) {
+      fetchForfeitures();
+    } else {
+      setForfeitureData(null);
+      setForfeitureError(null);
+    }
+  }, [costView, selectedScenarioIds, fetchForfeitures, loadingScenarios]);
+
+  // #444: schedule list for the selector, loaded once.
+  useEffect(() => {
+    if (costView !== 'net' || schedules.length > 0) return;
+    listVestingSchedules()
+      .then(result => setSchedules(result.schedules))
+      .catch(err => console.error('Failed to load vesting schedules:', err));
+  }, [costView, schedules.length]);
 
   // Fetch anchor scenario config for plan design display
   useEffect(() => {
@@ -595,9 +846,13 @@ export default function ScenarioCostComparison() {
         selectedIds: selectedScenarioIds,
         anchorId: anchorScenarioId,
         cohort,
+        costView,
+        vestingSchedule,
+        forfeiturePolicy,
       });
     }
-  }, [activeWorkspace?.id, selectionWorkspaceId, selectedScenarioIds, anchorScenarioId, cohort]);
+  }, [activeWorkspace?.id, selectionWorkspaceId, selectedScenarioIds, anchorScenarioId, cohort,
+      costView, vestingSchedule, forfeiturePolicy]);
 
   // -------------------------------------------------------------------------
   // Event Handlers
@@ -664,6 +919,10 @@ export default function ScenarioCostComparison() {
     if (cohort !== 'all') {
       lines.push(`# Cohort: ${cohortBadgeLabel(cohort, anchorAnalytics?.resolved_first_simulation_year)}`);
     }
+    // #444: the vesting schedule and policy behind the net rows travel with them.
+    if (netActive) {
+      lines.push(`# Net of forfeitures: ${vestingSchedule} schedule, ${POLICY_LABELS[forfeiturePolicy]}`);
+    }
 
     // Header row
     lines.push(['Scenario', ...years.map(String), 'Total', 'Variance'].join('\t'));
@@ -693,10 +952,39 @@ export default function ScenarioCostComparison() {
 
       const name = comparisonData.scenario_names[id] || analytics.scenario_name || id;
       lines.push([name, ...yearValues, formatCurrency(total), variance].join('\t'));
+
+      // #444: pasted output carries the same offset/net rows the table shows.
+      if (!netActive) return;
+
+      const offsetValues = years.map(year => {
+        const applied = appliedOffset(id, year);
+        return applied === null ? 'no measurable basis' : `-${formatCurrency(applied)}`;
+      });
+      const offsetTotal = years.reduce(
+        (sum, year) => sum + (appliedOffset(id, year) ?? 0), 0
+      );
+      lines.push([
+        `${name} — forfeiture offset`, ...offsetValues, `-${formatCurrency(offsetTotal)}`, '--',
+      ].join('\t'));
+
+      const netValues = years.map(year => {
+        const yearData = analytics.contribution_by_year.find(y => y.year === year);
+        const applied = appliedOffset(id, year);
+        if (!yearData || applied === null) return 'gross only';
+        return formatCurrency(yearData.total_employer_cost - applied);
+      });
+      const netTotal = total - offsetTotal;
+      const netVariance = id === anchorScenarioId || !anchorAnalytics
+        ? '--'
+        : `${netTotal - anchorNetTotal >= 0 ? '+' : ''}${formatCurrency(netTotal - anchorNetTotal)}`;
+      lines.push([
+        `${name} — net employer cost`, ...netValues, formatCurrency(netTotal), netVariance,
+      ].join('\t'));
     });
 
     return lines.join('\n');
-  }, [comparisonData, years, orderedScenarioIds, anchorScenarioId, anchorAnalytics, cohort]);
+  }, [comparisonData, years, orderedScenarioIds, anchorScenarioId, anchorAnalytics, cohort,
+      netActive, appliedOffset, anchorNetTotal, vestingSchedule, forfeiturePolicy]);
 
   const handleCopy = useCallback(() => {
     const tsv = tableToTSV();
@@ -1026,13 +1314,88 @@ export default function ScenarioCostComparison() {
                       Cumulative Cost
                     </button>
                   </div>
+
+                  {/* Gross / Net of forfeitures toggle (#444) */}
+                  <div className="flex bg-surface-subtle p-1 rounded-lg">
+                    {VALID_COST_VIEWS.map(value => (
+                      <button
+                        key={value}
+                        onClick={() => setCostView(value)}
+                        className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${costView === value ? 'bg-surface-raised text-ink shadow-sm' : 'text-ink-muted hover:text-ink-muted'}`}
+                      >
+                        {COST_VIEW_LABELS[value]}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
+
+              {/* Vesting schedule + forfeiture policy selectors (#444) */}
+              {costView === 'net' && (
+                <div className="-mt-4 mb-6 flex flex-wrap items-center gap-4 rounded-lg border border-border bg-surface-subtle px-4 py-3">
+                  <label className="flex items-center gap-2 text-xs font-bold text-ink-muted uppercase tracking-wide">
+                    Vesting schedule
+                    <select
+                      value={vestingSchedule}
+                      onChange={e => setVestingSchedule(e.target.value as VestingScheduleType)}
+                      className="rounded-md border border-border bg-surface-raised px-2 py-1 text-xs font-medium normal-case text-ink outline-none focus:ring-1 focus:ring-fidelity-green"
+                    >
+                      {schedules.length === 0 ? (
+                        <option value={vestingSchedule}>Loading…</option>
+                      ) : (
+                        schedules.map(schedule => (
+                          <option key={schedule.schedule_type} value={schedule.schedule_type}>
+                            {schedule.name}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </label>
+
+                  <label className="flex items-center gap-2 text-xs font-bold text-ink-muted uppercase tracking-wide">
+                    Forfeiture policy
+                    <select
+                      value={forfeiturePolicy}
+                      onChange={e => setForfeiturePolicy(e.target.value as ForfeiturePolicy)}
+                      className="rounded-md border border-border bg-surface-raised px-2 py-1 text-xs font-medium normal-case text-ink outline-none focus:ring-1 focus:ring-fidelity-green"
+                    >
+                      {VALID_POLICIES.map(value => (
+                        <option key={value} value={value}>{POLICY_LABELS[value]}</option>
+                      ))}
+                    </select>
+                  </label>
+
+                  {forfeitureLoading && (
+                    <span className="flex items-center text-xs text-ink-muted">
+                      <Loader2 size={12} className="mr-1.5 animate-spin" /> Projecting forfeitures…
+                    </span>
+                  )}
+                  {forfeitureError && (
+                    <span className="flex items-center text-xs text-warning-ink">
+                      <AlertCircle size={12} className="mr-1.5" /> {forfeitureError}
+                    </span>
+                  )}
+                  {!policyReducesCost && (
+                    <span className="rounded bg-warning-surface px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-warning-ink">
+                      No employer cost offset under this policy
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Scenarios the forfeiture projection could not read (#444) */}
+              {costView === 'net' && (forfeitureData?.skipped.length ?? 0) > 0 && (
+                <div className="-mt-2 mb-6 rounded-lg border border-warning-border bg-warning-surface px-4 py-2 text-xs text-warning-ink">
+                  No forfeiture projection for{' '}
+                  {forfeitureData!.skipped.map(item => item.scenario_name).join(', ')} — those
+                  scenarios show gross cost only.
+                </div>
+              )}
 
               <div className="h-96">
                 <ResponsiveContainer width="100%" height="100%">
                   {viewMode === 'annual' ? (
-                    <BarChart key={selectedScenarioIds.join(',')} data={processedData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
+                    <BarChart key={`${selectedScenarioIds.join(',')}|${netActive}`} data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
                       <XAxis dataKey="year" stroke={chartTheme.axis.line} fontSize={12} />
                       <YAxis stroke={chartTheme.axis.line} fontSize={12} tickFormatter={v => formatCurrency(v)} />
@@ -1044,10 +1407,14 @@ export default function ScenarioCostComparison() {
                       <Legend
                         content={() => (
                           <CustomLegend
-                            items={orderedScenarioIds.map(id => ({
-                              name: comparisonData.scenario_names[id] || id,
-                              color: id === anchorScenarioId ? chartTheme.semantic.anchor : scenarioColorMap[id],
-                            }))}
+                            items={orderedScenarioIds.flatMap(id => {
+                              const color = id === anchorScenarioId ? chartTheme.semantic.anchor : scenarioColorMap[id];
+                              const name = comparisonData.scenario_names[id] || id;
+                              const gross = { name: netActive ? `${name} (gross)` : name, color };
+                              return netActive
+                                ? [gross, { name: `${name} (net)`, color, opacity: 0.45 }]
+                                : [gross];
+                            })}
                           />
                         )}
                       />
@@ -1055,15 +1422,29 @@ export default function ScenarioCostComparison() {
                         <Bar
                           key={id}
                           dataKey={id}
-                          name={comparisonData.scenario_names[id] || id}
+                          name={netActive
+                            ? `${comparisonData.scenario_names[id] || id} (gross)`
+                            : (comparisonData.scenario_names[id] || id)}
                           fill={id === anchorScenarioId ? chartTheme.semantic.anchor : scenarioColorMap[id]}
                           radius={[4, 4, 0, 0]}
-                          barSize={selectedScenarioIds.length > 4 ? 12 : 30}
+                          barSize={netActive || selectedScenarioIds.length > 4 ? 12 : 30}
+                        />
+                      ))}
+                      {/* #444: net is an additional series; the gross bars above are untouched. */}
+                      {netActive && orderedScenarioIds.map((id) => (
+                        <Bar
+                          key={`${id}_net`}
+                          dataKey={`${id}_net`}
+                          name={`${comparisonData.scenario_names[id] || id} (net)`}
+                          fill={id === anchorScenarioId ? chartTheme.semantic.anchor : scenarioColorMap[id]}
+                          fillOpacity={0.45}
+                          radius={[4, 4, 0, 0]}
+                          barSize={12}
                         />
                       ))}
                     </BarChart>
                   ) : (
-                    <AreaChart key={selectedScenarioIds.join(',')} data={processedData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
+                    <AreaChart key={`${selectedScenarioIds.join(',')}|${netActive}`} data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
                       <XAxis dataKey="year" stroke={chartTheme.axis.line} fontSize={12} />
                       <YAxis stroke={chartTheme.axis.line} fontSize={12} tickFormatter={v => formatCurrency(v)} />
@@ -1074,10 +1455,14 @@ export default function ScenarioCostComparison() {
                       <Legend
                         content={() => (
                           <CustomLegend
-                            items={orderedScenarioIds.map(id => ({
-                              name: comparisonData.scenario_names[id] || id,
-                              color: id === anchorScenarioId ? chartTheme.semantic.anchor : scenarioColorMap[id],
-                            }))}
+                            items={orderedScenarioIds.flatMap(id => {
+                              const color = id === anchorScenarioId ? chartTheme.semantic.anchor : scenarioColorMap[id];
+                              const name = comparisonData.scenario_names[id] || id;
+                              const gross = { name: netActive ? `${name} (gross)` : name, color };
+                              return netActive
+                                ? [gross, { name: `${name} (net)`, color, opacity: 0.45 }]
+                                : [gross];
+                            })}
                           />
                         )}
                       />
@@ -1086,11 +1471,28 @@ export default function ScenarioCostComparison() {
                           key={id}
                           type="monotone"
                           dataKey={id}
-                          name={comparisonData.scenario_names[id] || id}
+                          name={netActive
+                            ? `${comparisonData.scenario_names[id] || id} (gross)`
+                            : (comparisonData.scenario_names[id] || id)}
                           stroke={id === anchorScenarioId ? chartTheme.semantic.anchor : scenarioColorMap[id]}
                           fill={id === anchorScenarioId ? chartTheme.semantic.anchor : scenarioColorMap[id]}
                           fillOpacity={0.1}
                           strokeWidth={id === anchorScenarioId ? 3 : 2}
+                        />
+                      ))}
+                      {/* #444: net trails gross by the cumulative forfeiture offset. */}
+                      {netActive && orderedScenarioIds.map((id) => (
+                        <Area
+                          key={`${id}_net`}
+                          type="monotone"
+                          dataKey={`${id}_net`}
+                          name={`${comparisonData.scenario_names[id] || id} (net)`}
+                          stroke={id === anchorScenarioId ? chartTheme.semantic.anchor : scenarioColorMap[id]}
+                          strokeDasharray="5 4"
+                          fill="none"
+                          fillOpacity={0}
+                          strokeWidth={2}
+                          connectNulls={false}
                         />
                       ))}
                     </AreaChart>
@@ -1172,6 +1574,11 @@ export default function ScenarioCostComparison() {
                 <h3 className="text-sm font-bold text-ink uppercase tracking-wider flex items-center gap-2">
                   Multi-Year Cost Matrix
                   <CohortBadge cohort={cohort} resolvedFirstSimulationYear={anchorAnalytics?.resolved_first_simulation_year} />
+                  {netActive && (
+                    <span className="rounded bg-success-surface px-2 py-0.5 text-[9px] font-bold tracking-wide text-success-ink">
+                      Net of forfeitures
+                    </span>
+                  )}
                 </h3>
                 <div className="flex items-center space-x-2">
                   <span className="text-[10px] bg-surface-raised border border-border text-ink-muted px-2 py-0.5 rounded font-bold flex items-center">
@@ -1224,7 +1631,7 @@ export default function ScenarioCostComparison() {
                         delta = total - anchorTotal;
                       }
 
-                      return (
+                      const grossRow = (
                         <tr key={id} className={`hover:bg-surface-subtle transition-colors ${isAnchor ? 'bg-info-surface/30' : ''}`}>
                           <td className="px-6 py-4 whitespace-nowrap border-r border-border">
                             <div className="flex items-center">
@@ -1275,10 +1682,133 @@ export default function ScenarioCostComparison() {
                           </td>
                         </tr>
                       );
+
+                      // #444: offset and net are *additional* rows. The gross
+                      // row above is byte-identical to the Gross view.
+                      if (!netActive) return grossRow;
+
+                      const measurableYears = years.filter(
+                        year => appliedOffset(id, year) !== null
+                      );
+                      const offsetTotal = measurableYears.reduce(
+                        (sum, year) => sum + (appliedOffset(id, year) ?? 0), 0
+                      );
+                      const netTotal = total - offsetTotal;
+                      const netDelta = !isAnchor && anchorAnalytics
+                        ? netTotal - anchorNetTotal
+                        : 0;
+
+                      return (
+                        <React.Fragment key={id}>
+                          {grossRow}
+                          <tr className="bg-surface-subtle/20">
+                            <td className="px-6 py-2 whitespace-nowrap border-r border-border pl-12 text-xs text-ink-muted">
+                              Forfeiture offset
+                            </td>
+                            {years.map(year => {
+                              const applied = appliedOffset(id, year);
+                              if (applied === null) {
+                                const reason = offsetFor(id, year)?.unavailable_reason
+                                  ?? 'No forfeiture projection for this year';
+                                return (
+                                  <td key={year} className="px-6 py-2 whitespace-nowrap text-right text-xs text-ink-subtle font-mono italic">
+                                    <span title={reason}>n/a</span>
+                                  </td>
+                                );
+                              }
+                              return (
+                                <td key={year} className="px-6 py-2 whitespace-nowrap text-right text-xs text-success-ink font-mono">
+                                  {applied === 0 ? '$0' : `-${formatCurrency(applied)}`}
+                                </td>
+                              );
+                            })}
+                            <td className="px-6 py-2 whitespace-nowrap text-right text-xs text-success-ink font-mono bg-surface-subtle/50 border-l border-border">
+                              {offsetTotal === 0 ? '$0' : `-${formatCurrency(offsetTotal)}`}
+                            </td>
+                            <td className="px-6 py-2 whitespace-nowrap text-right text-xs text-ink-subtle italic">--</td>
+                          </tr>
+
+                          {!policyReducesCost && (
+                            <tr className="bg-surface-subtle/20">
+                              <td className="px-6 py-2 whitespace-nowrap border-r border-border pl-12 text-xs text-ink-muted">
+                                Reallocated to participants
+                              </td>
+                              {years.map(year => {
+                                const row = offsetFor(id, year);
+                                const allocated = row?.basis_available
+                                  ? (row.participant_allocation ?? 0)
+                                  : null;
+                                return (
+                                  <td key={year} className="px-6 py-2 whitespace-nowrap text-right text-xs text-ink-muted font-mono">
+                                    {allocated === null ? (
+                                      <span className="italic text-ink-subtle">n/a</span>
+                                    ) : formatCurrency(allocated)}
+                                  </td>
+                                );
+                              })}
+                              <td className="px-6 py-2 whitespace-nowrap text-right text-xs text-ink-muted font-mono bg-surface-subtle/50 border-l border-border">
+                                {formatCurrency(
+                                  measurableYears.reduce(
+                                    (sum, year) => sum + (offsetFor(id, year)?.participant_allocation ?? 0), 0
+                                  )
+                                )}
+                              </td>
+                              <td className="px-6 py-2 whitespace-nowrap text-right text-xs text-ink-subtle italic">--</td>
+                            </tr>
+                          )}
+
+                          <tr className="bg-surface-subtle/40">
+                            <td className="px-6 py-2 whitespace-nowrap border-r border-border pl-12 text-xs font-bold text-ink">
+                              Net employer cost
+                            </td>
+                            {years.map(year => {
+                              const yearData = analytics.contribution_by_year.find(y => y.year === year);
+                              const applied = appliedOffset(id, year);
+                              if (!yearData || applied === null) {
+                                const reason = !yearData
+                                  ? 'No cost data for this year'
+                                  : (offsetFor(id, year)?.unavailable_reason
+                                     ?? 'No forfeiture projection for this year');
+                                return (
+                                  <td key={year} className="px-6 py-2 whitespace-nowrap text-right text-xs text-ink-subtle font-mono italic">
+                                    <span title={`Gross only — ${reason}`}>gross only</span>
+                                  </td>
+                                );
+                              }
+                              return (
+                                <td key={year} className="px-6 py-2 whitespace-nowrap text-right text-xs font-bold text-ink font-mono">
+                                  {formatCurrency(yearData.total_employer_cost - applied)}
+                                </td>
+                              );
+                            })}
+                            <td className="px-6 py-2 whitespace-nowrap text-right text-xs font-bold text-ink font-mono bg-surface-subtle/50 border-l border-border">
+                              {formatCurrency(netTotal)}
+                            </td>
+                            <td className="px-6 py-2 whitespace-nowrap text-right">
+                              {isAnchor ? (
+                                <span className="text-xs text-ink-subtle italic">--</span>
+                              ) : (
+                                <span className={`px-2 py-1 text-xs font-bold rounded ${netDelta >= 0 ? 'bg-warning-surface text-warning-ink' : 'bg-success-surface text-success-ink'}`}>
+                                  {netDelta >= 0 ? '+' : ''}{formatCurrency(netDelta)}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        </React.Fragment>
+                      );
                     })}
                   </tbody>
                 </table>
               </div>
+              {netActive && (
+                <div className="border-t border-border bg-surface-subtle px-6 py-3 text-xs text-ink-muted">
+                  Offsets apply the year after the terminations that generated them, under
+                  the <strong>{schedules.find(item => item.schedule_type === vestingSchedule)?.name ?? vestingSchedule}</strong>{' '}
+                  schedule and the <strong>{POLICY_LABELS[forfeiturePolicy]}</strong> policy.
+                  A year marked <em>gross only</em> has no measurable offset — it is not a $0
+                  offset. The horizon total includes those years' gross cost unchanged.
+                </div>
+              )}
             </div>
 
             {/* Multi-Year Compensation Matrix Table */}
@@ -1407,6 +1937,37 @@ export default function ScenarioCostComparison() {
                         ? ` — employees hired on or after ${anchorAnalytics?.resolved_first_simulation_year ?? 'the first simulation year'}.`
                         : ' — everyone else in the workforce snapshot.'}
                     </p>
+                  )}
+                  {costView === 'net' && (
+                    <>
+                      <p>
+                        <span className="text-ink-inverse font-bold">Forfeiture basis.</span> A
+                        terminating employee forfeits the unvested share of their{' '}
+                        <strong>cumulative</strong> employer contributions — every simulation year
+                        they accrued before the year they left, not just the prior year. Employer
+                        money contributed <strong>before the first simulation year is outside the
+                        run</strong> and is not in the basis, so forfeitures for employees hired
+                        before the horizon are understated.
+                      </p>
+                      <p>
+                        <span className="text-ink-inverse font-bold">Timing.</span> Forfeitures
+                        from year N terminations are recognized and applied against year N+1
+                        employer cost. A year with no measurable source — a scenario's first year,
+                        and the year after it — is shown <em>gross only</em> and flagged, never as
+                        a $0 offset.
+                      </p>
+                      <p>
+                        <span className="text-ink-inverse font-bold">Policy.</span>{' '}
+                        {POLICY_DESCRIPTIONS[forfeiturePolicy]}
+                      </p>
+                      <p>
+                        <span className="text-ink-inverse font-bold">Vesting schedule.</span> Net
+                        figures assume every selected scenario uses the{' '}
+                        <strong>{schedules.find(item => item.schedule_type === vestingSchedule)?.name ?? vestingSchedule}</strong>{' '}
+                        schedule, which is a what-if overlay on the runs — it is not read from each
+                        scenario's own plan design.
+                      </p>
+                    </>
                   )}
                 </div>
               </div>

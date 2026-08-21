@@ -428,13 +428,18 @@ def validate(
 @app.command("analyze")
 def analyze(
     target: str = typer.Argument(
-        "workforce", help="Analysis target (workforce, events, scenario)"
+        "workforce", help="Analysis target (workforce, events, scenario, cost)"
     ),
     config: Optional[str] = typer.Option(
         None, "--config", "-c", help="Path to simulation config YAML"
     ),
     database: Optional[str] = typer.Option(
-        None, "--database", help="Path to DuckDB database file"
+        None,
+        "--database",
+        help=(
+            "Path to DuckDB database file. For `analyze cost`, a comma-separated "
+            "list compares several scenarios in one pass."
+        ),
     ),
     start_year: Optional[int] = typer.Option(
         None, "--start-year", help="Start year for analysis"
@@ -452,10 +457,41 @@ def analyze(
     compare: Optional[str] = typer.Option(
         None, "--compare", help="Compare with another scenario"
     ),
+    vesting_schedule: str = typer.Option(
+        "graded_5_year",
+        "--vesting-schedule",
+        help="`analyze cost`: vesting schedule to project forfeitures under",
+    ),
+    forfeiture_policy: str = typer.Option(
+        "offset_employer_contributions",
+        "--forfeiture-policy",
+        help=(
+            "`analyze cost`: offset_employer_contributions | pay_plan_expenses | "
+            "reallocate_to_participants (the last applies no employer offset)"
+        ),
+    ),
+    require_hours_credit: bool = typer.Option(
+        False,
+        "--require-hours-credit",
+        help="`analyze cost`: require the hours threshold for vesting credit",
+    ),
+    hours_threshold: int = typer.Option(
+        1000,
+        "--hours-threshold",
+        help="`analyze cost`: minimum annual hours for vesting credit",
+    ),
+    output: Optional[str] = typer.Option(
+        None, "--output", "-o", help="`analyze cost`: output path for --export excel"
+    ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output"),
 ):
     """📊 Analyze simulation results with Rich tables and terminal-based visualizations."""
-    from .commands.analyze import analyze_workforce, analyze_events, analyze_scenario
+    from .commands.analyze import (
+        analyze_cost,
+        analyze_workforce,
+        analyze_events,
+        analyze_scenario,
+    )
 
     if target == "workforce":
         analyze_workforce(
@@ -489,9 +525,25 @@ def analyze(
             export=export,
             verbose=verbose,
         )
+    elif target == "cost":
+        # #444: gross / forfeiture offset / net employer cost, from the same
+        # shared function Studio's Cost Comparison page and the export use.
+        databases = [
+            item.strip() for item in (database or "").split(",") if item.strip()
+        ]
+        analyze_cost(
+            database=databases,
+            vesting_schedule=vesting_schedule,
+            forfeiture_policy=forfeiture_policy,
+            require_hours_credit=require_hours_credit,
+            hours_threshold=hours_threshold,
+            export=export,
+            output=output,
+            verbose=verbose,
+        )
     else:
         console.print(f"[yellow]Unknown analysis target: {target}[/yellow]")
-        console.print("Available targets: workforce, events, scenario")
+        console.print("Available targets: workforce, events, scenario, cost")
         raise typer.Exit(1)
 
 

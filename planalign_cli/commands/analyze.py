@@ -577,6 +577,327 @@ def _export_workforce_analysis(
             console.print_exception()
 
 
+@analyze_command.command("cost")
+def analyze_cost(
+    database: List[str] = typer.Option(
+        [],
+        "--database",
+        help=(
+            "Path to a scenario DuckDB file. Repeat to compare scenarios "
+            "(default: dbt/simulation.duckdb)"
+        ),
+    ),
+    vesting_schedule: str = typer.Option(
+        "graded_5_year",
+        "--vesting-schedule",
+        help="Vesting schedule to project forfeitures under",
+    ),
+    forfeiture_policy: str = typer.Option(
+        "offset_employer_contributions",
+        "--forfeiture-policy",
+        help=(
+            "offset_employer_contributions | pay_plan_expenses | "
+            "reallocate_to_participants (the last one applies no employer offset)"
+        ),
+    ),
+    require_hours_credit: bool = typer.Option(
+        False,
+        "--require-hours-credit",
+        help="Require the hours threshold for vesting credit",
+    ),
+    hours_threshold: int = typer.Option(
+        1000, "--hours-threshold", help="Minimum annual hours for vesting credit"
+    ),
+    export: Optional[str] = typer.Option(
+        None, "--export", help="Export format (excel)"
+    ),
+    output: Optional[str] = typer.Option(
+        None, "--output", help="Output path for --export excel"
+    ),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output"),
+):
+    """
+    Employer cost per year, gross and net of forfeitures (issue #444).
+
+    Uses the same shared cost function as PlanAlign Studio's Cost Comparison
+    page and the Excel export, so the three surfaces cannot disagree.
+
+    [dim]Examples:[/dim]
+        planalign analyze cost --database iso.duckdb
+        planalign analyze cost --database a.duckdb --database b.duckdb --export excel
+        planalign analyze cost --forfeiture-policy reallocate_to_participants
+    """
+    try:
+        console.print("💰 [bold blue]Employer Cost (net of forfeitures)[/bold blue]")
+
+        series = _build_cost_series(
+            database,
+            vesting_schedule,
+            forfeiture_policy,
+            require_hours_credit,
+            hours_threshold,
+            verbose,
+        )
+        for item in series:
+            _display_cost_series(item)
+
+        if export:
+            if export.lower() != "excel":
+                raise typer.BadParameter("export must be 'excel'")
+            path = _export_cost_excel(series, output)
+            console.print(f"   ✅ Cost workbook written to: [green]{path}[/green]")
+
+        show_success_message("Employer cost analysis completed")
+        return 0
+
+    except typer.BadParameter:
+        raise
+    except typer.Exit:
+        raise
+    except Exception as e:
+        show_error_message(f"Cost analysis failed: {e}")
+        if verbose:
+            import traceback
+
+            console.print(f"[dim]{traceback.format_exc()}[/dim]")
+        raise typer.Exit(1)
+
+
+def _resolve_schedule(schedule_type: str, require_hours: bool, hours_threshold: int):
+    """Build the vesting schedule config, failing loudly on an unknown name."""
+    from planalign_api.models.vesting import VestingScheduleConfig, VestingScheduleType
+    from planalign_api.services.vesting_service import SCHEDULE_INFO
+
+    try:
+        resolved = VestingScheduleType(schedule_type)
+    except ValueError:
+        valid = ", ".join(item.value for item in VestingScheduleType)
+        raise typer.BadParameter(f"Unknown vesting schedule. Choose one of: {valid}")
+
+    return VestingScheduleConfig(
+        schedule_type=resolved,
+        name=SCHEDULE_INFO[resolved].name,
+        require_hours_credit=require_hours,
+        hours_threshold=hours_threshold,
+    )
+
+
+def _resolve_policy(policy: str):
+    """Parse the forfeiture policy, failing loudly on an unknown name."""
+    from planalign_api.models.employer_cost import ForfeiturePolicy
+
+    try:
+        return ForfeiturePolicy(policy)
+    except ValueError:
+        valid = ", ".join(item.value for item in ForfeiturePolicy)
+        raise typer.BadParameter(f"Unknown forfeiture policy. Choose one of: {valid}")
+
+
+def _build_cost_series(
+    databases: List[str],
+    vesting_schedule: str,
+    forfeiture_policy: str,
+    require_hours_credit: bool,
+    hours_threshold: int,
+    verbose: bool,
+) -> List[Any]:
+    """Read every requested database through the shared cost function."""
+    import duckdb
+
+    from planalign_api.services.employer_cost_service import compute_employer_cost
+
+    schedule = _resolve_schedule(
+        vesting_schedule, require_hours_credit, hours_threshold
+    )
+    policy = _resolve_policy(forfeiture_policy)
+
+    paths = [Path(item) for item in databases] or [Path("dbt/simulation.duckdb")]
+    series = []
+    for path in paths:
+        if not path.exists():
+            show_error_message(f"Database not found: {path}")
+            raise typer.Exit(1)
+        if verbose:
+            console.print(f"📁 [dim]Reading {path}[/dim]")
+
+        conn = duckdb.connect(str(path), read_only=True)
+        try:
+            result = compute_employer_cost(
+                conn,
+                scenario_id=path.stem,
+                scenario_name=path.stem,
+                schedule=schedule,
+                policy=policy,
+            )
+        finally:
+            conn.close()
+
+        if result is None:
+            show_warning_message(f"No simulation years in {path}; skipping")
+            continue
+        series.append(result)
+
+    if not series:
+        show_warning_message("No scenario produced employer cost data")
+        raise typer.Exit(1)
+    return series
+
+
+def _display_cost_series(series: Any) -> None:
+    """Print one scenario's gross / offset / net table with horizon totals."""
+    from planalign_api.models.employer_cost import POLICY_DESCRIPTIONS
+
+    table = Table(
+        title=(
+            f"{series.scenario_name} — {series.schedule_name} vesting, "
+            f"{series.forfeiture_policy.value}"
+        )
+    )
+    table.add_column("Year")
+    table.add_column("Gross match", justify="right")
+    table.add_column("Gross core", justify="right")
+    table.add_column("Gross cost", justify="right")
+    table.add_column("Forfeiture offset", justify="right")
+    table.add_column("Net cost", justify="right")
+    table.add_column("Net % of comp", justify="right")
+
+    for row in series.years:
+        if row.offset_basis_available:
+            # A $0 offset under reallocate_to_participants is a real measured
+            # zero, not a missing one, so it reads as $0 rather than -$0.
+            applied = row.forfeiture_offset_applied
+            offset = "$0" if applied == 0 else f"-${applied:,.0f}"
+            net = f"${row.net_employer_cost:,.0f}"
+            net_pct = f"{row.net_cost_pct_of_compensation:.2f}%"
+        else:
+            # Never a $0 offset: an unmeasurable year is reported as gross only.
+            offset = "n/a"
+            net = "gross only"
+            net_pct = "--"
+        table.add_row(
+            str(row.simulation_year),
+            f"${row.gross_employer_match:,.0f}",
+            f"${row.gross_employer_core:,.0f}",
+            f"${row.gross_employer_cost:,.0f}",
+            offset,
+            net,
+            net_pct,
+        )
+
+    table.add_section()
+    table.add_row(
+        "Horizon",
+        "",
+        "",
+        f"${series.total_gross_employer_cost:,.0f}",
+        (
+            "$0"
+            if series.total_forfeiture_offset == 0
+            else f"-${series.total_forfeiture_offset:,.0f}"
+        ),
+        f"${series.total_net_employer_cost:,.0f}",
+        "",
+        style="bold",
+    )
+    console.print(table)
+    console.print(f"[dim]{POLICY_DESCRIPTIONS[series.forfeiture_policy]}[/dim]")
+    if series.years_without_offset_basis:
+        missing = ", ".join(str(year) for year in series.years_without_offset_basis)
+        console.print(
+            f"[dim]No measurable forfeiture offset for {missing}; those years "
+            "contribute their gross cost to the horizon total unchanged.[/dim]"
+        )
+
+
+def _cost_sheet_name(scenario_name: str) -> str:
+    """Excel caps sheet names at 31 characters."""
+    return f"Cost_{scenario_name}"[:31]
+
+
+def _export_cost_excel(series: List[Any], output: Optional[str]) -> Path:
+    """Write a cost summary sheet per scenario plus a cross-scenario net sheet."""
+    import pandas as pd
+
+    path = (
+        Path(output)
+        if output
+        else Path(f"var/reports/employer_cost_{datetime.now():%Y%m%d_%H%M%S}.xlsx")
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    with pd.ExcelWriter(path, engine="openpyxl") as writer:
+        for item in series:
+            rows = [
+                {
+                    "Year": row.simulation_year,
+                    "Gross employer match": float(row.gross_employer_match),
+                    "Gross employer core": float(row.gross_employer_core),
+                    "Gross employer cost": float(row.gross_employer_cost),
+                    "Total compensation": float(row.total_compensation),
+                    "Forfeitures generated": (
+                        float(row.forfeitures_generated)
+                        if row.forfeitures_generated is not None
+                        else None
+                    ),
+                    "Forfeiture offset applied": (
+                        float(row.forfeiture_offset_applied)
+                        if row.forfeiture_offset_applied is not None
+                        else None
+                    ),
+                    "Net employer cost": (
+                        float(row.net_employer_cost)
+                        if row.net_employer_cost is not None
+                        else None
+                    ),
+                    "Gross % of comp": float(row.gross_cost_pct_of_compensation),
+                    "Net % of comp": (
+                        float(row.net_cost_pct_of_compensation)
+                        if row.net_cost_pct_of_compensation is not None
+                        else None
+                    ),
+                    "Offset basis": (
+                        "measured"
+                        if row.offset_basis_available
+                        else (row.offset_unavailable_reason or "unavailable")
+                    ),
+                }
+                for row in item.years
+            ]
+            rows.append(
+                {
+                    "Year": "Horizon total",
+                    "Gross employer cost": float(item.total_gross_employer_cost),
+                    "Forfeiture offset applied": float(item.total_forfeiture_offset),
+                    "Net employer cost": float(item.total_net_employer_cost),
+                }
+            )
+            pd.DataFrame(rows).to_excel(
+                writer, sheet_name=_cost_sheet_name(item.scenario_name), index=False
+            )
+
+        # The artifact that sells a plan amendment: the same table with and
+        # without the change, side by side.
+        comparison = [
+            {
+                "Scenario": item.scenario_name,
+                "Vesting schedule": item.schedule_name,
+                "Forfeiture policy": item.forfeiture_policy.value,
+                "Gross employer cost": float(item.total_gross_employer_cost),
+                "Forfeiture offset": float(item.total_forfeiture_offset),
+                "Net employer cost": float(item.total_net_employer_cost),
+                "Years without offset basis": ", ".join(
+                    str(year) for year in item.years_without_offset_basis
+                ),
+            }
+            for item in series
+        ]
+        pd.DataFrame(comparison).to_excel(
+            writer, sheet_name="Net_Cost_Comparison", index=False
+        )
+
+    return path
+
+
 # Default command
 @analyze_command.command(name="", hidden=True)
 def default(

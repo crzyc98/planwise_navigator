@@ -22,6 +22,12 @@ from planalign_core.constants import (
 )
 
 from ..storage.workspace_storage import WorkspaceStorage
+from .employer_cost_service import (
+    GROSS_CORE_SQL,
+    GROSS_EMPLOYER_COST_SQL,
+    GROSS_MATCH_SQL,
+    TOTAL_COMPENSATION_SQL,
+)
 from .database_path_resolver import (
     DatabasePathResolver,
     create_api_database_path_resolver,
@@ -215,14 +221,12 @@ class ComparisonService:
                     ) AS avg_deferral_rate,
                     COALESCE(SUM(prorated_annual_contributions), 0)
                         AS total_employee_contributions,
-                    COALESCE(SUM(employer_match_amount), 0)
+                    {GROSS_MATCH_SQL}
                         AS total_employer_match,
-                    COALESCE(SUM(employer_core_amount), 0)
+                    {GROSS_CORE_SQL}
                         AS total_employer_core,
-                    COALESCE(
-                        SUM(employer_match_amount) + SUM(employer_core_amount), 0
-                    ) AS total_employer_cost,
-                    COALESCE(SUM(prorated_annual_compensation), 0)
+                    {GROSS_EMPLOYER_COST_SQL} AS total_employer_cost,
+                    {TOTAL_COMPENSATION_SQL}
                         AS total_compensation,
                     COUNT(CASE WHEN is_enrolled_flag THEN 1 END)
                         AS participant_count

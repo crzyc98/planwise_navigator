@@ -15,6 +15,12 @@ from ..models.analytics import (
 from planalign_core.constants import TABLE_FCT_WORKFORCE_SNAPSHOT
 
 from ..storage.workspace_storage import WorkspaceStorage
+from .employer_cost_service import (
+    GROSS_CORE_SQL,
+    GROSS_EMPLOYER_COST_SQL,
+    GROSS_MATCH_SQL,
+    TOTAL_COMPENSATION_SQL,
+)
 from .database_path_resolver import (
     DatabasePathResolver,
     create_api_database_path_resolver,
@@ -349,15 +355,15 @@ class AnalyticsService:
                 SELECT
                     simulation_year as year,
                     COALESCE(SUM(prorated_annual_contributions), 0) as total_employee,
-                    COALESCE(SUM(employer_match_amount), 0) as total_match,
-                    COALESCE(SUM(employer_core_amount), 0) as total_core,
-                    COALESCE(SUM(employer_match_amount) + SUM(employer_core_amount), 0) as total_employer_cost,
+                    {GROSS_MATCH_SQL} as total_match,
+                    {GROSS_CORE_SQL} as total_core,
+                    {GROSS_EMPLOYER_COST_SQL} as total_employer_cost,
                     COALESCE(SUM(prorated_annual_contributions) + SUM(employer_match_amount) + SUM(employer_core_amount), 0) as total_all,
                     AVG(CASE WHEN is_enrolled_flag THEN current_deferral_rate ELSE NULL END) as avg_deferral_rate,
                     {participation_rate_expr} as participation_rate,
                     COUNT(CASE WHEN is_enrolled_flag THEN 1 END) as participant_count,
                     COUNT(*) as total_eligible,
-                    COALESCE(SUM(prorated_annual_compensation), 0) as total_compensation
+                    {TOTAL_COMPENSATION_SQL} as total_compensation
                 FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
                 {where_clause}
                 GROUP BY simulation_year

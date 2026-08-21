@@ -9,6 +9,8 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field, field_serializer
 
+from .employer_cost import EmployerCostOffsetRow, ForfeiturePolicy
+
 
 class VestingScheduleType(str, Enum):
     """Pre-defined vesting schedule types."""
@@ -145,8 +147,8 @@ class VestingAnalysisSummary(BaseModel):
         ...,
         ge=0,
         description=(
-            "Terminated employees who were active and had employer contributions "
-            "in the prior year"
+            "Terminated employees who accrued employer contributions in an "
+            "earlier simulation year"
         ),
     )
     terminated_employee_count: int = Field(
@@ -223,7 +225,7 @@ class ForfeitureYearRow(BaseModel):
     has_prior_year_basis: bool = Field(
         ...,
         description=(
-            "False for a scenario's first simulation year, which has no prior "
+            "False for a scenario's first simulation year, which has no earlier "
             "year to source employer contributions from. Such a row is not a "
             "measured zero and must not be rendered as $0."
         ),
@@ -235,8 +237,8 @@ class ForfeitureYearRow(BaseModel):
         ...,
         ge=0,
         description=(
-            "Terminated employees who were active with employer contributions "
-            "in the prior year"
+            "Terminated employees who accrued employer contributions in an "
+            "earlier simulation year"
         ),
     )
     total_employer_contributions: Decimal = Field(..., ge=0)
@@ -262,6 +264,14 @@ class ScenarioForfeitureSeries(BaseModel):
     total_employer_contributions: Decimal = Field(..., ge=0)
     total_vested: Decimal = Field(..., ge=0)
     total_forfeited: Decimal = Field(..., ge=0)
+    employer_cost_offsets: List[EmployerCostOffsetRow] = Field(
+        default_factory=list,
+        description=(
+            "Per-year employer cost offsets implied by the requested forfeiture "
+            "policy (#444). Indexed by the year the offset applies to, which is "
+            "one year after the terminations that generated it."
+        ),
+    )
 
     @field_serializer(
         "total_employer_contributions",
@@ -287,6 +297,14 @@ class ForfeitureProjectionResponse(BaseModel):
     """Multi-year, multi-scenario forfeitures under a single vesting schedule."""
 
     schedule: VestingScheduleConfig
+    forfeiture_policy: ForfeiturePolicy = Field(
+        default=ForfeiturePolicy.OFFSET_EMPLOYER_CONTRIBUTIONS,
+        description=(
+            "The policy the employer cost offsets were computed under. "
+            "reallocate_to_participants yields a $0 offset with the forfeiture "
+            "still disclosed."
+        ),
+    )
     years: List[int] = Field(
         ...,
         description=(
