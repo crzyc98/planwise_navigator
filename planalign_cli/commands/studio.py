@@ -106,21 +106,23 @@ def _get_npm_command() -> str:
 _processes: list[subprocess.Popen] = []
 
 
-def _kill_port(port: int) -> None:
+def _kill_port(port: int) -> bool:
     """Kill processes using the specified port that belong to the current user.
 
     Safety: Only sends signals to processes owned by the current OS user.
     Uses SIGTERM first for graceful shutdown, escalating to SIGKILL only
-    if the process does not exit within the timeout.
+    if the process does not exit within the timeout, and verifies that the
+    listener is gone before returning.
     Cross-platform: works on both Unix (lsof) and Windows (netstat/taskkill).
     """
     try:
         if sys.platform == "win32":
             _kill_port_windows(port)
+            return _port_is_free_windows(port)
         else:
-            _kill_port_unix(port)
+            return _kill_port_unix(port)
     except Exception:
-        pass  # Port cleanup is best-effort
+        return False
 
 
 def _kill_port_windows(port: int) -> None:
@@ -147,48 +149,100 @@ def _kill_port_windows(port: int) -> None:
         time.sleep(0.5)
 
 
-def _kill_port_unix(port: int) -> None:
-    """Kill processes using the specified port on Unix/macOS."""
-    current_uid = os.getuid()
+def _port_is_free_windows(port: int) -> bool:
     result = subprocess.run(
-        ["lsof", "-ti", f":{port}"],
+        ["netstat", "-ano", "-p", "TCP"], capture_output=True, text=True
+    )
+    return not any(
+        f":{port}" in line and "LISTENING" in line
+        for line in result.stdout.splitlines()
+    )
+
+
+def _unix_listener_pids(port: int) -> list[int]:
+    result = subprocess.run(
+        ["lsof", "-tiTCP:" + str(port), "-sTCP:LISTEN"],
         capture_output=True,
         text=True,
+        check=False,
     )
-    pids = result.stdout.strip().split("\n")
-    killed_any = False
-    for pid_str in pids:
-        if not pid_str:
-            continue
-        try:
-            pid = int(pid_str)
-            # Only kill processes owned by the current user
-            proc_stat = Path(f"/proc/{pid}/status").read_text()
-            proc_uid = None
-            for line in proc_stat.splitlines():
-                if line.startswith("Uid:"):
-                    proc_uid = int(line.split()[1])
-                    break
-            if proc_uid is not None and proc_uid != current_uid:
-                continue
+    return [int(value) for value in result.stdout.split() if value.isdigit()]
 
+
+def _owned_unix_pids(pids: list[int], uid: int) -> list[int]:
+    owned: list[int] = []
+    for pid in pids:
+        owner = subprocess.run(
+            ["ps", "-p", str(pid), "-o", "uid="],
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout.strip()
+        try:
+            if owner and int(owner) == uid:
+                owned.append(pid)
+        except ValueError:
+            continue
+    return owned
+
+
+def _kill_port_unix(port: int) -> bool:
+    """Kill processes using the specified port on Unix/macOS."""
+    current_uid = os.getuid()
+    owned = _owned_unix_pids(_unix_listener_pids(port), current_uid)
+    for pid in owned:
+        try:
             os.kill(pid, signal.SIGTERM)
-            killed_any = True
-        except (ProcessLookupError, ValueError, FileNotFoundError, PermissionError):
-            pass
-    if killed_any:
-        time.sleep(0.5)
+        except (ProcessLookupError, PermissionError):
+            continue
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline and _unix_listener_pids(port):
+        time.sleep(0.1)
+    remaining = _owned_unix_pids(_unix_listener_pids(port), current_uid)
+    for pid in remaining:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            continue
+    deadline = time.monotonic() + 1.0
+    while time.monotonic() < deadline and _unix_listener_pids(port):
+        time.sleep(0.1)
+    return _port_is_free_unix(port)
+
+
+def _port_is_free_unix(port: int) -> bool:
+    return not _unix_listener_pids(port)
+
+
+def _port_is_free(port: int) -> bool:
+    return (
+        _port_is_free_windows(port)
+        if sys.platform == "win32"
+        else _port_is_free_unix(port)
+    )
 
 
 def _cleanup_processes(signum=None, frame=None):
     """Terminate all child processes."""
     for proc in _processes:
         if proc.poll() is None:  # Still running
-            proc.terminate()
+            if sys.platform != "win32":
+                try:
+                    os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+                except (ProcessLookupError, PermissionError):
+                    proc.terminate()
+            else:
+                proc.terminate()
             try:
                 proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                proc.kill()
+                if sys.platform != "win32":
+                    try:
+                        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                    except (ProcessLookupError, PermissionError):
+                        proc.kill()
+                else:
+                    proc.kill()
     if signum is not None:
         sys.exit(0)
 
@@ -305,7 +359,12 @@ def launch_studio(
     try:
         # Start API backend
         if not frontend_only:
-            _kill_port(api_port)
+            if not _kill_port(api_port):
+                console.print(
+                    f"[red]API port {api_port} is still in use. "
+                    "Stop the owning process or choose --api-port.[/red]"
+                )
+                raise SystemExit(1)
             console.print("[cyan]Starting API backend...[/cyan]")
 
             # Determine output handling
@@ -366,6 +425,7 @@ def launch_studio(
                 env=api_env,
                 stdout=stdout,
                 stderr=stderr,
+                start_new_session=sys.platform != "win32",
             )
             _processes.append(api_process)
             started_services.append(
@@ -385,7 +445,13 @@ def launch_studio(
 
         # Start frontend
         if not api_only:
-            _kill_port(frontend_port)
+            if not _kill_port(frontend_port):
+                console.print(
+                    f"[red]Frontend port {frontend_port} is still in use. "
+                    "Stop the owning process or choose --frontend-port.[/red]"
+                )
+                _cleanup_processes()
+                raise SystemExit(1)
             console.print("[cyan]Starting frontend...[/cyan]")
 
             # Check if node_modules exists
@@ -437,6 +503,7 @@ def launch_studio(
                 stdout=stdout,
                 stderr=stderr,
                 shell=(sys.platform == "win32"),  # Use shell on Windows for .cmd files
+                start_new_session=sys.platform != "win32",
             )
             _processes.append(frontend_process)
             started_services.append(

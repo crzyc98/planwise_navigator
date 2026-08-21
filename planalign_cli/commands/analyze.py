@@ -166,6 +166,9 @@ def analyze_events(
 @analyze_command.command("scenario")
 def analyze_scenario(
     scenario_name: str = typer.Argument(..., help="Scenario name to analyze"),
+    workspace: Optional[str] = typer.Option(
+        None, "--workspace", "-w", help="Workspace ID"
+    ),
     config: Optional[str] = typer.Option(
         None, "--config", "-c", help="Path to simulation config YAML"
     ),
@@ -173,7 +176,7 @@ def analyze_scenario(
         None, "--compare", help="Compare with another scenario"
     ),
     export: Optional[str] = typer.Option(
-        None, "--export", help="Export format (excel, csv)"
+        None, "--export", help="Export format (json, html, pdf, pptx)"
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output"),
 ):
@@ -188,8 +191,57 @@ def analyze_scenario(
     try:
         console.print(f"🎯 [bold blue]Scenario Analysis: {scenario_name}[/bold blue]")
 
-        # Implementation for scenario analysis
-        show_warning_message("Scenario analysis feature coming in next iteration")
+        from planalign_api.config import get_settings
+        from planalign_api.services.report_service import (
+            build_scenario_report,
+            render_report,
+        )
+        from planalign_api.storage.workspace_storage import WorkspaceStorage
+
+        if not workspace:
+            raise typer.BadParameter("--workspace is required for scenario analysis")
+        storage = WorkspaceStorage(get_settings().workspaces_root)
+        report = build_scenario_report(
+            storage,
+            workspace,
+            scenario_name,
+            [compare] if compare else None,
+        )
+        if export:
+            if export == "json":
+                console.print_json(data=report.model_dump(mode="json"))
+            elif export in {"html", "pdf", "pptx"}:
+                output = Path(f"{scenario_name}-analysis.{export}")
+                render_report(report, output, export)
+                console.print(f"Report written to {output}")
+            else:
+                raise typer.BadParameter("export must be json, html, pdf, or pptx")
+        else:
+            table = Table(title=f"Scenario analysis: {report.title}")
+            table.add_column("Year")
+            table.add_column("Headcount", justify="right")
+            table.add_column("Avg comp", justify="right")
+            table.add_column("Participation", justify="right")
+            table.add_column("Employer cost", justify="right")
+            for item in report.years:
+                table.add_row(
+                    str(item.year),
+                    str(
+                        item.headcount if item.headcount is not None else "Unavailable"
+                    ),
+                    f"${item.average_compensation:,.0f}"
+                    if item.average_compensation is not None
+                    else "Unavailable",
+                    f"{item.participation_rate:.1f}%"
+                    if item.participation_rate is not None
+                    else "Unavailable",
+                    f"${item.employer_cost:,.0f}"
+                    if item.employer_cost is not None
+                    else "Unavailable",
+                )
+            console.print(table)
+            for warning in report.warnings:
+                show_warning_message(warning.message)
         return 0
 
     except Exception as e:

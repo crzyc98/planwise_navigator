@@ -454,6 +454,9 @@ def analyze(
     scenario: Optional[str] = typer.Option(
         None, "--scenario", help="Scenario name for scenario analysis"
     ),
+    workspace: Optional[str] = typer.Option(
+        None, "--workspace", "-w", help="Workspace ID for scenario analysis"
+    ),
     compare: Optional[str] = typer.Option(
         None, "--compare", help="Compare with another scenario"
     ),
@@ -520,6 +523,7 @@ def analyze(
             raise typer.Exit(1)
         analyze_scenario(
             scenario_name=scenario,
+            workspace=workspace,
             config=config,
             compare=compare,
             export=export,
@@ -545,6 +549,54 @@ def analyze(
         console.print(f"[yellow]Unknown analysis target: {target}[/yellow]")
         console.print("Available targets: workforce, events, scenario, cost")
         raise typer.Exit(1)
+
+
+@app.command("report")
+def report(
+    scenario: str = typer.Argument(
+        ..., help="Scenario ID, or a batch directory identifier"
+    ),
+    workspace: Optional[str] = typer.Option(
+        None, "--workspace", "-w", help="Workspace ID"
+    ),
+    compare: Optional[str] = typer.Option(
+        None, "--compare", help="Comma-separated scenario IDs"
+    ),
+    format: str = typer.Option(
+        "pdf", "--format", help="Report format: pdf, pptx, or html"
+    ),
+    output: Optional[str] = typer.Option(None, "--output", "-o", help="Output path"),
+    template_dir: Optional[str] = typer.Option(
+        None, "--template-dir", help="Override report template directory"
+    ),
+):
+    """Render a traceable executive scenario report from existing analytics."""
+    from planalign_api.config import get_settings
+    from planalign_api.services.report_service import (
+        build_scenario_report,
+        render_report,
+    )
+    from planalign_api.storage.workspace_storage import WorkspaceStorage
+
+    if format not in {"pdf", "pptx", "html"}:
+        raise typer.BadParameter("format must be pdf, pptx, or html")
+    if not workspace:
+        raise typer.BadParameter(
+            "--workspace is required for a workspace scenario report"
+        )
+    report_model = build_scenario_report(
+        WorkspaceStorage(get_settings().workspaces_root),
+        workspace,
+        scenario,
+        [item.strip() for item in compare.split(",") if item.strip()]
+        if compare
+        else None,
+    )
+    target = Path(output or f"{scenario}-report.{format}")
+    render_report(
+        report_model, target, format, Path(template_dir) if template_dir else None
+    )
+    console.print(f"Report written to {target}")
 
 
 # Studio command - launch API + Frontend

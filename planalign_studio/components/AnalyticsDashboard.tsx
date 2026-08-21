@@ -12,7 +12,7 @@ import {
   listWorkspaces,
   listScenarios,
   getSimulationResults,
-  getResultsExportUrl,
+  getResultsExportUrl, getScenarioReportUrl,
   getRunDetails,
   Workspace,
   Scenario,
@@ -282,7 +282,7 @@ export default function AnalyticsDashboard() {
     // E087: Require both workspaceId and scenarioId for reliable export
     if (!selectedWorkspaceId || !selectedScenarioId) return;
     const url = getResultsExportUrl(selectedWorkspaceId, selectedScenarioId, format);
-    window.open(url, '_blank');
+    window.open(url, '_blank', 'noopener,noreferrer');
   }, [selectedWorkspaceId, selectedScenarioId]);
 
   const handleRefresh = () => {
@@ -415,12 +415,14 @@ export default function AnalyticsDashboard() {
           </button>
 
           <button
-            onClick={() => handleExport('excel')}
+            onClick={() => {
+              if (selectedWorkspaceId && selectedScenarioId) window.open(getScenarioReportUrl(selectedWorkspaceId, selectedScenarioId, 'pdf'), '_blank', 'noopener,noreferrer');
+            }}
             disabled={!selectedScenarioId || loading}
             className="flex items-center px-4 py-2 bg-fidelity-green text-ink-inverse border border-transparent rounded-lg text-sm font-medium hover:bg-fidelity-dark shadow-sm transition-colors disabled:bg-surface-disabled disabled:cursor-not-allowed"
           >
             <Download size={16} className="mr-2" />
-            Export Report
+            Export report (PDF)
           </button>
         </div>
       </div>

@@ -741,6 +741,10 @@ export function getResultsExportUrl(workspaceId: string, scenarioId: string, for
   return `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}/results/export?format=${format}`;
 }
 
+export function getScenarioReportUrl(workspaceId: string, scenarioId: string, format: 'pdf' | 'pptx' | 'html' = 'pdf'): string {
+  return `${API_BASE}/api/workspaces/${encodeURIComponent(workspaceId)}/scenarios/${encodeURIComponent(scenarioId)}/report?format=${format}`;
+}
+
 // ============================================================================
 // Batch Processing Endpoints
 // ============================================================================
