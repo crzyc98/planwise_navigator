@@ -44,6 +44,7 @@ class ObservabilityManager:
 
         # Store run ID for external access
         self.run_id = self.logger.get_run_id()
+        self._closed = False
 
     def get_run_id(self) -> str:
         """Get the run ID for this observability session"""
@@ -127,11 +128,20 @@ class ObservabilityManager:
         Returns:
             Complete run summary dictionary
         """
-        return self.run_summary.generate_summary(final_status)
+        try:
+            return self.run_summary.generate_summary(final_status)
+        finally:
+            self.close()
 
     def close(self) -> None:
         """Close observability manager and cleanup resources"""
-        self.logger.close()
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            self.performance_monitor.close()
+        finally:
+            self.logger.close()
 
 
 # Convenience functions for quick setup

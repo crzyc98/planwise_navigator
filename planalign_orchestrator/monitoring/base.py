@@ -39,6 +39,10 @@ class PerformanceMonitor:
         self.metrics: Dict[str, PerformanceMetrics] = {}
         self._monitoring_active = False
         self._monitoring_thread: Optional[threading.Thread] = None
+        self._monitoring_lock = threading.Lock()
+        self._active_metrics: Dict[int, PerformanceMetrics] = {}
+        self._stop_event = threading.Event()
+        self._idle_timeout_seconds = 0.5
         self._process = psutil.Process()
 
     @contextmanager
@@ -103,7 +107,7 @@ class PerformanceMonitor:
 
         finally:
             # Stop monitoring and finalize metrics
-            self._stop_monitoring()
+            self._stop_monitoring(metrics)
             self._finalize_metrics(metrics)
 
             # Store metrics and log completion
@@ -113,46 +117,86 @@ class PerformanceMonitor:
             )
 
     def _start_monitoring(self, metrics: PerformanceMetrics) -> None:
-        """Start background monitoring for peak resource usage"""
-        if self._monitoring_active:
-            return
+        """Register metrics and lazily start one reusable sampler thread."""
+        with self._monitoring_lock:
+            self._active_metrics[id(metrics)] = metrics
+            if self._monitoring_thread and self._monitoring_thread.is_alive():
+                return
 
-        self._monitoring_active = True
-        self._monitoring_thread = threading.Thread(
-            target=self._monitor_resources, args=(metrics,), daemon=True
-        )
-        self._monitoring_thread.start()
+            self._stop_event.clear()
+            self._monitoring_active = True
+            self._monitoring_thread = threading.Thread(
+                target=self._monitor_resources,
+                daemon=True,
+                name="planalign-resource-monitor",
+            )
+            self._monitoring_thread.start()
 
-    def _stop_monitoring(self) -> None:
-        """Stop background monitoring"""
-        self._monitoring_active = False
-        if self._monitoring_thread:
-            self._monitoring_thread.join(timeout=1.0)
-            self._monitoring_thread = None
+    def _stop_monitoring(self, metrics: PerformanceMetrics) -> None:
+        """Unregister metrics without joining the shared sampler on every exit."""
+        with self._monitoring_lock:
+            self._active_metrics.pop(id(metrics), None)
 
-    def _monitor_resources(self, metrics: PerformanceMetrics) -> None:
-        """Background thread to monitor peak resource usage"""
-        while self._monitoring_active:
-            try:
-                # Monitor memory usage
-                memory_info = self._process.memory_info()
-                current_memory_mb = memory_info.rss / 1024 / 1024
+    def _monitor_resources(self) -> None:
+        """Sample all active operations until the monitor has been idle briefly."""
+        idle_since: Optional[float] = None
+        while not self._stop_event.is_set():
+            with self._monitoring_lock:
+                active_metrics = list(self._active_metrics.values())
 
+            if active_metrics:
+                idle_since = None
+                self._sample_metrics(active_metrics)
+            elif idle_since is None:
+                idle_since = time.monotonic()
+            elif time.monotonic() - idle_since >= self._idle_timeout_seconds:
+                with self._monitoring_lock:
+                    if self._active_metrics:
+                        idle_since = None
+                        continue
+                    break
+
+            self._stop_event.wait(0.5)
+
+        with self._monitoring_lock:
+            if threading.current_thread() is self._monitoring_thread:
+                self._monitoring_thread = None
+                self._monitoring_active = False
+
+    def _sample_metrics(self, metrics_list: list[PerformanceMetrics]) -> None:
+        """Update peak memory for the currently active operations."""
+        try:
+            memory_info = self._process.memory_info()
+            current_memory_mb = memory_info.rss / 1024 / 1024
+            for metrics in metrics_list:
                 if (
                     metrics.peak_memory_mb is None
                     or current_memory_mb > metrics.peak_memory_mb
                 ):
                     metrics.peak_memory_mb = current_memory_mb
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            return
+        except Exception:
+            # Ignore monitoring errors to avoid disrupting the main operation.
+            return
 
-                # Sleep briefly to avoid excessive monitoring overhead
-                time.sleep(0.5)
+    def close(self) -> None:
+        """Stop the reusable sampler and release monitoring resources."""
+        self._stop_event.set()
+        thread = self._monitoring_thread
+        if thread and thread is not threading.current_thread():
+            thread.join(timeout=1.0)
+        with self._monitoring_lock:
+            self._active_metrics.clear()
+            self._monitoring_thread = None
+            self._monitoring_active = False
 
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                # Process may have ended or we lost access
-                break
-            except Exception:
-                # Ignore monitoring errors to avoid disrupting main operation
-                pass
+    def __del__(self) -> None:
+        """Best-effort cleanup for monitors not owned by an observability session."""
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def _finalize_metrics(self, metrics: PerformanceMetrics) -> None:
         """Finalize metrics calculation"""
