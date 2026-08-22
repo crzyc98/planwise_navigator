@@ -71,6 +71,46 @@ def _run_directory(scenario_path: Path, run_id: str | uuid.UUID) -> Path:
     return candidate
 
 
+class RunPathError(ValueError):
+    """A client-supplied run_id is not a canonical UUID."""
+
+
+class RunNotFoundError(LookupError):
+    """The requested run directory is missing, escapes containment, or its
+    marker metadata does not identify the requested run."""
+
+
+def resolve_run_directory(scenario_path: Path, run_id: str) -> Path:
+    """Validate a client-supplied run_id and resolve its run directory.
+
+    Raises:
+        RunPathError: The run_id is not a canonical UUID string.
+        RunNotFoundError: The resolved directory escapes the scenario's
+            runs root, does not exist, or fails the marker identity check.
+    """
+    try:
+        canonical = _canonical_uuid(run_id)
+    except ValueError as exc:
+        raise RunPathError("run_id must be a canonical UUID") from exc
+
+    runs_root = (scenario_path / "runs").resolve()
+    candidate = (runs_root / str(canonical)).resolve()
+    if candidate.parent != runs_root:
+        raise RunNotFoundError(f"Run {canonical} not found")
+    if not candidate.is_dir():
+        raise RunNotFoundError(f"Run {canonical} not found")
+
+    metadata_path = candidate / RUN_METADATA_FILENAME
+    if metadata_path.is_file():
+        try:
+            metadata = _read_json(metadata_path, label="run metadata")
+        except CurrentResultIntegrityError as exc:
+            raise RunNotFoundError(f"Run {canonical} not found") from exc
+        if metadata.get("run_id") != str(canonical):
+            raise RunNotFoundError(f"Run {canonical} not found")
+    return candidate
+
+
 def allocate_run_directory(scenario_path: Path, run_id: str | uuid.UUID) -> Path:
     """Exclusively allocate one never-before-used managed-run directory."""
     run_dir = _run_directory(scenario_path, run_id)

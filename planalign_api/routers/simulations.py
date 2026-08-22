@@ -22,6 +22,11 @@ from ..models.simulation import (
     SimulationRun,
 )
 from ..services.telemetry_service import get_telemetry_service
+from ..services.current_result import (
+    RunNotFoundError,
+    RunPathError,
+    resolve_run_directory,
+)
 from ..storage.workspace_storage import WorkspaceStorage
 from ..models.scenario import Scenario
 from ..models.workspace import Workspace
@@ -406,48 +411,10 @@ async def list_runs(
                         )
                         continue
 
-    # Also check for legacy runs in results/ folder (migration path)
-    # Include these alongside new runs for complete history
-    results_path = scenario_path / "results"
-    if results_path.exists():
-        legacy_metadata = results_path / "run_metadata.json"
-        if legacy_metadata.exists():
-            try:
-                with open(legacy_metadata) as f:
-                    metadata = json.load(f)
-
-                # Get run_id from metadata (preferred) or use scenario's last_run_id
-                run_id = metadata.get("run_id") or scenario.last_run_id or "legacy"
-
-                # Check if this run_id is already in the runs list (avoid duplicates)
-                existing_ids = {r.id for r in runs}
-                if run_id not in existing_ids:
-                    # Count artifacts in results folder
-                    artifact_count = sum(
-                        1 for f in results_path.iterdir() if f.is_file()
-                    )
-
-                    runs.append(
-                        RunSummary(
-                            id=run_id,
-                            scenario_id=scenario_id,
-                            status=metadata.get("status", "completed"),
-                            started_at=datetime.fromisoformat(metadata["started_at"]),
-                            completed_at=datetime.fromisoformat(
-                                metadata["completed_at"]
-                            )
-                            if metadata.get("completed_at")
-                            else None,
-                            duration_seconds=metadata.get("duration_seconds"),
-                            start_year=metadata.get("start_year"),
-                            end_year=metadata.get("end_year"),
-                            total_events=metadata.get("events_generated"),
-                            final_headcount=metadata.get("final_headcount"),
-                            artifact_count=artifact_count,
-                        )
-                    )
-            except Exception as e:
-                logger.warning(f"Error loading legacy run metadata: {e}")
+    # Legacy runs stored in the pre-run-archive `results/` folder are
+    # intentionally not listed: the details/log endpoints require a canonical
+    # run UUID and cannot address those entries. Migrate them to
+    # `runs/<uuid>/` to restore access.
 
     # Sort all runs by started_at descending (most recent first)
     runs.sort(key=lambda r: r.started_at, reverse=True)
@@ -475,16 +442,19 @@ async def get_run(
 
     scenario_path = storage._scenario_path(workspace.id, scenario_id)
 
-    # Try new runs folder structure first
-    run_path = scenario_path / "runs" / run_id
-    if not run_path.exists():
-        # Fall back to legacy results folder
-        run_path = scenario_path / "results"
-        if not run_path.exists():
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Run {run_id} not found",
-            )
+    try:
+        run_path = resolve_run_directory(scenario_path, run_id)
+    except RunPathError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="run_id must be a canonical UUID",
+        )
+    except RunNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run {run_id} not found",
+        )
+    canonical_run_id = run_path.name
 
     # Load run metadata
     metadata_file = run_path / "run_metadata.json"
@@ -524,15 +494,13 @@ async def get_run(
                     name=file_path.name,
                     type=_get_artifact_type(file_path.name),
                     size_bytes=stat.st_size,
-                    path=f"runs/{run_id}/{file_path.name}"
-                    if "runs" in str(run_path)
-                    else f"results/{file_path.name}",
+                    path=f"runs/{canonical_run_id}/{file_path.name}",
                     created_at=datetime.fromtimestamp(stat.st_ctime),
                 )
             )
 
     return RunDetails(
-        id=run_id,
+        id=canonical_run_id,
         scenario_id=scenario_id,
         scenario_name=scenario.name,
         workspace_id=workspace.id,
@@ -575,13 +543,30 @@ async def get_run_logs(
         )
 
     scenario_path = storage._scenario_path(workspace.id, scenario_id)
-    log_file = scenario_path / "runs" / run_id / "simulation.log"
 
-    is_active = run_id in _active_runs and _active_runs[run_id].status == "running"
+    try:
+        run_path = resolve_run_directory(scenario_path, run_id)
+    except RunPathError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        )
+    except RunNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run {run_id} not found",
+        )
+    canonical_run_id = run_path.name
+    log_file = run_path / "simulation.log"
+
+    is_active = (
+        canonical_run_id in _active_runs
+        and _active_runs[canonical_run_id].status == "running"
+    )
 
     if not log_file.exists():
         return LogPage(
-            run_id=run_id,
+            run_id=canonical_run_id,
             lines=[],
             total_lines=0,
             page=page,
@@ -602,7 +587,7 @@ async def get_run_logs(
     page_lines = lines[offset : offset + page_size]
 
     return LogPage(
-        run_id=run_id,
+        run_id=canonical_run_id,
         lines=page_lines,
         total_lines=total,
         page=page,
