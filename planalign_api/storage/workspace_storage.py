@@ -235,11 +235,32 @@ class WorkspaceStorage:
 
         return self.get_workspace(workspace_id)
 
+    def _resolve_workspace_for_deletion(self, workspace_id: str) -> Path:
+        """Validate and contain a workspace deletion target (fail-closed)."""
+        from ..services.path_guard import (
+            require_canonical_uuid,
+            resolve_direct_child,
+            verify_marker_identity,
+        )
+
+        canonical = require_canonical_uuid(workspace_id, label="workspace_id")
+        workspace_path = resolve_direct_child(self.workspaces_root, canonical)
+        verify_marker_identity(
+            workspace_path / "workspace.json",
+            {"id": str(canonical)},
+            label="workspace",
+        )
+        return workspace_path
+
     def delete_workspace(self, workspace_id: str) -> bool:
-        """Delete a workspace and all its contents."""
-        workspace_path = self._workspace_path(workspace_id)
-        if not workspace_path.exists():
-            return False
+        """Delete a workspace and all its contents.
+
+        Raises:
+            PathGuardError: The workspace_id is not a canonical UUID.
+            ProtectedPathError: The target escapes the workspaces root,
+                is a symlink, or fails marker identity verification.
+        """
+        workspace_path = self._resolve_workspace_for_deletion(workspace_id)
 
         shutil.rmtree(workspace_path)
         return True
@@ -420,20 +441,52 @@ class WorkspaceStorage:
 
         return self.get_scenario(workspace_id, scenario_id)
 
+    def _resolve_scenario_for_deletion(
+        self, workspace_id: str, scenario_id: str
+    ) -> Path:
+        """Validate and contain a scenario deletion target (fail-closed)."""
+        from ..services.path_guard import (
+            require_canonical_uuid,
+            resolve_direct_child,
+            verify_marker_identity,
+        )
+
+        canonical_workspace = require_canonical_uuid(workspace_id, label="workspace_id")
+        canonical_scenario = require_canonical_uuid(scenario_id, label="scenario_id")
+        # Validate the workspace target first. Otherwise a symlinked workspace
+        # directory could make the scenario root resolve into an external tree.
+        workspace_path = self._resolve_workspace_for_deletion(str(canonical_workspace))
+        scenarios_root = workspace_path / "scenarios"
+        scenario_path = resolve_direct_child(scenarios_root, canonical_scenario)
+        verify_marker_identity(
+            scenario_path / "scenario.json",
+            {"id": str(canonical_scenario), "workspace_id": str(canonical_workspace)},
+            label="scenario",
+        )
+        return scenario_path
+
     def delete_scenario(self, workspace_id: str, scenario_id: str) -> bool:
-        """Delete a scenario and all its contents."""
-        scenario_path = self._scenario_path(workspace_id, scenario_id)
-        if not scenario_path.exists():
-            return False
+        """Delete a scenario and all its contents.
+
+        Raises:
+            PathGuardError: An identifier is not a canonical UUID.
+            ProtectedPathError: The target escapes the scenario root,
+                is a symlink, or fails marker identity verification.
+        """
+        scenario_path = self._resolve_scenario_for_deletion(workspace_id, scenario_id)
 
         shutil.rmtree(scenario_path)
         return True
 
     def delete_scenario_database(self, workspace_id: str, scenario_id: str) -> bool:
         """Delete only the scenario's DuckDB database file(s), keeping config intact."""
-        scenario_path = self._scenario_path(workspace_id, scenario_id)
-        if not scenario_path.exists():
-            return False
+        from ..services.path_guard import (
+            ProtectedPathError,
+            resolve_direct_child,
+            verify_marker_identity,
+        )
+
+        scenario_path = self._resolve_scenario_for_deletion(workspace_id, scenario_id)
 
         deleted = False
         for suffix in (DATABASE_FILENAME, f"{DATABASE_FILENAME}.wal"):
@@ -450,14 +503,27 @@ class WorkspaceStorage:
 
         # Also clean up run databases
         runs_dir = scenario_path / "runs"
-        if runs_dir.exists():
+        if runs_dir.is_symlink():
+            raise ProtectedPathError("Scenario runs directory is a symlink")
+        if runs_dir.is_dir():
             for run_dir in runs_dir.iterdir():
-                if run_dir.is_dir():
-                    for suffix in (DATABASE_FILENAME, f"{DATABASE_FILENAME}.wal"):
-                        db_file = run_dir / suffix
-                        if db_file.exists():
-                            db_file.unlink()
-                            deleted = True
+                if not run_dir.is_dir() or run_dir.is_symlink():
+                    continue
+                try:
+                    contained_run = resolve_direct_child(runs_dir, run_dir.name)
+                    verify_marker_identity(
+                        contained_run / "run_metadata.json",
+                        {"run_id": contained_run.name},
+                        label="run",
+                    )
+                except ProtectedPathError:
+                    # Ignore stray/legacy run entries; never delete through them.
+                    continue
+                for suffix in (DATABASE_FILENAME, f"{DATABASE_FILENAME}.wal"):
+                    db_file = contained_run / suffix
+                    if db_file.exists():
+                        db_file.unlink()
+                        deleted = True
 
         return deleted
 
@@ -591,9 +657,22 @@ class WorkspaceStorage:
         allow_current_result: bool = False,
     ) -> bool:
         """Delete one exact run, requiring opt-in when it is currently selected."""
+        from ..services.path_guard import (
+            PathGuardError,
+            ProtectedPathError,
+            resolve_direct_child,
+            verify_marker_identity,
+        )
+
         scenario_path = self._scenario_path(workspace_id, scenario_id)
-        run_dir = scenario_path / "runs" / run_id
-        if not run_dir.is_dir():
+        try:
+            run_dir = resolve_direct_child(scenario_path / "runs", run_id)
+            verify_marker_identity(
+                run_dir / "run_metadata.json",
+                {"run_id": run_dir.name},
+                label="run",
+            )
+        except (PathGuardError, ProtectedPathError):
             return False
         from ..services.current_result import read_current_result
 
@@ -1004,9 +1083,9 @@ class WorkspaceStorage:
                     "action": "repaired",
                     "reason": str(e),
                     "backup": str(backup_path),
-                    "salvaged_fields": list(salvaged_data.keys())
-                    if salvaged_data
-                    else [],
+                    "salvaged_fields": (
+                        list(salvaged_data.keys()) if salvaged_data else []
+                    ),
                 }
             except Exception as repair_err:
                 logger.error(f"Failed to repair {json_path}: {repair_err}")

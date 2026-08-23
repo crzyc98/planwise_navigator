@@ -1,5 +1,6 @@
 """Scenario management endpoints."""
 
+import logging
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -15,10 +16,13 @@ from ..models.scenario import (
 )
 from ..services.scenario_service import ScenarioService
 from ..services.seed_config_validator import validate_seed_configs
+from ..services.path_guard import PathGuardError, ProtectedPathError
 from ..storage.workspace_storage import WorkspaceStorage
 from ..services.simulation.result_handlers import find_results_export
 
 router = APIRouter()
+
+logger = logging.getLogger(__name__)
 
 
 def get_storage(settings: APISettings = Depends(get_settings)) -> WorkspaceStorage:
@@ -213,7 +217,24 @@ async def delete_scenario(
 
     WARNING: This deletes all simulation results for this scenario.
     """
-    success = storage.delete_scenario(workspace_id, scenario_id)
+    try:
+        success = storage.delete_scenario(workspace_id, scenario_id)
+    except PathGuardError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        )
+    except ProtectedPathError as exc:
+        logger.warning(
+            "Refused scenario deletion for %s/%s: %s",
+            workspace_id,
+            scenario_id,
+            exc,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scenario {scenario_id} not found in workspace {workspace_id}",
+        )
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -240,7 +261,24 @@ async def delete_scenario_database(
             detail=f"Scenario {scenario_id} not found in workspace {workspace_id}",
         )
 
-    deleted = storage.delete_scenario_database(workspace_id, scenario_id)
+    try:
+        deleted = storage.delete_scenario_database(workspace_id, scenario_id)
+    except PathGuardError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except ProtectedPathError as exc:
+        logger.warning(
+            "Refused scenario database deletion for %s/%s: %s",
+            workspace_id,
+            scenario_id,
+            exc,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scenario {scenario_id} not found in workspace {workspace_id}",
+        ) from exc
 
     # Reset scenario status since results are gone
     if deleted:
@@ -249,9 +287,11 @@ async def delete_scenario_database(
     return {
         "success": True,
         "deleted": deleted,
-        "message": "Database deleted. Scenario is ready for a fresh simulation."
-        if deleted
-        else "No database files found to delete.",
+        "message": (
+            "Database deleted. Scenario is ready for a fresh simulation."
+            if deleted
+            else "No database files found to delete."
+        ),
     }
 
 

@@ -32,6 +32,7 @@ from ..models.export import (
     ImportValidationResponse,
     ManifestContents,
 )
+from .path_guard import PathGuardError, ProtectedPathError
 from ..storage.workspace_storage import WorkspaceStorage
 
 logger = logging.getLogger(__name__)
@@ -496,7 +497,13 @@ class ExportService:
             return new_name or conflict.suggested_name
 
         if conflict_resolution == ConflictResolution.REPLACE:
-            self.storage.delete_workspace(conflict.existing_workspace_id)
+            try:
+                self.storage.delete_workspace(conflict.existing_workspace_id)
+            except (PathGuardError, ProtectedPathError) as exc:
+                raise ValueError(
+                    f"Existing workspace '{conflict.existing_workspace_id}' "
+                    f"cannot be replaced safely: {exc}"
+                ) from exc
             return workspace_name
 
         raise ValueError(

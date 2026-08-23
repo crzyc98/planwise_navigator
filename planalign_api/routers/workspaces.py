@@ -32,6 +32,7 @@ from ..services.export_service import (
     MAX_IMPORT_SIZE_BYTES,
 )
 from ..services.seed_config_validator import validate_seed_configs
+from ..services.path_guard import PathGuardError, ProtectedPathError
 from ..services.upload_stream import stream_upload_to_tempfile
 from ..storage.workspace_storage import WorkspaceStorage
 
@@ -210,7 +211,19 @@ async def delete_workspace(
 
     WARNING: This deletes all scenarios and results in the workspace.
     """
-    success = storage.delete_workspace(workspace_id)
+    try:
+        success = storage.delete_workspace(workspace_id)
+    except PathGuardError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        )
+    except ProtectedPathError as exc:
+        logger.warning("Refused workspace deletion for %s: %s", workspace_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Workspace {workspace_id} not found",
+        )
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
