@@ -209,12 +209,16 @@ def _query_event_trends(
             [start_year, end_year],
         ).fetchdf()
 
+        years = list(range(start_year, end_year + 1))
+        year_index = {year: i for i, year in enumerate(years)}
         event_trends: Dict[str, List[int]] = {}
         for _, row in df.iterrows():
             event_type = row["event_type"]
             if event_type not in event_trends:
-                event_trends[event_type] = []
-            event_trends[event_type].append(int(row["count"]))
+                event_trends[event_type] = [0] * len(years)
+            event_trends[event_type][year_index[int(row["simulation_year"])]] = int(
+                row["count"]
+            )
         return event_trends
     except Exception as e:
         logger.error(f"Error fetching event trends: {e}")
