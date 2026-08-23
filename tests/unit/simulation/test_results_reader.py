@@ -8,6 +8,7 @@ from planalign_api.services.database_path_resolver import ResolvedDatabasePath
 from planalign_api.services.simulation.results_reader import (
     _calc_cagr,
     _compute_cagr_metrics,
+    _query_event_trends,
     _query_workforce_progression,
     _query_participation_rate,
     read_results,
@@ -212,6 +213,77 @@ class TestWorkforceProgressionQuery:
         row = result[0]
         expected_avg = (100000 + 110000 + 90000) / 3
         assert abs(row["avg_compensation"] - expected_avg) < 0.01
+
+
+@pytest.mark.fast
+class TestEventTrendsQuery:
+    """Test _query_event_trends zero-fills years with no events.
+
+    Studio consumers index event arrays positionally against the full
+    workforce-year axis, so gaps in fct_yearly_events must become explicit
+    zeros or counts shift into the wrong calendar year.
+    """
+
+    def _make_db(self, rows: list) -> duckdb.DuckDBPyConnection:
+        conn = duckdb.connect()
+        conn.execute(
+            """
+            CREATE TABLE fct_yearly_events (
+                employee_id VARCHAR,
+                simulation_year INTEGER,
+                event_type VARCHAR
+            )
+        """
+        )
+        if rows:
+            placeholders = ", ".join(["?"] * 3)
+            conn.executemany(
+                f"INSERT INTO fct_yearly_events VALUES ({placeholders})", rows
+            )
+        return conn
+
+    def test_interior_gap_year_zero_filled(self):
+        # Events in 2025 and 2027 but none in 2026: the reported bug scenario.
+        conn = self._make_db(
+            [
+                ("E001", 2025, "hire"),
+                ("E002", 2025, "hire"),
+                ("E003", 2027, "termination"),
+            ]
+        )
+        trends = _query_event_trends(conn, 2025, 2027)
+        conn.close()
+
+        assert trends["hire"] == [2, 0, 0]
+        assert trends["termination"] == [0, 0, 1]
+
+    def test_leading_gap_zero_filled(self):
+        conn = self._make_db([("E001", 2026, "promotion")])
+        trends = _query_event_trends(conn, 2025, 2027)
+        conn.close()
+
+        assert trends["promotion"] == [0, 1, 0]
+
+    def test_trailing_gap_zero_filled(self):
+        conn = self._make_db([("E001", 2026, "hire")])
+        trends = _query_event_trends(conn, 2025, 2027)
+        conn.close()
+
+        assert trends["hire"] == [0, 1, 0]
+
+    def test_single_year_range(self):
+        conn = self._make_db([("E001", 2025, "hire")])
+        trends = _query_event_trends(conn, 2025, 2025)
+        conn.close()
+
+        assert trends["hire"] == [1]
+
+    def test_no_events_returns_empty_dict(self):
+        conn = self._make_db([])
+        trends = _query_event_trends(conn, 2025, 2027)
+        conn.close()
+
+        assert trends == {}
 
 
 @pytest.mark.fast
