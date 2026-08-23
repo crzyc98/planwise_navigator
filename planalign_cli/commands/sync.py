@@ -48,6 +48,7 @@ def sync_init(
         planalign sync init https://github.com/user/planalign-workspaces.git --branch dev
     """
     from planalign_api.services.sync_service import SyncError, SyncAuthError
+    from planalign_api.services.remote_policy import redact_remote_url
 
     sync_service = _get_sync_service()
 
@@ -63,7 +64,7 @@ def sync_init(
             console.print(
                 Panel(
                     f"[green]Sync initialized successfully![/green]\n\n"
-                    f"Remote: [cyan]{remote_url}[/cyan]\n"
+                    f"Remote: [cyan]{redact_remote_url(remote_url)}[/cyan]\n"
                     f"Branch: [cyan]{branch}[/cyan]\n"
                     f"Auto-sync: [cyan]{'Enabled' if auto_sync else 'Disabled'}[/cyan]\n\n"
                     f"Use [bold]planalign sync push[/bold] to upload workspaces.\n"
@@ -223,6 +224,8 @@ def sync_status():
     Example:
         planalign sync status
     """
+    from planalign_api.services.remote_policy import redact_remote_url
+
     sync_service = _get_sync_service()
 
     status = sync_service.get_status()
@@ -247,7 +250,7 @@ def sync_status():
     lines = []
 
     # Remote info
-    lines.append(f"Remote: [cyan]{status.remote_url}[/cyan]")
+    lines.append(f"Remote: [cyan]{redact_remote_url(status.remote_url)}[/cyan]")
     lines.append(f"Branch: [cyan]{status.branch}[/cyan]")
     lines.append("")
 

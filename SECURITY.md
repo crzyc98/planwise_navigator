@@ -31,6 +31,16 @@ The FastAPI backend ships with safe-by-default network settings:
 
 WebSocket telemetry endpoints (`/ws/simulation/{run_id}`, `/ws/batch/{batch_id}`) require an `Origin` allowed by `PLANALIGN_API_CORS_ORIGINS`; missing or disallowed Origins are closed with policy-violation code 1008. They are also covered by the shared-token boundary: when `PLANALIGN_API_TOKEN` is set, connections must supply the token as a `?token=<token>` query parameter or they are closed with code 1008. The Studio frontend sends this automatically when built with `VITE_PLANALIGN_API_TOKEN` — a token-protected deployment must set both variables (backend env at runtime, frontend env at build time) or telemetry will not connect. Note that query parameters may appear in reverse-proxy access logs; scrub or restrict access to those logs in token-protected deployments.
 
+### Git remote trust boundary (workspace sync)
+
+`POST /api/sync/init` and `planalign sync init` accept a Git remote URL that the server will contact. Because an API caller could otherwise point this at arbitrary HTTP(S), SSH, file, or Git-helper transports (an SSRF / outbound-network-control risk), every remote URL passes a policy gate (`planalign_api/services/remote_policy.py`) before any Git transport is created:
+
+- **Scheme allowlist** — only `https` and `ssh` (including scp-style `user@host:path`) are accepted by default. Widen only deliberately via `PLANALIGN_API_GIT_REMOTE_ALLOWED_SCHEMES` (comma-separated, e.g. `https,ssh,git`). `file://`, local filesystem paths, and `ext::`/helper transports are always rejected.
+- **Host allowlist (optional)** — set `PLANALIGN_API_GIT_REMOTE_ALLOWED_HOSTS` to a comma-separated list of exact hosts or domain suffixes (e.g. `git.corp.example.com`). Empty (default) permits any public host.
+- **Private-network blocking** — hostnames are resolved via DNS and *every* returned address must be public. Loopback, RFC1918/ULA private, link-local (including the cloud metadata service `169.254.169.254`), reserved/multicast, and unspecified addresses are rejected unless `PLANALIGN_API_GIT_REMOTE_ALLOW_PRIVATE_NETWORKS=true` — enable it only for deployments that legitimately sync to an internal Git server on a trusted network.
+- **Credential redaction** — passwords embedded in remote URLs (`https://user:pass@host/...`) are replaced with `***` in API responses, sync log entries, server logs, and error messages. Credentials are still persisted in the local `.planalign-sync.yaml` so later fetch/push operations can authenticate; protect workspace files with filesystem permissions as you would any secret.
+- Rejected URLs return HTTP 400 from the API and exit non-zero from the CLI, without creating the repository or contacting any host.
+
 ### Hardening checklist for non-local deployments
 
 1. Set a strong `PLANALIGN_API_TOKEN`.
@@ -39,6 +49,7 @@ WebSocket telemetry endpoints (`/ws/simulation/{run_id}`, `/ws/batch/{batch_id}`
 4. Restrict the API and frontend ports with a host firewall to known client addresses.
 5. Leave `PLANALIGN_API_ALLOW_PROJECT_DB_FALLBACK` unset in production.
 6. Run the service under a dedicated low-privilege account (systemd/supervisor).
+7. If workspace sync is exposed, restrict destinations with `PLANALIGN_API_GIT_REMOTE_ALLOWED_HOSTS` and keep `PLANALIGN_API_GIT_REMOTE_ALLOW_PRIVATE_NETWORKS` disabled unless the network is trusted.
 
 ## Data Handling
 

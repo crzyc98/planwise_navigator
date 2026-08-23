@@ -26,6 +26,7 @@ except ImportError:
     GitCommandError = Exception  # type: ignore[assignment,misc]
     InvalidGitRepositoryError = Exception  # type: ignore[assignment,misc]
 
+from .remote_policy import RemotePolicyError, redact_remote_url, validate_remote_url
 from ..config import get_settings
 from ..models.sync import (
     SyncConfig,
@@ -93,6 +94,12 @@ class SyncConflictError(SyncError):
 
 class SyncNetworkError(SyncError):
     """Network error during sync."""
+
+    pass
+
+
+class SyncValidationError(SyncError):
+    """Remote URL rejected by the remote policy (SSRF hardening)."""
 
     pass
 
@@ -224,7 +231,9 @@ class SyncService:
         """Initialize sync for the workspaces directory.
 
         Args:
-            remote_url: Git remote URL (e.g., git@github.com:user/repo.git)
+            remote_url: Git remote URL (e.g., git@github.com:user/repo.git).
+                Must pass the remote policy (scheme, host, and network
+                destination checks); see planalign_api.services.remote_policy.
             branch: Branch to use (default: main)
             auto_sync: Enable auto-sync on changes
 
@@ -232,6 +241,12 @@ class SyncService:
             SyncStatus after initialization
         """
         try:
+            # Enforce the remote policy before any Git transport is created
+            try:
+                validate_remote_url(remote_url, get_settings())
+            except RemotePolicyError as e:
+                raise SyncValidationError(f"Remote URL rejected: {e}") from e
+
             # Initialize or get existing repo
             if not self.is_initialized():
                 self._repo = Repo.init(self.workspaces_root)
@@ -295,21 +310,24 @@ class SyncService:
 
             self._log_operation(
                 "init",
-                f"Sync initialized with {remote_url}",
+                f"Sync initialized with {redact_remote_url(remote_url)}",
                 workspaces_affected=workspaces,
                 scenarios_affected=scenarios,
             )
 
             return self.get_status()
 
+        except SyncValidationError:
+            raise
         except Exception as e:
-            logger.error(f"Failed to initialize sync: {e}")
+            detail = redact_remote_url(str(e))
+            logger.error(f"Failed to initialize sync: {detail}")
             self._log_operation(
                 "init",
-                f"Failed to initialize sync: {e}",
+                f"Failed to initialize sync: {detail}",
                 success=False,
             )
-            raise SyncError(f"Failed to initialize sync: {e}") from e
+            raise SyncError(f"Failed to initialize sync: {detail}") from e
 
     def _create_initial_commit(self, repo: Repo, branch: str) -> None:
         """Create initial commit if repo is empty."""
@@ -424,7 +442,7 @@ class SyncService:
 
             return SyncStatus(
                 is_initialized=True,
-                remote_url=config.remote,
+                remote_url=redact_remote_url(config.remote),
                 branch=config.branch,
                 local_changes=local_changes,
                 ahead=ahead,
@@ -436,7 +454,7 @@ class SyncService:
             logger.error(f"Failed to get sync status: {e}")
             return SyncStatus(
                 is_initialized=True,
-                remote_url=config.remote if config else None,
+                remote_url=redact_remote_url(config.remote) if config else None,
                 branch=config.branch if config else "main",
                 error=str(e),
             )
@@ -500,7 +518,7 @@ class SyncService:
 
             self._log_operation(
                 "push",
-                f"Pushed {files_staged} file(s) to {config.remote}",
+                f"Pushed {files_staged} file(s) to {redact_remote_url(config.remote)}",
                 workspaces_affected=workspaces,
                 scenarios_affected=scenarios,
                 commit_sha=commit_sha,
@@ -516,15 +534,16 @@ class SyncService:
         except SyncError:
             raise
         except Exception as e:
-            logger.error(f"Push failed: {e}")
+            detail = redact_remote_url(str(e))
+            logger.error(f"Push failed: {detail}")
             self._log_operation(
                 "push",
-                f"Push failed: {e}",
+                f"Push failed: {detail}",
                 success=False,
             )
             return SyncPushResult(
                 success=False,
-                message=f"Push failed: {e}",
+                message=f"Push failed: {detail}",
             )
 
     def pull(self) -> SyncPullResult:
@@ -631,17 +650,18 @@ class SyncService:
                     "Failed to authenticate with remote. "
                     "Check your SSH keys or credentials."
                 )
-            raise SyncError(f"Pull failed: {e}") from e
+            raise SyncError(f"Pull failed: {redact_remote_url(str(e))}") from e
         except Exception as e:
-            logger.error(f"Pull failed: {e}")
+            detail = redact_remote_url(str(e))
+            logger.error(f"Pull failed: {detail}")
             self._log_operation(
                 "pull",
-                f"Pull failed: {e}",
+                f"Pull failed: {detail}",
                 success=False,
             )
             return SyncPullResult(
                 success=False,
-                message=f"Pull failed: {e}",
+                message=f"Pull failed: {detail}",
             )
 
     def _get_conflict_files(self, repo: Repo) -> List[str]:

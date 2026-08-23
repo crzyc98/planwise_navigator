@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import List
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -52,9 +52,30 @@ class APISettings(BaseSettings):
         default_factory=lambda: Path("config/simulation_config.yaml")
     )
 
+    # Git remote sync policy (SSRF / outbound-network control)
+    # Allowed URL schemes for sync remotes; widen only deliberately.
+    git_remote_allowed_schemes: List[str] = ["https", "ssh"]
+    # Optional exact-host/suffix allowlist. Empty list permits any public host.
+    git_remote_allowed_hosts: List[str] = []
+    # Opt-in to loopback/private/link-local destinations (e.g., self-hosted
+    # internal Git servers). Keep disabled unless the network is trusted.
+    git_remote_allow_private_networks: bool = False
+
     class Config:
         env_prefix = "PLANALIGN_API_"
         env_file = ".env"
+
+    @field_validator(
+        "git_remote_allowed_schemes",
+        "git_remote_allowed_hosts",
+        mode="before",
+    )
+    @classmethod
+    def _split_comma_separated(cls, value: object) -> object:
+        """Accept comma-separated env values in addition to JSON lists."""
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return value
 
     @model_validator(mode="after")
     def validate_network_security(self) -> "APISettings":

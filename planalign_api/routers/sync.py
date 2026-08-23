@@ -20,6 +20,7 @@ from ..services.sync_service import (
     SyncError,
     SyncAuthError,
     SyncConflictError,
+    SyncValidationError,
     GIT_AVAILABLE,
 )
 
@@ -87,6 +88,8 @@ async def init_sync(request: SyncInitRequest):
         )
     except SyncAuthError as e:
         raise HTTPException(status_code=401, detail=str(e))
+    except SyncValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except SyncError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
