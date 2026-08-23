@@ -49,6 +49,14 @@ MAX_IMPORT_SIZE_BYTES = 1 * 1024 * 1024 * 1024
 MANIFEST_VERSION = "1.0"
 
 
+class ExportWorkspaceNotFoundError(ValueError):
+    """Raised when a requested workspace does not exist."""
+
+
+class ExportWorkspaceRunningError(ValueError):
+    """Raised when export is blocked by an active workspace simulation."""
+
+
 class ExportService:
     """Service for exporting and importing workspaces."""
 
@@ -357,19 +365,22 @@ class ExportService:
             Tuple of (archive_path, ExportResult)
 
         Raises:
-            ValueError: If workspace not found or has active simulation
+            ExportWorkspaceNotFoundError: If workspace does not exist.
+            ExportWorkspaceRunningError: If a simulation is active.
         """
         # Get workspace
         workspace = self.storage.get_workspace(workspace_id)
         if workspace is None:
-            raise ValueError(f"Workspace not found: {workspace_id}")
+            raise ExportWorkspaceNotFoundError("Workspace not found")
 
         workspace_path = Path(workspace.storage_path)
         workspace_name = workspace.name
 
         # Check for active simulation
         if self.storage.is_simulation_running(workspace_id):
-            raise ValueError("Cannot export workspace while simulation is running")
+            raise ExportWorkspaceRunningError(
+                "Cannot export workspace while simulation is running"
+            )
 
         # Generate archive filename
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")

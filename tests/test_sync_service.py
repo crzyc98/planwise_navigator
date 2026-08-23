@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import pytest
+import socket
 import tempfile
 from pathlib import Path
 from datetime import datetime, timezone
@@ -236,8 +237,17 @@ class TestSyncServiceConfig:
 class TestSyncServiceOperations:
     """Test sync operations (init, push, pull)."""
 
-    def test_init_creates_git_repo(self, sync_service, temp_workspaces_dir):
+    def test_init_creates_git_repo(
+        self, sync_service, temp_workspaces_dir, monkeypatch
+    ):
         """Test that init creates a Git repository."""
+        # Resolve the remote to a public address without real DNS
+        monkeypatch.setattr(
+            "planalign_api.services.remote_policy.socket.getaddrinfo",
+            lambda host, port, *a, **kw: [
+                (socket.AF_INET, socket.SOCK_STREAM, 0, "", ("140.82.121.4", 0))
+            ],
+        )
         # Mock the remote operations
         with patch.object(sync_service, "_create_initial_commit"):
             # Init will fail on remote operations, but should create local repo

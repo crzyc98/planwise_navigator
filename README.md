@@ -231,6 +231,9 @@ planalign sync pull
 planalign sync status
 ```
 
+> Sync remotes are policy-checked before any Git transport is created: only `https` and `ssh` URLs to public hosts are accepted by default (`file://`, local paths, and helper transports are rejected). See SECURITY.md ("Git remote trust boundary") for allowlist and private-network opt-ins.
+```
+
 ### PlanAlign Studio (web interface)
 
 ```bash

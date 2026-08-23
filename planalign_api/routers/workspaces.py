@@ -25,7 +25,12 @@ from ..models.workspace import (
     WorkspaceSummary,
     WorkspaceUpdate,
 )
-from ..services.export_service import ExportService, MAX_IMPORT_SIZE_BYTES
+from ..services.export_service import (
+    ExportService,
+    ExportWorkspaceNotFoundError,
+    ExportWorkspaceRunningError,
+    MAX_IMPORT_SIZE_BYTES,
+)
 from ..services.seed_config_validator import validate_seed_configs
 from ..services.upload_stream import stream_upload_to_tempfile
 from ..storage.workspace_storage import WorkspaceStorage
@@ -234,23 +239,21 @@ async def export_workspace(
     """
     try:
         archive_path, result = export_service.export_workspace(workspace_id)
-    except ValueError as e:
-        error_msg = str(e)
-        if "not found" in error_msg.lower():
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=error_msg,
-            )
-        elif "simulation is running" in error_msg.lower():
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Cannot export workspace while simulation is running",
-            )
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=sanitize_error(logger, "Failed to export workspace"),
-            ) from e
+    except ExportWorkspaceNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Workspace not found",
+        ) from exc
+    except ExportWorkspaceRunningError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot export workspace while simulation is running",
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=sanitize_error(logger, "Failed to export workspace"),
+        ) from exc
 
     return FileResponse(
         path=archive_path,
