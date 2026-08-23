@@ -9,6 +9,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from ..config import APISettings, get_settings
+from ..errors import sanitize_error
 from ..models.bands import (
     Band,
     BandAnalysisRequest,
@@ -116,23 +117,28 @@ async def get_band_configs(
             tenure_bands = service.read_bands_from_csv("tenure")
             logger.info("Loaded tenure bands from global CSV (fallback)")
     except FileNotFoundError as e:
-        logger.error(f"Band configuration file not found: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Band configuration file not found: {e}",
-        )
+            detail=sanitize_error(
+                logger,
+                "Band configuration file not found",
+                event="Band configuration file not found",
+            ),
+        ) from e
     except ValueError as e:
-        logger.error(f"Invalid band configuration data: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Invalid band configuration data: {e}",
-        )
+            detail=sanitize_error(
+                logger,
+                "Invalid band configuration data",
+                event="Invalid band configuration data",
+            ),
+        ) from e
     except Exception as e:
-        logger.error(f"Failed to read band configurations: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to read band configurations: {e}",
-        )
+            detail=sanitize_error(logger, "Failed to read band configurations"),
+        ) from e
 
     return BandConfig(age_bands=age_bands, tenure_bands=tenure_bands)
 
@@ -181,11 +187,10 @@ async def analyze_age_bands(
             detail=str(e),
         )
     except Exception as e:
-        logger.error(f"Failed to analyze age bands: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to analyze census: {e}",
-        )
+            detail=sanitize_error(logger, "Failed to analyze census"),
+        ) from e
 
 
 # -----------------------------------------------------------------------------
@@ -231,11 +236,10 @@ async def analyze_tenure_bands(
             detail=str(e),
         )
     except Exception as e:
-        logger.error(f"Failed to analyze tenure bands: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to analyze census: {e}",
-        )
+            detail=sanitize_error(logger, "Failed to analyze census"),
+        ) from e
 
 
 # -----------------------------------------------------------------------------
@@ -287,11 +291,12 @@ async def analyze_turnover(
             detail=str(e),
         )
     except Exception as e:
-        logger.error(f"Failed to analyze turnover rates: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to analyze census for turnover rates: {e}",
-        )
+            detail=sanitize_error(
+                logger, "Failed to analyze census for turnover rates"
+            ),
+        ) from e
 
 
 # POST /analyze-opt-out-rate - Analyze Census for Opt-Out Rate Suggestion
@@ -342,8 +347,7 @@ async def analyze_opt_out_rate(
             detail=str(e),
         )
     except Exception as e:
-        logger.error(f"Failed to analyze opt-out rate: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to analyze census for opt-out rate: {e}",
-        )
+            detail=sanitize_error(logger, "Failed to analyze census for opt-out rate"),
+        ) from e

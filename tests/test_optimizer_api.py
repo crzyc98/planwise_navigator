@@ -322,4 +322,6 @@ def test_build_failure_maps_to_500_with_logged_exception(
     job = _await_job(client, resp.json()["run_id"])
     assert job["status"] == "failed"
     assert job["error_status"] == 500
-    assert "scenario pool exploded" in job["error"]
+    # Raw exception text is never exposed; only a stable message + error ID.
+    assert "scenario pool exploded" not in job["error"]
+    assert "error_id:" in job["error"]

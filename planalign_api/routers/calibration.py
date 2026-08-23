@@ -36,6 +36,7 @@ from planalign_orchestrator.calibration_runner import (
 from planalign_orchestrator.exceptions import ConfigurationError
 
 from ..config import APISettings, get_settings
+from ..errors import sanitize_job_error
 from ..storage.workspace_storage import WorkspaceStorage
 
 logger = logging.getLogger(__name__)
@@ -146,12 +147,13 @@ def _execute_job(
             error_status=409,
             completed_at=datetime.now(),
         )
-    except Exception as e:
-        logger.exception("Calibration job %s failed", job.run_id)
+    except Exception:
         _update_job(
             job.run_id,
             status="failed",
-            error=str(e),
+            error=sanitize_job_error(
+                logger, job.run_id, event="Calibration job failed"
+            ),
             error_status=500,
             completed_at=datetime.now(),
         )

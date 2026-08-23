@@ -139,7 +139,9 @@ def test_unexpected_failure_fails_job_with_500(client, monkeypatch) -> None:
     job = _await_job(client, resp.json()["run_id"])
     assert job["status"] == "failed"
     assert job["error_status"] == 500
-    assert "dbt exploded" in job["error"]
+    # Raw exception text is never exposed; only a stable message + error ID.
+    assert "dbt exploded" not in job["error"]
+    assert "error_id:" in job["error"]
 
 
 def test_unknown_run_id_returns_404(client) -> None:
