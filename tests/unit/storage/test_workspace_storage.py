@@ -1,6 +1,7 @@
 """Tests for WorkspaceStorage: repair, cleanup, running check, deep merge, and seed injection."""
 
 import json
+import shutil
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict
@@ -10,6 +11,7 @@ import pytest
 import duckdb
 import uuid
 
+from planalign_api.services.path_guard import PathGuardError, ProtectedPathError
 from planalign_api.storage.workspace_storage import WorkspaceStorage
 from planalign_api.models.scenario import Scenario
 from planalign_api.models.workspace import Workspace
@@ -801,11 +803,14 @@ class TestInjectSeedConfigDefaults:
         mock_service.read_band_configs.return_value = mock_band_config
 
         merged: Dict[str, Any] = {"promotion_hazard": {}}
-        with patch(
-            "planalign_api.services.promotion_hazard_service.PromotionHazardService"
-        ), patch(
-            "planalign_api.services.band_service.BandService",
-            return_value=mock_service,
+        with (
+            patch(
+                "planalign_api.services.promotion_hazard_service.PromotionHazardService"
+            ),
+            patch(
+                "planalign_api.services.band_service.BandService",
+                return_value=mock_service,
+            ),
         ):
             storage._inject_seed_config_defaults(merged)
 
@@ -827,11 +832,14 @@ class TestInjectSeedConfigDefaults:
     def test_handles_band_service_error_gracefully(self, storage):
         """Should not raise when band service fails."""
         merged: Dict[str, Any] = {"promotion_hazard": {}}
-        with patch(
-            "planalign_api.services.promotion_hazard_service.PromotionHazardService"
-        ), patch(
-            "planalign_api.services.band_service.BandService",
-            side_effect=Exception("band CSV not found"),
+        with (
+            patch(
+                "planalign_api.services.promotion_hazard_service.PromotionHazardService"
+            ),
+            patch(
+                "planalign_api.services.band_service.BandService",
+                side_effect=Exception("band CSV not found"),
+            ),
         ):
             storage._inject_seed_config_defaults(merged)
         assert "age_bands" not in merged
@@ -873,3 +881,241 @@ class TestRunResultStorage:
         assert storage.delete_run("ws-1", "sc-1", run_id, allow_current_result=True)
         assert not (scenario / "current_result.json").exists()
         assert not run_dir.exists()
+
+
+# ==================== Deletion path containment ====================
+
+
+WORKSPACE_ID = str(uuid.uuid4())
+SCENARIO_ID = str(uuid.uuid4())
+OTHER_WORKSPACE_ID = str(uuid.uuid4())
+
+TRAVERSAL_IDS = [
+    ".",
+    "..",
+    "../..",
+    f"../{OTHER_WORKSPACE_ID}",
+    "..%2f..",
+    "%2e%2e",
+    "%2e%2e%2fescape",
+    "sub/../../escape",
+    "sub/dir",
+    "..\\evil",
+    "C:\\Windows",
+    "/etc/passwd",
+    "/absolute/path",
+    "not-a-uuid",
+    "12345",
+    WORKSPACE_ID.upper(),
+    WORKSPACE_ID.replace("-", ""),
+    f"{WORKSPACE_ID}/../{WORKSPACE_ID}",
+]
+
+
+def _make_canonical_workspace(tmp_path: Path) -> Path:
+    ws_dir = tmp_path / WORKSPACE_ID
+    (ws_dir / "scenarios" / SCENARIO_ID).mkdir(parents=True)
+    (ws_dir / "workspace.json").write_text(
+        json.dumps(
+            {
+                "id": WORKSPACE_ID,
+                "name": "Canonical",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+    )
+    (ws_dir / "scenarios" / SCENARIO_ID / "scenario.json").write_text(
+        json.dumps(
+            {
+                "id": SCENARIO_ID,
+                "workspace_id": WORKSPACE_ID,
+                "name": "Canonical Scenario",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+    )
+    (ws_dir / "scenarios" / SCENARIO_ID / "runs").mkdir()
+    return ws_dir
+
+
+@pytest.mark.fast
+class TestDeletionPathContainment:
+    """delete_workspace/delete_scenario must never rmtree outside the root."""
+
+    @pytest.fixture(autouse=True)
+    def spy_rmtree(self, monkeypatch):
+        """Record every shutil.rmtree call target for containment assertions."""
+        calls = []
+        original = shutil.rmtree
+
+        def _record(path, *args, **kwargs):
+            calls.append(Path(path))
+            return original(path, *args, **kwargs)
+
+        monkeypatch.setattr(shutil, "rmtree", _record)
+        self.rmtree_calls = calls
+
+    @pytest.fixture
+    def guarded(self, storage, tmp_path):
+        _make_canonical_workspace(tmp_path)
+        # A sibling workspace that traversal payloads commonly aim at.
+        sibling = tmp_path / OTHER_WORKSPACE_ID
+        sibling.mkdir()
+        (sibling / "keep.txt").write_text("do not delete")
+        return storage
+
+    def test_delete_workspace_success(self, guarded, tmp_path):
+        assert guarded.delete_workspace(WORKSPACE_ID) is True
+        assert not (tmp_path / WORKSPACE_ID).exists()
+        assert len(self.rmtree_calls) == 1
+        assert self.rmtree_calls[0].parent == tmp_path.resolve()
+
+    def test_delete_scenario_success(self, guarded, tmp_path):
+        assert guarded.delete_scenario(WORKSPACE_ID, SCENARIO_ID) is True
+        scenario_root = (tmp_path / WORKSPACE_ID / "scenarios").resolve()
+        assert len(self.rmtree_calls) == 1
+        assert self.rmtree_calls[0].parent == scenario_root
+
+    def test_every_rmtree_target_is_direct_child_of_workspaces_root(
+        self, guarded, tmp_path
+    ):
+        for bad_id in TRAVERSAL_IDS:
+            with pytest.raises((PathGuardError, ProtectedPathError)):
+                guarded.delete_workspace(bad_id)
+            with pytest.raises((PathGuardError, ProtectedPathError)):
+                guarded.delete_scenario(bad_id, bad_id)
+        resolved_root = tmp_path.resolve()
+        for call_path in self.rmtree_calls:
+            assert call_path.resolve().parent == resolved_root
+        # Nothing outside the intended tree was touched.
+        assert (tmp_path / OTHER_WORKSPACE_ID / "keep.txt").exists()
+
+    @pytest.mark.parametrize("bad_id", TRAVERSAL_IDS)
+    def test_delete_workspace_rejects_traversal_ids(self, guarded, bad_id):
+        with pytest.raises((PathGuardError, ProtectedPathError)):
+            guarded.delete_workspace(bad_id)
+
+    @pytest.mark.parametrize("bad_id", TRAVERSAL_IDS)
+    def test_delete_scenario_rejects_traversal_ids(self, guarded, bad_id):
+        with pytest.raises((PathGuardError, ProtectedPathError)):
+            guarded.delete_scenario(WORKSPACE_ID, bad_id)
+        with pytest.raises((PathGuardError, ProtectedPathError)):
+            guarded.delete_scenario(bad_id, SCENARIO_ID)
+        # The legitimate scenario survives every rejected attempt.
+        scenarios_dir = Path(guarded.workspaces_root) / WORKSPACE_ID / "scenarios"
+        assert (scenarios_dir / SCENARIO_ID / "scenario.json").exists()
+
+    def test_malformed_ids_raise_path_guard_error(self, guarded):
+        for bad_id in (".", "..", "%2e%2e", "not-a-uuid", WORKSPACE_ID.upper()):
+            with pytest.raises(PathGuardError):
+                guarded.delete_workspace(bad_id)
+
+    def test_missing_canonical_uuid_is_protected_path_error(self, guarded):
+        missing = str(uuid.uuid4())
+        with pytest.raises(ProtectedPathError):
+            guarded.delete_workspace(missing)
+
+    def test_symlinked_workspace_is_refused(self, storage, tmp_path):
+        _make_canonical_workspace(tmp_path)
+        outside = tmp_path.parent / "outside-target"
+        outside.mkdir()
+        (outside / "precious.txt").write_text("keep")
+        link = tmp_path / OTHER_WORKSPACE_ID
+        link.symlink_to(outside)
+
+        with pytest.raises(ProtectedPathError):
+            storage.delete_workspace(OTHER_WORKSPACE_ID)
+        assert (outside / "precious.txt").exists()
+
+    def test_symlinked_scenario_is_refused(self, storage, tmp_path):
+        _make_canonical_workspace(tmp_path)
+        outside = tmp_path.parent / "outside-scenario"
+        outside.mkdir()
+        scenarios_root = tmp_path / WORKSPACE_ID / "scenarios"
+        (scenarios_root / OTHER_WORKSPACE_ID).symlink_to(outside)
+
+        with pytest.raises(ProtectedPathError):
+            storage.delete_scenario(WORKSPACE_ID, OTHER_WORKSPACE_ID)
+        assert outside.exists()
+
+    def test_scenario_under_symlinked_workspace_is_refused(self, storage, tmp_path):
+        _make_canonical_workspace(tmp_path)
+        outside = tmp_path / "outside-workspace"
+        outside_scenario = outside / "scenarios" / SCENARIO_ID
+        outside_scenario.mkdir(parents=True)
+        (outside / "workspace.json").write_text(json.dumps({"id": WORKSPACE_ID}))
+        (outside_scenario / "scenario.json").write_text(
+            json.dumps({"id": SCENARIO_ID, "workspace_id": WORKSPACE_ID})
+        )
+
+        original_workspace = tmp_path / WORKSPACE_ID
+        backup_workspace = tmp_path / f"{WORKSPACE_ID}-backup"
+        original_workspace.rename(backup_workspace)
+        original_workspace.symlink_to(outside, target_is_directory=True)
+
+        with pytest.raises(ProtectedPathError):
+            storage.delete_scenario(WORKSPACE_ID, SCENARIO_ID)
+        assert outside_scenario.exists()
+
+    def test_missing_marker_refuses_deletion(self, storage, tmp_path):
+        bare_dir = tmp_path / WORKSPACE_ID
+        bare_dir.mkdir()
+
+        with pytest.raises(ProtectedPathError, match="marker"):
+            storage.delete_workspace(WORKSPACE_ID)
+        assert bare_dir.exists()
+
+    def test_marker_identity_mismatch_refuses_workspace_deletion(
+        self, storage, tmp_path
+    ):
+        ws_dir = tmp_path / WORKSPACE_ID
+        ws_dir.mkdir()
+        (ws_dir / "workspace.json").write_text(json.dumps({"id": str(uuid.uuid4())}))
+
+        with pytest.raises(ProtectedPathError, match="identity"):
+            storage.delete_workspace(WORKSPACE_ID)
+        assert ws_dir.exists()
+
+    def test_marker_identity_mismatch_refuses_scenario_deletion(
+        self, storage, tmp_path
+    ):
+        ws_dir = tmp_path / WORKSPACE_ID
+        (ws_dir / "scenarios" / SCENARIO_ID).mkdir(parents=True)
+        (ws_dir / "workspace.json").write_text(json.dumps({"id": WORKSPACE_ID}))
+        (ws_dir / "scenarios" / SCENARIO_ID / "scenario.json").write_text(
+            json.dumps({"id": SCENARIO_ID, "workspace_id": str(uuid.uuid4())})
+        )
+
+        with pytest.raises(ProtectedPathError, match="identity"):
+            storage.delete_scenario(WORKSPACE_ID, SCENARIO_ID)
+        assert (ws_dir / "scenarios" / SCENARIO_ID).exists()
+
+    def test_database_cleanup_does_not_follow_run_symlinks(self, storage, tmp_path):
+        _make_canonical_workspace(tmp_path)
+        scenario_dir = tmp_path / WORKSPACE_ID / "scenarios" / SCENARIO_ID
+        outside = tmp_path / "outside-run"
+        outside.mkdir()
+        (outside / "simulation.duckdb").write_bytes(b"keep")
+        (scenario_dir / "runs" / str(uuid.uuid4())).symlink_to(
+            outside, target_is_directory=True
+        )
+
+        storage.delete_scenario_database(WORKSPACE_ID, SCENARIO_ID)
+
+        assert (outside / "simulation.duckdb").exists()
+
+    def test_delete_run_rejects_traversal_and_symlink_targets(self, storage, tmp_path):
+        _make_canonical_workspace(tmp_path)
+        scenario_dir = tmp_path / WORKSPACE_ID / "scenarios" / SCENARIO_ID
+        outside = tmp_path / "outside-run"
+        outside.mkdir()
+        (outside / "precious.txt").write_text("keep")
+
+        assert storage.delete_run(WORKSPACE_ID, SCENARIO_ID, "../outside-run") is False
+        symlink_id = str(uuid.uuid4())
+        (scenario_dir / "runs" / symlink_id).symlink_to(
+            outside, target_is_directory=True
+        )
+        assert storage.delete_run(WORKSPACE_ID, SCENARIO_ID, symlink_id) is False
+        assert (outside / "precious.txt").exists()
