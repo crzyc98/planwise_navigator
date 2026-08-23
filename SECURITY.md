@@ -51,6 +51,16 @@ WebSocket telemetry endpoints (`/ws/simulation/{run_id}`, `/ws/batch/{batch_id}`
 6. Run the service under a dedicated low-privilege account (systemd/supervisor).
 7. If workspace sync is exposed, restrict destinations with `PLANALIGN_API_GIT_REMOTE_ALLOWED_HOSTS` and keep `PLANALIGN_API_GIT_REMOTE_ALLOW_PRIVATE_NETWORKS` disabled unless the network is trusted.
 
+### Calculated-field expression evaluator (data import)
+
+Import field mappings support `calculated_field` transformations whose expressions are supplied via the mapping API and persisted in workspace `mapping.json`/template files. These expressions are **not** evaluated with Python `eval()`/`exec()`. `planalign_api/services/mapping_engine.py` parses each expression with `ast.parse(..., mode="eval")` and enforces a grammar whitelist before interpreting it directly:
+
+- Allowed: arithmetic operators (`+`, `-`, `*`, `/`), unary plus/minus, string/int/float literals, and references to exact existing DataFrame columns.
+- Rejected: function calls, attribute access, subscripts/slicing, comprehensions, lambdas, walrus assignments, f-strings, boolean/comparison/bitwise operators, unknown column names, and any other node type.
+- No Python globals or builtins are exposed to expressions at any point.
+
+Do not reintroduce dynamic evaluation (`eval`, `exec`, `compile`, pandas `.eval`/`.query`) on user- or config-supplied expressions; extend the whitelist interpreter deliberately if new operators are ever required.
+
 ## Data Handling
 
 - **Census data is PII.** Input files under `data/`, runtime outputs under `var/`, and all `*.duckdb` databases are git-ignored — never commit them. Verify before pushing: `git status --ignored data/ var/ dbt/*.duckdb`.
