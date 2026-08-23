@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
 from ..config import get_settings
+from ..errors import sanitize_error
 from ..models.files import (
     CompensationAnalysisRequest,
     CompensationSolverRequest,
@@ -101,11 +102,10 @@ async def upload_census_file(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to read uploaded file: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to read file: {e}",
-        )
+            detail=sanitize_error(logger, "Failed to read file"),
+        ) from e
 
     # Save and validate file
     try:
@@ -120,11 +120,10 @@ async def upload_census_file(
             detail=str(e),
         )
     except Exception as e:
-        logger.error(f"Unexpected error saving file: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to save file: {e}",
-        )
+            detail=sanitize_error(logger, "Failed to save file"),
+        ) from e
 
     # E090: Update workspace config to use this census file for all scenarios
     try:
@@ -266,11 +265,10 @@ async def analyze_age_distribution(
             detail=str(e),
         )
     except Exception as e:
-        logger.error(f"Failed to analyze age distribution: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to analyze census: {e}",
-        )
+            detail=sanitize_error(logger, "Failed to analyze census"),
+        ) from e
 
 
 @router.post(
@@ -301,11 +299,10 @@ async def analyze_part_time_pct(
             detail=str(e),
         )
     except Exception as e:
-        logger.error(f"Failed to analyze part-time percentage: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to analyze census: {e}",
-        )
+            detail=sanitize_error(logger, "Failed to analyze census"),
+        ) from e
 
 
 @router.post(
@@ -337,11 +334,10 @@ async def analyze_compensation_by_level(
             detail=str(e),
         )
     except Exception as e:
-        logger.error(f"Failed to analyze compensation: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to analyze census: {e}",
-        )
+            detail=sanitize_error(logger, "Failed to analyze census"),
+        ) from e
 
 
 @router.post(
@@ -465,8 +461,7 @@ async def solve_compensation_growth(
             detail=str(e),
         )
     except Exception as e:
-        logger.error(f"Failed to solve compensation growth: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to solve: {e}",
-        )
+            detail=sanitize_error(logger, "Failed to solve compensation growth"),
+        ) from e

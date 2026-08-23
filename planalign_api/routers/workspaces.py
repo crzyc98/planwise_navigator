@@ -1,5 +1,6 @@
 """Workspace management endpoints."""
 
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -7,6 +8,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from fastapi.responses import FileResponse
 
 from ..config import APISettings, get_settings
+from ..errors import sanitize_error, sanitize_job_error
 from ..models.export import (
     BulkExportRequest,
     BulkExportStatus,
@@ -29,6 +31,8 @@ from ..services.upload_stream import stream_upload_to_tempfile
 from ..storage.workspace_storage import WorkspaceStorage
 
 router = APIRouter()
+
+logger = logging.getLogger(__name__)
 
 # In-memory storage for temporary upload files
 _temp_upload_files: Dict[str, Path] = {}
@@ -245,8 +249,8 @@ async def export_workspace(
         else:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=error_msg,
-            )
+                detail=sanitize_error(logger, "Failed to export workspace"),
+            ) from e
 
     return FileResponse(
         path=archive_path,
@@ -365,8 +369,8 @@ async def validate_import(
         temp_path.unlink(missing_ok=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Validation error: {str(exc)}",
-        )
+            detail=sanitize_error(logger, "Failed to validate archive"),
+        ) from exc
 
 
 @router.post("/import", response_model=ImportResponse)
@@ -484,8 +488,17 @@ async def start_bulk_import(
             status_obj.results.append(result)
         except HTTPException as exc:
             status_obj.results.append(_failed_import(file.filename, str(exc.detail)))
-        except Exception as exc:
-            status_obj.results.append(_failed_import(file.filename, str(exc)))
+        except Exception:
+            status_obj.results.append(
+                _failed_import(
+                    file.filename,
+                    sanitize_job_error(
+                        logger,
+                        file.filename or "archive",
+                        event="Bulk import failed",
+                    ),
+                )
+            )
         finally:
             # Clean up temp file
             if temp_path is not None:

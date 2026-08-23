@@ -1,9 +1,11 @@
 """Sync API endpoints for workspace cloud synchronization (E083)."""
 
+import logging
 from typing import List
 
 from fastapi import APIRouter, HTTPException
 
+from ..errors import sanitize_error
 from ..models.sync import (
     SyncConfig,
     SyncStatus,
@@ -20,6 +22,8 @@ from ..services.sync_service import (
     SyncConflictError,
     GIT_AVAILABLE,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/sync", tags=["sync"])
 
@@ -48,7 +52,10 @@ async def get_sync_status():
         service = get_sync_service()
         return service.get_status()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=sanitize_error(logger, "Failed to retrieve sync status"),
+        ) from e
 
 
 @router.get("/config", response_model=SyncConfig)
@@ -58,7 +65,10 @@ async def get_sync_config():
         service = get_sync_service()
         return service.get_sync_config()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=sanitize_error(logger, "Failed to retrieve sync configuration"),
+        ) from e
 
 
 @router.post("/init", response_model=SyncStatus)
@@ -80,7 +90,10 @@ async def init_sync(request: SyncInitRequest):
     except SyncError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=sanitize_error(logger, "Failed to initialize sync"),
+        ) from e
 
 
 @router.post("/push", response_model=SyncPushResult)
@@ -105,7 +118,10 @@ async def push_changes(message: str = None):  # type: ignore[assignment]
     except SyncError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=sanitize_error(logger, "Failed to push changes"),
+        ) from e
 
 
 @router.post("/pull", response_model=SyncPullResult)
@@ -138,7 +154,10 @@ async def pull_changes():
     except SyncError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=sanitize_error(logger, "Failed to pull changes"),
+        ) from e
 
 
 @router.get("/log", response_model=List[SyncLogEntry])
@@ -151,7 +170,10 @@ async def get_sync_log(limit: int = 20):
         service = get_sync_service()
         return service.get_sync_log(limit=limit)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=sanitize_error(logger, "Failed to read sync log"),
+        ) from e
 
 
 @router.get("/workspaces", response_model=List[WorkspaceSyncInfo])
@@ -165,7 +187,10 @@ async def get_workspace_sync_info():
         service = get_sync_service()
         return service.get_workspace_sync_info()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=sanitize_error(logger, "Failed to retrieve workspace sync info"),
+        ) from e
 
 
 @router.post("/disconnect")
@@ -187,6 +212,14 @@ async def disconnect_sync():
                 "message": "Sync disconnected. Local files preserved.",
             }
         else:
-            raise HTTPException(status_code=500, detail="Failed to disconnect sync")
+            raise HTTPException(
+                status_code=500,
+                detail=sanitize_error(logger, "Failed to disconnect sync"),
+            )
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=sanitize_error(logger, "Failed to disconnect sync"),
+        ) from e

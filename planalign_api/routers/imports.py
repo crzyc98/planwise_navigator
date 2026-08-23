@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile,
 from fastapi.responses import FileResponse
 
 from ..config import APISettings, get_settings
+from ..errors import sanitize_error
 from ..models.imports import (
     ApplyTemplateRequest,
     DetectedColumn,
@@ -269,7 +270,8 @@ async def upload_file(
             )
         except Exception as exc:
             raise HTTPException(
-                status_code=422, detail=f"Could not parse file: {exc}"
+                status_code=422,
+                detail=sanitize_error(logger, "Could not parse file"),
             ) from exc
 
         if len(df) == 0:
@@ -608,9 +610,14 @@ def generate_parquet(
     started_at = datetime.now(timezone.utc)
     try:
         parquet_file = service.generate_parquet(import_id, workspace_id, user=x_user_id)
-    except Exception as exc:
-        # detail=str(exc) exposes internal errors — future: map exceptions to user-facing messages
+    except ValueError as exc:
+        # Domain-authored validation message (e.g. missing required mappings).
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=sanitize_error(logger, "Failed to generate parquet file"),
+        ) from exc
 
     # Point the workspace census at the freshly generated parquet so scenarios
     # pick it up without a separate "Use as Census" step (mirrors the upload flow).

@@ -42,6 +42,7 @@ from planalign_optimizer.spec_io import (
 )
 
 from ..config import APISettings, get_settings
+from ..errors import sanitize_job_error
 from ..storage.workspace_storage import WorkspaceStorage
 
 logger = logging.getLogger(__name__)
@@ -162,12 +163,13 @@ def _start_job_thread(
                 error_status=409,
                 completed_at=datetime.now(),
             )
-        except Exception as e:  # noqa: BLE001 -- surfaced on the job record
-            logger.exception("Optimizer job %s failed", job.run_id)
+        except Exception:  # noqa: BLE001 -- surfaced on the job record
             _update_job(
                 job.run_id,
                 status="failed",
-                error=str(e),
+                error=sanitize_job_error(
+                    logger, job.run_id, event="Optimizer job failed"
+                ),
                 error_status=500,
                 completed_at=datetime.now(),
             )

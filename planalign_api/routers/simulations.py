@@ -10,6 +10,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, s
 from fastapi.responses import FileResponse
 
 from ..config import APISettings, get_settings
+from ..errors import sanitize_error
 from ..models.simulation import (
     Artifact,
     LogPage,
@@ -947,11 +948,10 @@ async def get_run_details(
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception(f"Error in get_run_details for scenario {scenario_id}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal error: {str(e)}",
-        )
+            detail=sanitize_error(logger, "Internal server error"),
+        ) from e
 
 
 @router.get("/{scenario_id}/artifacts/{artifact_path:path}")

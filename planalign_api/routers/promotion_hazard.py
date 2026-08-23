@@ -12,6 +12,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from ..config import APISettings, get_settings
+from ..errors import sanitize_error
 from ..models.promotion_hazard import (
     PromotionHazardAgeMultiplier,
     PromotionHazardBase,
@@ -89,20 +90,27 @@ async def get_promotion_hazard_config(
     try:
         return service.read_all()
     except FileNotFoundError as e:
-        logger.error(f"Promotion hazard config file not found: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Promotion hazard config file not found: {e}",
-        )
+            detail=sanitize_error(
+                logger,
+                "Promotion hazard configuration file not found",
+                event="Promotion hazard config file not found",
+            ),
+        ) from e
     except ValueError as e:
-        logger.error(f"Invalid promotion hazard config data: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Invalid promotion hazard config data: {e}",
-        )
+            detail=sanitize_error(
+                logger,
+                "Invalid promotion hazard configuration",
+                event="Invalid promotion hazard config data",
+            ),
+        ) from e
     except Exception as e:
-        logger.error(f"Failed to read promotion hazard config: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to read promotion hazard config: {e}",
-        )
+            detail=sanitize_error(
+                logger, "Failed to read promotion hazard configuration"
+            ),
+        ) from e

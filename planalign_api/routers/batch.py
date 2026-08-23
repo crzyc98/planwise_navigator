@@ -9,6 +9,7 @@ from typing import Dict, List, Literal, Optional, cast
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
 from ..config import APISettings, get_settings
+from ..errors import sanitize_job_error
 from ..models.batch import BatchCreate, BatchJob, BatchScenario
 from ..models.scenario import Scenario
 from ..services.simulation_service import SimulationService
@@ -228,13 +229,14 @@ async def _execute_batch(
                 f"{outcome.upper()}: {scenario.name} (took {duration:.1f}s)"
             )
 
-        except Exception as e:
+        except Exception:
             end_time = datetime.now(timezone.utc)
-            logger.error(
-                f"  [{end_time.strftime('%H:%M:%S.%f')}] [Scenario {index}] FAILED: {scenario.name} - {e}"
-            )
             batch_job.scenarios[index].status = "failed"
-            batch_job.scenarios[index].error_message = str(e)
+            batch_job.scenarios[index].error_message = sanitize_job_error(
+                logger,
+                f"scenario {index} ({scenario.name})",
+                event="Batch scenario failed",
+            )
 
     try:
         if parallel:
@@ -265,7 +267,7 @@ async def _execute_batch(
             batch_job.completed_at - batch_job.submitted_at
         ).total_seconds()
 
-    except Exception as e:
+    except Exception:
         batch_job.status = "failed"
         batch_job.completed_at = datetime.now(timezone.utc)
         batch_job.duration_seconds = (
@@ -275,4 +277,6 @@ async def _execute_batch(
         for batch_scenario in batch_job.scenarios:
             if batch_scenario.status in ("pending", "running"):
                 batch_scenario.status = "failed"
-                batch_scenario.error_message = str(e)
+                batch_scenario.error_message = sanitize_job_error(
+                    logger, batch_job.id, event="Batch execution failed"
+                )

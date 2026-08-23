@@ -24,6 +24,14 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 
 from .config import get_settings
+from .errors import (
+    GENERIC_500_DETAIL,
+    REQUEST_ID_HEADER,
+    new_request_id,
+    normalize_request_id,
+    sanitize_error,
+    set_request_id,
+)
 from .auth import (
     require_api_token,
     require_websocket_api_token,
@@ -225,7 +233,13 @@ def create_app() -> FastAPI:
 
     @app.middleware("http")
     async def add_security_headers(request: Request, call_next):
+        request_id = normalize_request_id(request.headers.get(REQUEST_ID_HEADER))
+        # Scope survives into the unhandled-exception handler; the
+        # contextvar alone does not cross middleware/task boundaries.
+        request.scope["request_id"] = request_id
+        set_request_id(request_id)
         response = await call_next(request)
+        response.headers[REQUEST_ID_HEADER] = request_id
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
@@ -244,14 +258,40 @@ def create_app() -> FastAPI:
             headers = build_scenario_read_headers(
                 storage, _scenario_refs(request, storage)
             )
-        except CurrentResultIntegrityError as exc:
+        except CurrentResultIntegrityError:
+            # The pointer content is internal; never echo the exception text.
+            sanitize_error(
+                logging.getLogger(__name__),
+                "Current result integrity failure",
+                event="Scenario read integrity failure",
+            )
             return JSONResponse(
                 status_code=500,
-                content={"detail": f"Current result integrity failure: {exc}"},
+                content={"detail": "Current result integrity failure"},
             )
         for name, value in headers.items():
             response.headers[name] = value
         return response
+
+    # Safety net for unhandled exceptions: full details stay in structured
+    # server logs; callers only ever see a stable message plus a correlation ID.
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(request: Request, exc: Exception):
+        # Restore the correlation ID into the logging context; the
+        # exception surfaced outside the middleware-managed task.
+        request_id = request.scope.get("request_id")
+        if request_id:
+            set_request_id(request_id)
+        sanitize_error(
+            logging.getLogger(__name__),
+            GENERIC_500_DETAIL,
+            event=f"Unhandled error on {request.method} {request.url.path}",
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"detail": GENERIC_500_DETAIL},
+            headers={REQUEST_ID_HEADER: request_id or new_request_id()},
+        )
 
     # Include routers. The system router keeps /health public; its non-health
     # endpoints declare require_api_token directly because they expose system data.
