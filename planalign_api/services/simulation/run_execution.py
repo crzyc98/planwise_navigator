@@ -78,13 +78,36 @@ async def _stop_process(process: Any, run_id: str) -> bool:
         return False
 
 
+async def _cleanup_failed_process(process: Any, run_id: str) -> None:
+    """Terminate and reap a child after a failed run without masking the error."""
+    returncode = getattr(process, "returncode", None)
+    try:
+        if returncode is not None:
+            await asyncio.wait_for(
+                wait_subprocess(process), timeout=CANCEL_GRACE_SECONDS
+            )
+            return
+        stopped = await _stop_process(process, run_id)
+        if not stopped:
+            logger.warning("Cleanup after failed simulation %s was incomplete", run_id)
+    except BaseException as exc:
+        logger.warning(
+            "Cleanup after failed simulation %s did not stop the child: %s",
+            run_id,
+            exc,
+        )
+
+
 async def _kill_process(process: Any, run_id: str) -> bool:
     try:
         process.kill()
-        await wait_subprocess(process)
+        await asyncio.wait_for(wait_subprocess(process), timeout=CANCEL_GRACE_SECONDS)
         return True
     except ProcessLookupError:
         return True
+    except asyncio.TimeoutError:
+        logger.warning("Could not confirm killed simulation %s exited", run_id)
+        return False
     except OSError as exc:
         logger.warning("Could not kill simulation %s: %s", run_id, exc)
         return False
@@ -293,38 +316,50 @@ async def execute_run(
         cmd=command, cwd=str(root), env=build_env(root, run_id, database)
     )
     process_registry.register(run_id, process)
-    started = datetime.now()
-    telemetry = get_telemetry_service()
-    await wait_for_ws_listener(telemetry, run_id)
-    telemetry.apply_update(
-        run_id,
-        progress=1,
-        current_stage="INITIALIZATION",
-        current_year=start_year,
-        memory_mb=get_memory_mb(),
-    )
-    parser = SimulationOutputParser(start_year, total_years)
-    output = await stream_output(
-        process=process,
-        lines=lines,
-        run_id=run_id,
-        parser=parser,
-        total_years=total_years,
-        started=started,
-        telemetry=telemetry,
-        update_run_status=update_run_status,
-        process_registry=process_registry,
-        log_writer=log_writer,
-        provenance_recorder=provenance_recorder,
-    )
-    return_code = await wait_subprocess(process)
-    process_registry.remove(run_id, process)
-    elapsed = (datetime.now() - started).total_seconds()
-    if process_registry.is_cancelled(run_id):
-        raise RuntimeError("Simulation cancelled by user")
-    if return_code != 0:
-        raise_subprocess_error(return_code, output)
-    return parser, started, elapsed
+    try:
+        started = datetime.now()
+        telemetry = get_telemetry_service()
+        await wait_for_ws_listener(telemetry, run_id)
+        telemetry.apply_update(
+            run_id,
+            progress=1,
+            current_stage="INITIALIZATION",
+            current_year=start_year,
+            memory_mb=get_memory_mb(),
+        )
+        parser = SimulationOutputParser(start_year, total_years)
+        output = await stream_output(
+            process=process,
+            lines=lines,
+            run_id=run_id,
+            parser=parser,
+            total_years=total_years,
+            started=started,
+            telemetry=telemetry,
+            update_run_status=update_run_status,
+            process_registry=process_registry,
+            log_writer=log_writer,
+            provenance_recorder=provenance_recorder,
+        )
+        return_code = await wait_subprocess(process)
+        elapsed = (datetime.now() - started).total_seconds()
+        if process_registry.is_cancelled(run_id):
+            raise RuntimeError("Simulation cancelled by user")
+        if return_code != 0:
+            raise_subprocess_error(return_code, output)
+        return parser, started, elapsed
+    except BaseException:
+        try:
+            await _cleanup_failed_process(process, run_id)
+        except BaseException as cleanup_error:
+            logger.warning(
+                "Cleanup after failed simulation %s raised: %s",
+                run_id,
+                cleanup_error,
+            )
+        raise
+    finally:
+        process_registry.remove(run_id, process)
 
 
 async def stream_output(
