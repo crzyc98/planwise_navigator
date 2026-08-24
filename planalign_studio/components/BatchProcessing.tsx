@@ -9,11 +9,11 @@ import { LayoutContextType } from './Layout';
 import {
   listScenarios,
   runAllScenarios,
-  getBatchStatus,
   listBatchJobs,
   Scenario,
   BatchJob,
 } from '../services/api';
+import { useBatchSocket } from '../services/websocket';
 
 export default function BatchProcessing() {
   const navigate = useNavigate();
@@ -39,6 +39,7 @@ export default function BatchProcessing() {
 
   // Active job polling
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const { batchStatus } = useBatchSocket(activeJobId);
 
   // Load scenarios and batch jobs
   useEffect(() => {
@@ -77,35 +78,27 @@ export default function BatchProcessing() {
     }
   }, [searchParams]);
 
-  // Poll for active job status
+  // Apply authoritative real-time batch updates. REST remains the source for
+  // initial/history loading, while this channel drives active execution UI.
   useEffect(() => {
-    if (!activeJobId) return;
+    if (!batchStatus || !activeJobId) return;
 
-    const pollInterval = setInterval(async () => {
-      try {
-        const status = await getBatchStatus(activeJobId);
-        setSelectedBatch(status);
+    const update = {
+      status: batchStatus.status as BatchJob['status'],
+      scenarios: batchStatus.scenarios as BatchJob['scenarios'],
+    };
+    setSelectedBatch(prev => prev ? { ...prev, ...update } : prev);
+    setBatchJobs(prev => {
+      const existing = prev.some(job => job.id === activeJobId);
+      return existing
+        ? prev.map(job => job.id === activeJobId ? { ...job, ...update } : job)
+        : prev;
+    });
 
-        // Update in the list too
-        setBatchJobs(prev => {
-          const existing = prev.find(j => j.id === activeJobId);
-          if (existing) {
-            return prev.map(j => j.id === activeJobId ? status : j);
-          }
-          return [status, ...prev];
-        });
-
-        // Stop polling when completed or failed
-        if (status.status === 'completed' || status.status === 'failed') {
-          setActiveJobId(null);
-        }
-      } catch (err) {
-        console.error('Failed to poll batch status:', err);
-      }
-    }, 2000);
-
-    return () => clearInterval(pollInterval);
-  }, [activeJobId]);
+    if (['completed', 'failed', 'cancelled'].includes(batchStatus.status)) {
+      setActiveJobId(null);
+    }
+  }, [activeJobId, batchStatus]);
 
   const handleStartBatch = async () => {
     if (!activeWorkspace?.id || selectedScenarioIds.length === 0) return;

@@ -14,6 +14,8 @@ from ..models.batch import BatchCreate, BatchJob, BatchScenario
 from ..models.scenario import Scenario
 from ..services.simulation_service import SimulationService
 from ..storage.workspace_storage import WorkspaceStorage
+from ..websocket.manager import ConnectionManager, get_connection_manager
+from ..services.telemetry_service import get_telemetry_service
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +29,41 @@ def get_storage(settings: APISettings = Depends(get_settings)) -> WorkspaceStora
 
 # In-memory store for batch jobs (would use Redis in production)
 _batch_jobs: Dict[str, BatchJob] = {}
+
+
+def get_batch_job(batch_id: str) -> Optional[BatchJob]:
+    """Return the in-memory job used to seed a batch WebSocket snapshot."""
+    return _batch_jobs.get(batch_id)
+
+
+def serialize_batch_update(batch_job: BatchJob, event: str) -> dict:
+    """Build the documented batch WebSocket envelope from the current job."""
+    scenario_payload = [scenario.model_dump() for scenario in batch_job.scenarios]
+    overall_progress = round(
+        sum(scenario.progress for scenario in batch_job.scenarios)
+        / max(len(batch_job.scenarios), 1)
+    )
+    return {
+        "type": "batch_update",
+        "event": event,
+        "batch_id": batch_job.id,
+        "status": batch_job.status,
+        "scenarios": scenario_payload,
+        "overall_progress": overall_progress,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+async def _broadcast_batch(
+    batch_job: BatchJob,
+    event: str,
+    manager: Optional[ConnectionManager] = None,
+) -> None:
+    """Publish the current batch state to all subscribers."""
+    channel_manager = manager or get_connection_manager()
+    await channel_manager.broadcast_json(
+        f"batch_{batch_job.id}", serialize_batch_update(batch_job, event)
+    )
 
 
 @router.post("/workspaces/{workspace_id}/run-all", response_model=BatchJob)
@@ -107,6 +144,7 @@ async def run_all_scenarios(
     )
 
     _batch_jobs[batch_id] = batch_job
+    await _broadcast_batch(batch_job, "pending")
 
     # Start batch processing in background
     background_tasks.add_task(
@@ -117,6 +155,7 @@ async def run_all_scenarios(
         scenarios_to_run,
         data.parallel,
         data.export_format,
+        get_connection_manager(),
     )
 
     return batch_job
@@ -162,6 +201,7 @@ async def _execute_batch(
     scenarios: List[Scenario],
     parallel: bool,
     _export_format: Optional[str],
+    manager: Optional[ConnectionManager] = None,
 ) -> None:
     """Execute batch scenarios (background task)."""
     logger.info("=== BATCH EXECUTION STARTED ===")
@@ -172,6 +212,7 @@ async def _execute_batch(
 
     batch_job = _batch_jobs[batch_id]
     batch_job.status = "running"
+    await _broadcast_batch(batch_job, "running", manager)
 
     # Create simulation service
     simulation_service = SimulationService(storage)
@@ -184,6 +225,20 @@ async def _execute_batch(
             f"  [{start_time.strftime('%H:%M:%S.%f')}] [Scenario {index}] STARTED: {scenario.name}"
         )
         batch_job.scenarios[index].status = "running"
+        await _broadcast_batch(batch_job, "running", manager)
+
+        async def publish_progress() -> None:
+            """Forward the scenario's existing simulation telemetry to batch clients."""
+            while True:
+                telemetry = get_telemetry_service().get_snapshot(run_id)
+                if telemetry is not None:
+                    next_progress = telemetry.progress
+                    if batch_job.scenarios[index].progress != next_progress:
+                        batch_job.scenarios[index].progress = next_progress
+                        await _broadcast_batch(batch_job, "progress", manager)
+                await asyncio.sleep(0.25)
+
+        progress_task = asyncio.create_task(publish_progress())
 
         try:
             # Get merged config for this scenario
@@ -224,6 +279,7 @@ async def _execute_batch(
                 batch_job.scenarios[
                     index
                 ].error_message = f"Simulation finished with terminal status {outcome}"
+            await _broadcast_batch(batch_job, outcome, manager)
             logger.info(
                 f"  [{end_time.strftime('%H:%M:%S.%f')}] [Scenario {index}] "
                 f"{outcome.upper()}: {scenario.name} (took {duration:.1f}s)"
@@ -237,6 +293,10 @@ async def _execute_batch(
                 f"scenario {index} ({scenario.name})",
                 event="Batch scenario failed",
             )
+            await _broadcast_batch(batch_job, "failed", manager)
+        finally:
+            progress_task.cancel()
+            await asyncio.gather(progress_task, return_exceptions=True)
 
     try:
         if parallel:
@@ -261,11 +321,15 @@ async def _execute_batch(
 
         # Check if all completed successfully
         all_completed = all(s.status == "completed" for s in batch_job.scenarios)
-        batch_job.status = "completed" if all_completed else "failed"
+        any_cancelled = any(s.status == "cancelled" for s in batch_job.scenarios)
+        batch_job.status = (
+            "completed" if all_completed else "cancelled" if any_cancelled else "failed"
+        )
         batch_job.completed_at = datetime.now(timezone.utc)
         batch_job.duration_seconds = (
             batch_job.completed_at - batch_job.submitted_at
         ).total_seconds()
+        await _broadcast_batch(batch_job, batch_job.status, manager)
 
     except Exception:
         batch_job.status = "failed"
@@ -280,3 +344,4 @@ async def _execute_batch(
                 batch_scenario.error_message = sanitize_job_error(
                     logger, batch_job.id, event="Batch execution failed"
                 )
+        await _broadcast_batch(batch_job, "failed", manager)

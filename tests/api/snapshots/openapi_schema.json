@@ -1166,7 +1166,8 @@
               "pending",
               "running",
               "completed",
-              "failed"
+              "failed",
+              "cancelled"
             ],
             "title": "Status",
             "type": "string"

@@ -21,9 +21,19 @@ class ConnectionManager:
         # Lock for thread-safe operations
         self._lock = asyncio.Lock()
 
-    async def connect(self, websocket: WebSocket, run_id: str) -> None:
-        """Accept a new WebSocket connection for a run."""
+    async def connect(
+        self,
+        websocket: WebSocket,
+        run_id: str,
+        initial_data: dict | None = None,
+    ) -> None:
+        """Accept and register a WebSocket, optionally replaying a snapshot."""
         await websocket.accept()
+
+        # Send the snapshot before registering the socket. This prevents an
+        # execution update from overtaking the initial state during reconnect.
+        if initial_data is not None:
+            await websocket.send_json(initial_data)
 
         async with self._lock:
             if run_id not in self._connections:
