@@ -3,8 +3,6 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0
     hooks:
-      - id: trailing-whitespace
-      - id: end-of-file-fixer
       - id: check-yaml
         args: ['--unsafe']  # Allow custom YAML tags used by dbt
       - id: check-added-large-files
@@ -33,6 +31,12 @@ repos:
   # Local validation reminder (non-blocking)
   - repo: local
     hooks:
+      - id: staged-whitespace-check
+        name: staged whitespace check
+        entry: git diff --cached --check
+        language: system
+        pass_filenames: false
+        verbose: true
       - id: ci-reminder
         name: ci-validation-reminder
         entry: "bash -c 'echo \"💡 Before pushing: pytest -m fast && (cd dbt && dbt compile)\"'"
