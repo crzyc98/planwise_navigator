@@ -17,7 +17,10 @@ from ..storage.workspace_storage import WorkspaceStorage
 router = APIRouter()
 
 
-@router.get("/{workspace_id}/scenarios/{scenario_id}/report")
+@router.get(
+    "/{workspace_id}/scenarios/{scenario_id}/report",
+    response_class=FileResponse,
+)
 def download_scenario_report(
     workspace_id: str,
     scenario_id: str,

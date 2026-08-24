@@ -99,6 +99,7 @@ SCENARIO_READ_ROUTES = {
     "list_scenarios",
     "get_scenario",
     "get_scenario_config",
+    "download_scenario_report",
     "export_scenario_results",
     "get_run_status",
     "get_run_telemetry",
