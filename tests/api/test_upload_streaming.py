@@ -9,6 +9,7 @@ from fastapi import HTTPException
 
 import planalign_api.routers.imports as imports_router
 import planalign_api.routers.workspaces as workspaces_router
+from planalign_api.models.export import ImportValidationResponse
 from planalign_api.services import upload_stream
 
 pytestmark = pytest.mark.fast
@@ -63,6 +64,28 @@ def test_archive_endpoints_reject_oversized_uploads_before_processing(
     )
 
     assert response.status_code == 413
+
+
+def test_validate_archive_removes_temporary_upload_after_success(
+    client_factory, monkeypatch, tmp_path
+) -> None:
+    """Successful validation must not retain the uploaded archive on disk."""
+    monkeypatch.setattr(upload_stream.tempfile, "tempdir", str(tmp_path))
+    monkeypatch.setattr(
+        workspaces_router.ExportService,
+        "validate_archive",
+        lambda self, archive_path, file_size: ImportValidationResponse(valid=True),
+    )
+    client = client_factory(None)
+
+    response = client.post(
+        "/api/workspaces/import/validate",
+        files={"file": ("workspace.7z", b"archive", "application/x-7z-compressed")},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["valid"] is True
+    assert list(tmp_path.glob("*.7z")) == []
 
 
 def test_bulk_import_reports_uploads_that_exceed_the_request_total(

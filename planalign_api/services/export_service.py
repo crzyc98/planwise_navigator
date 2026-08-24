@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import py7zr
 
+from ..config import APISettings, get_settings
 from ..models.export import (
     BulkExportStatus,
     BulkImportStatus,
@@ -61,16 +62,66 @@ class ExportWorkspaceRunningError(ValueError):
 class ExportService:
     """Service for exporting and importing workspaces."""
 
-    def __init__(self, storage: WorkspaceStorage):
+    def __init__(
+        self, storage: WorkspaceStorage, settings: Optional[APISettings] = None
+    ):
         """Initialize export service.
 
         Args:
             storage: WorkspaceStorage instance for workspace operations
         """
         self.storage = storage
+        self.settings = settings or get_settings()
         self._bulk_export_operations: Dict[str, BulkExportStatus] = {}
         self._bulk_import_operations: Dict[str, BulkImportStatus] = {}
+        self._bulk_import_created_at: Dict[str, datetime] = {}
+        self._bulk_import_terminal_at: Dict[str, datetime] = {}
         self._export_temp_files: Dict[str, Dict[str, Path]] = {}
+
+    def _prune_bulk_import_operations(self, now: Optional[datetime] = None) -> None:
+        """Remove expired/old terminal imports while retaining active imports."""
+        current_time = now or datetime.now(timezone.utc)
+        terminal = [
+            (operation_id, operation)
+            for operation_id, operation in self._bulk_import_operations.items()
+            if operation.status
+            in {BulkOperationStatus.COMPLETED, BulkOperationStatus.FAILED}
+        ]
+        expired = [
+            operation_id
+            for operation_id, _ in terminal
+            if (
+                current_time
+                - self._bulk_import_terminal_at.get(
+                    operation_id, self._bulk_import_created_at[operation_id]
+                )
+            ).total_seconds()
+            >= self.settings.bulk_import_operation_ttl_seconds
+        ]
+        for operation_id in expired:
+            self._bulk_import_operations.pop(operation_id, None)
+            self._bulk_import_created_at.pop(operation_id, None)
+            self._bulk_import_terminal_at.pop(operation_id, None)
+
+        remaining_terminal = [
+            operation_id
+            for operation_id, operation in self._bulk_import_operations.items()
+            if operation.status
+            in {BulkOperationStatus.COMPLETED, BulkOperationStatus.FAILED}
+        ]
+        excess = (
+            len(remaining_terminal) - self.settings.bulk_import_operation_max_entries
+        )
+        if excess > 0:
+            remaining_terminal.sort(
+                key=lambda operation_id: self._bulk_import_terminal_at.get(
+                    operation_id, self._bulk_import_created_at[operation_id]
+                )
+            )
+            for operation_id in remaining_terminal[:excess]:
+                self._bulk_import_operations.pop(operation_id, None)
+                self._bulk_import_created_at.pop(operation_id, None)
+                self._bulk_import_terminal_at.pop(operation_id, None)
 
     # ==================== Manifest Operations ====================
 
@@ -753,7 +804,15 @@ class ExportService:
             results=[],
         )
         self._bulk_import_operations[operation_id] = status
+        self._bulk_import_created_at[operation_id] = datetime.now(timezone.utc)
+        self._prune_bulk_import_operations()
         return status
+
+    def complete_bulk_import(self, operation_id: str) -> None:
+        """Record terminal time so retention is measured after completion."""
+        if operation_id in self._bulk_import_operations:
+            self._bulk_import_terminal_at[operation_id] = datetime.now(timezone.utc)
+            self._prune_bulk_import_operations()
 
     def get_bulk_import_status(self, operation_id: str) -> Optional[BulkImportStatus]:
         """Get status of a bulk import operation.
@@ -764,4 +823,5 @@ class ExportService:
         Returns:
             BulkImportStatus or None if not found
         """
+        self._prune_bulk_import_operations()
         return self._bulk_import_operations.get(operation_id)

@@ -46,6 +46,11 @@ class APISettings(BaseSettings):
 
     # Background tasks
     max_concurrent_simulations: int = 2
+    # In-memory operation-history retention. Active operations are always kept.
+    batch_operation_ttl_seconds: float = Field(default=3600.0, gt=0)
+    batch_operation_max_entries: int = Field(default=100, gt=0)
+    bulk_import_operation_ttl_seconds: float = Field(default=3600.0, gt=0)
+    bulk_import_operation_max_entries: int = Field(default=100, gt=0)
 
     # Default config path
     default_config_path: Path = Field(
