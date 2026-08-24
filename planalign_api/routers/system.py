@@ -19,9 +19,9 @@ router = APIRouter()
 def get_active_simulation_count() -> int:
     """Get count of currently running simulations."""
     # Import here to avoid circular imports
-    from .simulations import _active_runs
+    from .simulations import get_active_run_count
 
-    return sum(1 for run in _active_runs.values() if run.status == "running")
+    return get_active_run_count()
 
 
 def get_storage_usage(workspaces_root: Path) -> tuple[float, int, int]:

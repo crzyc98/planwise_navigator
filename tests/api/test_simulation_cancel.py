@@ -84,3 +84,34 @@ def test_cancel_unknown_process_leaves_status_and_telemetry_unchanged(
     assert run.status == "running"
     storage.update_scenario_status.assert_not_called()
     telemetry.set_terminal.assert_not_called()
+
+
+def test_concurrent_list_and_cancel_are_synchronized(running_simulation):
+    """A registry snapshot remains safe while cancellation evicts the run."""
+    run, storage, _ = running_simulation
+
+    class SuccessfulService:
+        async def cancel_simulation(self, run_id: str) -> bool:
+            assert run_id == run.id
+            return True
+
+    barrier = asyncio.Barrier(2)
+
+    async def list_runs():
+        await barrier.wait()
+        return simulations.get_active_runs()
+
+    async def cancel_run():
+        await barrier.wait()
+        return await simulations.cancel_simulation(
+            "scenario-123", storage, SuccessfulService()
+        )
+
+    async def run_concurrently():
+        return await asyncio.gather(list_runs(), cancel_run())
+
+    listed, cancelled = asyncio.run(run_concurrently())
+
+    assert listed == [] or listed[0]["run_id"] == run.id
+    assert cancelled == {"success": True}
+    assert simulations._active_runs == {}

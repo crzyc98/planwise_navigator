@@ -86,3 +86,45 @@ def test_start_allows_terminal_previous_runs(simulation_start, previous_status):
     storage.update_scenario_status.assert_called_once_with(
         "workspace-123", "scenario-123", "queued", run.id
     )
+
+
+def test_terminal_registry_entries_are_evicted_and_registry_stays_bounded(
+    simulation_start,
+):
+    """Terminal state is persisted elsewhere and does not accumulate in memory."""
+    for index in range(500):
+        run = SimulationRun(
+            id=f"run-{index}",
+            scenario_id="scenario-123",
+            status="pending",
+            started_at=datetime.now(timezone.utc),
+        )
+        simulations._register_active_run(run)
+        simulations.update_run_status(run.id, status="completed")
+
+    assert simulations._active_runs == {}
+    assert simulations.get_active_runs() == []
+
+
+def test_status_uses_persisted_terminal_state_after_registry_eviction(
+    simulation_start,
+):
+    """Eviction cannot erase the terminal status exposed by durable storage."""
+    scenario, storage, _ = simulation_start
+    scenario.status = "completed"
+    scenario.last_run_id = "run-1"
+    scenario.last_run_at = datetime.now(timezone.utc)
+    simulations._register_active_run(
+        SimulationRun(
+            id="run-1",
+            scenario_id="scenario-123",
+            status="running",
+            started_at=scenario.last_run_at,
+        )
+    )
+    simulations.update_run_status("run-1", status="completed")
+
+    result = asyncio.run(simulations.get_run_status("scenario-123", storage))
+
+    assert result.status == "completed"
+    assert result.id == "run-1"
