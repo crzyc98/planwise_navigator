@@ -17,18 +17,18 @@ repos:
     hooks:
       - id: check-ast  # Python syntax check
 
-  # Formatting & linting — runs on STAGED files only, so pre-existing debt in
-  # untouched files never blocks a commit; it just prevents NEW debt and cleans
-  # up any file you touch (boy-scout rule). Versions match pyproject/CI.
+  # Formatting & linting — check-only hooks deliberately do not rewrite files
+  # during commit. This keeps partially staged files safe; format explicitly
+  # before staging when a check fails. Versions match pyproject/CI.
   - repo: https://github.com/psf/black
     rev: 23.9.1
     hooks:
       - id: black
+        args: ["--check"]
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.4.3
     hooks:
       - id: ruff
-        args: ['--fix']
 
   # Local validation reminder (non-blocking)
   - repo: local
