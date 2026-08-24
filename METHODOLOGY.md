@@ -13,6 +13,7 @@
 | ------- | ---------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1.0     | March 2026 | [Author Name] | Initial methodology document for FINRA e-review submission                                                                                                    |
 | 1.1     | July 2026  | [Author Name] | Updated for system version 2.2.0: tenure-graded employer match formulas, configurable new-hire eligibility and demographics, and compensation calibration tooling (Section 9.5) |
+| 1.2     | August 2026 | [Author Name] | Updated to document the shipped NDT analytical preview suite and its scope boundaries |
 
 ---
 
@@ -64,7 +65,7 @@ PlanAlign Engine is used to:
 
 - It is **not** an investment advisory tool and does not model investment returns or asset allocation.
 - It is **not** a recordkeeping system and does not process actual participant transactions.
-- It is **not** a nondiscrimination testing engine, although it produces HCE classifications and demographic data that can support such testing.
+- It includes an **NDT analytical preview suite** in PlanAlign Studio for ACP, ADP, 401(a)(4), and 415-related analysis. These calculations support scenario analysis and early review; they are not formal legal, tax, actuarial, or compliance determinations and do not replace qualified review.
 - It does **not** model non-qualified deferred compensation plans (IRC Section 409A).
 
 ---
@@ -351,6 +352,30 @@ The system supports simultaneous modeling of multiple plan design scenarios with
 
 ---
 
+### 5.5 NDT Analytical Preview Suite
+
+PlanAlign Studio includes a read-only NDT page and API/service layer for analyzing a completed scenario and simulation year. The page supports single-scenario results, comparison across selected scenarios, and optional participant-level detail. Available-year selection is derived from the scenario's completed `fct_workforce_snapshot` data.
+
+The shipped tests are:
+
+| Test | Implemented analytical calculation | Primary inputs and assumptions |
+| --- | --- | --- |
+| **ACP (Actual Contribution Percentage)** | Calculates individual ACP as employer match plus any available after-tax employee contribution divided by 414(s)-style plan compensation capped at the seeded 401(a)(17) compensation limit. Applies the basic threshold (NHCE average × 1.25) and the alternative threshold (the lesser of NHCE average × 2 or NHCE average + 2 percentage points), selecting the more favorable threshold. | Eligible employees, including eligible nonparticipants with zero contribution; HCE classification from prior-year compensation compared with the seeded threshold, falling back to current-year compensation when prior-year data is unavailable. If no supported after-tax contribution column is present, after-tax contributions are treated as zero. |
+| **ADP (Actual Deferral Percentage)** | Calculates individual ADP as base elective deferrals divided by capped 414(s)-style plan compensation. Deferrals are capped at the seeded 402(g) base limit, excluding catch-up contributions. Applies the same two-prong threshold logic as ACP and reports an estimated aggregate excess HCE deferral amount when the result fails. | Eligible employees, including eligible employees with zero deferrals; prior-year or current-year NHCE baseline according to the selected testing method. The Studio also offers a safe-harbor toggle that returns `exempt`; the toggle is a user-supplied analytical assumption and is not independently validated. |
+| **401(a)(4) general test preview** | Calculates employer contribution rates using employer NEC, with optional employer match, divided by capped 414(s)-style plan compensation. It first applies the NHCE-to-HCE average-rate ratio threshold of 70%; if that fails, it applies a median-rate comparison at the same 70% threshold. It also reports a service-risk flag for age-banded contributions or substantial HCE/NHCE tenure skew under service-graded contributions. | Eligible employees with employer contributions; HCE classification from prior-year compensation with current-year fallback. The `include match` option controls whether match is included in the contribution-rate numerator. |
+| **IRC Section 415 annual additions** | Calculates annual additions as base elective deferrals plus employer match plus employer NEC. The applicable limit is the lesser of the seeded annual-additions dollar limit or 100% of uncapped gross compensation. Participants are classified as `pass`, `at_risk`, or `breach` using a configurable warning threshold (95% by default). | Eligible participants with positive gross compensation. Catch-up contributions are excluded from the base-deferral amount. Forfeitures allocated to participant accounts are excluded because those allocations are not currently available in the ingested participant data. |
+
+These are analytical previews of modeled data. A `pass`, `fail`, `exempt`, `at_risk`, or `breach` value describes the implemented calculation under the selected inputs and assumptions; it is not a determination that a plan satisfies or violates the Internal Revenue Code, ERISA, or any other requirement. Results can be `error` when the requested scenario database, simulation year, IRS limit, or required comparison population is unavailable.
+
+Current implementation and UI references:
+
+- [NDT Studio UI](planalign_studio/components/NDTTesting.tsx)
+- [NDT API routes](planalign_api/routers/ndt.py)
+- [NDT calculation service and response models](planalign_api/services/ndt_service.py)
+- [ACP NDT methodology and UI quickstart](specs/050-ndt-acp-testing/quickstart.md)
+- [401(a)(4) and 415 methodology and UI quickstart](specs/051-ndt-401a4-415-tests/quickstart.md)
+- [ADP methodology and UI quickstart](specs/052-ndt-adp-test/quickstart.md)
+
 ## 6. Outputs
 
 ### 6.1 Event Audit Trail (fct_yearly_events)
@@ -587,7 +612,11 @@ The system provides a calibration mode that rebuilds only the compensation and w
 | **No Competing Risks**           | Workforce events (termination, promotion, merit) are modeled independently. The occurrence of one event does not directly alter the probability of another. |
 | **No Intra-Year Cash Flow**      | Contributions are calculated on an annual basis. The system does not model payroll-period-level cash flows or mid-year true-ups in granular detail.         |
 | **No Non-Qualified Plans**       | Deferred compensation under IRC Section 409A is out of scope.                                                                                               |
-| **No Nondiscrimination Testing** | While the system produces HCE classifications, it does not perform ADP, ACP, or top-heavy testing calculations.                                             |
+| **NDT Results Are Analytical Previews** | The system ships ACP, ADP, 401(a)(4), and 415-related analytical calculations. They use modeled snapshot data and configured/seeded assumptions, and are not formal nondiscrimination determinations or a substitute for qualified legal, tax, or actuarial review. |
+| **401(a)(4) Simplification** | The implementation uses an average-rate ratio test and, when needed, a median-rate fallback. It does not implement the full IRS general-test/cross-testing methodology or every permitted allocation and rate-group procedure. |
+| **415 Forfeiture Data** | Forfeitures allocated to participant accounts are excluded because the required allocation data is not currently ingested; 415 annual additions may therefore be understated for plans using those allocations. |
+| **NDT Population and Data Dependencies** | NDT results depend on completed scenario snapshots, positive testing compensation where required, seeded IRS limits, HCE classification inputs, and available participant contribution fields. Missing data or an empty required HCE/NHCE population can produce an error result. |
+| **ADP Safe-Harbor Input** | The ADP safe-harbor result is controlled by a user-selected UI toggle and is not independently validated as a legal safe-harbor determination. |
 | **No State/Local Tax Modeling**  | The system does not model income tax withholding or state-specific regulatory requirements.                                                                 |
 | **Static IRS Limit Projections** | Future-year IRS limits are based on assumed indexing in the seed file and may differ from actual published limits.                                          |
 | **Simplified Hours Assumption**  | The model assumes all active full-time employees meet the 1,000-hour-of-service threshold. Part-time hour tracking is not modeled.                          |

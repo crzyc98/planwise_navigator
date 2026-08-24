@@ -31,8 +31,39 @@ def get_storage(settings: APISettings = Depends(get_settings)) -> WorkspaceStora
 _batch_jobs: Dict[str, BatchJob] = {}
 
 
+def _prune_batch_jobs(now: Optional[datetime] = None) -> None:
+    """Remove expired/old terminal jobs while retaining every active job."""
+    current_time = now or datetime.now(timezone.utc)
+    settings = get_settings()
+    terminal = [
+        job
+        for job in _batch_jobs.values()
+        if job.status in {"completed", "failed", "cancelled"}
+    ]
+    expired = [
+        job
+        for job in terminal
+        if (current_time - (job.completed_at or job.submitted_at)).total_seconds()
+        >= settings.batch_operation_ttl_seconds
+    ]
+    for job in expired:
+        _batch_jobs.pop(job.id, None)
+
+    remaining_terminal = [
+        job
+        for job in _batch_jobs.values()
+        if job.status in {"completed", "failed", "cancelled"}
+    ]
+    excess = len(remaining_terminal) - settings.batch_operation_max_entries
+    if excess > 0:
+        remaining_terminal.sort(key=lambda job: job.completed_at or job.submitted_at)
+        for job in remaining_terminal[:excess]:
+            _batch_jobs.pop(job.id, None)
+
+
 def get_batch_job(batch_id: str) -> Optional[BatchJob]:
     """Return the in-memory job used to seed a batch WebSocket snapshot."""
+    _prune_batch_jobs()
     return _batch_jobs.get(batch_id)
 
 
@@ -144,6 +175,7 @@ async def run_all_scenarios(
     )
 
     _batch_jobs[batch_id] = batch_job
+    _prune_batch_jobs()
     await _broadcast_batch(batch_job, "pending")
 
     # Start batch processing in background
@@ -165,7 +197,11 @@ async def run_all_scenarios(
 async def get_batch_status(batch_id: str) -> BatchJob:
     """
     Get the status of a batch job.
+
+    Expired terminal jobs are treated as not found (404); active jobs are
+    never evicted by in-memory retention.
     """
+    _prune_batch_jobs()
     if batch_id not in _batch_jobs:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -191,6 +227,7 @@ async def list_batch_jobs(
             detail=f"Workspace {workspace_id} not found",
         )
 
+    _prune_batch_jobs()
     return [job for job in _batch_jobs.values() if job.workspace_id == workspace_id]
 
 
@@ -204,6 +241,7 @@ async def _execute_batch(
     manager: Optional[ConnectionManager] = None,
 ) -> None:
     """Execute batch scenarios (background task)."""
+    _prune_batch_jobs()
     logger.info("=== BATCH EXECUTION STARTED ===")
     logger.info(f"  batch_id: {batch_id}")
     logger.info(f"  parallel: {parallel} (type: {type(parallel).__name__})")

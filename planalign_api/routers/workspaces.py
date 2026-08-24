@@ -40,9 +40,6 @@ router = APIRouter()
 
 logger = logging.getLogger(__name__)
 
-# In-memory storage for temporary upload files
-_temp_upload_files: Dict[str, Path] = {}
-
 # Request-level ceiling for /bulk-import, independent of the 1 GiB per-archive
 # limit: a bulk request may legitimately carry several max-size archives, so
 # this bounds total temp-disk consumption per request rather than per file.
@@ -56,9 +53,10 @@ def get_storage(settings: APISettings = Depends(get_settings)) -> WorkspaceStora
 
 def get_export_service(
     storage: WorkspaceStorage = Depends(get_storage),
+    settings: APISettings = Depends(get_settings),
 ) -> ExportService:
     """Dependency to get export service."""
-    return ExportService(storage)
+    return ExportService(storage, settings)
 
 
 async def get_default_config(
@@ -359,34 +357,17 @@ async def validate_import(
     )
 
     try:
-        # Validate archive
         result = export_service.validate_archive(temp_path, file_size)
-
-        # Store temp file path for later import if valid
-        if result.valid:
-            # Generate a temp ID for this upload
-            import uuid
-
-            upload_id = str(uuid.uuid4())
-            _temp_upload_files[upload_id] = temp_path
-            # Add upload_id to response for import reference
-            # Note: This is a workaround; ideally we'd use a session or multipart upload
-        else:
-            # Clean up invalid archive
-            temp_path.unlink(missing_ok=True)
-
         return result
-
     except HTTPException:
-        temp_path.unlink(missing_ok=True)
         raise
     except Exception as exc:
-        # Clean up on error
-        temp_path.unlink(missing_ok=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=sanitize_error(logger, "Failed to validate archive"),
         ) from exc
+    finally:
+        temp_path.unlink(missing_ok=True)
 
 
 @router.post("/import", response_model=ImportResponse)
@@ -527,6 +508,7 @@ async def start_bulk_import(
 
     status_obj.current_file = None
     status_obj.status = BulkOperationStatus.COMPLETED
+    export_service.complete_bulk_import(status_obj.operation_id)
 
     return status_obj
 
@@ -539,7 +521,9 @@ async def get_bulk_import_status(
     """
     Get status of a bulk import operation.
 
-    Returns progress information including imported workspaces.
+    Returns progress information including imported workspaces. Expired
+    terminal operations are treated as not found (404); active operations are
+    never evicted by in-memory retention.
     """
     status_obj = export_service.get_bulk_import_status(operation_id)
     if status_obj is None:
