@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import uuid
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -197,6 +198,39 @@ def test_get_run_logs_returns_paginated_lines(run_storage):
 
     filtered = _call_get_run_logs_severity(storage, RUN_ID, severity="ERROR")
     assert filtered.total_lines == 1
+
+
+@pytest.mark.parametrize(
+    ("run_status", "expected_active"),
+    [
+        ("pending", True),
+        ("queued", True),
+        ("running", True),
+        ("completed", False),
+        ("failed", False),
+        ("cancelled", False),
+    ],
+)
+def test_get_run_logs_reports_active_for_all_run_statuses(
+    run_storage, monkeypatch, run_status, expected_active
+):
+    storage, _, _ = run_storage
+    monkeypatch.setattr(
+        simulations,
+        "_active_runs",
+        {
+            RUN_ID: simulations.SimulationRun(
+                id=RUN_ID,
+                scenario_id="scenario-1",
+                status=run_status,
+                started_at=datetime.now(timezone.utc),
+            )
+        },
+    )
+
+    page = _call_get_run_logs(storage, RUN_ID)
+
+    assert page.is_running is expected_active
 
 
 # ---------------------------------------------------------------------------

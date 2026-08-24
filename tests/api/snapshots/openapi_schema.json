@@ -8893,6 +8893,7 @@
             "description": "Run status",
             "enum": [
               "pending",
+              "queued",
               "running",
               "completed",
               "failed",
