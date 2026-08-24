@@ -626,7 +626,9 @@ async def get_run_logs(
     log_file = run_path / "simulation.log"
 
     active_run = _get_active_run(canonical_run_id)
-    is_active = active_run is not None and active_run.status == "running"
+    is_active = (
+        active_run is not None and active_run.status in _NON_TERMINAL_RUN_STATUSES
+    )
 
     if not log_file.exists():
         return LogPage(

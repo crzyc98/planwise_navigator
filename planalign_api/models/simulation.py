@@ -60,9 +60,9 @@ class SimulationRun(BaseModel):
 
     id: str = Field(..., description="Unique run ID (UUID)")
     scenario_id: str = Field(..., description="Parent scenario ID")
-    status: Literal["pending", "running", "completed", "failed", "cancelled"] = Field(
-        description="Run status"
-    )
+    status: Literal[
+        "pending", "queued", "running", "completed", "failed", "cancelled"
+    ] = Field(description="Run status")
     progress: int = Field(default=0, ge=0, le=100, description="Progress percentage")
     current_stage: Optional[str] = Field(
         None,
