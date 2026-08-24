@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from threading import Lock
+from threading import RLock
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
@@ -57,8 +57,61 @@ def get_simulation_service(
 
 # In-memory store for active runs (would use Redis in production)
 _active_runs: Dict[str, SimulationRun] = {}
-_active_runs_lock = Lock()
+_active_runs_lock = RLock()
 _NON_TERMINAL_RUN_STATUSES = {"pending", "queued", "running"}
+_TERMINAL_RUN_STATUSES = {"completed", "failed", "cancelled"}
+
+
+def _active_runs_snapshot() -> tuple[SimulationRun, ...]:
+    """Return an immutable, detached view of the in-memory run registry."""
+    with _active_runs_lock:
+        return tuple(run.model_copy(deep=True) for run in _active_runs.values())
+
+
+def _get_active_run(run_id: str) -> Optional[SimulationRun]:
+    """Return a detached run snapshot, if it is still registered."""
+    with _active_runs_lock:
+        run = _active_runs.get(run_id)
+        return run.model_copy(deep=True) if run is not None else None
+
+
+def _register_active_run(run: SimulationRun) -> None:
+    """Add a run to the registry under its synchronization lock."""
+    with _active_runs_lock:
+        _active_runs[run.id] = run
+
+
+def _update_active_run(run_id: str, **updates: Any) -> None:
+    """Update a run and evict it once terminal status is published."""
+    with _active_runs_lock:
+        run = _active_runs.get(run_id)
+        if run is None:
+            return
+        for key, value in updates.items():
+            if hasattr(run, key):
+                setattr(run, key, value)
+        if run.status in _TERMINAL_RUN_STATUSES:
+            _active_runs.pop(run_id, None)
+
+
+def _find_active_run(
+    scenario_id: str, statuses: Optional[set[str]] = None
+) -> Optional[SimulationRun]:
+    """Find a scenario run using one lock-protected registry snapshot."""
+    target_statuses = _NON_TERMINAL_RUN_STATUSES if statuses is None else statuses
+    return next(
+        (
+            run
+            for run in _active_runs_snapshot()
+            if run.scenario_id == scenario_id and run.status in target_statuses
+        ),
+        None,
+    )
+
+
+def get_active_run_count() -> int:
+    """Return the count of running runs from a synchronized snapshot."""
+    return sum(run.status == "running" for run in _active_runs_snapshot())
 
 
 def _find_scenario_and_workspace(
@@ -148,14 +201,14 @@ async def start_simulation(
         if scenario.status in _NON_TERMINAL_RUN_STATUSES or any(
             active_run.scenario_id == scenario_id
             and active_run.status in _NON_TERMINAL_RUN_STATUSES
-            for active_run in _active_runs.values()
+            for active_run in _active_runs_snapshot()
         ):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"Scenario {scenario_id} already has an active run",
             )
 
-        _active_runs[run_id] = run
+        _register_active_run(run)
         storage.update_scenario_status(workspace.id, scenario_id, "queued", run_id)
 
     # Start simulation in background
@@ -186,8 +239,10 @@ async def get_run_status(
             detail=f"Scenario {scenario_id} not found",
         )
 
-    if scenario.last_run_id and scenario.last_run_id in _active_runs:
-        return _active_runs[scenario.last_run_id]
+    if scenario.last_run_id:
+        active_run = _get_active_run(scenario.last_run_id)
+        if active_run is not None:
+            return active_run
 
     # Feature 094 (T020): report the persisted scenario status faithfully —
     # never fabricate completed/100% for scenarios that failed or never ran.
@@ -202,9 +257,11 @@ async def get_run_status(
         status=persisted,
         progress=100 if persisted == "completed" else 0,
         started_at=scenario.last_run_at or datetime.now(timezone.utc),
-        completed_at=scenario.last_run_at
-        if persisted in ("completed", "failed", "cancelled")
-        else None,
+        completed_at=(
+            scenario.last_run_at
+            if persisted in ("completed", "failed", "cancelled")
+            else None
+        ),
     )
 
 
@@ -229,7 +286,7 @@ async def get_run_telemetry(
     telemetry = get_telemetry_service()
     snapshot = telemetry.get_snapshot_for_scenario(scenario_id)
     if snapshot is not None:
-        registry_run = _active_runs.get(snapshot.run_id)
+        registry_run = _get_active_run(snapshot.run_id)
         return RunTelemetryResponse(
             run={
                 "run_id": snapshot.run_id,
@@ -242,8 +299,8 @@ async def get_run_telemetry(
     # No in-memory state (no run since API start, or API restarted mid-run):
     # report status from the run registry / persisted scenario, telemetry null.
     run_id = scenario.last_run_id
-    if run_id and run_id in _active_runs:
-        run = _active_runs[run_id]
+    run = _get_active_run(run_id) if run_id else None
+    if run is not None:
         return RunTelemetryResponse(
             run={
                 "run_id": run_id,
@@ -273,31 +330,35 @@ async def cancel_simulation(
     """
     Cancel a running simulation.
     """
-    # Find the active run
-    for run_id, run in _active_runs.items():
-        if run.scenario_id == scenario_id and run.status == "running":
-            # Signal cancellation
-            cancelled = await simulation_service.cancel_simulation(run_id)
-            if not cancelled:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=(
-                        f"No active subprocess found for run {run_id}; it may have "
-                        "finished or the API was restarted"
-                    ),
-                )
+    # Use a detached snapshot while awaiting the subprocess, then publish the
+    # terminal state through the lock-aware registry helper.
+    run = _find_active_run(scenario_id, {"running"})
+    if run is not None:
+        run_id = run.id
+        cancelled = await simulation_service.cancel_simulation(run_id)
+        if not cancelled:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=(
+                    f"No active subprocess found for run {run_id}; it may have "
+                    "finished or the API was restarted"
+                ),
+            )
 
-            run.status = "cancelled"
-            run.completed_at = datetime.now(timezone.utc)
+        _update_active_run(
+            run_id,
+            status="cancelled",
+            completed_at=datetime.now(timezone.utc),
+        )
 
-            # Update scenario status
-            workspace, scenario = _find_scenario_and_workspace(storage, scenario_id)
-            if workspace and scenario:
-                storage.update_scenario_status(workspace.id, scenario_id, "cancelled")
+        # Persisted scenario/run metadata remains the durable status source.
+        workspace, scenario = _find_scenario_and_workspace(storage, scenario_id)
+        if workspace and scenario:
+            storage.update_scenario_status(workspace.id, scenario_id, "cancelled")
 
-            get_telemetry_service().set_terminal(run_id, "cancelled")
+        get_telemetry_service().set_terminal(run_id, "cancelled")
 
-            return {"success": True}
+        return {"success": True}
 
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
@@ -329,7 +390,7 @@ async def reset_simulation_status(
         )
 
     # Check if actually running (has active process)
-    if scenario.last_run_id and scenario.last_run_id in _active_runs:
+    if scenario.last_run_id and _get_active_run(scenario.last_run_id) is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Simulation is actively running. Use cancel instead.",
@@ -393,11 +454,11 @@ async def list_runs(
                                 started_at=datetime.fromisoformat(
                                     metadata["started_at"]
                                 ),
-                                completed_at=datetime.fromisoformat(
-                                    metadata["completed_at"]
-                                )
-                                if metadata.get("completed_at")
-                                else None,
+                                completed_at=(
+                                    datetime.fromisoformat(metadata["completed_at"])
+                                    if metadata.get("completed_at")
+                                    else None
+                                ),
                                 duration_seconds=metadata.get("duration_seconds"),
                                 start_year=metadata.get("start_year"),
                                 end_year=metadata.get("end_year"),
@@ -507,12 +568,16 @@ async def get_run(
         workspace_id=workspace.id,
         workspace_name=workspace.name,
         status=metadata.get("status", "completed"),
-        started_at=datetime.fromisoformat(metadata["started_at"])
-        if metadata.get("started_at")
-        else None,
-        completed_at=datetime.fromisoformat(metadata["completed_at"])
-        if metadata.get("completed_at")
-        else None,
+        started_at=(
+            datetime.fromisoformat(metadata["started_at"])
+            if metadata.get("started_at")
+            else None
+        ),
+        completed_at=(
+            datetime.fromisoformat(metadata["completed_at"])
+            if metadata.get("completed_at")
+            else None
+        ),
         duration_seconds=metadata.get("duration_seconds"),
         start_year=metadata.get("start_year"),
         end_year=metadata.get("end_year"),
@@ -560,10 +625,8 @@ async def get_run_logs(
     canonical_run_id = run_path.name
     log_file = run_path / "simulation.log"
 
-    is_active = (
-        canonical_run_id in _active_runs
-        and _active_runs[canonical_run_id].status == "running"
-    )
+    active_run = _get_active_run(canonical_run_id)
+    is_active = active_run is not None and active_run.status == "running"
 
     if not log_file.exists():
         return LogPage(
@@ -745,18 +808,14 @@ def get_active_runs() -> list:
             "current_stage": run.current_stage,
             "started_at": run.started_at.isoformat(),
         }
-        for run in _active_runs.values()
+        for run in _active_runs_snapshot()
         if run.status in ("pending", "queued", "running")
     ]
 
 
-def update_run_status(run_id: str, **updates):
+def update_run_status(run_id: str, **updates: Any) -> None:
     """Update an active run's status (called by simulation service)."""
-    if run_id in _active_runs:
-        run = _active_runs[run_id]
-        for key, value in updates.items():
-            if hasattr(run, key):
-                setattr(run, key, value)
+    _update_active_run(run_id, **updates)
 
 
 def _get_artifact_type(filename: str) -> str:
@@ -891,8 +950,11 @@ async def get_run_details(
                 completed_at = datetime.fromisoformat(run_metadata["completed_at"])
         elif scenario.last_run_at:
             # Check if still running
-            if scenario.last_run_id and scenario.last_run_id in _active_runs:
-                active_run = _active_runs[scenario.last_run_id]
+            if scenario.last_run_id:
+                active_run = _get_active_run(scenario.last_run_id)
+            else:
+                active_run = None
+            if active_run is not None:
                 if active_run.started_at:
                     duration_seconds = (
                         datetime.now() - active_run.started_at
