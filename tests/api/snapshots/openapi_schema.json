@@ -17167,6 +17167,113 @@
         ]
       }
     },
+    "/api/workspaces/{workspace_id}/scenarios/{scenario_id}/report": {
+      "get": {
+        "operationId": "download_scenario_report_api_workspaces__workspace_id__scenarios__scenario_id__report_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "scenario_id",
+            "required": true,
+            "schema": {
+              "title": "Scenario Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "pdf",
+              "pattern": "^(pdf|pptx|html)$",
+              "title": "Format",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Comma-separated comparison scenario IDs",
+            "in": "query",
+            "name": "compare",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated comparison scenario IDs",
+              "title": "Compare"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Download Scenario Report",
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
     "/api/workspaces/{workspace_id}/scenarios/{scenario_id}/results/export": {
       "get": {
         "description": "Export simulation results as Excel or CSV (workspace-scoped endpoint).\n\nE087: This endpoint eliminates ambiguity in multi-workspace environments\nby requiring the workspace_id, avoiding the need to search all workspaces.",
