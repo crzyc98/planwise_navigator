@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import WebSocket, WebSocketDisconnect
@@ -94,6 +95,8 @@ async def batch_websocket(
 
     Message format (JSON):
     {
+        "type": "batch_update",
+        "event": "snapshot|pending|running|progress|completed|cancelled|failed",
         "batch_id": "uuid",
         "status": "running",
         "scenarios": [
@@ -117,7 +120,26 @@ async def batch_websocket(
     if manager is None:
         manager = get_connection_manager()
 
-    await manager.connect(websocket, f"batch_{batch_id}")
+    # Import lazily to keep the WebSocket module independent of router import
+    # order during application startup.
+    from ..routers.batch import get_batch_job, serialize_batch_update
+
+    batch_job = get_batch_job(batch_id)
+    initial_data = (
+        serialize_batch_update(batch_job, "snapshot")
+        if batch_job
+        else {
+            "type": "batch_update",
+            "event": "snapshot",
+            "batch_id": batch_id,
+            "status": "unknown",
+            "scenarios": [],
+            "overall_progress": 0,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+    channel = f"batch_{batch_id}"
+    await manager.connect(websocket, channel, initial_data=initial_data)
 
     try:
         while True:
@@ -152,4 +174,4 @@ async def batch_websocket(
         )
 
     finally:
-        await manager.disconnect(websocket, f"batch_{batch_id}")
+        await manager.disconnect(websocket, channel)

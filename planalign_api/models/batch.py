@@ -37,7 +37,7 @@ class BatchJob(BaseModel):
     id: str = Field(..., description="Unique batch job ID")
     name: str = Field(..., description="Batch job name")
     workspace_id: str = Field(..., description="Parent workspace ID")
-    status: Literal["pending", "running", "completed", "failed"] = Field(
+    status: Literal["pending", "running", "completed", "failed", "cancelled"] = Field(
         description="Overall batch status"
     )
     submitted_at: datetime = Field(..., description="Submission timestamp")

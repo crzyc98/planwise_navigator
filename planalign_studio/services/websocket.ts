@@ -370,7 +370,7 @@ export function useRunTelemetry(
 }
 
 // ============================================================================
-// Batch WebSocket Hook (pre-094 protocol, unchanged)
+// Batch WebSocket Hook
 // ============================================================================
 
 export interface WebSocketStatus {
@@ -388,13 +388,16 @@ export interface UseBatchSocketResult {
 }
 
 export interface BatchTelemetry {
+  type: 'batch_update';
+  event: 'snapshot' | 'pending' | 'running' | 'progress' | 'completed' | 'cancelled' | 'failed';
   batch_id: string;
-  status: string;
+  status: 'pending' | 'running' | 'completed' | 'cancelled' | 'failed';
   scenarios: Array<{
     scenario_id: string;
     name: string;
-    status: string;
+    status: 'pending' | 'running' | 'completed' | 'cancelled' | 'failed';
     progress: number;
+    error_message?: string | null;
   }>;
   overall_progress: number;
   timestamp: string;
@@ -447,7 +450,9 @@ export function useBatchSocket(batchId: string | null): UseBatchSocketResult {
           return;
         }
 
-        setBatchStatus(data as BatchTelemetry);
+        if (data.type === 'batch_update' && data.batch_id === batchId) {
+          setBatchStatus(data as BatchTelemetry);
+        }
       } catch (err) {
         console.error('Failed to parse WebSocket message:', err);
       }
