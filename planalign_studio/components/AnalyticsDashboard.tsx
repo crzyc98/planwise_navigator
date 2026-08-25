@@ -19,6 +19,7 @@ import {
   SimulationResults
 } from '../services/api';
 import { useChartTheme } from '../hooks/useChartTheme';
+import RunHealthSummary from './simulation/RunHealthSummary';
 
 interface LayoutContext {
   activeWorkspace: { id: string; name: string };
@@ -438,6 +439,11 @@ export default function AnalyticsDashboard() {
         <EmptyState onRefresh={handleRefresh} />
       ) : (
         <>
+          {/* Run Health Summary for the selected scenario's current result */}
+          {selectedScenarioId && (
+            <RunHealthSummary scenarioId={selectedScenarioId} compact />
+          )}
+
           {/* KPI Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <KPICard

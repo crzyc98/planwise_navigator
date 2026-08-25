@@ -893,6 +893,46 @@ export async function getRunById(scenarioId: string, runId: string): Promise<Run
 }
 
 // ============================================================================
+// Run Health Summary (validation outcomes for one archived run)
+// ============================================================================
+
+export type RunHealthStatus = 'clean' | 'warnings' | 'failed' | 'missing_provenance' | 'unavailable';
+
+export interface RunHealthCounts {
+  passed: number;
+  warning: number;
+  failed: number;
+  total: number;
+}
+
+export interface RunHealthFinding {
+  check_name: string;
+  severity: string;
+  simulation_year: number;
+  stage: string;
+  passed: boolean;
+  affected_record_count: number | null;
+  message: string;
+}
+
+export interface RunHealthReport {
+  status: RunHealthStatus;
+  scenario_id: string;
+  run_id: string;
+  disposition: string | null;
+  counts: RunHealthCounts;
+  findings: RunHealthFinding[];
+}
+
+export async function getRunHealth(scenarioId: string, runId?: string): Promise<RunHealthReport> {
+  const path = runId
+    ? `/api/scenarios/${scenarioId}/runs/${runId}/health`
+    : `/api/scenarios/${scenarioId}/run-health`;
+  const response = await fetchWithAuth(`${API_BASE}${path}`);
+  return handleResponse<RunHealthReport>(response);
+}
+
+// ============================================================================
 // Run Provenance Report Endpoints (111-run-provenance-report)
 // ============================================================================
 

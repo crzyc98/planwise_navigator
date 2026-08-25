@@ -24,13 +24,17 @@ from ..models.simulation import (
 )
 from ..services.telemetry_service import get_telemetry_service
 from ..services.current_result import (
+    CurrentResultIntegrityError,
     RunNotFoundError,
     RunPathError,
     resolve_run_directory,
+    resolve_scenario_read_context,
 )
 from ..storage.workspace_storage import WorkspaceStorage
+from ..models.run_health import RunHealthReport
 from ..models.scenario import Scenario
 from ..models.workspace import Workspace
+from ..services.run_health import build_run_health
 from ..services.simulation_service import SimulationService
 from ..services.simulation.result_handlers import find_results_export
 from ..constants import ARTIFACT_TYPE_MAP, MEDIA_TYPE_MAP
@@ -662,6 +666,79 @@ async def get_run_logs(
         is_running=is_active,
         log_available=True,
     )
+
+
+@router.get("/{scenario_id}/runs/{run_id}/health", response_model=RunHealthReport)
+async def get_run_health(
+    scenario_id: str,
+    run_id: str,
+    storage: WorkspaceStorage = Depends(get_storage),
+) -> RunHealthReport:
+    """Summarize archived validation outcomes for one specific run."""
+    workspace, scenario = _find_scenario_and_workspace(storage, scenario_id)
+    if not scenario or not workspace:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scenario {scenario_id} not found",
+        )
+
+    scenario_path = storage._scenario_path(workspace.id, scenario_id)
+
+    try:
+        run_path = resolve_run_directory(scenario_path, run_id)
+    except RunPathError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        )
+    except RunNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run {run_id} not found",
+        )
+    return build_run_health(scenario_id, run_path.name, run_path)
+
+
+@router.get("/{scenario_id}/run-health", response_model=RunHealthReport)
+async def get_scenario_run_health(
+    scenario_id: str,
+    storage: WorkspaceStorage = Depends(get_storage),
+) -> RunHealthReport:
+    """Summarize validation outcomes for the scenario's selected result run.
+
+    The target run is resolved server-side from the atomic latest-success
+    pointer, so a stale or replaced result can never present another
+    run's validation evidence.
+    """
+    workspace, scenario = _find_scenario_and_workspace(storage, scenario_id)
+    if not scenario or not workspace:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scenario {scenario_id} not found",
+        )
+
+    scenario_path = storage._scenario_path(workspace.id, scenario_id)
+
+    try:
+        context = resolve_scenario_read_context(scenario_path, verify_database=False)
+    except CurrentResultIntegrityError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        )
+    if context.result_run_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No completed result available for scenario {scenario_id}",
+        )
+    try:
+        run_path = resolve_run_directory(scenario_path, str(context.result_run_id))
+    except (RunPathError, RunNotFoundError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        )
+    return build_run_health(scenario_id, run_path.name, run_path)
 
 
 def _parse_log_file(log_file: Path) -> List[SimulationLogLine]:

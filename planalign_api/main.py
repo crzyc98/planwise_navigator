@@ -106,6 +106,8 @@ SCENARIO_READ_ROUTES = {
     "list_runs",
     "get_run",
     "get_run_logs",
+    "get_run_health",
+    "get_scenario_run_health",
     "get_results",
     "export_results",
     "get_active_simulations",
