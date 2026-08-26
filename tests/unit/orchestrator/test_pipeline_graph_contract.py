@@ -127,6 +127,20 @@ def test_deferral_accumulator_uses_the_configured_scenario_scope():
     assert "'default'::VARCHAR as scenario_id" not in sql
 
 
+def test_incremental_state_models_use_full_scenario_plan_employee_year_grain():
+    expected = (
+        "unique_key=['scenario_id', 'plan_design_id', 'employee_id', 'simulation_year']"
+    )
+    paths = (
+        ROOT / "dbt/models/marts/fct_workforce_snapshot.sql",
+        ROOT / "dbt/models/intermediate/int_enrollment_state_accumulator.sql",
+        ROOT / "dbt/models/intermediate/int_deferral_rate_state_accumulator.sql",
+    )
+
+    for path in paths:
+        assert expected in path.read_text()
+
+
 def test_legacy_escalation_accumulator_preserves_scenario_and_plan_grain():
     path = (
         ROOT / "dbt/models/intermediate/int_deferral_escalation_state_accumulator.sql"

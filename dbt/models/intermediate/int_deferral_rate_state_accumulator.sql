@@ -1,7 +1,7 @@
 {{ config(
     materialized='incremental',
     incremental_strategy='delete+insert',
-    unique_key=['employee_id', 'simulation_year'],
+    unique_key=['scenario_id', 'plan_design_id', 'employee_id', 'simulation_year'],
     on_schema_change='sync_all_columns',
     tags=['STATE_ACCUMULATION', 'DOMAIN_STATE']
 ) }}
