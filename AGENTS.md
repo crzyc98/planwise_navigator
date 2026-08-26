@@ -38,8 +38,8 @@ This playbook defines how the Codex CLI assistant operates in this repository to
 - **Unified event model**: Pydantic v2 events in `planalign_core/events` with required context (`scenario_id`, `plan_design_id`).
 - **Pipeline**: `PipelineOrchestrator` runs six stages per year — INITIALIZATION → FOUNDATION → EVENT_GENERATION → STATE_ACCUMULATION → VALIDATION → REPORTING.
 - **Temporal state accumulators**: Year N reads Year N−1 accumulator state + Year N events (e.g., `int_enrollment_state_accumulator`, `int_deferral_rate_state_accumulator`). Never create circular dependencies.
-- **Build order**: accumulators → `int_*` → `fct_yearly_events` → `fct_workforce_snapshot`.
-- **`int_*` models never read `fct_*` tables** — sanctioned exceptions: `fct_yearly_events` (built first in STATE_ACCUMULATION) and prior-year reads of `fct_workforce_snapshot`.
+- **Build order**: event-generation inputs → `fct_yearly_events` → state accumulators and other `int_*` models → `fct_workforce_snapshot`.
+- **`int_*` models never read `fct_*` tables** — sanctioned exceptions: `fct_yearly_events` (published during EVENT_GENERATION and available to STATE_ACCUMULATION) and prior-year reads of `fct_workforce_snapshot`.
 - **Event generators**: new event types implement `EventGenerator` in `planalign_orchestrator/generators/`, registered via `@EventRegistry.register("name")` (see `generators/sabbatical.py`).
 
 ---

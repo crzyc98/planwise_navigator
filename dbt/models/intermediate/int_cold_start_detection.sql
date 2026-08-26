@@ -4,17 +4,21 @@
 -- Determines if this is a cold start or continuation of existing simulation
 -- Uses table existence check to safely handle empty databases
 
--- Use macro to safely check if table exists
+-- Keep the existence checks for compatibility with partially initialized databases,
+-- but declare both relations with ref() so dbt can track the dependencies.
+{% set workforce_snapshot_relation = ref('fct_workforce_snapshot') %}
+{% set simulation_run_log_relation = ref('int_simulation_run_log') %}
+
 {% set workforce_snapshot_exists = adapter.get_relation(
-    database=target.database,
-    schema=target.schema,
-    identifier='fct_workforce_snapshot'
+    database=workforce_snapshot_relation.database,
+    schema=workforce_snapshot_relation.schema,
+    identifier=workforce_snapshot_relation.identifier
 ) is not none %}
 
 {% set simulation_run_log_exists = adapter.get_relation(
-    database=target.database,
-    schema=target.schema,
-    identifier='int_simulation_run_log'
+    database=simulation_run_log_relation.database,
+    schema=simulation_run_log_relation.schema,
+    identifier=simulation_run_log_relation.identifier
 ) is not none %}
 
 {% if simulation_run_log_exists %}
@@ -23,7 +27,7 @@ WITH simulation_state AS (
     SELECT
         COUNT(*) as prior_year_count,
         MAX(simulation_year) as max_year
-    FROM int_simulation_run_log
+    FROM {{ ref('int_simulation_run_log') }}
     WHERE simulation_year < {{ var('simulation_year') }}
 ),
 cold_start_flag AS (

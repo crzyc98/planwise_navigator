@@ -4,7 +4,7 @@
         {'columns': ['employee_id']},
         {'columns': ['simulation_year']}
     ],
-    tags=["foundation", "critical", "unified_interface"]
+    tags=["FOUNDATION", "critical", "unified_interface"]
 ) }}
 
 /*
