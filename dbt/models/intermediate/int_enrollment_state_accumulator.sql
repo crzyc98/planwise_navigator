@@ -1,6 +1,6 @@
 {{ config(
     materialized='incremental',
-    unique_key="employee_id || '_' || simulation_year",
+    unique_key=['scenario_id', 'plan_design_id', 'employee_id', 'simulation_year'],
     on_schema_change='sync_all_columns',
     indexes=[
         {'columns': ['simulation_year', 'employee_id'], 'type': 'btree', 'unique': true},
@@ -22,7 +22,7 @@
   - Baseline workforce for first year initialization
 
   Key Features:
-  - Incremental materialization with unique_key=['employee_id', 'simulation_year']
+  - Incremental materialization with unique_key=['scenario_id', 'plan_design_id', 'employee_id', 'simulation_year']
   - Handles base case (first simulation year) with no prior enrollment
   - Accumulates enrollment history across simulation years
   - Tracks enrollment_date, enrollment_status, and enrollment changes

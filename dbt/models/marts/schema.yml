@@ -161,9 +161,13 @@ models:
     config:
       tags: ["critical", "foundation", "contract"]
     data_tests:
-      - unique:
-          column_name: "employee_id || '_' || simulation_year"
-          name: "unique_employee_per_simulation_year"
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - scenario_id
+            - plan_design_id
+            - employee_id
+            - simulation_year
+          name: "unique_scenario_plan_employee_per_simulation_year"
     columns:
       - name: employee_id
         description: "Unique employee identifier within simulation year"

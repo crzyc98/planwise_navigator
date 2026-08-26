@@ -611,9 +611,11 @@ models:
     config:
       tags: ["state_accumulator", "critical", "e036", "v2"]
     data_tests:
-      # Uniqueness per employee/year (known duplication in multi-year runs)
+      # Uniqueness at the scenario/plan/employee/year grain
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns:
+            - scenario_id
+            - plan_design_id
             - employee_id
             - simulation_year
           config:
@@ -626,7 +628,7 @@ models:
                 employee_id,
                 simulation_year,
                 escalations_received,
-                LAG(escalations_received) OVER (PARTITION BY employee_id ORDER BY simulation_year) as prev_escalations
+                LAG(escalations_received) OVER (PARTITION BY scenario_id, plan_design_id, employee_id ORDER BY simulation_year) as prev_escalations
               FROM int_deferral_rate_state_accumulator
             ) t
             WHERE escalations_received < COALESCE(prev_escalations, 0)) = 0
@@ -640,7 +642,7 @@ models:
                 employee_id,
                 simulation_year,
                 current_deferral_rate,
-                LAG(current_deferral_rate) OVER (PARTITION BY employee_id ORDER BY simulation_year) as prev_rate
+                LAG(current_deferral_rate) OVER (PARTITION BY scenario_id, plan_design_id, employee_id ORDER BY simulation_year) as prev_rate
               FROM int_deferral_rate_state_accumulator
             ) t
             WHERE current_deferral_rate < COALESCE(prev_rate, 0) - 0.001) = 0
@@ -1971,7 +1973,7 @@ models:
       state year-by-year using only fct_yearly_events and its own previous year data.
 
       **Key Features:**
-      - Incremental materialization with unique_key=['employee_id', 'simulation_year']
+      - Incremental materialization with unique_key=['scenario_id', 'plan_design_id', 'employee_id', 'simulation_year']
       - Handles base case (first simulation year) with baseline workforce
       - Accumulates enrollment history across simulation years
       - Tracks enrollment_date, enrollment_status, and enrollment changes
@@ -1990,6 +1992,8 @@ models:
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns:
+            - scenario_id
+            - plan_design_id
             - employee_id
             - simulation_year
     columns:
