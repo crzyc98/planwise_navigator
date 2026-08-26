@@ -912,21 +912,28 @@ class DbtRunner:
         self,
         stage: str,
         simulation_year: int,
+        start_year: int,
         threads: Optional[int] = None,
         **kwargs: Any,
     ) -> List[DbtResult]:
-        """Run all models for a workflow stage with optimal threading.
+        """Run the models defined for a workflow stage.
+
+        The workflow definitions are the source of truth for stage membership.
+        This helper intentionally does not translate stage names into dbt tags:
+        tags are broader metadata selectors and can include models that are not
+        part of the live pipeline stage.
 
         Args:
             stage: Workflow stage name (e.g., 'EVENT_GENERATION', 'STATE_ACCUMULATION')
             simulation_year: Simulation year for dbt vars
+            start_year: First year of the simulation, used to resolve the
+                year-specific workflow definition
             threads: Optional thread count override
             **kwargs: Additional arguments passed to execute_command
 
         Returns:
             List of DbtResult objects from stage execution
         """
-        results = []
         effective_threads = threads or self.threads
 
         logger.debug(
@@ -936,43 +943,30 @@ class DbtRunner:
             effective_threads,
         )
 
-        # Map stage names to their execution strategy
-        if stage in [
-            "EVENT_GENERATION",
-            "STATE_ACCUMULATION",
-            "VALIDATION",
-            "FOUNDATION",
-        ]:
-            # Single parallel call for optimized stages
-            result = self.run_models_by_tag(
-                stage, simulation_year, threads=effective_threads, **kwargs
-            )
-            results.append(result)
+        from .pipeline.workflow import WorkflowBuilder
 
-        elif stage == "INITIALIZATION":
-            # Run staging models sequentially for safety
-            result = self.execute_command(
-                ["run", "--select", "staging.*"],
-                simulation_year=simulation_year,
-                **kwargs,
+        try:
+            workflow_stage = next(
+                workflow_stage
+                for workflow_stage in WorkflowBuilder.build_year_workflow(
+                    simulation_year, start_year
+                )
+                if workflow_stage.name.value.upper() == stage.upper()
             )
-            results.append(result)
-
-        elif stage == "REPORTING":
-            # Run reporting models with moderate threading
-            result = self.execute_command(
-                ["run", "--select", "tag:REPORTING"],
-                simulation_year=simulation_year,
-                **kwargs,
-            )
-            results.append(result)
-
-        else:
-            # Legacy support: if stage is not recognized, try as tag
+        except StopIteration:
             logger.warning("Unknown stage '%s', attempting as tag", stage)
-            result = self.run_models_by_tag(
-                stage, simulation_year, threads=effective_threads, **kwargs
-            )
-            results.append(result)
+            return [
+                self.run_models_by_tag(
+                    stage, simulation_year, threads=effective_threads, **kwargs
+                )
+            ]
 
-        return results
+        if not workflow_stage.models:
+            return []
+
+        result = self.execute_command(
+            ["run", "--select", *workflow_stage.models],
+            simulation_year=simulation_year,
+            **kwargs,
+        )
+        return [result]

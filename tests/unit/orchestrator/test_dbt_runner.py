@@ -1023,33 +1023,59 @@ class TestTagAndStageExecution:
     @patch.object(DbtRunner, "execute_command", return_value=_ok_result())
     def test_run_stage_models_event_generation(self, mock_exec):
         runner = DbtRunner()
-        results = runner.run_stage_models("EVENT_GENERATION", simulation_year=2025)
+        results = runner.run_stage_models(
+            "EVENT_GENERATION", simulation_year=2025, start_year=2025
+        )
         assert len(results) == 1
         assert results[0].success
+        selection = mock_exec.call_args[0][0]
+        assert "tag:EVENT_GENERATION" not in selection
+        assert "int_termination_events" in selection
+
+    @pytest.mark.fast
+    @patch.object(DbtRunner, "execute_command", return_value=_ok_result())
+    def test_run_stage_models_uses_workflow_membership(self, mock_exec):
+        runner = DbtRunner()
+        results = runner.run_stage_models(
+            "STATE_ACCUMULATION", simulation_year=2026, start_year=2025
+        )
+
+        assert len(results) == 1
+        selection = mock_exec.call_args[0][0]
+        assert selection[0:2] == ["run", "--select"]
+        assert "int_workforce_state_accumulator" in selection
+        assert "int_service_credit_accumulator" not in selection
+        assert "int_eligibility_computation_period" not in selection
 
     @pytest.mark.fast
     @patch.object(DbtRunner, "execute_command", return_value=_ok_result())
     def test_run_stage_models_initialization(self, mock_exec):
         runner = DbtRunner()
-        results = runner.run_stage_models("INITIALIZATION", simulation_year=2025)
+        results = runner.run_stage_models(
+            "INITIALIZATION", simulation_year=2026, start_year=2025
+        )
         assert len(results) == 1
         args = mock_exec.call_args[0][0]
-        assert "staging.*" in args
+        assert "staging.*" not in args
+        assert "int_active_employees_prev_year_snapshot" in args
 
     @pytest.mark.fast
     @patch.object(DbtRunner, "execute_command", return_value=_ok_result())
     def test_run_stage_models_reporting(self, mock_exec):
         runner = DbtRunner()
-        results = runner.run_stage_models("REPORTING", simulation_year=2025)
-        assert len(results) == 1
-        args = mock_exec.call_args[0][0]
-        assert "tag:REPORTING" in args
+        results = runner.run_stage_models(
+            "REPORTING", simulation_year=2025, start_year=2025
+        )
+        assert results == []
+        mock_exec.assert_not_called()
 
     @pytest.mark.fast
     @patch.object(DbtRunner, "execute_command", return_value=_ok_result())
     def test_run_stage_models_unknown_falls_through(self, mock_exec):
         runner = DbtRunner()
-        results = runner.run_stage_models("CUSTOM_STAGE", simulation_year=2025)
+        results = runner.run_stage_models(
+            "CUSTOM_STAGE", simulation_year=2025, start_year=2025
+        )
         assert len(results) == 1
 
     @pytest.mark.fast
@@ -1057,13 +1083,13 @@ class TestTagAndStageExecution:
     def test_run_stage_models_unknown_verbose(self, mock_exec, caplog):
         runner = DbtRunner(verbose=True)
         caplog.set_level(logging.DEBUG)
-        runner.run_stage_models("MYSTERY", simulation_year=2025)
+        runner.run_stage_models("MYSTERY", simulation_year=2025, start_year=2025)
         assert "Unknown stage" in caplog.text
 
     @pytest.mark.fast
     @patch.object(DbtRunner, "execute_command", return_value=_ok_result())
     def test_run_stage_known_stages(self, mock_exec):
-        """All known parallel stages use run_models_by_tag."""
+        """Known stages resolve through the workflow definition."""
         runner = DbtRunner()
         for stage in [
             "EVENT_GENERATION",
@@ -1071,8 +1097,10 @@ class TestTagAndStageExecution:
             "VALIDATION",
             "FOUNDATION",
         ]:
-            results = runner.run_stage_models(stage, simulation_year=2025)
-            assert len(results) == 1
+            runner.run_stage_models(stage, simulation_year=2025, start_year=2025)
+
+        selections = [call.args[0] for call in mock_exec.call_args_list]
+        assert all("tag:" not in arg for selection in selections for arg in selection)
 
 
 # ===================================================================
