@@ -1,6 +1,6 @@
 {{ config(
   materialized='table',
-  tags=['FOUNDATION', 'EVENT_GENERATION']
+  tags=['FOUNDATION']
 ) }}
 
 -- Termination hazard model: computes termination probability for each combination of

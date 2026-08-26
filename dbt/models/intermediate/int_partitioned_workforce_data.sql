@@ -1,11 +1,5 @@
 {{ config(
-    materialized='table',
-    indexes=[
-        {'columns': ['employee_id'], 'type': 'btree'},
-        {'columns': ['simulation_year'], 'type': 'btree'},
-        {'columns': ['employee_id', 'simulation_year'], 'type': 'btree'},
-        {'columns': ['record_hash'], 'type': 'btree'}
-    ]
+    materialized='table'
 ) }}
 
 -- Optimized partitioned workforce data with proper indexing and data types

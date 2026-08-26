@@ -2,12 +2,6 @@
     materialized='incremental',
     unique_key=['scenario_id', 'plan_design_id', 'employee_id', 'simulation_year'],
     on_schema_change='sync_all_columns',
-    indexes=[
-        {'columns': ['simulation_year', 'employee_id'], 'type': 'btree', 'unique': true},
-        {'columns': ['simulation_year'], 'type': 'btree'},
-        {'columns': ['employee_id'], 'type': 'btree'},
-        {'columns': ['enrollment_status'], 'type': 'btree'}
-    ],
     tags=['STATE_ACCUMULATION', 'DOMAIN_STATE']
 ) }}
 

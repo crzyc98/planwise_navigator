@@ -8,7 +8,7 @@ models:
       Applies a level discount factor so higher-level employees have progressively
       lower termination rates, floored at min_level_discount_multiplier (default 0.4).
     config:
-      tags: ["FOUNDATION", "EVENT_GENERATION"]
+      tags: ["FOUNDATION"]
     columns:
       - name: termination_rate
         description: Computed termination probability incorporating base rate, tenure, age, and level discount
