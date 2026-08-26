@@ -127,6 +127,27 @@ def test_deferral_accumulator_uses_the_configured_scenario_scope():
     assert "'default'::VARCHAR as scenario_id" not in sql
 
 
+def test_legacy_escalation_accumulator_preserves_scenario_and_plan_grain():
+    path = (
+        ROOT / "dbt/models/intermediate/int_deferral_escalation_state_accumulator.sql"
+    )
+    sql = path.read_text()
+
+    assert "var('scenario_id', 'default')" in sql
+    assert "var('plan_design_id', 'default')" in sql
+    assert "'{{ scenario_id }}'::VARCHAR as scenario_id" in sql
+    assert "'{{ plan_design_id }}'::VARCHAR as plan_design_id" in sql
+    assert "'default' as scenario_id" not in sql
+    assert (
+        "unique_key=['scenario_id', 'plan_design_id', 'employee_id', 'simulation_year']"
+        in sql
+    )
+    assert (
+        "DELETE FROM {{ this }} WHERE scenario_id = '{{ var('scenario_id', 'default') }}'"
+        in sql
+    )
+
+
 def test_workforce_accumulator_is_shadow_scheduled_for_normal_and_calibration():
     for builder in (
         WorkflowBuilder.build_year_workflow,

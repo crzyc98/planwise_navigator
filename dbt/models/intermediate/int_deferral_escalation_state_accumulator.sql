@@ -1,10 +1,10 @@
 {{ config(
     materialized='incremental',
     incremental_strategy='delete+insert',
-    unique_key=['employee_id', 'simulation_year'],
+    unique_key=['scenario_id', 'plan_design_id', 'employee_id', 'simulation_year'],
     on_schema_change='sync_all_columns',
     pre_hook=[
-      "{% set rel = adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}{% if rel is not none %}DELETE FROM {{ this }} WHERE simulation_year = {{ var('simulation_year') }}{% else %}SELECT 1{% endif %}"
+      "{% if is_incremental() %}DELETE FROM {{ this }} WHERE scenario_id = '{{ var('scenario_id', 'default') }}' AND plan_design_id = '{{ var('plan_design_id', 'default') }}' AND simulation_year = {{ var('simulation_year') }}{% else %}SELECT 1{% endif %}"
     ]
 ) }}
 
@@ -23,6 +23,8 @@
 
 {% set simulation_year = var('simulation_year', 2025) | int %}
 {% set start_year = var('start_year', 2025) | int %}
+{% set scenario_id = var('scenario_id', 'default') %}
+{% set plan_design_id = var('plan_design_id', 'default') %}
 
 WITH current_workforce AS (
     -- Get all active employees for the current year with deferral rate from state accumulator
@@ -57,6 +59,8 @@ escalation_events_history AS (
     FROM {{ ref('fct_yearly_events') }}
     WHERE simulation_year <= {{ simulation_year }}
       AND event_type IN ('enrollment_change', 'deferral_escalation')
+      AND scenario_id = '{{ scenario_id }}'
+      AND plan_design_id = '{{ plan_design_id }}'
     {% else %}
     -- SQL mode: Use intermediate event model
     SELECT
@@ -131,7 +135,8 @@ final_state AS (
 
         -- Metadata
         CURRENT_TIMESTAMP as created_at,
-        'default' as scenario_id,
+        '{{ scenario_id }}'::VARCHAR as scenario_id,
+        '{{ plan_design_id }}'::VARCHAR as plan_design_id,
         'VALID' as data_quality_flag
 
     FROM current_workforce w
