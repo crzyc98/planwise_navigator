@@ -29,6 +29,7 @@ import {
 import { downloadRunProvenanceBundle, getRunDetails, getArtifactDownloadUrl, getResultsExportUrl, listRuns, getRunById, RunDetails, Artifact, RunSummary } from '../services/api';
 import LogViewer from './simulation/LogViewer';
 import EvidencePackPanel from './EvidencePackPanel';
+import RunHealthSummary from './simulation/RunHealthSummary';
 
 const formatBytes = (bytes: number): string => {
   if (bytes === 0) return '0 B';
@@ -458,6 +459,11 @@ export default function SimulationDetail() {
                     </div>
 
                     <div className="p-4">
+                      {isArchivedProvenanceRun(run) && (
+                        <div className="mb-4">
+                          <RunHealthSummary scenarioId={details.scenario_id} runId={run.id} />
+                        </div>
+                      )}
                       {isArchivedProvenanceRun(run) && (
                         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-success-border bg-success-surface p-3">
                           <ShieldCheck size={18} className="text-fidelity-green" />
