@@ -80,7 +80,6 @@ class ModelClassifier:
             MODEL_INT_ENROLLMENT_STATE_ACCUMULATOR: "Temporal state tracking across years",
             MODEL_INT_DEFERRAL_RATE_STATE_ACCUMULATOR: "Deferral rate state accumulation",
             "int_deferral_escalation_state_accumulator": "Escalation state tracking",
-            "int_workforce_previous_year": "Previous year workforce state",
             "int_active_employees_prev_year_snapshot": "Previous year employee snapshot",
             MODEL_FCT_YEARLY_EVENTS: "Event sequencing and ordering critical",
             MODEL_FCT_WORKFORCE_SNAPSHOT: "Depends on all events and state accumulators",
@@ -121,7 +120,6 @@ class ModelClassifier:
             "dq_compliance_monitoring": "Compliance checking",
             # Reporting models
             "dim_hazard_table": "Reference dimension table",
-            "dim_payroll_calendar": "Calendar dimension table",
         }
 
         # CONDITIONAL: Models with complex dependencies that may or may not be parallel-safe

@@ -163,7 +163,6 @@ STATE_PIPELINE_AUDIT_SINKS = frozenset(
     {
         "fct_employer_match_events",
         "fct_compensation_growth",
-        "fct_policy_optimization",
     }
 )
 

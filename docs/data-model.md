@@ -61,7 +61,6 @@ event = WorkforceEventFactory.create_hire_event(
 | `fct_workforce_snapshot` | employee × year | Point-in-time workforce state projected from events |
 | `fct_employer_match_events` | match contribution events | Employer match results (incl. tenure-graded formulas) |
 | `fct_compensation_growth` | year | Compensation growth mart used by calibration (S051) |
-| `fct_payroll_ledger` / `dim_payroll_calendar` | pay period | Payroll-level detail |
 | `dim_hazard_table` | age × tenure × level bands | Termination/promotion hazard rates |
 
 Standard join keys: `(scenario_id, plan_design_id, employee_id)` plus
