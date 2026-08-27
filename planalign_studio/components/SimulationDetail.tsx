@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import {
   ArrowLeft,
   Clock,
@@ -30,6 +30,7 @@ import { downloadRunProvenanceBundle, getRunDetails, getArtifactDownloadUrl, get
 import LogViewer from './simulation/LogViewer';
 import EvidencePackPanel from './EvidencePackPanel';
 import RunHealthSummary from './simulation/RunHealthSummary';
+import { useWorkspaceNavigate } from '../hooks/useWorkspaceNavigation';
 
 const formatBytes = (bytes: number): string => {
   if (bytes === 0) return '0 B';
@@ -103,7 +104,7 @@ const getArtifactIcon = (type: string) => {
 
 export default function SimulationDetail() {
   const { scenarioId } = useParams<{ scenarioId: string }>();
-  const navigate = useNavigate();
+  const navigate = useWorkspaceNavigate();
 
   const [details, setDetails] = useState<RunDetails | null>(null);
   const [runs, setRuns] = useState<RunSummary[]>([]);

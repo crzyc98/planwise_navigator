@@ -82,6 +82,7 @@ class WorkspaceService:
             name=data.name,
             description=data.description,
             base_config=data.base_config,
+            lifecycle=data.lifecycle,
         )
 
     def delete_workspace(self, workspace_id: str) -> bool:

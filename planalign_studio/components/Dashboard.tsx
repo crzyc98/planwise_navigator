@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import { useOutletContext } from 'react-router-dom';
 import { PlayCircle, CheckCircle, AlertCircle, Database, TrendingUp, Users, DollarSign, Activity, Briefcase, Loader2 } from 'lucide-react';
 import { getSystemStatus, listScenarios, SystemStatus, Scenario } from '../services/api';
 import { Workspace } from '../types';
+import { useWorkspaceNavigate } from '../hooks/useWorkspaceNavigation';
 
 interface LayoutContext {
   activeWorkspace: Workspace;
@@ -40,7 +41,7 @@ const StatCard = ({ title, value, subtext, icon, color, onClick }: Readonly<{ ti
 };
 
 export default function Dashboard() {
-  const navigate = useNavigate();
+  const navigate = useWorkspaceNavigate();
   const { activeWorkspace } = useOutletContext<LayoutContext>();
 
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);

@@ -54,15 +54,44 @@ export interface Workspace {
   id: string;
   name: string;
   description: string | null;
+  lifecycle: 'active' | 'archived';
   created_at: string;
   updated_at: string;
   base_config: Record<string, any>;
+}
+
+export interface WorkspaceSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  lifecycle: 'active' | 'archived';
+  created_at: string;
+  updated_at: string;
+  scenario_count: number;
+  last_run_at: string | null;
+  storage_used_mb: number | null;
+}
+
+export interface WorkspacePage {
+  items: WorkspaceSummary[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface WorkspaceListOptions {
+  q?: string;
+  limit?: number;
+  offset?: number;
+  sort?: 'name' | 'updated' | 'last_activity';
+  lifecycle?: 'active' | 'archived' | 'all';
 }
 
 export interface WorkspaceCreate {
   name: string;
   description?: string;
   base_config?: Record<string, any>;
+  lifecycle?: 'active' | 'archived';
 }
 
 export interface Scenario {
@@ -503,9 +532,16 @@ export async function getDefaultConfig(): Promise<Record<string, any>> {
 // Workspace Endpoints
 // ============================================================================
 
-export async function listWorkspaces(): Promise<Workspace[]> {
-  const response = await fetchWithAuth(`${API_BASE}/api/workspaces`);
-  return handleResponse<Workspace[]>(response);
+export async function listWorkspaces(options: WorkspaceListOptions = {}): Promise<WorkspacePage> {
+  const params = new URLSearchParams();
+  if (options.q) params.set('q', options.q);
+  if (options.limit !== undefined) params.set('limit', String(options.limit));
+  if (options.offset !== undefined) params.set('offset', String(options.offset));
+  if (options.sort) params.set('sort', options.sort);
+  if (options.lifecycle) params.set('lifecycle', options.lifecycle);
+  const query = params.toString();
+  const response = await fetchWithAuth(`${API_BASE}/api/workspaces${query ? `?${query}` : ''}`);
+  return handleResponse<WorkspacePage>(response);
 }
 
 export async function getWorkspace(workspaceId: string): Promise<Workspace> {
@@ -589,7 +625,7 @@ export function timelineUrl(
   employeeId: string,
   compare?: string,
 ): string {
-  const path = `/timeline/${encodeURIComponent(workspaceId)}/${encodeURIComponent(scenarioId)}/${encodeURIComponent(employeeId.trim())}`;
+  const path = `/w/${encodeURIComponent(workspaceId)}/timeline/${encodeURIComponent(scenarioId)}/${encodeURIComponent(employeeId.trim())}`;
   return compare ? `${path}?compare=${encodeURIComponent(compare)}` : path;
 }
 

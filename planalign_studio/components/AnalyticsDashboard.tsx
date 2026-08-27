@@ -9,7 +9,6 @@ import {
   ArrowUpRight, ArrowDownRight, RefreshCw, AlertCircle, ChevronDown, Database, Loader2
 } from 'lucide-react';
 import {
-  listWorkspaces,
   listScenarios,
   getSimulationResults,
   getResultsExportUrl, getScenarioReportUrl,
@@ -22,7 +21,7 @@ import { useChartTheme } from '../hooks/useChartTheme';
 import RunHealthSummary from './simulation/RunHealthSummary';
 
 interface LayoutContext {
-  activeWorkspace: { id: string; name: string };
+  activeWorkspace: Workspace;
   lastRunScenarioId: string | null;
 }
 
@@ -188,11 +187,16 @@ export default function AnalyticsDashboard() {
           // Get scenario details to find its workspace
           const details = await getRunDetails(scenarioIdFromUrl);
           if (details.workspace_id) {
-            setSelectedWorkspaceId(details.workspace_id);
+            if (details.workspace_id !== contextWorkspace.id) {
+              setError('The requested scenario belongs to a different workspace than the URL. No workspace switch was performed.');
+              fetchWorkspaces();
+              setInitializedFromUrl(true);
+              return;
+            }
+            setSelectedWorkspaceId(contextWorkspace.id);
             setSelectedScenarioId(scenarioIdFromUrl);
             setInitializedFromUrl(true);
-            // E103 FIX: Pass true to skip auto-selection since we already set workspace from URL
-            fetchWorkspaces(true);
+            fetchWorkspaces();
             return;
           }
         } catch (err) {
@@ -203,7 +207,7 @@ export default function AnalyticsDashboard() {
       fetchWorkspaces();
     };
     initFromUrl();
-  }, [scenarioIdFromUrl]);
+  }, [contextWorkspace.id, scenarioIdFromUrl]);
 
   // Fetch scenarios when workspace changes
   useEffect(() => {
@@ -226,18 +230,10 @@ export default function AnalyticsDashboard() {
   }, [selectedScenarioId, population]);
 
   // E103 FIX: Accept optional parameter to skip auto-selection when initialized from URL
-  const fetchWorkspaces = async (skipAutoSelect = false) => {
-    try {
-      const data = await listWorkspaces();
-      setWorkspaces(data);
-      // Auto-select: prefer context workspace if available, else first
-      // Skip auto-select if we already have a workspace from URL initialization
-      if (data.length > 0 && !selectedWorkspaceId && !skipAutoSelect) {
-        const preferredWorkspace = data.find(ws => ws.id === contextWorkspace?.id);
-        setSelectedWorkspaceId(preferredWorkspace?.id || data[0].id);
-      }
-    } catch (err) {
-      console.error('Failed to fetch workspaces:', err);
+  const fetchWorkspaces = async () => {
+    setWorkspaces([contextWorkspace]);
+    if (!selectedWorkspaceId || selectedWorkspaceId !== contextWorkspace.id) {
+      setSelectedWorkspaceId(contextWorkspace.id);
     }
   };
 

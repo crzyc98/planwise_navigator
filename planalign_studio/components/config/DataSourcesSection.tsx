@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Database, Check, AlertTriangle, Loader2, FileUp } from 'lucide-react';
 import { useConfigContext } from './ConfigContext';
 import { getWorkspace, validateFilePath } from '../../services/api';
+import { useWorkspacePath } from '../../hooks/useWorkspaceNavigation';
 
 interface CensusInfo {
   path: string;
@@ -12,6 +13,7 @@ interface CensusInfo {
 }
 
 export function DataSourcesSection() {
+  const importPath = useWorkspacePath('/import');
   const { activeWorkspace } = useConfigContext();
   const [censusInfo, setCensusInfo] = useState<CensusInfo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -91,7 +93,7 @@ export function DataSourcesSection() {
               <p className="text-sm text-warning-ink">{error}</p>
             </div>
             <Link
-              to="/import"
+              to={importPath}
               className="inline-flex items-center gap-1 text-sm font-medium text-fidelity-green hover:underline"
             >
               <FileUp size={14} /> Import a new census file
@@ -116,7 +118,7 @@ export function DataSourcesSection() {
               </div>
             </div>
             <Link
-              to="/import"
+              to={importPath}
               className="inline-flex items-center gap-1 text-sm text-fidelity-green hover:underline"
             >
               <FileUp size={14} /> Change census file via Import
@@ -130,7 +132,7 @@ export function DataSourcesSection() {
               Import a CSV, Excel, or Parquet file to get started.
             </p>
             <Link
-              to="/import"
+              to={importPath}
               className="inline-flex items-center gap-1.5 px-4 py-2 bg-fidelity-green text-ink-inverse text-sm font-medium rounded-lg hover:bg-fidelity-dark transition-colors"
             >
               <FileUp size={14} /> Import Data

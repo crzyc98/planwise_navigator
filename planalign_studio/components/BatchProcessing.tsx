@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
+import { useOutletContext, useSearchParams } from 'react-router-dom';
 import {
   Plus, Play, FileDown, CheckCircle,
   Clock, AlertCircle, Trash2, ArrowRight, LayoutGrid, RotateCw,
@@ -14,9 +14,10 @@ import {
   BatchJob,
 } from '../services/api';
 import { useBatchSocket } from '../services/websocket';
+import { useWorkspaceNavigate } from '../hooks/useWorkspaceNavigation';
 
 export default function BatchProcessing() {
-  const navigate = useNavigate();
+  const navigate = useWorkspaceNavigate();
   const [searchParams] = useSearchParams();
   const { activeWorkspace } = useOutletContext<LayoutContextType>();
 

@@ -8,6 +8,7 @@ import FileUploadStep from './imports/FileUploadStep';
 import FieldMappingStep from './imports/FieldMappingStep';
 import PreviewStep from './imports/PreviewStep';
 import ImportedFilesList from './imports/ImportedFilesList';
+import { useWorkspacePath } from '../hooks/useWorkspaceNavigation';
 
 type WizardStep = 'upload' | 'mapping' | 'preview' | 'done';
 
@@ -44,6 +45,7 @@ function StepIndicator({ current }: { current: WizardStep }) {
 }
 
 export default function DataImportWizard() {
+  const configPath = useWorkspacePath('/config');
   const { activeWorkspace, refreshActiveWorkspace } = useOutletContext<LayoutContextType>();
   const [step, setStep] = useState<WizardStep>('upload');
   const [session, setSession] = useState<ImportSession | null>(null);
@@ -166,7 +168,7 @@ export default function DataImportWizard() {
                 Import Another File
               </button>
               <Link
-                to="/config"
+                to={configPath}
                 className="px-4 py-2 text-sm bg-fidelity-green text-ink-inverse rounded-lg hover:bg-fidelity-dark"
               >
                 View in Configure

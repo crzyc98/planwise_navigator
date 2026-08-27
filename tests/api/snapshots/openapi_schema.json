@@ -10768,6 +10768,41 @@
         "title": "WorkspaceCreate",
         "type": "object"
       },
+      "WorkspacePage": {
+        "description": "Paginated workspace navigation result.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceSummary"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "minimum": 0.0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "WorkspacePage",
+        "type": "object"
+      },
       "WorkspaceResponse": {
         "description": "Public workspace representation returned by the API.\n\nSame shape as :class:`Workspace` minus ``storage_path``: the absolute\nserver filesystem path is internal deployment detail the Studio UI does\nnot need (issue #532).",
         "properties": {
@@ -10797,6 +10832,16 @@
           "id": {
             "description": "Unique workspace ID (UUID)",
             "title": "Id",
+            "type": "string"
+          },
+          "lifecycle": {
+            "default": "active",
+            "description": "Workspace lifecycle state",
+            "enum": [
+              "active",
+              "archived"
+            ],
+            "title": "Lifecycle",
             "type": "string"
           },
           "name": {
@@ -10860,6 +10905,16 @@
             "description": "Last simulation run timestamp",
             "title": "Last Run At"
           },
+          "lifecycle": {
+            "default": "active",
+            "description": "Workspace lifecycle state",
+            "enum": [
+              "active",
+              "archived"
+            ],
+            "title": "Lifecycle",
+            "type": "string"
+          },
           "name": {
             "description": "Workspace name",
             "title": "Name",
@@ -10882,12 +10937,19 @@
             ],
             "description": "Storage used in MB, or null when not currently cached. Listing workspaces never walks the filesystem; call /api/system/status for authoritative storage figures.",
             "title": "Storage Used Mb"
+          },
+          "updated_at": {
+            "description": "Last workspace update timestamp",
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
           }
         },
         "required": [
           "id",
           "name",
-          "created_at"
+          "created_at",
+          "updated_at"
         ],
         "title": "WorkspaceSummary",
         "type": "object"
@@ -10963,6 +11025,21 @@
               }
             ],
             "title": "Description"
+          },
+          "lifecycle": {
+            "anyOf": [
+              {
+                "enum": [
+                  "active",
+                  "archived"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lifecycle"
           },
           "name": {
             "anyOf": [
@@ -13168,20 +13245,98 @@
       "get": {
         "description": "List all workspaces.\n\nReturns summary information for each workspace including scenario count\nand storage usage.",
         "operationId": "list_workspaces_api_workspaces_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "name",
+              "enum": [
+                "name",
+                "updated",
+                "last_activity"
+              ],
+              "title": "Sort",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lifecycle",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "active",
+                "archived",
+                "all"
+              ],
+              "title": "Lifecycle",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/WorkspaceSummary"
-                  },
-                  "title": "Response List Workspaces Api Workspaces Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/WorkspacePage"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "List Workspaces",
@@ -13529,6 +13684,56 @@
           }
         },
         "summary": "Validate Import",
+        "tags": [
+          "Workspaces"
+        ]
+      }
+    },
+    "/api/workspaces/recent": {
+      "get": {
+        "description": "Return a cheap active-workspace page ordered by recorded activity.",
+        "operationId": "list_recent_workspaces_api_workspaces_recent_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "maximum": 20,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WorkspaceSummary"
+                  },
+                  "title": "Response List Recent Workspaces Api Workspaces Recent Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Recent Workspaces",
         "tags": [
           "Workspaces"
         ]
