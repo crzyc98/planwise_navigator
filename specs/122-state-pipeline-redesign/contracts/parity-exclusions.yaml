@@ -12,6 +12,3 @@ exclusions:
   - relation: fct_compensation_growth
     column: analysis_timestamp
     reason: Exact CURRENT_TIMESTAMP analysis value generated only by the calibration-specific fct_compensation_growth mart.
-  - relation: fct_policy_optimization
-    column: analysis_timestamp
-    reason: Exact CURRENT_TIMESTAMP analysis value generated only by the policy-optimization-specific fct_policy_optimization mart.

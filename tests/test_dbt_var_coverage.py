@@ -50,18 +50,6 @@ _ORCHESTRATOR_INJECTED_VARS = {
 # bug — if you're tempted to add something here because a test failed, first
 # check whether it should be wired into to_dbt_vars instead (see #510).
 _KNOWN_STALE_VARS = {
-    "test_cola_rate": (
-        "fct_policy_optimization.sql test/demo scaffolding; not backed by any "
-        "config field"
-    ),
-    "test_merit_budget": (
-        "fct_policy_optimization.sql test/demo scaffolding; not backed by any "
-        "config field"
-    ),
-    "test_scenario": (
-        "fct_policy_optimization.sql test/demo scaffolding; not backed by any "
-        "config field"
-    ),
     "dbt_version": (
         "audit-trail placeholder in data-quality models; no config field exists "
         "to source it from"

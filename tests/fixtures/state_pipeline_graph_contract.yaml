@@ -36,21 +36,15 @@ ownership_classes:
       - fct_workforce_snapshot
 mart_inventory:
   - dim_hazard_table
-  - dim_payroll_calendar
   - fct_compensation_growth
   - fct_employer_match_events
-  - fct_payroll_ledger
-  - fct_policy_optimization
   - fct_workforce_snapshot
-  - fct_workforce_snapshot_gate_c
   - fct_yearly_events
 intentional_audit_sinks:
   - model: fct_employer_match_events
     reason: Published employer-match audit fact consumed by API and export readers, not another dbt model.
   - model: fct_compensation_growth
     reason: Calibration-only terminal analysis mart.
-  - model: fct_policy_optimization
-    reason: Policy-optimization-only terminal analysis mart.
 prepublished_models:
   normal:
     - fct_yearly_events

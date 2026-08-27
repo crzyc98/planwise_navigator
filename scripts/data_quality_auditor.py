@@ -164,61 +164,6 @@ class DataQualityAuditor:
                         f"Failed to check casting issues: {e}",
                     )
 
-    def check_event_table_specific_issues(self):
-        """Check for specific issues in event-related tables."""
-        event_tables = [
-            "fct_yearly_events",
-            "int_employee_event_stream",
-            "fct_workforce_snapshot",
-            "int_employee_compensation_by_year",
-        ]
-
-        for table in event_tables:
-            if table in self.get_table_list():
-                try:
-                    # Check tenure consistency across event types
-                    if table == "int_employee_event_stream":
-                        query = """
-                        SELECT
-                            event_type,
-                            COUNT(*) as total_events,
-                            COUNT(current_tenure) as non_null_tenure,
-                            COUNT(*) - COUNT(current_tenure) as null_tenure
-                        FROM int_employee_event_stream
-                        GROUP BY event_type
-                        ORDER BY null_tenure DESC
-                        """
-                        results = self.conn.execute(query).fetchall()
-
-                        for event_type, total, non_null, null_count in results:
-                            if null_count > 0 and event_type not in [
-                                "hire",
-                                "initial_state",
-                            ]:
-                                null_percentage = (null_count / total) * 100
-                                self.log_issue(
-                                    severity="WARNING",
-                                    table=table,
-                                    column="current_tenure",
-                                    issue_type="EVENT_DESIGN_PATTERN",
-                                    description=f"Event type '{event_type}' has {null_count} NULL tenure values by design",
-                                    count=null_count,
-                                    details={
-                                        "event_type": event_type,
-                                        "null_percentage": null_percentage,
-                                        "is_expected": True,
-                                    },
-                                )
-
-                except Exception as e:
-                    self.log_issue(
-                        "ERROR",
-                        table,
-                        "N/A",
-                        "EVENT_CHECK",
-                        f"Failed to check event-specific issues: {e}",
-                    )
-
     def check_data_ranges(self, table_name: str, column_info: List[tuple]):
         """Check for unreasonable data ranges in key columns."""
         range_checks = {
@@ -294,7 +239,6 @@ class DataQualityAuditor:
 
         # Event-specific checks
         print("🎯 Checking event-specific patterns...")
-        self.check_event_table_specific_issues()
 
         # Generate summary
         self.generate_summary()
@@ -431,14 +375,10 @@ class DataQualityAuditor:
             )
             if critical_nulls:
                 print(f"   • {len(critical_nulls)} are critical (>50% NULL values)")
-            print("   • Most problematic: current_tenure in int_employee_event_stream")
-            print(
-                "   • Recommendation: Review event processing logic for tenure calculation"
-            )
+            print("   • Recommendation: Review source-specific NULL handling")
 
         print("\n4. 🔧 IMMEDIATE ACTIONS NEEDED:")
         print("   • Fix fct_workforce_snapshot.sql casting logic for current_tenure")
-        print("   • Implement proper tenure calculation in int_employee_event_stream")
         print("   • Add data validation checks in event processing pipeline")
         print("   • Consider adding NOT NULL constraints where appropriate")
 

@@ -4,8 +4,7 @@ Locks in the two SQL behaviors introduced by the feature, executed against
 in-memory DuckDB with the exact expressions used in the dbt models:
 
 1. Eligibility hours formula: ``COALESCE(scheduled_hours_per_week, 40.0) * 52.0``
-   replaces the hardcoded 2080 in int_employer_eligibility and
-   int_eligibility_computation_period.
+   replaces the hardcoded 2080 in int_employer_eligibility.
 2. Part-time new hire assignment: deterministic hash in int_hiring_events
    selects a stable ``part_time_new_hire_pct`` fraction of each cohort.
 """
