@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
+import { useOutletContext, useSearchParams } from 'react-router-dom';
 import {
   AlertCircle,
   AlertTriangle,
@@ -29,6 +29,7 @@ import {
   listScenarios,
   WorkforceMetrics,
 } from '../services/api';
+import { useWorkspaceNavigate } from '../hooks/useWorkspaceNavigation';
 import { LayoutContextType } from './Layout';
 
 interface ChartPoint {
@@ -188,7 +189,7 @@ function ConfigDeltaRow({ delta }: Readonly<{ delta: ConfigDelta }>) {
 }
 
 export default function ScenarioDiff() {
-  const navigate = useNavigate();
+  const navigate = useWorkspaceNavigate();
   const [searchParams] = useSearchParams();
   const { activeWorkspace } = useOutletContext<LayoutContextType>();
   const scenarioA = searchParams.get('a') ?? '';

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import {
   BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
@@ -8,7 +9,6 @@ import {
   RefreshCw, AlertCircle, ChevronDown, ChevronUp, Database, Loader2, Table, Calendar
 } from 'lucide-react';
 import {
-  listWorkspaces,
   listScenarios,
   listVestingSchedules,
   analyzeVesting,
@@ -23,6 +23,7 @@ import {
 } from '../services/api';
 import ForfeitureProjection from './ForfeitureProjection';
 import { useChartTheme } from '../hooks/useChartTheme';
+import { LayoutContextType } from './Layout';
 
 type VestingView = 'comparison' | 'forfeitures';
 
@@ -143,6 +144,7 @@ const SortHeader = ({ field, label, sortField, sortDirection, onSort }: Readonly
 
 export default function VestingAnalysis() {
   const chartTheme = useChartTheme();
+  const { activeWorkspace } = useOutletContext<LayoutContextType>();
   // State for workspace/scenario selection
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
@@ -171,11 +173,16 @@ export default function VestingAnalysis() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [showEmployeeDetails, setShowEmployeeDetails] = useState(false);
 
-  // Fetch workspaces and schedules on mount
+  // The route is authoritative for workspace scope; this page never silently
+  // switches to a different workspace through local component state.
   useEffect(() => {
-    fetchWorkspaces();
     fetchSchedules();
   }, []);
+
+  useEffect(() => {
+    setWorkspaces([activeWorkspace]);
+    setSelectedWorkspaceId(activeWorkspace.id);
+  }, [activeWorkspace]);
 
   // Fetch scenarios when workspace changes
   useEffect(() => {
@@ -196,18 +203,6 @@ export default function VestingAnalysis() {
       setSelectedYear(undefined);
     }
   }, [selectedWorkspaceId, selectedScenarioId]);
-
-  const fetchWorkspaces = async () => {
-    try {
-      const data = await listWorkspaces();
-      setWorkspaces(data);
-      if (data.length > 0) {
-        setSelectedWorkspaceId(data[0].id);
-      }
-    } catch (err) {
-      console.error('Failed to fetch workspaces:', err);
-    }
-  };
 
   const fetchScenarios = async (workspaceId: string) => {
     setLoadingScenarios(true);

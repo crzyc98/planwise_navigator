@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   LayoutDashboard, PlayCircle, BarChart3, Settings, Database,
   Activity, Bell, ChevronDown, Check, Search, Briefcase,
@@ -18,12 +18,13 @@ import {
   RUN_CONSISTENCY_EVENT,
   RunConsistencyDetail,
   Workspace as ApiWorkspace,
+  WorkspaceSummary as ApiWorkspaceSummary,
 } from '../services/api';
 import { useTheme } from '../hooks/useTheme';
 
 export interface LayoutContextType {
   activeWorkspace: Workspace;
-  setActiveWorkspace: (ws: Workspace) => void;
+  setActiveWorkspace: (ws: Workspace) => Promise<void>;
   workspaces: Workspace[];
   addWorkspace: (ws: Workspace) => Promise<Workspace>;
   updateWorkspace: (id: string, updates: Partial<Workspace>) => Promise<void>;
@@ -96,26 +97,108 @@ const NAV_SECTIONS: ReadonlyArray<{
   },
 ];
 
+const ACTIVE_WORKSPACE_STORAGE_KEY = 'planalign.activeWorkspaceId';
+const RECENT_WORKSPACES_STORAGE_KEY = 'planalign.recentWorkspaceIds';
+const MAX_RECENT_WORKSPACES = 5;
+const SERVER_SEARCH_CUTOVER = 200;
+const WORKSPACE_CHIP_COLORS = [
+  'bg-info-surface text-info-ink',
+  'bg-success-surface text-success-ink',
+  'bg-warning-surface text-warning-ink',
+  'bg-danger-surface text-danger-ink',
+] as const;
+
+function readRecentWorkspaceIds(): string[] {
+  try {
+    const value = window.localStorage.getItem(RECENT_WORKSPACES_STORAGE_KEY);
+    if (!value) return [];
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function rememberWorkspace(workspaceId: string): string[] {
+  const recentIds = [
+    workspaceId,
+    ...readRecentWorkspaceIds().filter(id => id !== workspaceId),
+  ].slice(0, MAX_RECENT_WORKSPACES);
+  try {
+    window.localStorage.setItem(ACTIVE_WORKSPACE_STORAGE_KEY, workspaceId);
+    window.localStorage.setItem(RECENT_WORKSPACES_STORAGE_KEY, JSON.stringify(recentIds));
+  } catch {
+    // Storage can be unavailable in locked-down browser contexts. The current
+    // session still works; persistence gracefully becomes best-effort.
+  }
+  return recentIds;
+}
+
+function sortWorkspacesByName(workspaces: Workspace[]): Workspace[] {
+  return [...workspaces].sort((left, right) =>
+    left.name.localeCompare(right.name, undefined, { sensitivity: 'base' })
+  );
+}
+
+function workspaceIdentity(workspace: Workspace): { initials: string; color: string } {
+  const initials = workspace.name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map(part => part[0]?.toUpperCase() ?? '')
+    .join('') || 'WS';
+  const hash = [...workspace.id].reduce((total, char) => total + char.charCodeAt(0), 0);
+  return { initials, color: WORKSPACE_CHIP_COLORS[hash % WORKSPACE_CHIP_COLORS.length] };
+}
+
+function HighlightedName({ name, query }: Readonly<{ name: string; query: string }>) {
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const matchIndex = name.toLocaleLowerCase().indexOf(normalizedQuery);
+  if (!normalizedQuery || matchIndex < 0) return <>{name}</>;
+  const matchEnd = matchIndex + normalizedQuery.length;
+  return (
+    <>
+      {name.slice(0, matchIndex)}
+      <mark className="bg-warning-surface text-inherit rounded-sm">{name.slice(matchIndex, matchEnd)}</mark>
+      {name.slice(matchEnd)}
+    </>
+  );
+}
+
 // Helper to convert API workspace to frontend workspace type
-const toFrontendWorkspace = (ws: ApiWorkspace): Workspace => ({
+const toFrontendWorkspace = (ws: ApiWorkspace | ApiWorkspaceSummary): Workspace => ({
   id: ws.id,
   name: ws.name,
   description: ws.description,
+  lifecycle: ws.lifecycle,
   scenarios: [], // Scenarios loaded separately
-  lastRun: ws.updated_at ? new Date(ws.updated_at).toLocaleDateString() : 'Never',
+  lastRun: ('last_run_at' in ws ? ws.last_run_at : ws.updated_at)
+    ? new Date(('last_run_at' in ws ? ws.last_run_at : ws.updated_at) as string).toLocaleDateString()
+    : 'Never',
+  lastRunAt: 'last_run_at' in ws ? ws.last_run_at : null,
   created_at: ws.created_at,
-  updated_at: ws.updated_at,
-  base_config: ws.base_config,
+  updated_at: 'updated_at' in ws ? ws.updated_at : ws.created_at,
+  base_config: 'base_config' in ws ? ws.base_config : {},
 });
 
 export default function Layout() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { workspaceId: routeWorkspaceId } = useParams<{ workspaceId: string }>();
+  const workspaceBase = routeWorkspaceId ? `/w/${routeWorkspaceId}` : '';
   const { preference, setPreference } = useTheme();
 
   // Global Workspace State
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [workspaceTotal, setWorkspaceTotal] = useState(0);
+  const [serverSearchWorkspaces, setServerSearchWorkspaces] = useState<Workspace[] | null>(null);
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false);
+  const [workspaceQuery, setWorkspaceQuery] = useState('');
+  const [highlightedWorkspaceIndex, setHighlightedWorkspaceIndex] = useState(0);
+  const [recentWorkspaceIds, setRecentWorkspaceIds] = useState<string[]>(readRecentWorkspaceIds);
+  const [workspaceNotice, setWorkspaceNotice] = useState<string | null>(null);
+  const [workspaceRouteError, setWorkspaceRouteError] = useState<string | null>(null);
   const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(true);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const [lastRunScenarioId, setLastRunScenarioId] = useState<string | null>(null);
@@ -231,24 +314,116 @@ export default function Layout() {
     try {
       setIsWorkspaceLoading(true);
       setWorkspaceError(null);
-      const apiWorkspaces = await listWorkspaces();
-      const frontendWorkspaces = apiWorkspaces.map(toFrontendWorkspace);
+      setWorkspaceRouteError(null);
+      const workspacePage = await listWorkspaces({
+        limit: 500,
+        lifecycle: 'all',
+        sort: 'name',
+      });
+      const apiWorkspaces = workspacePage.items;
+      setWorkspaceTotal(workspacePage.total);
+      const frontendWorkspaces = sortWorkspacesByName(apiWorkspaces.map(toFrontendWorkspace));
       setWorkspaces(frontendWorkspaces);
 
-      // Set active workspace to first one if none selected
-      if (frontendWorkspaces.length > 0 && !activeWorkspace) {
-        setActiveWorkspace(frontendWorkspaces[0]);
+      if (!routeWorkspaceId) {
+        setWorkspaceRouteError(
+          'The workspace id is missing from the URL. No client was selected implicitly.'
+        );
+        setActiveWorkspace(null);
+        return;
+      }
+
+      let routedWorkspace: Workspace;
+      try {
+        routedWorkspace = toFrontendWorkspace(await apiGetWorkspace(routeWorkspaceId));
+      } catch {
+        setWorkspaceRouteError(
+          `Workspace ${routeWorkspaceId} was not found. The URL was not redirected to a different client.`
+        );
+        setActiveWorkspace(null);
+        return;
+      }
+
+      if (routedWorkspace.lifecycle === 'archived') {
+        setWorkspaceRouteError(
+          `${routedWorkspace.name} is archived. Restore it from Workspace Manager before opening its analysis pages.`
+        );
+        setActiveWorkspace(null);
+      } else {
+        setWorkspaces(current => current.some(workspace => workspace.id === routedWorkspace.id)
+          ? current.map(workspace => workspace.id === routedWorkspace.id ? routedWorkspace : workspace)
+          : sortWorkspacesByName([...current, routedWorkspace]));
+        setActiveWorkspace(routedWorkspace);
+        setRecentWorkspaceIds(rememberWorkspace(routedWorkspace.id));
+        const routeState = location.state as { workspaceNotice?: string } | null;
+        if (routeState?.workspaceNotice) setWorkspaceNotice(routeState.workspaceNotice);
       }
     } catch (err) {
       setWorkspaceError(err instanceof Error ? err.message : 'Failed to load workspaces');
     } finally {
       setIsWorkspaceLoading(false);
     }
-  }, []);
+  }, [location.state, routeWorkspaceId]);
 
   useEffect(() => {
     loadWorkspaces();
   }, [loadWorkspaces]);
+
+  const normalizedWorkspaceQuery = workspaceQuery.trim().toLocaleLowerCase();
+  const matchingWorkspaces = (serverSearchWorkspaces ?? workspaces).filter(workspace =>
+    workspace.lifecycle === 'active'
+      && (workspace.name.toLocaleLowerCase().includes(normalizedWorkspaceQuery)
+        || (workspace.description ?? '').toLocaleLowerCase().includes(normalizedWorkspaceQuery))
+  );
+  const recentWorkspaces = recentWorkspaceIds
+    .map(id => matchingWorkspaces.find(workspace => workspace.id === id))
+    .filter((workspace): workspace is Workspace => Boolean(workspace));
+  const recentIdSet = new Set(recentWorkspaces.map(workspace => workspace.id));
+  const remainingWorkspaces = sortWorkspacesByName(
+    matchingWorkspaces.filter(workspace => !recentIdSet.has(workspace.id))
+  );
+  const paletteWorkspaces = [...recentWorkspaces, ...remainingWorkspaces];
+
+  useEffect(() => {
+    setHighlightedWorkspaceIndex(0);
+  }, [workspaceQuery, isWorkspaceMenuOpen]);
+
+  useEffect(() => {
+    if (workspaceTotal <= SERVER_SEARCH_CUTOVER || !normalizedWorkspaceQuery) {
+      setServerSearchWorkspaces(null);
+      return;
+    }
+
+    let cancelled = false;
+    const timeout = window.setTimeout(() => {
+      void listWorkspaces({
+        q: workspaceQuery.trim(),
+        limit: 50,
+        lifecycle: 'active',
+        sort: 'name',
+      }).then(page => {
+        if (!cancelled) setServerSearchWorkspaces(page.items.map(toFrontendWorkspace));
+      }).catch(() => {
+        if (!cancelled) setServerSearchWorkspaces([]);
+      });
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [normalizedWorkspaceQuery, workspaceQuery, workspaceTotal]);
+
+  useEffect(() => {
+    function handleWorkspaceShortcut(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && (event.key.toLocaleLowerCase() === 'k' || event.key.toLocaleLowerCase() === 'o')) {
+        event.preventDefault();
+        setIsWorkspaceMenuOpen(true);
+      }
+    }
+    window.addEventListener('keydown', handleWorkspaceShortcut);
+    return () => window.removeEventListener('keydown', handleWorkspaceShortcut);
+  }, []);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -275,7 +450,7 @@ export default function Layout() {
         description: ws.description,
       });
       const frontendWs = toFrontendWorkspace(created);
-      setWorkspaces(prev => [...prev, frontendWs]);
+      setWorkspaces(prev => sortWorkspacesByName([...prev, frontendWs]));
       return frontendWs;
     } catch (err) {
       console.error('Failed to create workspace:', err);
@@ -289,11 +464,27 @@ export default function Layout() {
         name: updates.name,
         description: updates.description,
         base_config: updates.base_config,
+        lifecycle: updates.lifecycle,
       });
       const frontendWs = toFrontendWorkspace(updated);
-      setWorkspaces(prev => prev.map(w => w.id === id ? frontendWs : w));
+      setWorkspaces(prev => prev.map(w => w.id === id
+        ? { ...frontendWs, scenarios: w.scenarios, lastRun: w.lastRun, lastRunAt: w.lastRunAt }
+        : w));
       if (activeWorkspace?.id === id) {
-        setActiveWorkspace(frontendWs);
+        if (frontendWs.lifecycle === 'archived') {
+          const fallback = sortWorkspacesByName(workspaces.filter(
+            workspace => workspace.id !== id && workspace.lifecycle === 'active'
+          ))[0];
+          setActiveWorkspace(fallback);
+          setRecentWorkspaceIds(rememberWorkspace(fallback.id));
+          setWorkspaceNotice(`Archived ${frontendWs.name}. Switched to ${fallback.name}.`);
+          navigate(
+            location.pathname.replace(/^\/w\/[^/]+/, `/w/${fallback.id}`),
+            { replace: true }
+          );
+        } else {
+          setActiveWorkspace(frontendWs);
+        }
       }
     } catch (err) {
       console.error('Failed to update workspace:', err);
@@ -309,9 +500,14 @@ export default function Layout() {
       const newWorkspaces = workspaces.filter(w => w.id !== id);
       setWorkspaces(newWorkspaces);
 
-      // If we deleted the active one, switch to the first available
+      // If the active workspace was deleted, make the fallback visible and
+      // deterministic rather than silently selecting a UUID-ordered entry.
       if (activeWorkspace?.id === id) {
-        setActiveWorkspace(newWorkspaces[0]);
+        const fallback = sortWorkspacesByName(newWorkspaces)[0];
+        setActiveWorkspace(fallback);
+        setRecentWorkspaceIds(rememberWorkspace(fallback.id));
+        setWorkspaceNotice(`The active workspace was deleted. Switched to ${fallback.name}.`);
+        navigate(`/w/${fallback.id}`, { replace: true });
       }
     } catch (err) {
       console.error('Failed to delete workspace:', err);
@@ -331,14 +527,53 @@ export default function Layout() {
     }
   }, [activeWorkspace?.id]);
 
-  const handleWorkspaceSelect = (workspace: Workspace) => {
+  const handleWorkspaceSelect = async (workspace: Workspace) => {
     if (workspace.id === activeWorkspace?.id) {
       setIsWorkspaceMenuOpen(false);
+      setWorkspaceQuery('');
+      setRecentWorkspaceIds(rememberWorkspace(workspace.id));
       return;
     }
 
     setIsWorkspaceMenuOpen(false);
-    setActiveWorkspace(workspace);
+    setWorkspaceQuery('');
+    setIsWorkspaceLoading(true);
+    try {
+      const selectedWorkspace = toFrontendWorkspace(await apiGetWorkspace(workspace.id));
+      setWorkspaces(current => current.map(item =>
+        item.id === selectedWorkspace.id ? selectedWorkspace : item
+      ));
+      setActiveWorkspace(selectedWorkspace);
+      setRecentWorkspaceIds(rememberWorkspace(selectedWorkspace.id));
+      navigate(location.pathname.replace(/^\/w\/[^/]+/, `/w/${selectedWorkspace.id}`));
+    } catch (err) {
+      setWorkspaceNotice(err instanceof Error ? err.message : 'Failed to switch workspace.');
+    } finally {
+      setIsWorkspaceLoading(false);
+    }
+  };
+
+  const handleWorkspacePaletteKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      if (workspaceQuery) {
+        setWorkspaceQuery('');
+      } else {
+        setIsWorkspaceMenuOpen(false);
+      }
+      return;
+    }
+    if (paletteWorkspaces.length === 0) return;
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setHighlightedWorkspaceIndex(index => (index + 1) % paletteWorkspaces.length);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setHighlightedWorkspaceIndex(index => (index - 1 + paletteWorkspaces.length) % paletteWorkspaces.length);
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      handleWorkspaceSelect(paletteWorkspaces[highlightedWorkspaceIndex] ?? paletteWorkspaces[0]);
+    }
   };
 
   const handleCreateWorkspace = async (e: React.FormEvent) => {
@@ -351,6 +586,7 @@ export default function Layout() {
         id: '', // Will be set by API
         name: newWorkspaceName,
         description: newWorkspaceDesc || 'No description provided.',
+        lifecycle: 'active',
         scenarios: [],
         lastRun: 'Never',
         created_at: new Date().toISOString(),
@@ -363,6 +599,8 @@ export default function Layout() {
       // Switch to new workspace
       setIsCreateModalOpen(false);
       setActiveWorkspace(created);
+      setRecentWorkspaceIds(rememberWorkspace(created.id));
+      navigate(`/w/${created.id}`);
 
       // Reset form
       setNewWorkspaceName('');
@@ -418,6 +656,25 @@ export default function Layout() {
             className="px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg text-sm"
           >
             Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (workspaceRouteError) {
+    return (
+      <div className="flex h-screen bg-surface-subtle items-center justify-center p-6">
+        <div className="flex max-w-lg flex-col items-center text-center">
+          <AlertTriangle className="mb-3 h-10 w-10 text-warning-ink" />
+          <p className="mb-2 text-lg font-semibold text-ink">Workspace unavailable</p>
+          <p className="mb-4 text-sm text-ink-muted">{workspaceRouteError}</p>
+          <button
+            type="button"
+            onClick={() => navigate('/', { replace: true })}
+            className="rounded-lg bg-fidelity-green px-4 py-2 text-sm font-medium text-ink-inverse"
+          >
+            Choose an active workspace
           </button>
         </div>
       </div>
@@ -509,7 +766,7 @@ export default function Layout() {
 
   const contextValue: LayoutContextType = {
     activeWorkspace,
-    setActiveWorkspace,
+    setActiveWorkspace: handleWorkspaceSelect,
     workspaces,
     addWorkspace,
     updateWorkspace,
@@ -633,7 +890,7 @@ export default function Layout() {
               {section.items.map((item) => (
                 <NavItem
                   key={item.to}
-                  to={item.to}
+                  to={`${workspaceBase}${item.to === '/' ? '' : item.to}`}
                   icon={item.icon}
                   label={item.label}
                   end={item.end}
@@ -655,10 +912,12 @@ export default function Layout() {
             <div className="relative">
               <button
                 onClick={() => setIsWorkspaceMenuOpen(!isWorkspaceMenuOpen)}
+                aria-haspopup="dialog"
+                aria-expanded={isWorkspaceMenuOpen}
                 className="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-surface-subtle transition-colors border border-transparent hover:border-border"
               >
-                <div className="p-1.5 bg-info-surface text-info-ink rounded-md">
-                  <Briefcase size={18} />
+                <div className={`w-8 h-8 flex items-center justify-center text-xs font-bold rounded-md ${workspaceIdentity(activeWorkspace).color}`}>
+                  {workspaceIdentity(activeWorkspace).initials}
                 </div>
                 <div className="text-left hidden sm:block">
                   <p className="text-xs text-ink-muted font-medium">Active Workspace</p>
@@ -671,51 +930,68 @@ export default function Layout() {
 
               {/* Dropdown Menu */}
               {isWorkspaceMenuOpen && (
-                <div className="absolute top-full left-0 mt-2 w-80 bg-surface-raised rounded-xl shadow-lg border border-border py-2 animate-fadeIn z-50">
+                <div
+                  role="dialog"
+                  aria-label="Switch workspace"
+                  className="absolute top-full left-0 mt-2 w-80 bg-surface-raised rounded-xl shadow-lg border border-border py-2 animate-fadeIn z-50"
+                >
                   <div className="px-4 py-2 border-b border-border mb-2">
                     <div className="relative">
                       <Search size={14} className="absolute left-2.5 top-2.5 text-ink-subtle" />
                       <input
                         type="text"
                         placeholder="Switch workspace..."
+                        value={workspaceQuery}
+                        onChange={(event) => setWorkspaceQuery(event.target.value)}
+                        onKeyDown={handleWorkspacePaletteKeyDown}
+                        autoFocus
+                        role="combobox"
+                        aria-label="Search workspaces"
+                        aria-expanded="true"
+                        aria-controls="workspace-palette-results"
                         className="w-full pl-8 pr-3 py-1.5 text-sm bg-surface-subtle border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-fidelity-green"
                       />
                     </div>
+                    <p className="mt-1.5 text-[10px] text-ink-subtle">↑↓ navigate · Enter select · Esc clear/close</p>
                   </div>
 
-                  <div className="max-h-64 overflow-y-auto">
-                    {workspaces.map((workspace) => (
-                      <button
-                        key={workspace.id}
-                        onClick={() => handleWorkspaceSelect(workspace)}
-                        className={`w-full text-left px-4 py-3 flex items-start hover:bg-surface-subtle transition-colors ${activeWorkspace.id === workspace.id ? 'bg-info-surface' : ''}`}
-                      >
-                        <div className={`mt-1 flex-shrink-0 w-2 h-2 rounded-full mr-3 ${activeWorkspace.id === workspace.id ? 'bg-fidelity-green' : 'bg-surface-disabled'}`} />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex justify-between items-center">
-                            <span className={`text-sm font-medium truncate pr-2 ${activeWorkspace.id === workspace.id ? 'text-fidelity-green' : 'text-ink'}`}>
-                              {workspace.name}
+                  <div id="workspace-palette-results" role="listbox" className="max-h-80 overflow-y-auto">
+                    {paletteWorkspaces.length === 0 && (
+                      <p className="px-4 py-6 text-center text-sm text-ink-muted">
+                        No workspaces match “{workspaceQuery}”
+                      </p>
+                    )}
+                    {recentWorkspaces.length > 0 && !normalizedWorkspaceQuery && (
+                      <p className="px-4 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Recent</p>
+                    )}
+                    {paletteWorkspaces.map((workspace, index) => {
+                      const identity = workspaceIdentity(workspace);
+                      const startsRemainingSection = !normalizedWorkspaceQuery
+                        && recentWorkspaces.length > 0
+                        && index === recentWorkspaces.length;
+                      return (
+                        <React.Fragment key={workspace.id}>
+                          {startsRemainingSection && (
+                            <p className="px-4 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">All workspaces</p>
+                          )}
+                          <button
+                            role="option"
+                            aria-selected={activeWorkspace.id === workspace.id}
+                            onMouseMove={() => setHighlightedWorkspaceIndex(index)}
+                            onClick={() => handleWorkspaceSelect(workspace)}
+                            className={`w-full h-10 text-left px-4 flex items-center gap-3 transition-colors ${index === highlightedWorkspaceIndex ? 'bg-surface-subtle' : ''}`}
+                          >
+                            <span className={`w-7 h-7 flex-shrink-0 flex items-center justify-center rounded text-[10px] font-bold ${identity.color}`}>
+                              {identity.initials}
+                            </span>
+                            <span className={`flex-1 min-w-0 truncate text-sm font-medium ${activeWorkspace.id === workspace.id ? 'text-fidelity-green' : 'text-ink'}`}>
+                              <HighlightedName name={workspace.name} query={workspaceQuery} />
                             </span>
                             {activeWorkspace.id === workspace.id && <Check size={14} className="text-fidelity-green flex-shrink-0" />}
-                          </div>
-                          <div className="group relative">
-                            <p className="text-xs text-ink-muted mt-0.5 truncate">{workspace.description || 'No description'}</p>
-                            {/* Tooltip on hover */}
-                            {workspace.description && (
-                              <div className="absolute left-0 top-full mt-1 hidden group-hover:block z-50 w-full bg-surface-inverse text-ink-inverse text-xs rounded px-2 py-1 shadow-lg pointer-events-none">
-                                {workspace.description}
-                              </div>
-                            )}
-                          </div>
-                          <p className="text-[10px] text-ink-subtle mt-1 uppercase flex items-center justify-between">
-                            <span>Last Run: {workspace.lastRun || 'Never'}</span>
-                            <span className="bg-surface-subtle px-1.5 py-0.5 rounded text-ink-muted font-mono">
-                              {workspace.scenarios.length} Scenarios
-                            </span>
-                          </p>
-                        </div>
-                      </button>
-                    ))}
+                          </button>
+                        </React.Fragment>
+                      );
+                    })}
                   </div>
 
                   <div className="border-t border-border mt-2 pt-2 px-2 space-y-1">
@@ -731,7 +1007,7 @@ export default function Layout() {
                     <button
                       onClick={() => {
                         setIsWorkspaceMenuOpen(false);
-                        navigate('/workspaces');
+                        navigate(`${workspaceBase}/workspaces`);
                       }}
                       className="w-full py-2 text-xs font-medium text-ink-muted hover:text-ink hover:bg-surface-subtle rounded-md transition-colors flex items-center justify-center"
                     >
@@ -900,6 +1176,24 @@ export default function Layout() {
              </div>
           </div>
         </header>
+
+        {workspaceNotice && (
+          <div
+            role="status"
+            className="flex items-center gap-3 border-b border-info-border bg-info-surface px-8 py-3 text-sm text-info-ink"
+          >
+            <Info size={18} className="flex-shrink-0" />
+            <span className="flex-1">{workspaceNotice}</span>
+            <button
+              type="button"
+              onClick={() => setWorkspaceNotice(null)}
+              className="rounded p-1 hover:bg-surface-subtle"
+              aria-label="Dismiss workspace notice"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
 
         {runConsistency?.warning === 'run_in_progress' && (
           <div

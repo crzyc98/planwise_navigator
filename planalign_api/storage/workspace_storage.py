@@ -6,7 +6,7 @@ import shutil
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Tuple
 
 import yaml  # type: ignore[import]  # types-PyYAML not in CI deps
 
@@ -16,6 +16,7 @@ from ..config import get_settings
 from ..models.workspace import (
     Workspace,
     WorkspaceCreate,
+    WorkspaceLifecycle,
     WorkspaceSummary,
 )
 from ..models.scenario import Scenario, ScenarioCreate
@@ -61,40 +62,72 @@ class WorkspaceStorage:
 
     # ==================== Workspace Operations ====================
 
+    def _rebuild_workspace_navigation_metadata(
+        self, workspace_dir: Path, data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Backfill cheap navigation metadata for a legacy workspace."""
+        scenario_count = 0
+        last_run_at: Optional[datetime] = None
+        scenarios_dir = workspace_dir / "scenarios"
+        if scenarios_dir.exists():
+            for scenario_dir in scenarios_dir.iterdir():
+                if not scenario_dir.is_dir():
+                    continue
+                scenario_count += 1
+                scenario_json = scenario_dir / "scenario.json"
+                if not scenario_json.exists():
+                    continue
+                with open(scenario_json) as file:
+                    scenario_data = json.load(file)
+                if scenario_data.get("last_run_at"):
+                    run_at = datetime.fromisoformat(scenario_data["last_run_at"])
+                    if last_run_at is None or run_at > last_run_at:
+                        last_run_at = run_at
+
+        data["navigation"] = {
+            "scenario_count": scenario_count,
+            "last_run_at": last_run_at.isoformat() if last_run_at else None,
+        }
+        with open(workspace_dir / "workspace.json", "w") as file:
+            json.dump(data, file, indent=2)
+        return data
+
+    def _workspace_navigation_data(
+        self, workspace_dir: Path
+    ) -> Optional[Dict[str, Any]]:
+        workspace_json = workspace_dir / "workspace.json"
+        if not workspace_json.exists():
+            return None
+        with open(workspace_json) as file:
+            data = json.load(file)
+        navigation = data.get("navigation")
+        if not isinstance(navigation, dict) or "scenario_count" not in navigation:
+            data = self._rebuild_workspace_navigation_metadata(workspace_dir, data)
+        return data
+
+    def _refresh_workspace_navigation_metadata(self, workspace_id: str) -> None:
+        workspace_dir = self._workspace_path(workspace_id)
+        data = self._workspace_navigation_data(workspace_dir)
+        if data is not None:
+            self._rebuild_workspace_navigation_metadata(workspace_dir, data)
+
     def list_workspaces(self) -> List[WorkspaceSummary]:
         """List all workspaces with summary info."""
-        summaries = []
+        summaries: List[WorkspaceSummary] = []
 
         for workspace_dir in sorted(self.workspaces_root.iterdir()):
             if not workspace_dir.is_dir() or workspace_dir.name.startswith("."):
                 continue
 
-            workspace_json = workspace_dir / "workspace.json"
-            if not workspace_json.exists():
+            data = self._workspace_navigation_data(workspace_dir)
+            if data is None:
                 continue
-
-            with open(workspace_json) as f:
-                data = json.load(f)
-
-            # Count scenarios
-            scenarios_dir = workspace_dir / "scenarios"
-            scenario_count = 0
-            last_run_at = None
-
-            if scenarios_dir.exists():
-                for scenario_dir in scenarios_dir.iterdir():
-                    if scenario_dir.is_dir():
-                        scenario_count += 1
-                        scenario_json = scenario_dir / "scenario.json"
-                        if scenario_json.exists():
-                            with open(scenario_json) as f:
-                                scenario_data = json.load(f)
-                            if scenario_data.get("last_run_at"):
-                                run_at = datetime.fromisoformat(
-                                    scenario_data["last_run_at"]
-                                )
-                                if last_run_at is None or run_at > last_run_at:
-                                    last_run_at = run_at
+            navigation = data["navigation"]
+            last_run_at = (
+                datetime.fromisoformat(navigation["last_run_at"])
+                if navigation.get("last_run_at")
+                else None
+            )
 
             # Storage size comes from the shared TTL cache and is never
             # scanned here: listing workspaces is on the navigation path, and
@@ -110,14 +143,53 @@ class WorkspaceStorage:
                     id=data["id"],
                     name=data["name"],
                     description=data.get("description"),
+                    lifecycle=data.get("lifecycle", "active"),
                     created_at=datetime.fromisoformat(data["created_at"]),
-                    scenario_count=scenario_count,
+                    updated_at=datetime.fromisoformat(data["updated_at"]),
+                    scenario_count=navigation["scenario_count"],
                     last_run_at=last_run_at,
                     storage_used_mb=storage_mb,
                 )
             )
 
-        return summaries
+        return sorted(
+            summaries, key=lambda summary: (summary.name.casefold(), summary.id)
+        )
+
+    def search_workspaces(
+        self,
+        *,
+        query: Optional[str] = None,
+        lifecycle: Literal["active", "archived", "all"] = "all",
+        limit: int = 100,
+        offset: int = 0,
+        sort: Literal["name", "updated", "last_activity"] = "name",
+    ) -> Tuple[List[WorkspaceSummary], int]:
+        """Search and page indexed workspace summaries."""
+        summaries = self.list_workspaces()
+        if lifecycle != "all":
+            summaries = [item for item in summaries if item.lifecycle == lifecycle]
+        normalized_query = (query or "").strip().casefold()
+        if normalized_query:
+            summaries = [
+                item
+                for item in summaries
+                if normalized_query in item.name.casefold()
+                or normalized_query in (item.description or "").casefold()
+            ]
+
+        if sort == "updated":
+            summaries.sort(key=lambda item: (item.updated_at, item.id), reverse=True)
+        elif sort == "last_activity":
+            summaries.sort(
+                key=lambda item: (item.last_run_at or item.updated_at, item.id),
+                reverse=True,
+            )
+        else:
+            summaries.sort(key=lambda item: (item.name.casefold(), item.id))
+
+        total = len(summaries)
+        return summaries[offset : offset + limit], total
 
     def find_workspace_id_for_scenario(self, scenario_id: str) -> Optional[str]:
         """Find which workspace owns a scenario, by ID.
@@ -153,6 +225,7 @@ class WorkspaceStorage:
             id=data["id"],
             name=data["name"],
             description=data.get("description"),
+            lifecycle=data.get("lifecycle", "active"),
             created_at=datetime.fromisoformat(data["created_at"]),
             updated_at=datetime.fromisoformat(data["updated_at"]),
             base_config=base_config,
@@ -179,8 +252,10 @@ class WorkspaceStorage:
             "id": workspace_id,
             "name": create_data.name,
             "description": create_data.description,
+            "lifecycle": "active",
             "created_at": now.isoformat(),
             "updated_at": now.isoformat(),
+            "navigation": {"scenario_count": 0, "last_run_at": None},
         }
 
         with open(self._workspace_json_path(workspace_id), "w") as f:
@@ -194,6 +269,7 @@ class WorkspaceStorage:
             id=workspace_id,
             name=create_data.name,
             description=create_data.description,
+            lifecycle="active",
             created_at=now,
             updated_at=now,
             base_config=base_config,
@@ -206,6 +282,7 @@ class WorkspaceStorage:
         name: Optional[str] = None,
         description: Optional[str] = None,
         base_config: Optional[Dict[str, Any]] = None,
+        lifecycle: Optional[WorkspaceLifecycle] = None,
     ) -> Optional[Workspace]:
         """Update a workspace."""
         workspace = self.get_workspace(workspace_id)
@@ -223,6 +300,8 @@ class WorkspaceStorage:
             data["name"] = name
         if description is not None:
             data["description"] = description
+        if lifecycle is not None:
+            data["lifecycle"] = lifecycle
         data["updated_at"] = now.isoformat()
 
         with open(workspace_json_path, "w") as f:
@@ -368,6 +447,8 @@ class WorkspaceStorage:
         with open(scenario_path / "overrides.yaml", "w") as f:
             yaml.dump(create_data.config_overrides, f, default_flow_style=False)
 
+        self._refresh_workspace_navigation_metadata(workspace_id)
+
         return Scenario(
             id=scenario_id,
             workspace_id=workspace_id,
@@ -439,6 +520,9 @@ class WorkspaceStorage:
         with open(scenario_json_path, "w") as f:
             json.dump(data, f, indent=2)
 
+        if run_id:
+            self._refresh_workspace_navigation_metadata(workspace_id)
+
         return self.get_scenario(workspace_id, scenario_id)
 
     def _resolve_scenario_for_deletion(
@@ -476,6 +560,7 @@ class WorkspaceStorage:
         scenario_path = self._resolve_scenario_for_deletion(workspace_id, scenario_id)
 
         shutil.rmtree(scenario_path)
+        self._refresh_workspace_navigation_metadata(workspace_id)
         return True
 
     def delete_scenario_database(self, workspace_id: str, scenario_id: str) -> bool:

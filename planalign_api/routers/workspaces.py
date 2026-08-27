@@ -2,9 +2,18 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
 from fastapi.responses import FileResponse
 
 from ..config import APISettings, get_settings
@@ -21,6 +30,7 @@ from ..models.export import (
 from ..models.workspace import (
     Workspace,
     WorkspaceCreate,
+    WorkspacePage,
     WorkspaceResponse,
     WorkspaceSummary,
     WorkspaceUpdate,
@@ -111,17 +121,41 @@ async def get_default_config(
     }
 
 
-@router.get("", response_model=List[WorkspaceSummary])
+@router.get("", response_model=WorkspacePage)
 async def list_workspaces(
+    q: Optional[str] = Query(None, max_length=200),
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    sort: Literal["name", "updated", "last_activity"] = Query("name"),
+    lifecycle: Literal["active", "archived", "all"] = Query("all"),
     storage: WorkspaceStorage = Depends(get_storage),
-) -> List[WorkspaceSummary]:
+) -> WorkspacePage:
     """
     List all workspaces.
 
     Returns summary information for each workspace including scenario count
     and storage usage.
     """
-    return storage.list_workspaces()
+    items, total = storage.search_workspaces(
+        query=q,
+        limit=limit,
+        offset=offset,
+        sort=sort,
+        lifecycle=lifecycle,
+    )
+    return WorkspacePage(items=items, total=total, limit=limit, offset=offset)
+
+
+@router.get("/recent", response_model=List[WorkspaceSummary])
+async def list_recent_workspaces(
+    limit: int = Query(5, ge=1, le=20),
+    storage: WorkspaceStorage = Depends(get_storage),
+) -> List[WorkspaceSummary]:
+    """Return a cheap active-workspace page ordered by recorded activity."""
+    items, _ = storage.search_workspaces(
+        lifecycle="active", limit=limit, sort="last_activity"
+    )
+    return items
 
 
 @router.post("", response_model=WorkspaceResponse, status_code=status.HTTP_201_CREATED)
@@ -190,6 +224,7 @@ async def update_workspace(
         name=data.name,
         description=data.description,
         base_config=data.base_config,
+        lifecycle=data.lifecycle,
     )
     if not workspace:
         raise HTTPException(

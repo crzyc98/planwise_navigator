@@ -101,6 +101,82 @@ def _make_run(
     return run_dir
 
 
+@pytest.mark.fast
+class TestWorkspaceLifecycle:
+    """Archive state is persisted, reversible, and backward compatible."""
+
+    def test_existing_workspace_defaults_to_active(self, storage, tmp_path):
+        _make_workspace(tmp_path)
+
+        workspace = storage.get_workspace("ws-1")
+        summary = storage.list_workspaces()[0]
+
+        assert workspace is not None
+        assert workspace.lifecycle == "active"
+        assert summary.lifecycle == "active"
+
+    def test_archive_and_restore_only_update_workspace_metadata(
+        self, storage, tmp_path
+    ):
+        workspace_dir = _make_workspace(tmp_path)
+        scenario_dir = _make_scenario(workspace_dir)
+
+        archived = storage.update_workspace("ws-1", lifecycle="archived")
+
+        assert archived is not None
+        assert archived.lifecycle == "archived"
+        assert scenario_dir.exists()
+        metadata = json.loads((workspace_dir / "workspace.json").read_text())
+        assert metadata["lifecycle"] == "archived"
+
+        restored = storage.update_workspace("ws-1", lifecycle="active")
+
+        assert restored is not None
+        assert restored.lifecycle == "active"
+        assert scenario_dir.exists()
+
+    def test_navigation_listing_does_not_reopen_scenario_tree_after_backfill(
+        self, storage, tmp_path, monkeypatch
+    ):
+        workspace_dir = _make_workspace(tmp_path)
+        _make_scenario(workspace_dir)
+        assert storage.list_workspaces()[0].scenario_count == 1
+
+        original_iterdir = Path.iterdir
+
+        def reject_scenario_walk(path: Path):
+            if path.name == "scenarios":
+                raise AssertionError("navigation listing walked the scenario tree")
+            return original_iterdir(path)
+
+        monkeypatch.setattr(Path, "iterdir", reject_scenario_walk)
+
+        assert storage.list_workspaces()[0].scenario_count == 1
+
+    def test_search_workspaces_filters_sorts_and_pages(self, storage, tmp_path):
+        for workspace_id, name, lifecycle in (
+            ("ws-1", "Zulu Client", "active"),
+            ("ws-2", "Alpha Client", "active"),
+            ("ws-3", "Archived Alpha", "archived"),
+        ):
+            workspace_dir = _make_workspace(tmp_path, workspace_id)
+            metadata_path = workspace_dir / "workspace.json"
+            metadata = json.loads(metadata_path.read_text())
+            metadata.update(
+                name=name,
+                description="Retirement advisory",
+                lifecycle=lifecycle,
+            )
+            metadata_path.write_text(json.dumps(metadata))
+
+        page, total = storage.search_workspaces(
+            query="client", lifecycle="active", limit=1, offset=0, sort="name"
+        )
+
+        assert total == 2
+        assert [workspace.name for workspace in page] == ["Alpha Client"]
+
+
 def _simulation_base_config() -> Dict[str, Any]:
     """Return a complete configuration shape suitable for typed merge checks."""
     return load_simulation_config("config/simulation_config.yaml").model_dump(

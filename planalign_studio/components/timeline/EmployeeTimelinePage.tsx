@@ -28,7 +28,7 @@ export default function EmployeeTimelinePage() {
 
   const selectScenario = (next: string) => {
     if (employeeId) navigate(timelineUrl(workspaceId, next, employeeId));
-    else navigate('/timeline');
+    else navigate(`/w/${workspaceId}/timeline`);
   };
   const selectEmployee = (next: string) => navigate(timelineUrl(workspaceId, scenarioId, next));
   const setCompare = (next: string) => {

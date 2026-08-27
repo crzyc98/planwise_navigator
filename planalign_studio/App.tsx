@@ -1,5 +1,5 @@
-import React, { Component, ReactNode, ErrorInfo } from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React, { Component, ReactNode, ErrorInfo, useEffect, useState } from 'react';
+import { HashRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import SimulationControl from './components/SimulationControl';
@@ -21,6 +21,7 @@ import CalibrationPanel from './components/CalibrationPanel';
 import OptimizerPanel from './components/OptimizerPanel';
 import RunProvenanceReport from './components/RunProvenanceReport';
 import EmployeeTimelinePage from './components/timeline/EmployeeTimelinePage';
+import { getWorkspace, listWorkspaces } from './services/api';
 
 // Error boundary to catch and display React errors
 interface ErrorBoundaryProps {
@@ -79,12 +80,68 @@ const Placeholder = ({ title }: { title: string }) => (
   </div>
 );
 
+function LegacyWorkspaceRedirect() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function resolveWorkspace() {
+      let rememberedId: string | null = null;
+      try {
+        rememberedId = window.localStorage.getItem('planalign.activeWorkspaceId');
+      } catch {
+        // Browser persistence is best-effort; the deterministic fallback below remains safe.
+      }
+
+      let selectedId: string | null = null;
+      if (rememberedId) {
+        try {
+          const remembered = await getWorkspace(rememberedId);
+          if (remembered.lifecycle === 'active') selectedId = remembered.id;
+        } catch {
+          // A deleted or inaccessible remembered workspace falls through explicitly.
+        }
+      }
+      if (!selectedId) {
+        const page = await listWorkspaces({ lifecycle: 'active', limit: 1, sort: 'name' });
+        selectedId = page.items[0]?.id ?? null;
+      }
+      if (!selectedId) {
+        setError('No active workspace is available. Create or restore one to continue.');
+        return;
+      }
+
+      const legacyTimeline = location.pathname.match(/^\/timeline\/([^/]+)(\/.*)?$/);
+      const target = legacyTimeline
+        ? `/w/${legacyTimeline[1]}/timeline${legacyTimeline[2] ?? ''}`
+        : `/w/${selectedId}${location.pathname === '/' ? '' : location.pathname}`;
+      navigate(target, {
+        replace: true,
+        state: !rememberedId || rememberedId === selectedId
+          ? undefined
+          : { workspaceNotice: 'The remembered workspace is unavailable. Opened the first active workspace alphabetically.' },
+      });
+    }
+
+    void resolveWorkspace().catch(err => {
+      setError(err instanceof Error ? err.message : 'Failed to resolve a workspace.');
+    });
+  }, [location.pathname, navigate]);
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-surface-subtle p-8 text-center text-ink-muted">
+      {error ?? 'Opening workspace…'}
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <ErrorBoundary>
       <HashRouter>
         <Routes>
-          <Route path="/" element={<Layout />}>
+          <Route path="/w/:workspaceId" element={<Layout />}>
             <Route index element={<Dashboard />} />
             <Route path="simulate" element={<SimulationControl />} />
             <Route path="simulate/:scenarioId" element={<SimulationDetail />} />
@@ -106,9 +163,10 @@ export default function App() {
             <Route path="workspaces" element={<WorkspaceManager />} />
             <Route path="import" element={<DataImportWizard />} />
             <Route path="timeline" element={<EmployeeTimelinePage />} />
-            <Route path="timeline/:workspaceId/:scenarioId/:employeeId" element={<EmployeeTimelinePage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="timeline/:scenarioId/:employeeId" element={<EmployeeTimelinePage />} />
+            <Route path="*" element={<Placeholder title="Page Not Found" />} />
           </Route>
+          <Route path="*" element={<LegacyWorkspaceRedirect />} />
         </Routes>
       </HashRouter>
     </ErrorBoundary>

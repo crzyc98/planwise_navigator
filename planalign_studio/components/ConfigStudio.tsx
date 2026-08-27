@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Save, AlertTriangle, FileText, Settings, TrendingUp, Users, DollarSign, PieChart, Database, Check, ArrowLeft, Play, Copy, Layers, Share2, Gauge } from 'lucide-react';
-import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
+import { useOutletContext, useParams } from 'react-router-dom';
 import { LayoutContextType } from './Layout';
 import { listTemplates, Template, listScenarios, Scenario } from '../services/api';
 import { ConfigProvider, useConfigContext } from './config/ConfigContext';
@@ -16,6 +16,7 @@ import { AdvancedSection } from './config/AdvancedSection';
 import { TemplateModal } from './config/TemplateModal';
 import { CopyScenarioModal } from './config/CopyScenarioModal';
 import { ApplyWorkforceParamsModal } from './config/ApplyWorkforceParamsModal';
+import { useWorkspaceNavigate } from '../hooks/useWorkspaceNavigation';
 
 // Primary nav: the curated essentials path (#358) plus the self-contained DC Plan.
 const PRIMARY_NAV = [
@@ -35,7 +36,7 @@ const ADVANCED_NAV = [
 ];
 
 function ConfigShell() {
-  const navigate = useNavigate();
+  const navigate = useWorkspaceNavigate();
   const {
     currentScenario, scenarioId, scenarioLoading,
     dirtySections, isDirty,

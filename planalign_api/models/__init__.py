@@ -5,6 +5,7 @@ from .workspace import (
     WorkspaceCreate,
     WorkspaceUpdate,
     WorkspaceSummary,
+    WorkspacePage,
 )
 from .scenario import (
     Scenario,
@@ -61,6 +62,7 @@ __all__ = [
     "WorkspaceCreate",
     "WorkspaceUpdate",
     "WorkspaceSummary",
+    "WorkspacePage",
     # Scenario
     "Scenario",
     "ScenarioCreate",

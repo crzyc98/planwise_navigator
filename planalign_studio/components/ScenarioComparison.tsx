@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate, Link } from 'react-router-dom';
+import { useSearchParams, useOutletContext, Link } from 'react-router-dom';
 import {
   LineChart, Line, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
@@ -13,12 +13,13 @@ import {
   SimulationResults,
   Scenario,
   listScenarios,
-  listWorkspaces,
   compareDCPlanAnalytics,
   DCPlanComparisonResponse,
 } from '../services/api';
 import { useChartTheme } from '../hooks/useChartTheme';
 import DCPlanComparisonSection from './DCPlanComparisonSection';
+import { LayoutContextType } from './Layout';
+import { useWorkspaceNavigate, useWorkspacePath } from '../hooks/useWorkspaceNavigation';
 
 interface ScenarioData {
   scenario: Scenario;
@@ -30,7 +31,9 @@ interface ScenarioData {
 export default function ScenarioComparison() {
   const chartTheme = useChartTheme();
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
+  const navigate = useWorkspaceNavigate();
+  const analyticsPath = useWorkspacePath('/analytics');
+  const { activeWorkspace } = useOutletContext<LayoutContextType>();
 
   const [scenarioData, setScenarioData] = useState<Map<string, ScenarioData>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -56,17 +59,8 @@ export default function ScenarioComparison() {
       setError(null);
 
       try {
-        // First, get all workspaces to find the scenarios
-        const workspaces = await listWorkspaces();
-
-        // Find scenarios across all workspaces
-        const scenarioPromises = workspaces.map(async (ws) => {
-          const scenarios = await listScenarios(ws.id);
-          return scenarios.filter(s => scenarioIds.includes(s.id));
-        });
-
-        const scenarioArrays = await Promise.all(scenarioPromises);
-        const allScenarios = scenarioArrays.flat();
+        const workspaceScenarios = await listScenarios(activeWorkspace.id);
+        const allScenarios = workspaceScenarios.filter(s => scenarioIds.includes(s.id));
 
         // Initialize scenario data map
         const dataMap = new Map<string, ScenarioData>();
@@ -124,7 +118,7 @@ export default function ScenarioComparison() {
     };
 
     loadScenarios();
-  }, [scenarioIds.join(',')]);
+  }, [activeWorkspace.id, scenarioIds.join(',')]);
 
   // Get all scenarios with results (explicitly typed for TypeScript)
   const scenariosWithResults: Array<ScenarioData & { results: SimulationResults }> = Array.from(scenarioData.values())
@@ -270,14 +264,14 @@ export default function ScenarioComparison() {
         <div className="flex items-center gap-2">
           {scenarioIds.length === 2 && (
             <Link
-              to={`/analytics/diff?a=${scenarioIds[0]}&b=${scenarioIds[1]}`}
+              to={`${analyticsPath}/diff?a=${scenarioIds[0]}&b=${scenarioIds[1]}`}
               className="flex items-center px-4 py-2 bg-fidelity-green rounded-lg text-ink-inverse hover:bg-fidelity-dark"
             >
               Diff A vs B
             </Link>
           )}
           <Link
-            to="/analytics"
+            to={analyticsPath}
             className="flex items-center px-4 py-2 bg-surface-raised border border-border-strong rounded-lg text-ink-muted hover:bg-surface-subtle"
           >
             <LayoutGrid size={16} className="mr-2" />

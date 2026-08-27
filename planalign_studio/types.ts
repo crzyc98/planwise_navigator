@@ -36,8 +36,10 @@ export interface Workspace {
   id: string;
   name: string;
   description: string | null;
+  lifecycle: 'active' | 'archived';
   scenarios?: string[]; // List of Config IDs belonging to this workspace
   lastRun?: string;
+  lastRunAt?: string | null;
   created_at: string;
   updated_at: string;
   base_config: Record<string, any>;

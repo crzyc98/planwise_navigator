@@ -2,9 +2,11 @@
 
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
+
+WorkspaceLifecycle = Literal["active", "archived"]
 
 
 class WorkspaceCreate(BaseModel):
@@ -25,6 +27,7 @@ class WorkspaceUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     description: Optional[str] = Field(None, max_length=500)
     base_config: Optional[Dict[str, Any]] = None
+    lifecycle: Optional[WorkspaceLifecycle] = None
 
 
 class Workspace(BaseModel):
@@ -39,6 +42,9 @@ class Workspace(BaseModel):
     id: str = Field(..., description="Unique workspace ID (UUID)")
     name: str = Field(..., description="Workspace name")
     description: Optional[str] = Field(None, description="Workspace description")
+    lifecycle: WorkspaceLifecycle = Field(
+        default="active", description="Workspace lifecycle state"
+    )
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
     base_config: Dict[str, Any] = Field(
@@ -64,6 +70,9 @@ class WorkspaceResponse(BaseModel):
     id: str = Field(..., description="Unique workspace ID (UUID)")
     name: str = Field(..., description="Workspace name")
     description: Optional[str] = Field(None, description="Workspace description")
+    lifecycle: WorkspaceLifecycle = Field(
+        default="active", description="Workspace lifecycle state"
+    )
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
     base_config: Dict[str, Any] = Field(
@@ -82,7 +91,11 @@ class WorkspaceSummary(BaseModel):
     id: str = Field(..., description="Unique workspace ID")
     name: str = Field(..., description="Workspace name")
     description: Optional[str] = Field(None, description="Workspace description")
+    lifecycle: WorkspaceLifecycle = Field(
+        default="active", description="Workspace lifecycle state"
+    )
     created_at: datetime = Field(..., description="Creation timestamp")
+    updated_at: datetime = Field(..., description="Last workspace update timestamp")
     scenario_count: int = Field(default=0, description="Number of scenarios")
     last_run_at: Optional[datetime] = Field(
         None, description="Last simulation run timestamp"
@@ -100,3 +113,12 @@ class WorkspaceSummary(BaseModel):
         json_encoders = {
             datetime: lambda v: v.isoformat(),
         }
+
+
+class WorkspacePage(BaseModel):
+    """Paginated workspace navigation result."""
+
+    items: List[WorkspaceSummary]
+    total: int = Field(..., ge=0)
+    limit: int = Field(..., ge=1)
+    offset: int = Field(..., ge=0)
