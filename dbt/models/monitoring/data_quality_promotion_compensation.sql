@@ -1,10 +1,5 @@
 {{ config(
     materialized='table',
-    indexes=[
-        {'columns': ['simulation_year'], 'type': 'btree'},
-        {'columns': ['data_quality_status'], 'type': 'btree'},
-        {'columns': ['employee_id', 'simulation_year'], 'type': 'btree'}
-    ],
     tags=['data_quality', 'monitoring', 'promotion_validation']
 ) }}
 

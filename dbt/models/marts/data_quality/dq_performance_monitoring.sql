@@ -2,12 +2,6 @@
 
 {{ config(
     materialized='table',
-    indexes=[
-        {'columns': ['simulation_year'], 'type': 'btree'},
-        {'columns': ['performance_category'], 'type': 'btree'},
-        {'columns': ['alert_level'], 'type': 'btree'},
-        {'columns': ['measurement_timestamp'], 'type': 'btree'}
-    ],
     tags=['performance', 'monitoring', 'optimization', 'system_health']
 ) }}
 

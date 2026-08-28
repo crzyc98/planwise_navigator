@@ -1,9 +1,5 @@
 {{ config(
     materialized='table',
-    indexes=[
-        {'columns': ['simulation_year'], 'type': 'btree'},
-        {'columns': ['employee_id', 'simulation_year'], 'type': 'btree'}
-    ],
     tags=['staging', 'compensation', 'new_hires']
 ) }}
 

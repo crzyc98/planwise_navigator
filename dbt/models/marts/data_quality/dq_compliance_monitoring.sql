@@ -2,12 +2,6 @@
 
 {{ config(
     materialized='table',
-    indexes=[
-        {'columns': ['simulation_year'], 'type': 'btree'},
-        {'columns': ['compliance_category'], 'type': 'btree'},
-        {'columns': ['risk_level'], 'type': 'btree'},
-        {'columns': ['regulatory_deadline'], 'type': 'btree'}
-    ],
     tags=['compliance', 'regulatory', 'irs_monitoring', 'critical']
 ) }}
 

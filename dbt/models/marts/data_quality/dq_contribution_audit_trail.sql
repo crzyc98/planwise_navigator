@@ -4,12 +4,6 @@
     materialized='incremental',
     unique_key=['audit_record_id'],
     on_schema_change='sync_all_columns',
-    indexes=[
-        {'columns': ['simulation_year', 'employee_id'], 'type': 'btree'},
-        {'columns': ['audit_timestamp'], 'type': 'btree'},
-        {'columns': ['audit_event_type'], 'type': 'btree'},
-        {'columns': ['scenario_id'], 'type': 'btree'}
-    ],
     tags=['audit', 'immutable', 'contribution_audit', 'event_sourcing']
 ) }}
 

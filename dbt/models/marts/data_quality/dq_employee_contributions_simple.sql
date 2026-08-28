@@ -1,10 +1,5 @@
 {{ config(
     materialized='table',
-    indexes=[
-        {'columns': ['simulation_year'], 'type': 'btree'},
-        {'columns': ['severity'], 'type': 'btree'},
-        {'columns': ['validation_rule'], 'type': 'btree'}
-    ],
     tags=['data_quality', 'critical', 'contribution_validation']
 ) }}
 

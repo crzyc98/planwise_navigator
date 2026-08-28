@@ -3,10 +3,6 @@
     incremental_strategy='delete+insert',
     unique_key=['simulation_year', 'scenario_id', 'level_id'],
     on_schema_change='sync_all_columns',
-    indexes=[
-        {'columns': ['simulation_year', 'level_id'], 'type': 'btree'},
-        {'columns': ['scenario_id', 'simulation_year', 'level_id'], 'type': 'btree'}
-    ],
     tags=['workforce_planning', 'cost_modeling', 'level_detail']
 ) }}
 
