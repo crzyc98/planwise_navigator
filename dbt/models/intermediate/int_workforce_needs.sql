@@ -3,10 +3,6 @@
     incremental_strategy='delete+insert',
     unique_key=['simulation_year', 'scenario_id'],
     on_schema_change='sync_all_columns',
-    indexes=[
-        {'columns': ['simulation_year', 'scenario_id'], 'type': 'btree'},
-        {'columns': ['level_id'], 'type': 'btree'}
-    ],
     tags=['FOUNDATION', 'workforce_planning', 'core_calculations']
 ) }}
 

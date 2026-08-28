@@ -1,8 +1,5 @@
 {{ config(
     materialized='table',
-    indexes=[
-        {'columns': ['employee_id', 'simulation_year'], 'unique': true}
-    ],
     tags=['employer_contributions', 'eligibility', 'BENEFIT_CALCULATION']
 ) }}
 

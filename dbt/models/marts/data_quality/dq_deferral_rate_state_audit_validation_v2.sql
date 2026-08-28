@@ -2,13 +2,6 @@
     materialized='incremental',
     unique_key=['validation_record_uuid'],
     on_schema_change='sync_all_columns',
-    indexes=[
-        {'columns': ['validation_record_uuid'], 'type': 'btree', 'unique': true},
-        {'columns': ['simulation_year'], 'type': 'btree'},
-        {'columns': ['validation_timestamp'], 'type': 'btree'},
-        {'columns': ['validation_severity'], 'type': 'btree'},
-        {'columns': ['regulatory_impact'], 'type': 'btree'}
-    ],
     tags=['audit', 'validation', 'deferral_rate_audit', 'financial_compliance', 'uuid_tracked']
 ) }}
 

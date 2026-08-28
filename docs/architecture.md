@@ -69,7 +69,8 @@ Heavy models filter by `{{ var('simulation_year') }}` and use incremental
 materialization with `incremental_strategy='delete+insert'`.
 
 **Circular-dependency rule:** `int_*` models must not read `fct_*` tables, with two
-sanctioned exceptions — `fct_yearly_events` (built first in STATE_ACCUMULATION) and
+sanctioned exceptions — `fct_yearly_events` (published during EVENT_GENERATION,
+and therefore available to STATE_ACCUMULATION consumers) and
 prior-year reads of `fct_workforce_snapshot`.
 
 ## Temporal state accumulators

@@ -1,10 +1,5 @@
 {{ config(
     materialized='view',
-    indexes=[
-        {'columns': ['simulation_year'], 'type': 'btree'},
-        {'columns': ['regulatory_framework'], 'type': 'btree'},
-        {'columns': ['overall_compliance_status'], 'type': 'btree'}
-    ],
     tags=['regulatory', 'reporting', 'deferral_rate_audit', 'financial_compliance', 'executive_dashboard']
 ) }}
 

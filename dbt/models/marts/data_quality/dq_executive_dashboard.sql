@@ -2,12 +2,6 @@
 
 {{ config(
     materialized='table',
-    indexes=[
-        {'columns': ['simulation_year'], 'type': 'btree'},
-        {'columns': ['dashboard_category'], 'type': 'btree'},
-        {'columns': ['executive_status'], 'type': 'btree'},
-        {'columns': ['report_timestamp'], 'type': 'btree'}
-    ],
     tags=['executive', 'dashboard', 'attestation', 'compliance_summary']
 ) }}
 

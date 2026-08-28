@@ -1,9 +1,5 @@
 {{ config(
-    materialized='table',
-    indexes=[
-        {'columns': ['table_name'], 'type': 'btree'},
-        {'columns': ['created_at'], 'type': 'btree'}
-    ]
+    materialized='table'
 ) }}
 
 -- SCD Performance Monitoring Metadata
