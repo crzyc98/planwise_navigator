@@ -33,6 +33,7 @@
 {% set simulation_year = var('simulation_year', 2025) | int %}
 {% set start_year = var('start_year', 2025) | int %}
 {% set scenario_id = var('scenario_id', 'default') %}
+{% set plan_design_id = var('plan_design_id', 'default') %}
 
 WITH
 -- Get current year's new enrollment events from fct_yearly_events
@@ -354,6 +355,7 @@ first_year_state AS (
         -- Metadata
         CURRENT_TIMESTAMP as created_at,
         '{{ scenario_id }}'::VARCHAR as scenario_id,
+        '{{ plan_design_id }}'::VARCHAR as plan_design_id,
         CASE
             WHEN COALESCE(w.employee_id, he.employee_id, ce.employee_id, mr.employee_id) IS NULL THEN 'INVALID_EMPLOYEE_ID'
             WHEN COALESCE(ce.new_deferral_rate, mr.match_responsive_rate, he.initial_deferral_rate, br.fallback_rate, 0.03) < 0
@@ -477,6 +479,7 @@ subsequent_year_state AS (
         -- Metadata
         CURRENT_TIMESTAMP as created_at,
         '{{ scenario_id }}'::VARCHAR as scenario_id,
+        '{{ plan_design_id }}'::VARCHAR as plan_design_id,
         CASE
             WHEN COALESCE(w.employee_id, ps.employee_id, ne.employee_id, ce.employee_id, mr.employee_id) IS NULL THEN 'INVALID_EMPLOYEE_ID'
             WHEN COALESCE(ce.new_deferral_rate, mr.match_responsive_rate, ne.initial_deferral_rate, ps.previous_deferral_rate, br.fallback_rate, 0.03) < 0

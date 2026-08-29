@@ -276,6 +276,7 @@ SELECT
     -- Add metadata
     CURRENT_TIMESTAMP AS created_at,
     '{{ var("scenario_id", "default") }}' AS scenario_id,
+    '{{ var("plan_design_id", "default") }}' AS plan_design_id,
     -- Data quality validation
     CASE
         WHEN employee_id IS NULL THEN 'INVALID_EMPLOYEE_ID'

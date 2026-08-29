@@ -1,7 +1,8 @@
 """Analytics service for DC Plan contribution analysis."""
 
 import logging
-from typing import List, Literal, Optional
+from decimal import Decimal
+from typing import Dict, List, Literal, Optional
 
 from ..models.analytics import (
     ContributionYearSummary,
@@ -9,6 +10,9 @@ from ..models.analytics import (
     DeferralDistributionYear,
     DeferralRateBucket,
     EscalationMetrics,
+    GrandfatheredCostComparisonResponse,
+    GrandfatheredCostSeries,
+    GrandfatheredCostYear,
     IRSLimitMetrics,
     ParticipationByMethod,
 )
@@ -20,6 +24,7 @@ from .employer_cost_service import (
     GROSS_EMPLOYER_COST_SQL,
     GROSS_MATCH_SQL,
     TOTAL_COMPENSATION_SQL,
+    query_gross_employer_cost,
 )
 from .database_path_resolver import (
     DatabasePathResolver,
@@ -115,16 +120,19 @@ class AnalyticsService:
         }
 
     @staticmethod
-    def _cohort_predicate(cohort: Cohort, first_year: Optional[int]) -> str:
+    def _cohort_predicate(cohort: Cohort, cutoff_year: Optional[int]) -> str:
         """Return a WHERE-fragment (no leading AND/WHERE) classifying rows by cohort.
 
-        `all` has no predicate; `new_hires` is hired on/after the resolved first
-        simulation year; `baseline` is everyone else (spec.md FR-002).
+        `all` has no predicate; `new_hires` is hired on/after the supplied
+        cutoff year; `baseline` is everyone else. Existing callers supply the
+        resolved first simulation year, preserving Feature 134 behavior.
         """
+        if cohort != "all" and cutoff_year is None:
+            raise ValueError("cutoff_year is required for a cohort predicate")
         if cohort == "new_hires":
-            return f"employee_hire_date >= DATE '{first_year}-01-01'"
+            return f"employee_hire_date >= DATE '{cutoff_year}-01-01'"
         if cohort == "baseline":
-            return f"employee_hire_date < DATE '{first_year}-01-01'"
+            return f"employee_hire_date < DATE '{cutoff_year}-01-01'"
         return ""
 
     @staticmethod
@@ -172,6 +180,155 @@ class AnalyticsService:
                 )
 
         return first_year
+
+    @staticmethod
+    def _population_by_year(conn, where_clause: str) -> Dict[int, tuple[int, Decimal]]:
+        """Return cohort headcount and compensation at the yearly snapshot grain."""
+        rows = conn.execute(
+            f"""
+            SELECT
+                simulation_year,
+                COUNT(*) AS headcount,
+                {TOTAL_COMPENSATION_SQL} AS total_compensation
+            FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
+            {where_clause}
+            GROUP BY simulation_year
+            ORDER BY simulation_year
+            """
+        ).fetchall()
+        return {
+            int(year): (
+                int(headcount),
+                Decimal(str(compensation or 0)).quantize(Decimal("0.01")),
+            )
+            for year, headcount, compensation in rows
+        }
+
+    @staticmethod
+    def _gross_cost_by_year(conn, where_clause: str) -> Dict[int, float]:
+        return {
+            row.simulation_year: float(row.gross_employer_cost)
+            for row in query_gross_employer_cost(conn, where_clause)
+        }
+
+    @staticmethod
+    def _metadata_seed(conn) -> Optional[int]:
+        """Read the selected run's seed when Feature 109 metadata is available."""
+        import duckdb
+
+        try:
+            row = conn.execute(
+                "SELECT random_seed FROM run_metadata "
+                "ORDER BY run_timestamp DESC LIMIT 1"
+            ).fetchone()
+        except duckdb.Error as exc:
+            logger.debug("Run metadata seed is unavailable: %s", exc)
+            return None
+        return int(row[0]) if row and row[0] is not None else None
+
+    def get_grandfathered_cost_comparison(
+        self,
+        workspace_id: str,
+        baseline_scenario_id: str,
+        scenario_names: Dict[str, str],
+        cutoff_year: int,
+    ) -> GrandfatheredCostComparisonResponse:
+        """Splice baseline pre-cutoff cost with each scenario's post-cutoff cost."""
+        import duckdb
+
+        baseline_resolved = self.db_resolver.resolve(workspace_id, baseline_scenario_id)
+        if not baseline_resolved.exists:
+            raise FileNotFoundError(baseline_resolved.path)
+
+        baseline_where = self._combine_where(
+            self._cohort_predicate("baseline", cutoff_year)
+        )
+        new_hire_where = self._combine_where(
+            self._cohort_predicate("new_hires", cutoff_year)
+        )
+        warnings: List[str] = []
+        series: List[GrandfatheredCostSeries] = []
+
+        with duckdb.connect(
+            str(baseline_resolved.path), read_only=True
+        ) as baseline_conn:
+            baseline_cost = self._gross_cost_by_year(baseline_conn, baseline_where)
+            baseline_population = self._population_by_year(
+                baseline_conn, baseline_where
+            )
+            baseline_seed = self._metadata_seed(baseline_conn)
+
+            for scenario_id, scenario_name in scenario_names.items():
+                resolved = self.db_resolver.resolve(workspace_id, scenario_id)
+                if not resolved.exists:
+                    raise FileNotFoundError(resolved.path)
+                with duckdb.connect(str(resolved.path), read_only=True) as conn:
+                    proposed_cost = self._gross_cost_by_year(conn, new_hire_where)
+                    proposed_baseline_population = self._population_by_year(
+                        conn, baseline_where
+                    )
+                    proposed_seed = self._metadata_seed(conn)
+                    if (
+                        baseline_seed is not None
+                        and proposed_seed is not None
+                        and baseline_seed != proposed_seed
+                    ):
+                        warnings.append(
+                            f"{scenario_name} uses random seed {proposed_seed}; "
+                            f"the baseline uses {baseline_seed}."
+                        )
+
+                years = sorted(
+                    set(baseline_cost)
+                    | set(proposed_cost)
+                    | set(baseline_population)
+                    | set(proposed_baseline_population)
+                )
+                year_rows: List[GrandfatheredCostYear] = []
+                for year in years:
+                    expected = baseline_population.get(year, (0, Decimal("0.00")))
+                    actual = proposed_baseline_population.get(
+                        year, (0, Decimal("0.00"))
+                    )
+                    if expected != actual:
+                        reason = (
+                            "Grandfathered population differs from the baseline "
+                            f"(headcount {expected[0]} vs {actual[0]}; total "
+                            f"compensation ${expected[1]:,.2f} vs ${actual[1]:,.2f})."
+                        )
+                        year_rows.append(
+                            GrandfatheredCostYear(
+                                year=year, available=False, unavailable_reason=reason
+                            )
+                        )
+                        continue
+
+                    old_cost = baseline_cost.get(year, 0.0)
+                    new_cost = proposed_cost.get(year, 0.0)
+                    year_rows.append(
+                        GrandfatheredCostYear(
+                            year=year,
+                            total_employer_cost=old_cost + new_cost,
+                            baseline_cohort_cost=old_cost,
+                            new_hire_cohort_cost=new_cost,
+                            available=True,
+                        )
+                    )
+
+                series.append(
+                    GrandfatheredCostSeries(
+                        scenario_id=scenario_id,
+                        scenario_name=scenario_name,
+                        years=year_rows,
+                    )
+                )
+
+        return GrandfatheredCostComparisonResponse(
+            baseline_scenario_id=baseline_scenario_id,
+            cutoff_year=cutoff_year,
+            scenarios=series,
+            warnings=warnings,
+        )
 
     def get_dc_plan_analytics(
         self,

@@ -6,7 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from ..config import APISettings, get_settings
 from ..constants import MAX_SCENARIO_COMPARISON
-from ..models.analytics import DCPlanAnalytics, DCPlanComparisonResponse
+from ..models.analytics import (
+    DCPlanAnalytics,
+    DCPlanComparisonResponse,
+    GrandfatheredCostComparisonResponse,
+)
 from ..models.winners_losers import WinnersLosersResponse
 from ..services.analytics_service import AnalyticsService
 from ..services.winners_losers_service import WinnersLosersService
@@ -190,6 +194,60 @@ async def compare_dc_plan_analytics(
         scenario_names=scenario_names,
         analytics=analytics_list,
     )
+
+
+@router.get(
+    "/{workspace_id}/analytics/dc-plan/grandfathered-cost",
+    response_model=GrandfatheredCostComparisonResponse,
+)
+async def compare_grandfathered_cost(
+    workspace_id: str,
+    baseline_scenario: str = Query(...),
+    scenarios: str = Query(...),
+    cutoff_year: int = Query(..., ge=1900, le=2200),
+    storage: WorkspaceStorage = Depends(get_storage),
+    analytics_service: AnalyticsService = Depends(get_analytics_service),
+) -> GrandfatheredCostComparisonResponse:
+    """Compose gross cost from baseline and proposed hire-date cohorts."""
+    if not storage.get_workspace(workspace_id):
+        raise HTTPException(
+            status_code=404, detail=f"Workspace {workspace_id} not found"
+        )
+
+    scenario_ids = [item.strip() for item in scenarios.split(",") if item.strip()]
+    if baseline_scenario not in scenario_ids:
+        raise HTTPException(
+            status_code=400, detail="Baseline scenario must be included in scenarios"
+        )
+    if not scenario_ids or len(scenario_ids) > MAX_SCENARIO_COMPARISON:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Select between 1 and {MAX_SCENARIO_COMPARISON} scenarios",
+        )
+
+    scenario_names = {}
+    for scenario_id in scenario_ids:
+        scenario = storage.get_scenario(workspace_id, scenario_id)
+        if not scenario:
+            raise HTTPException(
+                status_code=404, detail=f"Scenario {scenario_id} not found"
+            )
+        if not has_selected_result(storage, workspace_id, scenario_id, scenario.status):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Scenario {scenario_id} has not completed successfully",
+            )
+        scenario_names[scenario_id] = scenario.name
+
+    try:
+        return analytics_service.get_grandfathered_cost_comparison(
+            workspace_id,
+            baseline_scenario,
+            scenario_names,
+            cutoff_year,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"Scenario result not found: {exc}")
 
 
 # ---------------------------------------------------------------------------
