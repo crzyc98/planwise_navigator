@@ -4736,6 +4736,131 @@
         "title": "GenerateResponse",
         "type": "object"
       },
+      "GrandfatheredCostComparisonResponse": {
+        "description": "Layer-1 grandfathered gross-cost comparison.",
+        "properties": {
+          "baseline_scenario_id": {
+            "title": "Baseline Scenario Id",
+            "type": "string"
+          },
+          "cutoff_year": {
+            "title": "Cutoff Year",
+            "type": "integer"
+          },
+          "scenarios": {
+            "items": {
+              "$ref": "#/components/schemas/GrandfatheredCostSeries"
+            },
+            "title": "Scenarios",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "baseline_scenario_id",
+          "cutoff_year",
+          "scenarios"
+        ],
+        "title": "GrandfatheredCostComparisonResponse",
+        "type": "object"
+      },
+      "GrandfatheredCostSeries": {
+        "description": "Gross employer cost for one proposed scenario spliced with the anchor.",
+        "properties": {
+          "scenario_id": {
+            "title": "Scenario Id",
+            "type": "string"
+          },
+          "scenario_name": {
+            "title": "Scenario Name",
+            "type": "string"
+          },
+          "years": {
+            "items": {
+              "$ref": "#/components/schemas/GrandfatheredCostYear"
+            },
+            "title": "Years",
+            "type": "array"
+          }
+        },
+        "required": [
+          "scenario_id",
+          "scenario_name",
+          "years"
+        ],
+        "title": "GrandfatheredCostSeries",
+        "type": "object"
+      },
+      "GrandfatheredCostYear": {
+        "description": "One year of a gross employer-cost cohort splice.",
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "baseline_cohort_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline Cohort Cost"
+          },
+          "new_hire_cohort_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Hire Cohort Cost"
+          },
+          "total_employer_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Spliced gross employer cost, or null when equivalence failed",
+            "title": "Total Employer Cost"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "year": {
+            "title": "Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "year",
+          "available"
+        ],
+        "title": "GrandfatheredCostYear",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -14002,6 +14127,112 @@
           }
         },
         "summary": "Compare Dc Plan Analytics",
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/analytics/dc-plan/grandfathered-cost": {
+      "get": {
+        "description": "Compose gross cost from baseline and proposed hire-date cohorts.",
+        "operationId": "compare_grandfathered_cost_api_workspaces__workspace_id__analytics_dc_plan_grandfathered_cost_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "baseline_scenario",
+            "required": true,
+            "schema": {
+              "title": "Baseline Scenario",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scenarios",
+            "required": true,
+            "schema": {
+              "title": "Scenarios",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cutoff_year",
+            "required": true,
+            "schema": {
+              "maximum": 2200,
+              "minimum": 1900,
+              "title": "Cutoff Year",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrandfatheredCostComparisonResponse"
+                }
+              }
+            },
+            "description": "Successful Response",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Compare Grandfathered Cost",
         "tags": [
           "Analytics"
         ]

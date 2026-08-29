@@ -1,6 +1,6 @@
 """Analytics models for DC Plan contribution analysis."""
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -194,3 +194,34 @@ class DCPlanComparisonResponse(BaseModel):
     scenarios: List[str] = Field(description="List of scenario IDs in comparison")
     scenario_names: Dict[str, str] = Field(description="Scenario ID to name mapping")
     analytics: List[DCPlanAnalytics] = Field(description="Analytics for each scenario")
+
+
+class GrandfatheredCostYear(BaseModel):
+    """One year of a gross employer-cost cohort splice."""
+
+    year: int
+    total_employer_cost: Optional[float] = Field(
+        default=None,
+        description="Spliced gross employer cost, or null when equivalence failed",
+    )
+    baseline_cohort_cost: Optional[float] = None
+    new_hire_cohort_cost: Optional[float] = None
+    available: bool
+    unavailable_reason: Optional[str] = None
+
+
+class GrandfatheredCostSeries(BaseModel):
+    """Gross employer cost for one proposed scenario spliced with the anchor."""
+
+    scenario_id: str
+    scenario_name: str
+    years: List[GrandfatheredCostYear]
+
+
+class GrandfatheredCostComparisonResponse(BaseModel):
+    """Layer-1 grandfathered gross-cost comparison."""
+
+    baseline_scenario_id: str
+    cutoff_year: int
+    scenarios: List[GrandfatheredCostSeries]
+    warnings: List[str] = Field(default_factory=list)

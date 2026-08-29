@@ -141,6 +141,27 @@ def test_incremental_state_models_use_full_scenario_plan_employee_year_grain():
         assert expected in path.read_text()
 
 
+def test_incremental_state_models_output_every_declared_scope_key():
+    paths = {
+        ROOT
+        / "dbt/models/intermediate/int_enrollment_state_accumulator.sql": (
+            '\'{{ var("plan_design_id", "default") }}\' AS plan_design_id'
+        ),
+        ROOT
+        / "dbt/models/intermediate/int_deferral_rate_state_accumulator.sql": (
+            "'{{ plan_design_id }}'::VARCHAR as plan_design_id"
+        ),
+        ROOT
+        / "dbt/models/marts/fct_workforce_snapshot.sql": (
+            "'{{ plan_design_id }}'::VARCHAR AS plan_design_id"
+        ),
+    }
+
+    for path, output_expression in paths.items():
+        sql = path.read_text()
+        assert output_expression in sql
+
+
 def test_legacy_escalation_accumulator_preserves_scenario_and_plan_grain():
     path = (
         ROOT / "dbt/models/intermediate/int_deferral_escalation_state_accumulator.sql"

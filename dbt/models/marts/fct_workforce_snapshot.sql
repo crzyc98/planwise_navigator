@@ -408,6 +408,8 @@ SELECT
   total_employer_contributions,
   annual_hours_worked,
   scheduled_hours_per_week,
+  '{{ scenario_id }}'::VARCHAR AS scenario_id,
+  '{{ plan_design_id }}'::VARCHAR AS plan_design_id,
   CURRENT_TIMESTAMP AS snapshot_created_at,
   last_escalation_date
 FROM composed

@@ -32,6 +32,7 @@ import { LayoutContextType } from './Layout';
 import {
   listScenarios,
   compareDCPlanAnalytics,
+  compareGrandfatheredCost,
   getScenarioConfig,
   getForfeitureProjection,
   listVestingSchedules,
@@ -43,6 +44,7 @@ import {
   EmployerCostOffsetRow,
   ForfeiturePolicy,
   ForfeitureProjectionResponse,
+  GrandfatheredCostComparisonResponse,
   VestingScheduleInfo,
   VestingScheduleType,
 } from '../services/api';
@@ -157,6 +159,8 @@ interface ComparisonPrefs {
   costView?: CostView;
   vestingSchedule?: VestingScheduleType;
   forfeiturePolicy?: ForfeiturePolicy;
+  grandfatherExisting?: boolean;
+  grandfatherCutoffYear?: number;
 }
 
 function saveComparisonPrefs(
@@ -179,6 +183,8 @@ function loadComparisonPrefs(
   costView?: unknown;
   vestingSchedule?: unknown;
   forfeiturePolicy?: unknown;
+  grandfatherExisting?: unknown;
+  grandfatherCutoffYear?: unknown;
 } | null {
   try {
     const stored = localStorage.getItem(`${STORAGE_KEY_PREFIX}${workspaceId}`);
@@ -393,6 +399,11 @@ export default function ScenarioCostComparison() {
   const [forfeitureData, setForfeitureData] = useState<ForfeitureProjectionResponse | null>(null);
   const [forfeitureLoading, setForfeitureLoading] = useState(false);
   const [forfeitureError, setForfeitureError] = useState<string | null>(null);
+  const [grandfatherExisting, setGrandfatherExisting] = useState(false);
+  const [grandfatherCutoffYear, setGrandfatherCutoffYear] = useState<number | null>(null);
+  const [grandfatherData, setGrandfatherData] = useState<GrandfatheredCostComparisonResponse | null>(null);
+  const [grandfatherLoading, setGrandfatherLoading] = useState(false);
+  const [grandfatherError, setGrandfatherError] = useState<string | null>(null);
 
   // -------------------------------------------------------------------------
   // Copy to Clipboard Hooks
@@ -437,6 +448,54 @@ export default function ScenarioCostComparison() {
     });
     return Array.from(allYears).sort((a, b) => a - b);
   }, [comparisonData]);
+
+  useEffect(() => {
+    if (grandfatherCutoffYear === null && anchorAnalytics) {
+      setGrandfatherCutoffYear(anchorAnalytics.resolved_first_simulation_year);
+    }
+  }, [anchorAnalytics, grandfatherCutoffYear]);
+
+  const grandfatherYearFor = useCallback((scenarioId: string, year: number) =>
+    grandfatherData?.scenarios.find(series => series.scenario_id === scenarioId)
+      ?.years.find(row => row.year === year) ?? null,
+    [grandfatherData]
+  );
+
+  const displayedCostFor = useCallback((
+    scenarioId: string,
+    yearData: ContributionYearSummary
+  ): number | null => {
+    if (!grandfatherExisting) return yearData.total_employer_cost;
+    const row = grandfatherYearFor(scenarioId, yearData.year);
+    return row?.available ? row.total_employer_cost : null;
+  }, [grandfatherExisting, grandfatherYearFor]);
+
+  const displayedTotalFor = useCallback((analytics: DCPlanAnalytics): number | null => {
+    const values = analytics.contribution_by_year.map(year =>
+      displayedCostFor(analytics.scenario_id, year)
+    );
+    return values.some(value => value === null)
+      ? null
+      : values.reduce<number>((sum, value) => sum + (value ?? 0), 0);
+  }, [displayedCostFor]);
+
+  const unavailableCostState = useCallback((scenarioId: string, year: number) => {
+    if (grandfatherLoading) {
+      return { label: 'loading…', reason: 'Loading grandfathered employer cost.' };
+    }
+    if (grandfatherError) {
+      return {
+        label: 'unavailable',
+        reason: `Grandfathered employer cost request failed: ${grandfatherError}`,
+      };
+    }
+    const guardReason = grandfatherYearFor(scenarioId, year)?.unavailable_reason;
+    if (guardReason) return { label: 'unavailable', reason: guardReason };
+    return {
+      label: 'unavailable',
+      reason: 'Grandfathered employer cost has not been loaded.',
+    };
+  }, [grandfatherLoading, grandfatherError, grandfatherYearFor]);
 
   // -------------------------------------------------------------------------
   // Derived Data: Forfeiture offsets (#444)
@@ -484,7 +543,7 @@ export default function ScenarioCostComparison() {
     if (!comparisonData || years.length === 0) return [];
 
     // Build year -> scenario -> cost map
-    const yearDataMap = new Map<number, Map<string, number>>();
+    const yearDataMap = new Map<number, Map<string, number | null>>();
     years.forEach(year => yearDataMap.set(year, new Map()));
 
     comparisonData.analytics.forEach(analytics => {
@@ -492,7 +551,7 @@ export default function ScenarioCostComparison() {
       analytics.contribution_by_year.forEach(yearData => {
         const yearMap = yearDataMap.get(yearData.year);
         if (yearMap) {
-          yearMap.set(scenarioId, yearData.total_employer_cost);
+          yearMap.set(scenarioId, displayedCostFor(scenarioId, yearData));
         }
       });
     });
@@ -500,14 +559,17 @@ export default function ScenarioCostComparison() {
     // Transform to chart data
     let data = years.map(year => {
       const yearMap = yearDataMap.get(year) || new Map();
-      const row: Record<string, number> = { year };
+      const row: Record<string, number | null> = { year };
 
       selectedScenarioIds.forEach(id => {
-        row[id] = yearMap.get(id) || 0;
+        row[id] = yearMap.get(id) ?? (grandfatherExisting ? null : 0);
         // Calculate delta from anchor
         if (anchorScenarioId && id !== anchorScenarioId) {
-          const anchorValue = yearMap.get(anchorScenarioId) || 0;
-          row[`${id}_delta`] = (row[id] || 0) - anchorValue;
+          const anchorValue = yearMap.get(anchorScenarioId)
+            ?? (grandfatherExisting ? null : 0);
+          row[`${id}_delta`] = row[id] === null || anchorValue === null
+            ? null
+            : row[id]! - anchorValue;
         }
       });
 
@@ -517,19 +579,23 @@ export default function ScenarioCostComparison() {
     // Apply cumulative transformation if needed
     if (viewMode === 'cumulative') {
       const runningTotals: Record<string, number> = {};
+      const unavailable: Record<string, boolean> = {};
       selectedScenarioIds.forEach(id => {
         runningTotals[id] = 0;
       });
 
       data = data.map(yearRow => {
-        const newRow: Record<string, number> = { year: yearRow.year };
+        const newRow: Record<string, number | null> = { year: yearRow.year };
 
         selectedScenarioIds.forEach(id => {
-          runningTotals[id] += yearRow[id] || 0;
-          newRow[id] = runningTotals[id];
+          if (yearRow[id] === null) unavailable[id] = true;
+          else runningTotals[id] += yearRow[id] ?? 0;
+          newRow[id] = unavailable[id] ? null : runningTotals[id];
 
           if (anchorScenarioId && id !== anchorScenarioId) {
-            newRow[`${id}_delta`] = runningTotals[id] - runningTotals[anchorScenarioId];
+            newRow[`${id}_delta`] = unavailable[id] || unavailable[anchorScenarioId]
+              ? null
+              : runningTotals[id] - runningTotals[anchorScenarioId];
           }
         });
 
@@ -538,7 +604,8 @@ export default function ScenarioCostComparison() {
     }
 
     return data;
-  }, [comparisonData, selectedScenarioIds, anchorScenarioId, viewMode, years]);
+  }, [comparisonData, selectedScenarioIds, anchorScenarioId, viewMode, years,
+      displayedCostFor, grandfatherExisting]);
 
   // -------------------------------------------------------------------------
   // Derived Data: Chart rows augmented with offset / net series (#444)
@@ -590,16 +657,14 @@ export default function ScenarioCostComparison() {
   // -------------------------------------------------------------------------
   const anchorSummary = useMemo(() => {
     if (!anchorAnalytics) return null;
-    const totalCost = anchorAnalytics.contribution_by_year.reduce(
-      (sum, y) => sum + y.total_employer_cost, 0
-    );
+    const totalCost = displayedTotalFor(anchorAnalytics);
     return {
       name: anchorAnalytics.scenario_name,
       yearCount: anchorAnalytics.contribution_by_year.length,
       totalCost,
-      avgAnnualCost: totalCost / anchorAnalytics.contribution_by_year.length,
+      avgAnnualCost: totalCost === null ? null : totalCost / anchorAnalytics.contribution_by_year.length,
     };
-  }, [anchorAnalytics]);
+  }, [anchorAnalytics, displayedTotalFor]);
 
   /**
    * #444: the anchor's net horizon total, so non-anchor scenarios can show a
@@ -607,14 +672,12 @@ export default function ScenarioCostComparison() {
    */
   const anchorNetTotal = useMemo(() => {
     if (!anchorAnalytics || !netActive) return 0;
-    const gross = anchorAnalytics.contribution_by_year.reduce(
-      (sum, y) => sum + y.total_employer_cost, 0
-    );
+    const gross = displayedTotalFor(anchorAnalytics) ?? 0;
     const offset = years.reduce(
       (sum, year) => sum + (appliedOffset(anchorScenarioId, year) ?? 0), 0
     );
     return gross - offset;
-  }, [anchorAnalytics, netActive, years, appliedOffset, anchorScenarioId]);
+  }, [anchorAnalytics, netActive, years, appliedOffset, anchorScenarioId, displayedTotalFor]);
 
   // -------------------------------------------------------------------------
   // Derived Data: Ordered Scenario IDs (anchor first, then rest in user order)
@@ -669,6 +732,12 @@ export default function ScenarioCostComparison() {
           isValidPolicy(savedPrefs.forfeiturePolicy)
             ? savedPrefs.forfeiturePolicy
             : DEFAULT_FORFEITURE_POLICY
+        );
+        setGrandfatherExisting(savedPrefs.grandfatherExisting === true);
+        setGrandfatherCutoffYear(
+          typeof savedPrefs.grandfatherCutoffYear === 'number'
+            ? savedPrefs.grandfatherCutoffYear
+            : null
         );
         if (typeof savedPrefs.vestingSchedule === 'string') {
           setVestingSchedule(savedPrefs.vestingSchedule as VestingScheduleType);
@@ -778,6 +847,29 @@ export default function ScenarioCostComparison() {
     }
   }, [activeWorkspace?.id, selectedScenarioIds, vestingSchedule, forfeiturePolicy]);
 
+  const fetchGrandfatheredCost = useCallback(async () => {
+    if (!activeWorkspace?.id || !anchorScenarioId || grandfatherCutoffYear === null) {
+      setGrandfatherData(null);
+      return;
+    }
+    setGrandfatherLoading(true);
+    setGrandfatherError(null);
+    try {
+      setGrandfatherData(await compareGrandfatheredCost(
+        activeWorkspace.id,
+        anchorScenarioId,
+        selectedScenarioIds,
+        grandfatherCutoffYear
+      ));
+    } catch (err) {
+      console.error('Failed to fetch grandfathered cost:', err);
+      setGrandfatherError(err instanceof Error ? err.message : 'Failed to load grandfathered cost');
+      setGrandfatherData(null);
+    } finally {
+      setGrandfatherLoading(false);
+    }
+  }, [activeWorkspace?.id, anchorScenarioId, selectedScenarioIds, grandfatherCutoffYear]);
+
   // -------------------------------------------------------------------------
   // Effects
   // -------------------------------------------------------------------------
@@ -814,6 +906,21 @@ export default function ScenarioCostComparison() {
     }
   }, [costView, selectedScenarioIds, fetchForfeitures, loadingScenarios]);
 
+  useEffect(() => {
+    if (loadingScenarios) return;
+    if (grandfatherExisting) fetchGrandfatheredCost();
+    else {
+      setGrandfatherData(null);
+      setGrandfatherError(null);
+    }
+  }, [grandfatherExisting, fetchGrandfatheredCost, loadingScenarios]);
+
+  useEffect(() => {
+    if (!grandfatherExisting) return;
+    if (costView === 'net') setCostView('gross');
+    if (cohort !== 'all') setCohort('all');
+  }, [grandfatherExisting, costView, cohort]);
+
   // #444: schedule list for the selector, loaded once.
   useEffect(() => {
     if (costView !== 'net' || schedules.length > 0) return;
@@ -849,10 +956,12 @@ export default function ScenarioCostComparison() {
         costView,
         vestingSchedule,
         forfeiturePolicy,
+        grandfatherExisting,
+        grandfatherCutoffYear: grandfatherCutoffYear ?? undefined,
       });
     }
   }, [activeWorkspace?.id, selectionWorkspaceId, selectedScenarioIds, anchorScenarioId, cohort,
-      costView, vestingSchedule, forfeiturePolicy]);
+      costView, vestingSchedule, forfeiturePolicy, grandfatherExisting, grandfatherCutoffYear]);
 
   // -------------------------------------------------------------------------
   // Event Handlers
@@ -934,24 +1043,24 @@ export default function ScenarioCostComparison() {
 
       const yearValues = years.map(year => {
         const yearData = analytics.contribution_by_year.find(y => y.year === year);
-        return yearData ? formatCurrency(yearData.total_employer_cost) : '-';
+        if (!yearData) return '-';
+        const value = displayedCostFor(id, yearData);
+        return value === null ? 'unavailable' : formatCurrency(value);
       });
 
-      const total = analytics.contribution_by_year.reduce(
-        (sum, y) => sum + y.total_employer_cost, 0
-      );
+      const total = displayedTotalFor(analytics);
 
       let variance = '--';
       if (id !== anchorScenarioId && anchorAnalytics) {
-        const anchorTotal = anchorAnalytics.contribution_by_year.reduce(
-          (sum, y) => sum + y.total_employer_cost, 0
-        );
-        const delta = total - anchorTotal;
-        variance = `${delta >= 0 ? '+' : ''}${formatCurrency(delta)}`;
+        const anchorTotal = displayedTotalFor(anchorAnalytics);
+        if (total !== null && anchorTotal !== null) {
+          const delta = total - anchorTotal;
+          variance = `${delta >= 0 ? '+' : ''}${formatCurrency(delta)}`;
+        }
       }
 
       const name = comparisonData.scenario_names[id] || analytics.scenario_name || id;
-      lines.push([name, ...yearValues, formatCurrency(total), variance].join('\t'));
+      lines.push([name, ...yearValues, total === null ? 'unavailable' : formatCurrency(total), variance].join('\t'));
 
       // #444: pasted output carries the same offset/net rows the table shows.
       if (!netActive) return;
@@ -973,7 +1082,7 @@ export default function ScenarioCostComparison() {
         if (!yearData || applied === null) return 'gross only';
         return formatCurrency(yearData.total_employer_cost - applied);
       });
-      const netTotal = total - offsetTotal;
+      const netTotal = (total ?? 0) - offsetTotal;
       const netVariance = id === anchorScenarioId || !anchorAnalytics
         ? '--'
         : `${netTotal - anchorNetTotal >= 0 ? '+' : ''}${formatCurrency(netTotal - anchorNetTotal)}`;
@@ -984,7 +1093,8 @@ export default function ScenarioCostComparison() {
 
     return lines.join('\n');
   }, [comparisonData, years, orderedScenarioIds, anchorScenarioId, anchorAnalytics, cohort,
-      netActive, appliedOffset, anchorNetTotal, vestingSchedule, forfeiturePolicy]);
+      netActive, appliedOffset, anchorNetTotal, vestingSchedule, forfeiturePolicy,
+      displayedCostFor, displayedTotalFor]);
 
   const handleCopy = useCallback(() => {
     const tsv = tableToTSV();
@@ -1259,7 +1369,7 @@ export default function ScenarioCostComparison() {
                       <Calendar size={12} className="mr-1.5" /> {anchorSummary.yearCount}-Year Plan
                     </span>
                     <span className="flex items-center text-xs font-medium text-ink-muted bg-surface-subtle px-2 py-1 rounded">
-                      <DollarSign size={12} className="mr-1.5" /> {formatCurrency(anchorSummary.totalCost)} Total
+                      <DollarSign size={12} className="mr-1.5" /> {anchorSummary.totalCost === null ? (grandfatherLoading ? 'Loading…' : 'Unavailable') : formatCurrency(anchorSummary.totalCost)} Total
                     </span>
                   </div>
                 </div>
@@ -1292,7 +1402,8 @@ export default function ScenarioCostComparison() {
                       <button
                         key={value}
                         onClick={() => setCohort(value)}
-                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${cohort === value ? 'bg-surface-raised text-ink shadow-sm' : 'text-ink-muted hover:text-ink-muted'}`}
+                        disabled={grandfatherExisting}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all disabled:cursor-not-allowed disabled:opacity-50 ${cohort === value ? 'bg-surface-raised text-ink shadow-sm' : 'text-ink-muted hover:text-ink-muted'}`}
                       >
                         {COHORT_TOGGLE_LABELS[value]}
                       </button>
@@ -1321,7 +1432,9 @@ export default function ScenarioCostComparison() {
                       <button
                         key={value}
                         onClick={() => setCostView(value)}
-                        className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${costView === value ? 'bg-surface-raised text-ink shadow-sm' : 'text-ink-muted hover:text-ink-muted'}`}
+                        disabled={grandfatherExisting && value === 'net'}
+                        title={grandfatherExisting && value === 'net' ? 'Net cost cannot be spliced until forfeiture projections support cohort filters.' : undefined}
+                        className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all disabled:cursor-not-allowed disabled:opacity-50 ${costView === value ? 'bg-surface-raised text-ink shadow-sm' : 'text-ink-muted hover:text-ink-muted'}`}
                       >
                         {COST_VIEW_LABELS[value]}
                       </button>
@@ -1329,6 +1442,58 @@ export default function ScenarioCostComparison() {
                   </div>
                 </div>
               </div>
+
+              <div className="-mt-4 mb-6 flex flex-wrap items-center gap-4 rounded-lg border border-border bg-surface-subtle px-4 py-3">
+                <label className="flex items-center gap-2 text-xs font-bold text-ink">
+                  <input
+                    type="checkbox"
+                    checked={grandfatherExisting}
+                    onChange={event => setGrandfatherExisting(event.target.checked)}
+                    className="h-4 w-4 rounded border-border text-fidelity-green"
+                  />
+                  Grandfather existing employees
+                </label>
+                {grandfatherExisting && (
+                  <>
+                    <label className="flex items-center gap-2 text-xs font-bold text-ink-muted uppercase tracking-wide">
+                      New design hire year
+                      <input
+                        type="number"
+                        min={1900}
+                        max={2200}
+                        value={grandfatherCutoffYear ?? ''}
+                        onChange={event => {
+                          const value = event.target.valueAsNumber;
+                          setGrandfatherCutoffYear(Number.isFinite(value) ? value : null);
+                        }}
+                        className="w-24 rounded-md border border-border bg-surface-raised px-2 py-1 text-xs font-medium normal-case text-ink outline-none focus:ring-1 focus:ring-fidelity-green"
+                      />
+                    </label>
+                    <span className="text-xs text-ink-muted">
+                      Existing employees use the anchor design; hires in {grandfatherCutoffYear ?? 'the cutoff year'} or later use each scenario design.
+                    </span>
+                    {grandfatherLoading && <Loader2 size={14} className="animate-spin text-ink-muted" />}
+                  </>
+                )}
+              </div>
+
+              {grandfatherExisting && (
+                <div className="-mt-2 mb-6 space-y-2">
+                  <div className="rounded-lg border border-warning-border bg-warning-surface px-4 py-2 text-xs text-warning-ink">
+                    Grandfathered results are gross employer cost only. Net-of-forfeiture cost is unavailable because forfeiture accrual history cannot yet be spliced by cohort.
+                  </div>
+                  {grandfatherError && (
+                    <div className="rounded-lg border border-danger-border bg-danger-surface px-4 py-2 text-xs text-danger-ink">
+                      {grandfatherError}
+                    </div>
+                  )}
+                  {grandfatherData?.warnings.map(warning => (
+                    <div key={warning} className="rounded-lg border border-warning-border bg-warning-surface px-4 py-2 text-xs text-warning-ink">
+                      {warning} Population equivalence is still checked per year.
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Vesting schedule + forfeiture policy selectors (#444) */}
               {costView === 'net' && (
@@ -1619,16 +1784,12 @@ export default function ScenarioCostComparison() {
                       if (!analytics) return null;
 
                       const isAnchor = id === anchorScenarioId;
-                      const total = analytics.contribution_by_year.reduce(
-                        (sum, y) => sum + y.total_employer_cost, 0
-                      );
+                      const total = displayedTotalFor(analytics);
 
-                      let delta = 0;
+                      let delta: number | null = null;
                       if (!isAnchor && anchorAnalytics) {
-                        const anchorTotal = anchorAnalytics.contribution_by_year.reduce(
-                          (sum, y) => sum + y.total_employer_cost, 0
-                        );
-                        delta = total - anchorTotal;
+                        const anchorTotal = displayedTotalFor(anchorAnalytics);
+                        if (total !== null && anchorTotal !== null) delta = total - anchorTotal;
                       }
 
                       const grossRow = (
@@ -1662,17 +1823,26 @@ export default function ScenarioCostComparison() {
                                 </td>
                               );
                             }
+                            const displayedCost = displayedCostFor(id, yearData);
+                            if (displayedCost === null) {
+                              const state = unavailableCostState(id, year);
+                              return (
+                                <td key={year} className="px-6 py-4 whitespace-nowrap text-right text-sm text-warning-ink font-mono italic">
+                                  <span title={state.reason}>{state.label}</span>
+                                </td>
+                              );
+                            }
                             return (
                               <td key={year} className="px-6 py-4 whitespace-nowrap text-right text-sm text-ink-muted font-mono">
-                                {formatCurrency(yearData.total_employer_cost)}
+                                {formatCurrency(displayedCost)}
                               </td>
                             );
                           })}
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-ink font-bold font-mono bg-surface-subtle/50 border-l border-border">
-                            {formatCurrency(total)}
+                            {total === null ? (grandfatherLoading ? 'loading…' : 'unavailable') : formatCurrency(total)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right">
-                            {isAnchor ? (
+                            {isAnchor || total === null || delta === null ? (
                               <span className="text-xs text-ink-subtle italic">--</span>
                             ) : (
                               <span className={`px-2 py-1 text-xs font-bold rounded ${delta >= 0 ? 'bg-warning-surface text-warning-ink' : 'bg-success-surface text-success-ink'}`}>
@@ -1693,7 +1863,7 @@ export default function ScenarioCostComparison() {
                       const offsetTotal = measurableYears.reduce(
                         (sum, year) => sum + (appliedOffset(id, year) ?? 0), 0
                       );
-                      const netTotal = total - offsetTotal;
+                      const netTotal = (total ?? 0) - offsetTotal;
                       const netDelta = !isAnchor && anchorAnalytics
                         ? netTotal - anchorNetTotal
                         : 0;

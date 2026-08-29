@@ -1683,6 +1683,28 @@ export interface DCPlanComparisonResponse {
   analytics: DCPlanAnalytics[];
 }
 
+export interface GrandfatheredCostYear {
+  year: number;
+  total_employer_cost: number | null;
+  baseline_cohort_cost: number | null;
+  new_hire_cohort_cost: number | null;
+  available: boolean;
+  unavailable_reason: string | null;
+}
+
+export interface GrandfatheredCostSeries {
+  scenario_id: string;
+  scenario_name: string;
+  years: GrandfatheredCostYear[];
+}
+
+export interface GrandfatheredCostComparisonResponse {
+  baseline_scenario_id: string;
+  cutoff_year: number;
+  scenarios: GrandfatheredCostSeries[];
+  warnings: string[];
+}
+
 export async function getDCPlanAnalytics(
   workspaceId: string,
   scenarioId: string,
@@ -1718,6 +1740,23 @@ export async function compareDCPlanAnalytics(
     `${API_BASE}/api/workspaces/${workspaceId}/analytics/dc-plan/compare?${params}`
   );
   return handleResponse<DCPlanComparisonResponse>(response);
+}
+
+export async function compareGrandfatheredCost(
+  workspaceId: string,
+  baselineScenarioId: string,
+  scenarioIds: string[],
+  cutoffYear: number
+): Promise<GrandfatheredCostComparisonResponse> {
+  const params = new URLSearchParams({
+    baseline_scenario: baselineScenarioId,
+    scenarios: scenarioIds.join(','),
+    cutoff_year: String(cutoffYear),
+  });
+  const response = await fetchWithAuth(
+    `${API_BASE}/api/workspaces/${workspaceId}/analytics/dc-plan/grandfathered-cost?${params}`
+  );
+  return handleResponse<GrandfatheredCostComparisonResponse>(response);
 }
 
 export async function getWinnersLosersComparison(
