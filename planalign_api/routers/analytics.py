@@ -11,8 +11,11 @@ from ..models.analytics import (
     DCPlanComparisonResponse,
     GrandfatheredCostComparisonResponse,
 )
+from ..models.employer_cost import ForfeiturePolicy
+from ..models.vesting import VestingScheduleConfig, VestingScheduleType
 from ..models.winners_losers import WinnersLosersResponse
 from ..services.analytics_service import AnalyticsService
+from ..services.vesting_service import SCHEDULE_INFO
 from ..services.winners_losers_service import WinnersLosersService
 from ..services.scenario_read_warning import has_selected_result
 from ..storage.workspace_storage import WorkspaceStorage
@@ -205,6 +208,10 @@ async def compare_grandfathered_cost(
     baseline_scenario: str = Query(...),
     scenarios: str = Query(...),
     cutoff_year: int = Query(..., ge=1900, le=2200),
+    schedule_type: VestingScheduleType = Query(VestingScheduleType.IMMEDIATE),
+    forfeiture_policy: ForfeiturePolicy = Query(
+        ForfeiturePolicy.OFFSET_EMPLOYER_CONTRIBUTIONS
+    ),
     storage: WorkspaceStorage = Depends(get_storage),
     analytics_service: AnalyticsService = Depends(get_analytics_service),
 ) -> GrandfatheredCostComparisonResponse:
@@ -245,6 +252,11 @@ async def compare_grandfathered_cost(
             baseline_scenario,
             scenario_names,
             cutoff_year,
+            VestingScheduleConfig(
+                schedule_type=schedule_type,
+                name=SCHEDULE_INFO[schedule_type].name,
+            ),
+            forfeiture_policy,
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=f"Scenario result not found: {exc}")

@@ -274,7 +274,7 @@ def compute_employer_cost(
     if not gross:
         return None
 
-    forfeiture_rows = project_forfeitures_for_connection(conn, schedule)
+    forfeiture_rows = project_forfeitures_for_connection(conn, schedule, where_clause)
     return build_employer_cost_series(
         scenario_id=scenario_id,
         scenario_name=scenario_name,

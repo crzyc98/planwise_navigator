@@ -16,6 +16,8 @@ from ..models.analytics import (
     IRSLimitMetrics,
     ParticipationByMethod,
 )
+from ..models.employer_cost import ForfeiturePolicy
+from ..models.vesting import VestingScheduleConfig
 from planalign_core.constants import TABLE_FCT_WORKFORCE_SNAPSHOT
 
 from ..storage.workspace_storage import WorkspaceStorage
@@ -24,8 +26,10 @@ from .employer_cost_service import (
     GROSS_EMPLOYER_COST_SQL,
     GROSS_MATCH_SQL,
     TOTAL_COMPENSATION_SQL,
+    build_employer_cost_offsets,
     query_gross_employer_cost,
 )
+from .vesting_service import project_forfeitures_for_connection
 from .database_path_resolver import (
     DatabasePathResolver,
     create_api_database_path_resolver,
@@ -232,6 +236,10 @@ class AnalyticsService:
         baseline_scenario_id: str,
         scenario_names: Dict[str, str],
         cutoff_year: int,
+        schedule: Optional[VestingScheduleConfig] = None,
+        forfeiture_policy: ForfeiturePolicy = (
+            ForfeiturePolicy.OFFSET_EMPLOYER_CONTRIBUTIONS
+        ),
     ) -> GrandfatheredCostComparisonResponse:
         """Splice baseline pre-cutoff cost with each scenario's post-cutoff cost."""
         import duckdb
@@ -253,6 +261,13 @@ class AnalyticsService:
             str(baseline_resolved.path), read_only=True
         ) as baseline_conn:
             baseline_cost = self._gross_cost_by_year(baseline_conn, baseline_where)
+            baseline_forfeitures = (
+                project_forfeitures_for_connection(
+                    baseline_conn, schedule, baseline_where
+                )
+                if schedule is not None
+                else []
+            )
             baseline_population = self._population_by_year(
                 baseline_conn, baseline_where
             )
@@ -264,6 +279,13 @@ class AnalyticsService:
                     raise FileNotFoundError(resolved.path)
                 with duckdb.connect(str(resolved.path), read_only=True) as conn:
                     proposed_cost = self._gross_cost_by_year(conn, new_hire_where)
+                    proposed_forfeitures = (
+                        project_forfeitures_for_connection(
+                            conn, schedule, new_hire_where
+                        )
+                        if schedule is not None
+                        else []
+                    )
                     proposed_baseline_population = self._population_by_year(
                         conn, baseline_where
                     )
@@ -320,12 +342,51 @@ class AnalyticsService:
                         scenario_id=scenario_id,
                         scenario_name=scenario_name,
                         years=year_rows,
+                        employer_cost_offsets=build_employer_cost_offsets(
+                            [
+                                baseline_row.model_copy(
+                                    update={
+                                        "terminated_employee_count": (
+                                            baseline_row.terminated_employee_count
+                                            + proposed_row.terminated_employee_count
+                                        ),
+                                        "vesting_eligible_count": (
+                                            baseline_row.vesting_eligible_count
+                                            + proposed_row.vesting_eligible_count
+                                        ),
+                                        "total_employer_contributions": (
+                                            baseline_row.total_employer_contributions
+                                            + proposed_row.total_employer_contributions
+                                        ),
+                                        "vested_amount": (
+                                            baseline_row.vested_amount
+                                            + proposed_row.vested_amount
+                                        ),
+                                        "forfeited_amount": (
+                                            baseline_row.forfeited_amount
+                                            + proposed_row.forfeited_amount
+                                        ),
+                                        "has_prior_year_basis": (
+                                            baseline_row.has_prior_year_basis
+                                            and proposed_row.has_prior_year_basis
+                                        ),
+                                    }
+                                )
+                                for baseline_row, proposed_row in zip(
+                                    baseline_forfeitures,
+                                    proposed_forfeitures,
+                                    strict=True,
+                                )
+                            ],
+                            forfeiture_policy,
+                        ),
                     )
                 )
 
         return GrandfatheredCostComparisonResponse(
             baseline_scenario_id=baseline_scenario_id,
             cutoff_year=cutoff_year,
+            forfeiture_policy=forfeiture_policy,
             scenarios=series,
             warnings=warnings,
         )

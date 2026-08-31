@@ -4,6 +4,8 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
+from .employer_cost import EmployerCostOffsetRow, ForfeiturePolicy
+
 
 class ContributionYearSummary(BaseModel):
     """Contribution summary for a single year."""
@@ -211,17 +213,22 @@ class GrandfatheredCostYear(BaseModel):
 
 
 class GrandfatheredCostSeries(BaseModel):
-    """Gross employer cost for one proposed scenario spliced with the anchor."""
+    """Employer cost for one proposed scenario spliced with the anchor."""
 
     scenario_id: str
     scenario_name: str
     years: List[GrandfatheredCostYear]
+    employer_cost_offsets: List[EmployerCostOffsetRow] = Field(
+        default_factory=list,
+        description="Cohort-spliced forfeiture offsets under the selected policy.",
+    )
 
 
 class GrandfatheredCostComparisonResponse(BaseModel):
-    """Layer-1 grandfathered gross-cost comparison."""
+    """Grandfathered gross cost and cohort-spliced forfeiture offsets."""
 
     baseline_scenario_id: str
     cutoff_year: int
+    forfeiture_policy: ForfeiturePolicy
     scenarios: List[GrandfatheredCostSeries]
     warnings: List[str] = Field(default_factory=list)
