@@ -192,7 +192,7 @@ def get_schedule_list() -> VestingScheduleListResponse:
 # screens show without going through workspace storage.
 
 
-def _terminated_employees_all_years(conn) -> List[dict]:
+def _terminated_employees_all_years(conn, where_clause: str = "") -> List[dict]:
     """Every contribution-qualified termination, all years, in one query.
 
     Same cumulative basis as :meth:`VestingService._get_terminated_employees`
@@ -200,7 +200,8 @@ def _terminated_employees_all_years(conn) -> List[dict]:
     contributions they accrued in every simulation year before the year they
     terminated, not the single prior year.
     """
-    query = """
+    status_joiner = "AND" if where_clause else "WHERE"
+    query = f"""
         WITH terminated AS (
             SELECT
                 simulation_year,
@@ -209,7 +210,8 @@ def _terminated_employees_all_years(conn) -> List[dict]:
                 tenure_band,
                 COALESCE(annual_hours_worked, 0) AS annual_hours_worked
             FROM fct_workforce_snapshot
-            WHERE UPPER(employment_status) = 'TERMINATED'
+            {where_clause}
+            {status_joiner} UPPER(employment_status) = 'TERMINATED'
         ),
         contributions AS (
             SELECT
@@ -252,13 +254,15 @@ def _terminated_employees_all_years(conn) -> List[dict]:
     return [dict(zip(columns, row)) for row in conn.execute(query).fetchall()]
 
 
-def _terminated_counts_by_year(conn) -> dict[int, int]:
+def _terminated_counts_by_year(conn, where_clause: str = "") -> dict[int, int]:
     """All terminations per year, regardless of contribution basis."""
     rows = conn.execute(
-        """
+        f"""
         SELECT simulation_year, COUNT(*)
         FROM fct_workforce_snapshot
-        WHERE UPPER(employment_status) = 'TERMINATED'
+        {where_clause}
+        {"AND" if where_clause else "WHERE"}
+            UPPER(employment_status) = 'TERMINATED'
         GROUP BY simulation_year
         """
     ).fetchall()
@@ -313,7 +317,7 @@ def _forfeiture_row(
 
 
 def project_forfeitures_for_connection(
-    conn, schedule: VestingScheduleConfig
+    conn, schedule: VestingScheduleConfig, where_clause: str = ""
 ) -> List[ForfeitureYearRow]:
     """Forfeitures under one schedule for every year in an open database.
 
@@ -321,16 +325,19 @@ def project_forfeitures_for_connection(
     scenario's first year is flagged ``has_prior_year_basis=False``: its
     terminations accrued their employer money before the horizon, so their
     forfeiture is unmeasurable rather than zero.
+
+    ``where_clause`` filters the employees whose terminations are projected.
+    Their contribution basis still includes every prior simulation year.
     """
     years = _simulation_years(conn)
     if not years:
         return []
 
     by_year: dict[int, List[dict]] = {year: [] for year in years}
-    for emp in _terminated_employees_all_years(conn):
+    for emp in _terminated_employees_all_years(conn, where_clause):
         by_year.setdefault(int(emp["simulation_year"]), []).append(emp)
 
-    terminated_counts = _terminated_counts_by_year(conn)
+    terminated_counts = _terminated_counts_by_year(conn, where_clause)
     first_year = min(years)
 
     return [

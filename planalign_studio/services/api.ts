@@ -1696,11 +1696,13 @@ export interface GrandfatheredCostSeries {
   scenario_id: string;
   scenario_name: string;
   years: GrandfatheredCostYear[];
+  employer_cost_offsets: EmployerCostOffsetRow[];
 }
 
 export interface GrandfatheredCostComparisonResponse {
   baseline_scenario_id: string;
   cutoff_year: number;
+  forfeiture_policy: ForfeiturePolicy;
   scenarios: GrandfatheredCostSeries[];
   warnings: string[];
 }
@@ -1746,12 +1748,16 @@ export async function compareGrandfatheredCost(
   workspaceId: string,
   baselineScenarioId: string,
   scenarioIds: string[],
-  cutoffYear: number
+  cutoffYear: number,
+  scheduleType: VestingScheduleType,
+  forfeiturePolicy: ForfeiturePolicy
 ): Promise<GrandfatheredCostComparisonResponse> {
   const params = new URLSearchParams({
     baseline_scenario: baselineScenarioId,
     scenarios: scenarioIds.join(','),
     cutoff_year: String(cutoffYear),
+    schedule_type: scheduleType,
+    forfeiture_policy: forfeiturePolicy,
   });
   const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/analytics/dc-plan/grandfathered-cost?${params}`

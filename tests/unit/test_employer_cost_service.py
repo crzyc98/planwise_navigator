@@ -106,6 +106,75 @@ def test_forfeiture_basis_is_cumulative_across_the_run(scenario_db: Path):
     assert termination_year.vested_amount == Decimal("0.00")
 
 
+def test_cohort_filter_preserves_included_employees_cumulative_basis(
+    scenario_db: Path,
+):
+    """Filtering the termination cohort must not filter its prior accrual rows."""
+    conn = _open(scenario_db)
+    try:
+        rows = project_forfeitures_for_connection(
+            conn,
+            _cliff_4(),
+            "WHERE employee_hire_date < DATE '2025-01-01'",
+        )
+    finally:
+        conn.close()
+
+    termination_year = {row.simulation_year: row for row in rows}[2028]
+    assert termination_year.total_employer_contributions == Decimal("3000.00")
+    assert termination_year.forfeited_amount == Decimal("3000.00")
+
+
+def test_complementary_cohort_forfeitures_sum_to_unfiltered_by_year(
+    scenario_db: Path,
+):
+    conn = duckdb.connect(str(scenario_db))
+    try:
+        conn.execute(
+            """
+            INSERT INTO fct_workforce_snapshot VALUES
+                ('new', 2026, 'ACTIVE', DATE '2025-01-01', NULL, 1, '<2', 2080,
+                 300.0, 200.0, 500.0, 80000.0),
+                ('new', 2027, 'TERMINATED', DATE '2025-01-01', DATE '2027-06-30',
+                 1, '<2', 1040, 0.0, 0.0, 0.0, 40000.0)
+            """
+        )
+    finally:
+        conn.close()
+
+    conn = _open(scenario_db)
+    try:
+        unfiltered = project_forfeitures_for_connection(conn, _cliff_4())
+        existing = project_forfeitures_for_connection(
+            conn, _cliff_4(), "WHERE employee_hire_date < DATE '2025-01-01'"
+        )
+        new_hires = project_forfeitures_for_connection(
+            conn, _cliff_4(), "WHERE employee_hire_date >= DATE '2025-01-01'"
+        )
+    finally:
+        conn.close()
+
+    for total, old, new in zip(unfiltered, existing, new_hires, strict=True):
+        assert old.forfeited_amount + new.forfeited_amount == total.forfeited_amount
+        assert (
+            old.total_employer_contributions + new.total_employer_contributions
+            == total.total_employer_contributions
+        )
+        assert old.has_prior_year_basis == new.has_prior_year_basis
+        assert old.has_prior_year_basis == total.has_prior_year_basis
+
+
+def test_empty_cohort_predicate_is_identical_to_default(scenario_db: Path):
+    conn = _open(scenario_db)
+    try:
+        default = project_forfeitures_for_connection(conn, _cliff_4())
+        explicit = project_forfeitures_for_connection(conn, _cliff_4(), "")
+    finally:
+        conn.close()
+
+    assert explicit == default
+
+
 def test_a_fully_vested_termination_forfeits_nothing(scenario_db: Path):
     conn = _open(scenario_db)
     try:
@@ -315,6 +384,42 @@ def test_reallocation_leaves_net_equal_to_gross(scenario_db: Path):
     assert series is not None
     assert series.total_forfeiture_offset == Decimal("0.00")
     assert series.total_net_employer_cost == series.total_gross_employer_cost
+
+
+def test_reallocation_discloses_filtered_forfeiture_with_zero_offset(
+    scenario_db: Path,
+):
+    conn = _open(scenario_db)
+    try:
+        forfeitures = project_forfeitures_for_connection(
+            conn,
+            _cliff_4(),
+            "WHERE employee_hire_date < DATE '2025-01-01'",
+        )
+        series = compute_employer_cost(
+            conn,
+            scenario_id="s",
+            scenario_name="Scenario",
+            schedule=_cliff_4(),
+            policy=ForfeiturePolicy.REALLOCATE_TO_PARTICIPANTS,
+            where_clause="WHERE employee_hire_date < DATE '2025-01-01'",
+        )
+    finally:
+        conn.close()
+
+    assert series is not None
+    applied = {row.simulation_year: row for row in series.years}[2029]
+    assert applied.forfeitures_generated == Decimal("3000.00")
+    assert applied.forfeiture_offset_applied == Decimal("0.00")
+    assert applied.net_employer_cost == applied.gross_employer_cost
+    disclosed = {
+        row.simulation_year: row
+        for row in build_employer_cost_offsets(
+            forfeitures, ForfeiturePolicy.REALLOCATE_TO_PARTICIPANTS
+        )
+    }[2029]
+    assert disclosed.offset_amount == Decimal("0.00")
+    assert disclosed.participant_allocation == Decimal("3000.00")
 
 
 def test_empty_database_yields_no_series(tmp_path: Path):

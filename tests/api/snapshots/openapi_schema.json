@@ -4737,7 +4737,7 @@
         "type": "object"
       },
       "GrandfatheredCostComparisonResponse": {
-        "description": "Layer-1 grandfathered gross-cost comparison.",
+        "description": "Grandfathered gross cost and cohort-spliced forfeiture offsets.",
         "properties": {
           "baseline_scenario_id": {
             "title": "Baseline Scenario Id",
@@ -4746,6 +4746,9 @@
           "cutoff_year": {
             "title": "Cutoff Year",
             "type": "integer"
+          },
+          "forfeiture_policy": {
+            "$ref": "#/components/schemas/ForfeiturePolicy"
           },
           "scenarios": {
             "items": {
@@ -4765,14 +4768,23 @@
         "required": [
           "baseline_scenario_id",
           "cutoff_year",
+          "forfeiture_policy",
           "scenarios"
         ],
         "title": "GrandfatheredCostComparisonResponse",
         "type": "object"
       },
       "GrandfatheredCostSeries": {
-        "description": "Gross employer cost for one proposed scenario spliced with the anchor.",
+        "description": "Employer cost for one proposed scenario spliced with the anchor.",
         "properties": {
+          "employer_cost_offsets": {
+            "description": "Cohort-spliced forfeiture offsets under the selected policy.",
+            "items": {
+              "$ref": "#/components/schemas/EmployerCostOffsetRow"
+            },
+            "title": "Employer Cost Offsets",
+            "type": "array"
+          },
           "scenario_id": {
             "title": "Scenario Id",
             "type": "string"
@@ -14173,6 +14185,34 @@
               "minimum": 1900,
               "title": "Cutoff Year",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "schedule_type",
+            "required": false,
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/VestingScheduleType"
+                }
+              ],
+              "default": "immediate",
+              "title": "Schedule Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "forfeiture_policy",
+            "required": false,
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/ForfeiturePolicy"
+                }
+              ],
+              "default": "offset_employer_contributions",
+              "title": "Forfeiture Policy"
             }
           }
         ],

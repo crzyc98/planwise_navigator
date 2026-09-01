@@ -338,7 +338,7 @@ const CohortBadge = ({ cohort, resolvedFirstSimulationYear }: {
 }) => {
   if (cohort === 'all') return null;
   return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-info-surface text-info-ink border border-info-border">
+    <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-info-border bg-info-surface px-2 py-1 text-[10px] font-bold uppercase leading-none tracking-wide text-info-ink">
       {cohortBadgeLabel(cohort, resolvedFirstSimulationYear)}
     </span>
   );
@@ -501,19 +501,24 @@ export default function ScenarioCostComparison() {
   // Derived Data: Forfeiture offsets (#444)
   // -------------------------------------------------------------------------
   /** Net figures only render once the offsets have actually arrived. */
-  const netActive = costView === 'net' && forfeitureData !== null;
+  const netActive = costView === 'net' && (
+    grandfatherExisting ? grandfatherData !== null : forfeitureData !== null
+  );
 
   const policyReducesCost = POLICY_REDUCES_EMPLOYER_COST[forfeiturePolicy];
 
   const offsetsByScenario = useMemo(() => {
     const map = new Map<string, Map<number, EmployerCostOffsetRow>>();
-    forfeitureData?.scenarios.forEach(series => {
+    const source = grandfatherExisting
+      ? grandfatherData?.scenarios
+      : forfeitureData?.scenarios;
+    source?.forEach(series => {
       const byYear = new Map<number, EmployerCostOffsetRow>();
       series.employer_cost_offsets.forEach(row => byYear.set(row.simulation_year, row));
       map.set(series.scenario_id, byYear);
     });
     return map;
-  }, [forfeitureData]);
+  }, [forfeitureData, grandfatherData, grandfatherExisting]);
 
   const offsetFor = useCallback(
     (scenarioId: string, year: number): EmployerCostOffsetRow | null =>
@@ -859,7 +864,9 @@ export default function ScenarioCostComparison() {
         activeWorkspace.id,
         anchorScenarioId,
         selectedScenarioIds,
-        grandfatherCutoffYear
+        grandfatherCutoffYear,
+        vestingSchedule,
+        forfeiturePolicy
       ));
     } catch (err) {
       console.error('Failed to fetch grandfathered cost:', err);
@@ -868,7 +875,8 @@ export default function ScenarioCostComparison() {
     } finally {
       setGrandfatherLoading(false);
     }
-  }, [activeWorkspace?.id, anchorScenarioId, selectedScenarioIds, grandfatherCutoffYear]);
+  }, [activeWorkspace?.id, anchorScenarioId, selectedScenarioIds,
+      grandfatherCutoffYear, vestingSchedule, forfeiturePolicy]);
 
   // -------------------------------------------------------------------------
   // Effects
@@ -898,13 +906,13 @@ export default function ScenarioCostComparison() {
   useEffect(() => {
     if (loadingScenarios) return;
 
-    if (costView === 'net' && selectedScenarioIds.length > 0) {
+    if (costView === 'net' && !grandfatherExisting && selectedScenarioIds.length > 0) {
       fetchForfeitures();
     } else {
       setForfeitureData(null);
       setForfeitureError(null);
     }
-  }, [costView, selectedScenarioIds, fetchForfeitures, loadingScenarios]);
+  }, [costView, grandfatherExisting, selectedScenarioIds, fetchForfeitures, loadingScenarios]);
 
   useEffect(() => {
     if (loadingScenarios) return;
@@ -917,7 +925,6 @@ export default function ScenarioCostComparison() {
 
   useEffect(() => {
     if (!grandfatherExisting) return;
-    if (costView === 'net') setCostView('gross');
     if (cohort !== 'all') setCohort('all');
   }, [grandfatherExisting, costView, cohort]);
 
@@ -1388,11 +1395,13 @@ export default function ScenarioCostComparison() {
             <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
               <div className="flex items-center justify-between mb-8">
                 <div>
-                  <h3 className="text-lg font-bold text-ink flex items-center gap-2">
-                    Employer Cost Trends
-                    <CohortBadge cohort={cohort} resolvedFirstSimulationYear={anchorAnalytics?.resolved_first_simulation_year} />
-                  </h3>
+                  <h3 className="text-lg font-bold text-ink">Employer Cost Trends</h3>
                   <p className="text-sm text-ink-muted">Comparing total contributions for the selected horizon.</p>
+                  {cohort !== 'all' && (
+                    <div className="mt-2">
+                      <CohortBadge cohort={cohort} resolvedFirstSimulationYear={anchorAnalytics?.resolved_first_simulation_year} />
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -1432,8 +1441,6 @@ export default function ScenarioCostComparison() {
                       <button
                         key={value}
                         onClick={() => setCostView(value)}
-                        disabled={grandfatherExisting && value === 'net'}
-                        title={grandfatherExisting && value === 'net' ? 'Net cost cannot be spliced until forfeiture projections support cohort filters.' : undefined}
                         className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all disabled:cursor-not-allowed disabled:opacity-50 ${costView === value ? 'bg-surface-raised text-ink shadow-sm' : 'text-ink-muted hover:text-ink-muted'}`}
                       >
                         {COST_VIEW_LABELS[value]}
@@ -1479,9 +1486,6 @@ export default function ScenarioCostComparison() {
 
               {grandfatherExisting && (
                 <div className="-mt-2 mb-6 space-y-2">
-                  <div className="rounded-lg border border-warning-border bg-warning-surface px-4 py-2 text-xs text-warning-ink">
-                    Grandfathered results are gross employer cost only. Net-of-forfeiture cost is unavailable because forfeiture accrual history cannot yet be spliced by cohort.
-                  </div>
                   {grandfatherError && (
                     <div className="rounded-lg border border-danger-border bg-danger-surface px-4 py-2 text-xs text-danger-ink">
                       {grandfatherError}
