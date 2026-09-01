@@ -42,7 +42,6 @@
 
 {% set simulation_year = var('simulation_year', 2025) | int %}
 {% set scenario_id = var('scenario_id', 'default') %}
-{% set plan_design_id = var('plan_design_id', 'default') %}
 {% set employer_core_enabled = var('employer_core_enabled', true) %}
 {% set employer_core_contribution_rate = var('employer_core_contribution_rate', 0.02) %}
 {% set employer_core_status = var('employer_core_status', 'flat') %}
@@ -95,7 +94,6 @@ starting_compensation AS (
             AS starting_compensation
     FROM {{ ref('fct_yearly_events') }}
     WHERE scenario_id = '{{ scenario_id }}'
-      AND plan_design_id = '{{ plan_design_id }}'
       AND simulation_year = {{ simulation_year }}
     GROUP BY employee_id
 ),
@@ -103,6 +101,7 @@ starting_compensation AS (
 population AS (
     SELECT
         workforce.employee_id,
+        workforce.plan_design_id,
         workforce.simulation_year,
         COALESCE(starting.starting_compensation, workforce.current_compensation)
             AS employee_compensation,
@@ -143,7 +142,6 @@ population AS (
     LEFT JOIN starting_compensation starting
       ON workforce.employee_id = starting.employee_id
     WHERE workforce.scenario_id = '{{ scenario_id }}'
-      AND workforce.plan_design_id = '{{ plan_design_id }}'
       AND workforce.simulation_year = {{ simulation_year }}
       AND workforce.employee_id IS NOT NULL
 ),
@@ -151,6 +149,7 @@ population AS (
 workforce_proration AS (
     SELECT
         employee_id,
+        plan_design_id,
         simulation_year,
         employee_compensation AS current_compensation,
         prorated_annual_compensation,
@@ -199,6 +198,7 @@ snapshot_flags AS (
 integration_basis AS (
 SELECT
     pop.employee_id,
+    pop.plan_design_id,
     pop.simulation_year,
     -- Prefer workforce proration; else use population prorated value; else fall back to employee compensation
     COALESCE(wf.prorated_annual_compensation, pop.prorated_annual_compensation, pop.employee_compensation) AS eligible_compensation,
@@ -372,6 +372,7 @@ SELECT
     {% endif %}
     created_at,
     scenario_id,
-    parameter_scenario_id
+    parameter_scenario_id,
+    plan_design_id
 FROM {% if employer_core_integration_enabled %}integration_components{% else %}integration_basis{% endif %}
 WHERE rn = 1

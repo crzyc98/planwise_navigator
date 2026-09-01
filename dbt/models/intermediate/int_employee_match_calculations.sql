@@ -31,7 +31,6 @@
 
 {% set simulation_year = var('simulation_year', 2025) | int %}
 {% set scenario_id = var('scenario_id', 'default') %}
-{% set plan_design_id = var('plan_design_id', 'default') %}
 
 /*
   E084 Phase B: Match configuration now accepts custom tiers directly
@@ -100,6 +99,7 @@ employee_contributions AS (
     -- E010: Also join years of service from workforce snapshot for service-based matching
     SELECT
         ec.employee_id,
+        ec.plan_design_id,
         ec.simulation_year,
         ec.annual_contribution_amount AS annual_deferrals,
         -- Feature 101: use the active-enrollment-window base so employer match follows
@@ -125,7 +125,6 @@ employee_contributions AS (
         ON ec.employee_id = workforce.employee_id
        AND ec.simulation_year = workforce.simulation_year
        AND workforce.scenario_id = '{{ scenario_id }}'
-       AND workforce.plan_design_id = '{{ plan_design_id }}'
     WHERE ec.simulation_year = {{ simulation_year }}
         AND ec.employee_id IS NOT NULL
 ),
@@ -350,6 +349,7 @@ all_matches AS (
 final_match AS (
     SELECT
         am.employee_id,
+        ec.plan_design_id,
         am.simulation_year,
         am.eligible_compensation,
         am.deferral_rate,
@@ -485,6 +485,7 @@ SELECT
     -- Metadata
     CURRENT_TIMESTAMP AS created_at,
     '{{ var("scenario_id", "default") }}' AS scenario_id,
-    '{{ var("parameter_scenario_id", "default") }}' AS parameter_scenario_id
+    '{{ var("parameter_scenario_id", "default") }}' AS parameter_scenario_id,
+    plan_design_id
 FROM final_match
 WHERE employee_id IS NOT NULL

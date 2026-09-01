@@ -7,7 +7,11 @@ and _REMOVE_KEY sentinel handling.
 
 import pytest
 
-from planalign_orchestrator.config import load_simulation_config, to_dbt_vars
+from planalign_orchestrator.config import (
+    PlanDesignAssignmentSettings,
+    load_simulation_config,
+    to_dbt_vars,
+)
 from planalign_orchestrator.config.export import (
     _REMOVE_KEY,
     _export_compensation_vars,
@@ -66,6 +70,33 @@ class TestExportSimulationVars:
         result = _export_simulation_vars(cfg)
         assert result["scenario_id"] == "default"
         assert result["plan_design_id"] == "default"
+
+    def test_plan_design_assignment_exports_only_when_configured(self):
+        cfg = _make_config(plan_design_id="baseline")
+        assert "plan_design_assignment" not in _export_simulation_vars(cfg)
+
+        cfg.plan_design_assignment = PlanDesignAssignmentSettings.model_validate(
+            {
+                "default_plan_design_id": "baseline",
+                "rules": [
+                    {
+                        "type": "hire_date_cutoff",
+                        "cutoff": "2027-01-01",
+                        "plan_design_id": "new_design",
+                    }
+                ],
+            }
+        )
+        assert _export_simulation_vars(cfg)["plan_design_assignment"] == {
+            "default_plan_design_id": "baseline",
+            "rules": [
+                {
+                    "type": "hire_date_cutoff",
+                    "cutoff": "2027-01-01",
+                    "plan_design_id": "new_design",
+                }
+            ],
+        }
 
     def test_simulation_bounds(self):
         cfg = _make_config(start_year=2026, end_year=2030)

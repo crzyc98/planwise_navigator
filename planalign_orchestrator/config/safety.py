@@ -20,6 +20,7 @@ from .workforce import (
     EmployerMatchSettings,
 )
 from .performance import OptimizationSettings
+from .plan_design import PlanDesignAssignmentSettings
 
 
 class ProductionSafetySettings(BaseModel):
@@ -92,12 +93,15 @@ class OrchestrationConfig(BaseModel):
     # Enterprise identifiers
     scenario_id: Optional[str] = None
     plan_design_id: Optional[str] = None
+    plan_design_assignment: Optional[PlanDesignAssignmentSettings] = None
 
     def require_identifiers(self) -> None:
         """Raise if scenario_id/plan_design_id are missing."""
-        if not self.scenario_id or not self.plan_design_id:
+        if not self.scenario_id or not (
+            self.plan_design_id or self.plan_design_assignment is not None
+        ):
             raise ValueError(
-                "scenario_id and plan_design_id are required for orchestrator runs"
+                "scenario_id and a plan_design_id or plan_design_assignment are required"
             )
 
 

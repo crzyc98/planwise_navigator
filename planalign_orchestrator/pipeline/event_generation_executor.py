@@ -402,6 +402,7 @@ class EventGenerationExecutor:
             ),
             MODEL_INT_TERMINATION_EVENTS,
             "int_hiring_events",
+            "int_plan_design_assignment_accumulator",
             "int_new_hire_termination_events",
             "int_employee_termination_dates",
             "int_hazard_promotion",

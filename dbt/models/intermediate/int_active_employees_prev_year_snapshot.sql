@@ -5,7 +5,6 @@
 
 {% set simulation_year = var('simulation_year') | int %}
 {% set scenario_id = var('scenario_id', 'default') %}
-{% set plan_design_id = var('plan_design_id', 'default') %}
 
 -- Decision-year-ready view over the orchestrator's strict N-1 projection.
 SELECT
@@ -45,11 +44,10 @@ LEFT JOIN {{ source('orchestrator_state', 'enrollment_decision_projection') }} e
   ON workforce.employee_id = enrollment.employee_id
  AND enrollment.decision_year = {{ simulation_year }}
  AND enrollment.scenario_id = '{{ scenario_id }}'
- AND enrollment.plan_design_id = '{{ plan_design_id }}'
+ AND enrollment.plan_design_id = workforce.plan_design_id
 WHERE workforce.decision_year = {{ simulation_year }}
   AND workforce.source_simulation_year = {{ simulation_year - 1 }}
   AND workforce.scenario_id = '{{ scenario_id }}'
-  AND workforce.plan_design_id = '{{ plan_design_id }}'
   AND workforce.employment_status = 'active'
   AND workforce.employee_id IS NOT NULL
   AND workforce.employee_ssn IS NOT NULL

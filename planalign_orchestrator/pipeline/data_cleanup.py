@@ -67,6 +67,7 @@ class DataCleanupManager:
         verbose: bool = False,
         scenario_id: str | None = None,
         plan_design_id: str | None = None,
+        multi_plan_design: bool = False,
     ):
         """Initialize DataCleanupManager with database connection manager.
 
@@ -80,6 +81,7 @@ class DataCleanupManager:
         self.verbose = verbose
         self.scenario_id = scenario_id
         self.plan_design_id = plan_design_id
+        self.multi_plan_design = multi_plan_design
 
     def _year_scope(
         self, conn, table: str, year: int, *, critical: bool = False
@@ -115,7 +117,7 @@ class DataCleanupManager:
         if has_scenario_column:
             predicates.append("scenario_id = ?")
             parameters.append(scenario_id)
-        if has_plan_design_column:
+        if has_plan_design_column and not self.multi_plan_design:
             predicates.append("plan_design_id = ?")
             parameters.append(plan_design_id)
 

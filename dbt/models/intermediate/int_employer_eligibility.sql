@@ -30,7 +30,6 @@
 
 {% set simulation_year = var('simulation_year', 2025) | int %}
 {% set scenario_id = var('scenario_id', 'default') %}
-{% set plan_design_id = var('plan_design_id', 'default') %}
 
 -- Read employer core contribution config from nested structure
 {% set employer_core_config = var('employer_core_contribution', {}) %}
@@ -72,8 +71,9 @@
 -- Eligibility consumes canonical end-of-year workforce state. It no longer
 -- reconstructs workforce status, tenure, scheduling, or event dates independently.
 WITH hours_calculation AS (
-SELECT
-    workforce.employee_id,
+    SELECT
+        workforce.employee_id,
+        workforce.plan_design_id,
     {{ simulation_year }} AS simulation_year,
     -- Exact current-year completed service from the authoritative accumulator.
     workforce.current_tenure AS current_tenure,
@@ -121,7 +121,6 @@ SELECT
     END AS annual_hours_worked
 FROM {{ ref('int_workforce_state_accumulator') }} workforce
 WHERE workforce.scenario_id = '{{ scenario_id }}'
-  AND workforce.plan_design_id = '{{ plan_design_id }}'
   AND workforce.simulation_year = {{ simulation_year }}
   AND workforce.employee_id IS NOT NULL
 )
@@ -274,7 +273,8 @@ SELECT
     {{ match_allow_experienced_terminations }} AS match_allow_experienced_terminations,
 
     CURRENT_TIMESTAMP AS created_at,
-    '{{ var("scenario_id", "default") }}' AS scenario_id
+    '{{ var("scenario_id", "default") }}' AS scenario_id,
+    plan_design_id
 
 FROM hours_calculation
 ORDER BY employee_id

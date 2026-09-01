@@ -381,12 +381,22 @@ class CalibrationRunner:
         db_manager = DatabaseConnectionManager(db_path=self.database_path)
         scenario_id = self._config.scenario_id or "default"
         plan_design_id = self._config.plan_design_id or "default"
+        assignment = self._config.plan_design_assignment
         try:
             EnrollmentDecisionProjection(db_manager).rebuild(
-                year, scenario_id=scenario_id, plan_design_id=plan_design_id
+                year,
+                scenario_id=scenario_id,
+                plan_design_id=None if assignment is not None else plan_design_id,
+                default_plan_design_id=(
+                    assignment.default_plan_design_id
+                    if assignment is not None
+                    else None
+                ),
             )
             WorkforceStateProjection(db_manager).rebuild(
-                year, scenario_id=scenario_id, plan_design_id=plan_design_id
+                year,
+                scenario_id=scenario_id,
+                plan_design_id=None if assignment is not None else plan_design_id,
             )
         finally:
             db_manager.close_all()

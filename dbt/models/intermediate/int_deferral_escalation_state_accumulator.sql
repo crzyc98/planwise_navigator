@@ -4,7 +4,7 @@
     unique_key=['scenario_id', 'plan_design_id', 'employee_id', 'simulation_year'],
     on_schema_change='sync_all_columns',
     pre_hook=[
-      "{% if is_incremental() %}DELETE FROM {{ this }} WHERE scenario_id = '{{ var('scenario_id', 'default') }}' AND plan_design_id = '{{ var('plan_design_id', 'default') }}' AND simulation_year = {{ var('simulation_year') }}{% else %}SELECT 1{% endif %}"
+      "{% if is_incremental() %}DELETE FROM {{ this }} WHERE scenario_id = '{{ var('scenario_id', 'default') }}' AND simulation_year = {{ var('simulation_year') }}{% else %}SELECT 1{% endif %}"
     ]
 ) }}
 
@@ -24,7 +24,6 @@
 {% set simulation_year = var('simulation_year', 2025) | int %}
 {% set start_year = var('start_year', 2025) | int %}
 {% set scenario_id = var('scenario_id', 'default') %}
-{% set plan_design_id = var('plan_design_id', 'default') %}
 
 WITH current_workforce AS (
     -- Get all active employees for the current year with deferral rate from state accumulator
@@ -60,7 +59,6 @@ escalation_events_history AS (
     WHERE simulation_year <= {{ simulation_year }}
       AND event_type IN ('enrollment_change', 'deferral_escalation')
       AND scenario_id = '{{ scenario_id }}'
-      AND plan_design_id = '{{ plan_design_id }}'
     {% else %}
     -- SQL mode: Use intermediate event model
     SELECT
@@ -136,10 +134,14 @@ final_state AS (
         -- Metadata
         CURRENT_TIMESTAMP as created_at,
         '{{ scenario_id }}'::VARCHAR as scenario_id,
-        '{{ plan_design_id }}'::VARCHAR as plan_design_id,
+        assignment.plan_design_id,
         'VALID' as data_quality_flag
 
     FROM current_workforce w
+    INNER JOIN {{ ref('int_plan_design_assignment_accumulator') }} assignment
+      ON w.employee_id = assignment.employee_id
+     AND assignment.scenario_id = '{{ scenario_id }}'
+     AND assignment.simulation_year = {{ simulation_year }}
     LEFT JOIN employee_escalation_summary e ON w.employee_id = e.employee_id
 )
 

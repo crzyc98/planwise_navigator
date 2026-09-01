@@ -1729,6 +1729,34 @@ models:
             - employee_id
             - simulation_year
 
+  - name: int_plan_design_assignment_accumulator
+    description: >
+      Sticky employee-to-plan-design assignment. Each year carries every prior
+      assignment forward and applies the ordered hire-date rules only to census
+      employees or new hires that have never been assigned.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - scenario_id
+            - employee_id
+            - simulation_year
+    columns:
+      - name: scenario_id
+        data_tests: [not_null]
+      - name: employee_id
+        data_tests: [not_null]
+      - name: plan_design_id
+        data_tests: [not_null]
+      - name: simulation_year
+        data_tests: [not_null]
+      - name: first_assignment_year
+        data_tests: [not_null]
+      - name: assignment_source
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['census', 'new_hire']
+
   - name: int_enrollment_state_accumulator
     description: >
       Temporal State Accumulator for Enrollment Tracking (Phase 1 Fix)

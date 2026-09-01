@@ -12,12 +12,10 @@
 
 {% set simulation_year = var('simulation_year', 2025) %}
 {% set sid = var('scenario_id', 'default') %}
-{% set pid = var('plan_design_id', 'default') %}
 
 WITH all_events AS (
   SELECT
     '{{ sid }}' AS scenario_id,
-    '{{ pid }}' AS plan_design_id,
     employee_id,
     employee_ssn,
     event_type,
@@ -43,7 +41,6 @@ WITH all_events AS (
   -- Feature 086: DC plan eligibility events (priority 3, after hire=2, before enrollment=4)
   SELECT
     '{{ sid }}' AS scenario_id,
-    '{{ pid }}' AS plan_design_id,
     employee_id,
     employee_ssn,
     event_type,
@@ -68,7 +65,6 @@ WITH all_events AS (
 
   SELECT
     '{{ sid }}' AS scenario_id,
-    '{{ pid }}' AS plan_design_id,
     employee_id,
     employee_ssn,
     event_type,
@@ -94,7 +90,6 @@ WITH all_events AS (
   -- E068A: Include new-hire termination events (ephemeral) in fused output
   SELECT
     '{{ sid }}' AS scenario_id,
-    '{{ pid }}' AS plan_design_id,
     nht.employee_id,
     nht.employee_ssn,
     nht.event_type,
@@ -119,7 +114,6 @@ WITH all_events AS (
 
   SELECT
     '{{ sid }}' AS scenario_id,
-    '{{ pid }}' AS plan_design_id,
     employee_id,
     employee_ssn,
     event_type,
@@ -144,7 +138,6 @@ WITH all_events AS (
 
   SELECT
     '{{ sid }}' AS scenario_id,
-    '{{ pid }}' AS plan_design_id,
     employee_id,
     employee_ssn,
     event_type,
@@ -169,7 +162,6 @@ WITH all_events AS (
 
   SELECT
     '{{ sid }}' AS scenario_id,
-    '{{ pid }}' AS plan_design_id,
     employee_id,
     employee_ssn,
     event_type,
@@ -194,7 +186,6 @@ WITH all_events AS (
 
   SELECT
     '{{ sid }}' AS scenario_id,
-    '{{ pid }}' AS plan_design_id,
     employee_id,
     employee_ssn,
     event_type,
@@ -220,7 +211,6 @@ WITH all_events AS (
   -- E058: Match-responsive deferral adjustment events
   SELECT
     '{{ sid }}' AS scenario_id,
-    '{{ pid }}' AS plan_design_id,
     employee_id,
     employee_ssn,
     event_type,
@@ -240,6 +230,17 @@ WITH all_events AS (
     event_category
   FROM {{ ref('int_deferral_match_response_events') }}
   WHERE simulation_year = {{ simulation_year }}
+),
+
+assigned_events AS (
+  SELECT
+    event.plan_design_id,
+    all_events.*
+  FROM all_events
+  INNER JOIN {{ ref('int_plan_design_assignment_accumulator') }} event
+    ON all_events.employee_id = event.employee_id
+   AND all_events.simulation_year = event.simulation_year
+   AND event.scenario_id = '{{ sid }}'
 ),
 
 -- Final selection with event sequencing for conflict resolution
@@ -290,7 +291,7 @@ final_events AS (
     'fused_event_generation' AS parameter_source,  -- E068A tracking
     -- Add data validation flags
     {{ data_quality_flag() }} AS data_quality_flag
-  FROM all_events
+  FROM assigned_events
   WHERE 1=1
   {%- if simulation_year %}
     AND simulation_year = {{ simulation_year }}

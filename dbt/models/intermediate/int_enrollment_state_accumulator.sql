@@ -259,8 +259,8 @@ subsequent_year_enrollment_state AS (
 
 -- Final selection with metadata
 SELECT
-    employee_id,
-    simulation_year,
+    state.employee_id,
+    state.simulation_year,
     enrollment_date,
     enrollment_status,
     years_since_first_enrollment,
@@ -276,11 +276,11 @@ SELECT
     -- Add metadata
     CURRENT_TIMESTAMP AS created_at,
     '{{ var("scenario_id", "default") }}' AS scenario_id,
-    '{{ var("plan_design_id", "default") }}' AS plan_design_id,
+    assignment.plan_design_id,
     -- Data quality validation
     CASE
-        WHEN employee_id IS NULL THEN 'INVALID_EMPLOYEE_ID'
-        WHEN simulation_year IS NULL THEN 'INVALID_SIMULATION_YEAR'
+        WHEN state.employee_id IS NULL THEN 'INVALID_EMPLOYEE_ID'
+        WHEN state.simulation_year IS NULL THEN 'INVALID_SIMULATION_YEAR'
         WHEN enrollment_status IS NULL THEN 'INVALID_ENROLLMENT_STATUS'
         ELSE {{ dq_valid() }}
     END AS data_quality_flag
@@ -290,12 +290,17 @@ FROM
 {% else %}
     subsequent_year_enrollment_state
 {% endif %}
-WHERE employee_id IS NOT NULL
-    AND simulation_year = {{ simulation_year }}
+    AS state
+INNER JOIN {{ ref('int_plan_design_assignment_accumulator') }} assignment
+    ON assignment.employee_id = state.employee_id
+    AND assignment.scenario_id = '{{ var("scenario_id", "default") }}'
+    AND assignment.simulation_year = {{ simulation_year }}
+WHERE state.employee_id IS NOT NULL
+    AND state.simulation_year = {{ simulation_year }}
 
 {% if is_incremental() %}
     -- For incremental runs, only process current simulation year
-    AND simulation_year = {{ simulation_year }}
+    AND state.simulation_year = {{ simulation_year }}
 {% endif %}
 
-ORDER BY employee_id
+ORDER BY state.employee_id
