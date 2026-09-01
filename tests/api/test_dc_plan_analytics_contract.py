@@ -1,5 +1,4 @@
-"""API contract tests for the `cohort` query parameter on DC Plan analytics
-endpoints (issue #512, 134-new-hire-cohort).
+"""API contract tests for DC Plan cohort and eligible-population parameters.
 """
 
 from __future__ import annotations
@@ -30,7 +29,9 @@ SNAPSHOT_DDL = """
         employee_id VARCHAR,
         simulation_year INTEGER,
         employment_status VARCHAR,
+        termination_date DATE,
         employee_hire_date DATE,
+        current_eligibility_status VARCHAR DEFAULT 'eligible',
         is_enrolled_flag BOOLEAN,
         prorated_annual_contributions DECIMAL(12, 2) DEFAULT 0,
         employer_match_amount DECIMAL(12, 2) DEFAULT 0,
@@ -51,14 +52,18 @@ SNAPSHOT_DDL = """
 # e2: new hire (hired 2026), enrolled from 2026 onward.
 ROWS = """
     INSERT INTO fct_workforce_snapshot (
-        employee_id, simulation_year, employment_status, employee_hire_date,
+        employee_id, simulation_year, employment_status, termination_date,
+        employee_hire_date, current_eligibility_status,
         is_enrolled_flag, prorated_annual_contributions, employer_match_amount,
         employer_core_amount, current_deferral_rate, effective_annual_deferral_rate,
         prorated_annual_compensation
     ) VALUES
-        ('e1', 2025, 'ACTIVE', DATE '2022-01-01', true, 3000, 1500, 500, 0.06, 0.06, 100000),
-        ('e1', 2026, 'ACTIVE', DATE '2022-01-01', true, 3000, 1500, 500, 0.06, 0.06, 100000),
-        ('e2', 2026, 'ACTIVE', DATE '2026-03-01', true, 2000, 1000, 300, 0.05, 0.05, 80000)
+        ('e1', 2025, 'ACTIVE', NULL, DATE '2022-01-01', 'eligible', true, 3000, 1500, 500, 0.06, 0.06, 100000),
+        ('e1', 2026, 'ACTIVE', NULL, DATE '2022-01-01', 'eligible', true, 3000, 1500, 500, 0.06, 0.06, 100000),
+        ('e2', 2026, 'ACTIVE', NULL, DATE '2026-03-01', 'eligible', true, 2000, 1000, 300, 0.05, 0.05, 80000),
+        ('e3', 2025, 'TERMINATED', DATE '2025-07-01', DATE '2020-01-01', 'eligible', true, 1000, 400, 100, 0.02, 0.02, 40000),
+        ('e3', 2026, 'TERMINATED', DATE '2025-07-01', DATE '2020-01-01', 'eligible', true, 9999, 9999, 9999, 0.02, 0.02, 40000),
+        ('p1', 2025, 'ACTIVE', NULL, DATE '2024-01-01', 'pending', false, 0, 0, 0, 0, 0, 70000)
 """
 
 
@@ -152,6 +157,104 @@ def test_invalid_cohort_is_422(env, endpoint):
         )
 
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize("endpoint", ["single", "compare"])
+def test_invalid_population_is_422(env, endpoint):
+    client, workspace, scenarios = env
+    if endpoint == "single":
+        response = client.get(
+            SINGLE_ENDPOINT.format(
+                workspace_id=workspace.id, scenario_id=scenarios[0].id
+            ),
+            params={"population": "not_a_population"},
+        )
+    else:
+        response = client.get(
+            COMPARE_ENDPOINT.format(workspace_id=workspace.id),
+            params={
+                "scenarios": ",".join(s.id for s in scenarios),
+                "population": "not_a_population",
+            },
+        )
+
+    assert response.status_code == 422
+
+
+def test_population_and_legacy_active_only_cannot_be_combined(env):
+    client, workspace, scenarios = env
+    response = client.get(
+        SINGLE_ENDPOINT.format(workspace_id=workspace.id, scenario_id=scenarios[0].id),
+        params={"population": "active_eligible", "active_only": "true"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Use population or active_only, not both"
+
+
+def test_explicit_populations_filter_eligibility_and_status(env):
+    client, workspace, scenarios = env
+    endpoint = SINGLE_ENDPOINT.format(
+        workspace_id=workspace.id, scenario_id=scenarios[0].id
+    )
+
+    def rows(population: str) -> dict[int, dict]:
+        response = client.get(endpoint, params={"population": population})
+        assert response.status_code == 200
+        return {row["year"]: row for row in response.json()["contribution_by_year"]}
+
+    all_eligible = rows("all_eligible")
+    active_eligible = rows("active_eligible")
+    terminated_eligible = rows("terminated_eligible")
+
+    assert all_eligible[2025]["total_eligible_count"] == 2
+    assert active_eligible[2025]["total_eligible_count"] == 1
+    assert terminated_eligible[2025]["total_eligible_count"] == 1
+    assert terminated_eligible[2025]["total_employee_contributions"] == 1000.0
+    assert all_eligible[2025]["employee_contribution_rate"] == round(
+        4000 / 140000 * 100, 2
+    )
+    assert all_eligible[2025]["match_contribution_rate"] == round(
+        1900 / 140000 * 100, 2
+    )
+    assert all_eligible[2025]["core_contribution_rate"] == round(600 / 140000 * 100, 2)
+
+    # e3 remains TERMINATED in 2026 but terminated in 2025. The terms-only
+    # trend retains the available year as an empty population and excludes the
+    # carried-forward row and its deliberately conspicuous contribution value.
+    assert terminated_eligible[2026]["total_eligible_count"] == 0
+    assert terminated_eligible[2026]["total_employee_contributions"] == 0.0
+    assert all_eligible[2026]["total_eligible_count"] == 2
+    for year in (2025, 2026):
+        assert all_eligible[year]["total_eligible_count"] == (
+            active_eligible[year]["total_eligible_count"]
+            + terminated_eligible[year]["total_eligible_count"]
+        )
+
+    terms_response = client.get(
+        endpoint, params={"population": "terminated_eligible"}
+    ).json()
+    assert all(
+        bucket["count"] == 0 for bucket in terms_response["deferral_rate_distribution"]
+    )
+    assert terms_response["escalation_metrics"]["employees_with_escalations"] == 0
+    assert terms_response["irs_limit_metrics"]["employees_at_irs_limit"] == 0
+
+
+def test_population_filter_applies_to_comparison_endpoint(env):
+    client, workspace, scenarios = env
+    response = client.get(
+        COMPARE_ENDPOINT.format(workspace_id=workspace.id),
+        params={
+            "scenarios": ",".join(s.id for s in scenarios),
+            "population": "active_eligible",
+        },
+    )
+
+    assert response.status_code == 200
+    for analytics in response.json()["analytics"]:
+        rows = {row["year"]: row for row in analytics["contribution_by_year"]}
+        assert rows[2025]["total_eligible_count"] == 1
 
 
 def test_resolved_first_simulation_year_is_always_present(env):

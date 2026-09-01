@@ -1646,6 +1646,10 @@ export interface IRSLimitMetrics {
 }
 
 export type DCPlanCohort = 'all' | 'new_hires' | 'baseline';
+export type DCPlanPopulation =
+  | 'all_eligible'
+  | 'active_eligible'
+  | 'terminated_eligible';
 
 export interface DCPlanAnalytics {
   scenario_id: string;
@@ -1712,12 +1716,14 @@ export async function getDCPlanAnalytics(
   scenarioId: string,
   activeOnly: boolean = false,
   effectiveRate: boolean = false,
-  cohort: DCPlanCohort = 'all'
+  cohort: DCPlanCohort = 'all',
+  population?: DCPlanPopulation
 ): Promise<DCPlanAnalytics> {
   const params = new URLSearchParams();
   if (activeOnly) params.set('active_only', 'true');
   if (effectiveRate) params.set('effective_rate', 'true');
   if (cohort !== 'all') params.set('cohort', cohort);
+  if (population) params.set('population', population);
   const qs = params.toString() ? `?${params}` : '';
   const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}/analytics/dc-plan${qs}`
@@ -1730,7 +1736,8 @@ export async function compareDCPlanAnalytics(
   scenarioIds: string[],
   activeOnly: boolean = false,
   effectiveRate: boolean = false,
-  cohort: DCPlanCohort = 'all'
+  cohort: DCPlanCohort = 'all',
+  population?: DCPlanPopulation
 ): Promise<DCPlanComparisonResponse> {
   const params = new URLSearchParams({
     scenarios: scenarioIds.join(','),
@@ -1738,6 +1745,7 @@ export async function compareDCPlanAnalytics(
   if (activeOnly) params.set('active_only', 'true');
   if (effectiveRate) params.set('effective_rate', 'true');
   if (cohort !== 'all') params.set('cohort', cohort);
+  if (population) params.set('population', population);
   const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/analytics/dc-plan/compare?${params}`
   );
