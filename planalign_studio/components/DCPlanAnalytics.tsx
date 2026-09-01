@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
@@ -207,6 +207,7 @@ export default function DCPlanAnalytics() {
   const [loading, setLoading] = useState(false);
   const [loadingScenarios, setLoadingScenarios] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const analyticsRequestId = useRef(0);
 
   // Comparison mode toggle
   const [comparisonMode, setComparisonMode] = useState(false);
@@ -293,6 +294,7 @@ export default function DCPlanAnalytics() {
     } else if (selectedScenarioIds.length >= 2 && comparisonMode) {
       fetchComparison(selectedScenarioIds);
     } else {
+      analyticsRequestId.current += 1;
       setAnalytics(null);
       setComparisonData(null);
     }
@@ -317,6 +319,7 @@ export default function DCPlanAnalytics() {
 
   const fetchAnalytics = async (scenarioId: string) => {
     if (!activeWorkspace?.id) return;
+    const requestId = ++analyticsRequestId.current;
     setLoading(true);
     setError(null);
     try {
@@ -328,6 +331,7 @@ export default function DCPlanAnalytics() {
         cohort,
         population
       );
+      if (requestId !== analyticsRequestId.current) return;
       setAnalytics(data);
       setComparisonData(null);
       if (data.contribution_by_year.length > 0) {
@@ -335,16 +339,18 @@ export default function DCPlanAnalytics() {
         setSelectedYear((prev) => (prev === null || !years.includes(prev) ? years[0] : prev));
       }
     } catch (err: any) {
+      if (requestId !== analyticsRequestId.current) return;
       console.error('Failed to fetch analytics:', err);
       setError(err.message || 'Failed to load DC plan analytics');
       setAnalytics(null);
     } finally {
-      setLoading(false);
+      if (requestId === analyticsRequestId.current) setLoading(false);
     }
   };
 
   const fetchComparison = async (scenarioIds: string[]) => {
     if (!activeWorkspace?.id) return;
+    const requestId = ++analyticsRequestId.current;
     setLoading(true);
     setError(null);
     try {
@@ -356,14 +362,16 @@ export default function DCPlanAnalytics() {
         cohort,
         population
       );
+      if (requestId !== analyticsRequestId.current) return;
       setComparisonData(data);
       setAnalytics(null);
     } catch (err: any) {
+      if (requestId !== analyticsRequestId.current) return;
       console.error('Failed to fetch comparison:', err);
       setError(err.message || 'Failed to load comparison data');
       setComparisonData(null);
     } finally {
-      setLoading(false);
+      if (requestId === analyticsRequestId.current) setLoading(false);
     }
   };
 
@@ -583,10 +591,16 @@ export default function DCPlanAnalytics() {
           </button>
 
           {/* Cohort Control (134-new-hire-cohort, FR-006) */}
-          <div className="flex bg-surface-subtle p-1 rounded-lg">
+          <div
+            className="flex bg-surface-subtle p-1 rounded-lg"
+            role="group"
+            aria-label="Employee cohort"
+          >
             {VALID_COHORTS.map((value) => (
               <button
                 key={value}
+                type="button"
+                aria-pressed={cohort === value}
                 onClick={() => setCohort(value)}
                 className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${cohort === value ? 'bg-surface-raised text-ink shadow-sm' : 'text-ink-muted hover:text-ink-muted'}`}
               >
@@ -622,6 +636,19 @@ export default function DCPlanAnalytics() {
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
         </div>
+      </div>
+
+      <div
+        className="flex items-center gap-2 text-sm text-ink-muted"
+        role="status"
+        aria-live="polite"
+      >
+        <span>
+          Showing <span className="font-semibold text-ink">{COHORT_TOGGLE_LABELS[cohort]}</span>
+          {' · '}
+          <span className="font-semibold text-ink">{POPULATION_TOGGLE_LABELS[population]}</span>
+        </span>
+        {loading && <span className="text-xs font-medium text-fidelity-green">Updating…</span>}
       </div>
 
       {/* Comparison Mode Scenario Selection */}

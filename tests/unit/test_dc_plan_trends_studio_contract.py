@@ -23,6 +23,19 @@ def test_population_control_defaults_to_all_eligible() -> None:
     assert "Active employees only" not in source
 
 
+def test_filter_controls_expose_selection_and_ignore_stale_responses() -> None:
+    source = COMPONENT.read_text(encoding="utf-8")
+
+    assert 'aria-label="Employee cohort"' in source
+    assert "aria-pressed={cohort === value}" in source
+    assert "aria-pressed={population === value}" in source
+    assert "const analyticsRequestId = useRef(0)" in source
+    assert "const requestId = ++analyticsRequestId.current" in source
+    assert "if (requestId !== analyticsRequestId.current) return" in source
+    assert "Showing" in source
+    assert "Updating…" in source
+
+
 def test_participation_and_component_savings_trends_are_rendered() -> None:
     source = COMPONENT.read_text(encoding="utf-8")
 
