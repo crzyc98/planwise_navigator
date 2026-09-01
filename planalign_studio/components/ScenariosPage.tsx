@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import { useOutletContext } from 'react-router-dom';
 import { Plus, Play, Trash2, Pencil, Check, X, Layers, Settings, Clock, AlertCircle, CheckSquare, Square, PlayCircle, Eye, Loader2, ArrowLeftRight } from 'lucide-react';
 import { LayoutContextType } from './Layout';
 import { listScenarios, createScenario, updateScenario, deleteScenario, Scenario } from '../services/api';
+import { useWorkspaceNavigate } from '../hooks/useWorkspaceNavigation';
 
 export default function ScenariosPage() {
-  const navigate = useNavigate();
+  const navigate = useWorkspaceNavigate();
   const { activeWorkspace, isSimulationRunning, runningScenarioId } = useOutletContext<LayoutContextType>();
 
   const [scenarios, setScenarios] = useState<Scenario[]>([]);

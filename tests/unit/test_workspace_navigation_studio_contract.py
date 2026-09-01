@@ -12,6 +12,7 @@ LAYOUT = (ROOT / "planalign_studio/components/Layout.tsx").read_text()
 API = (ROOT / "planalign_studio/services/api.ts").read_text()
 MANAGER = (ROOT / "planalign_studio/components/WorkspaceManager.tsx").read_text()
 APP = (ROOT / "planalign_studio/App.tsx").read_text()
+SCENARIOS = (ROOT / "planalign_studio/components/ScenariosPage.tsx").read_text()
 
 
 def test_workspace_search_is_controlled_and_filters_name_and_description() -> None:
@@ -85,6 +86,13 @@ def test_workspace_route_is_authoritative_and_legacy_paths_redirect_once() -> No
     assert "The URL was not redirected to a different client" in LAYOUT
     assert "routedWorkspace.lifecycle === 'archived'" in LAYOUT
     assert "location.pathname.replace(/^\\/w\\/[^/]+/" in LAYOUT
+
+
+def test_scenario_batch_handoff_preserves_workspace_and_selection() -> None:
+    assert "const navigate = useWorkspaceNavigate()" in SCENARIOS
+    assert "navigate(`/batch?scenarios=${scenarioParam}`)" in SCENARIOS
+    assert "navigate(`${target}${location.search}`" in APP
+    assert "[location.pathname, location.search, navigate]" in APP
 
 
 def test_large_workspace_sets_cut_over_to_debounced_server_search() -> None:

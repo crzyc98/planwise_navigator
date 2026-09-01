@@ -116,7 +116,7 @@ function LegacyWorkspaceRedirect() {
       const target = legacyTimeline
         ? `/w/${legacyTimeline[1]}/timeline${legacyTimeline[2] ?? ''}`
         : `/w/${selectedId}${location.pathname === '/' ? '' : location.pathname}`;
-      navigate(target, {
+      navigate(`${target}${location.search}`, {
         replace: true,
         state: !rememberedId || rememberedId === selectedId
           ? undefined
@@ -127,7 +127,7 @@ function LegacyWorkspaceRedirect() {
     void resolveWorkspace().catch(err => {
       setError(err instanceof Error ? err.message : 'Failed to resolve a workspace.');
     });
-  }, [location.pathname, navigate]);
+  }, [location.pathname, location.search, navigate]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface-subtle p-8 text-center text-ink-muted">
