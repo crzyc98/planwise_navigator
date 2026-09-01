@@ -4,7 +4,7 @@
   materialized='incremental',
   incremental_strategy='append',
   pre_hook=[
-    "{% if is_incremental() %}DELETE FROM {{ this }} WHERE scenario_id = '{{ var('scenario_id', 'default') }}' AND plan_design_id = '{{ var('plan_design_id', 'default') }}' AND simulation_year = {{ var('simulation_year', 2025) }}{% endif %}"
+    "{% if is_incremental() %}DELETE FROM {{ this }} WHERE scenario_id = '{{ var('scenario_id', 'default') }}' AND simulation_year = {{ var('simulation_year', 2025) }}{% endif %}"
   ],
   on_schema_change='sync_all_columns',
   tags=['EVENT_GENERATION']

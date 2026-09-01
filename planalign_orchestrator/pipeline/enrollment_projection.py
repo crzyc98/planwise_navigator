@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import logging
+from typing import Optional
 
 from planalign_orchestrator.utils import DatabaseConnectionManager
 
@@ -99,7 +100,8 @@ class EnrollmentDecisionProjection:
         self,
         decision_year: int,
         scenario_id: str = "default",
-        plan_design_id: str = "default",
+        plan_design_id: Optional[str] = "default",
+        default_plan_design_id: Optional[str] = None,
     ) -> EnrollmentProjectionResult:
         """Atomically replace the projection for a single decision year and scope."""
 
@@ -110,8 +112,23 @@ class EnrollmentDecisionProjection:
                 """SELECT COUNT(*) > 0 FROM information_schema.tables
                    WHERE table_schema = 'main' AND table_name = 'fct_yearly_events'"""
             ).fetchone()[0]
+            has_assignments = conn.execute(
+                "SELECT COUNT(*) > 0 FROM information_schema.tables "
+                "WHERE table_schema = 'main' "
+                "AND table_name = 'int_plan_design_assignment_accumulator'"
+            ).fetchone()[0]
+            assignment_relation = (
+                "int_plan_design_assignment_accumulator"
+                if has_assignments
+                else "(SELECT NULL::VARCHAR AS employee_id, "
+                "NULL::VARCHAR AS scenario_id, NULL::INTEGER AS simulation_year, "
+                "NULL::VARCHAR AS plan_design_id WHERE FALSE)"
+            )
+            design_predicate = (
+                "AND plan_design_id = ?" if plan_design_id is not None else ""
+            )
             prior_events = (
-                """
+                f"""
                   SELECT
                     employee_id, event_type, effective_date, simulation_year,
                     event_sequence, event_id, event_details, employee_deferral_rate,
@@ -122,7 +139,7 @@ class EnrollmentDecisionProjection:
                     ) AS latest_rank
                   FROM fct_yearly_events
                   WHERE scenario_id = ?
-                    AND plan_design_id = ?
+                    {design_predicate}
                     AND simulation_year < ?
                     AND event_type IN ('enrollment', 'enrollment_change')
                     AND employee_id IS NOT NULL
@@ -142,9 +159,15 @@ class EnrollmentDecisionProjection:
                   WHERE false
             """
             )
-            parameters = [decision_year, scenario_id, plan_design_id]
+            fallback_design_id = default_plan_design_id or plan_design_id or "default"
+            parameters = [decision_year, scenario_id, fallback_design_id]
             if has_event_ledger:
-                parameters = [scenario_id, plan_design_id, decision_year, *parameters]
+                parameters = [
+                    scenario_id,
+                    *([plan_design_id] if plan_design_id is not None else []),
+                    decision_year,
+                    *parameters,
+                ]
             conn.execute(
                 f"""
                 CREATE TABLE {temp_table} AS
@@ -183,7 +206,7 @@ class EnrollmentDecisionProjection:
                   COALESCE(b.employee_id, e.employee_id) AS employee_id,
                   ?::INTEGER AS decision_year,
                   ?::VARCHAR AS scenario_id,
-                  ?::VARCHAR AS plan_design_id,
+                  COALESCE(assignment.plan_design_id, ?::VARCHAR) AS plan_design_id,
                   COALESCE(e.first_enrollment_date, b.enrollment_date) AS enrollment_date,
                   CASE
                     WHEN COALESCE(e.latest_is_opt_out, false) THEN false
@@ -201,6 +224,10 @@ class EnrollmentDecisionProjection:
                   CAST(NULL AS BOOLEAN) AS authoritative_is_enrolled
                 FROM baseline b
                 FULL OUTER JOIN event_state e ON b.employee_id = e.employee_id
+                LEFT JOIN {assignment_relation} assignment
+                  ON assignment.employee_id = COALESCE(b.employee_id, e.employee_id)
+                 AND assignment.scenario_id = '{scenario_id}'
+                 AND assignment.simulation_year = {decision_year - 1}
                 """,
                 parameters,
             )
@@ -238,9 +265,9 @@ class EnrollmentDecisionProjection:
             "Rebuilt enrollment decision projection for year %d (%s/%s): %d employees",
             decision_year,
             scenario_id,
-            plan_design_id,
+            plan_design_id or "*",
             count,
         )
         return EnrollmentProjectionResult(
-            decision_year, scenario_id, plan_design_id, count
+            decision_year, scenario_id, plan_design_id or "*", count
         )

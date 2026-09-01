@@ -65,6 +65,8 @@ from .ensemble import (
     EnsembleThresholdSettings,
 )
 
+from .plan_design import HireDateCutoffRule, PlanDesignAssignmentSettings
+
 # Safety settings
 from .safety import (
     ProductionSafetySettings,
@@ -121,6 +123,8 @@ __all__ = [
     # Ensemble
     "EnsembleSettings",
     "EnsembleThresholdSettings",
+    "HireDateCutoffRule",
+    "PlanDesignAssignmentSettings",
     # Safety
     "ProductionSafetySettings",
     "OrchestrationConfig",

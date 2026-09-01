@@ -2,7 +2,6 @@
 
 {% set simulation_year = var('simulation_year') | int %}
 {% set scenario_id = var('scenario_id', 'default') %}
-{% set plan_design_id = var('plan_design_id', 'default') %}
 
 WITH all_levels AS (
   SELECT DISTINCT level_id FROM {{ ref('stg_config_job_levels') }}
@@ -14,7 +13,6 @@ prior_active AS (
   WHERE decision_year = {{ simulation_year }}
     AND source_simulation_year = {{ simulation_year - 1 }}
     AND scenario_id = '{{ scenario_id }}'
-    AND plan_design_id = '{{ plan_design_id }}'
     AND employment_status = 'active'
 )
 

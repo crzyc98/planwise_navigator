@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS {RUN_METADATA_TABLE} (
     end_year           INTEGER   NOT NULL,
     scenario_id        VARCHAR,
     plan_design_id     VARCHAR,
+    design_set_json    VARCHAR,
     planalign_version  VARCHAR,
     full_reset         BOOLEAN   NOT NULL DEFAULT FALSE
 )
@@ -349,12 +350,12 @@ def _append_record(
         f"""
         INSERT INTO {RUN_METADATA_TABLE} (
             run_id, run_timestamp, run_type, config_fingerprint, random_seed,
-            start_year, end_year, scenario_id, plan_design_id,
+            start_year, end_year, scenario_id, plan_design_id, design_set_json,
             planalign_version, full_reset, construction_signature_hash,
             initialization_policy, entry_point, runner_kind,
             param_pack_id, param_pack_fingerprint, param_pack_source_digest,
             backtest_score_ref
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """,
         [
             run_id,
@@ -366,6 +367,7 @@ def _append_record(
             end_year,
             config.scenario_id,
             config.plan_design_id,
+            json.dumps(config.get_plan_design_set(), separators=(",", ":")),
             __version__,
             full_reset,
             construction_signature.signature_hash
@@ -401,6 +403,7 @@ def _evolve_provenance_schema(conn) -> None:
         ("param_pack_fingerprint", "VARCHAR"),
         ("param_pack_source_digest", "VARCHAR"),
         ("backtest_score_ref", "VARCHAR"),
+        ("design_set_json", "VARCHAR"),
         # Feature 133: aggregate-level seed-ensemble provenance. These stay
         # nullable for ordinary single-run records and are evolved additively.
         ("ensemble_id", "VARCHAR"),

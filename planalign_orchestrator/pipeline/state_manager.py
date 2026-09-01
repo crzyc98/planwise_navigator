@@ -89,7 +89,10 @@ class StateManager:
         if has_scenario_column:
             predicates.append("scenario_id = ?")
             parameters.append(scenario_id)
-        if has_plan_design_column:
+        if (
+            has_plan_design_column
+            and getattr(self.config, "plan_design_assignment", None) is None
+        ):
             predicates.append("plan_design_id = ?")
             parameters.append(plan_design_id)
 

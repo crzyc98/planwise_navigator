@@ -39,6 +39,9 @@ def _export_simulation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     # Enterprise identifiers (CRITICAL: Must match Python event factory queries)
     dbt_vars["scenario_id"] = cfg.scenario_id if cfg.scenario_id else "default"
     dbt_vars["plan_design_id"] = cfg.plan_design_id if cfg.plan_design_id else "default"
+    assignment = cfg.plan_design_assignment
+    if assignment is not None:
+        dbt_vars["plan_design_assignment"] = assignment.model_dump(mode="json")
     # Audit-trail scenario tag (#510): several data-quality/contribution models tag
     # rows with both scenario_id and parameter_scenario_id; the latter had no
     # exporter and always fell back to its SQL literal "default".

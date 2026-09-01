@@ -86,6 +86,24 @@ def test_projection_excludes_current_year_events(projection_db):
 
 @pytest.mark.fast
 @pytest.mark.unit
+def test_multi_design_start_year_uses_configured_default(projection_db):
+    result = EnrollmentDecisionProjection(
+        DirectConnectionManager(projection_db)
+    ).rebuild(
+        2025,
+        scenario_id="scenario-a",
+        plan_design_id=None,
+        default_plan_design_id="legacy-design",
+    )
+
+    assert result.plan_design_id == "*"
+    assert projection_db.execute(
+        "SELECT DISTINCT plan_design_id FROM enrollment_decision_projection"
+    ).fetchall() == [("legacy-design",)]
+
+
+@pytest.mark.fast
+@pytest.mark.unit
 def test_projection_replay_is_deterministic_and_latest_event_wins(projection_db):
     projection_db.execute(
         """INSERT INTO fct_yearly_events VALUES

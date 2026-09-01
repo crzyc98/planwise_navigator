@@ -9,7 +9,6 @@
 {% set simulation_year = var('simulation_year', 2025) | int %}
 {% set start_year = var('start_year', 2025) | int %}
 {% set scenario_id = var('scenario_id', 'default') %}
-{% set plan_design_id = var('plan_design_id', 'default') %}
 
 -- Public snapshot composition. Workforce events are applied only by the canonical
 -- workforce accumulator; this relation joins the authoritative domain outputs.
@@ -29,6 +28,7 @@ WITH irs_limits AS (
 workforce AS (
   SELECT
     employee_id,
+    plan_design_id,
     employee_ssn,
     employee_birth_date,
     employee_hire_date,
@@ -48,7 +48,6 @@ workforce AS (
     scheduled_hours_per_week
   FROM {{ ref('int_workforce_state_accumulator') }}
   WHERE scenario_id = '{{ scenario_id }}'
-    AND plan_design_id = '{{ plan_design_id }}'
     AND simulation_year = {{ simulation_year }}
 ),
 
@@ -153,7 +152,6 @@ eligibility_event_years AS (
   FROM {{ ref('fct_yearly_events') }}
   WHERE event_type = {{ evt_eligibility() }}
     AND scenario_id = '{{ scenario_id }}'
-    AND plan_design_id = '{{ plan_design_id }}'
     AND simulation_year <= {{ simulation_year }}
 ),
 
@@ -409,7 +407,7 @@ SELECT
   annual_hours_worked,
   scheduled_hours_per_week,
   '{{ scenario_id }}'::VARCHAR AS scenario_id,
-  '{{ plan_design_id }}'::VARCHAR AS plan_design_id,
+  plan_design_id,
   CURRENT_TIMESTAMP AS snapshot_created_at,
   last_escalation_date
 FROM composed

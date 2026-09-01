@@ -15,4 +15,3 @@ SELECT
 FROM {{ source('orchestrator_state', 'enrollment_decision_projection') }}
 WHERE decision_year = {{ var('simulation_year') }}
   AND scenario_id = '{{ var('scenario_id', 'default') }}'
-  AND plan_design_id = '{{ var('plan_design_id', 'default') }}'

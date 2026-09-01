@@ -179,6 +179,8 @@ vars:
   simulation_end_year: 2029
   target_growth_rate: 0.03
   random_seed: 42
+  # Optional employee-level design mapping; absent preserves the legacy scalar.
+  plan_design_assignment: null
 
   # E068F: Debug and Developer Ergonomics Configuration
   # Debug mode controls

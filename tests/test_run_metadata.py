@@ -18,6 +18,7 @@ from pathlib import Path
 import duckdb
 import pytest
 
+from planalign_orchestrator.config import PlanDesignAssignmentSettings
 from planalign_orchestrator.run_metadata import (
     RUN_METADATA_TABLE,
     DriftCheckResult,
@@ -97,6 +98,23 @@ class TestConfigFingerprint:
         reseeded.simulation.random_seed = 99999
         assert compute_config_fingerprint(reseeded) == baseline
 
+    def test_design_set_changes_fingerprint(self, minimal_config):
+        baseline = compute_config_fingerprint(minimal_config)
+        changed = minimal_config.model_copy(deep=True)
+        changed.plan_design_assignment = PlanDesignAssignmentSettings.model_validate(
+            {
+                "default_plan_design_id": "test_plan",
+                "rules": [
+                    {
+                        "type": "hire_date_cutoff",
+                        "cutoff": "2026-01-01",
+                        "plan_design_id": "future_plan",
+                    }
+                ],
+            }
+        )
+        assert compute_config_fingerprint(changed) != baseline
+
     def test_non_result_affecting_setup_change_does_not_change_hash(
         self, minimal_config
     ):
@@ -166,6 +184,7 @@ class TestTableLifecycle:
             "end_year",
             "scenario_id",
             "plan_design_id",
+            "design_set_json",
             "planalign_version",
             "full_reset",
             "construction_signature_hash",
@@ -299,9 +318,18 @@ class TestStateMachine:
         with db_manager.get_connection() as conn:
             row = conn.execute(
                 f"SELECT run_type, random_seed, start_year, end_year, scenario_id, "
-                f"plan_design_id, full_reset FROM {RUN_METADATA_TABLE}"
+                f"plan_design_id, design_set_json, full_reset FROM {RUN_METADATA_TABLE}"
             ).fetchone()
-        assert row == ("batch", 42, 2025, 2027, "test_scenario", "test_plan", False)
+        assert row == (
+            "batch",
+            42,
+            2025,
+            2027,
+            "test_scenario",
+            "test_plan",
+            '["test_plan"]',
+            False,
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import logging
+from typing import Optional
 
 from planalign_orchestrator.utils import DatabaseConnectionManager
 
@@ -73,7 +74,7 @@ class WorkforceStateProjection:
         self,
         decision_year: int,
         scenario_id: str = "default",
-        plan_design_id: str = "default",
+        plan_design_id: Optional[str] = "default",
     ) -> WorkforceProjectionResult:
         """Replace the projection with the selected scope's exact N-1 state."""
 
@@ -108,11 +109,16 @@ class WorkforceStateProjection:
                       scheduled_hours_per_week
                     FROM int_workforce_state_accumulator
                     WHERE scenario_id = ?
-                      AND plan_design_id = ?
+                      {"AND plan_design_id = ?" if plan_design_id is not None else ""}
                       AND simulation_year = ? - 1
                     ORDER BY employee_id
                     """,
-                    [decision_year, scenario_id, plan_design_id, decision_year],
+                    [
+                        decision_year,
+                        scenario_id,
+                        *([plan_design_id] if plan_design_id is not None else []),
+                        decision_year,
+                    ],
                 )
             else:
                 definitions = ", ".join(
@@ -136,12 +142,12 @@ class WorkforceStateProjection:
             "Rebuilt workforce projection for year %d (%s/%s): %d employees",
             decision_year,
             scenario_id,
-            plan_design_id,
+            plan_design_id or "*",
             count,
         )
         return WorkforceProjectionResult(
             decision_year=decision_year,
             scenario_id=scenario_id,
-            plan_design_id=plan_design_id,
+            plan_design_id=plan_design_id or "*",
             employee_count=count,
         )

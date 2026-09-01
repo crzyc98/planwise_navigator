@@ -34,6 +34,7 @@ from .performance import (
     E068CThreadingSettings,
 )
 from .ensemble import EnsembleSettings
+from .plan_design import PlanDesignAssignmentSettings
 
 
 def _core_integration_config(core: Any, dc_plan: Any) -> Optional[Dict[str, Any]]:
@@ -61,6 +62,7 @@ class SimulationConfig(BaseModel):
     # Enterprise identifiers (encouraged by architecture; optional for back-compat)
     scenario_id: Optional[str] = None
     plan_design_id: Optional[str] = None
+    plan_design_assignment: Optional[PlanDesignAssignmentSettings] = None
 
     simulation: SimulationSettings
     compensation: CompensationSettings
@@ -115,10 +117,18 @@ class SimulationConfig(BaseModel):
 
     def require_identifiers(self) -> None:
         """Raise if scenario_id/plan_design_id are missing."""
-        if not self.scenario_id or not self.plan_design_id:
+        if not self.scenario_id or not (
+            self.plan_design_id or self.plan_design_assignment is not None
+        ):
             raise ValueError(
-                "scenario_id and plan_design_id are required for orchestrator runs"
+                "scenario_id and a plan_design_id or plan_design_assignment are required"
             )
+
+    def get_plan_design_set(self) -> list[str]:
+        """Return every plan design that can be assigned in this run."""
+        if self.plan_design_assignment is not None:
+            return self.plan_design_assignment.design_set()
+        return [self.plan_design_id or "default"]
 
     def get_thread_count(self) -> int:
         """Get configured thread count with fallback to single-threaded execution."""

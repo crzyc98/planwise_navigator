@@ -188,6 +188,7 @@ class PipelineOrchestrator:
             verbose=verbose,
             scenario_id=config.scenario_id,
             plan_design_id=config.plan_design_id,
+            multi_plan_design=config.plan_design_assignment is not None,
         )
         self.hook_manager = HookManager(verbose=verbose)
 
@@ -623,7 +624,11 @@ class PipelineOrchestrator:
             self.workforce_projection.rebuild(
                 year,
                 scenario_id=self.config.scenario_id or "default",
-                plan_design_id=self.config.plan_design_id or "default",
+                plan_design_id=(
+                    None
+                    if self.config.plan_design_assignment is not None
+                    else self.config.plan_design_id or "default"
+                ),
             )
 
         # Start-year specific initialization
@@ -768,7 +773,16 @@ class PipelineOrchestrator:
         self.enrollment_projection.rebuild(
             year,
             scenario_id=self.config.scenario_id or "default",
-            plan_design_id=self.config.plan_design_id or "default",
+            plan_design_id=(
+                None
+                if self.config.plan_design_assignment is not None
+                else self.config.plan_design_id or "default"
+            ),
+            default_plan_design_id=(
+                self.config.plan_design_assignment.default_plan_design_id
+                if self.config.plan_design_assignment is not None
+                else None
+            ),
         )
 
     def _execute_event_generation_stage(

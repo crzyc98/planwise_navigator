@@ -4,7 +4,7 @@
     unique_key=['scenario_id', 'plan_design_id', 'employee_id', 'simulation_year'],
     on_schema_change='sync_all_columns',
     pre_hook=[
-      "{% if is_incremental() %}DELETE FROM {{ this }} WHERE scenario_id = '{{ var('scenario_id', 'default') }}' AND plan_design_id = '{{ var('plan_design_id', 'default') }}' AND simulation_year = {{ var('simulation_year') }}{% endif %}"
+      "{% if is_incremental() %}DELETE FROM {{ this }} WHERE scenario_id = '{{ var('scenario_id', 'default') }}' AND simulation_year = {{ var('simulation_year') }}{% endif %}"
     ],
     tags=['STATE_ACCUMULATION', 'DOMAIN_STATE']
 ) }}
@@ -12,7 +12,6 @@
 {% set simulation_year = var('simulation_year', 2025) | int %}
 {% set start_year = var('start_year', 2025) | int %}
 {% set scenario_id = var('scenario_id', 'default') %}
-{% set plan_design_id = var('plan_design_id', 'default') %}
 
 -- Workforce-only state. Enrollment, deferral, eligibility, and benefit values
 -- remain owned by their dedicated accumulators/calculations.
@@ -32,7 +31,6 @@ WITH prior_workforce AS (
     scheduled_hours_per_week
   FROM {{ this }}
   WHERE scenario_id = '{{ scenario_id }}'
-    AND plan_design_id = '{{ plan_design_id }}'
     AND simulation_year = {{ simulation_year - 1 }}
     AND employment_status = 'active'
   {% else %}
@@ -89,7 +87,6 @@ current_year_events AS (
     event_category
   FROM {{ ref('fct_yearly_events') }}
   WHERE scenario_id = '{{ scenario_id }}'
-    AND plan_design_id = '{{ plan_design_id }}'
     AND simulation_year = {{ simulation_year }}
 ),
 
@@ -303,7 +300,7 @@ prorated_compensation AS (
 
 SELECT
   '{{ scenario_id }}'::VARCHAR AS scenario_id,
-  '{{ plan_design_id }}'::VARCHAR AS plan_design_id,
+  assignment.plan_design_id,
   w.employee_id,
   w.employee_ssn,
   CAST(w.employee_birth_date AS TIMESTAMP) AS employee_birth_date,
@@ -341,4 +338,8 @@ SELECT
   w.scheduled_hours_per_week
 FROM deduplicated_workforce w
 LEFT JOIN prorated_compensation p ON w.employee_id = p.employee_id
+INNER JOIN {{ ref('int_plan_design_assignment_accumulator') }} assignment
+  ON w.employee_id = assignment.employee_id
+ AND assignment.scenario_id = '{{ scenario_id }}'
+ AND assignment.simulation_year = {{ simulation_year }}
 ORDER BY 1, 2, 3, 19

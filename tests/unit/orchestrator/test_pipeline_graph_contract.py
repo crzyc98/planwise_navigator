@@ -44,7 +44,10 @@ def _successful_model_counts(run_results: dict) -> dict[str, int]:
 
 def test_current_year_assembly_has_exact_active_sql_candidates():
     assembly = ROOT / "dbt/models/intermediate/int_current_year_events.sql"
-    assert _refs(assembly) == set(GRAPH["event_candidates"])
+    assert _refs(assembly) == {
+        *GRAPH["event_candidates"],
+        "int_plan_design_assignment_accumulator",
+    }
 
 
 def test_fact_is_thin_publisher_and_not_in_state_schedules():
@@ -87,11 +90,12 @@ def test_workforce_accumulator_has_strict_scope_and_domain_contract():
         "int_hiring_events",
         "stg_census_data",
         MODEL_FCT_YEARLY_EVENTS,
+        "int_plan_design_assignment_accumulator",
     }
     assert "FROM {{ this }}" in sql
     assert "simulation_year = {{ simulation_year - 1 }}" in sql
     assert "var('scenario_id', 'default')" in sql
-    assert "var('plan_design_id', 'default')" in sql
+    assert "int_plan_design_assignment_accumulator" in sql
     assert "'default' AS scenario_id" not in sql
     assert "'main' AS plan_design_id" not in sql
 
@@ -145,16 +149,13 @@ def test_incremental_state_models_output_every_declared_scope_key():
     paths = {
         ROOT
         / "dbt/models/intermediate/int_enrollment_state_accumulator.sql": (
-            '\'{{ var("plan_design_id", "default") }}\' AS plan_design_id'
+            "assignment.plan_design_id"
         ),
         ROOT
         / "dbt/models/intermediate/int_deferral_rate_state_accumulator.sql": (
-            "'{{ plan_design_id }}'::VARCHAR as plan_design_id"
+            "assignment.plan_design_id"
         ),
-        ROOT
-        / "dbt/models/marts/fct_workforce_snapshot.sql": (
-            "'{{ plan_design_id }}'::VARCHAR AS plan_design_id"
-        ),
+        ROOT / "dbt/models/marts/fct_workforce_snapshot.sql": ("plan_design_id"),
     }
 
     for path, output_expression in paths.items():
@@ -169,9 +170,9 @@ def test_legacy_escalation_accumulator_preserves_scenario_and_plan_grain():
     sql = path.read_text()
 
     assert "var('scenario_id', 'default')" in sql
-    assert "var('plan_design_id', 'default')" in sql
+    assert "int_plan_design_assignment_accumulator" in sql
     assert "'{{ scenario_id }}'::VARCHAR as scenario_id" in sql
-    assert "'{{ plan_design_id }}'::VARCHAR as plan_design_id" in sql
+    assert "assignment.plan_design_id" in sql
     assert "'default' as scenario_id" not in sql
     assert (
         "unique_key=['scenario_id', 'plan_design_id', 'employee_id', 'simulation_year']"
@@ -328,7 +329,10 @@ def test_manifest_has_exact_candidate_ownership_and_complete_assembly():
     }
 
     assert tagged == set(GRAPH["event_candidates"])
-    assert _refs(ROOT / "dbt/models/intermediate/int_current_year_events.sql") == tagged
+    assert _refs(ROOT / "dbt/models/intermediate/int_current_year_events.sql") == {
+        *tagged,
+        "int_plan_design_assignment_accumulator",
+    }
 
 
 def test_event_candidate_ancestry_has_no_current_year_publication_feedback():

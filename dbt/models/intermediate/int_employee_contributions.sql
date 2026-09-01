@@ -10,7 +10,6 @@
 
 {% set simulation_year = var('simulation_year', 2025) | int %}
 {% set scenario_id = var('scenario_id', 'default') %}
-{% set plan_design_id = var('plan_design_id', 'default') %}
 
 /*
   Employee 401(k) Contributions Calculator - IRS Compliant Version
@@ -153,7 +152,6 @@ starting_compensation AS (
             AS starting_compensation
     FROM {{ ref('fct_yearly_events') }}
     WHERE scenario_id = '{{ scenario_id }}'
-      AND plan_design_id = '{{ plan_design_id }}'
       AND simulation_year = (SELECT current_year FROM simulation_parameters)
     GROUP BY employee_id
 ),
@@ -161,6 +159,7 @@ starting_compensation AS (
 workforce_proration AS (
     SELECT
         workforce.employee_id,
+        workforce.plan_design_id,
         {{ simulation_year }} AS simulation_year,
         COALESCE(starting.starting_compensation, workforce.current_compensation)
             AS current_compensation,
@@ -205,7 +204,6 @@ workforce_proration AS (
     LEFT JOIN starting_compensation starting
       ON workforce.employee_id = starting.employee_id
     WHERE workforce.scenario_id = '{{ scenario_id }}'
-      AND workforce.plan_design_id = '{{ plan_design_id }}'
       AND workforce.simulation_year = {{ simulation_year }}
 ),
 
@@ -267,6 +265,7 @@ contribution_inputs AS (
 employee_contributions AS (
     SELECT
         ci.employee_id,  -- Use contribution_inputs as primary source
+        ci.plan_design_id,
         {{ simulation_year }} AS simulation_year,
         ci.current_age,
         ci.current_compensation,
@@ -382,6 +381,7 @@ employee_contributions AS (
 final_contributions AS (
     SELECT
         employee_id,
+        plan_design_id,
         simulation_year,
         current_age,
         -- IRS-compliant contribution amounts
@@ -423,7 +423,9 @@ final_contributions AS (
 
 SELECT *
 FROM (
-  SELECT fc.*, ROW_NUMBER() OVER (PARTITION BY employee_id, simulation_year ORDER BY employee_id) AS rn
+  SELECT
+    fc.*,
+    ROW_NUMBER() OVER (PARTITION BY fc.employee_id, fc.simulation_year ORDER BY fc.employee_id) AS rn
   FROM final_contributions fc
 )
 WHERE rn = 1
