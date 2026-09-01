@@ -338,7 +338,7 @@ const CohortBadge = ({ cohort, resolvedFirstSimulationYear }: {
 }) => {
   if (cohort === 'all') return null;
   return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-info-surface text-info-ink border border-info-border">
+    <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-info-border bg-info-surface px-2 py-1 text-[10px] font-bold uppercase leading-none tracking-wide text-info-ink">
       {cohortBadgeLabel(cohort, resolvedFirstSimulationYear)}
     </span>
   );
@@ -1395,11 +1395,13 @@ export default function ScenarioCostComparison() {
             <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
               <div className="flex items-center justify-between mb-8">
                 <div>
-                  <h3 className="text-lg font-bold text-ink flex items-center gap-2">
-                    Employer Cost Trends
-                    <CohortBadge cohort={cohort} resolvedFirstSimulationYear={anchorAnalytics?.resolved_first_simulation_year} />
-                  </h3>
+                  <h3 className="text-lg font-bold text-ink">Employer Cost Trends</h3>
                   <p className="text-sm text-ink-muted">Comparing total contributions for the selected horizon.</p>
+                  {cohort !== 'all' && (
+                    <div className="mt-2">
+                      <CohortBadge cohort={cohort} resolvedFirstSimulationYear={anchorAnalytics?.resolved_first_simulation_year} />
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2">
