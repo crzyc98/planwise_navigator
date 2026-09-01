@@ -38,6 +38,11 @@ from .database_path_resolver import (
 logger = logging.getLogger(__name__)
 
 Cohort = Literal["all", "new_hires", "baseline"]
+Population = Literal[
+    "all_eligible",
+    "active_eligible",
+    "terminated_eligible",
+]
 
 
 class AnalyticsService:
@@ -146,6 +151,46 @@ class AnalyticsService:
         if not clauses:
             return ""
         return "WHERE " + " AND ".join(clauses)
+
+    @staticmethod
+    def _population_predicate(population: Optional[Population]) -> str:
+        """Return the explicit eligible-population filter for trend analytics.
+
+        A missing value preserves the legacy endpoint semantics, including the
+        existing ``active_only`` query parameter. Terminated employees are
+        scoped to the year in which they terminate so later carried-forward
+        snapshot rows do not turn the trend into a cumulative population.
+        """
+        if population is None:
+            return ""
+
+        eligibility = "LOWER(current_eligibility_status) = 'eligible'"
+        terminated_in_year = (
+            "UPPER(employment_status) = 'TERMINATED' "
+            "AND termination_date IS NOT NULL "
+            "AND EXTRACT(YEAR FROM termination_date) = simulation_year"
+        )
+        if population == "active_eligible":
+            return f"{eligibility} AND UPPER(employment_status) = 'ACTIVE'"
+        if population == "terminated_eligible":
+            return f"{eligibility} AND {terminated_in_year}"
+        return (
+            f"{eligibility} AND (UPPER(employment_status) = 'ACTIVE' "
+            f"OR ({terminated_in_year}))"
+        )
+
+    @staticmethod
+    def _empty_contribution_year(year: int) -> ContributionYearSummary:
+        """Represent an available year with no employees in the population."""
+        return ContributionYearSummary(
+            year=year,
+            total_employee_contributions=0.0,
+            total_employer_match=0.0,
+            total_employer_core=0.0,
+            total_all_contributions=0.0,
+            participant_count=0,
+            total_eligible_count=0,
+        )
 
     def _resolve_first_simulation_year(
         self, conn, workspace_id: str, scenario_id: str
@@ -399,6 +444,7 @@ class AnalyticsService:
         active_only: bool = False,
         effective_rate: bool = False,
         cohort: Cohort = "all",
+        population: Optional[Population] = None,
     ) -> Optional[DCPlanAnalytics]:
         """
         Get DC Plan analytics for a single scenario.
@@ -419,20 +465,34 @@ class AnalyticsService:
                 conn, workspace_id, scenario_id
             )
             participation = self._get_participation_summary(
-                conn, active_only, cohort, first_simulation_year
+                conn, active_only, cohort, first_simulation_year, population
             )
             contribution_by_year = self._get_contribution_by_year(
-                conn, active_only, cohort, first_simulation_year
+                conn, active_only, cohort, first_simulation_year, population
             )
             totals = self._compute_grand_totals(contribution_by_year)
             deferral_distribution = self._get_deferral_distribution(
-                conn, effective_rate=effective_rate, active_only=active_only
+                conn,
+                effective_rate=effective_rate,
+                active_only=active_only,
+                population=population,
+                cohort=cohort,
+                first_simulation_year=first_simulation_year,
             )
             deferral_distribution_by_year = self._get_deferral_distribution_all_years(
-                conn, effective_rate=effective_rate, active_only=active_only
+                conn,
+                effective_rate=effective_rate,
+                active_only=active_only,
+                population=population,
+                cohort=cohort,
+                first_simulation_year=first_simulation_year,
             )
-            escalation = self._get_escalation_metrics(conn)
-            irs_limits = self._get_irs_limit_metrics(conn)
+            escalation = self._get_escalation_metrics(
+                conn, population, cohort, first_simulation_year
+            )
+            irs_limits = self._get_irs_limit_metrics(
+                conn, population, cohort, first_simulation_year
+            )
 
             conn.close()
 
@@ -476,6 +536,7 @@ class AnalyticsService:
         active_only: bool = False,
         cohort: Cohort = "all",
         first_simulation_year: Optional[int] = None,
+        population: Optional[Population] = None,
     ) -> dict:
         """Get participation summary from final simulation year.
 
@@ -487,10 +548,18 @@ class AnalyticsService:
                 classifies new_hires vs baseline (see _resolve_first_simulation_year).
         """
         try:
-            status_filter = "UPPER(employment_status) = 'ACTIVE'" if active_only else ""
+            status_filter = (
+                "UPPER(employment_status) = 'ACTIVE'"
+                if active_only and population is None
+                else ""
+            )
+            population_filter = self._population_predicate(population)
             cohort_filter = self._cohort_predicate(cohort, first_simulation_year)
             where_clause = self._combine_where(
-                "simulation_year = final_year.max_year", status_filter, cohort_filter
+                "simulation_year = final_year.max_year",
+                status_filter,
+                population_filter,
+                cohort_filter,
             )
             result = conn.execute(
                 f"""
@@ -547,6 +616,7 @@ class AnalyticsService:
         active_only: bool = False,
         cohort: Cohort = "all",
         first_simulation_year: Optional[int] = None,
+        population: Optional[Population] = None,
     ) -> List[ContributionYearSummary]:
         """Get contribution totals by simulation year.
 
@@ -560,9 +630,16 @@ class AnalyticsService:
         try:
             # E104: Enhanced query with average deferral rate, participation rate, and total employer cost
             # E013: Added total_compensation for employer cost rate calculation
-            status_filter = "UPPER(employment_status) = 'ACTIVE'" if active_only else ""
+            status_filter = (
+                "UPPER(employment_status) = 'ACTIVE'"
+                if active_only and population is None
+                else ""
+            )
+            population_filter = self._population_predicate(population)
             cohort_filter = self._cohort_predicate(cohort, first_simulation_year)
-            where_clause = self._combine_where(status_filter, cohort_filter)
+            where_clause = self._combine_where(
+                status_filter, population_filter, cohort_filter
+            )
             participation_rate_expr = (
                 "COALESCE(COUNT(CASE WHEN is_enrolled_flag THEN 1 END) * 100.0 "
                 "/ NULLIF(COUNT(*), 0), 0)"
@@ -634,7 +711,22 @@ class AnalyticsService:
                         total_contribution_rate=rates["total_contribution_rate"],
                     )
                 )
-            return results
+            if population is None:
+                return results
+
+            available_years = [
+                int(row[0])
+                for row in conn.execute(
+                    f"SELECT DISTINCT simulation_year "
+                    f"FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} "
+                    "ORDER BY simulation_year"
+                ).fetchall()
+            ]
+            results_by_year = {row.year: row for row in results}
+            return [
+                results_by_year.get(year, self._empty_contribution_year(year))
+                for year in available_years
+            ]
         except Exception as e:
             logger.warning(f"Failed to get contribution by year: {e}")
             return []
@@ -644,6 +736,9 @@ class AnalyticsService:
         conn,
         effective_rate: bool = False,
         active_only: bool = False,
+        population: Optional[Population] = None,
+        cohort: Cohort = "all",
+        first_simulation_year: Optional[int] = None,
     ) -> List[DeferralRateBucket]:
         """Get deferral rate distribution (11 buckets: 0%, 1%...9%, 10%+).
 
@@ -656,12 +751,17 @@ class AnalyticsService:
             if effective_rate
             else "current_deferral_rate"
         )
-        if effective_rate:
-            status_filter = (
-                "AND UPPER(employment_status) = 'ACTIVE'" if active_only else ""
-            )
-        else:
-            status_filter = "AND UPPER(employment_status) = 'ACTIVE'"
+        status_filter = ""
+        if population is None and (active_only or not effective_rate):
+            status_filter = "UPPER(employment_status) = 'ACTIVE'"
+        population_filter = self._population_predicate(population)
+        cohort_filter = self._cohort_predicate(cohort, first_simulation_year)
+        where_clause = self._combine_where(
+            "simulation_year = final_year.max_year",
+            status_filter,
+            population_filter,
+            cohort_filter,
+        )
         try:
             # Query for distribution buckets
             df = conn.execute(
@@ -686,8 +786,7 @@ class AnalyticsService:
                             ELSE '10%+'
                         END as bucket
                     FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}, final_year
-                    WHERE simulation_year = final_year.max_year
-                      {status_filter}
+                    {where_clause}
                 )
                 SELECT
                     bucket,
@@ -753,6 +852,9 @@ class AnalyticsService:
         conn,
         effective_rate: bool = False,
         active_only: bool = False,
+        population: Optional[Population] = None,
+        cohort: Cohort = "all",
+        first_simulation_year: Optional[int] = None,
     ) -> List[DeferralDistributionYear]:
         """Get deferral rate distribution for all simulation years (E059).
 
@@ -765,12 +867,14 @@ class AnalyticsService:
             if effective_rate
             else "current_deferral_rate"
         )
-        if effective_rate:
-            status_filter = (
-                "WHERE UPPER(employment_status) = 'ACTIVE'" if active_only else ""
-            )
-        else:
-            status_filter = "WHERE UPPER(employment_status) = 'ACTIVE'"
+        status_filter = ""
+        if population is None and (active_only or not effective_rate):
+            status_filter = "UPPER(employment_status) = 'ACTIVE'"
+        population_filter = self._population_predicate(population)
+        cohort_filter = self._cohort_predicate(cohort, first_simulation_year)
+        where_clause = self._combine_where(
+            status_filter, population_filter, cohort_filter
+        )
         bucket_order = [
             "0%",
             "1%",
@@ -804,7 +908,7 @@ class AnalyticsService:
                             ELSE '10%+'
                         END as bucket
                     FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
-                    {status_filter}
+                    {where_clause}
                 )
                 SELECT
                     simulation_year,
@@ -852,9 +956,25 @@ class AnalyticsService:
             logger.warning(f"Failed to get deferral distribution by year: {e}")
             return []
 
-    def _get_escalation_metrics(self, conn) -> EscalationMetrics:
+    def _get_escalation_metrics(
+        self,
+        conn,
+        population: Optional[Population] = None,
+        cohort: Cohort = "all",
+        first_simulation_year: Optional[int] = None,
+    ) -> EscalationMetrics:
         """Get deferral escalation metrics."""
         try:
+            status_filter = (
+                "UPPER(employment_status) = 'ACTIVE'" if population is None else ""
+            )
+            where_clause = self._combine_where(
+                "simulation_year = final_year.max_year",
+                status_filter,
+                self._population_predicate(population),
+                self._cohort_predicate(cohort, first_simulation_year),
+                "is_enrolled_flag = true",
+            )
             result = conn.execute(
                 f"""
                 WITH final_year AS (
@@ -866,9 +986,7 @@ class AnalyticsService:
                     AVG(CASE WHEN has_deferral_escalations THEN total_deferral_escalations ELSE NULL END) as avg_escalations,
                     SUM(COALESCE(total_escalation_amount, 0)) as total_escalation_amount
                 FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}, final_year
-                WHERE simulation_year = final_year.max_year
-                  AND UPPER(employment_status) = 'ACTIVE'
-                  AND is_enrolled_flag = true
+                {where_clause}
             """
             ).fetchone()
 
@@ -885,9 +1003,25 @@ class AnalyticsService:
                 total_escalation_amount=0.0,
             )
 
-    def _get_irs_limit_metrics(self, conn) -> IRSLimitMetrics:
+    def _get_irs_limit_metrics(
+        self,
+        conn,
+        population: Optional[Population] = None,
+        cohort: Cohort = "all",
+        first_simulation_year: Optional[int] = None,
+    ) -> IRSLimitMetrics:
         """Get IRS contribution limit metrics."""
         try:
+            status_filter = (
+                "UPPER(employment_status) = 'ACTIVE'" if population is None else ""
+            )
+            where_clause = self._combine_where(
+                "simulation_year = final_year.max_year",
+                status_filter,
+                self._population_predicate(population),
+                self._cohort_predicate(cohort, first_simulation_year),
+                "is_enrolled_flag = true",
+            )
             result = conn.execute(
                 f"""
                 WITH final_year AS (
@@ -899,9 +1033,7 @@ class AnalyticsService:
                         COUNT(*) as total_participants,
                         SUM(CASE WHEN irs_limit_reached THEN 1 ELSE 0 END) as at_limit
                     FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}, final_year
-                    WHERE simulation_year = final_year.max_year
-                      AND UPPER(employment_status) = 'ACTIVE'
-                      AND is_enrolled_flag = true
+                    {where_clause}
                 )
                 SELECT
                     at_limit,

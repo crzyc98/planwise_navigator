@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import {
-  BarChart, Bar, PieChart, Pie, Cell,
+  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList
 } from 'recharts';
 import {
   Users, DollarSign, TrendingUp, PieChart as PieChartIcon,
-  RefreshCw, AlertCircle, ChevronDown, Database, Loader2, ArrowUpRight
+  RefreshCw, AlertCircle, ChevronDown, Database, Loader2, ArrowUpRight, Copy, Check
 } from 'lucide-react';
 import { LayoutContextType } from './Layout';
 import {
@@ -18,6 +18,7 @@ import {
   DCPlanComparisonResponse,
   ContributionYearSummary,
   DCPlanCohort,
+  DCPlanPopulation,
 } from '../services/api';
 
 // 134-new-hire-cohort (FR-006): same segmented control as ScenarioCostComparison.
@@ -27,8 +28,19 @@ const COHORT_TOGGLE_LABELS: Record<DCPlanCohort, string> = {
   baseline: 'Starting census',
 };
 const VALID_COHORTS: DCPlanCohort[] = ['all', 'new_hires', 'baseline'];
+const POPULATION_TOGGLE_LABELS: Record<DCPlanPopulation, string> = {
+  all_eligible: 'All eligible',
+  active_eligible: 'Actives only',
+  terminated_eligible: 'Terms only',
+};
+const VALID_POPULATIONS: DCPlanPopulation[] = [
+  'all_eligible',
+  'active_eligible',
+  'terminated_eligible',
+];
 import { MAX_SCENARIO_SELECTION } from '../constants';
 import { useChartTheme } from '../hooks/useChartTheme';
+import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 
 const formatCurrency = (value: number): string => {
   if (value >= 1000000) {
@@ -123,6 +135,63 @@ const DeferralTooltip = ({ active, payload, label }: any) => {
   );
 };
 
+const ParticipationTrendTooltip = ({
+  active,
+  payload,
+  label,
+  populationLabel,
+}: any) => {
+  if (!active || !payload?.length) return null;
+  const row = payload[0].payload;
+  return (
+    <div className="bg-surface-raised border border-border rounded-lg shadow-lg px-4 py-3 min-w-[210px]">
+      <p className="font-semibold text-ink text-sm">{label} · {populationLabel}</p>
+      <p className="text-sm text-ink-muted mt-1">
+        Participation: <span className="font-semibold text-ink">{row.participationRate.toFixed(1)}%</span>
+      </p>
+      <p className="text-xs text-ink-muted mt-1">
+        {row.participantCount.toLocaleString()} enrolled / {row.eligibleCount.toLocaleString()} eligible
+      </p>
+    </div>
+  );
+};
+
+const SavingsTrendTooltip = ({
+  active,
+  payload,
+  label,
+  populationLabel,
+}: any) => {
+  if (!active || !payload?.length) return null;
+  const row = payload[0].payload;
+  const metrics: Record<string, { label: string; numerator: number }> = {
+    employeeRate: { label: 'Employee deferral', numerator: row.employeeContributions },
+    matchRate: { label: 'Employer match', numerator: row.employerMatch },
+    coreRate: { label: 'Employer non-elective/core', numerator: row.employerCore },
+  };
+
+  return (
+    <div className="bg-surface-raised border border-border rounded-lg shadow-lg px-4 py-3 min-w-[260px]">
+      <p className="font-semibold text-ink text-sm">{label} · {populationLabel}</p>
+      <p className="text-xs text-ink-muted mt-1 mb-2">
+        Denominator: {formatCurrency(row.totalCompensation)} prorated eligible compensation
+      </p>
+      <div className="space-y-1">
+        {payload.map((entry: any) => {
+          const metric = metrics[String(entry.dataKey)];
+          if (!metric || entry.value === null) return null;
+          return (
+            <p key={entry.dataKey} className="text-sm text-ink-muted">
+              <span className="font-semibold" style={{ color: entry.color }}>{metric.label}</span>
+              {`: ${Number(entry.value).toFixed(2)}% (${formatCurrency(metric.numerator)})`}
+            </p>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 export default function DCPlanAnalytics() {
   const chartTheme = useChartTheme();
   // Workspace context from Layout (shared across all pages)
@@ -142,8 +211,8 @@ export default function DCPlanAnalytics() {
   // Comparison mode toggle
   const [comparisonMode, setComparisonMode] = useState(false);
 
-  // Active-only toggle for participation metrics (default: all participants)
-  const [activeOnly, setActiveOnly] = useState(false);
+  // Explicit status population for participation and savings-rate analytics.
+  const [population, setPopulation] = useState<DCPlanPopulation>('all_eligible');
 
   // 134-new-hire-cohort (FR-006): population filter, same three values as
   // ScenarioCostComparison's Cost Comparison view.
@@ -154,6 +223,15 @@ export default function DCPlanAnalytics() {
 
   // Year filter: null = "All Years" aggregate
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
+
+  const {
+    copy: copyParticipationTrend,
+    copied: participationTrendCopied,
+  } = useCopyToClipboard();
+  const {
+    copy: copySavingsTrend,
+    copied: savingsTrendCopied,
+  } = useCopyToClipboard();
 
   // Derived: years available for the year picker
   const availableYears = useMemo<number[]>(() => {
@@ -207,7 +285,7 @@ export default function DCPlanAnalytics() {
     }
   }, [activeWorkspace?.id]);
 
-  // Fetch analytics when scenario, active-only toggle, or deferral view changes
+  // Fetch analytics when scenario, population, cohort, or deferral view changes
   useEffect(() => {
     if (!activeWorkspace?.id) return;
     if (selectedScenarioIds.length === 1 && !comparisonMode) {
@@ -218,7 +296,7 @@ export default function DCPlanAnalytics() {
       setAnalytics(null);
       setComparisonData(null);
     }
-  }, [selectedScenarioIds, comparisonMode, activeWorkspace?.id, activeOnly, deferralView, cohort]);
+  }, [selectedScenarioIds, comparisonMode, activeWorkspace?.id, population, deferralView, cohort]);
 
   const fetchScenarios = async (workspaceId: string) => {
     setLoadingScenarios(true);
@@ -242,7 +320,14 @@ export default function DCPlanAnalytics() {
     setLoading(true);
     setError(null);
     try {
-      const data = await getDCPlanAnalytics(activeWorkspace.id, scenarioId, activeOnly, deferralView === 'effective', cohort);
+      const data = await getDCPlanAnalytics(
+        activeWorkspace.id,
+        scenarioId,
+        false,
+        deferralView === 'effective',
+        cohort,
+        population
+      );
       setAnalytics(data);
       setComparisonData(null);
       if (data.contribution_by_year.length > 0) {
@@ -263,7 +348,14 @@ export default function DCPlanAnalytics() {
     setLoading(true);
     setError(null);
     try {
-      const data = await compareDCPlanAnalytics(activeWorkspace.id, scenarioIds, activeOnly, deferralView === 'effective', cohort);
+      const data = await compareDCPlanAnalytics(
+        activeWorkspace.id,
+        scenarioIds,
+        false,
+        deferralView === 'effective',
+        cohort,
+        population
+      );
       setComparisonData(data);
       setAnalytics(null);
     } catch (err: any) {
@@ -302,6 +394,105 @@ export default function DCPlanAnalytics() {
     Match: year.total_employer_match,
     Core: year.total_employer_core,
   })) || [];
+
+  const trendData = analytics?.contribution_by_year.map(year => {
+    const hasEligiblePopulation = year.total_eligible_count > 0;
+    const hasCompensation = hasEligiblePopulation && year.total_compensation > 0;
+    return {
+      year: year.year,
+      participationRate: hasEligiblePopulation ? year.participation_rate : null,
+      employeeRate: hasCompensation ? year.employee_contribution_rate : null,
+      matchRate: hasCompensation ? year.match_contribution_rate : null,
+      coreRate: hasCompensation ? year.core_contribution_rate : null,
+      participantCount: year.participant_count,
+      eligibleCount: year.total_eligible_count,
+      totalCompensation: year.total_compensation,
+      employeeContributions: year.total_employee_contributions,
+      employerMatch: year.total_employer_match,
+      employerCore: year.total_employer_core,
+    };
+  }) || [];
+
+  const hasParticipationTrend = trendData.some(row => row.participationRate !== null);
+  const hasSavingsTrend = trendData.some(row => row.employeeRate !== null);
+  const populationLabel = POPULATION_TOGGLE_LABELS[population];
+
+  const copyMetadataRows = useCallback(() => [
+    ['Scenario', analytics?.scenario_name ?? ''],
+    ['Population', populationLabel],
+    ['Cohort', COHORT_TOGGLE_LABELS[cohort]],
+  ], [analytics?.scenario_name, populationLabel, cohort]);
+
+  const handleCopyParticipationTrend = useCallback(() => {
+    if (!analytics || trendData.length === 0) return;
+    const rates = trendData
+      .map(row => row.participationRate)
+      .filter((rate): rate is number => rate !== null);
+    const average = rates.length > 0
+      ? rates.reduce((sum, rate) => sum + rate, 0) / rates.length
+      : null;
+    const lines = [
+      ...copyMetadataRows().map(row => row.join('\t')),
+      ['Year', 'Enrolled employees', 'Eligible employees', 'Participation rate'].join('\t'),
+      ...trendData.map(row => [
+        row.year,
+        row.participantCount,
+        row.eligibleCount,
+        row.participationRate === null ? 'No eligible population' : `${row.participationRate.toFixed(2)}%`,
+      ].join('\t')),
+      ['Average', '', '', average === null ? 'No eligible population' : `${average.toFixed(2)}%`].join('\t'),
+    ];
+    copyParticipationTrend(lines.join('\n'));
+  }, [analytics, trendData, copyMetadataRows, copyParticipationTrend]);
+
+  const handleCopySavingsTrend = useCallback(() => {
+    if (!analytics || trendData.length === 0) return;
+    const populatedRows = trendData.filter(row => row.employeeRate !== null);
+    const averageRate = (key: 'employeeRate' | 'matchRate' | 'coreRate') => {
+      if (populatedRows.length === 0) return null;
+      return populatedRows.reduce((sum, row) => sum + (row[key] ?? 0), 0)
+        / populatedRows.length;
+    };
+    const averageEmployee = averageRate('employeeRate');
+    const averageMatch = averageRate('matchRate');
+    const averageCore = averageRate('coreRate');
+    const formatRate = (rate: number | null) =>
+      rate === null ? 'No eligible compensation' : `${rate.toFixed(2)}%`;
+    const lines = [
+      ...copyMetadataRows().map(row => row.join('\t')),
+      [
+        'Year',
+        'Employee deferral rate',
+        'Employer match rate',
+        'Employer non-elective/core rate',
+        'Total savings rate',
+      ].join('\t'),
+      ...trendData.map(row => {
+        const total = row.employeeRate === null
+          ? null
+          : row.employeeRate + (row.matchRate ?? 0) + (row.coreRate ?? 0);
+        return [
+          row.year,
+          formatRate(row.employeeRate),
+          formatRate(row.matchRate),
+          formatRate(row.coreRate),
+          formatRate(total),
+        ].join('\t');
+      }),
+      [
+        'Average',
+        formatRate(averageEmployee),
+        formatRate(averageMatch),
+        formatRate(averageCore),
+        formatRate(
+          averageEmployee === null
+            ? null
+            : averageEmployee + (averageMatch ?? 0) + (averageCore ?? 0)
+        ),
+      ].join('\t'),
+    ];
+    copySavingsTrend(lines.join('\n'));
+  }, [analytics, trendData, copyMetadataRows, copySavingsTrend]);
 
   const deferralDistributionData = activeDeferralDistribution.map((bucket) => ({
     bucket: bucket.bucket,
@@ -404,17 +595,24 @@ export default function DCPlanAnalytics() {
             ))}
           </div>
 
-          {/* Active Employees Only Toggle */}
-          <label htmlFor="dc-active-only" className="flex items-center gap-2 px-3 py-2 bg-surface-raised border border-border-strong rounded-lg text-sm cursor-pointer hover:bg-surface-subtle transition-colors">
-            <input
-              id="dc-active-only"
-              type="checkbox"
-              checked={activeOnly}
-              onChange={(e) => setActiveOnly(e.target.checked)}
-              className="w-4 h-4 text-fidelity-green rounded border-border-strong focus:ring-fidelity-green"
-            />
-            <span className="font-medium text-ink-muted whitespace-nowrap">Active employees only</span>
-          </label>
+          {/* Eligible Population Control (#641) */}
+          <div
+            className="flex bg-surface-subtle p-1 rounded-lg"
+            role="group"
+            aria-label="Eligible employee population"
+          >
+            {VALID_POPULATIONS.map((value) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={population === value}
+                onClick={() => setPopulation(value)}
+                className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${population === value ? 'bg-surface-raised text-ink shadow-sm' : 'text-ink-muted hover:text-ink'}`}
+              >
+                {POPULATION_TOGGLE_LABELS[value]}
+              </button>
+            ))}
+          </div>
 
           <button
             onClick={handleRefresh}
@@ -627,7 +825,7 @@ export default function DCPlanAnalytics() {
               subtext={
                 activeYearData
                   ? `${activeYearData.participant_count.toLocaleString()} of ${activeYearData.total_eligible_count.toLocaleString()} eligible`
-                  : `${analytics.total_enrolled.toLocaleString()} of ${analytics.total_eligible.toLocaleString()} ${activeOnly ? 'active eligible' : 'eligible'}`
+                  : `${analytics.total_enrolled.toLocaleString()} of ${analytics.total_eligible.toLocaleString()} ${populationLabel.toLowerCase()}`
               }
               icon={Users}
               color="purple"
@@ -645,6 +843,134 @@ export default function DCPlanAnalytics() {
             </div>
             <div className="text-right text-sm text-info-ink">
               <p>{analytics.contribution_by_year.length} year(s) of data</p>
+            </div>
+          </div>
+
+          {/* Participation and Savings Rate Trends (#641) */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-lg font-semibold text-ink">Participation Rate Trend</h3>
+                <button
+                  type="button"
+                  onClick={handleCopyParticipationTrend}
+                  disabled={!hasParticipationTrend}
+                  className={`p-1.5 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${participationTrendCopied ? 'text-success-ink bg-success-surface' : 'text-ink-subtle hover:text-ink-muted hover:bg-surface-subtle'}`}
+                  title={participationTrendCopied ? 'Participation trend copied' : 'Copy participation trend'}
+                  aria-label={participationTrendCopied ? 'Participation trend copied' : 'Copy participation trend'}
+                >
+                  {participationTrendCopied ? <Check size={16} /> : <Copy size={16} />}
+                </button>
+              </div>
+              <p className="text-xs text-ink-muted mt-1 mb-4">
+                Enrolled eligible employees divided by the selected eligible population each year.
+                Gaps indicate no eligible employees for that year.
+              </p>
+              <div className="h-80">
+                {hasParticipationTrend ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={trendData}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
+                      <XAxis dataKey="year" stroke={chartTheme.axis.line} />
+                      <YAxis
+                        domain={[0, 100]}
+                        stroke={chartTheme.axis.line}
+                        tickFormatter={(value) => `${value}%`}
+                      />
+                      <Tooltip
+                        cursor={chartTheme.tooltip.cursorStyle}
+                        content={<ParticipationTrendTooltip populationLabel={populationLabel} />}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="participationRate"
+                        name="Participation rate"
+                        stroke={chartTheme.semantic.primary}
+                        strokeWidth={3}
+                        connectNulls={false}
+                        dot={{ r: 4 }}
+                        activeDot={{ r: 6 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-ink-subtle text-center">
+                    <p>No eligible employees are available for this population and cohort.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-lg font-semibold text-ink">Average Savings Rate Trend</h3>
+                <button
+                  type="button"
+                  onClick={handleCopySavingsTrend}
+                  disabled={!hasSavingsTrend}
+                  className={`p-1.5 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${savingsTrendCopied ? 'text-success-ink bg-success-surface' : 'text-ink-subtle hover:text-ink-muted hover:bg-surface-subtle'}`}
+                  title={savingsTrendCopied ? 'Savings trend copied' : 'Copy savings trend'}
+                  aria-label={savingsTrendCopied ? 'Savings trend copied' : 'Copy savings trend'}
+                >
+                  {savingsTrendCopied ? <Check size={16} /> : <Copy size={16} />}
+                </button>
+              </div>
+              <p className="text-xs text-ink-muted mt-1 mb-4">
+                Component contributions divided by prorated eligible compensation. Rates are
+                compensation-weighted and additive; gaps indicate no eligible compensation.
+              </p>
+              <div className="h-80">
+                {hasSavingsTrend ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={trendData}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
+                      <XAxis dataKey="year" stroke={chartTheme.axis.line} />
+                      <YAxis
+                        domain={[0, 'auto']}
+                        stroke={chartTheme.axis.line}
+                        tickFormatter={(value) => `${value}%`}
+                      />
+                      <Tooltip
+                        cursor={chartTheme.tooltip.cursorStyle}
+                        content={<SavingsTrendTooltip populationLabel={populationLabel} />}
+                      />
+                      <Legend
+                        verticalAlign="top"
+                        height={36}
+                        formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="employeeRate"
+                        name="Employee deferral"
+                        stroke={chartTheme.semantic.contribution.employee}
+                        strokeWidth={2}
+                        connectNulls={false}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="matchRate"
+                        name="Employer match"
+                        stroke={chartTheme.semantic.contribution.match}
+                        strokeWidth={2}
+                        connectNulls={false}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="coreRate"
+                        name="Employer non-elective/core"
+                        stroke={chartTheme.semantic.contribution.core}
+                        strokeWidth={2}
+                        connectNulls={false}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-ink-subtle text-center">
+                    <p>No eligible compensation is available for this population and cohort.</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

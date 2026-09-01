@@ -1,6 +1,6 @@
 """Analytics endpoints: DC Plan and Winners & Losers."""
 
-from typing import List, Literal
+from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
@@ -46,6 +46,15 @@ async def get_dc_plan_analytics(
         False,
         description="If true, include only active employees in participation metrics",
     ),
+    population: Optional[
+        Literal["all_eligible", "active_eligible", "terminated_eligible"]
+    ] = Query(
+        None,
+        description=(
+            "Explicit eligible population for analytics trends. Omit to retain "
+            "legacy active_only behavior."
+        ),
+    ),
     effective_rate: bool = Query(
         False,
         description="If true, use effective_annual_deferral_rate for the deferral distribution (matches contribution calculation). If false, use current_deferral_rate (year-end snapshot).",
@@ -85,6 +94,12 @@ async def get_dc_plan_analytics(
             detail=f"Scenario {scenario_id} has not completed successfully",
         )
 
+    if population is not None and active_only:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Use population or active_only, not both",
+        )
+
     # Get analytics
     analytics = analytics_service.get_dc_plan_analytics(
         workspace_id,
@@ -93,6 +108,7 @@ async def get_dc_plan_analytics(
         active_only=active_only,
         effective_rate=effective_rate,
         cohort=cohort,
+        population=population,
     )
 
     if not analytics:
@@ -116,6 +132,15 @@ async def compare_dc_plan_analytics(
     active_only: bool = Query(
         False,
         description="If true, include only active employees in participation metrics",
+    ),
+    population: Optional[
+        Literal["all_eligible", "active_eligible", "terminated_eligible"]
+    ] = Query(
+        None,
+        description=(
+            "Explicit eligible population for analytics trends. Omit to retain "
+            "legacy active_only behavior."
+        ),
     ),
     effective_rate: bool = Query(
         False,
@@ -156,6 +181,12 @@ async def compare_dc_plan_analytics(
             detail=f"Maximum {MAX_SCENARIO_COMPARISON} scenarios allowed for comparison",
         )
 
+    if population is not None and active_only:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Use population or active_only, not both",
+        )
+
     # Verify all scenarios exist and are completed
     scenario_names = {}
     for scenario_id in scenario_ids:
@@ -182,6 +213,7 @@ async def compare_dc_plan_analytics(
             active_only=active_only,
             effective_rate=effective_rate,
             cohort=cohort,
+            population=population,
         )
         if analytics:
             analytics_list.append(analytics)

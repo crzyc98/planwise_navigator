@@ -14053,6 +14053,29 @@
             }
           },
           {
+            "description": "Explicit eligible population for analytics trends. Omit to retain legacy active_only behavior.",
+            "in": "query",
+            "name": "population",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "all_eligible",
+                    "active_eligible",
+                    "terminated_eligible"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Explicit eligible population for analytics trends. Omit to retain legacy active_only behavior.",
+              "title": "Population"
+            }
+          },
+          {
             "description": "If true, use effective_annual_deferral_rate for the deferral distribution.",
             "in": "query",
             "name": "effective_rate",
@@ -17047,6 +17070,29 @@
               "description": "If true, include only active employees in participation metrics",
               "title": "Active Only",
               "type": "boolean"
+            }
+          },
+          {
+            "description": "Explicit eligible population for analytics trends. Omit to retain legacy active_only behavior.",
+            "in": "query",
+            "name": "population",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "all_eligible",
+                    "active_eligible",
+                    "terminated_eligible"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Explicit eligible population for analytics trends. Omit to retain legacy active_only behavior.",
+              "title": "Population"
             }
           },
           {
