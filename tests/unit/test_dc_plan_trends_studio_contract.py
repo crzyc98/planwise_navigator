@@ -10,6 +10,7 @@ pytestmark = pytest.mark.fast
 ROOT = Path(__file__).parents[2]
 COMPONENT = ROOT / "planalign_studio" / "components" / "DCPlanAnalytics.tsx"
 API_CLIENT = ROOT / "planalign_studio" / "services" / "api.ts"
+COPY_HOOK = ROOT / "planalign_studio" / "hooks" / "useCopyToClipboard.ts"
 
 
 def test_population_control_defaults_to_all_eligible() -> None:
@@ -84,3 +85,15 @@ def test_each_trend_has_a_spreadsheet_ready_copy_action() -> None:
     assert "Total savings rate" in source
     assert "['Average'" in source
     assert "row.employeeRate + (row.matchRate ?? 0) + (row.coreRate ?? 0)" in source
+
+
+def test_copy_actions_fall_back_for_insecure_remote_pages() -> None:
+    component_source = COMPONENT.read_text(encoding="utf-8")
+    hook_source = COPY_HOOK.read_text(encoding="utf-8")
+
+    assert "window.isSecureContext" in hook_source
+    assert "navigator.clipboard?.writeText" in hook_source
+    assert "copyWithLegacyCommand(text)" in hook_source
+    assert "document.execCommand('copy')" in hook_source
+    assert "textarea.remove()" in hook_source
+    assert "Copy failed:" in component_source

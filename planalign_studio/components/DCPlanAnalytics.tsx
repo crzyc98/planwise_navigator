@@ -228,10 +228,12 @@ export default function DCPlanAnalytics() {
   const {
     copy: copyParticipationTrend,
     copied: participationTrendCopied,
+    error: participationTrendCopyError,
   } = useCopyToClipboard();
   const {
     copy: copySavingsTrend,
     copied: savingsTrendCopied,
+    error: savingsTrendCopyError,
   } = useCopyToClipboard();
 
   // Derived: years available for the year picker
@@ -883,7 +885,7 @@ export default function DCPlanAnalytics() {
                   onClick={handleCopyParticipationTrend}
                   disabled={!hasParticipationTrend}
                   className={`p-1.5 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${participationTrendCopied ? 'text-success-ink bg-success-surface' : 'text-ink-subtle hover:text-ink-muted hover:bg-surface-subtle'}`}
-                  title={participationTrendCopied ? 'Participation trend copied' : 'Copy participation trend'}
+                  title={participationTrendCopyError ?? (participationTrendCopied ? 'Participation trend copied' : 'Copy participation trend')}
                   aria-label={participationTrendCopied ? 'Participation trend copied' : 'Copy participation trend'}
                 >
                   {participationTrendCopied ? <Check size={16} /> : <Copy size={16} />}
@@ -893,6 +895,11 @@ export default function DCPlanAnalytics() {
                 Enrolled eligible employees divided by the selected eligible population each year.
                 Gaps indicate no eligible employees for that year.
               </p>
+              {participationTrendCopyError && (
+                <p className="text-xs text-danger-ink mb-3" role="alert">
+                  Copy failed: {participationTrendCopyError}
+                </p>
+              )}
               <div className="h-80">
                 {hasParticipationTrend ? (
                   <ResponsiveContainer width="100%" height="100%">
@@ -936,7 +943,7 @@ export default function DCPlanAnalytics() {
                   onClick={handleCopySavingsTrend}
                   disabled={!hasSavingsTrend}
                   className={`p-1.5 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${savingsTrendCopied ? 'text-success-ink bg-success-surface' : 'text-ink-subtle hover:text-ink-muted hover:bg-surface-subtle'}`}
-                  title={savingsTrendCopied ? 'Savings trend copied' : 'Copy savings trend'}
+                  title={savingsTrendCopyError ?? (savingsTrendCopied ? 'Savings trend copied' : 'Copy savings trend')}
                   aria-label={savingsTrendCopied ? 'Savings trend copied' : 'Copy savings trend'}
                 >
                   {savingsTrendCopied ? <Check size={16} /> : <Copy size={16} />}
@@ -946,6 +953,11 @@ export default function DCPlanAnalytics() {
                 Component contributions divided by prorated eligible compensation. Rates are
                 compensation-weighted and additive; gaps indicate no eligible compensation.
               </p>
+              {savingsTrendCopyError && (
+                <p className="text-xs text-danger-ink mb-3" role="alert">
+                  Copy failed: {savingsTrendCopyError}
+                </p>
+              )}
               <div className="h-80">
                 {hasSavingsTrend ? (
                   <ResponsiveContainer width="100%" height="100%">
