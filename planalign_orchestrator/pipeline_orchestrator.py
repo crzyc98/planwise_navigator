@@ -773,14 +773,20 @@ class PipelineOrchestrator:
         assignment = self.config.plan_design_assignment
         if not isinstance(assignment, PlanDesignAssignmentSettings):
             assignment = None
-        scope: dict[str, str | None] = {
-            "scenario_id": self.config.scenario_id or "default",
-            "plan_design_id": self.config.plan_design_id or "default",
-        }
+        scenario_id = self.config.scenario_id or "default"
         if assignment is not None:
-            scope["plan_design_id"] = None
-            scope["default_plan_design_id"] = assignment.default_plan_design_id
-        self.enrollment_projection.rebuild(year, **scope)
+            self.enrollment_projection.rebuild(
+                year,
+                scenario_id=scenario_id,
+                plan_design_id=None,
+                default_plan_design_id=assignment.default_plan_design_id,
+            )
+            return
+        self.enrollment_projection.rebuild(
+            year,
+            scenario_id=scenario_id,
+            plan_design_id=self.config.plan_design_id or "default",
+        )
 
     def _execute_event_generation_stage(
         self, stage: "StageDefinition", year: int

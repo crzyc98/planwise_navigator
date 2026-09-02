@@ -178,15 +178,11 @@ class PlanDesignParametersMap(RootModel[dict[str, PlanDesignParameters]]):
 
     @model_validator(mode="after")
     def validate_designs(self) -> "PlanDesignParametersMap":
-        for design_id, parameters in self.root.items():
+        for design_id in self.root:
             if not design_id or design_id != design_id.strip():
                 raise ValueError(
                     "plan design parameter ids must be nonblank and trimmed"
                 )
-            try:
-                parameters.match.validate_schedules()
-            except ValueError as exc:
-                raise ValueError(f"{design_id} {exc}") from exc
         return self
 
     def design_ids(self) -> list[str]:
