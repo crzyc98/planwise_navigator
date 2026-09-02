@@ -13,6 +13,7 @@
 {% set esc_hire_cutoff = var('deferral_escalation_hire_date_cutoff', none) %}
 {% set require_enrollment = var('deferral_escalation_require_enrollment', true) %}
 {% set first_delay_years = var('deferral_escalation_first_delay_years', 1) %}
+{% set plan_design_parameters_config = var('plan_design_parameters', none) %}
 
 /*
   Generate deferral rate escalation events for eligible employees
@@ -63,7 +64,18 @@ WHERE FALSE
 {% else %}
 
 -- Get current year active workforce with compensation
-WITH active_workforce AS (
+WITH parameter_rows AS (
+{% if plan_design_parameters_config %}
+    {{ get_plan_design_parameters(plan_design_parameters_config) }}
+{% else %}
+    SELECT
+        '{{ var('plan_design_id', 'default') }}'::VARCHAR AS plan_design_id,
+        {{ esc_rate }}::DECIMAL(10,6) AS deferral_escalation_increment,
+        {{ esc_cap }}::DECIMAL(10,6) AS deferral_escalation_cap
+{% endif %}
+),
+
+active_workforce AS (
     SELECT
         w.employee_id,
         w.employee_ssn,
@@ -73,8 +85,17 @@ WITH active_workforce AS (
         w.current_tenure,
         w.level_id,
         w.employment_status,
-        w.simulation_year
+        w.simulation_year,
+        assignment.plan_design_id,
+        parameters.deferral_escalation_increment,
+        parameters.deferral_escalation_cap
     FROM {{ ref('int_employee_compensation_by_year') }} w
+    INNER JOIN {{ ref('int_plan_design_assignment_accumulator') }} assignment
+        ON w.employee_id = assignment.employee_id
+       AND w.simulation_year = assignment.simulation_year
+       AND assignment.scenario_id = '{{ var('scenario_id', 'default') }}'
+    INNER JOIN parameter_rows parameters
+        ON assignment.plan_design_id = parameters.plan_design_id
     WHERE w.simulation_year = {{ simulation_year }}
         AND w.employment_status = 'active'
         AND w.employee_id IS NOT NULL
@@ -206,16 +227,19 @@ workforce_with_status AS (
 eligible_employees AS (
     SELECT
         w.*,
-        {{ esc_rate }} as escalation_rate,
-        {{ esc_cap }} as max_escalation_rate,
+        w.deferral_escalation_increment as escalation_rate,
+        w.deferral_escalation_cap as max_escalation_rate,
         0 as tenure_threshold,
         0 as age_threshold,
         1000 as max_escalations,
 
         -- Calculate new deferral rate (only if under cap)
         CASE
-            WHEN w.current_deferral_rate >= {{ esc_cap }} THEN w.current_deferral_rate
-            ELSE LEAST({{ esc_cap }}, w.current_deferral_rate + {{ esc_rate }})
+            WHEN w.current_deferral_rate >= w.deferral_escalation_cap THEN w.current_deferral_rate
+            ELSE LEAST(
+                w.deferral_escalation_cap,
+                w.current_deferral_rate + w.deferral_escalation_increment
+            )
         END as new_deferral_rate,
 
         -- Eligibility checks
@@ -225,7 +249,7 @@ eligible_employees AS (
         (w.total_previous_escalations < 1000) as under_escalation_limit_check,
         -- FIX: Ensure employees already at/above maximum are NOT enrolled in escalation
         -- This prevents the bug where census rates of 15% would be reduced to 6%
-        (w.current_deferral_rate > 0 AND w.current_deferral_rate < {{ esc_cap }}) as under_rate_cap_check,
+        (w.current_deferral_rate > 0 AND w.current_deferral_rate < w.deferral_escalation_cap) as under_rate_cap_check,
         -- Timing check: use calendar year (not days) so escalations happen on configured date each year
         (w.last_rate_change_date IS NULL OR EXTRACT('year' FROM w.last_rate_change_date) < {{ simulation_year }}) as timing_check,
         -- FEATURE: Configurable first escalation delay (default 1 year)

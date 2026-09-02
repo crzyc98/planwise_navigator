@@ -44,11 +44,9 @@
 
 {% set simulation_year = var('simulation_year') | int %}
 {% set start_year = var('start_year', 2025) | int %}
-{% set waiting_period_days = var('plan_eligibility_waiting_period_days', 0) | int %}
-{% set minimum_age = var('plan_eligibility_minimum_age', 21) | int %}
-
--- Census employees who became eligible this simulation year
-WITH census_eligible AS (
+-- One authoritative assignment-aware relation covers continuing employees and
+-- current-year hires with their design-specific waiting period.
+WITH eligible_this_year AS (
   SELECT
     employee_id,
     employee_ssn,
@@ -65,47 +63,6 @@ WITH census_eligible AS (
   WHERE simulation_year = {{ simulation_year }}
     AND is_plan_eligible = true
     AND eligibility_effective_date IS NOT NULL
-),
-
--- New hires from this simulation year who satisfy eligibility gates
-new_hire_eligible AS (
-  SELECT
-    h.employee_id,
-    h.employee_ssn,
-    h.simulation_year,
-    h.employee_age                                AS current_age,
-    CAST(h.employee_tenure AS INTEGER)            AS current_tenure,
-    h.level_id,
-    h.age_band,
-    h.tenure_band,
-    {{ waiting_period_days }}                     AS waiting_period_days,
-    {{ minimum_age }}                             AS minimum_age,
-    CASE
-      WHEN h.employee_age >= {{ minimum_age }}
-           AND (
-             {{ waiting_period_days }} = 0
-             OR DATE_DIFF('day', CAST(h.effective_date AS DATE), MAKE_DATE(h.simulation_year, 12, 31)) >= {{ waiting_period_days }}
-           )
-      THEN GREATEST(
-             CAST(h.effective_date AS DATE) + INTERVAL ({{ waiting_period_days }}) DAY,
-             MAKE_DATE(h.simulation_year - h.employee_age + {{ minimum_age }}, 1, 1)
-           )
-      ELSE NULL
-    END                                           AS eligibility_effective_date
-  FROM {{ ref('int_hiring_events') }} h
-  WHERE h.simulation_year = {{ simulation_year }}
-),
-
-new_hire_eligible_filtered AS (
-  SELECT *
-  FROM new_hire_eligible
-  WHERE eligibility_effective_date IS NOT NULL
-),
-
-eligible_this_year AS (
-  SELECT * FROM census_eligible
-  UNION ALL
-  SELECT * FROM new_hire_eligible_filtered
 ),
 
 {% if simulation_year != start_year %}

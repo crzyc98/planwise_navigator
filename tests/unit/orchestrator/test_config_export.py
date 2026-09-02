@@ -9,6 +9,7 @@ import pytest
 
 from planalign_orchestrator.config import (
     PlanDesignAssignmentSettings,
+    PlanDesignParametersMap,
     load_simulation_config,
     to_dbt_vars,
 )
@@ -96,6 +97,42 @@ class TestExportSimulationVars:
                     "plan_design_id": "new_design",
                 }
             ],
+        }
+
+    def test_plan_design_parameters_export_only_when_configured(self):
+        cfg = _make_config(plan_design_id="baseline")
+        assert "plan_design_parameters" not in to_dbt_vars(cfg)
+
+        cfg.plan_design_parameters = PlanDesignParametersMap.model_validate(
+            {
+                "baseline": {
+                    "match": {
+                        "cap_percent": 0.04,
+                        "tiers": [
+                            {
+                                "employee_min": 0.0,
+                                "employee_max": 0.06,
+                                "match_rate": 0.5,
+                            }
+                        ],
+                    },
+                    "employer_core": {"contribution_rate": 0.02},
+                    "auto_enrollment": {
+                        "default_deferral_rate": 0.06,
+                        "window_days": 45,
+                        "scope": "all_eligible_employees",
+                    },
+                    "deferral_escalation": {"increment": 0.01, "cap": 0.10},
+                    "eligibility": {"waiting_period_days": 0},
+                }
+            }
+        )
+        exported = to_dbt_vars(cfg)["plan_design_parameters"]
+        assert list(exported) == ["baseline"]
+        assert exported["baseline"]["match"]["tiers"][0] == {
+            "employee_min": 0.0,
+            "employee_max": 0.06,
+            "match_rate": 0.5,
         }
 
     def test_simulation_bounds(self):

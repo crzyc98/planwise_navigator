@@ -34,7 +34,7 @@ from .performance import (
     E068CThreadingSettings,
 )
 from .ensemble import EnsembleSettings
-from .plan_design import PlanDesignAssignmentSettings
+from .plan_design import PlanDesignAssignmentSettings, PlanDesignParametersMap
 
 
 def _core_integration_config(core: Any, dc_plan: Any) -> Optional[Dict[str, Any]]:
@@ -63,6 +63,7 @@ class SimulationConfig(BaseModel):
     scenario_id: Optional[str] = None
     plan_design_id: Optional[str] = None
     plan_design_assignment: Optional[PlanDesignAssignmentSettings] = None
+    plan_design_parameters: Optional[PlanDesignParametersMap] = None
 
     simulation: SimulationSettings
     compensation: CompensationSettings
@@ -129,6 +130,42 @@ class SimulationConfig(BaseModel):
         if self.plan_design_assignment is not None:
             return self.plan_design_assignment.design_set()
         return [self.plan_design_id or "default"]
+
+    def validated_plan_design_parameters(self) -> PlanDesignParametersMap:
+        """Return parameters after enforcing exact assignment-design coverage."""
+        if self.plan_design_parameters is None:
+            raise ValueError("plan_design_parameters is not configured")
+        parameters = PlanDesignParametersMap.model_validate(self.plan_design_parameters)
+        expected = set(self.get_plan_design_set())
+        actual = set(parameters.design_ids())
+        missing = sorted(expected - actual)
+        extra = sorted(actual - expected)
+        if missing or extra:
+            raise ValueError(
+                "plan_design_parameters design set mismatch: "
+                f"missing={missing}, extra={extra}"
+            )
+        match_family = (
+            self.employer_match.employer_match_status
+            if self.employer_match is not None
+            else "deferral_based"
+        )
+        if match_family == "tenure_based":
+            match_family = "tenure_graded"
+        schedule_field = {
+            "deferral_based": "tiers",
+            "graded_by_service": "graded_schedule",
+            "tenure_graded": "tenure_graded_bands",
+            "points_based": "points_tiers",
+        }.get(match_family)
+        if schedule_field is not None:
+            for design_id, design_parameters in parameters.root.items():
+                if not getattr(design_parameters.match, schedule_field):
+                    raise ValueError(
+                        f"plan design '{design_id}' match.{schedule_field} must "
+                        f"be configured for global family '{match_family}'"
+                    )
+        return parameters
 
     def get_thread_count(self) -> int:
         """Get configured thread count with fallback to single-threaded execution."""

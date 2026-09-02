@@ -109,7 +109,16 @@ def test_start_year_is_left_split():
     # The baseline build moved nowhere — FOUNDATION still owns it, exactly once.
     assert foundation.models.count(MODEL_INT_BASELINE_WORKFORCE) == 1
     # The year-1 eligibility chain is still present.
-    assert "int_plan_eligibility_determination" in foundation.models
+    assert "int_plan_eligibility_determination" not in foundation.models
+    event_generation = next(
+        stage for stage in workflow if stage.name == WorkflowStage.EVENT_GENERATION
+    )
+    assignment_index = event_generation.models.index(
+        "int_plan_design_assignment_accumulator"
+    )
+    assert event_generation.models[assignment_index + 1] == (
+        "int_plan_eligibility_determination"
+    )
 
 
 def test_calibration_workflow_untouched_by_tier_b():

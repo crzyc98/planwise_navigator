@@ -52,8 +52,13 @@
 {% set employer_core_integration_level_mode = var('employer_core_integration_level_mode', 'ss_wage_base') %}
 {% set employer_core_integration_level_value = var('employer_core_integration_level_value', none) %}
 {% set employer_core_integration_disparity_rate = var('employer_core_integration_disparity_rate', 0.0) %}
+{% set plan_design_parameters_config = var('plan_design_parameters', none) %}
 {% set core_rate_expr %}
-    {% if employer_core_status == 'age_banded' and employer_core_age_schedule | length > 0 %}
+    {% if plan_design_parameters_config and employer_core_status == 'graded_by_service' %}
+    COALESCE(core_schedule.rate, pdp.employer_core_contribution_rate)
+    {% elif plan_design_parameters_config and employer_core_status == 'flat' %}
+    pdp.employer_core_contribution_rate
+    {% elif employer_core_status == 'age_banded' and employer_core_age_schedule | length > 0 %}
     {{ get_age_banded_core_rate('COALESCE(snap.current_age, 0)', employer_core_age_schedule, employer_core_contribution_rate) }}
     {% elif employer_core_status == 'points_based' and employer_core_points_schedule | length > 0 %}
     {{ get_points_based_match_rate('(FLOOR(COALESCE(snap.current_age, 0))::INT + FLOOR(COALESCE(snap.years_of_service, FLOOR(COALESCE(pop.current_tenure, 0))::INT))::INT)', employer_core_points_schedule, employer_core_contribution_rate) }}
@@ -81,9 +86,21 @@ WITH irs_compensation_limits AS (
     WHERE limit_year = {{ simulation_year }}
 ),
 
+{% if plan_design_parameters_config %}
+plan_design_parameters AS (
+    {{ get_plan_design_parameters(plan_design_parameters_config) }}
+),
+{% if employer_core_status == 'graded_by_service' %}
+plan_design_core_schedule AS (
+    {{ get_plan_design_core_graded_schedule(plan_design_parameters_config) }}
+),
+{% endif %}
+{% endif %}
+
 starting_compensation AS (
     SELECT
         employee_id,
+        plan_design_id,
         ARG_MIN(
             CASE
                 WHEN event_type = 'hire' THEN compensation_amount
@@ -95,7 +112,7 @@ starting_compensation AS (
     FROM {{ ref('fct_yearly_events') }}
     WHERE scenario_id = '{{ scenario_id }}'
       AND simulation_year = {{ simulation_year }}
-    GROUP BY employee_id
+    GROUP BY employee_id, plan_design_id
 ),
 
 population AS (
@@ -141,6 +158,7 @@ population AS (
     FROM {{ ref('int_workforce_state_accumulator') }} workforce
     LEFT JOIN starting_compensation starting
       ON workforce.employee_id = starting.employee_id
+     AND workforce.plan_design_id = starting.plan_design_id
     WHERE workforce.scenario_id = '{{ scenario_id }}'
       AND workforce.simulation_year = {{ simulation_year }}
       AND workforce.employee_id IS NOT NULL
@@ -162,6 +180,7 @@ eligibility_check AS (
     -- Get eligibility status for all employees
     SELECT
         employee_id,
+        plan_design_id,
         simulation_year,
         eligible_for_core,
         eligible_for_contributions,
@@ -175,6 +194,7 @@ eligibility_check AS (
 termination_flags AS (
     SELECT
         employee_id,
+        plan_design_id,
         detailed_status_code = 'new_hire_termination'
             AS has_new_hire_termination,
         detailed_status_code = 'experienced_termination'
@@ -187,6 +207,7 @@ termination_flags AS (
 snapshot_flags AS (
     SELECT
         employee_id,
+        plan_design_id,
         detailed_status_code,
         FLOOR(COALESCE(current_tenure, 0))::INT AS years_of_service,
         current_age
@@ -295,7 +316,11 @@ SELECT
         WHEN {{ employer_core_enabled }} THEN 'configurable_rate'
         ELSE 'disabled'
     END AS contribution_method,
+    {% if plan_design_parameters_config and employer_core_status in ('flat', 'graded_by_service') %}
+    pdp.employer_core_contribution_rate AS standard_core_rate,
+    {% else %}
     {{ employer_core_contribution_rate }} AS standard_core_rate,
+    {% endif %}
     -- Audit trail: years of service used for tier lookup
     COALESCE(snap.years_of_service, FLOOR(COALESCE(pop.current_tenure, 0))::INT) AS applied_years_of_service,
     CURRENT_TIMESTAMP AS created_at,
@@ -311,14 +336,34 @@ FROM population pop
 -- simulation_year, guaranteeing exactly one row. This provides the 401(a)(17) limit constant.
 CROSS JOIN irs_compensation_limits lim
 LEFT JOIN workforce_proration wf
-    ON pop.employee_id = wf.employee_id AND pop.simulation_year = wf.simulation_year
+    ON pop.employee_id = wf.employee_id
+    AND pop.plan_design_id = wf.plan_design_id
+    AND pop.simulation_year = wf.simulation_year
 LEFT JOIN eligibility_check elig
     ON pop.employee_id = elig.employee_id
+    AND pop.plan_design_id = elig.plan_design_id
     AND pop.simulation_year = elig.simulation_year
 LEFT JOIN termination_flags term
     ON pop.employee_id = term.employee_id
+    AND pop.plan_design_id = term.plan_design_id
 LEFT JOIN snapshot_flags snap
     ON pop.employee_id = snap.employee_id
+    AND pop.plan_design_id = snap.plan_design_id
+{% if plan_design_parameters_config %}
+INNER JOIN plan_design_parameters pdp
+    ON pop.plan_design_id = pdp.plan_design_id
+{% if employer_core_status == 'graded_by_service' %}
+LEFT JOIN plan_design_core_schedule core_schedule
+    ON pop.plan_design_id = core_schedule.plan_design_id
+    AND COALESCE(snap.years_of_service, FLOOR(COALESCE(pop.current_tenure, 0))::INT)
+        >= core_schedule.min_years
+    AND (
+        core_schedule.max_years IS NULL
+        OR COALESCE(snap.years_of_service, FLOOR(COALESCE(pop.current_tenure, 0))::INT)
+            < core_schedule.max_years
+    )
+{% endif %}
+{% endif %}
 )
 
 {% if employer_core_integration_enabled %}

@@ -97,7 +97,6 @@ def test_full_refresh_set_unchanged() -> None:
         "int_workforce_needs_by_level",
         "int_workforce_active_for_events",
         "int_workforce_pre_enrollment",
-        "int_plan_eligibility_determination",
     }
 
 

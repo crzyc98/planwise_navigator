@@ -115,6 +115,33 @@ class TestConfigFingerprint:
         )
         assert compute_config_fingerprint(changed) != baseline
 
+    def test_plan_design_parameters_change_fingerprint(self, minimal_config):
+        baseline = compute_config_fingerprint(minimal_config)
+        changed = minimal_config.model_copy(deep=True)
+        changed.plan_design_parameters = {
+            "test_plan": {
+                "match": {
+                    "cap_percent": 0.04,
+                    "tiers": [
+                        {
+                            "employee_min": 0.0,
+                            "employee_max": 0.06,
+                            "match_rate": 0.5,
+                        }
+                    ],
+                },
+                "employer_core": {"contribution_rate": 0.02},
+                "auto_enrollment": {
+                    "default_deferral_rate": 0.06,
+                    "window_days": 45,
+                    "scope": "all_eligible_employees",
+                },
+                "deferral_escalation": {"increment": 0.01, "cap": 0.10},
+                "eligibility": {"waiting_period_days": 0},
+            }
+        }
+        assert compute_config_fingerprint(changed) != baseline
+
     def test_non_result_affecting_setup_change_does_not_change_hash(
         self, minimal_config
     ):

@@ -78,8 +78,6 @@ new_hires_current_year AS (
   -- Feature 096: Include current-year new hires so they can voluntarily enroll in their HIRE year.
   -- Sourced from int_hiring_events (the canonical current-year new-hire source for ALL years,
   -- unlike int_new_hire_compensation_staging which only emits rows in the start year).
-  -- Eligibility gate: only include new hires whose eligibility date falls within the current year
-  -- (FR-006/FR-007); not-yet-eligible hires are first evaluated the year they become eligible.
   SELECT DISTINCT
     he.employee_id,
     he.employee_ssn,
@@ -93,8 +91,6 @@ new_hires_current_year AS (
   FROM {{ ref('int_hiring_events') }} he
   WHERE he.simulation_year = {{ var('simulation_year') }}
     AND he.employee_id IS NOT NULL
-    AND EXTRACT(YEAR FROM (he.effective_date::DATE
-        + INTERVAL '{{ var("eligibility_waiting_days", 0) }}' DAY)) <= {{ var('simulation_year') }}
 ),
 
 active_workforce AS (
@@ -119,10 +115,21 @@ eligible_employees AS (
   -- CRITICAL: Exclude employees who have ever opted out - they made an explicit decision to not participate
   SELECT
     aw.*,
+    assignment.plan_design_id,
+    eligibility.plan_eligibility_date,
     COALESCE(ces.is_currently_enrolled, false) as is_currently_enrolled,
     COALESCE(ces.ever_opted_out, false) as ever_opted_out
   FROM active_workforce aw
   LEFT JOIN current_enrollment_status ces ON aw.employee_id = ces.employee_id
+  INNER JOIN {{ ref('int_plan_design_assignment_accumulator') }} assignment
+    ON aw.employee_id = assignment.employee_id
+   AND aw.simulation_year = assignment.simulation_year
+   AND assignment.scenario_id = '{{ var('scenario_id', 'default') }}'
+  INNER JOIN {{ ref('int_plan_eligibility_determination') }} eligibility
+    ON aw.employee_id = eligibility.employee_id
+   AND aw.simulation_year = eligibility.simulation_year
+   AND assignment.plan_design_id = eligibility.plan_design_id
+   AND eligibility.scenario_id = '{{ var('scenario_id', 'default') }}'
   -- Feature 103: resolved plan-eligibility override gates voluntary enrollment too
   LEFT JOIN {{ ref('int_plan_eligibility_override') }} ov
     ON aw.employee_id = ov.employee_id
@@ -130,6 +137,7 @@ eligible_employees AS (
   WHERE COALESCE(ces.is_currently_enrolled, false) = false  -- Not currently enrolled
     AND COALESCE(ces.ever_opted_out, false) = false  -- Never opted out
     AND COALESCE(ov.is_plan_ineligible_override, false) = false  -- Feature 103 gate
+    AND eligibility.is_plan_eligible
 ),
 
 demographic_segmentation AS (
@@ -248,7 +256,8 @@ match_optimization AS (
         employer_match_status,
         'FLOOR(current_tenure)',
         '(FLOOR(current_age) + FLOOR(current_tenure))',
-        deferral_scalar
+        deferral_scalar,
+        'plan_design_id'
     ) }} AS match_magnet_ceiling
   FROM deferral_rate_selection
 ),
@@ -271,6 +280,7 @@ enrollment_decisions AS (
   -- Final enrollment decisions
   SELECT
     employee_id,
+    plan_design_id,
     employee_ssn,
     employee_hire_date,
     simulation_year,
@@ -298,7 +308,7 @@ enrollment_decisions AS (
       WHEN EXTRACT(YEAR FROM employee_hire_date) = simulation_year
         -- Feature 096: hire-year new hires enroll effective their eligibility date
         -- (hire date + waiting period), which drives correct hire-year proration.
-        THEN CAST(employee_hire_date + INTERVAL '{{ var("eligibility_waiting_days", 0) }}' DAY AS TIMESTAMP)
+        THEN CAST(plan_eligibility_date AS TIMESTAMP)
       ELSE CAST((simulation_year || '-01-15 10:00:00') AS TIMESTAMP)
     END as proposed_effective_date,
 
@@ -330,6 +340,7 @@ summary_metrics AS (
 -- Return enrollment decisions for integration with enrollment events
 SELECT
   employee_id,
+  plan_design_id,
   employee_ssn,
   employee_hire_date,
   simulation_year,

@@ -6,7 +6,7 @@
     pre_hook=[
       "{% if is_incremental() %}DELETE FROM {{ this }} WHERE scenario_id = '{{ var('scenario_id', 'default') }}' AND simulation_year = {{ var('simulation_year') }}{% endif %}"
     ],
-    tags=['EVENT_GENERATION', 'DOMAIN_STATE']
+    tags=['EVENT_GENERATION']
 ) }}
 
 {% set simulation_year = var('simulation_year', 2025) | int %}

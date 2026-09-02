@@ -167,6 +167,7 @@ data_tests:
 
 # Variables
 vars:
+  plan_design_parameters: {}
   # File paths
   # Use an env-driven, repo-relative default so this works across machines
   # When running dbt from the /dbt directory, ../data points to the repo's data folder

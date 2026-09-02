@@ -3,11 +3,129 @@ from pathlib import Path
 import pytest
 
 from planalign_orchestrator.config import (
+    PlanDesignAssignmentSettings,
+    PlanDesignParametersMap,
     SimulationConfig,
     load_simulation_config,
     to_dbt_vars,
 )
 from tests.fixtures.config import GOLDEN_DBT_VARS_KEYS
+
+
+def _two_design_parameters() -> dict[str, object]:
+    return {
+        "legacy": {
+            "match": {
+                "cap_percent": 0.03,
+                "tiers": [
+                    {
+                        "employee_min": 0.0,
+                        "employee_max": 0.03,
+                        "match_rate": 1.0,
+                    }
+                ],
+            },
+            "employer_core": {"contribution_rate": 0.02},
+            "auto_enrollment": {
+                "default_deferral_rate": 0.03,
+                "window_days": 45,
+                "scope": "all_eligible_employees",
+            },
+            "deferral_escalation": {"increment": 0.01, "cap": 0.10},
+            "eligibility": {"waiting_period_days": 0},
+        },
+        "current": {
+            "match": {
+                "cap_percent": 0.03,
+                "tiers": [
+                    {
+                        "employee_min": 0.0,
+                        "employee_max": 0.06,
+                        "match_rate": 0.5,
+                    }
+                ],
+            },
+            "employer_core": {"contribution_rate": 0.03},
+            "auto_enrollment": {
+                "default_deferral_rate": 0.06,
+                "window_days": 30,
+                "scope": "new_hires_only",
+            },
+            "deferral_escalation": {"increment": 0.02, "cap": 0.08},
+            "eligibility": {"waiting_period_days": 90},
+        },
+    }
+
+
+def test_plan_design_parameters_require_exact_assignment_design_set(minimal_config):
+    config = minimal_config.model_copy(deep=True)
+    config.plan_design_id = None
+    config.plan_design_assignment = PlanDesignAssignmentSettings.model_validate(
+        {
+            "default_plan_design_id": "legacy",
+            "rules": [
+                {
+                    "type": "hire_date_cutoff",
+                    "cutoff": "2025-01-01",
+                    "plan_design_id": "current",
+                }
+            ],
+        }
+    )
+    config.plan_design_parameters = PlanDesignParametersMap.model_validate(
+        _two_design_parameters()
+    )
+    assert config.validated_plan_design_parameters().design_ids() == [
+        "current",
+        "legacy",
+    ]
+
+    config.plan_design_parameters = PlanDesignParametersMap.model_validate(
+        {"legacy": _two_design_parameters()["legacy"]}
+    )
+    with pytest.raises(ValueError, match="missing.*current"):
+        config.validated_plan_design_parameters()
+
+
+@pytest.mark.parametrize(
+    ("path", "value", "message"),
+    [
+        (("legacy", "match", "cap_percent"), 1.01, "less than or equal"),
+        (("legacy", "deferral_escalation", "increment"), -0.01, "greater than"),
+        (("legacy", "eligibility", "waiting_period_days"), -1, "greater than"),
+    ],
+)
+def test_plan_design_parameter_bounds(path, value, message):
+    raw = _two_design_parameters()
+    target = raw[path[0]]
+    for key in path[1:-1]:
+        target = target[key]
+    target[path[-1]] = value
+    with pytest.raises(ValueError, match=message):
+        PlanDesignParametersMap.model_validate(raw)
+
+
+def test_plan_design_parameters_require_active_family_schedule(minimal_config):
+    config = minimal_config.model_copy(deep=True)
+    config.plan_design_id = "legacy"
+    raw = _two_design_parameters()["legacy"]
+    raw["match"]["tiers"] = []
+    config.plan_design_parameters = PlanDesignParametersMap.model_validate(
+        {"legacy": raw}
+    )
+
+    with pytest.raises(ValueError, match="legacy.*match.tiers.*deferral_based"):
+        config.validated_plan_design_parameters()
+
+
+def test_match_tiers_must_be_ordered_and_non_overlapping():
+    raw = _two_design_parameters()
+    raw["legacy"]["match"]["tiers"] = [
+        {"employee_min": 0.0, "employee_max": 0.04, "match_rate": 1.0},
+        {"employee_min": 0.03, "employee_max": 0.06, "match_rate": 0.5},
+    ]
+    with pytest.raises(ValueError, match="match tiers overlap"):
+        PlanDesignParametersMap.model_validate(raw)
 
 
 def test_load_simulation_config_valid_yaml(tmp_path: Path):

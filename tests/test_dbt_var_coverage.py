@@ -25,7 +25,12 @@ import pytest
 import yaml
 
 from planalign_orchestrator.config import load_simulation_config
-from planalign_orchestrator.config.export import to_dbt_vars
+from planalign_orchestrator.config.export import (
+    DBT_VAR_DEFERRED,
+    DBT_VAR_PER_DESIGN,
+    dbt_var_disposition,
+    to_dbt_vars,
+)
 
 pytestmark = [pytest.mark.fast, pytest.mark.config]
 
@@ -186,6 +191,12 @@ def _all_exported_vars() -> set[str]:
 
 
 class TestDbtVarCoverage:
+    def test_every_exported_var_has_a_plan_design_disposition(self):
+        dispositions = {dbt_var_disposition(name) for name in _all_exported_vars()}
+        assert dispositions <= {"per_design", "global", "deferred"}
+        assert DBT_VAR_PER_DESIGN <= _all_exported_vars()
+        assert DBT_VAR_DEFERRED <= _all_exported_vars()
+
     def test_every_referenced_var_has_a_source(self):
         referenced = _referenced_vars()
         supplied = (

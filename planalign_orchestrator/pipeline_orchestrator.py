@@ -22,7 +22,7 @@ import time
 if TYPE_CHECKING:
     from .construction.signature import ConstructionSignature, WorkSchedule
 
-from .config import SimulationConfig, to_dbt_vars
+from .config import PlanDesignAssignmentSettings, SimulationConfig, to_dbt_vars
 from .orchestrator_setup import (
     setup_memory_manager,
     setup_parallelization,
@@ -770,19 +770,22 @@ class PipelineOrchestrator:
     def _prepare_enrollment_decision_state(self, year: int) -> None:
         """Validate prior state and rebuild the dbt enrollment input for this year."""
         self.year_executor.validate_year_dependencies(year)
+        assignment = self.config.plan_design_assignment
+        if not isinstance(assignment, PlanDesignAssignmentSettings):
+            assignment = None
+        scenario_id = self.config.scenario_id or "default"
+        if assignment is not None:
+            self.enrollment_projection.rebuild(
+                year,
+                scenario_id=scenario_id,
+                plan_design_id=None,
+                default_plan_design_id=assignment.default_plan_design_id,
+            )
+            return
         self.enrollment_projection.rebuild(
             year,
-            scenario_id=self.config.scenario_id or "default",
-            plan_design_id=(
-                None
-                if self.config.plan_design_assignment is not None
-                else self.config.plan_design_id or "default"
-            ),
-            default_plan_design_id=(
-                self.config.plan_design_assignment.default_plan_design_id
-                if self.config.plan_design_assignment is not None
-                else None
-            ),
+            scenario_id=scenario_id,
+            plan_design_id=self.config.plan_design_id or "default",
         )
 
     def _execute_event_generation_stage(

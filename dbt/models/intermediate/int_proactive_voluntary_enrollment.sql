@@ -57,7 +57,7 @@
 */
 
 -- Epic E078: Mode-aware query - uses fct_yearly_events in Polars mode, int_hiring_events in SQL mode
-WITH new_hire_population AS (
+WITH new_hire_source AS (
   -- Get current-year new hires eligible for auto-enrollment
   -- IMPORTANT: Use event data for year N new hires since compensation_by_year
   -- is built before hiring in this pipeline phase and will not include them yet.
@@ -77,17 +77,6 @@ WITH new_hire_population AS (
   WHERE he.simulation_year = {{ var('simulation_year') }}
     AND he.event_type = 'hire'
     AND he.employee_id IS NOT NULL
-    -- Only include employees eligible for auto-enrollment
-    AND {{ is_eligible_for_auto_enrollment('he.effective_date::DATE', 'he.simulation_year') }}
-    -- Gate on auto_enrollment_enabled (Issue #246: flag was previously ignored)
-    AND {{ var('auto_enrollment_enabled', true) }}
-    -- Feature 103: exclude plan-ineligible new hires
-    AND NOT EXISTS (
-      SELECT 1 FROM {{ ref('int_plan_eligibility_override') }} ov
-      WHERE ov.employee_id = he.employee_id
-        AND ov.simulation_year = {{ var('simulation_year') }}
-        AND ov.is_plan_ineligible_override
-    )
   {% else %}
   -- SQL mode: Use intermediate event model
   SELECT DISTINCT
@@ -103,23 +92,54 @@ WITH new_hire_population AS (
   FROM {{ ref('int_hiring_events') }} he
   WHERE he.simulation_year = {{ var('simulation_year') }}
     AND he.employee_id IS NOT NULL
-    -- Only include employees eligible for auto-enrollment
-    AND {{ is_eligible_for_auto_enrollment('he.effective_date::DATE', 'he.simulation_year') }}
-    -- Gate on auto_enrollment_enabled (Issue #246: flag was previously ignored)
-    AND {{ var('auto_enrollment_enabled', true) }}
-    -- Feature 103: exclude plan-ineligible new hires
-    AND NOT EXISTS (
-      SELECT 1 FROM {{ ref('int_plan_eligibility_override') }} ov
-      WHERE ov.employee_id = he.employee_id
-        AND ov.simulation_year = {{ var('simulation_year') }}
-        AND ov.is_plan_ineligible_override
-    )
   {% endif %}
+),
+
+parameter_rows AS (
+{% if var('plan_design_parameters', none) %}
+  {{ get_plan_design_parameters(var('plan_design_parameters')) }}
+{% else %}
+  SELECT
+    '{{ var('plan_design_id', 'default') }}'::VARCHAR AS plan_design_id,
+    {{ var('auto_enrollment_window_days', 45) }}::INTEGER AS auto_enrollment_window_days,
+    '{{ var('auto_enrollment_scope', 'all_eligible_employees') }}'::VARCHAR AS auto_enrollment_scope
+{% endif %}
+),
+
+new_hire_population AS (
+  SELECT
+    source.*,
+    assignment.plan_design_id,
+    eligibility.plan_eligibility_date,
+    parameters.auto_enrollment_window_days,
+    parameters.auto_enrollment_scope
+  FROM new_hire_source source
+  INNER JOIN {{ ref('int_plan_design_assignment_accumulator') }} assignment
+    ON source.employee_id = assignment.employee_id
+   AND source.simulation_year = assignment.simulation_year
+   AND assignment.scenario_id = '{{ var('scenario_id', 'default') }}'
+  INNER JOIN parameter_rows parameters
+    ON assignment.plan_design_id = parameters.plan_design_id
+  INNER JOIN {{ ref('int_plan_eligibility_determination') }} eligibility
+    ON source.employee_id = eligibility.employee_id
+   AND source.simulation_year = eligibility.simulation_year
+   AND assignment.plan_design_id = eligibility.plan_design_id
+   AND eligibility.scenario_id = '{{ var('scenario_id', 'default') }}'
+  LEFT JOIN {{ ref('int_plan_eligibility_override') }} ov
+    ON source.employee_id = ov.employee_id
+   AND source.simulation_year = ov.simulation_year
+  WHERE {{ var('auto_enrollment_enabled', true) }}
+    AND eligibility.is_plan_eligible
+    AND COALESCE(ov.is_plan_ineligible_override, false) = false
+    AND {{ is_eligible_for_auto_enrollment_scope(
+      'source.employee_hire_date', 'source.simulation_year', 'parameters.auto_enrollment_scope'
+    ) }}
 ),
 
 enrollment_status_check AS (
   SELECT
     nh.employee_id,
+    nh.plan_design_id,
     nh.employee_ssn,
     nh.employee_hire_date,
     nh.simulation_year,
@@ -128,6 +148,8 @@ enrollment_status_check AS (
     nh.level_id,
     nh.employee_compensation,
     nh.employment_status,
+    nh.plan_eligibility_date,
+    nh.auto_enrollment_window_days,
     COALESCE(state.is_enrolled, false) AS is_already_enrolled,
     COALESCE(state.ever_opted_out, false) AS ever_opted_out
   FROM new_hire_population nh
@@ -142,22 +164,20 @@ auto_enrollment_window_calculation AS (
   SELECT
     *,
     -- Calculate eligibility date (hire date + waiting period)
-    employee_hire_date + INTERVAL '{{ var("eligibility_waiting_days", 0) }}' DAY as eligibility_date,
+    plan_eligibility_date as eligibility_date,
 
     -- Calculate auto-enrollment window boundaries
-    (employee_hire_date + INTERVAL '{{ var("eligibility_waiting_days", 0) }}' DAY) as auto_enrollment_window_start,
-    (employee_hire_date + INTERVAL '{{ var("eligibility_waiting_days", 0) }}' DAY +
-     INTERVAL '{{ var("auto_enrollment_window_days", 45) }}' DAY) as auto_enrollment_window_end,
+    plan_eligibility_date as auto_enrollment_window_start,
+    (plan_eligibility_date + auto_enrollment_window_days * INTERVAL '1 day') as auto_enrollment_window_end,
 
     -- Calculate proactive voluntary enrollment window (days 7-35 of auto-enrollment window)
-    (employee_hire_date + INTERVAL '{{ var("eligibility_waiting_days", 0) }}' DAY +
+    (plan_eligibility_date +
      INTERVAL '{{ var("proactive_enrollment_min_days", 7) }}' DAY) as proactive_window_start,
-    (employee_hire_date + INTERVAL '{{ var("eligibility_waiting_days", 0) }}' DAY +
+    (plan_eligibility_date +
      INTERVAL '{{ var("proactive_enrollment_max_days", 35) }}' DAY) as proactive_window_end,
 
     -- Auto-enrollment execution date (if no voluntary enrollment)
-    (employee_hire_date + INTERVAL '{{ var("eligibility_waiting_days", 0) }}' DAY +
-     INTERVAL '{{ var("auto_enrollment_window_days", 45) }}' DAY) as auto_enrollment_deadline
+    (plan_eligibility_date + auto_enrollment_window_days * INTERVAL '1 day') as auto_enrollment_deadline
   FROM enrollment_status_check
 ),
 
@@ -275,7 +295,8 @@ match_optimization AS (
         employer_match_status,
         'FLOOR(current_tenure)',
         '(FLOOR(current_age) + FLOOR(current_tenure))',
-        deferral_scalar
+        deferral_scalar,
+        'plan_design_id'
     ) }} AS match_magnet_ceiling,
     (ABS(HASH(employee_id || '-match-magnet-' || CAST(simulation_year AS VARCHAR))) % 1000) / 1000.0 AS magnet_random
   FROM deferral_rate_selection
@@ -299,6 +320,7 @@ proactive_enrollment_decisions AS (
   -- Final enrollment decisions for proactive voluntary enrollment
   SELECT
     employee_id,
+    plan_design_id,
     employee_ssn,
     employee_hire_date,
     simulation_year,
@@ -351,6 +373,7 @@ proactive_enrollment_decisions AS (
 -- Return proactive voluntary enrollment decisions
 SELECT
   employee_id,
+  plan_design_id,
   employee_ssn,
   employee_hire_date,
   simulation_year,

@@ -144,6 +144,8 @@ When adding or changing dbt models: add/adjust `schema.yml` tests, keep types an
 - Existing scenario result `simulation.duckdb`, `current_result.json`, archived `run_metadata.json`/`provenance.json`, and append-only in-database `run_metadata`; all access is read-only and no new table or file is persisted in a run archive (138-evidence-pack)
 - TypeScript 5.8; CSS/Tailwind CSS 4.2; HTML; Python 3.11 for dependency-free contract/palette tests + Existing React 19.2, React Router 7.9, Recharts 3.5, Tailwind CSS 4.2 through `@tailwindcss/vite`, Lucide React, Vite 6, pytest 7.4; no new runtime or test dependency (139-dark-mode-tokens)
 - Browser `localStorage` for one non-sensitive explicit theme value (`light` or `dark`); missing/invalid means `system`; no DuckDB, workspace, API, or server persistence change (139-dark-mode-tokens)
+- Python 3.11; SQL/Jinja compatible with dbt Core 1.8.8 and dbt DuckDB 1.8.1 + Existing Pydantic v2 configuration, PlanAlign orchestrator, dbt Core, DuckDB 1.0.0, pytest 7.4; no new dependency (632-per-design-plan-parameters)
+- Existing scenario-isolated DuckDB outputs; invocation-scoped inline parameter relations only, with no new persisted table or public mart schema (632-per-design-plan-parameters)
 
 ## Recent Changes
 - 106-fail-dbt-stage: Added Python >=3.11 + dbt Core/dbt DuckDB execution via the existing orchestrator, Pydantic configuration models, DuckDB-backed simulation state, pytest for tests
