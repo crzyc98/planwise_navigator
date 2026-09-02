@@ -14,18 +14,32 @@
 
 {% set simulation_year = var('simulation_year', 2025) %}
 {% set esc_cap = var('deferral_escalation_cap', 0.10) %}
+{% set plan_design_parameters_config = var('plan_design_parameters', none) %}
 
-WITH escalation_events AS (
+WITH parameter_rows AS (
+{% if plan_design_parameters_config %}
+  {{ get_plan_design_parameters(plan_design_parameters_config) }}
+{% else %}
   SELECT
-    employee_id,
-    simulation_year,
-    effective_date,
-    employee_deferral_rate,
-    prev_employee_deferral_rate,
-    event_details
-  FROM {{ ref('fct_yearly_events') }}
-  WHERE event_type = 'deferral_escalation'
-    AND simulation_year = {{ simulation_year }}
+    '{{ var('plan_design_id', 'default') }}'::VARCHAR AS plan_design_id,
+    {{ esc_cap }}::DECIMAL(10,6) AS deferral_escalation_cap
+{% endif %}
+),
+
+escalation_events AS (
+  SELECT
+    event.employee_id,
+    event.simulation_year,
+    event.effective_date,
+    event.employee_deferral_rate,
+    event.prev_employee_deferral_rate,
+    event.event_details,
+    parameters.deferral_escalation_cap
+  FROM {{ ref('fct_yearly_events') }} event
+  INNER JOIN parameter_rows parameters
+    ON event.plan_design_id = parameters.plan_design_id
+  WHERE event.event_type = 'deferral_escalation'
+    AND event.simulation_year = {{ simulation_year }}
 ),
 
 -- Failure: rate exceeds cap
@@ -36,7 +50,7 @@ rate_violations AS (
     'rate_exceeds_cap' AS violation_type,
     employee_deferral_rate AS violation_value
   FROM escalation_events
-  WHERE employee_deferral_rate > {{ esc_cap }} + 0.0001
+  WHERE employee_deferral_rate > deferral_escalation_cap + 0.0001
 ),
 
 -- Failure: duplicate employee + year

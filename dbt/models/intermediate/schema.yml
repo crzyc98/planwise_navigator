@@ -275,6 +275,8 @@ models:
       field (applied_years_of_service) for compliance tracking.
       Age-banded schedules use the annual workforce current_age and do not
       depend on reporting age bands.
+      Flat and graded-by-service numeric terms resolve from the employee's
+      plan_design_id when per-design parameters are configured.
     config:
       tags: ["employer_contributions", "core_contributions", "mvp"]
     columns:
@@ -294,6 +296,9 @@ models:
           - dbt_utils.accepted_range:
               min_value: "{{ var('simulation_start_year', 2025) }}"
               max_value: "{{ var('simulation_end_year', 2029) }}"
+      - name: plan_design_id
+        description: Sticky assigned design used to resolve the core rate or schedule.
+        data_tests: [not_null]
       - name: eligible_compensation
         description: Compensation used for contribution calculation
         data_tests:
@@ -369,6 +374,8 @@ models:
       simple percentage match, tiered match, and safe harbor formulas.
       Enhanced with Epic E058 Phase 2: Match Calculation Integration for eligibility filtering.
       Integrates with employee contributions and eligibility determination to calculate match amounts.
+      The formula family remains run-global; tiers, rates, and caps resolve by
+      each employee's sticky plan_design_id when keyed parameters are configured.
     config:
       tags: ["match_engine", "critical", "core_calculation", "e058"]
     columns:
@@ -382,6 +389,9 @@ models:
         description: Simulation year for match calculations
         data_tests:
           - not_null
+      - name: plan_design_id
+        description: Sticky assigned design used to resolve match tiers and caps.
+        data_tests: [not_null]
       - name: employer_match_amount
         description: Calculated employer match amount after caps and eligibility filtering
         data_tests:
@@ -407,7 +417,7 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ["simple", "tiered", "none", "graded_by_service"]
+              values: ["simple", "tiered", "none", "graded_by_service", "points_based", "tenure_graded"]
       - name: effective_match_rate
         description: Actual match rate after caps and eligibility
         data_tests:
@@ -1666,9 +1676,9 @@ models:
 
   - name: int_plan_eligibility_determination
     description: >
-      Plan eligibility determination - determines who can participate in the 401(k) plan.
-      This is separate from employer contribution eligibility and uses rule-based calculation
-      to avoid circular dependencies. MVP implementation for immediate plan enrollment.
+      Authoritative post-assignment plan eligibility determination. It resolves
+      waiting days and eligibility dates from each employee's sticky plan_design_id
+      before eligibility and enrollment events are published.
     config:
       tags: ["eligibility", "enrollment", "E023"]
     columns:
@@ -1677,6 +1687,16 @@ models:
         data_tests:
           - not_null
           - unique
+      - name: scenario_id
+        data_tests: [not_null]
+      - name: plan_design_id
+        description: Sticky assigned design used to resolve waiting-period days.
+        data_tests: [not_null]
+      - name: simulation_year
+        data_tests: [not_null]
+      - name: waiting_period_days
+        description: Design-specific waiting period applied to the employee.
+        data_tests: [not_null]
       - name: is_plan_eligible
         description: Whether employee is eligible to participate in the plan
         data_tests:

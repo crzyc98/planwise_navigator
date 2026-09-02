@@ -26,8 +26,19 @@
 {% set simulation_year = var('simulation_year', 2025) | int %}
 {% set match_cap_percent = var('match_cap_percent', 0.04) %}
 {% set employer_core_contribution_rate = var('employer_core_contribution_rate', 0.02) %}
+{% set plan_design_parameters_config = var('plan_design_parameters', none) %}
 
-WITH irs_limits AS (
+WITH parameter_rows AS (
+{% if plan_design_parameters_config %}
+    {{ get_plan_design_parameters(plan_design_parameters_config) }}
+{% else %}
+    SELECT
+        '{{ var('plan_design_id', 'default') }}'::VARCHAR AS plan_design_id,
+        {{ match_cap_percent }}::DECIMAL(10,6) AS match_cap_percent
+{% endif %}
+),
+
+irs_limits AS (
     -- Get the 401(a)(17) compensation limit for the simulation year
     SELECT
         limit_year,
@@ -45,16 +56,18 @@ match_violations AS (
         mc.employer_match_amount,
         lim.irs_401a17_limit,
         -- Maximum allowable match based on capped compensation
-        ROUND(LEAST(mc.eligible_compensation, lim.irs_401a17_limit) * {{ match_cap_percent }}, 2) AS max_allowable_match,
+        ROUND(LEAST(mc.eligible_compensation, lim.irs_401a17_limit) * parameters.match_cap_percent, 2) AS max_allowable_match,
         'match' AS violation_type,
-        mc.employer_match_amount - ROUND(LEAST(mc.eligible_compensation, lim.irs_401a17_limit) * {{ match_cap_percent }}, 2) AS excess_amount
+        mc.employer_match_amount - ROUND(LEAST(mc.eligible_compensation, lim.irs_401a17_limit) * parameters.match_cap_percent, 2) AS excess_amount
     FROM {{ ref('int_employee_match_calculations') }} mc
     CROSS JOIN irs_limits lim
+    INNER JOIN parameter_rows parameters
+      ON mc.plan_design_id = parameters.plan_design_id
     WHERE mc.simulation_year = {{ simulation_year }}
       -- Only check high earners (above 401(a)(17) limit)
       AND mc.eligible_compensation > lim.irs_401a17_limit
       -- Violation: match exceeds what would be allowed with capped compensation
-      AND mc.employer_match_amount > ROUND(LEAST(mc.eligible_compensation, lim.irs_401a17_limit) * {{ match_cap_percent }}, 2)
+      AND mc.employer_match_amount > ROUND(LEAST(mc.eligible_compensation, lim.irs_401a17_limit) * parameters.match_cap_percent, 2)
       -- Only check employees with actual match amounts
       AND mc.employer_match_amount > 0
 ),
@@ -68,16 +81,16 @@ core_violations AS (
         cc.employer_core_amount AS employer_contribution_amount,
         lim.irs_401a17_limit,
         -- Maximum allowable core based on capped compensation
-        ROUND(LEAST(cc.eligible_compensation, lim.irs_401a17_limit) * {{ employer_core_contribution_rate }}, 2) AS max_allowable_amount,
+        ROUND(LEAST(cc.eligible_compensation, lim.irs_401a17_limit) * cc.core_contribution_rate, 2) AS max_allowable_amount,
         'core' AS violation_type,
-        cc.employer_core_amount - ROUND(LEAST(cc.eligible_compensation, lim.irs_401a17_limit) * {{ employer_core_contribution_rate }}, 2) AS excess_amount
+        cc.employer_core_amount - ROUND(LEAST(cc.eligible_compensation, lim.irs_401a17_limit) * cc.core_contribution_rate, 2) AS excess_amount
     FROM {{ ref('int_employer_core_contributions') }} cc
     CROSS JOIN irs_limits lim
     WHERE cc.simulation_year = {{ simulation_year }}
       -- Only check high earners (above 401(a)(17) limit)
       AND cc.eligible_compensation > lim.irs_401a17_limit
       -- Violation: core exceeds what would be allowed with capped compensation
-      AND cc.employer_core_amount > ROUND(LEAST(cc.eligible_compensation, lim.irs_401a17_limit) * {{ employer_core_contribution_rate }}, 2)
+      AND cc.employer_core_amount > ROUND(LEAST(cc.eligible_compensation, lim.irs_401a17_limit) * cc.core_contribution_rate, 2)
       -- Only check employees with actual core amounts
       AND cc.employer_core_amount > 0
 )

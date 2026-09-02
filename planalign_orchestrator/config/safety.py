@@ -20,7 +20,7 @@ from .workforce import (
     EmployerMatchSettings,
 )
 from .performance import OptimizationSettings
-from .plan_design import PlanDesignAssignmentSettings
+from .plan_design import PlanDesignAssignmentSettings, PlanDesignParametersMap
 
 
 class ProductionSafetySettings(BaseModel):
@@ -94,6 +94,7 @@ class OrchestrationConfig(BaseModel):
     scenario_id: Optional[str] = None
     plan_design_id: Optional[str] = None
     plan_design_assignment: Optional[PlanDesignAssignmentSettings] = None
+    plan_design_parameters: Optional[PlanDesignParametersMap] = None
 
     def require_identifiers(self) -> None:
         """Raise if scenario_id/plan_design_id are missing."""

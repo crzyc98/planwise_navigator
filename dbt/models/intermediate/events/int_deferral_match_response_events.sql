@@ -34,6 +34,7 @@
 {% set employer_match_graded_schedule = var('employer_match_graded_schedule', []) %}
 {% set tenure_match_tiers = var('tenure_match_tiers', []) %}
 {% set points_match_tiers = var('points_match_tiers', []) %}
+{% set plan_design_parameters_config = var('plan_design_parameters', none) %}
 
 /*
   E058: Match-Responsive Deferral Adjustment Events
@@ -49,7 +50,16 @@
 {% if mr_enabled and (simulation_year | int) == (start_year | int) %}
 
 -- Calculate match-maximizing rate based on match mode
-WITH match_maximizing_rate AS (
+WITH
+{% if plan_design_parameters_config %}
+parameter_rows AS (
+    {{ get_plan_design_parameters(plan_design_parameters_config) }}
+),
+plan_design_match_tiers AS (
+    {{ get_plan_design_match_tiers(plan_design_parameters_config) }}
+),
+{% endif %}
+match_maximizing_rate AS (
   {% if employer_match_status == 'deferral_based' %}
   -- Deferral-based: use pre-computed match max rate from Python config export
   -- (avoids Jinja2 scoping bug where set inside for loop doesn't update outer scope)
@@ -136,6 +146,12 @@ eligible_employees AS (
         w.level_id,
         w.employment_status,
         w.is_enrolled_flag,
+        assignment.plan_design_id,
+        {% if plan_design_parameters_config %}
+        parameters.deferral_escalation_cap AS escalation_cap,
+        {% else %}
+        {{ esc_cap }}::DECIMAL(5,4) AS escalation_cap,
+        {% endif %}
         {% if (simulation_year | int) == (start_year | int) %}
         -- Year 1: Use enrollment events for current rate
         COALESCE(ier.initial_deferral_rate, 0.0)::DECIMAL(5,4) AS current_deferral_rate,
@@ -145,7 +161,30 @@ eligible_employees AS (
         {% endif %}
 
         -- Match-maximizing rate (per-employee for non-deferral-based modes)
-        {% if employer_match_status == 'deferral_based' %}
+        {% if plan_design_parameters_config %}
+        COALESCE((
+            SELECT MAX(tier.max_deferral_pct)
+            FROM plan_design_match_tiers tier
+            WHERE tier.plan_design_id = assignment.plan_design_id
+              AND tier.formula_family = '{{ employer_match_status }}'
+              AND (
+                tier.band_min_value IS NULL
+                OR CASE
+                  WHEN tier.formula_family = 'points_based'
+                    THEN FLOOR(w.current_age) + FLOOR(w.current_tenure)
+                  ELSE FLOOR(w.current_tenure)
+                END >= tier.band_min_value
+              )
+              AND (
+                tier.band_max_value IS NULL
+                OR CASE
+                  WHEN tier.formula_family = 'points_based'
+                    THEN FLOOR(w.current_age) + FLOOR(w.current_tenure)
+                  ELSE FLOOR(w.current_tenure)
+                END < tier.band_max_value
+              )
+        ), 0)::DECIMAL(5,4) AS match_max_rate,
+        {% elif employer_match_status == 'deferral_based' %}
         (SELECT match_max_rate FROM match_maximizing_rate)::DECIMAL(5,4) AS match_max_rate,
         {% elif employer_match_status == 'graded_by_service' %}
         ({{ get_tiered_match_max_deferral('FLOOR(w.current_tenure)', employer_match_graded_schedule, 0.06) }})::DECIMAL(5,4) AS match_max_rate,
@@ -165,6 +204,14 @@ eligible_employees AS (
         (ABS(HASH(w.employee_id || '-match-response-down-' || CAST({{ simulation_year }} AS VARCHAR))) % 1000) / 1000.0 AS hash_value_down
 
     FROM {{ ref('int_employee_compensation_by_year') }} w
+    INNER JOIN {{ ref('int_plan_design_assignment_accumulator') }} assignment
+        ON w.employee_id = assignment.employee_id
+       AND w.simulation_year = assignment.simulation_year
+       AND assignment.scenario_id = '{{ var('scenario_id', 'default') }}'
+    {% if plan_design_parameters_config %}
+    INNER JOIN parameter_rows parameters
+        ON assignment.plan_design_id = parameters.plan_design_id
+    {% endif %}
     LEFT JOIN initial_enrollment_rates ier
         ON w.employee_id = ier.employee_id AND ier.rn = 1
     {% if (simulation_year | int) != (start_year | int) %}
@@ -211,10 +258,10 @@ upward_events AS (
         -- Cap at escalation cap and IRS 402(g) rate-equivalent
         LEAST(
             raw_new_rate,
-            {{ esc_cap }},
+            escalation_cap,
             CASE WHEN employee_compensation > 0
                  THEN ({{ irs_402g_limit }}::DECIMAL / employee_compensation)
-                 ELSE {{ esc_cap }}
+                 ELSE escalation_cap
             END
         )::DECIMAL(5,4) AS employee_deferral_rate,
         current_deferral_rate AS prev_employee_deferral_rate,

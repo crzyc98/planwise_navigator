@@ -140,12 +140,9 @@ class WorkflowBuilder:
                 "int_effective_parameters",
                 MODEL_INT_WORKFORCE_NEEDS,
                 "int_workforce_needs_by_level",
-                # Feature 086: Rebuild eligibility determination chain so census employees
-                # receive their DC_PLAN_ELIGIBILITY event in the first simulation year.
-                # int_workforce_active_for_events depends on int_baseline_workforce (above).
+                # Feature 086 pre-enrollment helpers remain foundation inputs.
                 "int_workforce_active_for_events",
                 "int_workforce_pre_enrollment",
-                "int_plan_eligibility_determination",
             ]
         else:
             # Year 2+: Skip baseline workforce (use incremental data preservation)
@@ -203,6 +200,7 @@ class WorkflowBuilder:
                     MODEL_INT_TERMINATION_EVENTS,
                     "int_hiring_events",
                     "int_plan_design_assignment_accumulator",
+                    "int_plan_eligibility_determination",
                     "int_new_hire_termination_events",
                     "int_employee_termination_dates",
                     "int_hazard_promotion",

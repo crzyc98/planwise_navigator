@@ -140,6 +140,19 @@ prior_year_eligibility AS (
 {% endif %}
 ),
 
+{% if var('plan_design_parameters', none) %}
+current_plan_eligibility AS (
+  SELECT
+    employee_id,
+    plan_design_id,
+    plan_eligibility_date,
+    waiting_period_days
+  FROM {{ ref('int_plan_eligibility_determination') }}
+  WHERE scenario_id = '{{ scenario_id }}'
+    AND simulation_year = {{ simulation_year }}
+),
+{% endif %}
+
 -- An eligibility event is the authoritative signal that plan eligibility was
 -- achieved. int_eligibility_events emits one only when every gate passes --
 -- minimum age, a waiting period that completes inside the year, and the
@@ -227,6 +240,10 @@ composed AS (
     -- year -> the new-hire default. Precedence preserves start-year behaviour
     -- exactly: prior_year_eligibility is empty in the start year, and baseline
     -- is empty after it, so at most one of the first two ever matches.
+{% if var('plan_design_parameters', none) %}
+    current_plan_eligibility.plan_eligibility_date AS employee_eligibility_date,
+    current_plan_eligibility.waiting_period_days AS waiting_period_days,
+{% else %}
     COALESCE(
       baseline.employee_eligibility_date,
       prior_year_eligibility.employee_eligibility_date,
@@ -243,6 +260,7 @@ composed AS (
           THEN 0
       END
     ) AS waiting_period_days,
+{% endif %}
     CASE
       WHEN COALESCE(
         baseline.current_eligibility_status,
@@ -319,6 +337,11 @@ composed AS (
   LEFT JOIN deferral USING (employee_id)
   LEFT JOIN baseline USING (employee_id)
   LEFT JOIN prior_year_eligibility USING (employee_id)
+{% if var('plan_design_parameters', none) %}
+  LEFT JOIN current_plan_eligibility
+    ON workforce.employee_id = current_plan_eligibility.employee_id
+   AND workforce.plan_design_id = current_plan_eligibility.plan_design_id
+{% endif %}
   LEFT JOIN achieved_eligibility_events USING (employee_id)
   LEFT JOIN hire_year_eligibility_events USING (employee_id)
   LEFT JOIN contributions USING (employee_id)

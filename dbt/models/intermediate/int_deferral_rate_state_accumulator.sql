@@ -74,6 +74,7 @@ current_year_escalations AS (
         effective_date,
         employee_deferral_rate as new_deferral_rate,
         CAST(NULL AS DECIMAL(5,4)) as escalation_rate,
+        CAST(NULL AS DECIMAL(5,4)) as max_escalation_rate,
         ROW_NUMBER() OVER (
             PARTITION BY employee_id
             ORDER BY effective_date DESC
@@ -90,6 +91,7 @@ current_year_escalations AS (
         effective_date,
         new_deferral_rate,
         escalation_rate,
+        max_escalation_rate,
         ROW_NUMBER() OVER (
             PARTITION BY employee_id
             ORDER BY effective_date DESC
@@ -211,6 +213,7 @@ first_year_enrolled_employees AS (
 previous_year_state AS (
     SELECT
         employee_id,
+        plan_design_id,
         current_deferral_rate as previous_deferral_rate,
         escalations_received as previous_escalations_received,
         original_deferral_rate,
@@ -296,7 +299,7 @@ first_year_state AS (
                  AND COALESCE(cyw.employee_compensation, 0) > 0
                 THEN LEAST(
                     mr.match_responsive_rate + ce.escalation_rate,
-                    {{ var('deferral_escalation_cap', 0.10) }},
+                    COALESCE(ce.max_escalation_rate, {{ var('deferral_escalation_cap', 0.10) }}),
                     ({{ var('irs_402g_limit', 23500) }}::DECIMAL / cyw.employee_compensation)
                 )::DECIMAL(5,4)
             -- Only escalation
@@ -410,7 +413,7 @@ subsequent_year_state AS (
                  AND COALESCE(cyw.employee_compensation, 0) > 0
                 THEN LEAST(
                     mr.match_responsive_rate + ce.escalation_rate,
-                    {{ var('deferral_escalation_cap', 0.10) }},
+                    COALESCE(ce.max_escalation_rate, {{ var('deferral_escalation_cap', 0.10) }}),
                     ({{ var('irs_402g_limit', 23500) }}::DECIMAL / cyw.employee_compensation)
                 )::DECIMAL(5,4)
             ELSE COALESCE(
@@ -482,7 +485,7 @@ subsequent_year_state AS (
         -- Metadata
         CURRENT_TIMESTAMP as created_at,
         '{{ scenario_id }}'::VARCHAR as scenario_id,
-        assignment.plan_design_id,
+        COALESCE(assignment.plan_design_id, ps.plan_design_id) AS plan_design_id,
         CASE
             WHEN COALESCE(w.employee_id, ps.employee_id, ne.employee_id, ce.employee_id, mr.employee_id) IS NULL THEN 'INVALID_EMPLOYEE_ID'
             WHEN COALESCE(ce.new_deferral_rate, mr.match_responsive_rate, ne.initial_deferral_rate, ps.previous_deferral_rate, br.fallback_rate, 0.03) < 0

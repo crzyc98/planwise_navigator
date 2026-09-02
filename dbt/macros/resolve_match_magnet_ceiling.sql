@@ -26,7 +26,23 @@
   (e.g. 6 for 6%) are divided by 100; values <= 1 are treated as decimals.
 #}
 
-{% macro resolve_match_magnet_ceiling(status, years_of_service_col, points_col, deferral_scalar) %}
+{% macro resolve_match_magnet_ceiling(status, years_of_service_col, points_col, deferral_scalar, plan_design_id_col=none) %}
+{%- set plan_design_parameters_config = var('plan_design_parameters', none) -%}
+{%- if plan_design_parameters_config and plan_design_id_col is not none -%}
+CAST(COALESCE((
+  SELECT MAX(tier.max_deferral_pct)
+  FROM ({{ get_plan_design_match_tiers(plan_design_parameters_config) }}) tier
+  WHERE tier.plan_design_id = {{ plan_design_id_col }}
+    AND tier.formula_family = '{{ status }}'
+    {%- if status == 'graded_by_service' or status == 'tenure_graded' %}
+    AND {{ years_of_service_col }} >= tier.band_min_value
+    AND (tier.band_max_value IS NULL OR {{ years_of_service_col }} < tier.band_max_value)
+    {%- elif status == 'points_based' %}
+    AND {{ points_col }} >= tier.band_min_value
+    AND (tier.band_max_value IS NULL OR {{ points_col }} < tier.band_max_value)
+    {%- endif %}
+), 0) AS DECIMAL(5,4))
+{%- else -%}
 {%- set graded_schedule = var('employer_match_graded_schedule', []) -%}
 {%- set points_tiers = var('points_match_tiers', []) -%}
 {%- set tenure_tiers = var('tenure_match_tiers', []) -%}
@@ -71,5 +87,6 @@ CAST(0 AS DECIMAL(5,4))
   {%- endif -%}
 {%- else -%}
 CAST(0 AS DECIMAL(5,4))
+{%- endif -%}
 {%- endif -%}
 {% endmacro %}

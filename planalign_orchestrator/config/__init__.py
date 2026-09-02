@@ -65,7 +65,21 @@ from .ensemble import (
     EnsembleThresholdSettings,
 )
 
-from .plan_design import HireDateCutoffRule, PlanDesignAssignmentSettings
+from .plan_design import (
+    AutoEnrollmentParameterSet,
+    CoreParameterSet,
+    CoreServiceBand,
+    EligibilityParameterSet,
+    EscalationParameterSet,
+    HireDateCutoffRule,
+    MatchParameterSet,
+    MatchTier,
+    PlanDesignAssignmentSettings,
+    PlanDesignParameters,
+    PlanDesignParametersMap,
+    ServiceMatchBand,
+    TenureGradedBand,
+)
 
 # Safety settings
 from .safety import (
@@ -125,6 +139,17 @@ __all__ = [
     "EnsembleThresholdSettings",
     "HireDateCutoffRule",
     "PlanDesignAssignmentSettings",
+    "MatchTier",
+    "ServiceMatchBand",
+    "TenureGradedBand",
+    "MatchParameterSet",
+    "CoreServiceBand",
+    "CoreParameterSet",
+    "AutoEnrollmentParameterSet",
+    "EscalationParameterSet",
+    "EligibilityParameterSet",
+    "PlanDesignParameters",
+    "PlanDesignParametersMap",
     # Safety
     "ProductionSafetySettings",
     "OrchestrationConfig",

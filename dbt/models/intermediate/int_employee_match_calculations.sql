@@ -75,6 +75,7 @@
 
 -- E069: Master match enable/disable flag (mirrors employer_core_enabled pattern)
 {% set employer_match_enabled = var('employer_match_enabled', true) %}
+{% set plan_design_parameters_config = var('plan_design_parameters', none) %}
 
 -- Debug: Current match configuration
 -- Match Status: {{ employer_match_status }}
@@ -93,6 +94,16 @@ WITH irs_compensation_limits AS (
     FROM {{ ref('config_irs_limits') }}
     WHERE limit_year = {{ simulation_year }}
 ),
+
+{% if plan_design_parameters_config %}
+plan_design_parameters AS (
+    {{ get_plan_design_parameters(plan_design_parameters_config) }}
+),
+
+plan_design_match_tiers AS (
+    {{ get_plan_design_match_tiers(plan_design_parameters_config) }}
+),
+{% endif %}
 
 employee_contributions AS (
     -- Get ALL employee contribution data with eligibility determination (Epic E058 Phase 2)
@@ -121,9 +132,12 @@ employee_contributions AS (
     LEFT JOIN {{ ref('int_employer_eligibility') }} elig
         ON ec.employee_id = elig.employee_id
        AND ec.simulation_year = elig.simulation_year
+       AND ec.plan_design_id = elig.plan_design_id
+       AND elig.scenario_id = '{{ scenario_id }}'
     LEFT JOIN {{ ref('int_workforce_state_accumulator') }} workforce
         ON ec.employee_id = workforce.employee_id
        AND ec.simulation_year = workforce.simulation_year
+       AND ec.plan_design_id = workforce.plan_design_id
        AND workforce.scenario_id = '{{ scenario_id }}'
     WHERE ec.simulation_year = {{ simulation_year }}
         AND ec.employee_id IS NOT NULL
@@ -137,6 +151,7 @@ employee_contributions AS (
 service_based_match AS (
     SELECT
         ec.employee_id,
+        ec.plan_design_id,
         ec.simulation_year,
         ec.eligible_compensation,
         ec.deferral_rate,
@@ -145,25 +160,45 @@ service_based_match AS (
         -- E026: Get the 401(a)(17) limit for capping
         lim.irs_401a17_limit,
         -- Get the match rate for this employee's service tier
+{% if plan_design_parameters_config %}
+        tier.match_rate AS tier_rate,
+{% else %}
         {{ get_tiered_match_rate('ec.years_of_service', employer_match_graded_schedule, 0.50) }} AS tier_rate,
+{% endif %}
         -- Get the max deferral cap for this employee's service tier
+{% if plan_design_parameters_config %}
+        tier.max_deferral_pct AS tier_max_deferral_pct,
+{% else %}
         {{ get_tiered_match_max_deferral('ec.years_of_service', employer_match_graded_schedule, 0.06) }} AS tier_max_deferral_pct,
+{% endif %}
         -- Calculate match: rate × min(deferral%, max_deferral_pct) × capped_compensation
         -- E026: Use LEAST(compensation, 401a17_limit) to cap at IRS limit
+{% if plan_design_parameters_config %}
+        tier.match_rate * LEAST(ec.deferral_rate, tier.max_deferral_pct)
+{% else %}
         {{ get_tiered_match_rate('ec.years_of_service', employer_match_graded_schedule, 0.50) }}
             * LEAST(ec.deferral_rate, {{ get_tiered_match_max_deferral('ec.years_of_service', employer_match_graded_schedule, 0.06) }})
+{% endif %}
             * LEAST(ec.eligible_compensation, lim.irs_401a17_limit) AS match_amount,
         'graded_by_service' AS formula_type,
         -- E046: applied_points is NULL for non-points modes
         NULL::INT AS applied_points
     FROM employee_contributions ec
     CROSS JOIN irs_compensation_limits lim
+{% if plan_design_parameters_config %}
+    INNER JOIN plan_design_match_tiers tier
+      ON tier.plan_design_id = ec.plan_design_id
+     AND tier.formula_family = 'graded_by_service'
+     AND ec.years_of_service >= tier.band_min_value
+     AND (tier.band_max_value IS NULL OR ec.years_of_service < tier.band_max_value)
+{% endif %}
 ),
 
 -- Unified all_matches CTE for service-based mode
 all_matches AS (
     SELECT
         employee_id,
+        plan_design_id,
         simulation_year,
         eligible_compensation,
         deferral_rate,
@@ -187,6 +222,7 @@ all_matches AS (
 tenure_graded_match AS (
     SELECT
         ec.employee_id,
+        ec.plan_design_id,
         ec.simulation_year,
         ec.eligible_compensation,
         ec.deferral_rate,
@@ -207,16 +243,25 @@ tenure_graded_match AS (
         NULL::INT AS applied_points
     FROM employee_contributions ec
     CROSS JOIN irs_compensation_limits lim
+{% if plan_design_parameters_config %}
+    INNER JOIN plan_design_match_tiers tier
+      ON tier.plan_design_id = ec.plan_design_id
+     AND tier.formula_family = 'tenure_graded'
+     AND ec.years_of_service >= tier.band_min_value
+     AND (tier.band_max_value IS NULL OR ec.years_of_service < tier.band_max_value)
+{% else %}
     CROSS JOIN ({{ get_tenure_graded_match_tiers(tenure_graded_bands) }}) AS tier
     WHERE ec.years_of_service >= tier.band_min_years
       AND (tier.band_max_years IS NULL OR ec.years_of_service < tier.band_max_years)
-    GROUP BY ec.employee_id, ec.simulation_year, ec.eligible_compensation,
+{% endif %}
+    GROUP BY ec.employee_id, ec.plan_design_id, ec.simulation_year, ec.eligible_compensation,
              ec.deferral_rate, ec.annual_deferrals, ec.years_of_service, lim.irs_401a17_limit
 ),
 
 all_matches AS (
     SELECT
         employee_id,
+        plan_design_id,
         simulation_year,
         eligible_compensation,
         deferral_rate,
@@ -237,6 +282,7 @@ all_matches AS (
 points_based_match AS (
     SELECT
         ec.employee_id,
+        ec.plan_design_id,
         ec.simulation_year,
         ec.eligible_compensation,
         ec.deferral_rate,
@@ -247,29 +293,52 @@ points_based_match AS (
         -- age_as_of_december_31 is current_age; years_of_service is already FLOOR(tenure)
         (FLOOR(ec.age_as_of_december_31)::INT + ec.years_of_service) AS applied_points,
         -- Get the match rate for this employee's points tier
+{% if plan_design_parameters_config %}
+        tier.match_rate AS tier_rate,
+{% else %}
         {{ get_points_based_match_rate(
             '(FLOOR(ec.age_as_of_december_31)::INT + ec.years_of_service)',
             points_match_tiers, 0.0) }} AS tier_rate,
+{% endif %}
         -- Get the max deferral cap for this employee's points tier
+{% if plan_design_parameters_config %}
+        tier.max_deferral_pct AS tier_max_deferral_pct,
+{% else %}
         {{ get_points_based_max_deferral(
             '(FLOOR(ec.age_as_of_december_31)::INT + ec.years_of_service)',
             points_match_tiers, 0.06) }} AS tier_max_deferral_pct,
+{% endif %}
         -- Calculate match: rate × min(deferral%, max_deferral_pct) × capped_compensation
+{% if plan_design_parameters_config %}
+        tier.match_rate * LEAST(ec.deferral_rate, tier.max_deferral_pct)
+{% else %}
         {{ get_points_based_match_rate(
             '(FLOOR(ec.age_as_of_december_31)::INT + ec.years_of_service)',
             points_match_tiers, 0.0) }}
             * LEAST(ec.deferral_rate, {{ get_points_based_max_deferral(
                 '(FLOOR(ec.age_as_of_december_31)::INT + ec.years_of_service)',
                 points_match_tiers, 0.06) }})
+{% endif %}
             * LEAST(ec.eligible_compensation, lim.irs_401a17_limit) AS match_amount,
         'points_based' AS formula_type
     FROM employee_contributions ec
     CROSS JOIN irs_compensation_limits lim
+{% if plan_design_parameters_config %}
+    INNER JOIN plan_design_match_tiers tier
+      ON tier.plan_design_id = ec.plan_design_id
+     AND tier.formula_family = 'points_based'
+     AND (FLOOR(ec.age_as_of_december_31)::INT + ec.years_of_service) >= tier.band_min_value
+     AND (
+       tier.band_max_value IS NULL
+       OR (FLOOR(ec.age_as_of_december_31)::INT + ec.years_of_service) < tier.band_max_value
+     )
+{% endif %}
 ),
 
 all_matches AS (
     SELECT
         employee_id,
+        plan_design_id,
         simulation_year,
         eligible_compensation,
         deferral_rate,
@@ -289,6 +358,7 @@ all_matches AS (
 tiered_match AS (
     SELECT
         ec.employee_id,
+        ec.plan_design_id,
         ec.simulation_year,
         ec.eligible_compensation,
         ec.deferral_rate,
@@ -314,6 +384,11 @@ tiered_match AS (
     -- E026: CROSS JOIN is safe here because irs_compensation_limits CTE filters to a single
     -- simulation_year, guaranteeing exactly one row. This provides the 401(a)(17) limit constant.
     CROSS JOIN irs_compensation_limits lim
+    {% if plan_design_parameters_config %}
+    INNER JOIN plan_design_match_tiers tier
+      ON tier.plan_design_id = ec.plan_design_id
+     AND tier.formula_family = 'deferral_based'
+    {% else %}
     CROSS JOIN (
         {% for tier in match_tiers %}
         SELECT
@@ -324,7 +399,8 @@ tiered_match AS (
         {% if not loop.last %}UNION ALL{% endif %}
         {% endfor %}
     ) AS tier
-    GROUP BY ec.employee_id, ec.simulation_year, ec.eligible_compensation,
+    {% endif %}
+    GROUP BY ec.employee_id, ec.plan_design_id, ec.simulation_year, ec.eligible_compensation,
              ec.deferral_rate, ec.annual_deferrals, ec.years_of_service, lim.irs_401a17_limit
 ),
 
@@ -332,6 +408,7 @@ tiered_match AS (
 all_matches AS (
     SELECT
         employee_id,
+        plan_design_id,
         simulation_year,
         eligible_compensation,
         deferral_rate,
@@ -349,7 +426,7 @@ all_matches AS (
 final_match AS (
     SELECT
         am.employee_id,
-        ec.plan_design_id,
+        am.plan_design_id,
         am.simulation_year,
         am.eligible_compensation,
         am.deferral_rate,
@@ -397,7 +474,8 @@ final_match AS (
         -- E026: Match cap is already based on 401(a)(17)-capped compensation from match_amount
         LEAST(
             am.match_amount,
-            LEAST(am.eligible_compensation, am.irs_401a17_limit) * {{ match_cap_percent }}
+            LEAST(am.eligible_compensation, am.irs_401a17_limit) *
+            {% if plan_design_parameters_config %}pdp.match_cap_percent{% else %}{{ match_cap_percent }}{% endif %}
         ) AS capped_match_amount,
         -- Epic E058 Phase 2: Apply eligibility filtering - ineligible employees get $0 match
         -- E026: Use 401(a)(17)-capped compensation for cap calculation
@@ -405,12 +483,14 @@ final_match AS (
             WHEN ec.is_eligible_for_match THEN
                 LEAST(
                     am.match_amount,
-                    LEAST(am.eligible_compensation, am.irs_401a17_limit) * {{ match_cap_percent }}
+                    LEAST(am.eligible_compensation, am.irs_401a17_limit) *
+                    {% if plan_design_parameters_config %}pdp.match_cap_percent{% else %}{{ match_cap_percent }}{% endif %}
                 )
             ELSE 0
         END AS employer_match_amount,
         -- Track if cap was applied (before eligibility filtering)
-        am.match_amount > LEAST(am.eligible_compensation, am.irs_401a17_limit) * {{ match_cap_percent }} AS match_cap_applied,
+        am.match_amount > LEAST(am.eligible_compensation, am.irs_401a17_limit) *
+            {% if plan_design_parameters_config %}pdp.match_cap_percent{% else %}{{ match_cap_percent }}{% endif %} AS match_cap_applied,
         -- Epic E058 Phase 2: Match status tracking field
         CASE
             WHEN NOT ec.is_eligible_for_match THEN 'ineligible'
@@ -423,7 +503,14 @@ final_match AS (
         {% endif %}
     FROM all_matches am
     -- Join back to get eligibility information
-    JOIN employee_contributions ec ON am.employee_id = ec.employee_id AND am.simulation_year = ec.simulation_year
+    JOIN employee_contributions ec
+      ON am.employee_id = ec.employee_id
+     AND am.simulation_year = ec.simulation_year
+     AND am.plan_design_id = ec.plan_design_id
+    {% if plan_design_parameters_config %}
+    INNER JOIN plan_design_parameters pdp
+      ON pdp.plan_design_id = am.plan_design_id
+    {% endif %}
 )
 
 SELECT

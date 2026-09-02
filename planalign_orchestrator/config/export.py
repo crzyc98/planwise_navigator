@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from types import SimpleNamespace
 import typing
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional
 
 from planalign_orchestrator.config.permitted_disparity import (
     normalize_dc_plan_integration,
@@ -27,6 +27,43 @@ if TYPE_CHECKING:
 # Used when UI explicitly clears a value to override a legacy default
 _REMOVE_KEY = object()
 
+# Normative Tier 1 disposition for exported plan-related vars. Any exported var
+# not listed here is a run-global simulation/workforce/orchestration control.
+DBT_VAR_PER_DESIGN = frozenset(
+    {
+        "match_tiers",
+        "match_cap_percent",
+        "employer_match_graded_schedule",
+        "tenure_graded_bands",
+        "points_match_tiers",
+        "employer_match_max_deferral_rate",
+        "employer_core_contribution_rate",
+        "employer_core_graded_schedule",
+        "auto_enrollment_default_deferral_rate",
+        "auto_enrollment_window_days",
+        "auto_enrollment_scope",
+        "deferral_escalation_increment",
+        "deferral_escalation_cap",
+        "eligibility_waiting_days",
+        "eligibility_waiting_period_days",
+        "plan_eligibility_waiting_period_days",
+    }
+)
+DBT_VAR_DEFERRED = frozenset(
+    {"employer_core_points_schedule", "employer_core_age_schedule"}
+)
+
+
+def dbt_var_disposition(
+    name: str,
+) -> Literal["per_design", "global", "deferred"]:
+    """Return the documented Tier 1 ownership boundary for an exported var."""
+    if name in DBT_VAR_PER_DESIGN:
+        return "per_design"
+    if name in DBT_VAR_DEFERRED:
+        return "deferred"
+    return "global"
+
 
 def _export_simulation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     """Export simulation, compensation, and eligibility settings to dbt vars.
@@ -42,6 +79,11 @@ def _export_simulation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     assignment = cfg.plan_design_assignment
     if assignment is not None:
         dbt_vars["plan_design_assignment"] = assignment.model_dump(mode="json")
+    parameters = cfg.plan_design_parameters
+    if parameters is not None:
+        dbt_vars[
+            "plan_design_parameters"
+        ] = cfg.validated_plan_design_parameters().to_dbt_payload()
     # Audit-trail scenario tag (#510): several data-quality/contribution models tag
     # rows with both scenario_id and parameter_scenario_id; the latter had no
     # exporter and always fell back to its SQL literal "default".
@@ -747,15 +789,19 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                                 "service_years_max", tier.get("max_years")
                             ),
                             # Convert decimal rate (0.50 or 2.0 for 200%) to percentage (50.0, 200.0) for macro if needed
-                            "rate": (tier.get("match_rate", tier.get("rate", 0)) * 100)
-                            if tier.get("match_rate") is not None
-                            and tier.get("match_rate") <= 2
-                            else tier.get("rate", tier.get("match_rate", 0)),
+                            "rate": (
+                                (tier.get("match_rate", tier.get("rate", 0)) * 100)
+                                if tier.get("match_rate") is not None
+                                and tier.get("match_rate") <= 2
+                                else tier.get("rate", tier.get("match_rate", 0))
+                            ),
                             # Convert decimal max_deferral_pct (0.06) to percentage (6.0) for macro if needed
-                            "max_deferral_pct": (tier.get("max_deferral_pct", 0) * 100)
-                            if tier.get("max_deferral_pct") is not None
-                            and tier.get("max_deferral_pct") <= 1
-                            else tier.get("max_deferral_pct", 6),
+                            "max_deferral_pct": (
+                                (tier.get("max_deferral_pct", 0) * 100)
+                                if tier.get("max_deferral_pct") is not None
+                                and tier.get("max_deferral_pct") <= 1
+                                else tier.get("max_deferral_pct", 6)
+                            ),
                         }
                         transformed_schedule.append(transformed_tier)
                     dbt_vars["employer_match_graded_schedule"] = transformed_schedule
@@ -770,14 +816,18 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                             "min_years": tier.get("min_years", 0),
                             "max_years": tier.get("max_years"),
                             # Convert decimal rate (0.50 or 2.0 for 200%) to percentage (50.0, 200.0) if needed
-                            "rate": (tier.get("match_rate", tier.get("rate", 0)) * 100)
-                            if tier.get("match_rate") is not None
-                            and tier.get("match_rate") <= 2
-                            else tier.get("rate", tier.get("match_rate", 0)),
-                            "max_deferral_pct": (tier.get("max_deferral_pct", 0) * 100)
-                            if tier.get("max_deferral_pct") is not None
-                            and tier.get("max_deferral_pct") <= 1
-                            else tier.get("max_deferral_pct", 6),
+                            "rate": (
+                                (tier.get("match_rate", tier.get("rate", 0)) * 100)
+                                if tier.get("match_rate") is not None
+                                and tier.get("match_rate") <= 2
+                                else tier.get("rate", tier.get("match_rate", 0))
+                            ),
+                            "max_deferral_pct": (
+                                (tier.get("max_deferral_pct", 0) * 100)
+                                if tier.get("max_deferral_pct") is not None
+                                and tier.get("max_deferral_pct") <= 1
+                                else tier.get("max_deferral_pct", 6)
+                            ),
                         }
                         tenure_tiers_pct.append(transformed_tier)
                     dbt_vars["tenure_match_tiers"] = tenure_tiers_pct
@@ -792,14 +842,18 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                             "min_points": tier.get("min_points", 0),
                             "max_points": tier.get("max_points"),
                             # Convert decimal rate (0.50 or 2.0 for 200%) to percentage (50.0, 200.0) if needed
-                            "rate": (tier.get("match_rate", tier.get("rate", 0)) * 100)
-                            if tier.get("match_rate") is not None
-                            and tier.get("match_rate") <= 2
-                            else tier.get("rate", tier.get("match_rate", 0)),
-                            "max_deferral_pct": (tier.get("max_deferral_pct", 0) * 100)
-                            if tier.get("max_deferral_pct") is not None
-                            and tier.get("max_deferral_pct") <= 1
-                            else tier.get("max_deferral_pct", 6),
+                            "rate": (
+                                (tier.get("match_rate", tier.get("rate", 0)) * 100)
+                                if tier.get("match_rate") is not None
+                                and tier.get("match_rate") <= 2
+                                else tier.get("rate", tier.get("match_rate", 0))
+                            ),
+                            "max_deferral_pct": (
+                                (tier.get("max_deferral_pct", 0) * 100)
+                                if tier.get("max_deferral_pct") is not None
+                                and tier.get("max_deferral_pct") <= 1
+                                else tier.get("max_deferral_pct", 6)
+                            ),
                         }
                         transformed_tiers.append(transformed_tier)
                     dbt_vars["points_match_tiers"] = transformed_tiers
@@ -1042,9 +1096,11 @@ def _transform_age_tiers(age_schedule: list) -> list:
         {
             "min_age": tier.get("min_age", 0),
             "max_age": tier.get("max_age"),
-            "rate": (tier.get("contribution_rate", tier.get("rate", 0)) * 100)
-            if tier.get("contribution_rate") is not None
-            else tier.get("rate", 0),
+            "rate": (
+                (tier.get("contribution_rate", tier.get("rate", 0)) * 100)
+                if tier.get("contribution_rate") is not None
+                else tier.get("rate", 0)
+            ),
         }
         for tier in age_schedule
     ]
@@ -1104,10 +1160,10 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                         ),
                         # Convert decimal rate (0.06) to percentage (6.0) for macro
                         "rate": (
-                            tier.get("contribution_rate", tier.get("rate", 0)) * 100
-                        )
-                        if tier.get("contribution_rate") is not None
-                        else tier.get("rate", 0),
+                            (tier.get("contribution_rate", tier.get("rate", 0)) * 100)
+                            if tier.get("contribution_rate") is not None
+                            else tier.get("rate", 0)
+                        ),
                     }
                     transformed_schedule.append(transformed_tier)
                 dbt_vars["employer_core_graded_schedule"] = transformed_schedule
@@ -1120,10 +1176,10 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                         "min_points": tier.get("min_points", 0),
                         "max_points": tier.get("max_points"),
                         "rate": (
-                            tier.get("contribution_rate", tier.get("rate", 0)) * 100
-                        )
-                        if tier.get("contribution_rate") is not None
-                        else tier.get("rate", 0),
+                            (tier.get("contribution_rate", tier.get("rate", 0)) * 100)
+                            if tier.get("contribution_rate") is not None
+                            else tier.get("rate", 0)
+                        ),
                     }
                     transformed_points.append(transformed_tier)
                 dbt_vars["employer_core_points_schedule"] = transformed_points
@@ -1276,10 +1332,13 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                             ),
                             # Convert decimal rate (0.06) to percentage (6.0) for macro
                             "rate": (
-                                tier.get("contribution_rate", tier.get("rate", 0)) * 100
-                            )
-                            if tier.get("contribution_rate") is not None
-                            else tier.get("rate", 0),
+                                (
+                                    tier.get("contribution_rate", tier.get("rate", 0))
+                                    * 100
+                                )
+                                if tier.get("contribution_rate") is not None
+                                else tier.get("rate", 0)
+                            ),
                         }
                         transformed_schedule.append(transformed_tier)
                     dbt_vars["employer_core_graded_schedule"] = transformed_schedule
@@ -1299,10 +1358,13 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                             "max_points": tier.get("max_points"),
                             # Convert decimal rate (0.03) to percentage (3.0) for macro
                             "rate": (
-                                tier.get("contribution_rate", tier.get("rate", 0)) * 100
-                            )
-                            if tier.get("contribution_rate") is not None
-                            else tier.get("rate", 0),
+                                (
+                                    tier.get("contribution_rate", tier.get("rate", 0))
+                                    * 100
+                                )
+                                if tier.get("contribution_rate") is not None
+                                else tier.get("rate", 0)
+                            ),
                         }
                         transformed_points.append(transformed_tier)
                     dbt_vars["employer_core_points_schedule"] = transformed_points

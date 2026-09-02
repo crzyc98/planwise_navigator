@@ -15,8 +15,8 @@ WITH flat_rate_check AS (
     SELECT
         employee_id,
         core_contribution_rate,
-        {{ var('employer_core_contribution_rate', 0.02) }} AS expected_flat_rate,
-        ABS(core_contribution_rate - {{ var('employer_core_contribution_rate', 0.02) }}) AS rate_difference
+        standard_core_rate AS expected_flat_rate,
+        ABS(core_contribution_rate - standard_core_rate) AS rate_difference
     FROM {{ ref('int_employer_core_contributions') }}
     WHERE simulation_year = {{ var('simulation_year', 2025) }}
       AND eligible_for_core = TRUE

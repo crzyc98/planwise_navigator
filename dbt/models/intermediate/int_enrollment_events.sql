@@ -29,7 +29,24 @@
   - CRITICAL: Restores restrictive WHERE clauses to prevent duplicate enrollments
 */
 
-WITH active_workforce_base AS (
+{% set plan_design_parameters_config = var('plan_design_parameters', none) %}
+
+WITH parameter_rows AS (
+{% if plan_design_parameters_config %}
+  {{ get_plan_design_parameters(plan_design_parameters_config) }}
+{% else %}
+  SELECT
+    '{{ var('plan_design_id', 'default') }}'::VARCHAR AS plan_design_id,
+    {{ var('auto_enrollment_default_deferral_rate', 0.02) }}::DECIMAL(10,6)
+      AS auto_enrollment_default_deferral_rate,
+    {{ var('auto_enrollment_window_days', 45) }}::INTEGER
+      AS auto_enrollment_window_days,
+    '{{ var('auto_enrollment_scope', 'all_eligible_employees') }}'::VARCHAR
+      AS auto_enrollment_scope
+{% endif %}
+),
+
+active_workforce_base AS (
   -- Base active employees with compensation (excludes current-year new hires in first year)
   SELECT DISTINCT
     employee_id,
@@ -71,12 +88,29 @@ active_workforce AS (
   -- once, so every eligibility flag below gates on `NOT is_plan_ineligible_override`.
   SELECT
     base.*,
+    assignment.plan_design_id,
+    parameters.auto_enrollment_default_deferral_rate,
+    parameters.auto_enrollment_window_days,
+    parameters.auto_enrollment_scope,
+    eligibility.plan_eligibility_date,
+    eligibility.is_plan_eligible,
     COALESCE(ov.is_plan_ineligible_override, false) AS is_plan_ineligible_override
   FROM (
     SELECT * FROM active_workforce_base
     UNION ALL
     SELECT * FROM new_hires_current_year
   ) base
+  INNER JOIN {{ ref('int_plan_design_assignment_accumulator') }} assignment
+    ON base.employee_id = assignment.employee_id
+   AND base.simulation_year = assignment.simulation_year
+   AND assignment.scenario_id = '{{ var('scenario_id', 'default') }}'
+  INNER JOIN parameter_rows parameters
+    ON assignment.plan_design_id = parameters.plan_design_id
+  INNER JOIN {{ ref('int_plan_eligibility_determination') }} eligibility
+    ON base.employee_id = eligibility.employee_id
+   AND base.simulation_year = eligibility.simulation_year
+   AND assignment.plan_design_id = eligibility.plan_design_id
+   AND eligibility.scenario_id = '{{ var('scenario_id', 'default') }}'
   LEFT JOIN {{ ref('int_plan_eligibility_override') }} ov
     ON base.employee_id = ov.employee_id
     AND base.simulation_year = ov.simulation_year
@@ -104,13 +138,14 @@ auto_enrollment_eligible_population AS (
     aw.employment_status,
     pe.was_enrolled_previously,
     -- Explicit eligibility with clear semantics using macro
-    {{ get_eligibility_reason('aw.employee_hire_date', 'aw.simulation_year', 'aw.employment_status', 'pe.was_enrolled_previously') }} as eligibility_reason,
+    {{ get_eligibility_reason('aw.employee_hire_date', 'aw.simulation_year', 'aw.employment_status', 'pe.was_enrolled_previously', 'aw.auto_enrollment_scope') }} as eligibility_reason,
     -- Simplified eligibility flag
     CASE
       WHEN aw.employment_status = 'active'
         AND COALESCE(pe.was_enrolled_previously, false) = false
         AND aw.is_plan_ineligible_override = false  -- Feature 103 gate
-        AND {{ is_eligible_for_auto_enrollment('aw.employee_hire_date', 'aw.simulation_year') }}
+        AND aw.is_plan_eligible
+        AND {{ is_eligible_for_auto_enrollment_scope('aw.employee_hire_date', 'aw.simulation_year', 'aw.auto_enrollment_scope') }}
       THEN true
       ELSE false
     END as is_auto_enrollment_eligible
@@ -144,10 +179,11 @@ eligible_for_enrollment AS (
     END as income_segment,
 
     -- SIMPLIFIED: Use macro-based eligibility logic for consistency
-    {{ is_eligible_for_auto_enrollment('aw.employee_hire_date', 'aw.simulation_year') }}
+    {{ is_eligible_for_auto_enrollment_scope('aw.employee_hire_date', 'aw.simulation_year', 'aw.auto_enrollment_scope') }}
       AND aw.employment_status = 'active'
       AND COALESCE(pe.was_enrolled_previously, false) = false
       AND aw.is_plan_ineligible_override = false  -- Feature 103 gate
+      AND aw.is_plan_eligible
     as is_eligible,
 
     -- CRITICAL: Track already enrolled status to prevent duplicates
@@ -157,9 +193,9 @@ eligible_for_enrollment AS (
     -- Gate on auto_enrollment_enabled (Issue #246: flag was previously ignored)
     CASE
       WHEN NOT {{ var('auto_enrollment_enabled', true) }} THEN false
-      WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'all_eligible_employees' THEN true
-      WHEN '{{ var("auto_enrollment_scope", "all_eligible_employees") }}' = 'new_hires_only'
-           AND ({{ is_eligible_for_auto_enrollment('aw.employee_hire_date', 'aw.simulation_year') }})
+      WHEN aw.auto_enrollment_scope = 'all_eligible_employees' THEN true
+      WHEN aw.auto_enrollment_scope = 'new_hires_only'
+           AND ({{ is_eligible_for_auto_enrollment_scope('aw.employee_hire_date', 'aw.simulation_year', 'aw.auto_enrollment_scope') }})
         THEN true
       ELSE false
     END AS is_auto_enrollment_row,
@@ -180,14 +216,14 @@ enrollment_events AS (
     efo.simulation_year,
     CASE
       WHEN EXTRACT(YEAR FROM efo.employee_hire_date) = efo.simulation_year
-        THEN CAST(efo.employee_hire_date + INTERVAL '{{ var("auto_enrollment_window_days", 45) }}' DAY AS TIMESTAMP)
+        THEN CAST(efo.plan_eligibility_date + efo.auto_enrollment_window_days * INTERVAL '1 day' AS TIMESTAMP)
       ELSE CAST((efo.simulation_year || '-01-15 08:00:00') AS TIMESTAMP)
     END as effective_date,
 
     -- Event details based on enrollment type (Phase 2: E062 Fix)
     CASE
       WHEN efo.is_auto_enrollment_row THEN (
-        'Auto-enrollment - ' || CAST(ROUND({{ default_deferral_rate() }} * 100, 1) AS VARCHAR) || '% default deferral'
+        'Auto-enrollment - ' || CAST(ROUND(efo.auto_enrollment_default_deferral_rate * 100, 1) AS VARCHAR) || '% default deferral'
       )
       ELSE (
         'Voluntary enrollment - ' || UPPER(efo.age_segment) || ' ' || UPPER(efo.income_segment) || ' employee - ' || CAST(ROUND(
@@ -232,7 +268,7 @@ enrollment_events AS (
     -- CRITICAL FIX: Apply auto-enrollment default rate ONLY to auto_enrollment events
     -- All other enrollment types (voluntary, proactive, year-over-year) use demographic-based rates
     CASE
-      WHEN efo.is_auto_enrollment_row THEN {{ default_deferral_rate() }}
+      WHEN efo.is_auto_enrollment_row THEN efo.auto_enrollment_default_deferral_rate
       ELSE
         CASE efo.age_segment
           WHEN 'young' THEN
@@ -309,7 +345,7 @@ opt_out_events AS (
     efo.simulation_year,
     CASE
       WHEN EXTRACT(YEAR FROM efo.employee_hire_date) = efo.simulation_year
-        THEN CAST(efo.employee_hire_date + INTERVAL '{{ var("auto_enrollment_window_days", 45) }}' DAY + INTERVAL '{{ var("auto_enrollment_opt_out_grace_period", 30) }}' DAY AS TIMESTAMP)
+        THEN CAST(efo.plan_eligibility_date + efo.auto_enrollment_window_days * INTERVAL '1 day' + INTERVAL '{{ var("auto_enrollment_opt_out_grace_period", 30) }}' DAY AS TIMESTAMP)
       ELSE CAST((efo.simulation_year || '-06-15 14:00:00') AS TIMESTAMP)
     END as effective_date,
 
