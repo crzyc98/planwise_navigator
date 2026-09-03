@@ -54,6 +54,40 @@ def _core_integration_config(core: Any, dc_plan: Any) -> Optional[Dict[str, Any]
     return core if isinstance(core, dict) and "integration" in core else None
 
 
+def _per_design_core_schedule(
+    family: str, core: Dict[str, Any]
+) -> tuple[str, list[Dict[str, Any]]] | None:
+    """Translate a legacy global core schedule to the per-design schema."""
+    field = {
+        "graded_by_service": "graded_schedule",
+        "points_based": "points_schedule",
+        "age_banded": "age_schedule",
+    }.get(family)
+    if field is None or not isinstance(core.get(field), list):
+        return None
+    translated: list[Dict[str, Any]] = []
+    for raw_band in core[field]:
+        band = dict(raw_band)
+        if family == "graded_by_service":
+            translated.append(
+                {
+                    "min_years": band.get(
+                        "min_years", band.get("service_years_min", 0)
+                    ),
+                    "max_years": band.get("max_years", band.get("service_years_max")),
+                    "rate": band.get("contribution_rate", band.get("rate", 0.0)),
+                }
+            )
+        else:
+            rate = band.get("rate", 0.0)
+            if band.get("contribution_rate") is not None:
+                rate = float(band["contribution_rate"]) * 100
+            band["rate"] = rate
+            band.pop("contribution_rate", None)
+            translated.append(band)
+    return field, translated
+
+
 class SimulationConfig(BaseModel):
     """Top-level config with backward compatible extras allowed."""
 
@@ -152,19 +186,87 @@ class SimulationConfig(BaseModel):
         )
         if match_family == "tenure_based":
             match_family = "tenure_graded"
-        schedule_field = {
+        match_template = "tiered"
+        dc_plan = getattr(self, "dc_plan", None)
+        if isinstance(dc_plan, dict):
+            match_template = str(dc_plan.get("match_template", match_template))
+        core = getattr(self, "employer_core_contribution", None)
+        core = core if isinstance(core, dict) else {}
+        inherited_core = _core_integration_config(core, dc_plan) or core
+        core_family = str(inherited_core.get("status", "flat"))
+        integration = inherited_core.get("integration")
+        integration = integration if isinstance(integration, dict) else {}
+        resolved_payload = parameters.model_dump(mode="json")
+        for design_payload in resolved_payload.values():
+            match_payload = design_payload["match"]
+            match_payload["family"] = match_payload.get("family") or match_family
+            match_payload["match_template"] = (
+                match_payload.get("match_template") or match_template
+            )
+            core_payload = design_payload["employer_core"]
+            core_payload["family"] = core_payload.get("family") or core_family
+            inherited_schedule = _per_design_core_schedule(
+                core_payload["family"], inherited_core
+            )
+            if inherited_schedule is not None:
+                schedule_field, schedule = inherited_schedule
+                if not core_payload.get(schedule_field):
+                    core_payload[schedule_field] = schedule
+            core_payload["integration_enabled"] = (
+                core_payload.get("integration_enabled")
+                if core_payload.get("integration_enabled") is not None
+                else bool(integration.get("enabled", False))
+            )
+            core_payload["integration_level_mode"] = core_payload.get(
+                "integration_level_mode"
+            ) or str(integration.get("level_mode", "ss_wage_base"))
+            core_payload["integration_level_value"] = (
+                core_payload.get("integration_level_value")
+                if core_payload.get("integration_level_value") is not None
+                else integration.get("level_value")
+            )
+            core_payload["integration_disparity_rate"] = (
+                core_payload.get("integration_disparity_rate")
+                if core_payload.get("integration_disparity_rate") is not None
+                else float(integration.get("disparity_rate", 0.0))
+            )
+        parameters = PlanDesignParametersMap.model_validate(resolved_payload)
+        match_schedule_fields = {
             "deferral_based": "tiers",
             "graded_by_service": "graded_schedule",
             "tenure_graded": "tenure_graded_bands",
             "points_based": "points_tiers",
-        }.get(match_family)
-        if schedule_field is not None:
-            for design_id, design_parameters in parameters.root.items():
-                if not getattr(design_parameters.match, schedule_field):
-                    raise ValueError(
-                        f"plan design '{design_id}' match.{schedule_field} must "
-                        f"be configured for global family '{match_family}'"
-                    )
+        }
+        core_schedule_fields = {
+            "graded_by_service": "graded_schedule",
+            "points_based": "points_schedule",
+            "age_banded": "age_schedule",
+        }
+        for design_id, design_parameters in parameters.root.items():
+            design_match_family = design_parameters.match.family
+            if design_match_family is None:
+                raise ValueError(
+                    f"plan design '{design_id}' match.family did not resolve"
+                )
+            schedule_field = match_schedule_fields[design_match_family]
+            if not getattr(design_parameters.match, schedule_field):
+                raise ValueError(
+                    f"plan design '{design_id}' match.{schedule_field} must be configured "
+                    f"for family '{design_match_family}'"
+                )
+            design_core_family = design_parameters.employer_core.family
+            if design_core_family is None:
+                raise ValueError(
+                    f"plan design '{design_id}' employer_core.family did not resolve"
+                )
+            core_schedule_field = core_schedule_fields.get(design_core_family)
+            if core_schedule_field and not getattr(
+                design_parameters.employer_core, core_schedule_field
+            ):
+                raise ValueError(
+                    f"plan design '{design_id}' employer_core.{core_schedule_field} must "
+                    f"be configured for family '{design_core_family}'"
+                )
         return parameters
 
     def get_thread_count(self) -> int:

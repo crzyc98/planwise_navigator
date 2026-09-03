@@ -32,6 +32,8 @@ _REMOVE_KEY = object()
 DBT_VAR_PER_DESIGN = frozenset(
     {
         "match_tiers",
+        "employer_match_status",
+        "match_template",
         "match_cap_percent",
         "employer_match_graded_schedule",
         "tenure_graded_bands",
@@ -39,6 +41,13 @@ DBT_VAR_PER_DESIGN = frozenset(
         "employer_match_max_deferral_rate",
         "employer_core_contribution_rate",
         "employer_core_graded_schedule",
+        "employer_core_status",
+        "employer_core_points_schedule",
+        "employer_core_age_schedule",
+        "employer_core_integration_enabled",
+        "employer_core_integration_level_mode",
+        "employer_core_integration_level_value",
+        "employer_core_integration_disparity_rate",
         "auto_enrollment_default_deferral_rate",
         "auto_enrollment_window_days",
         "auto_enrollment_scope",
@@ -49,9 +58,7 @@ DBT_VAR_PER_DESIGN = frozenset(
         "plan_eligibility_waiting_period_days",
     }
 )
-DBT_VAR_DEFERRED = frozenset(
-    {"employer_core_points_schedule", "employer_core_age_schedule"}
-)
+DBT_VAR_DEFERRED: frozenset[str] = frozenset()
 
 
 def dbt_var_disposition(

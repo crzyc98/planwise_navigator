@@ -275,8 +275,10 @@ models:
       field (applied_years_of_service) for compliance tracking.
       Age-banded schedules use the annual workforce current_age and do not
       depend on reporting age bands.
-      Flat and graded-by-service numeric terms resolve from the employee's
-      plan_design_id when per-design parameters are configured.
+      Formula family, flat rate, integration settings, and design-keyed graded,
+      age, or points schedule resolve from each employee's plan_design_id. The
+      pre-dedup guard requires exactly one band for every eligible banded-family
+      employee; test_core_rate_band_resolution is the publication-layer net.
     config:
       tags: ["employer_contributions", "core_contributions", "mvp"]
     columns:
@@ -299,6 +301,10 @@ models:
       - name: plan_design_id
         description: Sticky assigned design used to resolve the core rate or schedule.
         data_tests: [not_null]
+      - name: employment_status
+        description: Employment status used by the core eligibility calculation.
+      - name: annual_hours_worked
+        description: Annual hours used by the core eligibility calculation.
       - name: eligible_compensation
         description: Compensation used for contribution calculation
         data_tests:
@@ -313,6 +319,14 @@ models:
           - dbt_utils.accepted_range:
               min_value: 0
               max_value: 400000
+      - name: contribution_method
+        description: Configured or disabled core-contribution calculation method.
+      - name: standard_core_rate
+        description: Design-specific flat core rate retained for audit comparison.
+      - name: irs_401a17_limit
+        description: Annual qualified-plan compensation limit used in the calculation.
+      - name: irs_401a17_limit_applied
+        description: Whether eligible compensation exceeded the annual limit.
       - name: ss_wage_base
         description: Social Security taxable wage base for the simulation year.
       - name: integration_level_applied
@@ -352,9 +366,15 @@ models:
           - not_null
           - accepted_values:
               values: [true, false]
+      - name: created_at
+        description: Nondeterministic model-build timestamp; excluded from canonical parity.
+      - name: scenario_id
+        description: Simulation scenario identifier.
+      - name: parameter_scenario_id
+        description: Scenario identifier associated with the exported parameter set.
     data_tests:
       - unique:
-          column_name: "employee_id || '_' || simulation_year"
+          column_name: "employee_id || '_' || plan_design_id || '_' || simulation_year"
       - dbt_utils.expression_is_true:
           expression: "eligible_for_core = true OR (eligible_for_core = false AND employer_core_amount = 0)"
           config:
@@ -374,8 +394,10 @@ models:
       simple percentage match, tiered match, and safe harbor formulas.
       Enhanced with Epic E058 Phase 2: Match Calculation Integration for eligibility filtering.
       Integrates with employee contributions and eligibility determination to calculate match amounts.
-      The formula family remains run-global; tiers, rates, and caps resolve by
-      each employee's sticky plan_design_id when keyed parameters are configured.
+      Formula family, descriptive template, tiers, rates, and caps resolve by
+      each employee's sticky plan_design_id. Referenced family arms alone are
+      compiled, and a pre-publication exactly-one guard prevents gaps or overlaps;
+      test_match_formula_arm_coverage is the publication-layer net.
     config:
       tags: ["match_engine", "critical", "core_calculation", "e058"]
     columns:
@@ -383,12 +405,14 @@ models:
         description: Unique employee identifier
         data_tests:
           - not_null
-          - unique:
-              name: "unique_employee_per_match_year"
       - name: simulation_year
         description: Simulation year for match calculations
         data_tests:
           - not_null
+      - name: eligible_compensation
+        description: Contribution-basis compensation after applicable windowing.
+      - name: annual_deferrals
+        description: Employee deferrals used by the selected match formula.
       - name: plan_design_id
         description: Sticky assigned design used to resolve match tiers and caps.
         data_tests: [not_null]
@@ -418,6 +442,16 @@ models:
           - not_null
           - accepted_values:
               values: ["simple", "tiered", "none", "graded_by_service", "points_based", "tenure_graded"]
+      - name: formula_id
+        description: Stable identifier derived from the design's descriptive match template.
+      - name: formula_name
+        description: Human-readable name derived from the match template.
+      - name: applied_points
+        description: Age-plus-service points used by points-based matching; null otherwise.
+      - name: irs_401a17_limit
+        description: Annual qualified-plan compensation limit used in the calculation.
+      - name: irs_401a17_limit_applied
+        description: Whether eligible compensation exceeded the annual limit.
       - name: effective_match_rate
         description: Actual match rate after caps and eligibility
         data_tests:
@@ -449,6 +483,10 @@ models:
           - dbt_utils.accepted_range:
               min_value: 0
               max_value: 50000
+      - name: uncapped_match_amount
+        description: Selected formula result before the deferral-based plan cap.
+      - name: match_percentage_of_comp
+        description: Final employer match divided by eligible compensation.
       - name: eligibility_config_applied
         description: "Epic E058 Phase 2: Whether eligibility configuration was applied (vs backward compatibility)"
         data_tests:
@@ -461,9 +499,15 @@ models:
           and points_based match modes. Equals FLOOR of the current-year
           authoritative workforce current_tenure, including termination-date
           service. NULL for deferral-based matching.
+      - name: created_at
+        description: Nondeterministic model-build timestamp; excluded from canonical parity.
+      - name: scenario_id
+        description: Simulation scenario identifier.
+      - name: parameter_scenario_id
+        description: Scenario identifier associated with the exported parameter set.
     data_tests:
       - unique:
-          column_name: "employee_id || '_' || simulation_year"
+          column_name: "employee_id || '_' || plan_design_id || '_' || simulation_year"
       # Epic E058 Phase 4: Business logic validation tests for match calculations
       - dbt_utils.expression_is_true:
           name: "e058_ineligible_employees_zero_match"

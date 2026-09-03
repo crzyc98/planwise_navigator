@@ -166,7 +166,7 @@ eligible_employees AS (
             SELECT MAX(tier.max_deferral_pct)
             FROM plan_design_match_tiers tier
             WHERE tier.plan_design_id = assignment.plan_design_id
-              AND tier.formula_family = '{{ employer_match_status }}'
+              AND tier.formula_family = parameters.match_formula_family
               AND (
                 tier.band_min_value IS NULL
                 OR CASE

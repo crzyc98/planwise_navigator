@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS {RUN_METADATA_TABLE} (
     scenario_id        VARCHAR,
     plan_design_id     VARCHAR,
     design_set_json    VARCHAR,
+    design_formula_families_json VARCHAR,
     planalign_version  VARCHAR,
     full_reset         BOOLEAN   NOT NULL DEFAULT FALSE
 )
@@ -123,6 +124,40 @@ def compute_config_fingerprint(config: "SimulationConfig") -> str:
     dbt_vars.pop("random_seed", None)
     canonical = json.dumps(dbt_vars, sort_keys=True, default=str)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def canonical_design_formula_families(config: "SimulationConfig") -> str:
+    """Serialize each design's normalized effective match/core family."""
+    families: dict[str, dict[str, str | None]]
+    if config.plan_design_parameters is not None:
+        parameters = config.validated_plan_design_parameters()
+        families = {
+            design_id: {
+                "core_family": parameters.root[design_id].employer_core.family,
+                "match_family": parameters.root[design_id].match.family,
+            }
+            for design_id in parameters.design_ids()
+        }
+    else:
+        match_family = (
+            config.employer_match.employer_match_status
+            if config.employer_match is not None
+            else "deferral_based"
+        )
+        if match_family == "tenure_based":
+            match_family = "tenure_graded"
+        core = getattr(config, "employer_core_contribution", None)
+        core_family = (
+            str(core.get("status", "flat")) if isinstance(core, dict) else "flat"
+        )
+        families = {
+            design_id: {
+                "core_family": core_family,
+                "match_family": match_family,
+            }
+            for design_id in config.get_plan_design_set()
+        }
+    return json.dumps(families, sort_keys=True, separators=(",", ":"))
 
 
 def check_and_record_run(
@@ -351,11 +386,12 @@ def _append_record(
         INSERT INTO {RUN_METADATA_TABLE} (
             run_id, run_timestamp, run_type, config_fingerprint, random_seed,
             start_year, end_year, scenario_id, plan_design_id, design_set_json,
+            design_formula_families_json,
             planalign_version, full_reset, construction_signature_hash,
             initialization_policy, entry_point, runner_kind,
             param_pack_id, param_pack_fingerprint, param_pack_source_digest,
             backtest_score_ref
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """,
         [
             run_id,
@@ -368,20 +404,29 @@ def _append_record(
             config.scenario_id,
             config.plan_design_id,
             json.dumps(config.get_plan_design_set(), separators=(",", ":")),
+            canonical_design_formula_families(config),
             __version__,
             full_reset,
-            construction_signature.signature_hash
-            if construction_signature is not None
-            else None,
-            construction_signature.initialization_policy
-            if construction_signature is not None
-            else None,
-            construction_signature.entry_point
-            if construction_signature is not None
-            else None,
-            construction_signature.runner_kind
-            if construction_signature is not None
-            else None,
+            (
+                construction_signature.signature_hash
+                if construction_signature is not None
+                else None
+            ),
+            (
+                construction_signature.initialization_policy
+                if construction_signature is not None
+                else None
+            ),
+            (
+                construction_signature.entry_point
+                if construction_signature is not None
+                else None
+            ),
+            (
+                construction_signature.runner_kind
+                if construction_signature is not None
+                else None
+            ),
             pack.get("pack_id"),
             pack.get("fingerprint"),
             pack.get("source_digest"),
@@ -404,6 +449,7 @@ def _evolve_provenance_schema(conn) -> None:
         ("param_pack_source_digest", "VARCHAR"),
         ("backtest_score_ref", "VARCHAR"),
         ("design_set_json", "VARCHAR"),
+        ("design_formula_families_json", "VARCHAR"),
         # Feature 133: aggregate-level seed-ensemble provenance. These stay
         # nullable for ordinary single-run records and are evolved additively.
         ("ensemble_id", "VARCHAR"),

@@ -363,3 +363,11 @@ Managed in `_version.py` and `pyproject.toml`. See `/docs/VERSIONING_GUIDE.md` f
 - **Architecture Guides:** `/docs/guides/` (parallel_scenario_fanout.md, parameter_fitting.md, backtesting.md, seed_ensembles.md, net_employer_cost.md)
 - **Performance:** `/docs/perf/` (profiling reports, timings)
 - **Security:** `SECURITY.md` (API token auth, CORS policy, non-loopback deployments)
+
+## Active Technologies
+- Python 3.11; dbt-core 1.8.8 / dbt-duckdb 1.8.1 (Jinja-templated SQL) + DuckDB 1.0.0, Pydantic v2, `planalign_orchestrator` pipeline (633-per-design-formula-families)
+- DuckDB event store; `int_employee_match_calculations` (table), `fct_employer_match_events`, (633-per-design-formula-families)
+- DuckDB event store; `int_employee_match_calculations`, `int_employer_core_contributions`, `fct_employer_match_events`, `fct_workforce_snapshot` (633-per-design-formula-families)
+
+## Recent Changes
+- 633-per-design-formula-families: Added Python 3.11; dbt-core 1.8.8 / dbt-duckdb 1.8.1 (Jinja-templated SQL) + DuckDB 1.0.0, Pydantic v2, `planalign_orchestrator` pipeline

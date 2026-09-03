@@ -254,12 +254,12 @@ match_optimization AS (
     *,
     {{ resolve_match_magnet_ceiling(
         employer_match_status,
-        'FLOOR(current_tenure)',
-        '(FLOOR(current_age) + FLOOR(current_tenure))',
+        'FLOOR(source.current_tenure)',
+        '(FLOOR(source.current_age) + FLOOR(source.current_tenure))',
         deferral_scalar,
-        'plan_design_id'
+        'source.plan_design_id'
     ) }} AS match_magnet_ceiling
-  FROM deferral_rate_selection
+  FROM deferral_rate_selection source
 ),
 
 match_snapped AS (
