@@ -145,6 +145,16 @@ leak is closed. The `integration_enabled: false` age-banded cell was re-run
 post-fix and still matches its original baseline (0/0), confirming no
 disturbance to the previously validated path.
 
+The same four integrated cells were then run at the 60,000 census into
+`/tmp/run633/int60k/` against `main` (`9b13107e`) with matching seed, horizon,
+and thread count. Both-direction `EXCEPT ALL` returns zero for
+`int_employer_core_contributions`, `fct_employer_match_events`, and
+`fct_workforce_snapshot` in all four cells. Eligible disparity is
+$12,742,781.77 and ineligible disparity is $0.00, confirming integration
+genuinely engaged at scale and the leak stays closed. Branch runtimes were
+50.27-59.32 seconds against baseline 52.33-54.29 seconds, within normal
+run-to-run variance.
+
 Two durable nets were added: `test_core_rate_band_resolution.sql` now fails any
 ineligible row carrying a non-zero `employer_core_amount` or
 `disparity_core_amount`, and
