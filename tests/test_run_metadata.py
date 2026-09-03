@@ -24,6 +24,7 @@ from planalign_orchestrator.run_metadata import (
     DriftCheckResult,
     DriftStatus,
     check_and_record_run,
+    canonical_design_formula_families,
     compute_config_fingerprint,
 )
 from planalign_orchestrator.utils import DatabaseConnectionManager
@@ -57,6 +58,62 @@ def _rows(db_manager) -> list[tuple]:
 
 
 class TestConfigFingerprint:
+    def test_formula_family_change_changes_hash(self, minimal_config):
+        from tests.fixtures.plan_design_formula_families import (
+            relation_contract_payload,
+        )
+
+        baseline_config = minimal_config.model_copy(deep=True)
+        payload = relation_contract_payload()["age_design"]
+        baseline_config.plan_design_parameters = {"test_plan": payload}
+        baseline = compute_config_fingerprint(baseline_config)
+        changed = baseline_config.model_copy(deep=True)
+        changed.plan_design_parameters["test_plan"]["match"]["family"] = "points_based"
+        changed.plan_design_parameters["test_plan"]["match"]["points_tiers"] = [
+            {
+                "min_value": 0,
+                "max_value": None,
+                "match_rate": 0.5,
+                "max_deferral_pct": 0.06,
+            }
+        ]
+        assert compute_config_fingerprint(changed) != baseline
+
+    def test_formula_family_json_is_canonical_and_normalized(self, minimal_config):
+        from tests.fixtures.plan_design_formula_families import (
+            relation_contract_payload,
+        )
+
+        payload = relation_contract_payload()
+        payload["age_design"]["match"]["family"] = "tenure_based"
+        payload["age_design"]["match"]["tenure_graded_bands"] = [
+            {
+                "min_years": 0,
+                "max_years": None,
+                "tiers": [
+                    {"employee_min": 0.0, "employee_max": 0.06, "match_rate": 0.5}
+                ],
+            }
+        ]
+        configured = minimal_config.model_copy(deep=True)
+        configured.plan_design_assignment = PlanDesignAssignmentSettings.model_validate(
+            {
+                "default_plan_design_id": "points_design",
+                "rules": [
+                    {
+                        "type": "hire_date_cutoff",
+                        "cutoff": "2026-01-01",
+                        "plan_design_id": "age_design",
+                    }
+                ],
+            }
+        )
+        configured.plan_design_parameters = payload
+        assert canonical_design_formula_families(configured) == (
+            '{"age_design":{"core_family":"age_banded","match_family":"tenure_graded"},'
+            '"points_design":{"core_family":"points_based","match_family":"points_based"}}'
+        )
+
     def test_identical_configs_produce_identical_hash(self, minimal_config):
         copy = minimal_config.model_copy(deep=True)
         assert compute_config_fingerprint(minimal_config) == compute_config_fingerprint(
@@ -212,6 +269,7 @@ class TestTableLifecycle:
             "scenario_id",
             "plan_design_id",
             "design_set_json",
+            "design_formula_families_json",
             "planalign_version",
             "full_reset",
             "construction_signature_hash",

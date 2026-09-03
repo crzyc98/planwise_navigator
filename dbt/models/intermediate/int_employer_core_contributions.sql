@@ -53,11 +53,23 @@
 {% set employer_core_integration_level_value = var('employer_core_integration_level_value', none) %}
 {% set employer_core_integration_disparity_rate = var('employer_core_integration_disparity_rate', 0.0) %}
 {% set plan_design_parameters_config = var('plan_design_parameters', none) %}
+{% set referenced_core_families = [] %}
+{% if plan_design_parameters_config %}
+  {% for design_id, parameters in plan_design_parameters_config | dictsort %}
+    {% set family = parameters['employer_core']['family'] %}
+    {% if family not in referenced_core_families %}
+      {% set _ = referenced_core_families.append(family) %}
+    {% endif %}
+  {% endfor %}
+{% endif %}
 {% set core_rate_expr %}
-    {% if plan_design_parameters_config and employer_core_status == 'graded_by_service' %}
-    COALESCE(core_schedule.rate, pdp.employer_core_contribution_rate)
-    {% elif plan_design_parameters_config and employer_core_status == 'flat' %}
-    pdp.employer_core_contribution_rate
+    {% if plan_design_parameters_config %}
+    CASE
+      {% for family in referenced_core_families %}
+      WHEN pdp.core_formula_family = '{{ family }}' THEN {{ core_family_rate(family) }}
+      {% endfor %}
+      ELSE NULL
+    END
     {% elif employer_core_status == 'age_banded' and employer_core_age_schedule | length > 0 %}
     {{ get_age_banded_core_rate('COALESCE(snap.current_age, 0)', employer_core_age_schedule, employer_core_contribution_rate) }}
     {% elif employer_core_status == 'points_based' and employer_core_points_schedule | length > 0 %}
@@ -90,9 +102,19 @@ WITH irs_compensation_limits AS (
 plan_design_parameters AS (
     {{ get_plan_design_parameters(plan_design_parameters_config) }}
 ),
-{% if employer_core_status == 'graded_by_service' %}
-plan_design_core_schedule AS (
+{% if 'graded_by_service' in referenced_core_families %}
+plan_design_core_graded_schedule AS (
     {{ get_plan_design_core_graded_schedule(plan_design_parameters_config) }}
+),
+{% endif %}
+{% if 'age_banded' in referenced_core_families %}
+plan_design_core_age_schedule AS (
+    {{ get_plan_design_core_age_schedule(plan_design_parameters_config) }}
+),
+{% endif %}
+{% if 'points_based' in referenced_core_families %}
+plan_design_core_points_schedule AS (
+    {{ get_plan_design_core_points_schedule(plan_design_parameters_config) }}
 ),
 {% endif %}
 {% endif %}
@@ -316,7 +338,7 @@ SELECT
         WHEN {{ employer_core_enabled }} THEN 'configurable_rate'
         ELSE 'disabled'
     END AS contribution_method,
-    {% if plan_design_parameters_config and employer_core_status in ('flat', 'graded_by_service') %}
+    {% if plan_design_parameters_config %}
     pdp.employer_core_contribution_rate AS standard_core_rate,
     {% else %}
     {{ employer_core_contribution_rate }} AS standard_core_rate,
@@ -326,8 +348,26 @@ SELECT
     CURRENT_TIMESTAMP AS created_at,
     '{{ var("scenario_id", "default") }}' AS scenario_id,
     '{{ var("parameter_scenario_id", "default") }}' AS parameter_scenario_id,
+    {% if plan_design_parameters_config %}
+    pdp.core_formula_family,
+    pdp.core_integration_enabled,
+    pdp.core_integration_level_mode,
+    pdp.core_integration_level_value,
+    pdp.core_integration_disparity_rate,
+    CASE
+      WHEN NOT COALESCE(elig.eligible_for_core, FALSE) THEN 'ineligible'
+      WHEN pdp.core_formula_family = 'flat' THEN 'flat'
+      WHEN {{ core_rate_expr }} IS NOT NULL THEN 'band'
+      ELSE 'default'
+    END::VARCHAR AS core_rate_source,
+    CASE WHEN pdp.core_formula_family = 'flat' THEN 1 ELSE
+      COUNT(*) OVER (
+        PARTITION BY pop.employee_id, pop.plan_design_id, pop.simulation_year
+      )
+    END::INTEGER AS band_match_count,
+    {% endif %}
     ROW_NUMBER() OVER (
-        PARTITION BY pop.employee_id, pop.simulation_year
+        PARTITION BY pop.employee_id, pop.plan_design_id, pop.simulation_year
         ORDER BY pop.employee_id
     ) AS rn
 
@@ -352,21 +392,97 @@ LEFT JOIN snapshot_flags snap
 {% if plan_design_parameters_config %}
 INNER JOIN plan_design_parameters pdp
     ON pop.plan_design_id = pdp.plan_design_id
-{% if employer_core_status == 'graded_by_service' %}
-LEFT JOIN plan_design_core_schedule core_schedule
-    ON pop.plan_design_id = core_schedule.plan_design_id
+{% if 'graded_by_service' in referenced_core_families %}
+LEFT JOIN plan_design_core_graded_schedule core_graded
+    ON pop.plan_design_id = core_graded.plan_design_id
+    AND pdp.core_formula_family = 'graded_by_service'
     AND COALESCE(snap.years_of_service, FLOOR(COALESCE(pop.current_tenure, 0))::INT)
-        >= core_schedule.min_years
+        >= core_graded.min_years
     AND (
-        core_schedule.max_years IS NULL
+        core_graded.max_years IS NULL
         OR COALESCE(snap.years_of_service, FLOOR(COALESCE(pop.current_tenure, 0))::INT)
-            < core_schedule.max_years
+            < core_graded.max_years
     )
+{% endif %}
+{% if 'age_banded' in referenced_core_families %}
+LEFT JOIN plan_design_core_age_schedule core_age
+    ON pop.plan_design_id = core_age.plan_design_id
+    AND pdp.core_formula_family = 'age_banded'
+    AND COALESCE(snap.current_age, 0) >= core_age.min_age
+    AND (core_age.max_age IS NULL OR COALESCE(snap.current_age, 0) < core_age.max_age)
+{% endif %}
+{% if 'points_based' in referenced_core_families %}
+LEFT JOIN plan_design_core_points_schedule core_points
+    ON pop.plan_design_id = core_points.plan_design_id
+    AND pdp.core_formula_family = 'points_based'
+    AND (FLOOR(COALESCE(snap.current_age, 0))::INT
+      + FLOOR(COALESCE(snap.years_of_service, pop.current_tenure, 0))::INT)
+      >= core_points.min_points
+    AND (core_points.max_points IS NULL OR
+      (FLOOR(COALESCE(snap.current_age, 0))::INT
+       + FLOOR(COALESCE(snap.years_of_service, pop.current_tenure, 0))::INT)
+      < core_points.max_points)
 {% endif %}
 {% endif %}
 )
 
-{% if employer_core_integration_enabled %}
+{% if plan_design_parameters_config %}
+,
+multi_design_formula_guard AS (
+    SELECT CASE WHEN COUNT(*) = 0 THEN 1 ELSE CAST(
+      'invocation_id={{ invocation_id }}; core side formula resolution failed; '
+      || 'employee_id=' || MIN(employee_id)
+      || '; plan_design_id=' || MIN(plan_design_id)
+      || '; simulation_year=' || MIN(simulation_year)::VARCHAR
+      || '; core_formula_family=' || MIN(core_formula_family)
+      || '; band_match_count=' || MIN(band_match_count)::VARCHAR
+      || '; core_rate_source=' || MIN(core_rate_source)
+      || '; correct employer_core.' || MIN(CASE core_formula_family
+           WHEN 'graded_by_service' THEN 'graded_schedule'
+           WHEN 'points_based' THEN 'points_schedule'
+           ELSE 'age_schedule' END)
+      AS INTEGER) END AS guard_ok
+    FROM integration_basis
+    WHERE eligible_for_core
+      AND core_formula_family <> 'flat'
+      AND (core_rate_source = 'default' OR band_match_count <> 1)
+),
+integration_level_resolution AS (
+    SELECT
+      basis.*,
+      CASE WHEN basis.core_integration_enabled THEN
+        CASE
+          WHEN basis.core_integration_level_mode IN ('explicit', 'fixed_dollar')
+            THEN basis.core_integration_level_value
+          WHEN basis.core_integration_level_mode = 'percent_of_ss_wage_base'
+            THEN ROUND(basis.ss_wage_base * basis.core_integration_level_value / 100.0)
+          ELSE basis.ss_wage_base
+        END
+      ELSE NULL END::INTEGER AS integration_level_applied
+    FROM integration_basis basis
+    CROSS JOIN multi_design_formula_guard
+    WHERE multi_design_formula_guard.guard_ok = 1
+),
+integration_components AS (
+    SELECT
+      basis.*,
+      CASE WHEN basis.core_integration_enabled THEN GREATEST(
+        0, CASE WHEN basis.core_contribution_rate > 0
+                THEN basis.recognized_compensation ELSE 0 END
+           - basis.integration_level_applied
+      ) ELSE 0.00 END AS excess_compensation,
+      ROUND(basis.core_contribution_rate *
+        CASE WHEN basis.core_contribution_rate > 0
+             THEN basis.recognized_compensation ELSE 0 END, 2) AS base_core_amount,
+      CASE WHEN basis.core_integration_enabled THEN ROUND(
+        basis.core_integration_disparity_rate * GREATEST(
+          0, CASE WHEN basis.core_contribution_rate > 0
+                  THEN basis.recognized_compensation ELSE 0 END
+             - basis.integration_level_applied
+        ), 2) ELSE 0.00 END AS disparity_core_amount
+    FROM integration_level_resolution basis
+)
+{% elif employer_core_integration_enabled %}
 ,
 integration_components AS (
     SELECT
@@ -391,7 +507,7 @@ SELECT
     employment_status,
     eligible_for_core,
     annual_hours_worked,
-    {% if employer_core_integration_enabled %}
+    {% if plan_design_parameters_config or employer_core_integration_enabled %}
     base_core_amount + disparity_core_amount AS employer_core_amount,
     {% else %}
     employer_core_amount,
@@ -404,7 +520,7 @@ SELECT
     irs_401a17_limit,
     irs_401a17_limit_applied,
     ss_wage_base,
-    {% if employer_core_integration_enabled %}
+    {% if plan_design_parameters_config or employer_core_integration_enabled %}
     integration_level_applied,
     excess_compensation,
     base_core_amount,
@@ -419,5 +535,5 @@ SELECT
     scenario_id,
     parameter_scenario_id,
     plan_design_id
-FROM {% if employer_core_integration_enabled %}integration_components{% else %}integration_basis{% endif %}
+FROM {% if plan_design_parameters_config or employer_core_integration_enabled %}integration_components{% else %}integration_basis{% endif %}
 WHERE rn = 1

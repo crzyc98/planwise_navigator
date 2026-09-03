@@ -5,7 +5,12 @@ from __future__ import annotations
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, Field, RootModel, model_validator
+from pydantic import BaseModel, Field, RootModel, field_validator, model_validator
+
+MatchFormulaFamily = Literal[
+    "deferral_based", "graded_by_service", "tenure_graded", "points_based"
+]
+CoreFormulaFamily = Literal["flat", "graded_by_service", "points_based", "age_banded"]
 
 
 class HireDateCutoffRule(BaseModel):
@@ -90,20 +95,28 @@ class TenureGradedBand(BaseModel):
 
 
 class MatchParameterSet(BaseModel):
-    """Numeric inputs for the run-global match formula family."""
+    """Formula selector and numeric inputs for one design's match."""
 
+    family: MatchFormulaFamily | None = None
+    match_template: str | None = Field(default=None, min_length=1)
     cap_percent: float = Field(ge=0.0, le=1.0)
     tiers: list[MatchTier] = Field(default_factory=list)
     graded_schedule: list[ServiceMatchBand] = Field(default_factory=list)
     tenure_graded_bands: list[TenureGradedBand] = Field(default_factory=list)
     points_tiers: list[ServiceMatchBand] = Field(default_factory=list)
 
+    @field_validator("family", mode="before")
+    @classmethod
+    def normalize_legacy_family(cls, value: object) -> object:
+        """Keep the supported pre-Feature-099 alias readable."""
+        return "tenure_graded" if value == "tenure_based" else value
+
     @model_validator(mode="after")
     def validate_schedules(self) -> "MatchParameterSet":
         _validate_nonoverlapping_match_tiers(self.tiers, "match tiers")
-        _validate_nonoverlapping_bands(self.graded_schedule, "graded match schedule")
-        _validate_nonoverlapping_bands(self.points_tiers, "points match schedule")
-        _validate_tenure_bands(self.tenure_graded_bands)
+        # Cross-band gaps and overlaps are valid diagnostic fixtures at load time.
+        # The calculation guard validates exactly-one resolution against the
+        # employees actually in scope, avoiding false rejection of unused ranges.
         return self
 
 
@@ -121,18 +134,59 @@ class CoreServiceBand(BaseModel):
         return self
 
 
-class CoreParameterSet(BaseModel):
-    """Numeric flat and service-graded core inputs."""
+class CoreAgeBand(BaseModel):
+    """One half-open age band with a percentage-valued rate."""
 
+    min_age: int = Field(ge=0)
+    max_age: int | None = Field(default=None, ge=0)
+    rate: float = Field(ge=0.0, le=100.0)
+
+    @model_validator(mode="after")
+    def validate_bounds(self) -> "CoreAgeBand":
+        if self.max_age is not None and self.max_age <= self.min_age:
+            raise ValueError("core age band max_age must exceed min_age")
+        return self
+
+
+class CorePointsBand(BaseModel):
+    """One half-open age-plus-service points band with a percentage rate."""
+
+    min_points: int = Field(ge=0)
+    max_points: int | None = Field(default=None, ge=0)
+    rate: float = Field(ge=0.0, le=100.0)
+
+    @model_validator(mode="after")
+    def validate_bounds(self) -> "CorePointsBand":
+        if self.max_points is not None and self.max_points <= self.min_points:
+            raise ValueError("core points band max_points must exceed min_points")
+        return self
+
+
+class CoreParameterSet(BaseModel):
+    """Formula selector, schedules, and integration inputs for one design."""
+
+    family: CoreFormulaFamily | None = None
     contribution_rate: float = Field(ge=0.0, le=1.0)
     graded_schedule: list[CoreServiceBand] = Field(default_factory=list)
+    age_schedule: list[CoreAgeBand] = Field(default_factory=list)
+    points_schedule: list[CorePointsBand] = Field(default_factory=list)
+    integration_enabled: bool | None = None
+    integration_level_mode: Literal[
+        "ss_wage_base", "explicit", "percent_of_ss_wage_base", "fixed_dollar"
+    ] | None = None
+    integration_level_value: int | None = Field(default=None, ge=0)
+    integration_disparity_rate: float | None = Field(default=None, ge=0.0, le=1.0)
 
     @model_validator(mode="after")
     def validate_schedule(self) -> "CoreParameterSet":
-        ordered = sorted(self.graded_schedule, key=lambda band: band.min_years)
-        for previous, current in zip(ordered, ordered[1:]):
-            if previous.max_years is None or current.min_years < previous.max_years:
-                raise ValueError("core graded schedule bands overlap")
+        if (
+            self.integration_level_mode
+            in {"explicit", "percent_of_ss_wage_base", "fixed_dollar"}
+            and self.integration_level_value is None
+        ):
+            raise ValueError(
+                "integration_level_value is required for an explicit, percent, or fixed integration level"
+            )
         return self
 
 
@@ -202,17 +256,3 @@ def _validate_nonoverlapping_match_tiers(tiers: list[MatchTier], label: str) -> 
     for previous, current in zip(ordered, ordered[1:]):
         if current.employee_min < previous.employee_max:
             raise ValueError(f"{label} overlap")
-
-
-def _validate_nonoverlapping_bands(bands: list[ServiceMatchBand], label: str) -> None:
-    ordered = sorted(bands, key=lambda band: band.min_value)
-    for previous, current in zip(ordered, ordered[1:]):
-        if previous.max_value is None or current.min_value < previous.max_value:
-            raise ValueError(f"{label} bands overlap")
-
-
-def _validate_tenure_bands(bands: list[TenureGradedBand]) -> None:
-    ordered = sorted(bands, key=lambda band: band.min_years)
-    for previous, current in zip(ordered, ordered[1:]):
-        if previous.max_years is None or current.min_years < previous.max_years:
-            raise ValueError("tenure-graded match bands overlap")

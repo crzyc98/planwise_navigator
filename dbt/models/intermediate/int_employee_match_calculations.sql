@@ -143,6 +143,26 @@ employee_contributions AS (
         AND ec.employee_id IS NOT NULL
 ),
 
+{% if plan_design_parameters_config %}
+{% set referenced_match_families = [] %}
+{% for design_id, parameters in plan_design_parameters_config | dictsort %}
+  {% set family = parameters['match']['family'] %}
+  {% if family not in referenced_match_families %}
+    {% set _ = referenced_match_families.append(family) %}
+  {% endif %}
+{% endfor %}
+{% for family in referenced_match_families %}
+match_arm_{{ family }} AS (
+    {{ match_family_arm(family) }}
+),
+{% endfor %}
+all_matches AS (
+{% for family in referenced_match_families %}
+    SELECT * FROM match_arm_{{ family }}
+    {% if not loop.last %}UNION ALL{% endif %}
+{% endfor %}
+),
+{% else %}
 {% if employer_match_status == 'graded_by_service' %}
 -- E010: Service-based match calculation
 -- Match rate varies by employee years of service
@@ -205,9 +225,11 @@ all_matches AS (
         annual_deferrals,
         match_amount,
         formula_type,
+        'graded_by_service'::VARCHAR AS formula_family,
         years_of_service,
         irs_401a17_limit,
-        applied_points
+        applied_points,
+        1::INTEGER AS resolution_count
     FROM service_based_match
 ),
 
@@ -268,9 +290,11 @@ all_matches AS (
         annual_deferrals,
         match_amount,
         formula_type,
+        'tenure_graded'::VARCHAR AS formula_family,
         years_of_service,
         irs_401a17_limit,
-        applied_points
+        applied_points,
+        1::INTEGER AS resolution_count
     FROM tenure_graded_match
 ),
 
@@ -345,9 +369,11 @@ all_matches AS (
         annual_deferrals,
         match_amount,
         formula_type,
+        'points_based'::VARCHAR AS formula_family,
         years_of_service,
         irs_401a17_limit,
-        applied_points
+        applied_points,
+        1::INTEGER AS resolution_count
     FROM points_based_match
 ),
 
@@ -415,10 +441,63 @@ all_matches AS (
         annual_deferrals,
         match_amount,
         formula_type,
+        'deferral_based'::VARCHAR AS formula_family,
         years_of_service,
         irs_401a17_limit,
-        NULL::INT AS applied_points
+        NULL::INT AS applied_points,
+        1::INTEGER AS resolution_count
     FROM tiered_match
+),
+{% endif %}
+{% endif %}
+
+{% if plan_design_parameters_config %}
+match_resolution AS (
+    SELECT
+        ec.employee_id,
+        ec.plan_design_id,
+        ec.simulation_year,
+        pdp.match_formula_family AS formula_family,
+        ec.years_of_service,
+        (FLOOR(ec.age_as_of_december_31)::INT + ec.years_of_service)
+            AS applied_points,
+        COUNT(am.employee_id)::INTEGER AS arm_count,
+        COALESCE(MAX(am.resolution_count), 0)::INTEGER AS resolution_count
+    FROM employee_contributions ec
+    INNER JOIN plan_design_parameters pdp
+      ON pdp.plan_design_id = ec.plan_design_id
+    LEFT JOIN all_matches am
+      ON am.employee_id = ec.employee_id
+     AND am.plan_design_id = ec.plan_design_id
+     AND am.simulation_year = ec.simulation_year
+    WHERE ec.is_eligible_for_match
+    GROUP BY ec.employee_id, ec.plan_design_id, ec.simulation_year,
+             pdp.match_formula_family, ec.years_of_service,
+             ec.age_as_of_december_31
+),
+multi_design_formula_guard AS (
+    SELECT CASE WHEN COUNT(*) = 0 THEN 1 ELSE CAST(
+        'invocation_id={{ invocation_id }}; match side formula resolution failed; '
+        || 'employee_id=' || MIN(employee_id)
+        || '; plan_design_id=' || MIN(plan_design_id)
+        || '; simulation_year=' || MIN(simulation_year)::VARCHAR
+        || '; formula_family=' || MIN(formula_family)
+        || '; arm_count=' || MIN(arm_count)::VARCHAR
+        || '; resolution_count=' || MIN(resolution_count)::VARCHAR
+        || '; observed_value=' || MIN(
+            CASE WHEN formula_family = 'points_based'
+                 THEN applied_points ELSE years_of_service END
+        )::VARCHAR
+        || '; correct match.' || MIN(
+            CASE formula_family
+              WHEN 'deferral_based' THEN 'tiers'
+              WHEN 'graded_by_service' THEN 'graded_schedule'
+              WHEN 'tenure_graded' THEN 'tenure_graded_bands'
+              ELSE 'points_tiers' END
+        )
+        AS INTEGER) END AS guard_ok
+    FROM match_resolution
+    WHERE arm_count <> 1 OR resolution_count <> 1
 ),
 {% endif %}
 
@@ -432,6 +511,7 @@ final_match AS (
         am.deferral_rate,
         am.annual_deferrals,
         am.formula_type,
+        am.formula_family,
         -- E010: Years of service for service-based matching audit trail
         am.years_of_service,
         -- E046: Points for points-based matching audit trail
@@ -451,54 +531,29 @@ final_match AS (
         FALSE AS match_cap_applied,
         'disabled' AS match_status,
         0 AS uncapped_match_amount
-        {% elif employer_match_status in ('graded_by_service', 'tenure_graded', 'points_based') %}
-        -- E010/E046: Tier-based modes - no match cap, tier already includes max_deferral_pct
-        -- E026: 401(a)(17) cap already applied in match_amount calculation
-        am.match_amount AS capped_match_amount,
+        {% else %}
+        CASE WHEN am.formula_family = 'deferral_based' THEN LEAST(
+            am.match_amount, LEAST(am.eligible_compensation, am.irs_401a17_limit)
+            * {% if plan_design_parameters_config %}pdp.match_cap_percent{% else %}{{ match_cap_percent }}{% endif %}
+        ) ELSE am.match_amount END AS capped_match_amount,
         CASE
+            WHEN ec.is_eligible_for_match AND am.formula_family = 'deferral_based'
+            THEN LEAST(am.match_amount,
+                LEAST(am.eligible_compensation, am.irs_401a17_limit)
+                * {% if plan_design_parameters_config %}pdp.match_cap_percent{% else %}{{ match_cap_percent }}{% endif %})
             WHEN ec.is_eligible_for_match THEN am.match_amount
             ELSE 0
         END AS employer_match_amount,
-        FALSE AS match_cap_applied,
-        -- Epic E058 Phase 2: Match status tracking field
+        am.formula_family = 'deferral_based'
+          AND am.match_amount > LEAST(am.eligible_compensation, am.irs_401a17_limit)
+              * {% if plan_design_parameters_config %}pdp.match_cap_percent{% else %}{{ match_cap_percent }}{% endif %}
+          AS match_cap_applied,
         CASE
             WHEN NOT ec.is_eligible_for_match THEN 'ineligible'
             WHEN ec.is_eligible_for_match AND am.annual_deferrals = 0 THEN 'no_deferrals'
             WHEN ec.is_eligible_for_match AND am.annual_deferrals > 0 THEN 'calculated'
-            ELSE 'calculated'  -- Default fallback
+            ELSE 'calculated'
         END AS match_status,
-        -- Calculate uncapped match for analysis
-        am.match_amount AS uncapped_match_amount
-        {% else %}
-        -- E084 Phase B: Apply maximum match cap using match_cap_percent variable
-        -- E026: Match cap is already based on 401(a)(17)-capped compensation from match_amount
-        LEAST(
-            am.match_amount,
-            LEAST(am.eligible_compensation, am.irs_401a17_limit) *
-            {% if plan_design_parameters_config %}pdp.match_cap_percent{% else %}{{ match_cap_percent }}{% endif %}
-        ) AS capped_match_amount,
-        -- Epic E058 Phase 2: Apply eligibility filtering - ineligible employees get $0 match
-        -- E026: Use 401(a)(17)-capped compensation for cap calculation
-        CASE
-            WHEN ec.is_eligible_for_match THEN
-                LEAST(
-                    am.match_amount,
-                    LEAST(am.eligible_compensation, am.irs_401a17_limit) *
-                    {% if plan_design_parameters_config %}pdp.match_cap_percent{% else %}{{ match_cap_percent }}{% endif %}
-                )
-            ELSE 0
-        END AS employer_match_amount,
-        -- Track if cap was applied (before eligibility filtering)
-        am.match_amount > LEAST(am.eligible_compensation, am.irs_401a17_limit) *
-            {% if plan_design_parameters_config %}pdp.match_cap_percent{% else %}{{ match_cap_percent }}{% endif %} AS match_cap_applied,
-        -- Epic E058 Phase 2: Match status tracking field
-        CASE
-            WHEN NOT ec.is_eligible_for_match THEN 'ineligible'
-            WHEN ec.is_eligible_for_match AND am.annual_deferrals = 0 THEN 'no_deferrals'
-            WHEN ec.is_eligible_for_match AND am.annual_deferrals > 0 THEN 'calculated'
-            ELSE 'calculated'  -- Default fallback
-        END AS match_status,
-        -- Calculate uncapped match for analysis
         am.match_amount AS uncapped_match_amount
         {% endif %}
     FROM all_matches am
@@ -510,6 +565,8 @@ final_match AS (
     {% if plan_design_parameters_config %}
     INNER JOIN plan_design_parameters pdp
       ON pdp.plan_design_id = am.plan_design_id
+    CROSS JOIN multi_design_formula_guard
+    WHERE multi_design_formula_guard.guard_ok = 1
     {% endif %}
 )
 
@@ -532,31 +589,12 @@ SELECT
     match_eligibility_reason,
     match_status,
     eligibility_config_applied,
-    {% if employer_match_status == 'graded_by_service' %}
-    -- E010: Service-based mode identifiers
-    'graded_by_service' AS formula_id,
-    'graded_by_service' AS formula_name,
-    years_of_service AS applied_years_of_service,
-    NULL::INT AS applied_points,
-    {% elif employer_match_status == 'tenure_graded' %}
-    -- Feature 099: Tenure-graded multi-tier mode identifiers
-    'tenure_graded' AS formula_id,
-    'tenure_graded' AS formula_name,
-    years_of_service AS applied_years_of_service,
-    NULL::INT AS applied_points,
-    {% elif employer_match_status == 'points_based' %}
-    -- E046: Points-based mode identifiers
-    'points_based' AS formula_id,
-    'points_based' AS formula_name,
-    years_of_service AS applied_years_of_service,
-    applied_points,
-    {% else %}
-    -- E084 Phase B: Deferral-based mode identifiers
-    '{{ match_template }}' AS formula_id,
-    '{{ match_template }}' AS formula_name,
-    NULL::INT AS applied_years_of_service,
-    NULL::INT AS applied_points,
-    {% endif %}
+    formula_type AS formula_id,
+    formula_type AS formula_name,
+    CASE WHEN formula_family = 'deferral_based' THEN NULL
+         ELSE years_of_service END::INT AS applied_years_of_service,
+    CASE WHEN formula_family = 'points_based' THEN applied_points
+         ELSE NULL END::INT AS applied_points,
     -- Calculate effective match rate
     CASE
         WHEN annual_deferrals > 0

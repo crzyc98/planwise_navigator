@@ -293,13 +293,13 @@ match_optimization AS (
     *,
     {{ resolve_match_magnet_ceiling(
         employer_match_status,
-        'FLOOR(current_tenure)',
-        '(FLOOR(current_age) + FLOOR(current_tenure))',
+        'FLOOR(source.current_tenure)',
+        '(FLOOR(source.current_age) + FLOOR(source.current_tenure))',
         deferral_scalar,
-        'plan_design_id'
+        'source.plan_design_id'
     ) }} AS match_magnet_ceiling,
-    (ABS(HASH(employee_id || '-match-magnet-' || CAST(simulation_year AS VARCHAR))) % 1000) / 1000.0 AS magnet_random
-  FROM deferral_rate_selection
+    (ABS(HASH(source.employee_id || '-match-magnet-' || CAST(source.simulation_year AS VARCHAR))) % 1000) / 1000.0 AS magnet_random
+  FROM deferral_rate_selection source
 ),
 
 match_snapped AS (

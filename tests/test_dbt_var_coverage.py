@@ -191,6 +191,18 @@ def _all_exported_vars() -> set[str]:
 
 
 class TestDbtVarCoverage:
+    def test_formula_family_payload_owns_age_and_points_core_schedules(self):
+        from tests.fixtures.plan_design_formula_families import (
+            relation_contract_payload,
+        )
+
+        payload = relation_contract_payload()
+        assert payload["age_design"]["employer_core"]["age_schedule"]
+        assert payload["points_design"]["employer_core"]["points_schedule"]
+        assert "employer_core_age_schedule" in DBT_VAR_PER_DESIGN
+        assert "employer_core_points_schedule" in DBT_VAR_PER_DESIGN
+        assert DBT_VAR_DEFERRED == frozenset()
+
     def test_every_exported_var_has_a_plan_design_disposition(self):
         dispositions = {dbt_var_disposition(name) for name in _all_exported_vars()}
         assert dispositions <= {"per_design", "global", "deferred"}
