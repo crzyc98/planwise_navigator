@@ -335,6 +335,70 @@ def _apply_escalation_overrides(
             dbt_vars["deferral_escalation_hire_date_cutoff"] = _REMOVE_KEY
 
 
+_VOLUNTARY_DEFERRAL_AGE_SEGMENTS = ("young", "mid_career", "mature", "senior")
+_VOLUNTARY_DEFERRAL_INCOME_SEGMENTS = ("low", "moderate", "high", "executive")
+
+# The 16 age x income segments `int_voluntary_enrollment_decision.sql` reads. Used as
+# an allowlist so a malformed payload cannot inject arbitrary dbt variables.
+_VOLUNTARY_DEFERRAL_SEGMENTS = frozenset(
+    f"{age}_{income}"
+    for age in _VOLUNTARY_DEFERRAL_AGE_SEGMENTS
+    for income in _VOLUNTARY_DEFERRAL_INCOME_SEGMENTS
+)
+
+_VOLUNTARY_DEFERRAL_VAR_PREFIX = (
+    "voluntary_enrollment_deferral_rates_demographic_base_rates"
+)
+
+
+def _apply_voluntary_deferral_base_rate_overrides(
+    dc_plan_dict: Dict[str, Any],
+    dbt_vars: Dict[str, Any],
+) -> None:
+    """Apply per-segment voluntary deferral base rates from dc_plan (UI) to dbt vars.
+
+    The UI sends decimals keyed by segment. Segments the payload omits keep whatever
+    `_export_voluntary_enrollment` already resolved from the base config, so a partial
+    payload never blanks a segment.
+    """
+    rates = dc_plan_dict.get("voluntary_deferral_base_rates")
+    if not isinstance(rates, dict):
+        return
+
+    # A bad entry is skipped rather than raised: the caller logs and continues on any
+    # exception here, so raising would drop every other enrollment override (scope,
+    # escalation, opt-out rates) along with it. Skipping leaves the segment on its
+    # base-config value and keeps the rest of the payload intact.
+    for segment, value in rates.items():
+        if value is None:
+            continue
+        if segment not in _VOLUNTARY_DEFERRAL_SEGMENTS:
+            logger.warning(
+                "Ignoring unknown voluntary deferral segment '%s'; expected one of: %s",
+                segment,
+                ", ".join(sorted(_VOLUNTARY_DEFERRAL_SEGMENTS)),
+            )
+            continue
+        try:
+            rate = float(value)
+        except (TypeError, ValueError):
+            logger.warning(
+                "Ignoring non-numeric voluntary deferral base rate for '%s': %r",
+                segment,
+                value,
+            )
+            continue
+        if not 0.0 <= rate <= 1.0:
+            logger.warning(
+                "Ignoring voluntary deferral base rate for '%s': %s is outside the "
+                "0-1 decimal range",
+                segment,
+                rate,
+            )
+            continue
+        dbt_vars[f"{_VOLUNTARY_DEFERRAL_VAR_PREFIX}_{segment}"] = rate
+
+
 def _apply_dc_plan_enrollment_overrides(
     dc_plan_dict: Dict[str, Any],
     dbt_vars: Dict[str, Any],
@@ -369,6 +433,8 @@ def _apply_dc_plan_enrollment_overrides(
         dc_plan_dict.get("voluntary_enrollment_rate"),
         float,
     )
+
+    _apply_voluntary_deferral_base_rate_overrides(dc_plan_dict, dbt_vars)
 
     # Feature 102: match-magnet dial overrides (UI sends decimals for the rate fields)
     _set_if_not_none(

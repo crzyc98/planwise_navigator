@@ -157,6 +157,27 @@ export const DEFAULT_FORM_DATA: FormData = {
   // DC Plan - Voluntary Enrollment Rate (percentage, empty = use demographic defaults)
   dcVoluntaryEnrollmentRate: '30',
 
+  // DC Plan - Starting deferral rate per age x income segment (percent).
+  // Mirrors enrollment.voluntary_enrollment.deferral_rates.demographic_base_rates.
+  dcVoluntaryDeferralBaseRates: {
+    young_low: 3,
+    young_moderate: 3,
+    young_high: 4,
+    young_executive: 6,
+    mid_career_low: 4,
+    mid_career_moderate: 6,
+    mid_career_high: 8,
+    mid_career_executive: 10,
+    mature_low: 5,
+    mature_moderate: 8,
+    mature_high: 10,
+    mature_executive: 12,
+    senior_low: 6,
+    senior_moderate: 10,
+    senior_high: 12,
+    senior_executive: 15,
+  },
+
   // DC Plan - Match Magnet dial (Feature 102; defaults preserve prior behavior)
   dcMatchMagnetEnabled: true,
   dcMatchMagnetProbability: 45,

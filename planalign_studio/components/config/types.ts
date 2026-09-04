@@ -79,6 +79,30 @@ export interface AgeCoreTier {
   rate: number;
 }
 
+// Age x income segments used to assign a starting deferral rate to voluntary
+// enrollees. Boundaries live in the engine (int_voluntary_enrollment_decision.sql);
+// these labels only describe them.
+export const DEFERRAL_AGE_SEGMENTS = [
+  { key: 'young', label: 'Young', range: '< 31' },
+  { key: 'mid_career', label: 'Mid-Career', range: '31-45' },
+  { key: 'mature', label: 'Mature', range: '46-55' },
+  { key: 'senior', label: 'Senior', range: '56+' },
+] as const;
+
+export const DEFERRAL_INCOME_SEGMENTS = [
+  { key: 'low', label: 'Low', range: '< $50k' },
+  { key: 'moderate', label: 'Moderate', range: '$50k-$100k' },
+  { key: 'high', label: 'High', range: '$100k-$200k' },
+  { key: 'executive', label: 'Executive', range: '$200k+' },
+] as const;
+
+export type DeferralAgeSegment = (typeof DEFERRAL_AGE_SEGMENTS)[number]['key'];
+export type DeferralIncomeSegment = (typeof DEFERRAL_INCOME_SEGMENTS)[number]['key'];
+export type DeferralSegmentKey = `${DeferralAgeSegment}_${DeferralIncomeSegment}`;
+
+/** Percent values (0-100) keyed by segment. Converted to decimals on save. */
+export type VoluntaryDeferralBaseRates = Record<DeferralSegmentKey, number>;
+
 export type CoreIntegrationLevelMode =
   | 'ss_wage_base'
   | 'percent_of_ss_wage_base'
@@ -148,6 +172,9 @@ export interface FormData {
 
   // DC Plan - Voluntary Enrollment Rate
   dcVoluntaryEnrollmentRate: string;
+
+  // DC Plan - Starting deferral rate per age x income segment, as percents
+  dcVoluntaryDeferralBaseRates: VoluntaryDeferralBaseRates;
 
   // DC Plan - Match Magnet dial (Feature 102)
   dcMatchMagnetEnabled: boolean;

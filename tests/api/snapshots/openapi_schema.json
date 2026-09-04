@@ -3192,6 +3192,176 @@
         "title": "DeferralRateBucket",
         "type": "object"
       },
+      "DeferralSegment": {
+        "description": "Observed deferral behavior for one age x income segment.",
+        "properties": {
+          "age_segment": {
+            "description": "One of young, mid_career, mature, senior",
+            "title": "Age Segment",
+            "type": "string"
+          },
+          "average_deferral_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Mean deferral rate as a decimal among participants in this segment. None when the segment has no participants, in which case the segment carries no suggestion and should keep its configured value.",
+            "title": "Average Deferral Rate"
+          },
+          "employee_count": {
+            "description": "All employees in this segment, including non-participants",
+            "title": "Employee Count",
+            "type": "integer"
+          },
+          "income_segment": {
+            "description": "One of low, moderate, high, executive",
+            "title": "Income Segment",
+            "type": "string"
+          },
+          "low_confidence": {
+            "description": "True when the participant count is too small to be reliable",
+            "title": "Low Confidence",
+            "type": "boolean"
+          },
+          "participant_count": {
+            "description": "Employees in this segment with a deferral rate above zero",
+            "title": "Participant Count",
+            "type": "integer"
+          },
+          "segment": {
+            "description": "Segment key, '{age_segment}_{income_segment}' (e.g. 'young_low')",
+            "title": "Segment",
+            "type": "string"
+          }
+        },
+        "required": [
+          "segment",
+          "age_segment",
+          "income_segment",
+          "participant_count",
+          "employee_count",
+          "low_confidence"
+        ],
+        "title": "DeferralSegment",
+        "type": "object"
+      },
+      "DeferralSegmentAnalysisRequest": {
+        "description": "Request for census-based deferral segment analysis.",
+        "properties": {
+          "as_of_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Date ages are measured at. Inferred from the census when omitted.",
+            "title": "As Of Date"
+          },
+          "file_path": {
+            "description": "Path to census file (relative to workspace or absolute)",
+            "title": "File Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file_path"
+        ],
+        "title": "DeferralSegmentAnalysisRequest",
+        "type": "object"
+      },
+      "DeferralSegmentAnalysisResult": {
+        "description": "Result from census-based deferral segment analysis.",
+        "properties": {
+          "as_of_date": {
+            "description": "Date ages were measured at",
+            "format": "date",
+            "title": "As Of Date",
+            "type": "string"
+          },
+          "as_of_date_source": {
+            "description": "'provided' or 'inferred' from the census",
+            "title": "As Of Date Source",
+            "type": "string"
+          },
+          "excluded_count": {
+            "description": "Employees dropped for a missing or unusable age, compensation, or deferral value, including deferral rates outside the 0-1 decimal range",
+            "title": "Excluded Count",
+            "type": "integer"
+          },
+          "low_confidence_threshold": {
+            "description": "Participant count below which a segment is flagged low confidence",
+            "title": "Low Confidence Threshold",
+            "type": "integer"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Informational or warning message",
+            "title": "Message"
+          },
+          "overall_average_deferral_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Mean deferral rate across all participants, as a decimal",
+            "title": "Overall Average Deferral Rate"
+          },
+          "segments": {
+            "description": "One entry per age x income segment that has at least one employee. Segments absent from the census are omitted.",
+            "items": {
+              "$ref": "#/components/schemas/DeferralSegment"
+            },
+            "title": "Segments",
+            "type": "array"
+          },
+          "source_file": {
+            "description": "Path to source census file",
+            "title": "Source File",
+            "type": "string"
+          },
+          "total_employees_analyzed": {
+            "description": "Employees with usable age, compensation, and deferral values",
+            "title": "Total Employees Analyzed",
+            "type": "integer"
+          },
+          "total_participants": {
+            "description": "Analyzed employees with a deferral rate above zero",
+            "title": "Total Participants",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "segments",
+          "total_employees_analyzed",
+          "total_participants",
+          "excluded_count",
+          "as_of_date",
+          "as_of_date_source",
+          "low_confidence_threshold",
+          "source_file"
+        ],
+        "title": "DeferralSegmentAnalysisResult",
+        "type": "object"
+      },
       "DeltaValue": {
         "description": "Delta calculation for a summary metric.",
         "properties": {
@@ -15285,6 +15455,59 @@
         "summary": "Analyze compensation ranges by job level",
         "tags": [
           "Files"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/analyze-deferral-segments": {
+      "post": {
+        "description": "Analyzes census data to compute the average deferral rate of participants within\neach age x income segment used by the voluntary enrollment model. Only employees\nwith a deferral rate above zero are averaged, since the configured segment rates\nare conditional on enrolling.",
+        "operationId": "analyze_deferral_segments_api_workspaces__workspace_id__analyze_deferral_segments_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeferralSegmentAnalysisRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeferralSegmentAnalysisResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Analyze census for per-segment deferral rate suggestions",
+        "tags": [
+          "Bands"
         ]
       }
     },
