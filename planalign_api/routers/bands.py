@@ -16,9 +16,14 @@ from ..models.bands import (
     BandAnalysisResult,
     BandConfig,
 )
+from ..models.deferral_segments import (
+    DeferralSegmentAnalysisRequest,
+    DeferralSegmentAnalysisResult,
+)
 from ..models.opt_out import OptOutRateAnalysisRequest, OptOutRateAnalysisResult
 from ..models.turnover import TurnoverAnalysisRequest, TurnoverAnalysisResult
 from ..services.band_service import BandService
+from ..services.deferral_segment_service import DeferralSegmentAnalysisService
 from ..services.opt_out_service import OptOutAnalysisService
 from ..services.turnover_service import TurnoverAnalysisService
 from ..storage.workspace_storage import WorkspaceStorage
@@ -350,4 +355,63 @@ async def analyze_opt_out_rate(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=sanitize_error(logger, "Failed to analyze census for opt-out rate"),
+        ) from e
+
+
+# ============================================================================
+# POST /analyze-deferral-segments - Analyze Census for Deferral Segment Rates
+# ============================================================================
+
+
+def get_deferral_segment_service() -> DeferralSegmentAnalysisService:
+    """Get deferral segment analysis service instance."""
+    settings = get_settings()
+    return DeferralSegmentAnalysisService(settings.workspaces_root)
+
+
+@router.post(
+    "/{workspace_id}/analyze-deferral-segments",
+    response_model=DeferralSegmentAnalysisResult,
+    summary="Analyze census for per-segment deferral rate suggestions",
+    description="""
+Analyzes census data to compute the average deferral rate of participants within
+each age x income segment used by the voluntary enrollment model. Only employees
+with a deferral rate above zero are averaged, since the configured segment rates
+are conditional on enrolling.
+""",
+)
+async def analyze_deferral_segments(
+    workspace_id: str,
+    request: DeferralSegmentAnalysisRequest,
+) -> DeferralSegmentAnalysisResult:
+    """
+    Analyze census data and suggest per-segment deferral rates.
+
+    Args:
+        workspace_id: Workspace ID
+        request: Request with file_path and optional as_of_date
+
+    Returns:
+        DeferralSegmentAnalysisResult with one entry per populated segment
+    """
+    service = get_deferral_segment_service()
+
+    try:
+        result = service.analyze_deferral_segments(
+            workspace_id=workspace_id,
+            file_path=request.file_path,
+            as_of_date=request.as_of_date,
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=sanitize_error(
+                logger, "Failed to analyze census for deferral segments"
+            ),
         ) from e

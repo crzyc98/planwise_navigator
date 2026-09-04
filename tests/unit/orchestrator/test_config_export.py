@@ -403,6 +403,106 @@ class TestExportEnrollmentVars:
         assert result["voluntary_enrollment_rate"] == pytest.approx(0.5)
 
 
+_DEFERRAL_VAR_PREFIX = "voluntary_enrollment_deferral_rates_demographic_base_rates"
+
+
+class TestVoluntaryDeferralBaseRateOverrides:
+    """Issue #650: per-segment deferral base rates edited in Studio."""
+
+    def test_dc_plan_override_reaches_dbt_vars(self):
+        cfg = _make_config()
+        cfg.dc_plan = {"voluntary_deferral_base_rates": {"young_low": 0.07}}
+        result = _export_enrollment_vars(cfg)
+        assert result[f"{_DEFERRAL_VAR_PREFIX}_young_low"] == pytest.approx(0.07)
+
+    def test_override_wins_over_base_config(self):
+        cfg = _make_config()
+        cfg.enrollment.voluntary_enrollment.deferral_rates.demographic_base_rates[
+            "young_low"
+        ] = 0.03
+        cfg.dc_plan = {"voluntary_deferral_base_rates": {"young_low": 0.09}}
+        result = _export_enrollment_vars(cfg)
+        assert result[f"{_DEFERRAL_VAR_PREFIX}_young_low"] == pytest.approx(0.09)
+
+    def test_partial_override_leaves_other_segments_on_base_config(self):
+        """A partial payload must not blank the segments it omits."""
+        cfg = _make_config()
+        cfg.enrollment.voluntary_enrollment.deferral_rates.demographic_base_rates[
+            "senior_executive"
+        ] = 0.15
+        cfg.dc_plan = {"voluntary_deferral_base_rates": {"young_low": 0.09}}
+        result = _export_enrollment_vars(cfg)
+        assert result[f"{_DEFERRAL_VAR_PREFIX}_young_low"] == pytest.approx(0.09)
+        assert result[f"{_DEFERRAL_VAR_PREFIX}_senior_executive"] == pytest.approx(0.15)
+
+    def test_all_sixteen_segments_export(self):
+        segments = {
+            f"{age}_{income}": 0.05
+            for age in ("young", "mid_career", "mature", "senior")
+            for income in ("low", "moderate", "high", "executive")
+        }
+        cfg = _make_config()
+        cfg.dc_plan = {"voluntary_deferral_base_rates": segments}
+        result = _export_enrollment_vars(cfg)
+        for segment in segments:
+            assert result[f"{_DEFERRAL_VAR_PREFIX}_{segment}"] == pytest.approx(0.05)
+
+    def test_zero_rate_is_exported(self):
+        cfg = _make_config()
+        cfg.dc_plan = {"voluntary_deferral_base_rates": {"young_low": 0.0}}
+        result = _export_enrollment_vars(cfg)
+        assert result[f"{_DEFERRAL_VAR_PREFIX}_young_low"] == pytest.approx(0.0)
+
+    def test_none_value_is_skipped(self):
+        cfg = _make_config()
+        cfg.enrollment.voluntary_enrollment.deferral_rates.demographic_base_rates[
+            "young_low"
+        ] = 0.03
+        cfg.dc_plan = {"voluntary_deferral_base_rates": {"young_low": None}}
+        result = _export_enrollment_vars(cfg)
+        assert result[f"{_DEFERRAL_VAR_PREFIX}_young_low"] == pytest.approx(0.03)
+
+    def test_absent_key_is_a_no_op(self):
+        cfg = _make_config()
+        cfg.dc_plan = {"auto_enroll": True}
+        result = _export_enrollment_vars(cfg)
+        assert f"{_DEFERRAL_VAR_PREFIX}_young_low" in result
+
+    def test_unknown_segment_ignored(self):
+        """An unrecognized key must not become an arbitrary dbt variable."""
+        cfg = _make_config()
+        cfg.dc_plan = {"voluntary_deferral_base_rates": {"young_lowish": 0.05}}
+        result = _export_enrollment_vars(cfg)
+        assert f"{_DEFERRAL_VAR_PREFIX}_young_lowish" not in result
+
+    @pytest.mark.parametrize("rate", [-0.01, 1.5, "abc"])
+    def test_invalid_rate_falls_back_to_base_config(self, rate):
+        cfg = _make_config()
+        cfg.enrollment.voluntary_enrollment.deferral_rates.demographic_base_rates[
+            "young_low"
+        ] = 0.03
+        cfg.dc_plan = {"voluntary_deferral_base_rates": {"young_low": rate}}
+        result = _export_enrollment_vars(cfg)
+        assert result[f"{_DEFERRAL_VAR_PREFIX}_young_low"] == pytest.approx(0.03)
+
+    def test_invalid_segment_does_not_drop_sibling_overrides(self):
+        """One bad entry must not discard the rest of the enrollment payload."""
+        cfg = _make_config()
+        cfg.dc_plan = {
+            "auto_enroll_scope": "all_eligible",
+            "voluntary_deferral_base_rates": {"young_low": 9.9, "senior_high": 0.11},
+        }
+        result = _export_enrollment_vars(cfg)
+        assert result["auto_enrollment_scope"] == "all_eligible_employees"
+        assert result[f"{_DEFERRAL_VAR_PREFIX}_senior_high"] == pytest.approx(0.11)
+
+    def test_non_dict_payload_ignored(self):
+        cfg = _make_config()
+        cfg.dc_plan = {"voluntary_deferral_base_rates": "not-a-dict"}
+        result = _export_enrollment_vars(cfg)
+        assert f"{_DEFERRAL_VAR_PREFIX}_young_low" in result
+
+
 # ===========================================================================
 # AutoEnrollmentSettings voluntary_enrollment_rate validation
 # ===========================================================================

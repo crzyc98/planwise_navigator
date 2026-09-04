@@ -1,7 +1,13 @@
 // Shared constants for ConfigStudio section components
 // Extracted from ConfigStudio.tsx lines 21-64 and 205-337
 
-import type { MatchTier, MatchTemplate, FormData, TenureGradedBand } from './types';
+import type {
+  MatchTier,
+  MatchTemplate,
+  FormData,
+  TenureGradedBand,
+  VoluntaryDeferralBaseRates,
+} from './types';
 
 // Helper to calculate match cap from tiers: sum of (tier_width * match_rate)
 export const calculateMatchCap = (tiers: MatchTier[]): number => {
@@ -16,6 +22,28 @@ export const calculateMatchCap = (tiers: MatchTier[]): number => {
 // own tier list — used to display each band's "max effective match %" in the editor.
 export const calculateTenureGradedBandCap = (band: TenureGradedBand): number =>
   calculateMatchCap(band.tiers);
+
+// Default starting deferral rates per age x income segment (percent). Mirrors
+// enrollment.voluntary_enrollment.deferral_rates.demographic_base_rates and is shared
+// between DEFAULT_FORM_DATA and the editor's reset-to-default action.
+export const DEFAULT_VOLUNTARY_DEFERRAL_BASE_RATES: VoluntaryDeferralBaseRates = {
+  young_low: 3,
+  young_moderate: 3,
+  young_high: 4,
+  young_executive: 6,
+  mid_career_low: 4,
+  mid_career_moderate: 6,
+  mid_career_high: 8,
+  mid_career_executive: 10,
+  mature_low: 5,
+  mature_moderate: 8,
+  mature_high: 10,
+  mature_executive: 12,
+  senior_low: 6,
+  senior_moderate: 10,
+  senior_high: 12,
+  senior_executive: 15,
+};
 
 export const MATCH_TEMPLATES: Record<string, MatchTemplate> = {
   simple: {
@@ -156,6 +184,10 @@ export const DEFAULT_FORM_DATA: FormData = {
 
   // DC Plan - Voluntary Enrollment Rate (percentage, empty = use demographic defaults)
   dcVoluntaryEnrollmentRate: '30',
+
+  // DC Plan - Starting deferral rate per age x income segment (percent).
+  // Mirrors enrollment.voluntary_enrollment.deferral_rates.demographic_base_rates.
+  dcVoluntaryDeferralBaseRates: { ...DEFAULT_VOLUNTARY_DEFERRAL_BASE_RATES },
 
   // DC Plan - Match Magnet dial (Feature 102; defaults preserve prior behavior)
   dcMatchMagnetEnabled: true,

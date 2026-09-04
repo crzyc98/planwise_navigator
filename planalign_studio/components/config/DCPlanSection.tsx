@@ -5,6 +5,7 @@ import { InputField } from './InputField';
 import { MATCH_TEMPLATES, calculateMatchCap, DEFAULT_FORM_DATA } from './constants';
 import { analyzeOptOutRate, OptOutRateAnalysisResult } from '../../services/api';
 import { TenureGradedMatchEditor } from './TenureGradedMatchEditor';
+import { VoluntaryDeferralRatesEditor } from './VoluntaryDeferralRatesEditor';
 
 /**
  * The lowest base core rate any employee could receive, as a percentage.
@@ -351,6 +352,13 @@ export function DCPlanSection() {
              <p className="mt-1 text-xs text-danger-ink">Voluntary enrollment rate must be between 0% and 100%.</p>
            )}
          </div>
+
+         <VoluntaryDeferralRatesEditor
+           rates={formData.dcVoluntaryDeferralBaseRates}
+           onChange={(rates) => setFormData(prev => ({ ...prev, dcVoluntaryDeferralBaseRates: rates }))}
+           workspaceId={activeWorkspace?.id}
+           censusDataPath={formData.censusDataPath}
+         />
 
          {/* Match Magnet dial (Feature 102) */}
          <div className="sm:col-span-6 mt-4">

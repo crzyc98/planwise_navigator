@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
-import type { FormData } from './types';
+import type { FormData, DeferralSegmentKey, VoluntaryDeferralBaseRates } from './types';
+import { DEFERRAL_AGE_SEGMENTS, DEFERRAL_INCOME_SEGMENTS } from './types';
 import { DEFAULT_FORM_DATA } from './constants';
 import { buildConfigPayload } from './buildConfigPayload';
 import {
@@ -195,6 +196,30 @@ function mapDCPlanMatchFields(cfg: any, prev: FormData): Partial<FormData> {
   };
 }
 
+/**
+ * Merge saved per-segment deferral rates (decimals) over the current percents.
+ *
+ * Reads the Studio-authored `dc_plan` block first, then falls back to the engine's
+ * own YAML shape so a workspace that set these rates outside Studio shows its real
+ * values — otherwise the first save from Studio would overwrite them with defaults.
+ * Segments neither source names keep their current value.
+ */
+function mapVoluntaryDeferralBaseRates(cfg: any, prev: VoluntaryDeferralBaseRates): VoluntaryDeferralBaseRates {
+  const saved =
+    cfg?.dc_plan?.voluntary_deferral_base_rates ??
+    cfg?.enrollment?.voluntary_enrollment?.deferral_rates?.demographic_base_rates;
+  if (!saved) return prev;
+  const merged = { ...prev };
+  for (const { key: age } of DEFERRAL_AGE_SEGMENTS) {
+    for (const { key: income } of DEFERRAL_INCOME_SEGMENTS) {
+      const segment = `${age}_${income}` as DeferralSegmentKey;
+      const value = saved[segment];
+      if (value != null) merged[segment] = value * 100;
+    }
+  }
+  return merged;
+}
+
 /** Map DC plan enrollment and opt-out config fields to FormData. */
 function mapDCPlanEnrollmentFields(cfg: any, prev: FormData): Partial<FormData> {
   return {
@@ -209,6 +234,10 @@ function mapDCPlanEnrollmentFields(cfg: any, prev: FormData): Partial<FormData> 
       ? cfg.dc_plan.opt_out_rate_target * 100 : prev.dcOptOutRateTarget,
     dcVoluntaryEnrollmentRate: cfg.dc_plan?.voluntary_enrollment_rate != null
       ? String(cfg.dc_plan.voluntary_enrollment_rate * 100) : prev.dcVoluntaryEnrollmentRate,
+    dcVoluntaryDeferralBaseRates: mapVoluntaryDeferralBaseRates(
+      cfg,
+      prev.dcVoluntaryDeferralBaseRates
+    ),
     // Feature 102: match-magnet dial (stored as decimals in config, shown as percent)
     dcMatchMagnetEnabled: cfg.dc_plan?.match_magnet_enabled ?? prev.dcMatchMagnetEnabled,
     dcMatchMagnetProbability: cfg.dc_plan?.match_magnet_probability != null

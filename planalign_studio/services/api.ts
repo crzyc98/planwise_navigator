@@ -1982,6 +1982,60 @@ export async function analyzeOptOutRate(
 }
 
 // ============================================================================
+// Voluntary Deferral Segment Census Analysis
+// ============================================================================
+
+export interface DeferralSegmentAnalysisRequest {
+  file_path: string;
+  as_of_date?: string;
+}
+
+export interface DeferralSegment {
+  segment: string;
+  age_segment: string;
+  income_segment: string;
+  average_deferral_rate: number | null;
+  participant_count: number;
+  employee_count: number;
+  low_confidence: boolean;
+}
+
+export interface DeferralSegmentAnalysisResult {
+  segments: DeferralSegment[];
+  total_employees_analyzed: number;
+  total_participants: number;
+  overall_average_deferral_rate: number | null;
+  excluded_count: number;
+  as_of_date: string;
+  as_of_date_source: string;
+  low_confidence_threshold: number;
+  source_file: string;
+  message: string | null;
+}
+
+/**
+ * Analyze census data for per-segment starting deferral rate suggestions.
+ * Averages only participants, since the configured rates are conditional on enrolling.
+ */
+export async function analyzeDeferralSegments(
+  workspaceId: string,
+  request: DeferralSegmentAnalysisRequest
+): Promise<DeferralSegmentAnalysisResult> {
+  const response = await fetchWithAuth(
+    `${API_BASE}/api/workspaces/${workspaceId}/analyze-deferral-segments`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        file_path: request.file_path,
+        ...(request.as_of_date ? { as_of_date: request.as_of_date } : {}),
+      }),
+    }
+  );
+  return handleResponse<DeferralSegmentAnalysisResult>(response);
+}
+
+// ============================================================================
 // Promotion Hazard Configuration Endpoints (Feature 038)
 // ============================================================================
 
