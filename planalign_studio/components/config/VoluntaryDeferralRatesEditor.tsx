@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { AlertTriangle, Sparkles } from 'lucide-react';
+import { AlertTriangle, RotateCcw, Sparkles } from 'lucide-react';
+import { DEFAULT_VOLUNTARY_DEFERRAL_BASE_RATES } from './constants';
 import {
   DEFERRAL_AGE_SEGMENTS,
   DEFERRAL_INCOME_SEGMENTS,
@@ -79,6 +80,12 @@ export function VoluntaryDeferralRatesEditor({
     onChange({ ...rates, [segment]: value === '' ? 0 : Number(value) });
   };
 
+  const handleResetToDefault = () => {
+    onChange({ ...DEFAULT_VOLUNTARY_DEFERRAL_BASE_RATES });
+    setAnalysis(null);
+    setAnalysisError(null);
+  };
+
   const outOfRange = Object.values(rates).some((rate) => rate < 0 || rate > 100);
   const applicableCount = (analysis?.segments ?? []).filter(
     (segment) => segment.average_deferral_rate !== null
@@ -88,20 +95,31 @@ export function VoluntaryDeferralRatesEditor({
     <div className="sm:col-span-6 mt-4">
       <div className="flex items-center justify-between mb-1">
         <h4 className="text-sm font-semibold text-ink">Starting Deferral Rates by Segment</h4>
-        <button
-          type="button"
-          onClick={handleMatchCensus}
-          disabled={analyzing || !censusDataPath || !workspaceId}
-          title={censusDataPath ? undefined : 'Upload a census file first to use Match Census'}
-          className="flex items-center px-3 py-1.5 text-sm bg-fidelity-green text-ink-inverse rounded-lg hover:bg-fidelity-green-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {analyzing ? (
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-border mr-2" />
-          ) : (
-            <Sparkles size={16} className="mr-2" />
-          )}
-          Match Census
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={handleResetToDefault}
+            title="Reset all segment rates to their defaults"
+            className="flex items-center px-3 py-1.5 text-sm bg-surface-raised border border-border-strong text-ink rounded-lg hover:bg-surface-subtle transition-colors"
+          >
+            <RotateCcw size={16} className="mr-2" />
+            Reset to Default
+          </button>
+          <button
+            type="button"
+            onClick={handleMatchCensus}
+            disabled={analyzing || !censusDataPath || !workspaceId}
+            title={censusDataPath ? undefined : 'Upload a census file first to use Match Census'}
+            className="flex items-center px-3 py-1.5 text-sm bg-fidelity-green text-ink-inverse rounded-lg hover:bg-fidelity-green-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {analyzing ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-border mr-2" />
+            ) : (
+              <Sparkles size={16} className="mr-2" />
+            )}
+            Match Census
+          </button>
+        </div>
       </div>
       <p className="text-xs text-ink-muted mb-3">
         Deferral rate assigned to a new hire who enrolls voluntarily, by age and income.
