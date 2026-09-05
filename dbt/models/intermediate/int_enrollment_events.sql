@@ -17,7 +17,7 @@
 {# Issue #652: upward-only deferral spread. 0 disables it. The year-over-year
    table below is coarser than the voluntary one -- four age bands, no income
    dimension -- so it clusters hardest of the three sites. #}
-{% set deferral_spread_max_lift = var('deferral_spread_max_lift', 0) %}
+{% set deferral_spread_max_lift = var('deferral_spread_max_lift', 4) %}
 
 {%- set yoy_spread_random -%}
 ((ABS(HASH(aw.employee_id || '-deferral-spread-' || CAST(aw.simulation_year AS VARCHAR))) % 1000) / 1000.0)

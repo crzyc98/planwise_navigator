@@ -18,9 +18,9 @@
   intended (D6): today's averages are artificially low precisely because
   everyone sits on the floor.
 
-  `max_lift` is in whole percentage points. 0 (the default) disables the
-  spread entirely and returns the base rate untouched, so existing scenarios
-  are unaffected until an analyst opts in. A max_lift below 4 caps the draw,
+  `max_lift` is in whole percentage points, defaulting to 4. Set it to 0 to
+  disable the spread entirely and return the base rate untouched, reproducing
+  pre-#652 deferral rates. A max_lift below 4 caps the draw,
   piling the remaining mass at the cap.
 
   `spread_random` MUST be drawn from its own seed. Reusing the match-magnet

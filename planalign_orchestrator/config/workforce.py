@@ -81,14 +81,16 @@ class AutoEnrollmentSettings(BaseModel):
         ),
     )
     deferral_spread_max_lift: int = Field(
-        default=0,
+        default=4,
         ge=0,
         le=10,
         description=(
             "Upward-only deferral-rate spread, in whole percentage points. "
             "The demographic table value becomes a floor and employees are "
             "distributed above it (40/30/15/10/5 across +0 to +4). "
-            "0 = disabled, every employee gets exactly the table value."
+            "Defaults to 4 because the alternative -- every member of a "
+            "segment on one exact rate -- is never what a real population "
+            "looks like. Set to 0 to disable and reproduce pre-#652 rates."
         ),
     )
     new_hire_opt_out_rate: Optional[float] = Field(

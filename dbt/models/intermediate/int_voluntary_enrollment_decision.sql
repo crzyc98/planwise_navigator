@@ -24,7 +24,7 @@
 {% set flat_new_hire_voluntary_rate = var('voluntary_enrollment_rate', none) %}
 
 {# Issue #652: upward-only deferral spread. 0 disables it. #}
-{% set deferral_spread_max_lift = var('deferral_spread_max_lift', 0) %}
+{% set deferral_spread_max_lift = var('deferral_spread_max_lift', 4) %}
 
 {# Scalar ceiling used only for deferral_based mode; other modes resolve per-employee. #}
 {% if precomputed_match_max is not none %}

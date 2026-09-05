@@ -130,7 +130,7 @@ An analyst looking at the deferral-rate distribution for new hires sees a realis
 - **FR-017**: The system MUST support an upward-only deferral-rate spread, in which a demographic cell's table value acts as a floor and employees are distributed across whole-percentage rates from that floor up to a configurable maximum lift (default 4 percentage points).
 - **FR-018**: The distribution across the lift MUST decay from the floor upward, with the floor the most common single outcome. Target weights are 40% at the floor and 30% / 15% / 10% / 5% at +1 through +4 percentage points.
 - **FR-019**: No employee MUST receive a deferral rate below their demographic cell's table value under the spread.
-- **FR-020**: The spread MUST be off by default. When it is off, every employee receives exactly their cell's table value, unchanged from today.
+- **FR-020**: The spread MUST default to a 4-percentage-point lift, because the alternative — every member of a segment holding one exact rate — is never a realistic population. Setting it to 0 MUST disable it, and with it off every employee receives exactly their cell's table value, unchanged from before this feature.
 - **FR-021**: Spread assignment MUST be deterministic and reproducible for a given seed, and MUST be drawn independently of the existing match-maximizing behavior so that the two do not correlate.
 - **FR-022**: The maximum voluntary deferral rate MUST default to 15%, raised from 10%, so that the higher demographic cells have room to spread.
 - **FR-023**: The spread MUST apply consistently to every path that assigns a demographic deferral rate, including new-hire voluntary enrollment and year-over-year conversion, so that one population is not visibly smoother than another.
@@ -159,7 +159,7 @@ An analyst looking at the deferral-rate distribution for new hires sees a realis
 - **SC-009**: A scenario that sets neither rate produces new-hire enrollment counts identical to the pre-change baseline, in every simulated year.
 - **SC-010**: With the spread enabled, no demographic cell contains more than 45% of its members at any single deferral rate, in every simulated year. (Today the figure is 100%.)
 - **SC-011**: With the spread enabled, zero employees hold a deferral rate below their demographic cell's table value.
-- **SC-012**: With the spread disabled, deferral rates are identical to the pre-change baseline for every employee.
+- **SC-012**: With the spread explicitly set to 0, deferral rates are identical to the pre-change baseline for every employee (apart from the separately-documented deferral cap change).
 - **SC-013**: An analyst can see, from the deferral-rate distribution alone, that rates were elected rather than assigned — no cell renders as a single spike.
 
 ## Assumptions

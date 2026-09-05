@@ -188,8 +188,10 @@ export const DEFAULT_FORM_DATA: FormData = {
   // Studio scenario silently stored an explicit multiplier.
   dcVoluntaryEnrollmentRate: '',
   dcNewHireOptOutRate: '',
-  // Off by default: every enrollee gets exactly their segment's table value.
-  dcDeferralSpreadMaxLift: '0',
+  // 4pp by default. The alternative -- every enrollee in a segment on one
+  // exact rate -- is never realistic. Matches the engine default so an older
+  // scenario without the key cannot silently gain or lose a spread on save.
+  dcDeferralSpreadMaxLift: '4',
 
   // DC Plan - Starting deferral rate per age x income segment (percent).
   // Mirrors enrollment.voluntary_enrollment.deferral_rates.demographic_base_rates.

@@ -153,11 +153,12 @@ class TestFloorIsRespected:
         assert not violations, f"rates below their cell floor: {violations[:5]}"
 
 
-class TestSpreadIsOptIn:
-    """SC-012 / FR-020: disabled means byte-identical to before."""
+class TestSpreadCanBeTurnedOff:
+    """SC-012 / FR-020: the spread defaults ON (4pp); explicitly setting it to
+    0 must reproduce the pre-feature rates exactly."""
 
-    def test_disabled_spread_changes_nothing_on_its_own(self):
-        """The spread must contribute exactly zero when switched off.
+    def test_explicit_zero_changes_nothing_on_its_own(self):
+        """The spread must contribute exactly zero when set to 0.
 
         Compared against the CAP baseline, not the original pre-change
         baseline. Raising the deferral cap from 10% to 15% (decision D7) is a
