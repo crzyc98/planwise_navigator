@@ -398,6 +398,51 @@ export function DCPlanSection() {
            censusDataPath={formData.censusDataPath}
          />
 
+         {/* Deferral Spread (issue #652) */}
+         <div className="sm:col-span-6 mt-4">
+           <h4 className="text-sm font-semibold text-ink mb-1">Deferral Rate Spread</h4>
+           <p className="text-xs text-ink-muted mb-3">
+             Without this, every enrollee in a segment above receives the identical rate,
+             so the distribution shows one spike per segment. Turn it on and the segment
+             rate becomes a <strong>floor</strong> that employees move up from — nobody
+             goes below it. Applies only to employees who enroll during the simulation,
+             not to auto-enrolled employees (who get the plan default) or census employees.
+           </p>
+           <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-6">
+             <InputField
+               label="Max Upward Spread"
+               name="dcDeferralSpreadMaxLift"
+               value={formData.dcDeferralSpreadMaxLift}
+               onChange={handleChange}
+               type="number"
+               step="1"
+               suffix="pp"
+               helper="Percentage points above the segment rate. 0 = off (every enrollee gets exactly the table value)."
+               min={0}
+               max={10}
+             />
+           </div>
+           {Number(formData.dcDeferralSpreadMaxLift) > 0 && (
+             <p className="mt-2 text-xs text-ink-muted">
+               A segment at {Number(formData.dcVoluntaryDeferralBaseRates?.mid_career_moderate ?? 0.06) * 100 || 6}% would spread across{' '}
+               {Array.from({ length: Math.min(Number(formData.dcDeferralSpreadMaxLift), 4) + 1 }, (_, i) => {
+                 const weights = [40, 30, 15, 10, 5];
+                 const base = (Number(formData.dcVoluntaryDeferralBaseRates?.mid_career_moderate ?? 0.06) * 100) || 6;
+                 return `${(base + i).toFixed(0)}% (${weights[i]}%)`;
+               }).join(', ')}
+               . Raises the average deferral rate, and therefore projected employer match cost.
+             </p>
+           )}
+           {Number(formData.dcDeferralSpreadMaxLift) > 0
+             && Number(formData.dcMaxVoluntaryDeferral) > 0
+             && ((Number(formData.dcVoluntaryDeferralBaseRates?.mid_career_moderate ?? 0.06) * 100) || 6) + Number(formData.dcDeferralSpreadMaxLift) > Number(formData.dcMaxVoluntaryDeferral) && (
+             <p className="mt-1 text-xs text-warning-ink">
+               Max Voluntary Deferral is {formData.dcMaxVoluntaryDeferral}%, so the top of this
+               spread will be clipped. Raise it below to give the spread room.
+             </p>
+           )}
+         </div>
+
          {/* Match Magnet dial (Feature 102) */}
          <div className="sm:col-span-6 mt-4">
            <div className="flex items-center justify-between mb-1">
