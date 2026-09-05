@@ -26,6 +26,12 @@ export const calculateTenureGradedBandCap = (band: TenureGradedBand): number =>
 // Default starting deferral rates per age x income segment (percent). Mirrors
 // enrollment.voluntary_enrollment.deferral_rates.demographic_base_rates and is shared
 // between DEFAULT_FORM_DATA and the editor's reset-to-default action.
+// Bounds on the upward deferral spread (percentage points). The upper bound is
+// load-bearing: top segment rate (15%) + 10pp == the 25% default cap, so no
+// segment can be clipped without someone lowering the cap by hand.
+export const DEFERRAL_SPREAD_MIN = 0;
+export const DEFERRAL_SPREAD_MAX = 10;
+
 export const DEFAULT_VOLUNTARY_DEFERRAL_BASE_RATES: VoluntaryDeferralBaseRates = {
   young_low: 3,
   young_moderate: 3,
@@ -180,18 +186,18 @@ export const DEFAULT_FORM_DATA: FormData = {
   dcAutoEnrollHireDateCutoff: '2020-01-01',
 
   // DC Plan - Auto-Enrollment Opt-Out Rate (overall target percentage)
-  dcOptOutRateTarget: 9,
+  dcOptOutRateTarget: 8,
 
   // DC Plan - New-hire enrollment rates (issue #652).
-  // Empty by default so a new scenario matches the engine's own default
-  // (demographic behaviour). This used to ship as '30', which meant every
-  // Studio scenario silently stored an explicit multiplier.
-  dcVoluntaryEnrollmentRate: '',
-  dcNewHireOptOutRate: '',
-  // 4pp by default. The alternative -- every enrollee in a segment on one
-  // exact rate -- is never realistic. Matches the engine default so an older
-  // scenario without the key cannot silently gain or lose a spread on save.
-  dcDeferralSpreadMaxLift: '4',
+  // Set explicitly so a new scenario starts on the flat new-hire rates rather
+  // than the engine's demographic model. Clear either field to hand that
+  // decision back to the demographic rates.
+  dcVoluntaryEnrollmentRate: '65',
+  dcNewHireOptOutRate: '8',
+  // 10pp by default. The alternative -- every enrollee in a segment on one
+  // exact rate -- is never realistic. Note the engine's own default is 4, so
+  // this is a Studio-only starting point, not a match.
+  dcDeferralSpreadMaxLift: '10',
 
   // DC Plan - Starting deferral rate per age x income segment (percent).
   // Mirrors enrollment.voluntary_enrollment.deferral_rates.demographic_base_rates.
@@ -200,7 +206,10 @@ export const DEFAULT_FORM_DATA: FormData = {
   // DC Plan - Match Magnet dial (Feature 102; defaults preserve prior behavior)
   dcMatchMagnetEnabled: true,
   dcMatchMagnetProbability: 45,
-  dcMaxVoluntaryDeferral: 10,
+  // 25% clears every segment at the maximum spread: the top segment
+  // (senior_executive, 15%) plus the 10pp ceiling on the spread lands
+  // exactly here, so no segment can be clipped at the default cap.
+  dcMaxVoluntaryDeferral: 25,
 
   // Match response is enabled by default for Studio scenarios.
   dcMatchResponseEnabled: true,

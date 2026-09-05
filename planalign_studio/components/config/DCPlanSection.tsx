@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { AlertTriangle, BarChart3, Info, X } from 'lucide-react';
 import { useConfigContext } from './ConfigContext';
 import { InputField } from './InputField';
-import { MATCH_TEMPLATES, calculateMatchCap, DEFAULT_FORM_DATA } from './constants';
+import { MATCH_TEMPLATES, calculateMatchCap, DEFAULT_FORM_DATA, DEFAULT_VOLUNTARY_DEFERRAL_BASE_RATES,
+  DEFERRAL_SPREAD_MIN, DEFERRAL_SPREAD_MAX } from './constants';
 import { analyzeOptOutRate, OptOutRateAnalysisResult } from '../../services/api';
 import { TenureGradedMatchEditor } from './TenureGradedMatchEditor';
 import { VoluntaryDeferralRatesEditor } from './VoluntaryDeferralRatesEditor';
@@ -127,6 +128,23 @@ export function DCPlanSection() {
     } finally {
       setAnalyzing(false);
     }
+  };
+
+  // Base rates are held in formData as percent (6 === 6%); buildConfigPayload
+  // is what divides by 100. Falls back to the shipped mid-career/moderate rate.
+  const midCareerModerateRate =
+    Number(formData.dcVoluntaryDeferralBaseRates?.mid_career_moderate
+      ?? DEFAULT_VOLUNTARY_DEFERRAL_BASE_RATES.mid_career_moderate);
+
+  // Hard-bound the spread to 0-10pp. The `max` attribute only governs the
+  // steppers -- a typed value lands in formData unchecked -- and the bound is
+  // what lets the default cap (25%) clear every segment without a warning.
+  const handleDeferralSpreadChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { value } = e.target;
+    const clamped = value === ''
+      ? ''
+      : String(Math.min(Math.max(Number(value), DEFERRAL_SPREAD_MIN), DEFERRAL_SPREAD_MAX));
+    setFormData(prev => ({ ...prev, dcDeferralSpreadMaxLift: clamped }));
   };
 
   const handleApply = () => {
@@ -413,32 +431,23 @@ export function DCPlanSection() {
                label="Max Upward Spread"
                name="dcDeferralSpreadMaxLift"
                value={formData.dcDeferralSpreadMaxLift}
-               onChange={handleChange}
+               onChange={handleDeferralSpreadChange}
                type="number"
                step="1"
                suffix="pp"
-               helper="Percentage points above the segment rate. 0 = off (every enrollee gets exactly the table value)."
-               min={0}
-               max={10}
+               helper={`Percentage points above the segment rate (${DEFERRAL_SPREAD_MIN}-${DEFERRAL_SPREAD_MAX}pp). 0 = off (every enrollee gets exactly the table value).`}
+               min={DEFERRAL_SPREAD_MIN}
+               max={DEFERRAL_SPREAD_MAX}
              />
            </div>
            {Number(formData.dcDeferralSpreadMaxLift) > 0 && (
              <p className="mt-2 text-xs text-ink-muted">
-               A segment at {Number(formData.dcVoluntaryDeferralBaseRates?.mid_career_moderate ?? 0.06) * 100 || 6}% would spread across{' '}
+               A segment at {midCareerModerateRate}% would spread across{' '}
                {Array.from({ length: Math.min(Number(formData.dcDeferralSpreadMaxLift), 4) + 1 }, (_, i) => {
                  const weights = [40, 30, 15, 10, 5];
-                 const base = (Number(formData.dcVoluntaryDeferralBaseRates?.mid_career_moderate ?? 0.06) * 100) || 6;
-                 return `${(base + i).toFixed(0)}% (${weights[i]}%)`;
+                 return `${(midCareerModerateRate + i).toFixed(0)}% (${weights[i]}%)`;
                }).join(', ')}
                . Raises the average deferral rate, and therefore projected employer match cost.
-             </p>
-           )}
-           {Number(formData.dcDeferralSpreadMaxLift) > 0
-             && Number(formData.dcMaxVoluntaryDeferral) > 0
-             && ((Number(formData.dcVoluntaryDeferralBaseRates?.mid_career_moderate ?? 0.06) * 100) || 6) + Number(formData.dcDeferralSpreadMaxLift) > Number(formData.dcMaxVoluntaryDeferral) && (
-             <p className="mt-1 text-xs text-warning-ink">
-               Max Voluntary Deferral is {formData.dcMaxVoluntaryDeferral}%, so the top of this
-               spread will be clipped. Raise it below to give the spread room.
              </p>
            )}
          </div>
