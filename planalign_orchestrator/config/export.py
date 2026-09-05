@@ -192,6 +192,12 @@ def _export_auto_enrollment_fields(auto: Any, dbt_vars: Dict[str, Any]) -> None:
     _set_if_not_none(
         dbt_vars, "voluntary_enrollment_rate", auto.voluntary_enrollment_rate, float
     )
+    _set_if_not_none(
+        dbt_vars, "new_hire_opt_out_rate", auto.new_hire_opt_out_rate, float
+    )
+    _set_if_not_none(
+        dbt_vars, "deferral_spread_max_lift", auto.deferral_spread_max_lift, int
+    )
 
 
 def _export_opt_out_rates(auto: Any, dbt_vars: Dict[str, Any]) -> None:
@@ -432,6 +438,19 @@ def _apply_dc_plan_enrollment_overrides(
         "voluntary_enrollment_rate",
         dc_plan_dict.get("voluntary_enrollment_rate"),
         float,
+    )
+    # Issue #652: flat new-hire opt-out rate, same decimal convention
+    _set_if_not_none(
+        dbt_vars,
+        "new_hire_opt_out_rate",
+        dc_plan_dict.get("new_hire_opt_out_rate"),
+        float,
+    )
+    _set_if_not_none(
+        dbt_vars,
+        "deferral_spread_max_lift",
+        dc_plan_dict.get("deferral_spread_max_lift"),
+        int,
     )
 
     _apply_voluntary_deferral_base_rate_overrides(dc_plan_dict, dbt_vars)

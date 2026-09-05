@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { AlertTriangle, BarChart3, Info, X } from 'lucide-react';
 import { useConfigContext } from './ConfigContext';
 import { InputField } from './InputField';
-import { MATCH_TEMPLATES, calculateMatchCap, DEFAULT_FORM_DATA } from './constants';
+import { MATCH_TEMPLATES, calculateMatchCap, DEFAULT_FORM_DATA, DEFAULT_VOLUNTARY_DEFERRAL_BASE_RATES,
+  DEFERRAL_SPREAD_MIN, DEFERRAL_SPREAD_MAX } from './constants';
 import { analyzeOptOutRate, OptOutRateAnalysisResult } from '../../services/api';
 import { TenureGradedMatchEditor } from './TenureGradedMatchEditor';
 import { VoluntaryDeferralRatesEditor } from './VoluntaryDeferralRatesEditor';
@@ -129,6 +130,23 @@ export function DCPlanSection() {
     }
   };
 
+  // Base rates are held in formData as percent (6 === 6%); buildConfigPayload
+  // is what divides by 100. Falls back to the shipped mid-career/moderate rate.
+  const midCareerModerateRate =
+    Number(formData.dcVoluntaryDeferralBaseRates?.mid_career_moderate
+      ?? DEFAULT_VOLUNTARY_DEFERRAL_BASE_RATES.mid_career_moderate);
+
+  // Hard-bound the spread to 0-10pp. The `max` attribute only governs the
+  // steppers -- a typed value lands in formData unchecked -- and the bound is
+  // what lets the default cap (25%) clear every segment without a warning.
+  const handleDeferralSpreadChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { value } = e.target;
+    const clamped = value === ''
+      ? ''
+      : String(Math.min(Math.max(Number(value), DEFERRAL_SPREAD_MIN), DEFERRAL_SPREAD_MAX));
+    setFormData(prev => ({ ...prev, dcDeferralSpreadMaxLift: clamped }));
+  };
+
   const handleApply = () => {
     if (!analysis || analysis.suggested_rate === null) return;
     const pct = parseFloat((analysis.suggested_rate * 100).toFixed(1));
@@ -229,7 +247,13 @@ export function DCPlanSection() {
                    </button>
                  </div>
                </div>
-               <p className="text-xs text-ink-muted mb-3">Set the overall target opt-out rate. Demographic sensitivity is applied automatically behind the scenes.</p>
+               <p className="text-xs text-ink-muted mb-3">
+                 Target opt-out rate for <strong>continuing employees</strong>. Demographic
+                 sensitivity is applied automatically behind the scenes.
+                 {formData.dcNewHireOptOutRate === ''
+                   ? ' New hires use this too, unless you set a New Hire Opt-Out % below.'
+                   : ' New hires are governed by the New Hire Opt-Out % below, not this field.'}
+               </p>
 
                {/* Match Census error */}
                {analysisError && (
@@ -306,7 +330,7 @@ export function DCPlanSection() {
                )}
 
                <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-6 mb-4">
-                 <InputField label="Target Opt-Out Rate" {...inputProps('dcOptOutRateTarget')} type="number" step="0.5" suffix="%" helper="Overall average opt-out rate across all demographics" min={0} max={100} />
+                 <InputField label="Target Opt-Out Rate" {...inputProps('dcOptOutRateTarget')} type="number" step="0.5" suffix="%" helper={formData.dcNewHireOptOutRate === '' ? 'Average opt-out rate across all demographics' : 'Continuing employees only — new hires use the flat rate below'} min={0} max={100} />
                </div>
 
                {/* Derived rates preview */}
@@ -329,27 +353,59 @@ export function DCPlanSection() {
            </>
          )}
 
-         {/* Voluntary Enrollment Rate */}
+         {/* New Hire Enrollment Rates (issue #652) */}
          <div className="sm:col-span-6 mt-4">
-           <h4 className="text-sm font-semibold text-ink mb-1">Voluntary Enrollment Rate</h4>
-           <p className="text-xs text-ink-muted mb-3">Set the overall voluntary enrollment rate. This scales demographic-based enrollment probabilities. Leave empty to use default demographic rates.</p>
+           <h4 className="text-sm font-semibold text-ink mb-1">New Hire Enrollment Rates</h4>
+           <p className="text-xs text-ink-muted mb-3">
+             Exact percentages applied to eligible new hires in their hire year. Whatever
+             is left over auto-enrolls. Leave a field empty to keep the demographic model
+             for that decision. These do not affect continuing employees.
+           </p>
            <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-6">
              <InputField
-               label="Voluntary Enrollment Rate"
+               label="New Hire Voluntary Enrollment %"
                name="dcVoluntaryEnrollmentRate"
                value={formData.dcVoluntaryEnrollmentRate}
                onChange={handleChange}
                type="number"
                step="1"
                suffix="%"
-               helper="Percentage of eligible employees who enroll voluntarily (0–100%). Empty = default demographic rates."
+               helper="Share of eligible new hires who enroll on their own (0–100%). Empty = demographic rates."
+               min={0}
+               max={100}
+               placeholder="Default"
+             />
+             <InputField
+               label="New Hire Opt-Out %"
+               name="dcNewHireOptOutRate"
+               value={formData.dcNewHireOptOutRate}
+               onChange={handleChange}
+               type="number"
+               step="1"
+               suffix="%"
+               helper="Share of auto-enrolled new hires who opt out (0–100%). Empty = demographic opt-out model."
                min={0}
                max={100}
                placeholder="Default"
              />
            </div>
            {formData.dcVoluntaryEnrollmentRate !== '' && (Number(formData.dcVoluntaryEnrollmentRate) < 0 || Number(formData.dcVoluntaryEnrollmentRate) > 100) && (
-             <p className="mt-1 text-xs text-danger-ink">Voluntary enrollment rate must be between 0% and 100%.</p>
+             <p className="mt-1 text-xs text-danger-ink">New hire voluntary enrollment must be between 0% and 100%.</p>
+           )}
+           {formData.dcNewHireOptOutRate !== '' && (Number(formData.dcNewHireOptOutRate) < 0 || Number(formData.dcNewHireOptOutRate) > 100) && (
+             <p className="mt-1 text-xs text-danger-ink">New hire opt-out must be between 0% and 100%.</p>
+           )}
+           {formData.dcVoluntaryEnrollmentRate !== '' && formData.dcNewHireOptOutRate !== ''
+             && Number(formData.dcVoluntaryEnrollmentRate) >= 0
+             && Number(formData.dcVoluntaryEnrollmentRate) <= 100
+             && Number(formData.dcNewHireOptOutRate) >= 0
+             && Number(formData.dcNewHireOptOutRate) <= 100 && (
+             <p className="mt-2 text-xs text-ink-muted">
+               Resulting split of eligible new hires:{' '}
+               <strong>{Number(formData.dcVoluntaryEnrollmentRate).toFixed(0)}%</strong> voluntary,{' '}
+               <strong>{((100 - Number(formData.dcVoluntaryEnrollmentRate)) * (100 - Number(formData.dcNewHireOptOutRate)) / 100).toFixed(1)}%</strong> auto-enrolled,{' '}
+               <strong>{((100 - Number(formData.dcVoluntaryEnrollmentRate)) * Number(formData.dcNewHireOptOutRate) / 100).toFixed(1)}%</strong> opted out.
+             </p>
            )}
          </div>
 
@@ -359,6 +415,42 @@ export function DCPlanSection() {
            workspaceId={activeWorkspace?.id}
            censusDataPath={formData.censusDataPath}
          />
+
+         {/* Deferral Spread (issue #652) */}
+         <div className="sm:col-span-6 mt-4">
+           <h4 className="text-sm font-semibold text-ink mb-1">Deferral Rate Spread</h4>
+           <p className="text-xs text-ink-muted mb-3">
+             Without this, every enrollee in a segment above receives the identical rate,
+             so the distribution shows one spike per segment. Turn it on and the segment
+             rate becomes a <strong>floor</strong> that employees move up from — nobody
+             goes below it. Applies only to employees who enroll during the simulation,
+             not to auto-enrolled employees (who get the plan default) or census employees.
+           </p>
+           <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-6">
+             <InputField
+               label="Max Upward Spread"
+               name="dcDeferralSpreadMaxLift"
+               value={formData.dcDeferralSpreadMaxLift}
+               onChange={handleDeferralSpreadChange}
+               type="number"
+               step="1"
+               suffix="pp"
+               helper={`Percentage points above the segment rate (${DEFERRAL_SPREAD_MIN}-${DEFERRAL_SPREAD_MAX}pp). 0 = off (every enrollee gets exactly the table value).`}
+               min={DEFERRAL_SPREAD_MIN}
+               max={DEFERRAL_SPREAD_MAX}
+             />
+           </div>
+           {Number(formData.dcDeferralSpreadMaxLift) > 0 && (
+             <p className="mt-2 text-xs text-ink-muted">
+               A segment at {midCareerModerateRate}% would spread across{' '}
+               {Array.from({ length: Math.min(Number(formData.dcDeferralSpreadMaxLift), 4) + 1 }, (_, i) => {
+                 const weights = [40, 30, 15, 10, 5];
+                 return `${(midCareerModerateRate + i).toFixed(0)}% (${weights[i]}%)`;
+               }).join(', ')}
+               . Raises the average deferral rate, and therefore projected employer match cost.
+             </p>
+           )}
+         </div>
 
          {/* Match Magnet dial (Feature 102) */}
          <div className="sm:col-span-6 mt-4">

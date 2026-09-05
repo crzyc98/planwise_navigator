@@ -234,6 +234,10 @@ function mapDCPlanEnrollmentFields(cfg: any, prev: FormData): Partial<FormData> 
       ? cfg.dc_plan.opt_out_rate_target * 100 : prev.dcOptOutRateTarget,
     dcVoluntaryEnrollmentRate: cfg.dc_plan?.voluntary_enrollment_rate != null
       ? String(cfg.dc_plan.voluntary_enrollment_rate * 100) : prev.dcVoluntaryEnrollmentRate,
+    dcNewHireOptOutRate: cfg.dc_plan?.new_hire_opt_out_rate != null
+      ? String(cfg.dc_plan.new_hire_opt_out_rate * 100) : prev.dcNewHireOptOutRate,
+    dcDeferralSpreadMaxLift: cfg.dc_plan?.deferral_spread_max_lift != null
+      ? String(cfg.dc_plan.deferral_spread_max_lift) : prev.dcDeferralSpreadMaxLift,
     dcVoluntaryDeferralBaseRates: mapVoluntaryDeferralBaseRates(
       cfg,
       prev.dcVoluntaryDeferralBaseRates

@@ -142,10 +142,13 @@ class TestMatchMagnetDialExport:
 
 
 class TestVoluntaryMaxDeferralExport:
-    def test_default_cap_is_ten_percent(self):
+    def test_default_cap_is_fifteen_percent(self):
+        """Issue #652 (D7): raised from 0.10 so the higher demographic cells
+        have room to spread. mature/executive and senior/high (0.12) and
+        senior/executive (0.15) were previously clamped down to 0.10."""
         cfg = _make_config()
         result = _export_enrollment_vars(cfg)
-        assert result["voluntary_max_deferral_rate"] == pytest.approx(0.10)
+        assert result["voluntary_max_deferral_rate"] == pytest.approx(0.15)
 
     def test_config_cap_exported(self):
         cfg = _make_config()

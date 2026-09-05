@@ -74,7 +74,34 @@ class AutoEnrollmentSettings(BaseModel):
         default=None,
         ge=0,
         le=1,
-        description="Multiplier on demographic enrollment probabilities (0.0-1.0). None = use defaults.",
+        description=(
+            "Fraction of eligible new hires who voluntarily enroll in their "
+            "hire year (0.0-1.0). None = use demographic enrollment "
+            "probabilities unchanged."
+        ),
+    )
+    deferral_spread_max_lift: int = Field(
+        default=4,
+        ge=0,
+        le=10,
+        description=(
+            "Upward-only deferral-rate spread, in whole percentage points. "
+            "The demographic table value becomes a floor and employees are "
+            "distributed above it (40/30/15/10/5 across +0 to +4). "
+            "Defaults to 4 because the alternative -- every member of a "
+            "segment on one exact rate -- is never what a real population "
+            "looks like. Set to 0 to disable and reproduce pre-#652 rates."
+        ),
+    )
+    new_hire_opt_out_rate: Optional[float] = Field(
+        default=None,
+        ge=0,
+        le=1,
+        description=(
+            "Fraction of auto-enrolled new hires who opt out (0.0-1.0). "
+            "None = use the demographic opt-out model. Applies to hire-year "
+            "new hires only; continuing employees keep opt_out_rates.target."
+        ),
     )
 
 
@@ -174,10 +201,17 @@ class MatchMagnetSettings(BaseModel):
         description="Fraction of below-ceiling voluntary enrollees who snap to the match ceiling.",
     )
     max_deferral_rate: float = Field(
-        default=0.10,
+        default=0.15,
         ge=0.01,
         le=1.0,
-        description="Maximum employee deferral rate for voluntary enrollment (bounds magnet-snapped rates).",
+        description=(
+            "Maximum employee deferral rate for voluntary enrollment (bounds "
+            "magnet-snapped rates). Issue #652 (D7): raised 0.10 -> 0.15 so the "
+            "higher demographic cells have room to spread. This is the value "
+            "that actually reaches dbt -- _export_match_magnet always writes "
+            "voluntary_max_deferral_rate, so the dbt_project.yml default never "
+            "applies on an orchestrator run."
+        ),
     )
 
 
