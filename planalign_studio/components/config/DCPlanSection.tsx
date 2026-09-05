@@ -329,27 +329,47 @@ export function DCPlanSection() {
            </>
          )}
 
-         {/* Voluntary Enrollment Rate */}
+         {/* New Hire Enrollment Rates (issue #652) */}
          <div className="sm:col-span-6 mt-4">
-           <h4 className="text-sm font-semibold text-ink mb-1">Voluntary Enrollment Rate</h4>
-           <p className="text-xs text-ink-muted mb-3">Set the overall voluntary enrollment rate. This scales demographic-based enrollment probabilities. Leave empty to use default demographic rates.</p>
+           <h4 className="text-sm font-semibold text-ink mb-1">New Hire Enrollment Rates</h4>
+           <p className="text-xs text-ink-muted mb-3">
+             Exact percentages applied to eligible new hires in their hire year. Whatever
+             is left over auto-enrolls. Leave a field empty to keep the demographic model
+             for that decision. These do not affect continuing employees.
+           </p>
            <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-6">
              <InputField
-               label="Voluntary Enrollment Rate"
+               label="New Hire Voluntary Enrollment %"
                name="dcVoluntaryEnrollmentRate"
                value={formData.dcVoluntaryEnrollmentRate}
                onChange={handleChange}
                type="number"
                step="1"
                suffix="%"
-               helper="Percentage of eligible employees who enroll voluntarily (0–100%). Empty = default demographic rates."
+               helper="Share of eligible new hires who enroll on their own (0–100%). Empty = demographic rates."
+               min={0}
+               max={100}
+               placeholder="Default"
+             />
+             <InputField
+               label="New Hire Opt-Out %"
+               name="dcNewHireOptOutRate"
+               value={formData.dcNewHireOptOutRate}
+               onChange={handleChange}
+               type="number"
+               step="1"
+               suffix="%"
+               helper="Share of auto-enrolled new hires who opt out (0–100%). Empty = demographic opt-out model."
                min={0}
                max={100}
                placeholder="Default"
              />
            </div>
            {formData.dcVoluntaryEnrollmentRate !== '' && (Number(formData.dcVoluntaryEnrollmentRate) < 0 || Number(formData.dcVoluntaryEnrollmentRate) > 100) && (
-             <p className="mt-1 text-xs text-danger-ink">Voluntary enrollment rate must be between 0% and 100%.</p>
+             <p className="mt-1 text-xs text-danger-ink">New hire voluntary enrollment must be between 0% and 100%.</p>
+           )}
+           {formData.dcNewHireOptOutRate !== '' && (Number(formData.dcNewHireOptOutRate) < 0 || Number(formData.dcNewHireOptOutRate) > 100) && (
+             <p className="mt-1 text-xs text-danger-ink">New hire opt-out must be between 0% and 100%.</p>
            )}
          </div>
 

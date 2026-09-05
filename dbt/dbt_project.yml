@@ -257,8 +257,12 @@ vars:
   enrollment_adjustment_high: 1.15            # Multiplier for $50k-$100k (increased enrollment)
   enrollment_adjustment_executive: 1.30       # Multiplier for >$100k (highest enrollment)
 
-  # Voluntary enrollment rate multiplier (0.0-1.0, 1.0 = use demographic defaults unchanged)
-  voluntary_enrollment_rate: 1.0
+  # Issue #652: flat new-hire enrollment rates.
+  # Both are intentionally ABSENT here, not defaulted: the models branch on
+  # var(..., none) to tell "analyst set a rate" from "use demographics".
+  # Adding a default back would make that distinction unexpressible.
+  #   voluntary_enrollment_rate  -- fraction of eligible new hires enrolling voluntarily
+  #   new_hire_opt_out_rate      -- fraction of auto-enrolled new hires opting out
 
   # Voluntary-only enrollment (for plans without auto-enrollment)
   voluntary_enrollment_enabled: true
@@ -301,7 +305,11 @@ vars:
   # Match magnet: attract enrollees toward match-maximizing deferral threshold
   enrollment_match_magnet_enabled: true         # Toggle match-threshold attraction at enrollment
   enrollment_match_magnet_probability: 0.45     # Fraction of sub-threshold enrollees who snap to match max
-  voluntary_max_deferral_rate: 0.10             # Upper bound on voluntary-enrollment deferral selection (incl. magnet-snapped rates)
+  # Issue #652 (decision D7): raised 0.10 -> 0.15 to give the higher demographic
+  # cells room to spread. NOTE this moves results on its own, independently of
+  # deferral_spread_max_lift: mature/executive (0.12), senior/high (0.12) and
+  # senior/executive (0.15) were previously clamped down to 0.10.
+  voluntary_max_deferral_rate: 0.15             # Upper bound on voluntary-enrollment deferral selection (incl. magnet-snapped rates)
 
   # Plan-specific overrides (future enhancement)
   emergency_plan_auto_enrollment_enabled: false # Disable auto-enrollment for emergency plans

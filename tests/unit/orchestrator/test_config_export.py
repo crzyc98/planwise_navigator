@@ -538,6 +538,111 @@ class TestVoluntaryEnrollmentRateValidation:
 
 
 # ===========================================================================
+# Issue #652: new_hire_opt_out_rate validation and export
+# ===========================================================================
+
+
+class TestNewHireOptOutRateValidation:
+    """T006: flat new-hire opt-out rate mirrors voluntary_enrollment_rate exactly."""
+
+    def test_accepts_none_default(self):
+        from planalign_orchestrator.config.workforce import AutoEnrollmentSettings
+
+        settings = AutoEnrollmentSettings()
+        assert settings.new_hire_opt_out_rate is None
+
+    def test_accepts_valid_values(self):
+        from planalign_orchestrator.config.workforce import AutoEnrollmentSettings
+
+        for val in [0.0, 0.1, 0.5, 1.0]:
+            settings = AutoEnrollmentSettings(new_hire_opt_out_rate=val)
+            assert settings.new_hire_opt_out_rate == pytest.approx(val)
+
+    def test_rejects_negative(self):
+        from planalign_orchestrator.config.workforce import AutoEnrollmentSettings
+
+        with pytest.raises(Exception) as exc:
+            AutoEnrollmentSettings(new_hire_opt_out_rate=-0.1)
+        assert "new_hire_opt_out_rate" in str(exc.value)
+
+    def test_rejects_above_one(self):
+        from planalign_orchestrator.config.workforce import AutoEnrollmentSettings
+
+        with pytest.raises(Exception) as exc:
+            AutoEnrollmentSettings(new_hire_opt_out_rate=1.5)
+        assert "new_hire_opt_out_rate" in str(exc.value)
+
+
+class TestNewHireOptOutRateExport:
+    """T007: unset omits the dbt var; 0.0 is a real value, not "unset"."""
+
+    def test_exported_when_set(self):
+        cfg = _make_config()
+        cfg.enrollment.auto_enrollment.new_hire_opt_out_rate = 0.1
+        result = _export_enrollment_vars(cfg)
+        assert result["new_hire_opt_out_rate"] == pytest.approx(0.1)
+
+    def test_omitted_when_none(self):
+        cfg = _make_config()
+        cfg.enrollment.auto_enrollment.new_hire_opt_out_rate = None
+        result = _export_enrollment_vars(cfg)
+        assert "new_hire_opt_out_rate" not in result
+
+    def test_zero_is_exported_not_treated_as_none(self):
+        """0.0 means "nobody opts out", not "use demographics"."""
+        cfg = _make_config()
+        cfg.enrollment.auto_enrollment.new_hire_opt_out_rate = 0.0
+        result = _export_enrollment_vars(cfg)
+        assert result["new_hire_opt_out_rate"] == pytest.approx(0.0)
+
+    def test_one_is_exported(self):
+        cfg = _make_config()
+        cfg.enrollment.auto_enrollment.new_hire_opt_out_rate = 1.0
+        result = _export_enrollment_vars(cfg)
+        assert result["new_hire_opt_out_rate"] == pytest.approx(1.0)
+
+    def test_dc_plan_override(self):
+        """Studio sends the rate on the dc_plan dict path."""
+        cfg = _make_config()
+        cfg.dc_plan = {"new_hire_opt_out_rate": 0.25}
+        result = _export_enrollment_vars(cfg)
+        assert result["new_hire_opt_out_rate"] == pytest.approx(0.25)
+
+    def test_demographic_opt_out_vars_still_exported(self):
+        """The flat new-hire rate must not displace the demographic opt-out
+        model, which still governs continuing employees."""
+        cfg = _make_config()
+        cfg.enrollment.auto_enrollment.new_hire_opt_out_rate = 0.1
+        result = _export_enrollment_vars(cfg)
+        assert "opt_out_rate_young" in result
+        assert "opt_out_rate_senior" in result
+
+
+class TestVoluntaryEnrollmentRateSemantics:
+    """T008: guard against regressing to the multiplier meaning.
+
+    The whole point of issue #652 is that this field stopped being a
+    multiplier on demographic probabilities. If someone reinstates that
+    wording, the field has almost certainly reverted in behaviour too.
+    """
+
+    def test_description_does_not_describe_a_multiplier(self):
+        from planalign_orchestrator.config.workforce import AutoEnrollmentSettings
+
+        field = AutoEnrollmentSettings.model_fields["voluntary_enrollment_rate"]
+        description = (field.description or "").lower()
+        assert "multiplier" not in description
+        assert "new hire" in description
+
+    def test_description_documents_the_unset_meaning(self):
+        from planalign_orchestrator.config.workforce import AutoEnrollmentSettings
+
+        field = AutoEnrollmentSettings.model_fields["voluntary_enrollment_rate"]
+        description = (field.description or "").lower()
+        assert "none" in description or "unset" in description
+
+
+# ===========================================================================
 # _export_legacy_vars
 # ===========================================================================
 

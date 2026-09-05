@@ -5,6 +5,24 @@ All notable changes to Fidelity PlanAlign Engine will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+### New-hire enrollment rates and deferral spread (issue #652)
+
+**Changed — `voluntary_enrollment_rate` now means what it says.** It was a multiplier on demographic enrollment probabilities, so setting it to 100% was a no-op that still produced roughly 58-73% enrollment. It is now the exact fraction of eligible new hires who voluntarily enroll in their hire year. Leaving it unset keeps the previous demographic behaviour, so scenarios that never set it reproduce exactly.
+
+**Added — `new_hire_opt_out_rate`.** The exact fraction of auto-enrolled new hires who opt out. Unset keeps the demographic opt-out model. Continuing employees are unaffected by both settings and keep `opt_out_rates.target`.
+
+**Fixed — new hires were drawn twice.** `int_voluntary_enrollment_decision` and `int_proactive_voluntary_enrollment` each decided independently against different hash seeds, then a deduplication priority picked a winner. Two draws at probability p yield 1-(1-p)^2, not p. The proactive path now stands down when a flat rate is set.
+
+**Fixed — `proactive_voluntary` enrollment method.** The category was missing from the alias list in `int_enrollment_state_accumulator`, so those enrollments carried a NULL method and reached the correct reporting bucket only through a fallback.
+
+**Added — optional upward deferral spread (`deferral_spread_max_lift`).** The demographic deferral table assigned every member of a cell the identical rate. The table value can now act as a floor, with employees distributed above it (40/30/15/10/5 across +0 to +4 percentage points). Off by default. Enabling it raises average deferral rates by roughly 0.3 percentage points, and therefore projected employer match cost; this is intended, as the previous averages were artificially low.
+
+**Changed — maximum voluntary deferral rate now defaults to 15%, raised from 10%.** Three demographic cells (mature/executive and senior/high at 12%, senior/executive at 15%) carry table values above the old cap and were being clamped down. **This moves results on its own, whether or not the spread is enabled**: 295 of 43,903 employee-years (0.67%) change on an otherwise unmodified scenario, raising the average deferral rate by 0.014 percentage points.
+
+**Behaviour change for existing Studio scenarios.** The Studio form previously shipped a default of `30` in the voluntary field, so scenarios created with untouched defaults stored an explicit `0.30`. Under the old meaning that was a 0.3x multiplier (~17% enrolment); under the new meaning it is a flat 30%. Those scenarios will produce different results. The field default is now empty, matching the engine's own default of demographic behaviour. YAML- and CLI-driven scenarios that never set the key are unaffected.
+
+
 ## Release Process
 
 This changelog is **generated at release time, not hand-curated per PR**. Commit messages follow conventional commits (`feat:`/`fix:`/`chore:` with PR numbers), so a release section is drafted from git history and then lightly grouped/condensed:

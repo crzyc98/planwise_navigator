@@ -93,6 +93,7 @@ export function buildConfigPayload(
       auto_enroll_hire_date_cutoff: formData.dcAutoEnrollHireDateCutoff,
       opt_out_rate_target: Number(formData.dcOptOutRateTarget) / 100,
       ...(formData.dcVoluntaryEnrollmentRate !== '' ? { voluntary_enrollment_rate: Number(formData.dcVoluntaryEnrollmentRate) / 100 } : {}),
+      ...(formData.dcNewHireOptOutRate !== '' ? { new_hire_opt_out_rate: Number(formData.dcNewHireOptOutRate) / 100 } : {}),
       // Per-segment starting deferral rates (UI percent → decimal)
       voluntary_deferral_base_rates: Object.fromEntries(
         Object.entries(formData.dcVoluntaryDeferralBaseRates).map(

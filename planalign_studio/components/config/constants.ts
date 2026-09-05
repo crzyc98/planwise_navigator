@@ -182,8 +182,12 @@ export const DEFAULT_FORM_DATA: FormData = {
   // DC Plan - Auto-Enrollment Opt-Out Rate (overall target percentage)
   dcOptOutRateTarget: 9,
 
-  // DC Plan - Voluntary Enrollment Rate (percentage, empty = use demographic defaults)
-  dcVoluntaryEnrollmentRate: '30',
+  // DC Plan - New-hire enrollment rates (issue #652).
+  // Empty by default so a new scenario matches the engine's own default
+  // (demographic behaviour). This used to ship as '30', which meant every
+  // Studio scenario silently stored an explicit multiplier.
+  dcVoluntaryEnrollmentRate: '',
+  dcNewHireOptOutRate: '',
 
   // DC Plan - Starting deferral rate per age x income segment (percent).
   // Mirrors enrollment.voluntary_enrollment.deferral_rates.demographic_base_rates.

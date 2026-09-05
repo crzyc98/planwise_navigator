@@ -14,7 +14,17 @@
 ]) %}
 {% set enrollment_match_magnet_enabled = var('enrollment_match_magnet_enabled', true) %}
 {% set enrollment_match_magnet_probability = var('enrollment_match_magnet_probability', 0.45) %}
-{% set voluntary_max_deferral_rate = var('voluntary_max_deferral_rate', 0.10) %}
+{% set voluntary_max_deferral_rate = var('voluntary_max_deferral_rate', 0.15) %}
+
+{# Issue #652: flat new-hire voluntary enrollment rate.
+   Unset (none) keeps the demographic model for everyone -- this is what makes
+   pre-existing scenarios reproduce exactly. When the analyst sets a value it
+   becomes the exact fraction of eligible NEW HIRES who enroll; continuing
+   employees stay on the demographic model either way. #}
+{% set flat_new_hire_voluntary_rate = var('voluntary_enrollment_rate', none) %}
+
+{# Issue #652: upward-only deferral spread. 0 disables it. #}
+{% set deferral_spread_max_lift = var('deferral_spread_max_lift', 0) %}
 
 {# Scalar ceiling used only for deferral_based mode; other modes resolve per-employee. #}
 {% if precomputed_match_max is not none %}
@@ -208,7 +218,17 @@ deferral_rate_selection AS (
   -- Select deferral rates with demographic influences and match optimization
   SELECT
     *,
-    (base_enrollment_rate * income_multiplier * job_level_multiplier * COALESCE({{ var('voluntary_enrollment_rate', 1.0) }}, 1.0)) as final_enrollment_probability,
+    {%- if flat_new_hire_voluntary_rate is not none %}
+    -- Issue #652: hire-year new hires use the analyst's flat rate directly.
+    -- Continuing employees keep the demographic product.
+    CASE
+      WHEN EXTRACT(YEAR FROM employee_hire_date) = simulation_year
+        THEN {{ flat_new_hire_voluntary_rate }}
+      ELSE (base_enrollment_rate * income_multiplier * job_level_multiplier)
+    END as final_enrollment_probability,
+    {%- else %}
+    (base_enrollment_rate * income_multiplier * job_level_multiplier) as final_enrollment_probability,
+    {%- endif %}
 
     -- Select deferral rate based on demographics
     CASE
@@ -243,9 +263,24 @@ deferral_rate_selection AS (
     END as selected_deferral_rate,
 
     -- Deterministic random value for deferral rate variation
-    (ABS(HASH(employee_id || '-deferral-rate-' || CAST({{ var('simulation_year') }} AS VARCHAR))) % 1000) / 1000.0 as deferral_random
+    (ABS(HASH(employee_id || '-deferral-rate-' || CAST({{ var('simulation_year') }} AS VARCHAR))) % 1000) / 1000.0 as deferral_random,
+
+    -- Issue #652: SEPARATE seed from deferral_random, which is already spent on
+    -- the match-magnet snap. Sharing it would correlate "spread upward" with
+    -- "snapped to the match ceiling".
+    (ABS(HASH(employee_id || '-deferral-spread-' || CAST({{ var('simulation_year') }} AS VARCHAR))) % 1000) / 1000.0 as spread_random
 
   FROM enrollment_probability_calculation
+),
+
+spread_applied AS (
+  -- Issue #652: lift the demographic table value upward before the match
+  -- magnet runs, so match-maximising behaviour still operates on the spread
+  -- rate rather than the bare floor.
+  SELECT
+    *,
+    {{ deferral_spread('selected_deferral_rate', 'spread_random', deferral_spread_max_lift) }} AS spread_deferral_rate
+  FROM deferral_rate_selection
 ),
 
 match_optimization AS (
@@ -259,7 +294,7 @@ match_optimization AS (
         deferral_scalar,
         'source.plan_design_id'
     ) }} AS match_magnet_ceiling
-  FROM deferral_rate_selection source
+  FROM spread_applied source
 ),
 
 match_snapped AS (
@@ -267,7 +302,7 @@ match_snapped AS (
   SELECT
     *,
     {{ match_magnet_snap(
-        'selected_deferral_rate',
+        'spread_deferral_rate',
         'match_magnet_ceiling',
         'deferral_random',
         enrollment_match_magnet_enabled,
@@ -294,10 +329,36 @@ enrollment_decisions AS (
     final_enrollment_probability,
 
     -- Enrollment decision
+    {%- if flat_new_hire_voluntary_rate is not none %}
+    -- Issue #652 (decision D3, revised after measurement): EXACT-COUNT
+    -- selection for the flat new-hire rate. Rank the hire-year cohort by its
+    -- deterministic draw and take the top P*N.
+    --
+    -- A raw threshold (enrollment_random < P) was tried first and rejected:
+    -- the draw hashes structured ids like NH_2029_000123 and takes a modulo,
+    -- which does not distribute evenly across ids sharing long prefixes. In a
+    -- 2026-2030 run the realised opt-out share drifted to 14.9% against a
+    -- configured 10% (3.6 sigma). Ranking makes the share exact to within one
+    -- employee regardless of hash quality, which is what an analyst expects
+    -- from typing a percentage into a box.
+    CASE
+      WHEN EXTRACT(YEAR FROM employee_hire_date) = simulation_year THEN
+        ROW_NUMBER() OVER (
+          PARTITION BY simulation_year,
+                       (EXTRACT(YEAR FROM employee_hire_date) = simulation_year)
+          ORDER BY enrollment_random, employee_id
+        ) <= ROUND({{ flat_new_hire_voluntary_rate }} * COUNT(*) OVER (
+          PARTITION BY simulation_year,
+                       (EXTRACT(YEAR FROM employee_hire_date) = simulation_year)
+        ))
+      ELSE enrollment_random < final_enrollment_probability
+    END as will_enroll,
+    {%- else %}
     CASE
       WHEN enrollment_random < final_enrollment_probability THEN true
       ELSE false
     END as will_enroll,
+    {%- endif %}
 
     -- Selected deferral rate (floor 1%; cap = configurable voluntary_max_deferral_rate)
     GREATEST(0.01, LEAST({{ voluntary_max_deferral_rate }}, optimized_deferral_rate)) as selected_deferral_rate,

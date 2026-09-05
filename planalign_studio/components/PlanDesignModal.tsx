@@ -155,7 +155,8 @@ export function PlanDesignModal({ config, onClose }: PlanDesignModalProps) {
                   <Field label="Hire Date Cutoff" value={dc.auto_enroll_hire_date_cutoff || '--'} />
                 </>
               )}
-              <Field label="Voluntary Enrollment Rate" value={dc.voluntary_enrollment_rate != null ? `${(dc.voluntary_enrollment_rate * 100).toFixed(0)}` : 'Default'} suffix={dc.voluntary_enrollment_rate != null ? '%' : ''} />
+              <Field label="New Hire Voluntary Enrollment %" value={dc.voluntary_enrollment_rate != null ? `${(dc.voluntary_enrollment_rate * 100).toFixed(0)}` : 'Default'} suffix={dc.voluntary_enrollment_rate != null ? '%' : ''} />
+              <Field label="New Hire Opt-Out %" value={dc.new_hire_opt_out_rate != null ? `${(dc.new_hire_opt_out_rate * 100).toFixed(0)}` : 'Default'} suffix={dc.new_hire_opt_out_rate != null ? '%' : ''} />
             </dl>
           </section>
 
