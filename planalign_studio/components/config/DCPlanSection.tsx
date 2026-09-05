@@ -229,7 +229,13 @@ export function DCPlanSection() {
                    </button>
                  </div>
                </div>
-               <p className="text-xs text-ink-muted mb-3">Set the overall target opt-out rate. Demographic sensitivity is applied automatically behind the scenes.</p>
+               <p className="text-xs text-ink-muted mb-3">
+                 Target opt-out rate for <strong>continuing employees</strong>. Demographic
+                 sensitivity is applied automatically behind the scenes.
+                 {formData.dcNewHireOptOutRate === ''
+                   ? ' New hires use this too, unless you set a New Hire Opt-Out % below.'
+                   : ' New hires are governed by the New Hire Opt-Out % below, not this field.'}
+               </p>
 
                {/* Match Census error */}
                {analysisError && (
@@ -306,7 +312,7 @@ export function DCPlanSection() {
                )}
 
                <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-6 mb-4">
-                 <InputField label="Target Opt-Out Rate" {...inputProps('dcOptOutRateTarget')} type="number" step="0.5" suffix="%" helper="Overall average opt-out rate across all demographics" min={0} max={100} />
+                 <InputField label="Target Opt-Out Rate" {...inputProps('dcOptOutRateTarget')} type="number" step="0.5" suffix="%" helper={formData.dcNewHireOptOutRate === '' ? 'Average opt-out rate across all demographics' : 'Continuing employees only — new hires use the flat rate below'} min={0} max={100} />
                </div>
 
                {/* Derived rates preview */}
@@ -370,6 +376,18 @@ export function DCPlanSection() {
            )}
            {formData.dcNewHireOptOutRate !== '' && (Number(formData.dcNewHireOptOutRate) < 0 || Number(formData.dcNewHireOptOutRate) > 100) && (
              <p className="mt-1 text-xs text-danger-ink">New hire opt-out must be between 0% and 100%.</p>
+           )}
+           {formData.dcVoluntaryEnrollmentRate !== '' && formData.dcNewHireOptOutRate !== ''
+             && Number(formData.dcVoluntaryEnrollmentRate) >= 0
+             && Number(formData.dcVoluntaryEnrollmentRate) <= 100
+             && Number(formData.dcNewHireOptOutRate) >= 0
+             && Number(formData.dcNewHireOptOutRate) <= 100 && (
+             <p className="mt-2 text-xs text-ink-muted">
+               Resulting split of eligible new hires:{' '}
+               <strong>{Number(formData.dcVoluntaryEnrollmentRate).toFixed(0)}%</strong> voluntary,{' '}
+               <strong>{((100 - Number(formData.dcVoluntaryEnrollmentRate)) * (100 - Number(formData.dcNewHireOptOutRate)) / 100).toFixed(1)}%</strong> auto-enrolled,{' '}
+               <strong>{((100 - Number(formData.dcVoluntaryEnrollmentRate)) * Number(formData.dcNewHireOptOutRate) / 100).toFixed(1)}%</strong> opted out.
+             </p>
            )}
          </div>
 
