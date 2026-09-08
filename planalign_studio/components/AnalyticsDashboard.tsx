@@ -314,6 +314,27 @@ export default function AnalyticsDashboard() {
     return `${compCagrMetric.cagr_pct >= 0 ? '+' : ''}${compCagrMetric.cagr_pct.toFixed(2)}%`;
   })();
 
+  // Active / Terminated / Total headcount per year, derived from the detailed
+  // status breakdown (continuous_active/new_hire_active vs. *_termination).
+  // Reflects the page's population filter like every other chart here: with
+  // the default "all" filter both buckets are populated; narrowing to
+  // "active" or "terminated" zeroes out the other bucket, same as elsewhere.
+  const headcountStatusChartData = results?.compensation_by_status?.length
+    ? (() => {
+        const years = [...new Set(results.compensation_by_status.map(r => r.simulation_year))].sort((a, b) => a - b);
+        return years.map((year) => {
+          const rows = results.compensation_by_status.filter(r => r.simulation_year === year);
+          const active = rows
+            .filter(r => (r.employment_status || '').includes('active'))
+            .reduce((sum, r) => sum + (r.employee_count || 0), 0);
+          const terminated = rows
+            .filter(r => (r.employment_status || '').includes('terminat'))
+            .reduce((sum, r) => sum + (r.employee_count || 0), 0);
+          return { year, Active: active, Terminated: terminated, Total: active + terminated };
+        });
+      })()
+    : [];
+
   const eventChartData = results ? Object.keys(results.event_trends).length > 0
     ? Array.from(
         new Set(
@@ -612,6 +633,35 @@ export default function AnalyticsDashboard() {
                 ) : (
                   <div className="h-full flex items-center justify-center text-ink-subtle">
                     <p>No event data available</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Active / Terminated / Total Headcount by Year */}
+            <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
+              <h3 className="text-lg font-semibold text-ink mb-6">Headcount by Year</h3>
+              <div className="h-80">
+                {headcountStatusChartData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={headcountStatusChartData} barSize={20}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
+                      <XAxis dataKey="year" stroke={chartTheme.axis.line} />
+                      <YAxis stroke={chartTheme.axis.line} />
+                      <Tooltip
+                        cursor={chartTheme.tooltip.cursorStyle}
+                        contentStyle={chartTheme.tooltip.contentStyle}
+                        formatter={(value: number) => value.toLocaleString()}
+                      />
+                      <Legend verticalAlign="top" height={36} formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
+                      <Bar dataKey="Active" name="Active" fill={chartTheme.semantic.primary} radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="Terminated" name="Terminated" fill={chartTheme.semantic.negative} radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="Total" name="Total" fill={chartTheme.semantic.neutral} radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-ink-subtle">
+                    <p>No headcount data available</p>
                   </div>
                 )}
               </div>
