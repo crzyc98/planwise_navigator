@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Download, Search, X, AlertCircle, AlertTriangle, Info, FileText } from 'lucide-react';
-import { SimulationLogLine, LogPage, fetchRunLogs, getRunLogDownloadUrl } from '../../services/api';
+import { SimulationLogLine, LogPage, fetchRunLogs, downloadRunLog } from '../../services/api';
 
 interface LogViewerProps {
   scenarioId: string;
@@ -177,14 +177,18 @@ export default function LogViewer({ scenarioId, runId, isRunning = false, liveLi
           {logPage && (
             <span className="text-xs text-ink-muted">{logPage.total_lines.toLocaleString()} lines total</span>
           )}
-          <a
-            href={getRunLogDownloadUrl(scenarioId, runId)}
-            download="simulation.log"
+          <button
+            type="button"
+            onClick={() => {
+              downloadRunLog(scenarioId, runId).catch((e) => {
+                setError(e instanceof Error ? e.message : 'Failed to download logs');
+              });
+            }}
             className="flex items-center px-3 py-1.5 text-sm bg-surface-subtle hover:bg-surface-disabled text-ink-muted rounded-lg font-medium"
           >
             <Download size={14} className="mr-1.5" />
             Download Logs
-          </a>
+          </button>
         </div>
       </div>
 
