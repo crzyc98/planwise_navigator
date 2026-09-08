@@ -2,6 +2,8 @@
  * Import Service — API client for all data import endpoints.
  */
 
+import { fetchWithAuth, saveBrowserDownload } from './api';
+
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
 
 // ============================================================================
@@ -214,7 +216,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
 export async function uploadFile(workspaceId: string, file: File): Promise<ImportSession> {
   const form = new FormData();
   form.append('file', file);
-  const res = await fetch(`${API_BASE}/api/workspaces/${workspaceId}/imports/upload`, {
+  const res = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/imports/upload`, {
     method: 'POST',
     body: form,
   });
@@ -222,7 +224,7 @@ export async function uploadFile(workspaceId: string, file: File): Promise<Impor
 }
 
 export async function selectSheet(workspaceId: string, importId: string, sheetName: string): Promise<ImportSession> {
-  const res = await fetch(`${API_BASE}/api/workspaces/${workspaceId}/imports/${importId}/sheet`, {
+  const res = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/imports/${importId}/sheet`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ sheet_name: sheetName }),
@@ -235,7 +237,7 @@ export async function saveMapping(
   importId: string,
   fieldMappings: FieldMapping[],
 ): Promise<MappingSaveResponse> {
-  const res = await fetch(`${API_BASE}/api/workspaces/${workspaceId}/imports/${importId}/mapping`, {
+  const res = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/imports/${importId}/mapping`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ field_mappings: fieldMappings }),
@@ -244,22 +246,22 @@ export async function saveMapping(
 }
 
 export async function getRawPreview(workspaceId: string, importId: string): Promise<PreviewResponse> {
-  const res = await fetch(`${API_BASE}/api/workspaces/${workspaceId}/imports/${importId}/preview`);
+  const res = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/imports/${importId}/preview`);
   return handleResponse<PreviewResponse>(res);
 }
 
 export async function getMappedPreview(workspaceId: string, importId: string): Promise<MappedPreviewResponse> {
-  const res = await fetch(`${API_BASE}/api/workspaces/${workspaceId}/imports/${importId}/mapped-preview`);
+  const res = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/imports/${importId}/mapped-preview`);
   return handleResponse<MappedPreviewResponse>(res);
 }
 
 export async function getImportStatus(workspaceId: string, importId: string): Promise<ImportSession> {
-  const res = await fetch(`${API_BASE}/api/workspaces/${workspaceId}/imports/${importId}`);
+  const res = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/imports/${importId}`);
   return handleResponse<ImportSession>(res);
 }
 
 export async function generateParquet(workspaceId: string, importId: string): Promise<GenerateResponse> {
-  const res = await fetch(`${API_BASE}/api/workspaces/${workspaceId}/imports/${importId}/generate`, {
+  const res = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/imports/${importId}/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: '{}',
@@ -268,16 +270,21 @@ export async function generateParquet(workspaceId: string, importId: string): Pr
 }
 
 export async function listParquetFiles(workspaceId: string): Promise<ParquetFilesResponse> {
-  const res = await fetch(`${API_BASE}/api/workspaces/${workspaceId}/parquet-files`);
+  const res = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/parquet-files`);
   return handleResponse<ParquetFilesResponse>(res);
 }
 
-export function downloadParquetFileUrl(workspaceId: string, fileId: string): string {
-  return `${API_BASE}/api/workspaces/${workspaceId}/parquet-files/${fileId}/download`;
+export async function downloadParquetFile(workspaceId: string, fileId: string, filename: string): Promise<void> {
+  const res = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/parquet-files/${fileId}/download`);
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`HTTP ${res.status}: ${text}`);
+  }
+  saveBrowserDownload(await res.blob(), filename);
 }
 
 export async function deleteParquetFile(workspaceId: string, fileId: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/workspaces/${workspaceId}/parquet-files/${fileId}`, {
+  const res = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/parquet-files/${fileId}`, {
     method: 'DELETE',
   });
   if (res.status === 204) return;
@@ -286,12 +293,12 @@ export async function deleteParquetFile(workspaceId: string, fileId: string): Pr
 }
 
 export async function getSuggestions(workspaceId: string, importId: string): Promise<SuggestionsResponse> {
-  const res = await fetch(`${API_BASE}/api/workspaces/${workspaceId}/imports/${importId}/suggestions`);
+  const res = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/imports/${importId}/suggestions`);
   return handleResponse<SuggestionsResponse>(res);
 }
 
 export async function listTemplates(workspaceId: string): Promise<MappingTemplatesResponse> {
-  const res = await fetch(`${API_BASE}/api/workspaces/${workspaceId}/mapping-templates`);
+  const res = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/mapping-templates`);
   return handleResponse<MappingTemplatesResponse>(res);
 }
 
@@ -301,7 +308,7 @@ export async function saveTemplate(
   name: string,
   description?: string,
 ): Promise<SaveTemplateResponse> {
-  const res = await fetch(`${API_BASE}/api/workspaces/${workspaceId}/mapping-templates`, {
+  const res = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/mapping-templates`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ import_id: importId, name, description }),
@@ -314,7 +321,7 @@ export async function applyTemplate(
   importId: string,
   templateId: string,
 ): Promise<MappingSaveResponse> {
-  const res = await fetch(`${API_BASE}/api/workspaces/${workspaceId}/imports/${importId}/apply-template`, {
+  const res = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/imports/${importId}/apply-template`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ template_id: templateId }),
