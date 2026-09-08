@@ -11,7 +11,7 @@ import {
 import {
   listScenarios,
   getSimulationResults,
-  getResultsExportUrl, getScenarioReportUrl,
+  downloadResultsExport, downloadScenarioReport,
   getRunDetails,
   Workspace,
   Scenario,
@@ -275,11 +275,15 @@ export default function AnalyticsDashboard() {
     }
   };
 
-  const handleExport = useCallback((format: 'excel' | 'csv' = 'excel') => {
+  const handleExport = useCallback(async (format: 'excel' | 'csv' = 'excel') => {
     // E087: Require both workspaceId and scenarioId for reliable export
     if (!selectedWorkspaceId || !selectedScenarioId) return;
-    const url = getResultsExportUrl(selectedWorkspaceId, selectedScenarioId, format);
-    window.open(url, '_blank', 'noopener,noreferrer');
+    try {
+      await downloadResultsExport(selectedWorkspaceId, selectedScenarioId, format);
+    } catch (err: any) {
+      console.error('Failed to export results:', err);
+      setError(err.message || 'Failed to export results');
+    }
   }, [selectedWorkspaceId, selectedScenarioId]);
 
   const handleRefresh = () => {
@@ -413,7 +417,11 @@ export default function AnalyticsDashboard() {
 
           <button
             onClick={() => {
-              if (selectedWorkspaceId && selectedScenarioId) window.open(getScenarioReportUrl(selectedWorkspaceId, selectedScenarioId, 'pdf'), '_blank', 'noopener,noreferrer');
+              if (!selectedWorkspaceId || !selectedScenarioId) return;
+              downloadScenarioReport(selectedWorkspaceId, selectedScenarioId, 'pdf').catch((err) => {
+                console.error('Failed to export report:', err);
+                setError(err instanceof Error ? err.message : 'Failed to export report');
+              });
             }}
             disabled={!selectedScenarioId || loading}
             className="flex items-center px-4 py-2 bg-fidelity-green text-ink-inverse border border-transparent rounded-lg text-sm font-medium hover:bg-fidelity-dark shadow-sm transition-colors disabled:bg-surface-disabled disabled:cursor-not-allowed"

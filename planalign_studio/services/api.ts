@@ -772,13 +772,38 @@ export async function getSimulationResults(scenarioId: string, population: strin
   return handleResponse<SimulationResults>(response);
 }
 
-export function getResultsExportUrl(workspaceId: string, scenarioId: string, format: 'excel' | 'csv' = 'excel'): string {
-  // E087: Use workspace-scoped endpoint for reliable export
-  return `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}/results/export?format=${format}`;
+function filenameFromContentDisposition(response: Response, fallback: string): string {
+  const disposition = response.headers.get('Content-Disposition');
+  const match = disposition?.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+  return match ? decodeURIComponent(match[1]) : fallback;
 }
 
-export function getScenarioReportUrl(workspaceId: string, scenarioId: string, format: 'pdf' | 'pptx' | 'html' = 'pdf'): string {
-  return `${API_BASE}/api/workspaces/${encodeURIComponent(workspaceId)}/scenarios/${encodeURIComponent(scenarioId)}/report?format=${format}`;
+export async function downloadResultsExport(
+  workspaceId: string,
+  scenarioId: string,
+  format: 'excel' | 'csv' = 'excel',
+): Promise<void> {
+  // E087: Use workspace-scoped endpoint for reliable export
+  const response = await fetchWithAuth(
+    `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}/results/export?format=${format}`,
+  );
+  if (!response.ok) await handleResponse<never>(response);
+  const extension = format === 'excel' ? 'xlsx' : 'csv';
+  const filename = filenameFromContentDisposition(response, `${scenarioId}-results.${extension}`);
+  saveBrowserDownload(await response.blob(), filename);
+}
+
+export async function downloadScenarioReport(
+  workspaceId: string,
+  scenarioId: string,
+  format: 'pdf' | 'pptx' | 'html' = 'pdf',
+): Promise<void> {
+  const response = await fetchWithAuth(
+    `${API_BASE}/api/workspaces/${encodeURIComponent(workspaceId)}/scenarios/${encodeURIComponent(scenarioId)}/report?format=${format}`,
+  );
+  if (!response.ok) await handleResponse<never>(response);
+  const filename = filenameFromContentDisposition(response, `${scenarioId}-report.${format}`);
+  saveBrowserDownload(await response.blob(), filename);
 }
 
 // ============================================================================
@@ -896,8 +921,14 @@ export async function getRunDetails(scenarioId: string): Promise<RunDetails> {
   return handleResponse<RunDetails>(response);
 }
 
-export function getArtifactDownloadUrl(scenarioId: string, artifactPath: string): string {
-  return `${API_BASE}/api/scenarios/${scenarioId}/artifacts/${artifactPath}`;
+export async function downloadArtifact(
+  scenarioId: string,
+  artifactPath: string,
+  filename: string,
+): Promise<void> {
+  const response = await fetchWithAuth(`${API_BASE}/api/scenarios/${scenarioId}/artifacts/${artifactPath}`);
+  if (!response.ok) await handleResponse<never>(response);
+  saveBrowserDownload(await response.blob(), filename);
 }
 
 // ============================================================================
@@ -1261,8 +1292,8 @@ export async function fetchRunLogs(
   return handleResponse<LogPage>(response);
 }
 
-export function getRunLogDownloadUrl(scenarioId: string, runId: string): string {
-  return getArtifactDownloadUrl(scenarioId, `runs/${runId}/simulation.log`);
+export async function downloadRunLog(scenarioId: string, runId: string): Promise<void> {
+  await downloadArtifact(scenarioId, `runs/${runId}/simulation.log`, 'simulation.log');
 }
 
 // ============================================================================

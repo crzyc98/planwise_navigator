@@ -26,7 +26,7 @@ import {
   ShieldCheck,
   Loader2,
 } from 'lucide-react';
-import { downloadRunProvenanceBundle, getRunDetails, getArtifactDownloadUrl, getResultsExportUrl, listRuns, getRunById, RunDetails, Artifact, RunSummary } from '../services/api';
+import { downloadRunProvenanceBundle, getRunDetails, downloadArtifact, listRuns, getRunById, RunDetails, Artifact, RunSummary } from '../services/api';
 import LogViewer from './simulation/LogViewer';
 import EvidencePackPanel from './EvidencePackPanel';
 import RunHealthSummary from './simulation/RunHealthSummary';
@@ -503,10 +503,15 @@ export default function SimulationDetail() {
                             runArtifacts[run.id].length > 0 ? (
                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                                 {runArtifacts[run.id].map((artifact) => (
-                                  <a
+                                  <button
                                     key={artifact.path}
-                                    href={getArtifactDownloadUrl(details.scenario_id, artifact.path)}
-                                    className="flex items-center p-3 bg-surface-raised hover:bg-surface-subtle rounded-lg border border-border transition-colors group"
+                                    type="button"
+                                    onClick={() => {
+                                      downloadArtifact(details.scenario_id, artifact.path, artifact.name).catch((err) => {
+                                        setProvenanceError(err instanceof Error ? err.message : 'Failed to download artifact');
+                                      });
+                                    }}
+                                    className="flex items-center p-3 bg-surface-raised hover:bg-surface-subtle rounded-lg border border-border transition-colors group text-left"
                                   >
                                     {getArtifactIcon(artifact.type)}
                                     <div className="ml-3 flex-1 min-w-0">
@@ -518,7 +523,7 @@ export default function SimulationDetail() {
                                       </p>
                                     </div>
                                     <ExternalLink size={14} className="text-ink-subtle group-hover:text-fidelity-green ml-2" />
-                                  </a>
+                                  </button>
                                 ))}
                               </div>
                             ) : (
