@@ -108,6 +108,8 @@ def _maximal_config():
         "escalation_delay_years": 1,
         "escalation_hire_date_cutoff": "2025-01-01",
         "voluntary_enrollment_rate": 0.5,
+        "new_hire_opt_out_rate": 0.1,
+        "deferral_spread_max_lift": 4,
         "match_magnet_enabled": True,
         "match_magnet_probability": 0.5,
         "max_voluntary_deferral_percent": 0.15,

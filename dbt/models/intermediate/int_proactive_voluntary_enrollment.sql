@@ -14,7 +14,17 @@
 ]) %}
 {% set enrollment_match_magnet_enabled = var('enrollment_match_magnet_enabled', true) %}
 {% set enrollment_match_magnet_probability = var('enrollment_match_magnet_probability', 0.45) %}
-{% set voluntary_max_deferral_rate = var('voluntary_max_deferral_rate', 0.10) %}
+{% set voluntary_max_deferral_rate = var('voluntary_max_deferral_rate', 0.15) %}
+
+{# Issue #652: when the analyst sets a flat new-hire voluntary rate, this model
+   must contribute NO enrollment decision. Historically new hires were drawn
+   here AND in int_voluntary_enrollment_decision against different hash seeds,
+   then a dedup priority picked a winner -- two draws at probability p yield
+   1-(1-p)^2, not p, which is why no single setting matched the output. #}
+{% set flat_new_hire_voluntary_rate = var('voluntary_enrollment_rate', none) %}
+
+{# Issue #652: upward-only deferral spread. 0 disables it. #}
+{% set deferral_spread_max_lift = var('deferral_spread_max_lift', 4) %}
 
 {# Scalar ceiling used only for deferral_based mode; other modes resolve per-employee. #}
 {% if precomputed_match_max is not none %}
@@ -248,7 +258,7 @@ deferral_rate_selection AS (
   -- Select demographic-based deferral rates for voluntary enrollees
   SELECT
     *,
-    (base_enrollment_rate * income_multiplier * job_level_multiplier * COALESCE({{ var('voluntary_enrollment_rate', 1.0) }}, 1.0)) as final_enrollment_probability,
+    (base_enrollment_rate * income_multiplier * job_level_multiplier) as final_enrollment_probability,
 
     -- Demographic-based deferral rates (Epic E053 logic)
     CASE
@@ -283,8 +293,19 @@ deferral_rate_selection AS (
     END as selected_deferral_rate,
 
     -- Timing random value for enrollment date within proactive window
-    (ABS(HASH(employee_id || '-proactive-timing-' || CAST(simulation_year AS VARCHAR))) % 1000) / 1000.0 as timing_random
+    (ABS(HASH(employee_id || '-proactive-timing-' || CAST(simulation_year AS VARCHAR))) % 1000) / 1000.0 as timing_random,
+
+    -- Issue #652: independent spread seed (see int_voluntary_enrollment_decision)
+    (ABS(HASH(employee_id || '-deferral-spread-' || CAST(simulation_year AS VARCHAR))) % 1000) / 1000.0 as spread_random
   FROM voluntary_enrollment_probability
+),
+
+spread_applied AS (
+  -- Issue #652: same upward spread as int_voluntary_enrollment_decision
+  SELECT
+    *,
+    {{ deferral_spread('selected_deferral_rate', 'spread_random', deferral_spread_max_lift) }} AS spread_deferral_rate
+  FROM deferral_rate_selection
 ),
 
 match_optimization AS (
@@ -299,7 +320,7 @@ match_optimization AS (
         'source.plan_design_id'
     ) }} AS match_magnet_ceiling,
     (ABS(HASH(source.employee_id || '-match-magnet-' || CAST(source.simulation_year AS VARCHAR))) % 1000) / 1000.0 AS magnet_random
-  FROM deferral_rate_selection source
+  FROM spread_applied source
 ),
 
 match_snapped AS (
@@ -307,7 +328,7 @@ match_snapped AS (
   SELECT
     *,
     {{ match_magnet_snap(
-        'selected_deferral_rate',
+        'spread_deferral_rate',
         'match_magnet_ceiling',
         'magnet_random',
         enrollment_match_magnet_enabled,
@@ -408,6 +429,11 @@ SELECT
   'proactive_voluntary_enrollment_engine' as event_source
 FROM proactive_enrollment_decisions
 WHERE will_enroll_proactively = true  -- Only return employees who will enroll proactively
+{%- if flat_new_hire_voluntary_rate is not none %}
+  -- Issue #652: single-decision guarantee (FR-004). The flat rate is applied
+  -- once, in int_voluntary_enrollment_decision; this path stands down.
+  AND false
+{%- endif %}
 ORDER BY employee_id
 
 /*

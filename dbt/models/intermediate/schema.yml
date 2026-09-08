@@ -1983,6 +1983,26 @@ models:
         data_tests:
           - dbt_utils.accepted_range:
               min_value: 0
+      - name: spread_random
+        description: "Issue #652: independent draw for the upward deferral spread. Deliberately seeded separately from deferral_random, which the match magnet consumes; sharing a seed would correlate spreading upward with snapping to the ceiling."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+      - name: spread_deferral_rate
+        description: "Issue #652: table value after the upward spread, before match-magnet snapping. Equals selected_deferral_rate when deferral_spread_max_lift is 0."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: final_enrollment_probability
+        description: "Issue #652: the flat new-hire rate for hire-year new hires when voluntary_enrollment_rate is set; the demographic product otherwise."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
 
   - name: int_proactive_voluntary_enrollment
     description: "Proactive (within auto-enrollment window) voluntary enrollment with match-magnet snapping (Feature 102)."

@@ -55,7 +55,7 @@ WITH current_year_enrollment_events AS (
         -- Track enrollment method from event_category
         CASE
             WHEN event_type = {{ evt_enrollment() }} AND event_category = 'auto_enrollment' THEN 'auto'
-            WHEN event_type = {{ evt_enrollment() }} AND event_category IN ('voluntary_enrollment', 'proactive_enrollment', 'executive_enrollment') THEN 'voluntary'
+            WHEN event_type = {{ evt_enrollment() }} AND event_category IN ('voluntary_enrollment', 'proactive_enrollment', 'proactive_voluntary', 'executive_enrollment') THEN 'voluntary'
             ELSE NULL
         END AS enrollment_method,
         -- Track opt-out events

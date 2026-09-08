@@ -170,8 +170,12 @@ export interface FormData {
   // DC Plan - Auto-Enrollment Opt-Out Rate
   dcOptOutRateTarget: number;
 
-  // DC Plan - Voluntary Enrollment Rate
+  // DC Plan - New-hire enrollment rates (issue #652). Empty string = unset,
+  // which keeps the demographic model. Any value is an exact percentage.
   dcVoluntaryEnrollmentRate: string;
+  dcNewHireOptOutRate: string;
+  // DC Plan - upward deferral spread, whole percentage points ('0' or '' = off)
+  dcDeferralSpreadMaxLift: string;
 
   // DC Plan - Starting deferral rate per age x income segment, as percents
   dcVoluntaryDeferralBaseRates: VoluntaryDeferralBaseRates;

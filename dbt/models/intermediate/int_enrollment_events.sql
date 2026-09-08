@@ -9,6 +9,29 @@
   tags=['EVENT_GENERATION']
 ) }}
 
+{# Issue #652: flat new-hire opt-out rate. Unset keeps the demographic model
+   for everyone. When set it applies to hire-year new hires only; continuing
+   employees stay on opt_out_rates.target and its demographic multipliers. #}
+{% set flat_new_hire_opt_out_rate = var('new_hire_opt_out_rate', none) %}
+
+{# Issue #652: upward-only deferral spread. 0 disables it. The year-over-year
+   table below is coarser than the voluntary one -- four age bands, no income
+   dimension -- so it clusters hardest of the three sites. #}
+{% set deferral_spread_max_lift = var('deferral_spread_max_lift', 4) %}
+
+{%- set yoy_spread_random -%}
+((ABS(HASH(aw.employee_id || '-deferral-spread-' || CAST(aw.simulation_year AS VARCHAR))) % 1000) / 1000.0)
+{%- endset -%}
+
+{%- set yoy_base_deferral_rate -%}
+CASE
+      WHEN aw.current_age < 31 THEN {{ var('year_over_year_conversion_deferral_rates_young', 0.03) }}
+      WHEN aw.current_age < 46 THEN {{ var('year_over_year_conversion_deferral_rates_mid_career', 0.04) }}
+      WHEN aw.current_age < 56 THEN {{ var('year_over_year_conversion_deferral_rates_mature', 0.05) }}
+      ELSE {{ var('year_over_year_conversion_deferral_rates_senior', 0.06) }}
+    END
+{%- endset -%}
+
 /*
   Enrollment Events Model with Temporal State Accumulator (Phase 2: Architecture Fix)
 
@@ -336,6 +359,42 @@ enrollment_events AS (
     AND efo.is_auto_enrollment_row = true
 ),
 
+-- Issue #652: the population that CAN opt out, with a deterministic rank
+-- inside its own cohort. Ranking is what makes a configured opt-out rate come
+-- out exact; a raw hash threshold drifted to 14.9% against a configured 10%.
+opt_out_candidates AS (
+  SELECT
+    efo.*,
+    (EXTRACT(YEAR FROM efo.employee_hire_date) = efo.simulation_year)
+      AS is_hire_year_new_hire,
+    ROW_NUMBER() OVER (
+      PARTITION BY efo.simulation_year,
+                   (EXTRACT(YEAR FROM efo.employee_hire_date) = efo.simulation_year)
+      ORDER BY efo.optout_random, efo.employee_id
+    ) AS optout_rank,
+    COUNT(*) OVER (
+      PARTITION BY efo.simulation_year,
+                   (EXTRACT(YEAR FROM efo.employee_hire_date) = efo.simulation_year)
+    ) AS optout_cohort_size
+  FROM eligible_for_enrollment efo
+  WHERE
+    -- ONLY employees who were AUTO-ENROLLED can opt out
+    efo.employee_id IN (
+      SELECT employee_id FROM enrollment_events
+      WHERE event_type = 'enrollment'
+        AND event_category = 'auto_enrollment'  -- ONLY auto-enrollment events
+    )
+    -- EXCLUDE employees who enrolled through ANY voluntary method
+    AND efo.employee_id NOT IN (
+      SELECT employee_id FROM voluntary_enrollment_events
+      UNION
+      SELECT employee_id FROM proactive_voluntary_enrollment_events
+      UNION
+      SELECT employee_id FROM year_over_year_enrollment_events
+    )
+    AND efo.employment_status = 'active'
+),
+
 -- Generate opt-out events using simplified logic
 opt_out_events AS (
   SELECT
@@ -370,6 +429,28 @@ opt_out_events AS (
     efo.tenure_band,
 
     -- Opt-out probability based on demographics (9% target × sensitivity multipliers)
+    {%- if flat_new_hire_opt_out_rate is not none %}
+    -- Issue #652: hire-year new hires use the analyst's flat opt-out rate.
+    -- Continuing employees keep the demographic model (opt_out_rates.target).
+    CASE
+      WHEN EXTRACT(YEAR FROM efo.employee_hire_date) = efo.simulation_year
+        THEN {{ flat_new_hire_opt_out_rate }}
+      ELSE (
+    CASE efo.age_segment
+      WHEN 'young' THEN {{ var('opt_out_rate_young', 0.162) }}
+      WHEN 'mid_career' THEN {{ var('opt_out_rate_mid', 0.099) }}
+      WHEN 'mature' THEN {{ var('opt_out_rate_mature', 0.063) }}
+      ELSE {{ var('opt_out_rate_senior', 0.036) }}
+    END *
+    CASE efo.income_segment
+      WHEN 'low_income' THEN {{ var('opt_out_rate_low_income', 0.117) }} / {{ var('opt_out_rate_moderate', 0.09) }}
+      WHEN 'moderate' THEN 1.0  -- Base rate
+      WHEN 'high' THEN {{ var('opt_out_rate_high', 0.072) }} / {{ var('opt_out_rate_moderate', 0.09) }}
+      ELSE {{ var('opt_out_rate_executive', 0.045) }} / {{ var('opt_out_rate_moderate', 0.09) }}
+    END
+      )
+    END as event_probability,
+    {%- else %}
     CASE efo.age_segment
       WHEN 'young' THEN {{ var('opt_out_rate_young', 0.162) }}
       WHEN 'mid_career' THEN {{ var('opt_out_rate_mid', 0.099) }}
@@ -382,29 +463,37 @@ opt_out_events AS (
       WHEN 'high' THEN {{ var('opt_out_rate_high', 0.072) }} / {{ var('opt_out_rate_moderate', 0.09) }}
       ELSE {{ var('opt_out_rate_executive', 0.045) }} / {{ var('opt_out_rate_moderate', 0.09) }}
     END as event_probability,
+    {%- endif %}
 
     'enrollment_opt_out' as event_category
-  FROM eligible_for_enrollment efo
+  FROM opt_out_candidates efo
   WHERE
-    -- CRITICAL FIX: ONLY employees who were AUTO-ENROLLED can opt out
-    -- Voluntary enrollments are explicit decisions and should NOT trigger automatic opt-out events
-    -- Check ALL enrollment event sources (enrollment_events + voluntary + proactive + year-over-year)
-    efo.employee_id IN (
-      SELECT employee_id FROM enrollment_events
-      WHERE event_type = 'enrollment'
-        AND event_category = 'auto_enrollment'  -- ONLY auto-enrollment events
-    )
-    -- EXCLUDE employees who enrolled through ANY voluntary method
-    AND efo.employee_id NOT IN (
-      SELECT employee_id FROM voluntary_enrollment_events
-      UNION
-      SELECT employee_id FROM proactive_voluntary_enrollment_events
-      UNION
-      SELECT employee_id FROM year_over_year_enrollment_events
-    )
-    AND efo.employment_status = 'active'
+    {%- if flat_new_hire_opt_out_rate is not none %}
+    -- Issue #652 (decision D3, revised): exact-count opt-out for hire-year
+    -- new hires -- take the top Q*N of the auto-enrolled cohort by rank.
+    -- Continuing employees keep the demographic threshold unchanged.
+    CASE
+      WHEN efo.is_hire_year_new_hire
+        THEN efo.optout_rank
+             <= ROUND({{ flat_new_hire_opt_out_rate }} * efo.optout_cohort_size)
+      ELSE efo.optout_random < (
+      CASE efo.age_segment
+        WHEN 'young' THEN {{ var('opt_out_rate_young', 0.162) }}
+        WHEN 'mid_career' THEN {{ var('opt_out_rate_mid', 0.099) }}
+        WHEN 'mature' THEN {{ var('opt_out_rate_mature', 0.063) }}
+        ELSE {{ var('opt_out_rate_senior', 0.036) }}
+      END *
+      CASE efo.income_segment
+        WHEN 'low_income' THEN {{ var('opt_out_rate_low_income', 0.117) }} / {{ var('opt_out_rate_moderate', 0.09) }}
+        WHEN 'moderate' THEN 1.0
+        WHEN 'high' THEN {{ var('opt_out_rate_high', 0.072) }} / {{ var('opt_out_rate_moderate', 0.09) }}
+        ELSE {{ var('opt_out_rate_executive', 0.045) }} / {{ var('opt_out_rate_moderate', 0.09) }}
+      END
+      )
+    END
+    {%- else %}
     -- Apply probabilistic opt-out based on demographics (9% target × sensitivity multipliers)
-    AND efo.optout_random < (
+    efo.optout_random < (
       CASE efo.age_segment
         WHEN 'young' THEN {{ var('opt_out_rate_young', 0.162) }}
         WHEN 'mid_career' THEN {{ var('opt_out_rate_mid', 0.099) }}
@@ -418,6 +507,7 @@ opt_out_events AS (
         ELSE {{ var('opt_out_rate_executive', 0.045) }} / {{ var('opt_out_rate_moderate', 0.09) }}
       END
     )
+    {%- endif %}
 ),
 
 -- Epic E053: Voluntary Enrollment Events Integration
@@ -512,12 +602,7 @@ year_over_year_enrollment_events AS (
     NULL as previous_compensation,
 
     -- Conservative deferral rates for year-over-year conversions
-    CASE
-      WHEN aw.current_age < 31 THEN {{ var('year_over_year_conversion_deferral_rates_young', 0.03) }}
-      WHEN aw.current_age < 46 THEN {{ var('year_over_year_conversion_deferral_rates_mid_career', 0.04) }}
-      WHEN aw.current_age < 56 THEN {{ var('year_over_year_conversion_deferral_rates_mature', 0.05) }}
-      ELSE {{ var('year_over_year_conversion_deferral_rates_senior', 0.06) }}
-    END as employee_deferral_rate,
+    {{ deferral_spread(yoy_base_deferral_rate, yoy_spread_random, deferral_spread_max_lift) }} as employee_deferral_rate,
 
     0.00 as prev_employee_deferral_rate,
     aw.current_age as employee_age,
@@ -545,8 +630,7 @@ year_over_year_enrollment_events AS (
       WHEN aw.current_tenure < 2 THEN {{ var('year_over_year_conversion_tenure_multipliers_new_employee', 0.7) }}
       WHEN aw.current_tenure < 5 THEN {{ var('year_over_year_conversion_tenure_multipliers_established', 1.0) }}
       ELSE {{ var('year_over_year_conversion_tenure_multipliers_veteran', 1.1) }}
-    END *
-    COALESCE({{ var('voluntary_enrollment_rate', 1.0) }}, 1.0)) as event_probability,
+    END) as event_probability,
 
     'year_over_year_voluntary' as event_category
 
@@ -580,8 +664,7 @@ year_over_year_enrollment_events AS (
         WHEN aw.current_tenure < 2 THEN {{ var('year_over_year_conversion_tenure_multipliers_new_employee', 0.7) }}
         WHEN aw.current_tenure < 5 THEN {{ var('year_over_year_conversion_tenure_multipliers_established', 1.0) }}
         ELSE {{ var('year_over_year_conversion_tenure_multipliers_veteran', 1.1) }}
-      END *
-      COALESCE({{ var('voluntary_enrollment_rate', 1.0) }}, 1.0)
+      END
     )
 ),
 
