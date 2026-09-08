@@ -3,7 +3,7 @@ import { Download, Trash2, Loader2, AlertCircle, Check } from 'lucide-react';
 import {
   ParquetFile,
   listParquetFiles,
-  downloadParquetFileUrl,
+  downloadParquetFile,
   deleteParquetFile,
 } from '../../services/importService';
 import { setCensusPath } from '../../services/api';
@@ -27,6 +27,7 @@ export default function ImportedFilesList({ workspaceId, currentUserId = 'system
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [settingCensus, setSettingCensus] = useState<string | null>(null);
   const [censusSuccess, setCensusSuccess] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const load = () => {
     setIsLoading(true);
@@ -48,6 +49,17 @@ export default function ImportedFilesList({ workspaceId, currentUserId = 'system
       setError(err instanceof Error ? err.message : 'Failed to set census path');
     } finally {
       setSettingCensus(null);
+    }
+  };
+
+  const handleDownload = async (fileId: string, filename: string) => {
+    setDownloadingId(fileId);
+    try {
+      await downloadParquetFile(workspaceId, fileId, filename);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Download failed');
+    } finally {
+      setDownloadingId(null);
     }
   };
 
@@ -135,14 +147,19 @@ export default function ImportedFilesList({ workspaceId, currentUserId = 'system
                         Use as Census
                       </button>
                     )}
-                    <a
-                      href={downloadParquetFileUrl(workspaceId, f.file_id)}
-                      download={f.filename}
-                      className="text-fidelity-green hover:text-fidelity-dark"
+                    <button
+                      type="button"
+                      onClick={() => handleDownload(f.file_id, f.filename)}
+                      disabled={downloadingId === f.file_id}
+                      className="text-fidelity-green hover:text-fidelity-dark disabled:opacity-50"
                       title="Download"
                     >
-                      <Download size={16} />
-                    </a>
+                      {downloadingId === f.file_id ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <Download size={16} />
+                      )}
+                    </button>
                     {f.created_by === currentUserId && (
                       confirmDelete === f.file_id ? (
                         <span className="flex items-center gap-1">

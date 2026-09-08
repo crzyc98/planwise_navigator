@@ -26,7 +26,7 @@ function isScenarioRead(input: RequestInfo | URL, init?: RequestInit): boolean {
   return url.includes('/scenarios') || /[?&](scenario_id|scenarios|scenario_a|scenario_b|baseline)=/.test(url);
 }
 
-async function fetchWithAuth(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+export async function fetchWithAuth(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const response = await fetch(input, {
     ...init,
     headers: {
@@ -1126,7 +1126,7 @@ export async function getRunProvenance(runId: string): Promise<ProvenanceReportE
   return handleResponse<ProvenanceReportEnvelope>(response);
 }
 
-function saveBrowserDownload(blob: Blob, filename: string): void {
+export function saveBrowserDownload(blob: Blob, filename: string): void {
   const url = window.URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
