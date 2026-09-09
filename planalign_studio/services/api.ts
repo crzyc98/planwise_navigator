@@ -2067,6 +2067,79 @@ export async function analyzeDeferralSegments(
 }
 
 // ============================================================================
+// Pre-Simulation Census Analysis
+// ============================================================================
+
+export interface CensusAnalysisRequest {
+  file_path: string;
+  as_of_date?: string;
+}
+
+export interface CensusMetrics {
+  employee_count: number;
+  eligible_count: number;
+  enrolled_count: number;
+  participation_rate: number | null;
+  zero_deferral_count: number;
+  average_deferral_rate: number | null;
+  median_deferral_rate: number | null;
+  total_eligible_compensation: number;
+  total_employer_match: number;
+  total_employer_core: number;
+  total_employer_cost: number;
+  hce_count: number;
+}
+
+export interface CensusSegmentMetrics extends CensusMetrics {
+  dimension: string;
+  value: string;
+}
+
+export interface CensusDataQualityIssue {
+  issue_type: string;
+  field: string | null;
+  severity: 'error' | 'warning';
+  count: number;
+  message: string;
+}
+
+export interface CensusAnalysisResult {
+  total_employees: number;
+  active_employees: number;
+  overall: CensusMetrics;
+  segments: CensusSegmentMetrics[];
+  available_segment_dimensions: string[];
+  data_quality_issues: CensusDataQualityIssue[];
+  as_of_date: string;
+  as_of_date_source: string;
+  hce_compensation_threshold: number | null;
+  source_file: string;
+  message: string | null;
+}
+
+/**
+ * Analyze the raw/staged census for participation, savings-rate, and cost-proxy
+ * metrics -- the same lens as Overview/DC Plan, computed pre-simulation.
+ */
+export async function analyzeCensus(
+  workspaceId: string,
+  request: CensusAnalysisRequest
+): Promise<CensusAnalysisResult> {
+  const response = await fetchWithAuth(
+    `${API_BASE}/api/workspaces/${workspaceId}/analyze-census`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        file_path: request.file_path,
+        ...(request.as_of_date ? { as_of_date: request.as_of_date } : {}),
+      }),
+    }
+  );
+  return handleResponse<CensusAnalysisResult>(response);
+}
+
+// ============================================================================
 // Promotion Hazard Configuration Endpoints (Feature 038)
 // ============================================================================
 

@@ -339,6 +339,43 @@ CENSUS_SCHEDULED_HOURS_COLUMNS = frozenset(
     }
 )
 
+CENSUS_EMPLOYER_MATCH_COLUMNS = frozenset(
+    {
+        "employer_match_contribution",
+        "er_match",
+        "ermatch",
+        "employer_match",
+        "matching",
+        "match_contribution",
+        "matchcontribution",
+        "employer_matching",
+    }
+)
+
+CENSUS_EMPLOYER_CORE_COLUMNS = frozenset(
+    {
+        "employer_core_contribution",
+        "er_core",
+        "ercore",
+        "non_elective",
+        "nonelective",
+        "employer_core",
+        "profit_sharing",
+        "profitsharing",
+        "core_contribution",
+    }
+)
+
+CENSUS_ELIGIBILITY_DATE_COLUMNS = frozenset(
+    {
+        "eligibility_entry_date",
+        "entry_date",
+        "eligibility_date",
+        "plan_entry",
+        "eligibility_entry",
+    }
+)
+
 # All known safe census columns
 ALL_CENSUS_COLUMNS = (
     CENSUS_BIRTH_DATE_COLUMNS
@@ -349,5 +386,8 @@ ALL_CENSUS_COLUMNS = (
     | CENSUS_STATUS_COLUMNS
     | CENSUS_DEFERRAL_COLUMNS
     | CENSUS_SCHEDULED_HOURS_COLUMNS
+    | CENSUS_EMPLOYER_MATCH_COLUMNS
+    | CENSUS_EMPLOYER_CORE_COLUMNS
+    | CENSUS_ELIGIBILITY_DATE_COLUMNS
     | frozenset({"employee_id", "department", "location"})
 )
