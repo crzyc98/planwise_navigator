@@ -485,6 +485,9 @@ def launch_studio(
                 "PLANALIGN_STUDIO_ALLOWED_HOSTS",
                 f"localhost,127.0.0.1,::1,{display_host.strip('[]')}",
             )
+            api_token = os.environ.get("PLANALIGN_API_TOKEN")
+            if api_token:
+                frontend_env.setdefault("VITE_PLANALIGN_API_TOKEN", api_token)
 
             npm_cmd = _get_npm_command()
             frontend_process = subprocess.Popen(
