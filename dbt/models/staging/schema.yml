@@ -38,7 +38,10 @@ models:
           - unique
           - not_null
       - name: employee_ssn
-        description: "Social Security Number for compliance and reporting. Required for audit trails."
+        description: >
+          Social Security Number for compliance and reporting. Optional in the source
+          census file — when absent, a deterministic placeholder ('SSN-' + a hash of
+          employee_id) is synthesized so this column is never null.
         data_type: varchar
         constraints:
           - type: not_null
