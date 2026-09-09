@@ -6,7 +6,8 @@ import {
 } from 'recharts';
 import {
   Download, Filter, Calendar, Users, TrendingUp, DollarSign, PieChart as PieChartIcon,
-  ArrowUpRight, ArrowDownRight, RefreshCw, AlertCircle, ChevronDown, Database, Loader2
+  ArrowUpRight, ArrowDownRight, RefreshCw, AlertCircle, ChevronDown, Database, Loader2,
+  Clipboard, Check
 } from 'lucide-react';
 import {
   listScenarios,
@@ -145,6 +146,43 @@ const ErrorState = ({ message, onRetry }: { message: string; onRetry: () => void
     </button>
   </div>
 );
+
+/**
+ * Copies a chart's underlying rows as tab-separated values so an analyst can
+ * paste straight into Excel/Sheets with headers and columns intact.
+ */
+const CopyTableButton = ({ rows }: Readonly<{ rows: Array<Record<string, any>> }>) => {
+  const [copied, setCopied] = useState(false);
+  const hasRows = rows.length > 0;
+
+  const handleCopy = async () => {
+    if (!hasRows) return;
+    const headers = Object.keys(rows[0]);
+    const lines = [
+      headers.join('\t'),
+      ...rows.map(row => headers.map(h => row[h] ?? '').join('\t')),
+    ];
+    try {
+      await navigator.clipboard.writeText(lines.join('\n'));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (err) {
+      console.error('Failed to copy table data:', err);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      disabled={!hasRows}
+      title="Copy data table"
+      className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-ink-muted border border-border-strong rounded-md hover:bg-surface-subtle transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+    >
+      {copied ? <Check size={14} /> : <Clipboard size={14} />}
+      {copied ? 'Copied' : 'Copy data'}
+    </button>
+  );
+};
 
 export default function AnalyticsDashboard() {
   const chartTheme = useChartTheme();
@@ -314,6 +352,27 @@ export default function AnalyticsDashboard() {
     return `${compCagrMetric.cagr_pct >= 0 ? '+' : ''}${compCagrMetric.cagr_pct.toFixed(2)}%`;
   })();
 
+  // Active / Terminated / Total headcount per year, derived from the detailed
+  // status breakdown (continuous_active/new_hire_active vs. *_termination).
+  // Reflects the page's population filter like every other chart here: with
+  // the default "all" filter both buckets are populated; narrowing to
+  // "active" or "terminated" zeroes out the other bucket, same as elsewhere.
+  const headcountStatusChartData = results?.compensation_by_status?.length
+    ? (() => {
+        const years = [...new Set(results.compensation_by_status.map(r => r.simulation_year))].sort((a, b) => a - b);
+        return years.map((year) => {
+          const rows = results.compensation_by_status.filter(r => r.simulation_year === year);
+          const active = rows
+            .filter(r => (r.employment_status || '').includes('active'))
+            .reduce((sum, r) => sum + (r.employee_count || 0), 0);
+          const terminated = rows
+            .filter(r => (r.employment_status || '').includes('terminat'))
+            .reduce((sum, r) => sum + (r.employee_count || 0), 0);
+          return { year, Active: active, Terminated: terminated, Total: active + terminated };
+        });
+      })()
+    : [];
+
   const eventChartData = results ? Object.keys(results.event_trends).length > 0
     ? Array.from(
         new Set(
@@ -329,6 +388,30 @@ export default function AnalyticsDashboard() {
       }))
     : []
   : [];
+
+  const eventTypeRows = results?.event_trends && Object.keys(results.event_trends).length > 0
+    ? buildEventTypeRows(results.event_trends)
+    : [];
+
+  // Same transform the "Average Compensation by Detailed Status" chart uses,
+  // hoisted so the copy button can share it instead of recomputing inline.
+  const statusCompChartData = results?.compensation_by_status?.length
+    ? (() => {
+        const years = [...new Set(results.compensation_by_status.map(r => r.simulation_year))].sort((a, b) => a - b);
+        const statuses = [...new Set(results.compensation_by_status.map(r => r.employment_status))].sort((a, b) => a.localeCompare(b));
+        return years.map(year => {
+          const entry: Record<string, any> = { year };
+          statuses.forEach((status: string) => {
+            const match = results.compensation_by_status.find(
+              r => r.simulation_year === year && r.employment_status === status
+            );
+            entry[status] = match ? Math.round(match.avg_compensation / 1000) : 0;
+            entry[`${status}_count`] = match ? match.employee_count : 0;
+          });
+          return entry;
+        });
+      })()
+    : [];
 
   const completedScenarios = scenarios.filter(s => s.status === 'completed');
   const selectedScenario = scenarios.find(s => s.id === selectedScenarioId);
@@ -504,9 +587,12 @@ export default function AnalyticsDashboard() {
           {/* CAGR Summary Table */}
           {results.cagr_metrics && results.cagr_metrics.length > 0 && (
             <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
-              <div className="flex items-center mb-4">
-                <TrendingUp size={20} className="text-fidelity-green mr-2" />
-                <h3 className="text-lg font-semibold text-ink">Compound Annual Growth Rate (CAGR)</h3>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center">
+                  <TrendingUp size={20} className="text-fidelity-green mr-2" />
+                  <h3 className="text-lg font-semibold text-ink">Compound Annual Growth Rate (CAGR)</h3>
+                </div>
+                <CopyTableButton rows={results.cagr_metrics} />
               </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-border">
@@ -565,7 +651,10 @@ export default function AnalyticsDashboard() {
 
             {/* Workforce Growth */}
             <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
-              <h3 className="text-lg font-semibold text-ink mb-6">Workforce Headcount Over Time</h3>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold text-ink">Workforce Headcount Over Time</h3>
+                <CopyTableButton rows={workforceChartData} />
+              </div>
               <div className="h-80">
                 {workforceChartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
@@ -591,7 +680,10 @@ export default function AnalyticsDashboard() {
 
             {/* Event Distribution */}
             <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
-              <h3 className="text-lg font-semibold text-ink mb-6">Event Distribution by Year</h3>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold text-ink">Event Distribution by Year</h3>
+                <CopyTableButton rows={eventChartData} />
+              </div>
               <div className="h-80">
                 {eventChartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
@@ -617,6 +709,38 @@ export default function AnalyticsDashboard() {
               </div>
             </div>
 
+            {/* Active / Terminated / Total Headcount by Year */}
+            <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold text-ink">Headcount by Year</h3>
+                <CopyTableButton rows={headcountStatusChartData} />
+              </div>
+              <div className="h-80">
+                {headcountStatusChartData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={headcountStatusChartData} barSize={20}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
+                      <XAxis dataKey="year" stroke={chartTheme.axis.line} />
+                      <YAxis stroke={chartTheme.axis.line} />
+                      <Tooltip
+                        cursor={chartTheme.tooltip.cursorStyle}
+                        contentStyle={chartTheme.tooltip.contentStyle}
+                        formatter={(value: number) => value.toLocaleString()}
+                      />
+                      <Legend verticalAlign="top" height={36} formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
+                      <Bar dataKey="Active" name="Active" fill={chartTheme.semantic.primary} radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="Terminated" name="Terminated" fill={chartTheme.semantic.negative} radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="Total" name="Total" fill={chartTheme.semantic.neutral} radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-ink-subtle">
+                    <p>No headcount data available</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Compensation Trend - All Employees (E060: Average/Total toggle with CAGR) */}
             <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
               <div className="flex items-center justify-between mb-6">
@@ -630,19 +754,22 @@ export default function AnalyticsDashboard() {
                     </span>
                   )}
                 </h3>
-                <div className="flex rounded-lg border border-border-strong overflow-hidden">
-                  <button
-                    onClick={() => setCompMetric('average')}
-                    className={`px-3 py-1 text-xs font-medium transition-colors ${compMetric === 'average' ? 'bg-fidelity-green text-ink-inverse' : 'bg-surface-raised text-ink-muted hover:bg-surface-subtle'}`}
-                  >
-                    Average
-                  </button>
-                  <button
-                    onClick={() => setCompMetric('total')}
-                    className={`px-3 py-1 text-xs font-medium transition-colors ${compMetric === 'total' ? 'bg-fidelity-green text-ink-inverse' : 'bg-surface-raised text-ink-muted hover:bg-surface-subtle'}`}
-                  >
-                    Total
-                  </button>
+                <div className="flex items-center gap-2">
+                  <div className="flex rounded-lg border border-border-strong overflow-hidden">
+                    <button
+                      onClick={() => setCompMetric('average')}
+                      className={`px-3 py-1 text-xs font-medium transition-colors ${compMetric === 'average' ? 'bg-fidelity-green text-ink-inverse' : 'bg-surface-raised text-ink-muted hover:bg-surface-subtle'}`}
+                    >
+                      Average
+                    </button>
+                    <button
+                      onClick={() => setCompMetric('total')}
+                      className={`px-3 py-1 text-xs font-medium transition-colors ${compMetric === 'total' ? 'bg-fidelity-green text-ink-inverse' : 'bg-surface-raised text-ink-muted hover:bg-surface-subtle'}`}
+                    >
+                      Total
+                    </button>
+                  </div>
+                  <CopyTableButton rows={workforceChartData} />
                 </div>
               </div>
               <div className="h-80">
@@ -686,9 +813,12 @@ export default function AnalyticsDashboard() {
 
             {/* Event Type Breakdown */}
             <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
-              <h3 className="text-lg font-semibold text-ink mb-6">Event Types (Total)</h3>
-              {results.event_trends && Object.keys(results.event_trends).length > 0 ? (() => {
-                const rows = buildEventTypeRows(results.event_trends);
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold text-ink">Event Types (Total)</h3>
+                <CopyTableButton rows={eventTypeRows} />
+              </div>
+              {eventTypeRows.length > 0 ? (() => {
+                const rows = eventTypeRows;
 
                 return (
                   <div style={{ height: Math.max(320, rows.length * 36 + 32) }}>
@@ -735,26 +865,14 @@ export default function AnalyticsDashboard() {
 
             return (
               <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
-                <h3 className="text-lg font-semibold text-ink mb-6">Average Compensation by Detailed Status ($K)</h3>
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-lg font-semibold text-ink">Average Compensation by Detailed Status ($K)</h3>
+                  <CopyTableButton rows={statusCompChartData} />
+                </div>
                 <div className="h-96">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
-                      data={(() => {
-                        // Transform data: group by year with status as keys
-                        const years = [...new Set(results.compensation_by_status.map(r => r.simulation_year))].sort((a, b) => a - b);
-                        const statuses = [...new Set(results.compensation_by_status.map(r => r.employment_status))].sort((a, b) => a.localeCompare(b));
-                        return years.map(year => {
-                          const entry: Record<string, any> = { year };
-                          statuses.forEach((status: string) => {
-                            const match = results.compensation_by_status.find(
-                              r => r.simulation_year === year && r.employment_status === status
-                            );
-                            entry[status] = match ? Math.round(match.avg_compensation / 1000) : 0;
-                            entry[`${status}_count`] = match ? match.employee_count : 0;
-                          });
-                          return entry;
-                        });
-                      })()}
+                      data={statusCompChartData}
                       barSize={24}
                     >
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
