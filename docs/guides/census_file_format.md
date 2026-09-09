@@ -71,7 +71,7 @@ below); they don't block ingestion.
 
 | Field | Type | Description | Accepted source column names (aliases) |
 |---|---|---|---|
-| `employee_ssn` | string | Synthetic SSN-style identifier (e.g. `SSN-00000001`) — **not a real SSN**; use as a secondary unique ID, never a live SSN | `ssn`, `social_security`, `ssn_id`, `socialsecurity` |
+| `employee_ssn` | string | Synthetic SSN-style identifier (e.g. `SSN-00000001`) — **not a real SSN**; use as a secondary unique ID, never a live SSN. Truly optional: if omitted, the pipeline deterministically synthesizes one from `employee_id` (`SSN-` + a 9-digit hash), so leaving it out never blocks ingestion | `ssn`, `social_security`, `ssn_id`, `socialsecurity` |
 | `employee_termination_date` | date | Termination date for separated employees; null for active employees | `term_date`, `termination_date`, `separation_date`, `end_date`, `termdate`, `separationdate`, `enddate`, `exit_date`, `exitdate`, `date_terminated`, `dateterminated` |
 | `employee_capped_compensation` | decimal | IRS 401(a)(17) capped compensation; defaults to gross compensation if omitted | `capped_comp`, `cappedcomp`, `415_limit`, `irs_cap`, `plan_year_compensation`, `capped_compensation` |
 | `employee_deferral_rate` | decimal | Current deferral rate as a decimal, `0.00`–`1.00` (e.g. `0.06` = 6%) | `deferral_rate`, `deferralrate`, `deferral_pct`, `contribution_rate`, `contributionrate`, `deferral`, `deferral_percent` |
@@ -114,6 +114,8 @@ below); they don't block ingestion.
 
 ## Behavior when fields are missing (for context, not to reproduce)
 
+- Missing `employee_ssn` → a deterministic placeholder is synthesized from
+  `employee_id` (`SSN-` + a 9-digit hash), never a real SSN.
 - Missing `employee_termination_date` or `active` → all employees are
   treated as currently active.
 - Missing `employee_capped_compensation` → defaults to

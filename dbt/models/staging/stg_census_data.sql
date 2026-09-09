@@ -55,7 +55,16 @@ parquet_with_schema AS (
 raw_data AS (
   SELECT
       employee_id,
-      employee_ssn,
+      -- Synthesize a deterministic placeholder SSN from employee_id when the
+      -- census omits employee_ssn (it's optional in source files — see
+      -- census_schema.py — but the contract below requires a non-null value).
+      -- Kept below the 900000000 range used by new-hire event SSN generation
+      -- (int_hiring_events.sql) so census-derived and simulation-generated
+      -- SSNs never collide.
+      COALESCE(
+          employee_ssn,
+          'SSN-' || LPAD(CAST(ABS(HASH(employee_id)) % 900000000 AS VARCHAR), 9, '0')
+      ) AS employee_ssn,
       TRY_CAST(employee_birth_date AS DATE) AS employee_birth_date,
       TRY_CAST(employee_hire_date AS DATE) AS employee_hire_date,
       TRY_CAST(employee_termination_date AS DATE) AS employee_termination_date,
