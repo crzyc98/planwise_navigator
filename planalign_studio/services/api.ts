@@ -3056,12 +3056,13 @@ export interface CalibrationParams {
 }
 
 export interface CalibrationRunRequest {
-  start_year: number;
-  end_year: number;
+  start_year?: number | null;
+  end_year?: number | null;
   config_path?: string | null;
   database_path?: string | null;
   /** Run against this workspace's base config (census, rates) so levers transfer. */
   workspace_id?: string | null;
+  scenario_id?: string | null;
   params?: CalibrationParams;
 }
 
@@ -3087,11 +3088,12 @@ export interface AutoCalibrationSettings {
 }
 
 export interface AutoCalibrationRequest {
-  start_year: number;
-  end_year: number;
+  start_year?: number | null;
+  end_year?: number | null;
   config_path?: string | null;
   database_path?: string | null;
   workspace_id?: string | null;
+  scenario_id?: string | null;
   settings: AutoCalibrationSettings;
   params?: CalibrationParams;
 }
@@ -3103,6 +3105,7 @@ export interface OptimizationIteration {
   scale?: number | null;
   achieved_growth_pct: number;
   error_pct: number;
+  max_abs_error_pct: number;
 }
 
 export interface AutoCalibrationOutcome {
@@ -3112,13 +3115,30 @@ export interface AutoCalibrationOutcome {
   best_scale?: number | null;
   achieved_comp_growth_pct: number;
   target_comp_growth_pct: number;
+  max_abs_error_pct: number;
+  objective: 'max_annual_error';
+  start_year: number;
+  end_year: number;
   iterations: OptimizationIteration[];
   results: PerYearCompensationResult[];
+}
+
+export interface CalibrationContext {
+  workspace_id: string;
+  scenario_id: string | null;
+  source_scenario_id: string;
+  source_run_id: string;
+  config_fingerprint: string;
+  census_fingerprint: string;
+  random_seed: number;
+  start_year: number;
+  end_year: number;
 }
 
 export interface AutoCalibrationResponse {
   run_id: string;
   outcome: AutoCalibrationOutcome;
+  context: CalibrationContext;
 }
 
 export interface PerYearCompensationResult {
@@ -3158,6 +3178,7 @@ export interface CalibrationJob {
   outcome: AutoCalibrationOutcome | null;
   error: string | null;
   error_status: number | null;
+  context: CalibrationContext | null;
 }
 
 export async function getCalibrationRun(runId: string): Promise<CalibrationJob> {
@@ -3202,8 +3223,8 @@ export async function runCalibration(
 }
 
 /**
- * Auto-calibrate: search COLA/merit until the mean YoY avg-comp growth hits
- * the target (workforce growth is set directly — it is deterministic).
+ * Auto-calibrate: search until every annual YoY avg-comp result is within the
+ * requested tolerance (workforce growth is set directly — it is deterministic).
  * Runs several fast comp-only builds (a few minutes); enqueued as a
  * background job and polled to completion (issue #380).
  */
@@ -3220,7 +3241,33 @@ export async function optimizeCalibration(
   if (!job.outcome) {
     throw new ApiError(500, 'Calibration failed', 'Job completed without an outcome');
   }
-  return { run_id: job.run_id, outcome: job.outcome };
+  if (!job.context) {
+    throw new ApiError(500, 'Calibration failed', 'Job completed without target context');
+  }
+  return { run_id: job.run_id, outcome: job.outcome, context: job.context };
+}
+
+export interface CalibrationApplyResult {
+  workspace_updated: boolean;
+  scenarios: Array<{ scenario_id: string; success: boolean; error: string | null }>;
+  total_applied: number;
+  total_failed: number;
+}
+
+export async function applyCalibrationCandidate(
+  context: CalibrationContext,
+  outcome: AutoCalibrationOutcome,
+): Promise<CalibrationApplyResult> {
+  const response = await fetchWithAuth(`${API_BASE}/api/calibration/apply`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      context,
+      best_params: outcome.best_params,
+      target_comp_growth_pct: outcome.target_comp_growth_pct,
+    }),
+  });
+  return handleResponse<CalibrationApplyResult>(response);
 }
 
 // ============================================================================

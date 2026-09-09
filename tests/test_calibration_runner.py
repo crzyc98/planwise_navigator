@@ -120,21 +120,33 @@ def test_delta_computed_on_percentage_scale() -> None:
     assert isinstance(row, PerYearCompensationResult)
 
 
+def test_compensation_target_never_defaults_from_workforce_growth(tmp_path) -> None:
+    runner = _runner_with_default_config(tmp_path)
+    runner._config.simulation.target_growth_rate = 0.09
+    runner._config.compensation.target_compensation_growth_percent = 4.25
+
+    assert runner._compensation_target() == pytest.approx(0.0425)
+
+
+def test_run_horizon_overrides_config_and_dbt_vars(tmp_path) -> None:
+    runner = _runner_with_default_config(tmp_path)
+
+    assert runner._config.simulation.start_year == 2025
+    assert runner._config.simulation.end_year == 2026
+
+
 # -- isolated DB default --------------------------------------------------
-def test_isolated_db_default_seeds_from_shared(tmp_path, monkeypatch) -> None:
-    # With a built shared dev DB present, the default copies it to an isolated
-    # calibration DB (never returns the shared path, never mutates it).
+def test_default_never_seeds_from_shared(tmp_path, monkeypatch) -> None:
+    # Even when the shared dev DB exists, it is never accepted as calibration
+    # truth. Workspace/API context resolution must provide an isolated path.
     monkeypatch.chdir(tmp_path)
     shared = Path("dbt") / "simulation.duckdb"
     shared.parent.mkdir(parents=True, exist_ok=True)
     shared.write_bytes(b"seed-db-contents")
 
-    resolved = resolve_calibration_database(None)
-
-    assert resolved != shared
-    assert "calibration" in str(resolved)
-    assert resolved.exists() and resolved.read_bytes() == b"seed-db-contents"
-    assert shared.read_bytes() == b"seed-db-contents"  # source untouched
+    with pytest.raises(ConfigurationError, match="explicit isolated database"):
+        resolve_calibration_database(None)
+    assert shared.read_bytes() == b"seed-db-contents"
 
 
 def test_isolated_db_default_raises_without_source(tmp_path, monkeypatch) -> None:
@@ -147,6 +159,11 @@ def test_isolated_db_default_raises_without_source(tmp_path, monkeypatch) -> Non
 def test_explicit_db_is_respected() -> None:
     explicit = Path("/tmp/cal/iso.duckdb")
     assert resolve_calibration_database(explicit) == explicit
+
+
+def test_shared_dev_db_is_rejected() -> None:
+    with pytest.raises(ConfigurationError, match="Refusing to calibrate"):
+        resolve_calibration_database(Path("dbt/simulation.duckdb"))
 
 
 # -- prerequisite guard ---------------------------------------------------

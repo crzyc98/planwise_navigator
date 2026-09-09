@@ -7,18 +7,20 @@ import {
 import { SlidersHorizontal, Loader2, Database, Sparkles, Plus, X, Check } from 'lucide-react';
 import {
   optimizeCalibration,
+  applyCalibrationCandidate,
   AutoCalibrationOutcome,
+  CalibrationContext,
   PerYearCompensationResult,
   ApiError,
   getWorkspace,
-  updateWorkspace,
+  getScenarioConfig,
   listScenarios,
-  updateScenario,
   analyzeCompensation,
   analyzeAgeDistribution,
   analyzeTurnoverRates,
   TurnoverAnalysisResult,
   Workspace,
+  Scenario,
 } from '../services/api';
 import { extractCensusPath } from './config/ConfigContext';
 import { useChartTheme } from '../hooks/useChartTheme';
@@ -135,9 +137,8 @@ function errorText(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-// Rolling 5-year default window: current year through current year + 5.
 const DEFAULT_START_YEAR = new Date().getFullYear();
-const DEFAULT_END_YEAR = DEFAULT_START_YEAR + 5;
+const DEFAULT_END_YEAR = DEFAULT_START_YEAR + 1;
 
 /** Confidence pill for census-derived rate suggestions (ported from the
  *  Workforce config Turnover section). */
@@ -242,6 +243,7 @@ export default function CalibrationPanel() {
   const [autoLoading, setAutoLoading] = useState(false);
   const [autoError, setAutoError] = useState<string | null>(null);
   const [autoOutcome, setAutoOutcome] = useState<AutoCalibrationOutcome | null>(null);
+  const [autoContext, setAutoContext] = useState<CalibrationContext | null>(null);
   const [tolerancePct, setTolerancePct] = useState(0.05);
   const [maxIterations, setMaxIterations] = useState(8);
   // 'new_hire_scale': solve the new-hire range scale so hiring dilution isn't
@@ -249,11 +251,12 @@ export default function CalibrationPanel() {
   const [searchMode, setSearchMode] = useState<SolveMode>('new_hire_scale');
   const solvingNewHireRanges = searchMode === 'new_hire_scale';
 
-  // The calibration page operates on the workspace you're already in -- it uses
-  // the workspace's census for Match Census. No scenario needed (calibration
-  // does not touch DC/scenario-specific behavior).
+  // Calibration always belongs to the active workspace and can target either
+  // its baseline config or one scenario's exact merged config.
   const { activeWorkspace } = useOutletContext<CalibrationOutletContext>();
   const [censusPath, setCensusPath] = useState('');
+  const [scenarios, setScenarios] = useState<Scenario[]>([]);
+  const [selectedScenarioId, setSelectedScenarioId] = useState('');
 
   // Job Level Compensation Ranges via "Match Census" x scale (Feature 105) --
   // identical to the Workforce Parameters page, so the scale transfers to the
@@ -287,27 +290,75 @@ export default function CalibrationPanel() {
   const setValue = (key: string, v: number) =>
     setValues((prev) => ({ ...prev, [key]: v }));
 
-  // Resolve the active workspace's census path + seed the termination rates
-  // from its base_config so the panel starts from the real config values.
+  // Hydrate every visible held-fixed lever and the horizon from the exact
+  // baseline/scenario target. The census always belongs to the workspace.
   useEffect(() => {
     if (!activeWorkspace?.id) {
       setCensusPath('');
+      setScenarios([]);
+      setSelectedScenarioId('');
       return;
     }
-    const seedFromConfig = (cfg: any) => {
-      setCensusPath(extractCensusPath(cfg) ?? '');
+    listScenarios(activeWorkspace.id).then(setScenarios).catch(() => setScenarios([]));
+  }, [activeWorkspace?.id]);
+
+  useEffect(() => {
+    if (!activeWorkspace?.id) return;
+    setAutoOutcome(null);
+    setAutoContext(null);
+    setResults([]);
+    const seedFromConfig = (cfg: any, workspaceCfg: any) => {
+      setCensusPath(extractCensusPath(workspaceCfg) ?? '');
+      const simulation = (cfg?.simulation ?? {}) as Record<string, number>;
+      const compensation = (cfg?.compensation ?? {}) as Record<string, number>;
       const wf = (cfg?.workforce ?? {}) as Record<string, number>;
+      const newHire = cfg?.new_hire ?? {};
+      if (simulation.start_year != null) setStartYear(simulation.start_year);
+      if (simulation.end_year != null) setEndYear(simulation.end_year);
       setValues((prev) => ({
         ...prev,
+        target_growth_pct:
+          compensation.target_compensation_growth_percent != null
+            ? compensation.target_compensation_growth_percent / 100
+            : prev.target_growth_pct,
+        workforce_growth_rate:
+          simulation.target_growth_rate ?? prev.workforce_growth_rate,
+        cola_rate:
+          compensation.cola_rate ??
+          (compensation.cola_rate_percent != null
+            ? compensation.cola_rate_percent / 100
+            : prev.cola_rate),
+        merit_budget:
+          compensation.merit_budget ??
+          (compensation.merit_budget_percent != null
+            ? compensation.merit_budget_percent / 100
+            : prev.merit_budget),
         total_termination_rate: wf.total_termination_rate ?? prev.total_termination_rate,
         new_hire_termination_rate:
           wf.new_hire_termination_rate ?? prev.new_hire_termination_rate,
       }));
+      if (Array.isArray(newHire.age_distribution)) {
+        setAgeDist(newHire.age_distribution);
+        setAgeDistMode('custom');
+      } else {
+        setAgeDistMode('default');
+      }
+      if (!solvingNewHireRanges && Array.isArray(newHire.job_level_compensation)) {
+        setBaseRanges(newHire.job_level_compensation);
+        setScaleFactor(1);
+      } else {
+        setBaseRanges([]);
+      }
     };
     getWorkspace(activeWorkspace.id)
-      .then((ws) => seedFromConfig(ws.base_config))
-      .catch(() => seedFromConfig(activeWorkspace.base_config));
-  }, [activeWorkspace?.id]);
+      .then(async (ws) => {
+        const targetConfig = selectedScenarioId
+          ? await getScenarioConfig(activeWorkspace.id, selectedScenarioId)
+          : ws.base_config;
+        seedFromConfig(targetConfig, ws.base_config);
+      })
+      .catch(() => seedFromConfig(activeWorkspace.base_config, activeWorkspace.base_config));
+  }, [activeWorkspace?.id, selectedScenarioId, solvingNewHireRanges]);
 
   // Derive UNSCALED per-level ranges from the workspace census; the
   // displayed/sent ranges apply the Scale (×) input, exactly like the
@@ -405,6 +456,7 @@ export default function CalibrationPanel() {
     setAutoLoading(true);
     setAutoError(null);
     setAutoOutcome(null);
+    setAutoContext(null);
     setApplyStatus('idle');
     try {
       // Scale mode NEVER silently falls back: derive the census ranges
@@ -418,6 +470,7 @@ export default function CalibrationPanel() {
         end_year: endYear,
         database_path: null,
         workspace_id: activeWorkspace?.id ?? null,
+        scenario_id: selectedScenarioId || null,
         settings: {
           target_workforce_growth: values.workforce_growth_rate,
           target_comp_growth: values.target_growth_pct,
@@ -432,6 +485,9 @@ export default function CalibrationPanel() {
             : {}),
         },
         params: {
+          cola_rate: values.cola_rate,
+          merit_budget: values.merit_budget,
+          workforce_growth_rate: values.workforce_growth_rate,
           new_hire_age_distribution: ageDistEnabled ? ageDist : null,
           // In scale mode the optimizer injects the ranges itself.
           job_level_compensation:
@@ -442,6 +498,7 @@ export default function CalibrationPanel() {
         },
       });
       const outcome = response.outcome;
+      setAutoContext(response.context);
       setAutoOutcome(outcome);
       setResults(outcome.results);
       // Load the solved levers into the sliders so Apply to Workspace persists them.
@@ -452,7 +509,7 @@ export default function CalibrationPanel() {
       }));
       // Apply the winning scale so the ranges table + Apply to Workspace match.
       if (outcome.best_scale !== null && outcome.best_scale !== undefined) {
-        setScaleFactor(Number(outcome.best_scale.toFixed(2)));
+        setScaleFactor(outcome.best_scale);
       }
     } catch (e) {
       setAutoError(errorText(e));
@@ -470,61 +527,15 @@ export default function CalibrationPanel() {
   const [applyError, setApplyError] = useState<string | null>(null);
   const [applySummary, setApplySummary] = useState<string | null>(null);
 
-  // Merge the calibrated levers into a config object (base_config or a
-  // scenario's config_overrides), preserving every key we didn't calibrate.
-  // Same key shapes both places: compensation uses *_percent (+ bare decimals
-  // the loader prefers), simulation/workforce use decimals.
-  const mergeCalibrated = (cfg: Record<string, any>): Record<string, any> => ({
-    ...cfg,
-    simulation: {
-      ...(cfg.simulation ?? {}),
-      target_growth_rate: values.workforce_growth_rate,
-    },
-    compensation: {
-      ...(cfg.compensation ?? {}),
-      target_compensation_growth_percent: values.target_growth_pct * 100,
-      cola_rate_percent: values.cola_rate * 100,
-      cola_rate: values.cola_rate,
-      merit_budget_percent: values.merit_budget * 100,
-      merit_budget: values.merit_budget,
-    },
-    workforce: {
-      ...(cfg.workforce ?? {}),
-      total_termination_rate: values.total_termination_rate,
-      new_hire_termination_rate: values.new_hire_termination_rate,
-    },
-    new_hire: {
-      ...(cfg.new_hire ?? {}),
-      ...(ageDistEnabled ? { age_distribution: ageDist } : {}),
-      ...(jobRanges.length > 0 ? { job_level_compensation: jobRanges } : {}),
-    },
-  });
-
   const handleApplyToWorkspace = async () => {
-    if (!activeWorkspace?.id) return;
-    const workspaceId = activeWorkspace.id;
+    if (!activeWorkspace?.id || !autoOutcome || !autoContext) return;
     setApplyStatus('applying');
     setApplyError(null);
     setApplySummary(null);
     try {
-      // 1. Workspace base config (the fallback for scenarios that don't override).
-      const ws = await getWorkspace(workspaceId);
-      await updateWorkspace(workspaceId, {
-        base_config: mergeCalibrated((ws.base_config ?? {}) as Record<string, any>),
-      });
-
-      // 2. Every scenario's overrides -- these shadow base_config, so a run only
-      // reflects the calibration once they carry the calibrated keys too.
-      const scenarios = await listScenarios(workspaceId);
-      const outcomes = await Promise.allSettled(
-        scenarios.map((sc) =>
-          updateScenario(workspaceId, sc.id, {
-            config_overrides: mergeCalibrated(sc.config_overrides ?? {}),
-          })
-        )
-      );
-      const applied = outcomes.filter((o) => o.status === 'fulfilled').length;
-      const failed = outcomes.length - applied;
+      const result = await applyCalibrationCandidate(autoContext, autoOutcome);
+      const applied = result.total_applied;
+      const failed = result.total_failed;
       setApplySummary(
         `Updated workspace base config and ${applied} scenario${applied === 1 ? '' : 's'}` +
           (failed > 0 ? ` (${failed} failed)` : '') + '.'
@@ -566,7 +577,7 @@ export default function CalibrationPanel() {
             is the goal calibration ultimately solves for.
           </StepHeader>
 
-          {/* Active workspace + its census (no selection needed) */}
+          {/* Active workspace, exact target config, and authoritative census. */}
           <div className="flex items-center gap-2 text-sm text-ink-muted">
             <Database size={16} className="text-ink-subtle" />
             <span>
@@ -583,14 +594,28 @@ export default function CalibrationPanel() {
             </span>
           </div>
 
+          <label className="block">
+            <span className="text-sm font-medium text-ink-muted">Target configuration</span>
+            <select
+              value={selectedScenarioId}
+              onChange={(event) => setSelectedScenarioId(event.target.value)}
+              className="mt-1 w-full rounded-md border border-border-strong bg-surface-raised p-2 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+            >
+              <option value="">Workspace baseline</option>
+              {scenarios.map((scenario) => (
+                <option key={scenario.id} value={scenario.id}>{scenario.name}</option>
+              ))}
+            </select>
+          </label>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <label className="block">
               <span className="text-sm font-medium text-ink-muted">Start Year</span>
               <input
                 type="number"
                 value={startYear}
-                onChange={(e) => setStartYear(Number(e.target.value))}
-                className="mt-1 w-full rounded-md border border-border-strong p-2 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+                readOnly
+                className="mt-1 w-full rounded-md border border-border-strong bg-surface-subtle p-2 text-sm text-ink-muted shadow-sm"
               />
             </label>
             <label className="block">
@@ -598,13 +623,16 @@ export default function CalibrationPanel() {
               <input
                 type="number"
                 value={endYear}
-                onChange={(e) => setEndYear(Number(e.target.value))}
-                className="mt-1 w-full rounded-md border border-border-strong p-2 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+                readOnly
+                className="mt-1 w-full rounded-md border border-border-strong bg-surface-subtle p-2 text-sm text-ink-muted shadow-sm"
               />
             </label>
           </div>
           <p className="text-xs text-ink-muted">
-            Calibration always runs against an isolated copy of the database — the shared dev database is never touched.
+            {endYear >= startYear ? `${endYear - startYear + 1} years inclusive. ` : ''}
+            Defaults come from the target configuration. Calibration uses an isolated copy
+            only when a completed run matches its census, config, seed, and horizon; the
+            shared development database is never read.
           </p>
 
           {/* The two growth drivers: workforce growth (deterministic) and the
@@ -1069,6 +1097,10 @@ export default function CalibrationPanel() {
                 {autoOutcome.message}
               </p>
               <p className="mt-1 text-xs text-info-ink">
+                Horizon {autoOutcome.start_year}–{autoOutcome.end_year}; maximum annual error{' '}
+                {autoOutcome.max_abs_error_pct.toFixed(2)}pp.
+              </p>
+              <p className="mt-1 text-xs text-info-ink">
                 Best config: COLA {pct(autoOutcome.best_params.cola_rate ?? 0)}, merit{' '}
                 {pct(autoOutcome.best_params.merit_budget ?? 0)}
                 {autoOutcome.best_scale != null && (
@@ -1085,7 +1117,7 @@ export default function CalibrationPanel() {
                     <th className="text-right">Merit</th>
                     <th className="text-right">Scale</th>
                     <th className="text-right">Comp Growth</th>
-                    <th className="text-right">Error</th>
+                    <th className="text-right">Worst annual error</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1096,7 +1128,7 @@ export default function CalibrationPanel() {
                       <td className="text-right">{pct(it.merit_budget)}</td>
                       <td className="text-right">{it.scale != null ? `${it.scale.toFixed(2)}×` : '—'}</td>
                       <td className="text-right">{it.achieved_growth_pct.toFixed(2)}%</td>
-                      <td className="text-right">{it.error_pct >= 0 ? '+' : ''}{it.error_pct.toFixed(2)}pp</td>
+                      <td className="text-right">{it.max_abs_error_pct.toFixed(2)}pp</td>
                     </tr>
                   ))}
                 </tbody>

@@ -8,8 +8,9 @@ The analyst sets two targets:
   exactly, so it needs no searching.
 * **Average-compensation growth** -- searched. Each candidate is evaluated
   with a fast comp-only :class:`CalibrationRunner` build (exact vs. a full
-  simulation), and a secant iteration adjusts the chosen lever until the mean
-  year-over-year avg-comp growth is within tolerance of the target.
+  simulation), and a secant iteration adjusts the chosen lever to minimize the
+  maximum absolute annual error. Convergence requires every post-baseline year
+  to be within tolerance of the target.
 
 Two search modes:
 
@@ -56,7 +57,7 @@ class AutoCalibrationSettings(BaseModel):
     # Decimal rates, e.g. 0.03 = 3%/yr.
     target_workforce_growth: float = Field(..., ge=-1.0, le=1.0)
     target_comp_growth: float = Field(..., ge=-1.0, le=1.0)
-    # Convergence tolerance on mean YoY comp growth, in percentage points.
+    # Per-year convergence tolerance, in percentage points.
     tolerance_pct: float = Field(default=0.05, gt=0, le=5.0)
     # Total evaluation budget across all stages.
     max_iterations: int = Field(default=8, ge=1, le=25)
@@ -98,6 +99,7 @@ class OptimizationIteration(BaseModel):
     scale: Optional[float] = None
     achieved_growth_pct: float
     error_pct: float
+    max_abs_error_pct: float
 
 
 class AutoCalibrationResult(BaseModel):
@@ -109,18 +111,27 @@ class AutoCalibrationResult(BaseModel):
     best_scale: Optional[float] = None
     achieved_comp_growth_pct: float
     target_comp_growth_pct: float
+    max_abs_error_pct: float
+    objective: Literal["max_annual_error"] = "max_annual_error"
+    start_year: int
+    end_year: int
     iterations: List[OptimizationIteration]
     results: List[PerYearCompensationResult]
 
 
-def _mean_comp_growth_pct(results: List[PerYearCompensationResult]) -> float:
+def _annual_objective(
+    results: List[PerYearCompensationResult], target_pct: float
+) -> Tuple[float, float, float]:
+    """Return mean achieved growth, signed worst error, and max absolute error."""
     growths = [r.yoy_growth_pct for r in results if r.yoy_growth_pct is not None]
     if not growths:
         raise ValueError(
             "Auto-calibration needs at least a two-year range to measure "
             "year-over-year compensation growth"
         )
-    return sum(growths) / len(growths)
+    errors = [growth - target_pct for growth in growths]
+    worst = max(errors, key=abs)
+    return sum(growths) / len(growths), worst, abs(worst)
 
 
 def _clamp_lever(value: float) -> float:
@@ -325,8 +336,7 @@ class AutoCalibrator:
     ) -> float:
         """Evaluate one candidate: record the iteration, track the best."""
         results = self._evaluate(params)
-        achieved = _mean_comp_growth_pct(results)
-        error = achieved - target_pct
+        achieved, error, max_abs_error = _annual_objective(results, target_pct)
         self._iterations.append(
             OptimizationIteration(
                 iteration=len(self._iterations) + 1,
@@ -335,10 +345,11 @@ class AutoCalibrator:
                 scale=scale,
                 achieved_growth_pct=achieved,
                 error_pct=error,
+                max_abs_error_pct=max_abs_error,
             )
         )
-        if self._best is None or abs(error) < self._best.abs_error:
-            self._best = _BestCandidate(abs(error), params, achieved, results, scale)
+        if self._best is None or max_abs_error < self._best.abs_error:
+            self._best = _BestCandidate(max_abs_error, params, achieved, results, scale)
         return error
 
     def _evaluate(
@@ -350,9 +361,11 @@ class AutoCalibrator:
             self._evals,
             params.cola_rate,
             params.merit_budget,
-            f"{params.job_level_compensation[0]['min_compensation']}"
-            if params.job_level_compensation
-            else "-",
+            (
+                f"{params.job_level_compensation[0]['min_compensation']}"
+                if params.job_level_compensation
+                else "-"
+            ),
         )
         if self._evals == 1:
             self._runner.run = self._runner.run.model_copy(update={"params": params})
@@ -364,14 +377,15 @@ class AutoCalibrator:
         best = self._require_best()
         if converged:
             return (
-                f"Converged in {self._evals} run(s): mean comp growth "
-                f"{best.achieved_pct:.2f}% vs target {target_pct:.2f}%"
+                f"Converged in {self._evals} run(s): every annual comp-growth "
+                f"result is within {self.settings.tolerance_pct:.2f}pp of "
+                f"{target_pct:.2f}% (max error {best.abs_error:.2f}pp)"
             )
         return (
-            f"Stopped after {self._evals} run(s); best mean comp growth "
-            f"{best.achieved_pct:.2f}% vs target {target_pct:.2f}% "
-            f"(|error| {best.abs_error:.2f}pp > tolerance "
-            f"{self.settings.tolerance_pct}pp)"
+            f"Stopped after {self._evals} run(s); best candidate has maximum "
+            f"annual error {best.abs_error:.2f}pp vs tolerance "
+            f"{self.settings.tolerance_pct:.2f}pp (horizon mean "
+            f"{best.achieved_pct:.2f}% vs target {target_pct:.2f}%)"
         )
 
     def _finish(
@@ -386,6 +400,9 @@ class AutoCalibrator:
             best_scale=best.scale,
             achieved_comp_growth_pct=best.achieved_pct,
             target_comp_growth_pct=target_pct,
+            max_abs_error_pct=best.abs_error,
+            start_year=self.run.start_year,
+            end_year=self.run.end_year,
             iterations=self._iterations,
             results=best.results,
         )

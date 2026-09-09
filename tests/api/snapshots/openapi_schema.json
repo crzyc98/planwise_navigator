@@ -581,7 +581,7 @@
         "type": "object"
       },
       "AutoCalibrationRequest": {
-        "description": "Request body for POST /api/calibration/optimize.\n\nSet the two targets; the optimizer sets workforce growth directly (it is\ndeterministic via E077) and searches COLA/merit until the mean YoY avg-comp\ngrowth is within tolerance of the comp target.",
+        "description": "Request body for POST /api/calibration/optimize.\n\nSet the two targets; the optimizer sets workforce growth directly (it is\ndeterministic via E077) and searches until every annual avg-comp growth\nresult is within tolerance of the compensation target.",
         "properties": {
           "config_path": {
             "anyOf": [
@@ -606,20 +606,45 @@
             "title": "Database Path"
           },
           "end_year": {
-            "minimum": 2000.0,
-            "title": "End Year",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 2000.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Year"
           },
           "params": {
             "$ref": "#/components/schemas/CalibrationParameterSet"
+          },
+          "scenario_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario Id"
           },
           "settings": {
             "$ref": "#/components/schemas/AutoCalibrationSettings"
           },
           "start_year": {
-            "minimum": 2000.0,
-            "title": "Start Year",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 2000.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Year"
           },
           "workspace_id": {
             "anyOf": [
@@ -634,8 +659,6 @@
           }
         },
         "required": [
-          "start_year",
-          "end_year",
           "settings"
         ],
         "title": "AutoCalibrationRequest",
@@ -666,6 +689,10 @@
             "title": "Converged",
             "type": "boolean"
           },
+          "end_year": {
+            "title": "End Year",
+            "type": "integer"
+          },
           "iterations": {
             "items": {
               "$ref": "#/components/schemas/OptimizationIteration"
@@ -673,8 +700,21 @@
             "title": "Iterations",
             "type": "array"
           },
+          "max_abs_error_pct": {
+            "title": "Max Abs Error Pct",
+            "type": "number"
+          },
           "message": {
             "title": "Message",
+            "type": "string"
+          },
+          "objective": {
+            "const": "max_annual_error",
+            "default": "max_annual_error",
+            "enum": [
+              "max_annual_error"
+            ],
+            "title": "Objective",
             "type": "string"
           },
           "results": {
@@ -683,6 +723,10 @@
             },
             "title": "Results",
             "type": "array"
+          },
+          "start_year": {
+            "title": "Start Year",
+            "type": "integer"
           },
           "target_comp_growth_pct": {
             "title": "Target Comp Growth Pct",
@@ -695,6 +739,9 @@
           "best_params",
           "achieved_comp_growth_pct",
           "target_comp_growth_pct",
+          "max_abs_error_pct",
+          "start_year",
+          "end_year",
           "iterations",
           "results"
         ],
@@ -1503,6 +1550,150 @@
         "title": "BulkOperationStatus",
         "type": "string"
       },
+      "CalibrationApplyOutcome": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "scenario_id": {
+            "title": "Scenario Id",
+            "type": "string"
+          },
+          "success": {
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "scenario_id",
+          "success"
+        ],
+        "title": "CalibrationApplyOutcome",
+        "type": "object"
+      },
+      "CalibrationApplyRequest": {
+        "description": "Exact optimizer candidate and the target context it was evaluated in.",
+        "properties": {
+          "best_params": {
+            "$ref": "#/components/schemas/CalibrationParameterSet"
+          },
+          "context": {
+            "$ref": "#/components/schemas/CalibrationContext"
+          },
+          "target_comp_growth_pct": {
+            "maximum": 100.0,
+            "minimum": -100.0,
+            "title": "Target Comp Growth Pct",
+            "type": "number"
+          }
+        },
+        "required": [
+          "context",
+          "best_params",
+          "target_comp_growth_pct"
+        ],
+        "title": "CalibrationApplyRequest",
+        "type": "object"
+      },
+      "CalibrationApplyResult": {
+        "properties": {
+          "scenarios": {
+            "items": {
+              "$ref": "#/components/schemas/CalibrationApplyOutcome"
+            },
+            "title": "Scenarios",
+            "type": "array"
+          },
+          "total_applied": {
+            "title": "Total Applied",
+            "type": "integer"
+          },
+          "total_failed": {
+            "title": "Total Failed",
+            "type": "integer"
+          },
+          "workspace_updated": {
+            "title": "Workspace Updated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "workspace_updated",
+          "scenarios",
+          "total_applied",
+          "total_failed"
+        ],
+        "title": "CalibrationApplyResult",
+        "type": "object"
+      },
+      "CalibrationContext": {
+        "description": "PII-safe identity of the exact target and matched source run.",
+        "properties": {
+          "census_fingerprint": {
+            "title": "Census Fingerprint",
+            "type": "string"
+          },
+          "config_fingerprint": {
+            "title": "Config Fingerprint",
+            "type": "string"
+          },
+          "end_year": {
+            "title": "End Year",
+            "type": "integer"
+          },
+          "random_seed": {
+            "title": "Random Seed",
+            "type": "integer"
+          },
+          "scenario_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario Id"
+          },
+          "source_run_id": {
+            "title": "Source Run Id",
+            "type": "string"
+          },
+          "source_scenario_id": {
+            "title": "Source Scenario Id",
+            "type": "string"
+          },
+          "start_year": {
+            "title": "Start Year",
+            "type": "integer"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "source_scenario_id",
+          "source_run_id",
+          "config_fingerprint",
+          "census_fingerprint",
+          "random_seed",
+          "start_year",
+          "end_year"
+        ],
+        "title": "CalibrationContext",
+        "type": "object"
+      },
       "CalibrationJob": {
         "description": "Status/result record for a background calibration job.",
         "properties": {
@@ -1517,6 +1708,16 @@
               }
             ],
             "title": "Completed At"
+          },
+          "context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalibrationContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "created_at": {
             "format": "date-time",
@@ -1756,17 +1957,42 @@
             "title": "Database Path"
           },
           "end_year": {
-            "minimum": 2000.0,
-            "title": "End Year",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 2000.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Year"
           },
           "params": {
             "$ref": "#/components/schemas/CalibrationParameterSet"
           },
+          "scenario_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario Id"
+          },
           "start_year": {
-            "minimum": 2000.0,
-            "title": "Start Year",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 2000.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Year"
           },
           "workspace_id": {
             "anyOf": [
@@ -1780,10 +2006,6 @@
             "title": "Workspace Id"
           }
         },
-        "required": [
-          "start_year",
-          "end_year"
-        ],
         "title": "CalibrationRunRequest",
         "type": "object"
       },
@@ -6623,6 +6845,10 @@
             "title": "Iteration",
             "type": "integer"
           },
+          "max_abs_error_pct": {
+            "title": "Max Abs Error Pct",
+            "type": "number"
+          },
           "merit_budget": {
             "title": "Merit Budget",
             "type": "number"
@@ -6644,7 +6870,8 @@
           "cola_rate",
           "merit_budget",
           "achieved_growth_pct",
-          "error_pct"
+          "error_pct",
+          "max_abs_error_pct"
         ],
         "title": "OptimizationIteration",
         "type": "object"
@@ -12114,6 +12341,48 @@
         "summary": "Get Batch Status",
         "tags": [
           "Batch Processing"
+        ]
+      }
+    },
+    "/api/calibration/apply": {
+      "post": {
+        "description": "Apply the exact evaluated candidate to the workspace and its scenarios.",
+        "operationId": "apply_calibration_api_calibration_apply_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalibrationApplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalibrationApplyResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Calibration",
+        "tags": [
+          "Calibration"
         ]
       }
     },

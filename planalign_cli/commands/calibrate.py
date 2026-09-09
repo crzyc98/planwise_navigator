@@ -42,7 +42,7 @@ def run_calibration(
     database: Optional[str] = typer.Option(
         None,
         "--database",
-        help="Target DuckDB path (default: isolated calibration DB)",
+        help="Explicit scenario-isolated DuckDB path (required)",
     ),
     target_growth: Optional[float] = typer.Option(
         None, "--target-growth", help="Target avg-comp YoY growth (e.g. 0.035)"
@@ -66,6 +66,12 @@ def run_calibration(
         raise typer.Exit(EXIT_BAD_ARGS)
 
     config_path = Path(config) if config else find_default_config()
+    if not database:
+        show_error_message(
+            "--database is required; use a scenario-isolated database with "
+            "matching config/census provenance"
+        )
+        raise typer.Exit(EXIT_BAD_ARGS)
 
     try:
         params = CalibrationParameterSet(
@@ -85,13 +91,12 @@ def run_calibration(
         show_error_message(f"Invalid calibration parameters: {e}")
         raise typer.Exit(EXIT_BAD_ARGS)
 
-    runner = CalibrationRunner(run, threads=threads, verbose=verbose)
-    console.print(
-        f"⚡ [bold blue]Calibrating {start_year}-{end_year}[/bold blue] "
-        f"against [dim]{runner.database_path}[/dim]"
-    )
-
     try:
+        runner = CalibrationRunner(run, threads=threads, verbose=verbose)
+        console.print(
+            f"⚡ [bold blue]Calibrating {start_year}-{end_year}[/bold blue] "
+            f"against [dim]{runner.database_path}[/dim]"
+        )
         results = runner.run_calibration()
     except ConfigurationError as e:
         show_error_message(str(e))

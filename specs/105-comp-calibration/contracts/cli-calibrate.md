@@ -15,7 +15,7 @@ planalign calibrate <year-range> [OPTIONS]
 | Flag | Type | Default | Meaning |
 |------|------|---------|---------|
 | `--config`, `-c` | path | auto-discovered | Simulation config YAML (same as `simulate`) |
-| `--database` | path | isolated `<calibration>.duckdb` | Target DB. Omitted → isolated DB (never the shared dev DB) |
+| `--database` | path | required | Explicit scenario-isolated DB with matching config/census provenance; the shared dev DB is rejected |
 | `--target-growth` | float | from config | Target avg-comp YoY growth (e.g. `0.035`) for the delta column |
 | `--cola` | float | from config | Override COLA rate |
 | `--merit` | float | from config | Override merit budget |
@@ -26,7 +26,7 @@ planalign calibrate <year-range> [OPTIONS]
 ## Behavior
 
 1. Parse + validate the year range (`end ≥ start`, sane years) → clear error on failure (exit 2).
-2. Resolve target DB; default to isolated calibration DB seeded from / pointing at a fully-built DB.
+2. Require an explicit target DB and reject `dbt/simulation.duckdb`.
 3. **Prerequisite guard**: verify DC tables required by `fct_workforce_snapshot`/`fct_yearly_events` exist. Missing → actionable error, exit non-zero, **no build attempted** (FR-011/SC-005).
 4. For each year: run the comp-only workflow variant (`build_calibration_year_workflow`) via the dbt runner with `--select <comp model list>` and `--vars` from `to_dbt_vars()`.
 5. Build/read `fct_compensation_growth`; assemble `PerYearCompensationResult` rows.
@@ -53,5 +53,5 @@ planalign calibrate <year-range> [OPTIONS]
 
 ## Invariants
 
-- Default run leaves the shared `dbt/simulation.duckdb` byte-identical (SC-004).
+- The shared `dbt/simulation.duckdb` is neither read nor written (SC-004).
 - `fct_compensation_growth` avg-comp / YoY columns are **exact** vs. a full `simulate` run under the same config (SC-002).
