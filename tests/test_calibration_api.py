@@ -221,13 +221,53 @@ def test_unknown_workspace_returns_404(client, monkeypatch) -> None:
 
 
 def test_workspace_config_flows_to_runner(client, monkeypatch, tmp_path) -> None:
-    # A workspace_id (and no explicit config_path) must materialize the
-    # workspace base_config as the runner's config file.
+    # A workspace target materializes its config and copies only a completed
+    # run whose config/census/seed/horizon provenance matches.
+    import json
+    from types import SimpleNamespace
+    from uuid import uuid4
+
+    from planalign_api.services.provenance.capture import (
+        config_fingerprint,
+        sha256_file,
+    )
+
+    census = tmp_path / "census.parquet"
+    census.write_bytes(b"pii-safe-test-census")
+    run_id = str(uuid4())
+    source_db = tmp_path / "source.duckdb"
+    source_db.write_bytes(b"source-db")
+
     class _Workspace:
         base_config = {
-            "simulation": {"target_growth_rate": 0.03},
+            "setup": {"census_parquet_path": "census.parquet"},
+            "simulation": {
+                "start_year": 2025,
+                "end_year": 2026,
+                "random_seed": 42,
+                "target_growth_rate": 0.03,
+            },
             "compensation": {"cola_rate": 0.02},
         }
+
+    effective = dict(_Workspace.base_config)
+    effective["setup"] = {"census_parquet_path": str(census.resolve())}
+    (tmp_path / "provenance.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "capture_state": "completed",
+                "run_identity": {
+                    "workspace_id": "ws1",
+                    "intended_start_year": 2025,
+                    "intended_end_year": 2026,
+                },
+                "configuration": {"fingerprint": config_fingerprint(effective)},
+                "random_seed": 42,
+                "census_input": {"sha256": sha256_file(census)[0]},
+            }
+        )
+    )
 
     class _Storage:
         def get_workspace(self, workspace_id):
@@ -235,6 +275,15 @@ def test_workspace_config_flows_to_runner(client, monkeypatch, tmp_path) -> None
 
         def _workspace_path(self, workspace_id):
             return tmp_path
+
+        def list_scenarios(self, workspace_id):
+            return [SimpleNamespace(id="scenario-1")]
+
+        def get_scenario_read_context(self, workspace_id, scenario_id):
+            return SimpleNamespace(
+                database_path=source_db,
+                result_run_id=run_id,
+            )
 
     captured = {}
 
@@ -244,6 +293,7 @@ def test_workspace_config_flows_to_runner(client, monkeypatch, tmp_path) -> None
         import yaml
 
         captured["config_path"] = run.config_path
+        captured["database_path"] = run.database_path
         with open(run.config_path) as f:
             captured["config"] = yaml.safe_load(f)
 
@@ -261,10 +311,74 @@ def test_workspace_config_flows_to_runner(client, monkeypatch, tmp_path) -> None
         assert _await_job(client, resp.json()["run_id"])["status"] == "completed"
         assert captured["config_path"] is not None
         assert captured["config"]["simulation"]["target_growth_rate"] == 0.03
+        assert captured["config"]["setup"]["census_parquet_path"] == str(
+            census.resolve()
+        )
         # Regression for #379: the materialized temp config must be cleaned up.
         assert not captured["config_path"].exists()
+        assert not captured["database_path"].exists()
     finally:
         client.app.dependency_overrides.clear()
+
+
+def test_provenance_match_rejects_other_workspace_and_stale_census(tmp_path) -> None:
+    import json
+
+    manifest = tmp_path / "provenance.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "run_id": "run-1",
+                "capture_state": "completed",
+                "run_identity": {
+                    "workspace_id": "workspace-b",
+                    "intended_start_year": 2025,
+                    "intended_end_year": 2026,
+                },
+                "configuration": {"fingerprint": "a" * 64},
+                "random_seed": 42,
+                "census_input": {"sha256": "old-census"},
+            }
+        )
+    )
+
+    matches, _ = calibration_router._manifest_matches(
+        manifest,
+        workspace_id="workspace-a",
+        expected_config="a" * 64,
+        expected_census="new-census",
+        expected_seed=42,
+        start_year=2025,
+        end_year=2026,
+    )
+
+    assert not matches
+
+    horizon_matches, _ = calibration_router._manifest_matches(
+        manifest,
+        workspace_id="workspace-b",
+        expected_config="a" * 64,
+        expected_census="old-census",
+        expected_seed=42,
+        start_year=2025,
+        end_year=2027,
+    )
+    assert not horizon_matches
+
+
+def test_scenario_target_uses_merged_config() -> None:
+    class _Storage:
+        def get_workspace(self, workspace_id):
+            return object()
+
+        def get_merged_config(self, workspace_id, scenario_id):
+            return {"scenario_marker": scenario_id}
+
+    config = calibration_router._effective_workspace_config(
+        "workspace", "scenario-override", _Storage()
+    )
+
+    assert config == {"scenario_marker": "scenario-override"}
 
 
 def test_concurrent_runs_on_same_db_serialize(client, monkeypatch, tmp_path) -> None:
@@ -317,6 +431,9 @@ def test_optimize_returns_outcome(client, monkeypatch) -> None:
         best_params=CalibrationParameterSet(cola_rate=0.028, merit_budget=0.043),
         achieved_comp_growth_pct=4.01,
         target_comp_growth_pct=4.0,
+        max_abs_error_pct=0.8,
+        start_year=2025,
+        end_year=2026,
         iterations=[
             OptimizationIteration(
                 iteration=1,
@@ -324,6 +441,7 @@ def test_optimize_returns_outcome(client, monkeypatch) -> None:
                 merit_budget=0.035,
                 achieved_growth_pct=3.2,
                 error_pct=-0.8,
+                max_abs_error_pct=0.8,
             )
         ],
         results=_SAMPLE,
@@ -372,6 +490,78 @@ def test_optimize_single_year_returns_422(client) -> None:
     )
     assert resp.status_code == 422
     assert "two-year range" in resp.json()["detail"]
+
+
+def test_apply_persists_exact_ranges_and_reports_partial_failures(
+    client, monkeypatch
+) -> None:
+    from types import SimpleNamespace
+
+    exact_ranges = [
+        {
+            "level": 1,
+            "name": "Staff",
+            "min_compensation": 61234.567,
+            "max_compensation": 98765.432,
+        }
+    ]
+    captured = {}
+
+    class _Storage:
+        def get_workspace(self, workspace_id):
+            return SimpleNamespace(base_config={"unrelated": {"keep": True}})
+
+        def update_workspace(self, workspace_id, *, base_config):
+            captured["base"] = base_config
+            return SimpleNamespace(id=workspace_id)
+
+        def list_scenarios(self, workspace_id):
+            return [
+                SimpleNamespace(id="ok", config_overrides={}),
+                SimpleNamespace(id="failed", config_overrides={}),
+            ]
+
+        def update_scenario(self, workspace_id, scenario_id, *, config_overrides):
+            if scenario_id == "failed":
+                raise OSError("write failed")
+            captured["scenario"] = config_overrides
+            return SimpleNamespace(id=scenario_id)
+
+    monkeypatch.setattr(calibration_router, "_verify_apply_context", lambda *a: {})
+    client.app.dependency_overrides[calibration_router.get_storage] = lambda: _Storage()
+    try:
+        response = client.post(
+            "/api/calibration/apply",
+            json={
+                "context": {
+                    "workspace_id": "ws",
+                    "scenario_id": None,
+                    "source_scenario_id": "source",
+                    "source_run_id": "run",
+                    "config_fingerprint": "a" * 64,
+                    "census_fingerprint": "b" * 64,
+                    "random_seed": 42,
+                    "start_year": 2025,
+                    "end_year": 2027,
+                },
+                "best_params": {
+                    "cola_rate": 0.021234,
+                    "merit_budget": 0.034567,
+                    "workforce_growth_rate": 0.03,
+                    "job_level_compensation": exact_ranges,
+                },
+                "target_comp_growth_pct": 3.5,
+            },
+        )
+    finally:
+        client.app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["total_applied"] == 1
+    assert response.json()["total_failed"] == 1
+    assert captured["base"]["new_hire"]["job_level_compensation"] == exact_ranges
+    assert captured["scenario"]["new_hire"]["job_level_compensation"] == exact_ranges
+    assert captured["base"]["unrelated"] == {"keep": True}
 
 
 def test_job_level_compensation_with_name_is_accepted(client, monkeypatch) -> None:

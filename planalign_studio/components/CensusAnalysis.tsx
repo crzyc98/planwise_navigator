@@ -101,6 +101,9 @@ const SegmentTooltip = ({ active, payload, label }: any) => {
         <p>
           Employer cost: <span className="font-semibold text-ink">{formatCurrency(row.total_employer_cost)}</span>
         </p>
+        <p>
+          Total compensation: <span className="font-semibold text-ink">{formatCurrency(row.total_eligible_compensation)}</span>
+        </p>
       </div>
     </div>
   );
@@ -279,7 +282,7 @@ export default function CensusAnalysis() {
             {result.hce_compensation_threshold != null && ` · HCE threshold ${formatCurrency(result.hce_compensation_threshold)}`}
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
             <KPICard
               title="Participation Rate"
               value={formatPercent(result.overall.participation_rate)}
@@ -310,6 +313,14 @@ export default function CensusAnalysis() {
               subtext={`Match ${formatCurrency(result.overall.total_employer_match)} · Core ${formatCurrency(result.overall.total_employer_core)}`}
               icon={DollarSign}
               color="orange"
+              loading={loading}
+            />
+            <KPICard
+              title="Total Compensation"
+              value={formatCurrency(result.overall.total_eligible_compensation)}
+              subtext={`Across ${result.overall.eligible_count.toLocaleString()} eligible employees`}
+              icon={DollarSign}
+              color="blue"
               loading={loading}
             />
             <KPICard
@@ -409,6 +420,7 @@ export default function CensusAnalysis() {
                       <th className="py-2 pr-4 font-medium">Enrolled</th>
                       <th className="py-2 pr-4 font-medium">Participation</th>
                       <th className="py-2 pr-4 font-medium">Avg Deferral</th>
+                      <th className="py-2 pr-4 font-medium">Total Compensation</th>
                       <th className="py-2 pr-4 font-medium">Employer Cost</th>
                     </tr>
                   </thead>
@@ -421,6 +433,7 @@ export default function CensusAnalysis() {
                         <td className="py-2 pr-4 text-ink-muted">{row.enrolled_count.toLocaleString()}</td>
                         <td className="py-2 pr-4 text-ink-muted">{formatPercent(row.participation_rate)}</td>
                         <td className="py-2 pr-4 text-ink-muted">{formatPercent(row.average_deferral_rate)}</td>
+                        <td className="py-2 pr-4 text-ink-muted">{formatCurrency(row.total_eligible_compensation)}</td>
                         <td className="py-2 pr-4 text-ink-muted">{formatCurrency(row.total_employer_cost)}</td>
                       </tr>
                     ))}

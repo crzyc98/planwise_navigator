@@ -110,6 +110,46 @@ def test_optimizer_reports_best_when_not_converged(tmp_path) -> None:
     assert outcome.results  # best run's per-year results still returned
 
 
+def test_mean_on_target_does_not_converge_when_annual_years_miss(tmp_path) -> None:
+    settings = AutoCalibrationSettings(
+        target_workforce_growth=0.03,
+        target_comp_growth=0.035,
+        tolerance_pct=0.1,
+        max_iterations=1,
+    )
+    optimizer = _make_optimizer(tmp_path, settings)
+
+    def annual_mismatch(_params: CalibrationParameterSet):
+        return [
+            PerYearCompensationResult(
+                simulation_year=2025, avg_compensation=90000.0, headcount=100
+            ),
+            PerYearCompensationResult(
+                simulation_year=2026,
+                avg_compensation=93000.0,
+                yoy_growth_pct=2.5,
+                headcount=103,
+            ),
+            PerYearCompensationResult(
+                simulation_year=2027,
+                avg_compensation=96000.0,
+                yoy_growth_pct=4.5,
+                headcount=106,
+            ),
+        ]
+
+    optimizer._runner.run_calibration = lambda: annual_mismatch(  # type: ignore[assignment]
+        optimizer._runner.run.params
+    )
+
+    outcome = optimizer.optimize()
+
+    assert outcome.achieved_comp_growth_pct == pytest.approx(3.5)
+    assert outcome.max_abs_error_pct == pytest.approx(1.0)
+    assert not outcome.converged
+    assert outcome.objective == "max_annual_error"
+
+
 def test_optimizer_adjust_cola_only_keeps_merit_fixed(tmp_path) -> None:
     settings = AutoCalibrationSettings(
         target_workforce_growth=0.03,

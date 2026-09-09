@@ -106,6 +106,47 @@ class TestOverallMetrics:
         assert result.overall.total_employer_core == pytest.approx(1500)
         assert result.overall.total_employer_cost == pytest.approx(6500)
 
+    def test_total_compensation_includes_active_eligible_employees(
+        self, service, workspace_dir
+    ):
+        rows = [
+            _employee(
+                compensation=120000,
+                department="Eng",
+                eligibility_entry_date="2020-01-01",
+            ),
+            _employee(
+                compensation=80000,
+                department="Sales",
+                eligibility_entry_date="2020-01-01",
+            ),
+            _employee(
+                compensation=60000,
+                department="Eng",
+                eligibility_entry_date="2025-01-01",
+            ),
+            _employee(
+                compensation=50000,
+                department="Sales",
+                active="false",
+                eligibility_entry_date="2020-01-01",
+            ),
+        ]
+        result = _analyze(service, workspace_dir, rows)
+
+        assert result.overall.total_eligible_compensation == pytest.approx(200000)
+        department_segments = {
+            segment.value: segment
+            for segment in result.segments
+            if segment.dimension == "department"
+        }
+        assert department_segments["Eng"].total_eligible_compensation == pytest.approx(
+            120000
+        )
+        assert department_segments[
+            "Sales"
+        ].total_eligible_compensation == pytest.approx(80000)
+
     def test_inactive_employees_excluded(self, service, workspace_dir):
         rows = [
             _employee(active="true"),

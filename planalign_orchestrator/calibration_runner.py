@@ -17,15 +17,12 @@ See ``specs/105-comp-calibration/`` for the spec, plan, and research decisions.
 from __future__ import annotations
 
 import logging
-import shutil
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import duckdb
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from planalign_core.constants import DATABASE_FILENAME
 from planalign_orchestrator.config import load_simulation_config
 from planalign_orchestrator.config.export import to_dbt_vars
 from planalign_orchestrator.dbt_runner import DbtRunner
@@ -39,11 +36,6 @@ from planalign_orchestrator.utils import DatabaseConnectionManager
 from planalign_orchestrator.workforce_state_projection import WorkforceStateProjection
 
 logger = logging.getLogger(__name__)
-
-# Retention for isolated calibration DB copies (each is a full copy of the
-# shared dev DB). Older copies beyond this count are pruned when a new default
-# run seeds its DB, so tuning sessions don't silently accumulate gigabytes.
-CALIBRATION_DB_RETENTION = 5
 
 # DC tables that fct_workforce_snapshot / fct_yearly_events ref() but calibration
 # never rebuilds. They must exist (stale-but-present) for a comp-only build to
@@ -223,59 +215,27 @@ def _build_baseline_hint(database_path: Path) -> ResolutionHint:
 # Isolated database resolution (FR-006)
 # ---------------------------------------------------------------------------
 def resolve_calibration_database(database_path: Optional[Path]) -> Path:
-    """Resolve the target DB, defaulting to an isolated calibration DB.
+    """Require an explicitly prepared, isolated calibration database.
 
-    With an explicit path, that path is used as-is. With no path, the shared dev
-    DB (``dbt/simulation.duckdb``) is **copied** to a timestamped
-    ``calibration_<ts>.duckdb`` under ``dbt/calibration/`` and that copy is
-    returned. Calibration reuses an existing full build's (stale-but-present) DC
-    tables, so the isolated default must be seeded from a built DB -- and the
-    copy means a default run never mutates the shared dev DB.
-
-    If no built source DB exists, a ``ConfigurationError`` is raised with an
-    actionable hint (rather than handing back an empty DB the guard would later
-    reject with a more cryptic message).
+    Workspace/API callers prepare this path from a provenance-matched completed
+    run.  CLI callers must likewise name the database deliberately.  Falling
+    back to ``dbt/simulation.duckdb`` made unrelated development state look like
+    authoritative calibration input (issue #682).
     """
     if database_path is not None:
-        return Path(database_path)
-
-    shared = Path("dbt") / DATABASE_FILENAME
-    cal_dir = Path("dbt") / "calibration"
-    cal_dir.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    target = cal_dir / f"calibration_{ts}.duckdb"
-    if target.resolve() == shared.resolve():  # defensive; never equal in practice
-        raise ConfigurationError("Refusing to calibrate against the shared dev DB")
-
-    if not shared.exists():
-        raise ConfigurationError(
-            "No source database to seed an isolated calibration run. Pass "
-            "--database pointing at a database that has had one full simulation, "
-            "or build the shared dev DB first (planalign simulate ...).",
-            resolution_hints=[_build_baseline_hint(shared)],
-        )
-
-    _prune_old_calibration_dbs(cal_dir)
-    logger.info("Seeding isolated calibration DB from %s", shared)
-    shutil.copy(shared, target)
-    return target
-
-
-def _prune_old_calibration_dbs(cal_dir: Path) -> None:
-    """Keep only the newest ``CALIBRATION_DB_RETENTION - 1`` copies.
-
-    Called just before a new copy is created, so after seeding the directory
-    holds at most ``CALIBRATION_DB_RETENTION`` databases.
-    """
-    existing = sorted(cal_dir.glob("calibration_*.duckdb"))
-    excess = existing[: max(0, len(existing) - (CALIBRATION_DB_RETENTION - 1))]
-    for stale in excess:
-        try:
-            size_mb = stale.stat().st_size / 1_000_000
-            stale.unlink()
-            logger.info("Pruned old calibration DB %s (%.0f MB)", stale.name, size_mb)
-        except OSError as e:
-            logger.warning("Could not prune calibration DB %s: %s", stale, e)
+        resolved = Path(database_path)
+        shared = (Path("dbt") / "simulation.duckdb").resolve()
+        if resolved.resolve() == shared:
+            raise ConfigurationError(
+                "Refusing to calibrate against shared dbt/simulation.duckdb; "
+                "use a scenario-isolated database with matching provenance"
+            )
+        return resolved
+    raise ConfigurationError(
+        "Calibration requires an explicit isolated database prepared from the "
+        "target workspace/scenario context; shared dbt/simulation.duckdb is not "
+        "a valid calibration source"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -294,6 +254,11 @@ class CalibrationRunner:
             if run.config_path is not None
             else load_simulation_config()
         )
+        # The Python workflow schedule and dbt vars must describe one horizon.
+        # An explicit CalibrationRun range is a deliberate override of the
+        # loaded target config, not an independent second definition.
+        self._config.simulation.start_year = run.start_year
+        self._config.simulation.end_year = run.end_year
         self._apply_param_overrides(run.params)
         self._runner = DbtRunner(
             working_dir=Path("dbt"),
@@ -475,11 +440,7 @@ class CalibrationRunner:
                 )
 
     def _read_year(self, year: int) -> PerYearCompensationResult:
-        target = (
-            self.run.params.target_growth_pct
-            if self.run.params.target_growth_pct is not None
-            else self._config.simulation.target_growth_rate
-        )
+        target = self._compensation_target()
         conn = duckdb.connect(str(self.database_path), read_only=True)
         try:
             growth = self._read_growth(conn, year)
@@ -487,6 +448,22 @@ class CalibrationRunner:
         finally:
             conn.close()
         return self._assemble_row(year, growth, gap, target)
+
+    def _compensation_target(self) -> Optional[float]:
+        """Return the average-compensation target as a decimal rate.
+
+        ``simulation.target_growth_rate`` is workforce/headcount growth and is
+        intentionally never used here (issue #683).  The persisted UI field is
+        a whole-number percent, while an explicit run parameter is a decimal.
+        """
+        if self.run.params.target_growth_pct is not None:
+            return self.run.params.target_growth_pct
+        percent = getattr(
+            self._config.compensation,
+            "target_compensation_growth_percent",
+            None,
+        )
+        return float(percent) / 100.0 if percent is not None else None
 
     @staticmethod
     def _read_growth(conn: duckdb.DuckDBPyConnection, year: int) -> Dict[str, Any]:
