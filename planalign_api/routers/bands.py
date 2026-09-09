@@ -16,6 +16,7 @@ from ..models.bands import (
     BandAnalysisResult,
     BandConfig,
 )
+from ..models.census_analysis import CensusAnalysisRequest, CensusAnalysisResult
 from ..models.deferral_segments import (
     DeferralSegmentAnalysisRequest,
     DeferralSegmentAnalysisResult,
@@ -23,6 +24,7 @@ from ..models.deferral_segments import (
 from ..models.opt_out import OptOutRateAnalysisRequest, OptOutRateAnalysisResult
 from ..models.turnover import TurnoverAnalysisRequest, TurnoverAnalysisResult
 from ..services.band_service import BandService
+from ..services.census_analysis_service import CensusAnalysisService
 from ..services.deferral_segment_service import DeferralSegmentAnalysisService
 from ..services.opt_out_service import OptOutAnalysisService
 from ..services.turnover_service import TurnoverAnalysisService
@@ -414,4 +416,63 @@ async def analyze_deferral_segments(
             detail=sanitize_error(
                 logger, "Failed to analyze census for deferral segments"
             ),
+        ) from e
+
+
+# ============================================================================
+# POST /analyze-census - Pre-Simulation Census Analysis
+# ============================================================================
+
+
+def get_census_analysis_service() -> CensusAnalysisService:
+    """Get census analysis service instance."""
+    settings = get_settings()
+    return CensusAnalysisService(settings.workspaces_root)
+
+
+@router.post(
+    "/{workspace_id}/analyze-census",
+    response_model=CensusAnalysisResult,
+    summary="Analyze the raw census for participation, savings rate, and cost metrics",
+    description="""
+Computes participation, deferral/savings-rate, and employer-cost-proxy metrics
+directly from the uploaded/staged census file (as-of a resolved date), segmented
+by whatever of department, job level, age band, tenure band, and HCE status the
+census carries data for. Also surfaces data-quality flags (missing required
+fields, duplicate IDs, out-of-range values) so a census can be sanity-checked
+before a scenario is ever run.
+""",
+)
+async def analyze_census(
+    workspace_id: str,
+    request: CensusAnalysisRequest,
+) -> CensusAnalysisResult:
+    """
+    Analyze a raw census file for pre-simulation metrics.
+
+    Args:
+        workspace_id: Workspace ID
+        request: Request with file_path and optional as_of_date
+
+    Returns:
+        CensusAnalysisResult with overall + segmented metrics and data quality issues
+    """
+    service = get_census_analysis_service()
+
+    try:
+        result = service.analyze(
+            workspace_id=workspace_id,
+            file_path=request.file_path,
+            as_of_date=request.as_of_date,
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=sanitize_error(logger, "Failed to analyze census"),
         ) from e

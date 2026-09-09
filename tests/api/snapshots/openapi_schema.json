@@ -1947,6 +1947,472 @@
         "title": "CapturedValidationResult",
         "type": "object"
       },
+      "CensusAnalysisRequest": {
+        "description": "Request for census-based pre-simulation analysis.",
+        "properties": {
+          "as_of_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Date the census is evaluated as-of. Inferred from the census when omitted.",
+            "title": "As Of Date"
+          },
+          "file_path": {
+            "description": "Path to census file (relative to workspace or absolute)",
+            "title": "File Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file_path"
+        ],
+        "title": "CensusAnalysisRequest",
+        "type": "object"
+      },
+      "CensusAnalysisResult": {
+        "description": "Result from census-based pre-simulation analysis.",
+        "properties": {
+          "active_employees": {
+            "description": "Rows flagged active as of the census",
+            "title": "Active Employees",
+            "type": "integer"
+          },
+          "as_of_date": {
+            "description": "Date used for age/tenure/HCE calculations",
+            "format": "date",
+            "title": "As Of Date",
+            "type": "string"
+          },
+          "as_of_date_source": {
+            "description": "'provided' or 'inferred' from the census",
+            "title": "As Of Date Source",
+            "type": "string"
+          },
+          "available_segment_dimensions": {
+            "description": "Segment dimensions with usable data in this census, e.g. ['department', 'age_band']",
+            "items": {
+              "type": "string"
+            },
+            "title": "Available Segment Dimensions",
+            "type": "array"
+          },
+          "data_quality_issues": {
+            "description": "Missing/null critical fields, duplicate IDs, out-of-range values",
+            "items": {
+              "$ref": "#/components/schemas/CensusDataQualityIssue"
+            },
+            "title": "Data Quality Issues",
+            "type": "array"
+          },
+          "deferral_rate_distribution": {
+            "description": "Distribution of eligible employees' deferral rate across 11 buckets (0%, 1%, ..., 9%, 10%+). Empty when the census has no deferral rate column.",
+            "items": {
+              "$ref": "#/components/schemas/CensusDeferralRateBucket"
+            },
+            "title": "Deferral Rate Distribution",
+            "type": "array"
+          },
+          "hce_compensation_threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "IRS HCE compensation threshold used for the as-of year, if known",
+            "title": "Hce Compensation Threshold"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Informational or warning message",
+            "title": "Message"
+          },
+          "overall": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CensusMetrics"
+              }
+            ],
+            "description": "Metrics across all active employees, unsegmented"
+          },
+          "segments": {
+            "description": "Per-value breakdown for each available segment dimension. Only dimensions the census actually carries data for are included.",
+            "items": {
+              "$ref": "#/components/schemas/CensusSegmentMetrics"
+            },
+            "title": "Segments",
+            "type": "array"
+          },
+          "source_file": {
+            "description": "Path to source census file",
+            "title": "Source File",
+            "type": "string"
+          },
+          "total_employees": {
+            "description": "Total rows in the census file",
+            "title": "Total Employees",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total_employees",
+          "active_employees",
+          "overall",
+          "segments",
+          "available_segment_dimensions",
+          "data_quality_issues",
+          "as_of_date",
+          "as_of_date_source",
+          "source_file"
+        ],
+        "title": "CensusAnalysisResult",
+        "type": "object"
+      },
+      "CensusDataQualityIssue": {
+        "description": "A data quality flag surfaced instead of failing an import outright.",
+        "properties": {
+          "count": {
+            "description": "Number of affected rows",
+            "title": "Count",
+            "type": "integer"
+          },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Affected census field, if applicable",
+            "title": "Field"
+          },
+          "issue_type": {
+            "description": "One of: missing_required_field, duplicate_employee_id, out_of_range_value, unparseable_date",
+            "title": "Issue Type",
+            "type": "string"
+          },
+          "message": {
+            "description": "Human-readable description",
+            "title": "Message",
+            "type": "string"
+          },
+          "severity": {
+            "description": "'error' or 'warning'",
+            "title": "Severity",
+            "type": "string"
+          }
+        },
+        "required": [
+          "issue_type",
+          "severity",
+          "count",
+          "message"
+        ],
+        "title": "CensusDataQualityIssue",
+        "type": "object"
+      },
+      "CensusDeferralRateBucket": {
+        "description": "One bucket of the eligible-employee deferral rate distribution.",
+        "properties": {
+          "bucket": {
+            "description": "Deferral rate bucket, e.g. '0%', '1%', ..., '10%+'",
+            "title": "Bucket",
+            "type": "string"
+          },
+          "count": {
+            "description": "Eligible employees in this bucket",
+            "title": "Count",
+            "type": "integer"
+          },
+          "percentage": {
+            "description": "Percentage of eligible employees in this bucket",
+            "title": "Percentage",
+            "type": "number"
+          }
+        },
+        "required": [
+          "bucket",
+          "count",
+          "percentage"
+        ],
+        "title": "CensusDeferralRateBucket",
+        "type": "object"
+      },
+      "CensusMetrics": {
+        "description": "Participation, savings-rate, and cost metrics for one population slice.",
+        "properties": {
+          "average_deferral_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Mean deferral rate among enrolled employees, as a decimal",
+            "title": "Average Deferral Rate"
+          },
+          "average_employer_contribution_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Mean of (employer_match_contribution + employer_core_contribution) / compensation across eligible employees with compensation > 0, as a decimal. An estimate of the employer's contribution rate as loaded in the census, not a plan-design projection.",
+            "title": "Average Employer Contribution Rate"
+          },
+          "average_total_savings_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Mean, across eligible employees with compensation > 0, of each employee's own (deferral_rate + employer contribution rate). Employees with no deferral rate are treated as deferring 0. None if no eligible employees have compensation.",
+            "title": "Average Total Savings Rate"
+          },
+          "eligible_count": {
+            "description": "Employees in this slice treated as plan-eligible",
+            "title": "Eligible Count",
+            "type": "integer"
+          },
+          "employee_count": {
+            "description": "Employees in this slice",
+            "title": "Employee Count",
+            "type": "integer"
+          },
+          "enrolled_count": {
+            "description": "Eligible employees with a deferral rate above zero",
+            "title": "Enrolled Count",
+            "type": "integer"
+          },
+          "hce_count": {
+            "description": "Employees in this slice classified as HCE by current-year compensation",
+            "title": "Hce Count",
+            "type": "integer"
+          },
+          "median_deferral_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Median deferral rate among enrolled employees, as a decimal",
+            "title": "Median Deferral Rate"
+          },
+          "participation_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "enrolled_count / eligible_count, as a decimal. None if no eligible employees.",
+            "title": "Participation Rate"
+          },
+          "total_eligible_compensation": {
+            "description": "Sum of gross compensation across eligible employees",
+            "title": "Total Eligible Compensation",
+            "type": "number"
+          },
+          "total_employer_core": {
+            "description": "Sum of employer_core_contribution as loaded in the census",
+            "title": "Total Employer Core",
+            "type": "number"
+          },
+          "total_employer_cost": {
+            "description": "total_employer_match + total_employer_core",
+            "title": "Total Employer Cost",
+            "type": "number"
+          },
+          "total_employer_match": {
+            "description": "Sum of employer_match_contribution as loaded in the census",
+            "title": "Total Employer Match",
+            "type": "number"
+          },
+          "zero_deferral_count": {
+            "description": "Eligible employees with a deferral rate of zero or null",
+            "title": "Zero Deferral Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "employee_count",
+          "eligible_count",
+          "enrolled_count",
+          "zero_deferral_count",
+          "total_eligible_compensation",
+          "total_employer_match",
+          "total_employer_core",
+          "total_employer_cost",
+          "hce_count"
+        ],
+        "title": "CensusMetrics",
+        "type": "object"
+      },
+      "CensusSegmentMetrics": {
+        "description": "Metrics for a single value within a segment dimension (e.g. one department).",
+        "properties": {
+          "average_deferral_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Mean deferral rate among enrolled employees, as a decimal",
+            "title": "Average Deferral Rate"
+          },
+          "average_employer_contribution_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Mean of (employer_match_contribution + employer_core_contribution) / compensation across eligible employees with compensation > 0, as a decimal. An estimate of the employer's contribution rate as loaded in the census, not a plan-design projection.",
+            "title": "Average Employer Contribution Rate"
+          },
+          "average_total_savings_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Mean, across eligible employees with compensation > 0, of each employee's own (deferral_rate + employer contribution rate). Employees with no deferral rate are treated as deferring 0. None if no eligible employees have compensation.",
+            "title": "Average Total Savings Rate"
+          },
+          "dimension": {
+            "description": "Segment dimension, e.g. 'department', 'age_band', 'tenure_band', 'hce_status'",
+            "title": "Dimension",
+            "type": "string"
+          },
+          "eligible_count": {
+            "description": "Employees in this slice treated as plan-eligible",
+            "title": "Eligible Count",
+            "type": "integer"
+          },
+          "employee_count": {
+            "description": "Employees in this slice",
+            "title": "Employee Count",
+            "type": "integer"
+          },
+          "enrolled_count": {
+            "description": "Eligible employees with a deferral rate above zero",
+            "title": "Enrolled Count",
+            "type": "integer"
+          },
+          "hce_count": {
+            "description": "Employees in this slice classified as HCE by current-year compensation",
+            "title": "Hce Count",
+            "type": "integer"
+          },
+          "median_deferral_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Median deferral rate among enrolled employees, as a decimal",
+            "title": "Median Deferral Rate"
+          },
+          "participation_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "enrolled_count / eligible_count, as a decimal. None if no eligible employees.",
+            "title": "Participation Rate"
+          },
+          "total_eligible_compensation": {
+            "description": "Sum of gross compensation across eligible employees",
+            "title": "Total Eligible Compensation",
+            "type": "number"
+          },
+          "total_employer_core": {
+            "description": "Sum of employer_core_contribution as loaded in the census",
+            "title": "Total Employer Core",
+            "type": "number"
+          },
+          "total_employer_cost": {
+            "description": "total_employer_match + total_employer_core",
+            "title": "Total Employer Cost",
+            "type": "number"
+          },
+          "total_employer_match": {
+            "description": "Sum of employer_match_contribution as loaded in the census",
+            "title": "Total Employer Match",
+            "type": "number"
+          },
+          "value": {
+            "description": "Segment value, e.g. 'Engineering' or '30-39'",
+            "title": "Value",
+            "type": "string"
+          },
+          "zero_deferral_count": {
+            "description": "Eligible employees with a deferral rate of zero or null",
+            "title": "Zero Deferral Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "employee_count",
+          "eligible_count",
+          "enrolled_count",
+          "zero_deferral_count",
+          "total_eligible_compensation",
+          "total_employer_match",
+          "total_employer_core",
+          "total_employer_cost",
+          "hce_count",
+          "dimension",
+          "value"
+        ],
+        "title": "CensusSegmentMetrics",
+        "type": "object"
+      },
       "Citation": {
         "additionalProperties": false,
         "properties": {
@@ -15401,6 +15867,59 @@
         "summary": "Analyze age distribution from census",
         "tags": [
           "Files"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/analyze-census": {
+      "post": {
+        "description": "Computes participation, deferral/savings-rate, and employer-cost-proxy metrics\ndirectly from the uploaded/staged census file (as-of a resolved date), segmented\nby whatever of department, job level, age band, tenure band, and HCE status the\ncensus carries data for. Also surfaces data-quality flags (missing required\nfields, duplicate IDs, out-of-range values) so a census can be sanity-checked\nbefore a scenario is ever run.",
+        "operationId": "analyze_census_api_workspaces__workspace_id__analyze_census_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CensusAnalysisRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CensusAnalysisResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Analyze the raw census for participation, savings rate, and cost metrics",
+        "tags": [
+          "Bands"
         ]
       }
     },

@@ -4,7 +4,7 @@ import {
   LayoutDashboard, PlayCircle, BarChart3, Settings, Database,
   Activity, Bell, ChevronDown, Check, Search, Briefcase,
   X, Info, AlertTriangle, AlertCircle, CheckCircle, Moon, Sun, HelpCircle,
-  Plus, Loader2, Layers, PieChart, Scale, Shield, Menu, PanelLeftClose, PanelLeftOpen, ArrowLeftRight, FileUp, SlidersHorizontal, Users, Target
+  Plus, Loader2, Layers, PieChart, Scale, Shield, Menu, PanelLeftClose, PanelLeftOpen, ArrowLeftRight, FileUp, SlidersHorizontal, Users, Target, ClipboardCheck
 } from 'lucide-react';
 import { APP_NAME, MOCK_NOTIFICATIONS, APP_VERSION } from '../constants';
 import { Workspace, Notification } from '../types';
@@ -71,6 +71,7 @@ const NAV_SECTIONS: ReadonlyArray<{
     heading: 'Setup',
     items: [
       { to: '/import', icon: <FileUp size={20} />, label: 'Import Data' },
+      { to: '/census', icon: <ClipboardCheck size={20} />, label: 'Census Analysis' },
       { to: '/scenarios', icon: <Layers size={20} />, label: 'Scenarios' },
     ],
   },

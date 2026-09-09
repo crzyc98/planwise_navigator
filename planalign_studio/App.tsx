@@ -12,6 +12,7 @@ import ScenarioDiff from './components/ScenarioDiff';
 import BatchProcessing from './components/BatchProcessing';
 import WorkspaceManager from './components/WorkspaceManager';
 import DCPlanAnalytics from './components/DCPlanAnalytics';
+import CensusAnalysis from './components/CensusAnalysis';
 import ScenarioCostComparison from './components/ScenarioCostComparison';
 import VestingAnalysis from './components/VestingAnalysis';
 import NDTTesting from './components/NDTTesting';
@@ -147,6 +148,7 @@ export default function App() {
             <Route path="simulate/:scenarioId" element={<SimulationDetail />} />
             <Route path="simulate/:scenarioId/runs/:runId/provenance" element={<RunProvenanceReport />} />
             <Route path="scenarios" element={<ScenariosPage />} />
+            <Route path="census" element={<CensusAnalysis />} />
             <Route path="config" element={<ConfigStudio />} />
             <Route path="calibrate" element={<CalibrationPanel />} />
             <Route path="optimize" element={<OptimizerPanel />} />
