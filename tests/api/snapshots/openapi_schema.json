@@ -2010,6 +2010,14 @@
             "title": "Data Quality Issues",
             "type": "array"
           },
+          "deferral_rate_distribution": {
+            "description": "Distribution of eligible employees' deferral rate across 11 buckets (0%, 1%, ..., 9%, 10%+). Empty when the census has no deferral rate column.",
+            "items": {
+              "$ref": "#/components/schemas/CensusDeferralRateBucket"
+            },
+            "title": "Deferral Rate Distribution",
+            "type": "array"
+          },
           "hce_compensation_threshold": {
             "anyOf": [
               {
@@ -2120,6 +2128,33 @@
         "title": "CensusDataQualityIssue",
         "type": "object"
       },
+      "CensusDeferralRateBucket": {
+        "description": "One bucket of the eligible-employee deferral rate distribution.",
+        "properties": {
+          "bucket": {
+            "description": "Deferral rate bucket, e.g. '0%', '1%', ..., '10%+'",
+            "title": "Bucket",
+            "type": "string"
+          },
+          "count": {
+            "description": "Eligible employees in this bucket",
+            "title": "Count",
+            "type": "integer"
+          },
+          "percentage": {
+            "description": "Percentage of eligible employees in this bucket",
+            "title": "Percentage",
+            "type": "number"
+          }
+        },
+        "required": [
+          "bucket",
+          "count",
+          "percentage"
+        ],
+        "title": "CensusDeferralRateBucket",
+        "type": "object"
+      },
       "CensusMetrics": {
         "description": "Participation, savings-rate, and cost metrics for one population slice.",
         "properties": {
@@ -2134,6 +2169,30 @@
             ],
             "description": "Mean deferral rate among enrolled employees, as a decimal",
             "title": "Average Deferral Rate"
+          },
+          "average_employer_contribution_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Mean of (employer_match_contribution + employer_core_contribution) / compensation across eligible employees with compensation > 0, as a decimal. An estimate of the employer's contribution rate as loaded in the census, not a plan-design projection.",
+            "title": "Average Employer Contribution Rate"
+          },
+          "average_total_savings_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Mean, across eligible employees with compensation > 0, of each employee's own (deferral_rate + employer contribution rate). Employees with no deferral rate are treated as deferring 0. None if no eligible employees have compensation.",
+            "title": "Average Total Savings Rate"
           },
           "eligible_count": {
             "description": "Employees in this slice treated as plan-eligible",
@@ -2233,6 +2292,30 @@
             ],
             "description": "Mean deferral rate among enrolled employees, as a decimal",
             "title": "Average Deferral Rate"
+          },
+          "average_employer_contribution_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Mean of (employer_match_contribution + employer_core_contribution) / compensation across eligible employees with compensation > 0, as a decimal. An estimate of the employer's contribution rate as loaded in the census, not a plan-design projection.",
+            "title": "Average Employer Contribution Rate"
+          },
+          "average_total_savings_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Mean, across eligible employees with compensation > 0, of each employee's own (deferral_rate + employer contribution rate). Employees with no deferral rate are treated as deferring 0. None if no eligible employees have compensation.",
+            "title": "Average Total Savings Rate"
           },
           "dimension": {
             "description": "Segment dimension, e.g. 'department', 'age_band', 'tenure_band', 'hce_status'",

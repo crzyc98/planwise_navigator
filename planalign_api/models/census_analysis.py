@@ -62,6 +62,23 @@ class CensusMetrics(BaseModel):
         ...,
         description="Employees in this slice classified as HCE by current-year compensation",
     )
+    average_employer_contribution_rate: Optional[float] = Field(
+        None,
+        description=(
+            "Mean of (employer_match_contribution + employer_core_contribution) / "
+            "compensation across eligible employees with compensation > 0, as a decimal. "
+            "An estimate of the employer's contribution rate as loaded in the census, "
+            "not a plan-design projection."
+        ),
+    )
+    average_total_savings_rate: Optional[float] = Field(
+        None,
+        description=(
+            "Mean, across eligible employees with compensation > 0, of each employee's "
+            "own (deferral_rate + employer contribution rate). Employees with no deferral "
+            "rate are treated as deferring 0. None if no eligible employees have compensation."
+        ),
+    )
 
 
 class CensusSegmentMetrics(CensusMetrics):
@@ -72,6 +89,18 @@ class CensusSegmentMetrics(CensusMetrics):
         description="Segment dimension, e.g. 'department', 'age_band', 'tenure_band', 'hce_status'",
     )
     value: str = Field(..., description="Segment value, e.g. 'Engineering' or '30-39'")
+
+
+class CensusDeferralRateBucket(BaseModel):
+    """One bucket of the eligible-employee deferral rate distribution."""
+
+    bucket: str = Field(
+        description="Deferral rate bucket, e.g. '0%', '1%', ..., '10%+'"
+    )
+    count: int = Field(description="Eligible employees in this bucket")
+    percentage: float = Field(
+        description="Percentage of eligible employees in this bucket"
+    )
 
 
 class CensusDataQualityIssue(BaseModel):
@@ -112,6 +141,13 @@ class CensusAnalysisResult(BaseModel):
     available_segment_dimensions: List[str] = Field(
         ...,
         description="Segment dimensions with usable data in this census, e.g. ['department', 'age_band']",
+    )
+    deferral_rate_distribution: List[CensusDeferralRateBucket] = Field(
+        default_factory=list,
+        description=(
+            "Distribution of eligible employees' deferral rate across 11 buckets "
+            "(0%, 1%, ..., 9%, 10%+). Empty when the census has no deferral rate column."
+        ),
     )
     data_quality_issues: List[CensusDataQualityIssue] = Field(
         ...,

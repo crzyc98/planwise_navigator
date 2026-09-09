@@ -2088,6 +2088,8 @@ export interface CensusMetrics {
   total_employer_core: number;
   total_employer_cost: number;
   hce_count: number;
+  average_employer_contribution_rate: number | null;
+  average_total_savings_rate: number | null;
 }
 
 export interface CensusSegmentMetrics extends CensusMetrics {
@@ -2103,12 +2105,19 @@ export interface CensusDataQualityIssue {
   message: string;
 }
 
+export interface CensusDeferralRateBucket {
+  bucket: string;
+  count: number;
+  percentage: number;
+}
+
 export interface CensusAnalysisResult {
   total_employees: number;
   active_employees: number;
   overall: CensusMetrics;
   segments: CensusSegmentMetrics[];
   available_segment_dimensions: string[];
+  deferral_rate_distribution: CensusDeferralRateBucket[];
   data_quality_issues: CensusDataQualityIssue[];
   as_of_date: string;
   as_of_date_source: string;

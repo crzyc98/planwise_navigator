@@ -18,6 +18,7 @@ import duckdb
 from ..models.census_analysis import (
     CensusAnalysisResult,
     CensusDataQualityIssue,
+    CensusDeferralRateBucket,
     CensusMetrics,
     CensusSegmentMetrics,
 )
@@ -45,6 +46,37 @@ IRS_LIMITS_SEED = (
 )
 
 _DEPARTMENT_COLUMNS = frozenset({"department"})
+
+# Mirrors AnalyticsService._get_deferral_distribution's bucket scheme so the
+# census-side histogram reads the same way as the post-simulation DC Plan one.
+_DEFERRAL_BUCKET_ORDER = (
+    "0%",
+    "1%",
+    "2%",
+    "3%",
+    "4%",
+    "5%",
+    "6%",
+    "7%",
+    "8%",
+    "9%",
+    "10%+",
+)
+_DEFERRAL_BUCKET_SQL = """
+    CASE
+      WHEN _deferral_rate IS NULL OR _deferral_rate = 0 THEN '0%'
+      WHEN _deferral_rate < 0.015 THEN '1%'
+      WHEN _deferral_rate < 0.025 THEN '2%'
+      WHEN _deferral_rate < 0.035 THEN '3%'
+      WHEN _deferral_rate < 0.045 THEN '4%'
+      WHEN _deferral_rate < 0.055 THEN '5%'
+      WHEN _deferral_rate < 0.065 THEN '6%'
+      WHEN _deferral_rate < 0.075 THEN '7%'
+      WHEN _deferral_rate < 0.085 THEN '8%'
+      WHEN _deferral_rate < 0.095 THEN '9%'
+      ELSE '10%+'
+    END
+"""
 
 
 class CensusAnalysisService:
@@ -158,12 +190,17 @@ class CensusAnalysisService:
                 deferral_col=deferral_col,
             )
 
+            deferral_distribution = (
+                self._deferral_distribution(conn) if deferral_col else []
+            )
+
             return CensusAnalysisResult(
                 total_employees=total_employees,
                 active_employees=active_employees,
                 overall=overall,
                 segments=segments,
                 available_segment_dimensions=available_dimensions,
+                deferral_rate_distribution=deferral_distribution,
                 data_quality_issues=data_quality_issues,
                 as_of_date=resolved_as_of.date,
                 as_of_date_source=resolved_as_of.source,
@@ -344,6 +381,14 @@ class CensusAnalysisService:
     ) -> CensusMetrics:
         row = conn.execute(
             f"""
+            WITH scoped AS (
+              SELECT *,
+                CASE WHEN _compensation > 0
+                  THEN (_employer_match + _employer_core) / _compensation
+                END AS _employer_contribution_rate
+              FROM analyzed
+              WHERE {where}
+            )
             SELECT
               COUNT(*) AS employee_count,
               COUNT(*) FILTER (WHERE _eligible) AS eligible_count,
@@ -356,9 +401,11 @@ class CensusAnalysisService:
               COALESCE(SUM(_compensation) FILTER (WHERE _eligible), 0) AS total_comp,
               COALESCE(SUM(_employer_match) FILTER (WHERE _eligible), 0) AS total_match,
               COALESCE(SUM(_employer_core) FILTER (WHERE _eligible), 0) AS total_core,
-              COUNT(*) FILTER (WHERE _hce_label = 'HCE') AS hce_count
-            FROM analyzed
-            WHERE {where}
+              COUNT(*) FILTER (WHERE _hce_label = 'HCE') AS hce_count,
+              AVG(_employer_contribution_rate) FILTER (WHERE _eligible) AS avg_employer_rate,
+              AVG(COALESCE(_deferral_rate, 0) + _employer_contribution_rate)
+                FILTER (WHERE _eligible AND _employer_contribution_rate IS NOT NULL) AS avg_total_savings
+            FROM scoped
             """
         ).fetchone()
         assert row is not None
@@ -374,6 +421,8 @@ class CensusAnalysisService:
             total_match,
             total_core,
             hce_count,
+            avg_employer_rate,
+            avg_total_savings,
         ) = row
 
         participation_rate = enrolled_count / eligible_count if eligible_count else None
@@ -391,6 +440,8 @@ class CensusAnalysisService:
             total_employer_core=float(total_core),
             total_employer_cost=float(total_match) + float(total_core),
             hce_count=hce_count,
+            average_employer_contribution_rate=avg_employer_rate,
+            average_total_savings_rate=avg_total_savings,
         )
 
     def _segment_by_column(
@@ -436,6 +487,30 @@ class CensusAnalysisService:
         # quotes defensively before re-interpolating into a WHERE clause.
         escaped = str(value).replace("'", "''")
         return f"'{escaped}'"
+
+    def _deferral_distribution(
+        self, conn: duckdb.DuckDBPyConnection
+    ) -> list[CensusDeferralRateBucket]:
+        rows = conn.execute(
+            f"""
+            SELECT {_DEFERRAL_BUCKET_SQL} AS bucket, COUNT(*) AS cnt
+            FROM analyzed
+            WHERE _eligible
+            GROUP BY 1
+            """
+        ).fetchall()
+        counts = {bucket: count for bucket, count in rows}
+        total = sum(counts.values())
+        return [
+            CensusDeferralRateBucket(
+                bucket=bucket,
+                count=counts.get(bucket, 0),
+                percentage=(
+                    round(counts.get(bucket, 0) / total * 100, 2) if total else 0.0
+                ),
+            )
+            for bucket in _DEFERRAL_BUCKET_ORDER
+        ]
 
     # ------------------------------------------------------------------
     # Data quality

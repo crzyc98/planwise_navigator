@@ -117,6 +117,67 @@ class TestOverallMetrics:
         assert result.active_employees == 1
         assert result.overall.employee_count == 1
 
+    def test_average_employer_contribution_and_total_savings_rate(
+        self, service, workspace_dir
+    ):
+        rows = [
+            _employee(compensation=120000, deferral_rate=0.06, match=3600, core=1200),
+            _employee(compensation=60000, deferral_rate=0, match=0, core=0),
+            _employee(compensation=200000, deferral_rate=0.10, match=7000, core=2000),
+            _employee(compensation=50000, deferral_rate=None, match=0, core=0),
+        ]
+        result = _analyze(service, workspace_dir, rows)
+
+        # Per-employee employer rate: 0.04, 0.0, 0.045, 0.0 -> mean 0.02125
+        assert result.overall.average_employer_contribution_rate == pytest.approx(
+            0.02125
+        )
+        # Per-employee total savings (deferral + employer rate): 0.10, 0.0, 0.145, 0.0
+        # -> mean 0.06125
+        assert result.overall.average_total_savings_rate == pytest.approx(0.06125)
+
+    def test_savings_rate_none_without_compensation(self, service, workspace_dir):
+        rows = [_employee(compensation="", deferral_rate=0.06)]
+        result = _analyze(service, workspace_dir, rows)
+
+        assert result.overall.average_employer_contribution_rate is None
+        assert result.overall.average_total_savings_rate is None
+
+
+@pytest.mark.fast
+class TestDeferralDistribution:
+    def test_buckets_cover_full_range(self, service, workspace_dir):
+        rows = [
+            _employee(deferral_rate=0),
+            _employee(deferral_rate=0.06),
+            _employee(deferral_rate=0.12),
+        ]
+        result = _analyze(service, workspace_dir, rows)
+
+        buckets = {b.bucket: b for b in result.deferral_rate_distribution}
+        assert len(result.deferral_rate_distribution) == 11
+        assert buckets["0%"].count == 1
+        assert buckets["6%"].count == 1
+        assert buckets["10%+"].count == 1
+        assert buckets["6%"].percentage == pytest.approx(33.33, abs=0.01)
+
+    def test_null_deferral_counted_as_zero_bucket(self, service, workspace_dir):
+        rows = [_employee(deferral_rate=None), _employee(deferral_rate=0.02)]
+        result = _analyze(service, workspace_dir, rows)
+
+        buckets = {b.bucket: b for b in result.deferral_rate_distribution}
+        assert buckets["0%"].count == 1
+        assert buckets["2%"].count == 1
+
+    def test_empty_without_deferral_column(self, service, workspace_dir):
+        rows = [_employee()]
+        for row in rows:
+            row.pop("employee_deferral_rate", None)
+        _write_csv(workspace_dir / "census.csv", rows)
+        result = service.analyze("test-ws", "census.csv", as_of_date=AS_OF)
+
+        assert result.deferral_rate_distribution == []
+
 
 @pytest.mark.fast
 class TestSegments:

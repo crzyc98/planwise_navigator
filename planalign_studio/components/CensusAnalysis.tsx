@@ -4,11 +4,11 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
 import {
-  Users, DollarSign, TrendingUp, AlertTriangle, RefreshCw, Database, Loader2, ChevronDown,
+  Users, DollarSign, TrendingUp, AlertTriangle, RefreshCw, Database, Loader2, ChevronDown, PiggyBank,
 } from 'lucide-react';
 import { LayoutContextType } from './Layout';
 import { extractCensusPath } from './config/ConfigContext';
-import { getWorkspace, analyzeCensus, CensusAnalysisResult, CensusSegmentMetrics } from '../services/api';
+import { getWorkspace, analyzeCensus, CensusAnalysisResult, CensusSegmentMetrics, CensusDeferralRateBucket } from '../services/api';
 import { useChartTheme } from '../hooks/useChartTheme';
 
 const formatCurrency = (value: number): string => {
@@ -141,6 +141,39 @@ function SegmentChart({
   );
 }
 
+const DeferralBucketTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  const row = payload[0].payload as CensusDeferralRateBucket;
+  return (
+    <div className="bg-surface-raised border border-border rounded-lg shadow-lg px-4 py-3 min-w-[160px]">
+      <p className="font-semibold text-ink mb-2 text-sm">{label} deferral</p>
+      <div className="space-y-1 text-sm text-ink-muted">
+        <p><span className="font-semibold text-ink">{row.count.toLocaleString()}</span> employees</p>
+        <p><span className="font-semibold text-fidelity-green">{row.percentage.toFixed(1)}%</span> of eligible</p>
+      </div>
+    </div>
+  );
+};
+
+function DeferralDistributionChart({ data }: { data: CensusDeferralRateBucket[] }) {
+  const chartTheme = useChartTheme();
+
+  return (
+    <div className="bg-surface-raised p-5 rounded-xl shadow-sm border border-border">
+      <h3 className="text-sm font-semibold text-ink mb-4">Deferral Rate Distribution</h3>
+      <ResponsiveContainer width="100%" height={240}>
+        <BarChart data={data} margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid.line} vertical={false} />
+          <XAxis dataKey="bucket" tick={{ fontSize: 11, fill: chartTheme.axis.tick }} stroke={chartTheme.axis.line} />
+          <YAxis tick={{ fontSize: 11, fill: chartTheme.axis.tick }} stroke={chartTheme.axis.line} tickFormatter={v => `${v}%`} width={48} />
+          <Tooltip cursor={chartTheme.tooltip.cursorStyle} content={<DeferralBucketTooltip />} />
+          <Bar dataKey="percentage" fill={chartTheme.semantic.primary} radius={[4, 4, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 export default function CensusAnalysis() {
   const { activeWorkspace } = useOutletContext<LayoutContextType>();
 
@@ -246,7 +279,7 @@ export default function CensusAnalysis() {
             {result.hce_compensation_threshold != null && ` · HCE threshold ${formatCurrency(result.hce_compensation_threshold)}`}
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <KPICard
               title="Participation Rate"
               value={formatPercent(result.overall.participation_rate)}
@@ -260,6 +293,14 @@ export default function CensusAnalysis() {
               value={formatPercent(result.overall.average_deferral_rate)}
               subtext={`Median ${formatPercent(result.overall.median_deferral_rate)}`}
               icon={TrendingUp}
+              color="green"
+              loading={loading}
+            />
+            <KPICard
+              title="Avg Total Savings Rate"
+              value={formatPercent(result.overall.average_total_savings_rate)}
+              subtext={`+ ${formatPercent(result.overall.average_employer_contribution_rate)} est. employer`}
+              icon={PiggyBank}
               color="green"
               loading={loading}
             />
@@ -280,6 +321,10 @@ export default function CensusAnalysis() {
               loading={loading}
             />
           </div>
+
+          {result.deferral_rate_distribution.length > 0 && (
+            <DeferralDistributionChart data={result.deferral_rate_distribution} />
+          )}
 
           {(errorIssues.length > 0 || warningIssues.length > 0) && (
             <div className="bg-surface-raised rounded-xl shadow-sm border border-border p-5">
