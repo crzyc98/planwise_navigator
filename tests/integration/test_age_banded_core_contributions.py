@@ -3,10 +3,13 @@
 Every assertion runs against a disposable per-session database built by the
 canonical construction path; the shared dev database is never written to.
 
-`int_employer_core_contributions` is a table materialization, so it only ever
-retains the final simulation year of a run. The audited rate lives nowhere else
-(`fct_workforce_snapshot` carries the amount but no rate), so the boundary year
-and the migration year are built as two separate runs of the same fixture.
+`int_employer_core_contributions` is an incremental model keyed by
+(employee_id, plan_design_id, simulation_year), so a multi-year run retains
+every year's rows rather than only the final one. The audited rate lives
+nowhere else (`fct_workforce_snapshot` carries the amount but no rate), so the
+boundary year and the migration year are still built as two separate runs of
+the same fixture; queries that care about "the current year" filter to
+MAX(simulation_year) rather than assuming the table holds a single year.
 """
 
 from __future__ import annotations
@@ -301,6 +304,9 @@ def test_whole_census_receives_a_contribution(
         f"""
         SELECT COUNT(*) FROM ({CORE_WITH_AGE})
         WHERE employer_core_amount > 0 AND employee_id LIKE 'AGE_BAND_%'
+          AND simulation_year = (
+            SELECT MAX(simulation_year) FROM int_employer_core_contributions
+          )
         """,
     )
     assert paid == [(CENSUS_HEADCOUNT,)]
@@ -329,6 +335,9 @@ def test_annual_tier_migration(
         SELECT simulation_year, current_age, core_contribution_rate
         FROM ({CORE_WITH_AGE})
         WHERE employee_id = '{employee_id}'
+          AND simulation_year = (
+            SELECT MAX(simulation_year) FROM int_employer_core_contributions
+          )
     """
     assert _query(boundary_year_db, select) == [(2025, age_2025, rate_2025)]
     assert _query(migration_year_db, select) == [(2026, age_2025 + 1, rate_2026)]
