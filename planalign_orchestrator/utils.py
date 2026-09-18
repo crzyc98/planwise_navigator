@@ -33,8 +33,22 @@ class ExecutionMutex:
     compatibility while enabling local consumption from the orchestrator package.
     """
 
-    def __init__(self, lock_name: str = "simulation_execution"):
-        self.lock_file = Path(f".{lock_name}.lock")
+    def __init__(
+        self,
+        lock_name: str = "simulation_execution",
+        lock_dir: Optional[Path] = None,
+    ):
+        """Create a mutex identified by ``lock_name``.
+
+        Args:
+            lock_name: Identifier for the lock file.
+            lock_dir: Directory to anchor the lock file in. Defaults to the
+                process CWD for backward compatibility. Callers whose lock
+                identity is derived from a resource path (e.g. a database
+                file) should pass that resource's own directory so the
+                lock is visible to other processes regardless of their CWD.
+        """
+        self.lock_file = (lock_dir or Path(".")) / f".{lock_name}.lock"
         self.acquired = False
         self._atexit_registered = False
 

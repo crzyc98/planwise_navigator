@@ -193,14 +193,8 @@ workforce_proration AS (
         workforce.employment_status,
         workforce.termination_date::DATE AS termination_date,
         workforce.employee_birth_date::DATE AS employee_birth_date,
-        COALESCE(prior_workforce.current_age + 2, workforce.current_age)
-            AS current_age
+        workforce.current_age AS current_age
     FROM {{ ref('int_workforce_state_accumulator') }} workforce
-    LEFT JOIN {{ ref('int_workforce_state_accumulator') }} prior_workforce
-      ON prior_workforce.scenario_id = workforce.scenario_id
-     AND prior_workforce.plan_design_id = workforce.plan_design_id
-     AND prior_workforce.employee_id = workforce.employee_id
-     AND prior_workforce.simulation_year = {{ simulation_year - 1 }}
     LEFT JOIN starting_compensation starting
       ON workforce.employee_id = starting.employee_id
     WHERE workforce.scenario_id = '{{ scenario_id }}'
