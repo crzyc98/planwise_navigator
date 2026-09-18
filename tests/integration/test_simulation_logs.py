@@ -103,12 +103,15 @@ class TestLogViewerEndpoint:
         assert "message" in first
         assert first["sequence"] == 1
 
-    def test_log_not_available_for_unknown_run(self, client, scenario_with_log):
+    def test_400_for_malformed_run_id(self, client, scenario_with_log):
         r = scenario_with_log
         resp = client.get(f"/api/scenarios/{r['sc_id']}/runs/nonexistent-run-id/logs")
-        assert resp.status_code == 200
-        assert resp.json()["log_available"] is False
-        assert resp.json()["lines"] == []
+        assert resp.status_code == 400
+
+    def test_404_for_well_formed_but_unknown_run_id(self, client, scenario_with_log):
+        r = scenario_with_log
+        resp = client.get(f"/api/scenarios/{r['sc_id']}/runs/{uuid.uuid4()}/logs")
+        assert resp.status_code == 404
 
     def test_404_for_unknown_scenario(self, client):
         resp = client.get("/api/scenarios/no-such-scenario/runs/some-run/logs")
