@@ -47,9 +47,13 @@ def single_design_parity_databases(
     tmp_path_factory: pytest.TempPathFactory,
     invariant_census_parquet: Path,
 ) -> dict[int, tuple[Path, Path]]:
+    # Trimmed to a single census size: building both 40 and 149 sequentially
+    # (4 full 3-year orchestrator runs) pushed the multi_year_invariants CI
+    # job past its 20-minute budget (run 35221308702). 149 is kept as the
+    # more representative size.
     root = tmp_path_factory.mktemp("plan-design-parameter-parity")
     databases: dict[int, tuple[Path, Path]] = {}
-    for census_size in (40, 149):
+    for census_size in (149,):
         census = root / f"census_{census_size}.parquet"
         with duckdb.connect() as conn:
             (
@@ -214,7 +218,7 @@ def test_enrollment_and_escalation_events_use_design_terms(
         ("int_employer_core_contributions", ["created_at"]),
     ],
 )
-@pytest.mark.parametrize("census_size", [40, 149])
+@pytest.mark.parametrize("census_size", [149])
 def test_equivalent_single_design_business_rows_are_identical(
     single_design_parity_databases: dict[int, tuple[Path, Path]],
     table_name: str,
