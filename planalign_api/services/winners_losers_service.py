@@ -1,7 +1,9 @@
 """Winners & Losers comparison service."""
 
+import csv
 import logging
-from typing import List, Optional
+from pathlib import Path
+from typing import Dict, List, Optional
 
 import duckdb
 import pandas as pd
@@ -18,6 +20,27 @@ from .database_path_resolver import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Path to dbt seeds directory (relative to project root)
+DBT_SEEDS_DIR = Path(__file__).parent.parent.parent / "dbt" / "seeds"
+
+
+def _load_band_display_order(band_type: str) -> Dict[str, int]:
+    """Map band_label -> display_order from the dbt seed CSV.
+
+    band_label strings like "< 25" sort after "25-34" alphabetically, so
+    chart/heatmap ordering must come from the seed's display_order instead
+    of the default groupby sort.
+    """
+    csv_path = DBT_SEEDS_DIR / f"config_{band_type}_bands.csv"
+    order: Dict[str, int] = {}
+    try:
+        with open(csv_path, "r", newline="") as f:
+            for row in csv.DictReader(f):
+                order[row["band_label"]] = int(row["display_order"])
+    except (FileNotFoundError, KeyError, ValueError) as e:
+        logger.warning(f"Could not load {band_type} band display order: {e}")
+    return order
 
 
 class WinnersLosersService:
@@ -172,7 +195,7 @@ class WinnersLosersService:
         """
 
         def _band_group(
-            group_df: pd.DataFrame, label_col: str
+            group_df: pd.DataFrame, label_col: str, order_map: Dict[str, int]
         ) -> List[BandGroupResult]:
             results: List[BandGroupResult] = []
             if group_df.empty:
@@ -196,10 +219,14 @@ class WinnersLosersService:
                         total=winners + losers + neutral,
                     )
                 )
+            results.sort(key=lambda r: order_map.get(r.band_label, len(order_map)))
             return results
 
-        age_results = _band_group(merged, "age_band")
-        tenure_results = _band_group(merged, "tenure_band")
+        age_order = _load_band_display_order("age")
+        tenure_order = _load_band_display_order("tenure")
+
+        age_results = _band_group(merged, "age_band", age_order)
+        tenure_results = _band_group(merged, "tenure_band", tenure_order)
 
         # Heatmap: age × tenure
         heatmap = []
@@ -223,10 +250,17 @@ class WinnersLosersService:
                         losers=losers,
                         neutral=n,
                         total=total,
-                        net_pct=round((w - losers) / total * 100, 2)
-                        if total > 0
-                        else 0.0,
+                        net_pct=(
+                            round((w - losers) / total * 100, 2) if total > 0 else 0.0
+                        ),
                     )
                 )
+
+            heatmap.sort(
+                key=lambda c: (
+                    age_order.get(c.age_band, len(age_order)),
+                    tenure_order.get(c.tenure_band, len(tenure_order)),
+                )
+            )
 
         return age_results, tenure_results, heatmap
