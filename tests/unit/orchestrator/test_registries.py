@@ -141,6 +141,35 @@ def test_registry_sql_generation():
     assert "2030" in sql
 
 
+def test_execute_transaction_rolls_back_on_mid_batch_failure(tmp_path: Path):
+    """A failing statement mid-batch must roll back everything, not just report False.
+
+    Regression test for the bug where execute_transaction caught the exception
+    inside the `with transaction()` block and returned False, which let the
+    context manager's __exit__ commit the statements that had already succeeded.
+    """
+    db_path = tmp_path / "test.duckdb"
+    _setup_db(db_path)
+
+    mgr = DatabaseConnectionManager(db_path=db_path)
+    reg = EnrollmentRegistry(mgr)
+
+    result = reg.execute_transaction(
+        [
+            "CREATE TABLE rollback_probe (id INTEGER)",
+            "INSERT INTO rollback_probe VALUES (1)",
+            "INSERT INTO nonexistent_table VALUES (1)",
+        ]
+    )
+
+    assert result is False
+    with mgr.get_connection() as c:
+        tables = c.execute(
+            "SELECT table_name FROM information_schema.tables WHERE table_name = 'rollback_probe'"
+        ).fetchall()
+        assert tables == []
+
+
 def test_concurrent_registry_access(tmp_path: Path):
     db_path = tmp_path / "test.duckdb"
     _setup_db(db_path)

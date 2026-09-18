@@ -8,6 +8,7 @@ deferral escalation, with integrity validation and SQL templating.
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
@@ -17,6 +18,8 @@ from planalign_core.constants import (
     REGISTRY_ENROLLMENT,
 )
 from .utils import DatabaseConnectionManager
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -166,13 +169,14 @@ class TransactionalRegistry:
     db_manager: DatabaseConnectionManager
 
     def execute_transaction(self, operations: List[str]) -> bool:
-        with self.db_manager.transaction() as conn:
-            try:
+        try:
+            with self.db_manager.transaction() as conn:
                 for sql in operations:
                     conn.execute(sql)
-                return True
-            except Exception:
-                return False
+        except Exception:
+            logger.exception("Registry transaction failed and was rolled back")
+            return False
+        return True
 
 
 class EnrollmentRegistry(Registry, TransactionalRegistry):

@@ -10,6 +10,7 @@ Refactored to use modular pipeline components (Story S072-06).
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import uuid
@@ -300,10 +301,12 @@ class PipelineOrchestrator:
         _run_ctx = self._create_observability_context(start, end)
 
         with _run_ctx:
-            db_path = getattr(self.db_manager, "db_path", "default")
-            lock_name = f"planalign_{hash(str(db_path)) % 10**8}"
+            db_path = Path(getattr(self.db_manager, "db_path", "default")).resolve()
+            lock_name = (
+                f"planalign_{hashlib.sha256(str(db_path).encode()).hexdigest()[:16]}"
+            )
             logger.debug("Acquiring execution lock: %s (db: %s)", lock_name, db_path)
-            with ExecutionMutex(lock_name):
+            with ExecutionMutex(lock_name, lock_dir=db_path.parent):
                 self.state_manager.maybe_full_reset()
                 self.state_manager.warn_if_stale_years_beyond(end)
                 if not dry_run:
