@@ -35,10 +35,21 @@ class ContributionYearSummary(BaseModel):
     # E013: Employer cost ratio metrics
     total_compensation: float = Field(
         default=0.0,
-        description="Sum of prorated_annual_compensation for all active employees",
+        description="Sum of prorated annual compensation for the selected population",
+    )
+    total_capped_compensation: float = Field(
+        default=0.0,
+        description=(
+            "Sum of prorated annual compensation capped at the applicable "
+            "IRS 401(a)(17) limit"
+        ),
     )
     employer_cost_rate: float = Field(
         default=0.0, description="Employer cost as percentage of total compensation"
+    )
+    employer_cost_pct_of_capped_compensation: float = Field(
+        default=0.0,
+        description="Employer cost as percentage of capped compensation",
     )
     # E066: Contribution rate percentages
     employee_contribution_rate: float = Field(
@@ -167,9 +178,17 @@ class DCPlanAnalytics(BaseModel):
     total_compensation: float = Field(
         default=0.0, description="Sum of prorated_annual_compensation across all years"
     )
+    total_capped_compensation: float = Field(
+        default=0.0,
+        description="Sum of IRS 401(a)(17)-capped compensation across all years",
+    )
     employer_cost_rate: float = Field(
         default=0.0,
         description="Aggregate employer cost as percentage of total compensation",
+    )
+    employer_cost_pct_of_capped_compensation: float = Field(
+        default=0.0,
+        description="Aggregate employer cost as percentage of capped compensation",
     )
     # E066: Aggregate contribution rate percentages
     employee_contribution_rate: float = Field(

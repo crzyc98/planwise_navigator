@@ -41,6 +41,10 @@ GROSS_EMPLOYER_COST_SQL = (
     "COALESCE(SUM(employer_match_amount) + SUM(employer_core_amount), 0)"
 )
 TOTAL_COMPENSATION_SQL = "COALESCE(SUM(prorated_annual_compensation), 0)"
+CAPPED_COMPENSATION_SQL = (
+    "COALESCE(SUM(LEAST(COALESCE(prorated_annual_compensation, 0), "
+    "irs_limits.compensation_limit)), 0)"
+)
 
 
 def _cents(value) -> Decimal:

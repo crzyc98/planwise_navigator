@@ -55,6 +55,19 @@ def _create_snapshot_table(conn: duckdb.DuckDBPyConnection) -> None:
         )
     """
     )
+    conn.execute(
+        """
+        CREATE TABLE config_irs_limits (
+            limit_year INTEGER,
+            compensation_limit DECIMAL(12,2)
+        );
+        INSERT INTO config_irs_limits VALUES
+            (2024, 345000),
+            (2025, 350000),
+            (2026, 350000),
+            (2027, 355000)
+        """
+    )
 
 
 def _seed_employees(
@@ -691,6 +704,7 @@ class TestComputeGrandTotals:
                 participant_count=10,
                 average_deferral_rate=0.06,
                 total_compensation=200000.0,
+                total_capped_compensation=180000.0,
             ),
             ContributionYearSummary(
                 year=2026,
@@ -701,6 +715,7 @@ class TestComputeGrandTotals:
                 participant_count=12,
                 average_deferral_rate=0.07,
                 total_compensation=250000.0,
+                total_capped_compensation=220000.0,
             ),
         ]
         totals = AnalyticsService._compute_grand_totals(years)
@@ -710,6 +725,10 @@ class TestComputeGrandTotals:
         assert totals["total_core"] == 2200.0
         assert totals["total_all"] == 18700.0
         assert totals["total_employer_cost"] == 7700.0  # 5500 + 2200
+        assert totals["total_capped_compensation"] == 400000.0
+        assert totals["employer_cost_pct_of_capped_compensation"] == pytest.approx(
+            1.925
+        )
 
     @pytest.mark.fast
     def test_grand_totals_weighted_avg_deferral_rate(self):
@@ -1148,6 +1167,40 @@ class TestContributionByYearRates:
         assert r.core_contribution_rate == 1.0
         assert r.total_contribution_rate == 10.0
         assert r.employer_cost_rate == 4.0  # (3000+1000)/100000*100
+
+    @pytest.mark.fast
+    def test_employer_cost_percentage_uses_capped_compensation(self, in_memory_conn):
+        """Cost percentage caps each employee at the year's 401(a)(17) limit."""
+        _seed_employees(
+            in_memory_conn,
+            [
+                {
+                    "employee_id": "HIGH",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "match": 12000,
+                    "core": 2000,
+                    "compensation": 400000,
+                },
+                {
+                    "employee_id": "REGULAR",
+                    "year": 2025,
+                    "status": "ACTIVE",
+                    "enrolled": True,
+                    "match": 4000,
+                    "core": 2000,
+                    "compensation": 100000,
+                },
+            ],
+        )
+
+        service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
+        result = service._get_contribution_by_year(in_memory_conn)[0]
+
+        assert result.total_capped_compensation == 450000.0
+        assert result.employer_cost_pct_of_capped_compensation == pytest.approx(4.44)
+        assert result.employer_cost_rate == 4.0
 
     @pytest.mark.fast
     def test_contribution_rates_zero_compensation(self, in_memory_conn):

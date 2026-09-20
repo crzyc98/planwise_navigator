@@ -1,5 +1,4 @@
-"""API contract tests for DC Plan cohort and eligible-population parameters.
-"""
+"""API contract tests for DC Plan cohort and eligible-population parameters."""
 
 from __future__ import annotations
 
@@ -71,6 +70,17 @@ def _build_db(path: Path) -> Path:
     conn = duckdb.connect(str(path))
     try:
         conn.execute(SNAPSHOT_DDL)
+        conn.execute(
+            """
+            CREATE TABLE config_irs_limits (
+                limit_year INTEGER,
+                compensation_limit DECIMAL(12, 2)
+            );
+            INSERT INTO config_irs_limits VALUES
+                (2025, 350000),
+                (2026, 350000)
+            """
+        )
         conn.execute(ROWS)
     finally:
         conn.close()
@@ -255,6 +265,10 @@ def test_population_filter_applies_to_comparison_endpoint(env):
     for analytics in response.json()["analytics"]:
         rows = {row["year"]: row for row in analytics["contribution_by_year"]}
         assert rows[2025]["total_eligible_count"] == 1
+        assert rows[2025]["total_capped_compensation"] == 100000.0
+        assert rows[2025]["employer_cost_pct_of_capped_compensation"] == 2.0
+        assert analytics["total_capped_compensation"] == 280000.0
+        assert analytics["employer_cost_pct_of_capped_compensation"] == 1.89
 
 
 def test_resolved_first_simulation_year_is_always_present(env):
