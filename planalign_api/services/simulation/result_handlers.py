@@ -5,12 +5,22 @@ Provides Excel export functionality for simulation results.
 """
 
 import logging
+import os
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from planalign_core.constants import DATABASE_FILENAME
 
 logger = logging.getLogger(__name__)
+
+
+def _is_ready_export(path: Path) -> bool:
+    """Return whether an export is a non-empty, atomically published file."""
+    try:
+        return path.is_file() and path.stat().st_size > 0
+    except OSError:
+        return False
 
 
 def find_results_export(
@@ -26,9 +36,16 @@ def find_results_export(
         f"results.{extension}",
     ):
         candidate = search_dir / filename
-        if candidate.is_file():
+        if _is_ready_export(candidate):
             return candidate
-    return next(search_dir.glob(f"*_results.{extension}"), None)
+    return next(
+        (
+            path
+            for path in search_dir.glob(f"*_results.{extension}")
+            if _is_ready_export(path)
+        ),
+        None,
+    )
 
 
 def export_results_to_excel(
@@ -96,14 +113,23 @@ def export_results_to_excel(
                 # Create a minimal mock config object
                 sim_config = _create_mock_config(config)
 
-            # Export to Excel
-            excel_path = exporter.export_scenario_results(
-                scenario_name=scenario_name,
-                output_dir=results_dir,
-                config=sim_config,
-                seed=seed,
-                export_format="excel",
-            )
+            # Write into a hidden sibling directory and publish with one atomic
+            # rename. Download requests therefore see either the prior complete
+            # workbook or no workbook, never openpyxl's partially-written file.
+            with tempfile.TemporaryDirectory(
+                prefix=".excel-export-", dir=results_dir
+            ) as staging_dir:
+                staged_path = exporter.export_scenario_results(
+                    scenario_name=scenario_name,
+                    output_dir=Path(staging_dir),
+                    config=sim_config,
+                    seed=seed,
+                    export_format="excel",
+                )
+                if not _is_ready_export(staged_path):
+                    raise RuntimeError("Excel exporter did not create a valid workbook")
+                excel_path = results_dir / staged_path.name
+                os.replace(staged_path, excel_path)
 
             logger.info(f"Excel export created at: {excel_path}")
             return excel_path

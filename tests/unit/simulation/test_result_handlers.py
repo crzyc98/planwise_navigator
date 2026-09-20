@@ -1,12 +1,12 @@
 """Tests for result_handlers module."""
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from planalign_api.services.simulation.result_handlers import (
     export_results_to_excel,
+    find_results_export,
     _create_mock_config,
 )
 
@@ -201,7 +201,13 @@ class TestExportResultsToExcel:
 
         mock_db_manager = MagicMock()
         mock_exporter = MagicMock()
-        mock_exporter.export_scenario_results.return_value = expected_excel
+
+        def export(**kwargs):
+            staged_path = kwargs["output_dir"] / expected_excel.name
+            staged_path.write_bytes(b"workbook")
+            return staged_path
+
+        mock_exporter.export_scenario_results.side_effect = export
         mock_sim_config = MagicMock()
 
         mock_dcm = MagicMock(return_value=mock_db_manager)
@@ -229,13 +235,14 @@ class TestExportResultsToExcel:
             )
 
         assert result == expected_excel
-        mock_exporter.export_scenario_results.assert_called_once_with(
-            scenario_name="test",
-            output_dir=scenario_path / "results",
-            config=mock_sim_config,
-            seed=42,
-            export_format="excel",
-        )
+        mock_exporter.export_scenario_results.assert_called_once()
+        export_kwargs = mock_exporter.export_scenario_results.call_args.kwargs
+        assert export_kwargs["scenario_name"] == "test"
+        assert export_kwargs["config"] is mock_sim_config
+        assert export_kwargs["seed"] == 42
+        assert export_kwargs["export_format"] == "excel"
+        assert export_kwargs["output_dir"].parent == scenario_path / "results"
+        assert not export_kwargs["output_dir"].exists()
 
     def test_success_with_run_dir_database(self, tmp_path):
         """Should prefer run_dir database over scenario_path database."""
@@ -251,7 +258,13 @@ class TestExportResultsToExcel:
 
         mock_db_manager = MagicMock()
         mock_exporter = MagicMock()
-        mock_exporter.export_scenario_results.return_value = expected_excel
+
+        def export(**kwargs):
+            staged_path = kwargs["output_dir"] / expected_excel.name
+            staged_path.write_bytes(b"workbook")
+            return staged_path
+
+        mock_exporter.export_scenario_results.side_effect = export
 
         mock_dcm = MagicMock(return_value=mock_db_manager)
         mock_ee = MagicMock(return_value=mock_exporter)
@@ -292,7 +305,13 @@ class TestExportResultsToExcel:
 
         mock_db_manager = MagicMock()
         mock_exporter = MagicMock()
-        mock_exporter.export_scenario_results.return_value = expected_excel
+
+        def export(**kwargs):
+            staged_path = kwargs["output_dir"] / expected_excel.name
+            staged_path.write_bytes(b"workbook")
+            return staged_path
+
+        mock_exporter.export_scenario_results.side_effect = export
 
         mock_dcm = MagicMock(return_value=mock_db_manager)
         mock_ee = MagicMock(return_value=mock_exporter)
@@ -332,7 +351,13 @@ class TestExportResultsToExcel:
 
         mock_db_manager = MagicMock()
         mock_exporter = MagicMock()
-        mock_exporter.export_scenario_results.return_value = Path("/fake/output.xlsx")
+
+        def export(**kwargs):
+            staged_path = kwargs["output_dir"] / "output.xlsx"
+            staged_path.write_bytes(b"workbook")
+            return staged_path
+
+        mock_exporter.export_scenario_results.side_effect = export
 
         mock_dcm = MagicMock(return_value=mock_db_manager)
         mock_ee = MagicMock(return_value=mock_exporter)
@@ -359,6 +384,62 @@ class TestExportResultsToExcel:
             )
 
         assert (scenario_path / "results").is_dir()
+
+    def test_failed_export_does_not_replace_existing_workbook(self, tmp_path):
+        scenario_path = tmp_path / "scenario"
+        scenario_path.mkdir()
+        (scenario_path / "simulation.duckdb").touch()
+        results_dir = scenario_path / "results"
+        results_dir.mkdir()
+        existing = results_dir / "test_results.xlsx"
+        existing.write_bytes(b"previous-workbook")
+
+        mock_db_manager = MagicMock()
+        mock_exporter = MagicMock()
+        mock_exporter.export_scenario_results.side_effect = RuntimeError("boom")
+
+        with patch.dict(
+            "sys.modules",
+            {
+                "planalign_orchestrator.utils": MagicMock(
+                    DatabaseConnectionManager=MagicMock(return_value=mock_db_manager)
+                ),
+                "planalign_orchestrator.excel_exporter": MagicMock(
+                    ExcelExporter=MagicMock(return_value=mock_exporter)
+                ),
+                "planalign_orchestrator.config": MagicMock(
+                    SimulationConfig=MagicMock()
+                ),
+            },
+        ):
+            result = export_results_to_excel(
+                scenario_path=scenario_path,
+                scenario_name="test",
+                config={},
+                seed=42,
+            )
+
+        assert result is None
+        assert existing.read_bytes() == b"previous-workbook"
+        assert not list(results_dir.glob(".excel-export-*"))
+
+
+@pytest.mark.fast
+class TestFindResultsExport:
+    def test_ignores_zero_byte_workbook(self, tmp_path):
+        results_dir = tmp_path / "results"
+        results_dir.mkdir()
+        (results_dir / "test_results.xlsx").touch()
+
+        assert find_results_export(tmp_path, "test", "xlsx") is None
+
+    def test_returns_completed_workbook(self, tmp_path):
+        results_dir = tmp_path / "results"
+        results_dir.mkdir()
+        workbook = results_dir / "test_results.xlsx"
+        workbook.write_bytes(b"workbook")
+
+        assert find_results_export(tmp_path, "test", "xlsx") == workbook
 
 
 @pytest.mark.fast

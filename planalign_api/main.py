@@ -206,9 +206,14 @@ async def lifespan(app: FastAPI):
     # Startup: ensure workspaces directory exists
     settings.workspaces_root.mkdir(parents=True, exist_ok=True)
 
-    yield
+    try:
+        yield
+    finally:
+        from .services.simulation.excel_export_worker import (
+            shutdown_excel_export_executor,
+        )
 
-    # Shutdown: cleanup if needed
+        shutdown_excel_export_executor()
 
 
 def create_app() -> FastAPI:
