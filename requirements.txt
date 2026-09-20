@@ -1,8 +1,8 @@
 # Core runtime dependencies
-duckdb==1.0.0
-dbt-core==1.8.8
-dbt-duckdb==1.8.1
-pydantic==2.7.4
+duckdb==1.5.5
+dbt-core==1.12.5
+dbt-duckdb==1.11.0
+pydantic==2.13.5
 python-dotenv>=1.0.0
 pyyaml>=6.0.0
 pandas>=2.0.0

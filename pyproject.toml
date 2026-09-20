@@ -10,10 +10,10 @@ authors = [
 
 dependencies = [
     # Core runtime dependencies
-    "duckdb==1.0.0",
-    "dbt-core==1.8.8",
-    "dbt-duckdb==1.8.1",
-    "pydantic==2.7.4",
+    "duckdb==1.5.5",
+    "dbt-core==1.12.5",
+    "dbt-duckdb==1.11.0",
+    "pydantic==2.13.5",
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0.0",
     "pandas>=2.0.0",
@@ -51,32 +51,32 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     # Testing
-    "pytest==7.4.0",
-    "pytest-cov==4.1.0",
-    "pytest-mock==3.11.1",
-    "pytest-xdist==3.3.1",
-    "pytest-split==0.9.0",
+    "pytest==9.1.1",
+    "pytest-cov==7.1.0",
+    "pytest-mock==3.15.1",
+    "pytest-xdist==3.8.0",
+    "pytest-split==0.11.0",
     "hypothesis>=6.0.0",
-    "factory-boy==3.3.0",
-    "Faker==19.3.0",
+    "factory-boy==3.3.3",
+    "Faker==40.39.0",
 
     # Code Quality
-    "ruff==0.4.3",
-    "black==23.9.1",
-    "isort==5.12.0",
-    "mypy==1.5.1",
+    "ruff==0.16.8",
+    "black==26.5.1",
+    "isort==9.0.1",
+    "mypy==2.3.1",
     # Type stubs for the CI mypy lint job (see requirements-dev.txt / #333)
-    "types-PyYAML==6.0.12.20260518",
-    "pylint==3.0.2",
-    "flake8==6.1.0",
-    "pre-commit==3.3.3",
+    "types-PyYAML==6.0.12.20260906",
+    "pylint==4.0.8",
+    "flake8==7.3.0",
+    "pre-commit==4.6.2",
 
     # Docs / Dev tools
-    "mkdocs==1.5.2",
-    "mkdocs-material==9.3.1",
-    "mkdocstrings-python==1.5.0",
-    "jupyter==1.0.0",
-    "ipython==8.14.0",
+    "mkdocs==1.6.1",
+    "mkdocs-material==9.7.7",
+    "mkdocstrings-python==2.0.8",
+    "jupyter==1.1.1",
+    "ipython==9.17.1",
     "ipdb==0.13.13",
 ]
 
