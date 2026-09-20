@@ -117,6 +117,7 @@ initial_enrollment_rates AS (
         ) as rn
     FROM {{ ref('int_enrollment_events') }}
     WHERE LOWER(event_type) = 'enrollment'
+        AND scenario_id = '{{ var('scenario_id', 'default') }}'
         AND employee_id IS NOT NULL
         AND employee_deferral_rate IS NOT NULL
         AND simulation_year <= {{ simulation_year }}

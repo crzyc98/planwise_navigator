@@ -15,6 +15,7 @@ WITH auto_enrollment_count AS (
   SELECT COUNT(*) AS cnt
   FROM {{ ref('int_enrollment_events') }}
   WHERE event_category = 'auto_enrollment'
+    AND scenario_id = '{{ var('scenario_id', 'default') }}'
     AND simulation_year = {{ var('simulation_year') }}
 )
 SELECT cnt

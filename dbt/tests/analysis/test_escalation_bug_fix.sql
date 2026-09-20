@@ -71,6 +71,7 @@ enrollment_dates AS (
         SELECT employee_id, effective_date
         FROM {{ ref('int_enrollment_events') }}
         WHERE LOWER(event_type) = 'enrollment'
+          AND scenario_id = '{{ var('scenario_id', 'default') }}'
           AND simulation_year = {{ var('simulation_year') }}
         UNION ALL
         SELECT employee_id, effective_date

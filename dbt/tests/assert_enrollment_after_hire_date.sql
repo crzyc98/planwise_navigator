@@ -21,5 +21,6 @@ FROM {{ ref('int_enrollment_events') }} ee
 JOIN {{ ref('int_hiring_events') }} he
   ON ee.employee_id = he.employee_id
   AND ee.simulation_year = he.simulation_year
-WHERE ee.event_type = {{ evt_enrollment() }}
+WHERE ee.scenario_id = '{{ var('scenario_id', 'default') }}'
+  AND ee.event_type = {{ evt_enrollment() }}
   AND ee.effective_date::DATE < he.effective_date::DATE

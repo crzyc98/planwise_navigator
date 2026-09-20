@@ -52,7 +52,8 @@
     LEFT JOIN {{ ref('int_employee_compensation_by_year') }} ey
       ON ee.employee_id = ey.employee_id
       AND ee.simulation_year = ey.simulation_year
-    WHERE ee.simulation_year = {{ simulation_year }}
+    WHERE ee.scenario_id = '{{ var('scenario_id', 'default') }}'
+      AND ee.simulation_year = {{ simulation_year }}
   ),
 
   -- S051-02: Synthetic Baseline Enrollment Events Integration

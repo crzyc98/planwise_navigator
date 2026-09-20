@@ -9,5 +9,6 @@ SELECT
   event_category
 FROM {{ ref('int_enrollment_events') }}
 WHERE event_category = 'year_over_year_voluntary'
+  AND scenario_id = '{{ var('scenario_id', 'default') }}'
   AND simulation_year = {{ var('simulation_year') }}
   AND {{ var('voluntary_enrollment_rate', 1.0) }} = 0.0
