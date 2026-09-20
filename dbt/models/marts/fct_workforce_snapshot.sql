@@ -95,24 +95,59 @@ deferral AS (
   WHERE state_rank = 1
 ),
 
+baseline_source AS (
+  SELECT
+    employee_id,
+    employee_eligibility_date,
+    waiting_period_days,
+    current_eligibility_status,
+    employee_enrollment_date,
+    current_compensation AS baseline_compensation,
+    simulation_year
+  FROM {{ ref('int_baseline_workforce') }}
+  WHERE simulation_year = {{ simulation_year }}
+    AND employment_status = {{ status_active() }}
+),
+
+baseline_duplicate_rows AS (
+  SELECT
+    employee_id,
+    simulation_year,
+    COUNT(*) AS row_count
+  FROM baseline_source
+  GROUP BY employee_id, simulation_year
+  HAVING COUNT(*) > 1
+),
+
+baseline_first_duplicate AS (
+  SELECT employee_id, simulation_year, row_count
+  FROM baseline_duplicate_rows
+  ORDER BY employee_id, simulation_year
+  LIMIT 1
+),
+
+baseline_duplicate_guard AS (
+  SELECT CASE WHEN COUNT(*) = 0 THEN 1 ELSE CAST(
+    'invocation_id={{ invocation_id }}; duplicate baseline workforce rows; '
+    || 'employee_id=' || MIN(employee_id)
+    || '; simulation_year=' || MIN(simulation_year)::VARCHAR
+    || '; row_count=' || MIN(row_count)::VARCHAR
+    || '; expected one active int_baseline_workforce row per employee and year'
+    AS INTEGER) END AS guard_ok
+  FROM baseline_first_duplicate
+),
+
 baseline AS (
-  SELECT * EXCLUDE (baseline_rank)
-  FROM (
-    SELECT
-      employee_id,
-      employee_eligibility_date,
-      waiting_period_days,
-      current_eligibility_status,
-      employee_enrollment_date,
-      current_compensation AS baseline_compensation,
-      ROW_NUMBER() OVER (
-        PARTITION BY employee_id ORDER BY employee_id
-      ) AS baseline_rank
-    FROM {{ ref('int_baseline_workforce') }}
-    WHERE simulation_year = {{ simulation_year }}
-      AND employment_status = {{ status_active() }}
-  ) ranked
-  WHERE baseline_rank = 1
+  SELECT
+    source.employee_id,
+    source.employee_eligibility_date,
+    source.waiting_period_days,
+    source.current_eligibility_status,
+    source.employee_enrollment_date,
+    source.baseline_compensation
+  FROM baseline_source source
+  CROSS JOIN baseline_duplicate_guard
+  WHERE baseline_duplicate_guard.guard_ok = 1
 ),
 
 -- The start-year status is census provenance, evaluated at the census cutoff

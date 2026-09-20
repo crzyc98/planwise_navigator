@@ -277,8 +277,10 @@ models:
       depend on reporting age bands.
       Formula family, flat rate, integration settings, and design-keyed graded,
       age, or points schedule resolve from each employee's plan_design_id. The
-      pre-dedup guard requires exactly one band for every eligible banded-family
+      pre-publication guard requires exactly one band for every eligible banded-family
       employee; test_core_rate_band_resolution is the publication-layer net.
+      A separate execution-time grain guard rejects duplicate employee, design,
+      and year rows instead of silently selecting an arbitrary result.
     config:
       tags: ["employer_contributions", "core_contributions", "mvp"]
     columns:

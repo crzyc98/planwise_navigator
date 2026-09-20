@@ -242,7 +242,6 @@ snapshot_flags AS (
     FROM population
 ),
 
--- Main query with window function for deduplication
 -- E026: Added IRS 401(a)(17) compensation limit enforcement
 integration_basis AS (
 SELECT
@@ -353,8 +352,9 @@ SELECT
     COALESCE(snap.years_of_service, FLOOR(COALESCE(pop.current_tenure, 0))::INT) AS applied_years_of_service,
     CURRENT_TIMESTAMP AS created_at,
     '{{ var("scenario_id", "default") }}' AS scenario_id,
-    '{{ var("parameter_scenario_id", "default") }}' AS parameter_scenario_id,
+    '{{ var("parameter_scenario_id", "default") }}' AS parameter_scenario_id
     {% if plan_design_parameters_config %}
+    ,
     pdp.core_formula_family,
     pdp.core_integration_enabled,
     pdp.core_integration_level_mode,
@@ -370,12 +370,8 @@ SELECT
       COUNT(*) OVER (
         PARTITION BY pop.employee_id, pop.plan_design_id, pop.simulation_year
       )
-    END::INTEGER AS band_match_count,
+    END::INTEGER AS band_match_count
     {% endif %}
-    ROW_NUMBER() OVER (
-        PARTITION BY pop.employee_id, pop.plan_design_id, pop.simulation_year
-        ORDER BY pop.employee_id
-    ) AS rn
 
 FROM population pop
 -- E026: CROSS JOIN is safe here because irs_compensation_limits CTE filters to a single
@@ -430,6 +426,43 @@ LEFT JOIN plan_design_core_points_schedule core_points
       < core_points.max_points)
 {% endif %}
 {% endif %}
+),
+
+duplicate_rows AS (
+    SELECT
+        employee_id,
+        plan_design_id,
+        simulation_year,
+        COUNT(*) AS row_count
+    FROM integration_basis
+    GROUP BY employee_id, plan_design_id, simulation_year
+    HAVING COUNT(*) > 1
+),
+
+first_duplicate AS (
+    SELECT employee_id, plan_design_id, simulation_year, row_count
+    FROM duplicate_rows
+    ORDER BY employee_id, plan_design_id, simulation_year
+    LIMIT 1
+),
+
+duplicate_row_guard AS (
+    SELECT CASE WHEN COUNT(*) = 0 THEN 1 ELSE CAST(
+      'invocation_id={{ invocation_id }}; duplicate employer core rows; '
+      || 'employee_id=' || MIN(employee_id)
+      || '; plan_design_id=' || COALESCE(MIN(plan_design_id), '<null>')
+      || '; simulation_year=' || MIN(simulation_year)::VARCHAR
+      || '; row_count=' || MIN(row_count)::VARCHAR
+      || '; expected one int_employer_core_contributions row per employee, design, and year'
+      AS INTEGER) END AS guard_ok
+    FROM first_duplicate
+),
+
+validated_integration_basis AS (
+    SELECT basis.*
+    FROM integration_basis basis
+    CROSS JOIN duplicate_row_guard
+    WHERE duplicate_row_guard.guard_ok = 1
 )
 
 {% if plan_design_parameters_config %}
@@ -448,7 +481,7 @@ multi_design_formula_guard AS (
            WHEN 'points_based' THEN 'points_schedule'
            ELSE 'age_schedule' END)
       AS INTEGER) END AS guard_ok
-    FROM integration_basis
+    FROM validated_integration_basis
     WHERE eligible_for_core
       AND core_formula_family <> 'flat'
       AND (core_rate_source = 'default' OR band_match_count <> 1)
@@ -465,7 +498,7 @@ integration_level_resolution AS (
           ELSE basis.ss_wage_base
         END
       ELSE NULL END::INTEGER AS integration_level_applied
-    FROM integration_basis basis
+    FROM validated_integration_basis basis
     CROSS JOIN multi_design_formula_guard
     WHERE multi_design_formula_guard.guard_ok = 1
 ),
@@ -501,11 +534,10 @@ integration_components AS (
             employer_core_integration_level_value if employer_core_integration_level_value is not none else 0,
             employer_core_integration_disparity_rate
         ) }}
-    FROM integration_basis basis
+    FROM validated_integration_basis basis
 )
 {% endif %}
 
--- Final SELECT - deduplicate in case a new hire is also present in compensation snapshot (year 1)
 SELECT
     employee_id,
     simulation_year,
@@ -541,5 +573,4 @@ SELECT
     scenario_id,
     parameter_scenario_id,
     plan_design_id
-FROM {% if plan_design_parameters_config or employer_core_integration_enabled %}integration_components{% else %}integration_basis{% endif %}
-WHERE rn = 1
+FROM {% if plan_design_parameters_config or employer_core_integration_enabled %}integration_components{% else %}validated_integration_basis{% endif %}
