@@ -113,19 +113,29 @@ def test_core_guard_contract_is_fixture_backed(payload: dict) -> None:
         assert token in source
 
 
-def test_guard_precedes_downstream_publication_and_dedup() -> None:
+def test_guard_precedes_downstream_publication() -> None:
     match_source = MATCH_MODEL.read_text()
     core_source = CORE_MODEL.read_text()
     assert match_source.index("multi_design_formula_guard") < match_source.index(
         "final_match"
     )
     assert core_source.index("multi_design_formula_guard") < core_source.index(
-        "WHERE rn = 1"
+        "integration_level_resolution"
     )
     assert (
         "PARTITION BY pop.employee_id, pop.plan_design_id, pop.simulation_year"
         in core_source
     )
+
+
+def test_core_duplicate_rows_fail_instead_of_using_arbitrary_dedup() -> None:
+    core_source = CORE_MODEL.read_text()
+
+    assert "duplicate_row_guard AS" in core_source
+    assert "duplicate employer core rows" in core_source
+    assert "validated_integration_basis AS" in core_source
+    assert "WHERE rn = 1" not in core_source
+    assert "ORDER BY pop.employee_id" not in core_source
 
 
 def test_integration_amounts_are_gated_on_a_resolved_core_rate() -> None:
