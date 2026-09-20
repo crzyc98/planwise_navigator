@@ -33,6 +33,25 @@ env:
   PYTHON_VERSION: '3.11'
 
 jobs:
+  frontend-dependency-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: planalign_studio/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci --ignore-scripts --prefix planalign_studio
+
+      - name: Audit frontend dependencies
+        run: npm run audit:dependencies --prefix planalign_studio
+
   lint:
     runs-on: ubuntu-latest
     steps:
