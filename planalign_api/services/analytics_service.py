@@ -22,6 +22,7 @@ from planalign_core.constants import TABLE_FCT_WORKFORCE_SNAPSHOT
 
 from ..storage.workspace_storage import WorkspaceStorage
 from .employer_cost_service import (
+    CAPPED_COMPENSATION_SQL,
     GROSS_CORE_SQL,
     GROSS_EMPLOYER_COST_SQL,
     GROSS_MATCH_SQL,
@@ -102,9 +103,17 @@ class AnalyticsService:
         )
 
         total_compensation = sum(c.total_compensation for c in contribution_by_year)
+        total_capped_compensation = sum(
+            c.total_capped_compensation for c in contribution_by_year
+        )
         employer_cost_rate = (
             (total_employer_cost / total_compensation * 100)
             if total_compensation > 0
+            else 0.0
+        )
+        employer_cost_pct_of_capped_compensation = (
+            total_employer_cost / total_capped_compensation * 100
+            if total_capped_compensation > 0
             else 0.0
         )
 
@@ -124,7 +133,11 @@ class AnalyticsService:
             "total_employer_cost": total_employer_cost,
             "avg_deferral_rate": avg_deferral_rate,
             "total_compensation": total_compensation,
+            "total_capped_compensation": total_capped_compensation,
             "employer_cost_rate": employer_cost_rate,
+            "employer_cost_pct_of_capped_compensation": (
+                employer_cost_pct_of_capped_compensation
+            ),
             **rates,
         }
 
@@ -516,7 +529,11 @@ class AnalyticsService:
                 average_deferral_rate=round(totals["avg_deferral_rate"], 4),
                 total_employer_cost=totals["total_employer_cost"],
                 total_compensation=totals["total_compensation"],
+                total_capped_compensation=totals["total_capped_compensation"],
                 employer_cost_rate=round(totals["employer_cost_rate"], 2),
+                employer_cost_pct_of_capped_compensation=round(
+                    totals["employer_cost_pct_of_capped_compensation"], 2
+                ),
                 # E066: Contribution rate percentages
                 employee_contribution_rate=round(
                     totals["employee_contribution_rate"], 2
@@ -648,7 +665,7 @@ class AnalyticsService:
             df = conn.execute(
                 f"""
                 SELECT
-                    simulation_year as year,
+                    snapshot.simulation_year as year,
                     COALESCE(SUM(prorated_annual_contributions), 0) as total_employee,
                     {GROSS_MATCH_SQL} as total_match,
                     {GROSS_CORE_SQL} as total_core,
@@ -658,11 +675,19 @@ class AnalyticsService:
                     {participation_rate_expr} as participation_rate,
                     COUNT(CASE WHEN is_enrolled_flag THEN 1 END) as participant_count,
                     COUNT(*) as total_eligible,
-                    {TOTAL_COMPENSATION_SQL} as total_compensation
-                FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
+                    {TOTAL_COMPENSATION_SQL} as total_compensation,
+                    {CAPPED_COMPENSATION_SQL} as total_capped_compensation
+                FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} AS snapshot
+                INNER JOIN (
+                    SELECT
+                        limit_year AS irs_limit_year,
+                        compensation_limit
+                    FROM config_irs_limits
+                ) AS irs_limits
+                    ON irs_limits.irs_limit_year = snapshot.simulation_year
                 {where_clause}
-                GROUP BY simulation_year
-                ORDER BY simulation_year
+                GROUP BY snapshot.simulation_year
+                ORDER BY snapshot.simulation_year
             """
             ).fetchdf()
 
@@ -670,10 +695,16 @@ class AnalyticsService:
             for _, row in df.iterrows():
                 total_employer_cost = float(row["total_employer_cost"])
                 total_compensation = float(row["total_compensation"])
+                total_capped_compensation = float(row["total_capped_compensation"])
                 # E013: Calculate employer cost rate (as percentage)
                 employer_cost_rate = (
                     (total_employer_cost / total_compensation * 100)
                     if total_compensation > 0
+                    else 0.0
+                )
+                employer_cost_pct_of_capped_compensation = (
+                    total_employer_cost / total_capped_compensation * 100
+                    if total_capped_compensation > 0
                     else 0.0
                 )
                 # E066: Calculate contribution rate percentages
@@ -703,7 +734,11 @@ class AnalyticsService:
                         total_employer_cost=total_employer_cost,
                         # E013: Employer cost ratio metrics
                         total_compensation=total_compensation,
+                        total_capped_compensation=total_capped_compensation,
                         employer_cost_rate=round(employer_cost_rate, 2),
+                        employer_cost_pct_of_capped_compensation=round(
+                            employer_cost_pct_of_capped_compensation, 2
+                        ),
                         # E066: Contribution rate percentages
                         employee_contribution_rate=rates["employee_contribution_rate"],
                         match_contribution_rate=rates["match_contribution_rate"],

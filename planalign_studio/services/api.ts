@@ -1640,7 +1640,9 @@ export interface ContributionYearSummary {
   total_employer_cost: number;
   // E013: Employer cost ratio metrics
   total_compensation: number;
+  total_capped_compensation: number;
   employer_cost_rate: number;
+  employer_cost_pct_of_capped_compensation: number;
   // E066: Contribution rate percentages
   employee_contribution_rate: number;
   match_contribution_rate: number;
@@ -1704,7 +1706,9 @@ export interface DCPlanAnalytics {
   total_employer_cost: number;
   // E013: Employer cost ratio metrics
   total_compensation: number;
+  total_capped_compensation: number;
   employer_cost_rate: number;
+  employer_cost_pct_of_capped_compensation: number;
   // E066: Contribution rate percentages
   employee_contribution_rate: number;
   match_contribution_rate: number;

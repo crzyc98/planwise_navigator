@@ -479,6 +479,29 @@ export default function ScenarioCostComparison() {
       : values.reduce<number>((sum, value) => sum + (value ?? 0), 0);
   }, [displayedCostFor]);
 
+  const cappedCompensationTotalFor = useCallback((analytics: DCPlanAnalytics): number =>
+    analytics.contribution_by_year.reduce(
+      (sum, year) => sum + year.total_capped_compensation, 0
+    ), []);
+
+  const displayedCostPctFor = useCallback((
+    scenarioId: string,
+    yearData: ContributionYearSummary
+  ): number | null => {
+    const cost = displayedCostFor(scenarioId, yearData);
+    if (cost === null) return null;
+    return yearData.total_capped_compensation > 0
+      ? cost / yearData.total_capped_compensation * 100
+      : 0;
+  }, [displayedCostFor]);
+
+  const displayedTotalCostPctFor = useCallback((analytics: DCPlanAnalytics): number | null => {
+    const cost = displayedTotalFor(analytics);
+    if (cost === null) return null;
+    const cappedCompensation = cappedCompensationTotalFor(analytics);
+    return cappedCompensation > 0 ? cost / cappedCompensation * 100 : 0;
+  }, [cappedCompensationTotalFor, displayedTotalFor]);
+
   const unavailableCostState = useCallback((scenarioId: string, year: number) => {
     if (grandfatherLoading) {
       return { label: 'loading…', reason: 'Loading grandfathered employer cost.' };
@@ -667,9 +690,10 @@ export default function ScenarioCostComparison() {
       name: anchorAnalytics.scenario_name,
       yearCount: anchorAnalytics.contribution_by_year.length,
       totalCost,
+      totalCostPctOfCappedCompensation: displayedTotalCostPctFor(anchorAnalytics),
       avgAnnualCost: totalCost === null ? null : totalCost / anchorAnalytics.contribution_by_year.length,
     };
-  }, [anchorAnalytics, displayedTotalFor]);
+  }, [anchorAnalytics, displayedTotalFor, displayedTotalCostPctFor]);
 
   /**
    * #444: the anchor's net horizon total, so non-anchor scenarios can show a
@@ -1069,6 +1093,26 @@ export default function ScenarioCostComparison() {
       const name = comparisonData.scenario_names[id] || analytics.scenario_name || id;
       lines.push([name, ...yearValues, total === null ? 'unavailable' : formatCurrency(total), variance].join('\t'));
 
+      const rateValues = years.map(year => {
+        const yearData = analytics.contribution_by_year.find(y => y.year === year);
+        if (!yearData) return '-';
+        const rate = displayedCostPctFor(id, yearData);
+        return rate === null ? 'unavailable' : formatPercent(rate, 2);
+      });
+      const totalRate = displayedTotalCostPctFor(analytics);
+      const anchorRate = anchorAnalytics
+        ? displayedTotalCostPctFor(anchorAnalytics)
+        : null;
+      const rateVariance = id === anchorScenarioId || totalRate === null || anchorRate === null
+        ? '--'
+        : `${totalRate - anchorRate >= 0 ? '+' : ''}${(totalRate - anchorRate).toFixed(2)} pp`;
+      lines.push([
+        `${name} — cost % of capped compensation`,
+        ...rateValues,
+        totalRate === null ? 'unavailable' : formatPercent(totalRate, 2),
+        rateVariance,
+      ].join('\t'));
+
       // #444: pasted output carries the same offset/net rows the table shows.
       if (!netActive) return;
 
@@ -1101,7 +1145,8 @@ export default function ScenarioCostComparison() {
     return lines.join('\n');
   }, [comparisonData, years, orderedScenarioIds, anchorScenarioId, anchorAnalytics, cohort,
       netActive, appliedOffset, anchorNetTotal, vestingSchedule, forfeiturePolicy,
-      displayedCostFor, displayedTotalFor]);
+      displayedCostFor, displayedTotalFor, displayedCostPctFor,
+      displayedTotalCostPctFor]);
 
   const handleCopy = useCallback(() => {
     const tsv = tableToTSV();
@@ -1377,6 +1422,9 @@ export default function ScenarioCostComparison() {
                     </span>
                     <span className="flex items-center text-xs font-medium text-ink-muted bg-surface-subtle px-2 py-1 rounded">
                       <DollarSign size={12} className="mr-1.5" /> {anchorSummary.totalCost === null ? (grandfatherLoading ? 'Loading…' : 'Unavailable') : formatCurrency(anchorSummary.totalCost)} Total
+                    </span>
+                    <span className="flex items-center text-xs font-medium text-ink-muted bg-surface-subtle px-2 py-1 rounded">
+                      <Calculator size={12} className="mr-1.5" /> {anchorSummary.totalCostPctOfCappedCompensation === null ? (grandfatherLoading ? 'Loading…' : 'Unavailable') : formatPercent(anchorSummary.totalCostPctOfCappedCompensation, 2)} of Capped Compensation
                     </span>
                   </div>
                 </div>
@@ -1751,7 +1799,7 @@ export default function ScenarioCostComparison() {
                 </h3>
                 <div className="flex items-center space-x-2">
                   <span className="text-[10px] bg-surface-raised border border-border text-ink-muted px-2 py-0.5 rounded font-bold flex items-center">
-                    <DollarSign size={8} className="mr-0.5" /> VALUES IN $
+                    <DollarSign size={8} className="mr-0.5" /> VALUES IN $ &amp; %
                   </span>
                   <button
                     onClick={handleCopy}
@@ -1789,12 +1837,21 @@ export default function ScenarioCostComparison() {
 
                       const isAnchor = id === anchorScenarioId;
                       const total = displayedTotalFor(analytics);
+                      const totalRate = displayedTotalCostPctFor(analytics);
+                      const anchorTotalRate = anchorAnalytics
+                        ? displayedTotalCostPctFor(anchorAnalytics)
+                        : null;
 
                       let delta: number | null = null;
                       if (!isAnchor && anchorAnalytics) {
                         const anchorTotal = displayedTotalFor(anchorAnalytics);
                         if (total !== null && anchorTotal !== null) delta = total - anchorTotal;
                       }
+                      const rateDelta = !isAnchor
+                        && totalRate !== null
+                        && anchorTotalRate !== null
+                        ? totalRate - anchorTotalRate
+                        : null;
 
                       const grossRow = (
                         <tr key={id} className={`hover:bg-surface-subtle transition-colors ${isAnchor ? 'bg-info-surface/30' : ''}`}>
@@ -1857,9 +1914,52 @@ export default function ScenarioCostComparison() {
                         </tr>
                       );
 
+                      const cappedCompensationRateRow = (
+                        <tr className="bg-surface-subtle/20">
+                          <td className="px-6 py-2 whitespace-nowrap border-r border-border pl-12 text-xs font-medium text-ink-muted">
+                            Total cost as % of capped compensation
+                          </td>
+                          {years.map(year => {
+                            const yearData = analytics.contribution_by_year.find(y => y.year === year);
+                            if (!yearData) {
+                              return (
+                                <td key={year} className="px-6 py-2 whitespace-nowrap text-right text-xs text-ink-subtle font-mono italic">
+                                  {cohort !== 'all' ? '—' : '-'}
+                                </td>
+                              );
+                            }
+                            const rate = displayedCostPctFor(id, yearData);
+                            return (
+                              <td key={year} className="px-6 py-2 whitespace-nowrap text-right text-xs text-ink-muted font-mono">
+                                {rate === null ? 'unavailable' : formatPercent(rate, 2)}
+                              </td>
+                            );
+                          })}
+                          <td className="px-6 py-2 whitespace-nowrap text-right text-xs font-bold text-ink font-mono bg-surface-subtle/50 border-l border-border">
+                            {totalRate === null ? 'unavailable' : formatPercent(totalRate, 2)}
+                          </td>
+                          <td className="px-6 py-2 whitespace-nowrap text-right">
+                            {rateDelta === null ? (
+                              <span className="text-xs text-ink-subtle italic">--</span>
+                            ) : (
+                              <span className={`px-2 py-1 text-xs font-bold rounded ${rateDelta >= 0 ? 'bg-warning-surface text-warning-ink' : 'bg-success-surface text-success-ink'}`}>
+                                {rateDelta >= 0 ? '+' : ''}{rateDelta.toFixed(2)} pp
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+
                       // #444: offset and net are *additional* rows. The gross
-                      // row above is byte-identical to the Gross view.
-                      if (!netActive) return grossRow;
+                      // rows below only appear in the Net view.
+                      if (!netActive) {
+                        return (
+                          <React.Fragment key={id}>
+                            {grossRow}
+                            {cappedCompensationRateRow}
+                          </React.Fragment>
+                        );
+                      }
 
                       const measurableYears = years.filter(
                         year => appliedOffset(id, year) !== null
@@ -1875,6 +1975,7 @@ export default function ScenarioCostComparison() {
                       return (
                         <React.Fragment key={id}>
                           {grossRow}
+                          {cappedCompensationRateRow}
                           <tr className="bg-surface-subtle/20">
                             <td className="px-6 py-2 whitespace-nowrap border-r border-border pl-12 text-xs text-ink-muted">
                               Forfeiture offset
@@ -2095,6 +2196,13 @@ export default function ScenarioCostComparison() {
                     <span className="text-ink-inverse font-bold">Employer cost</span> is employer match
                     plus employer core, summed across every employee in the workforce snapshot for
                     each simulation year. Employee deferrals and salary are not included.
+                  </p>
+                  <p>
+                    <span className="text-ink-inverse font-bold">Cost as % of capped compensation</span>{' '}
+                    divides that employer cost by the same population's prorated compensation,
+                    capped employee-by-employee at the applicable annual IRS 401(a)(17) limit.
+                    The horizon percentage divides horizon cost by horizon capped compensation;
+                    it is not an average of annual percentages.
                   </p>
                   <p>
                     <span className="text-ink-inverse font-bold">Incremental cost</span> is a scenario's
