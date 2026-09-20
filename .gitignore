@@ -123,6 +123,7 @@ yarn-error.log*
 .pnp.*
 .yarn-integrity
 package-lock.json
+!planalign_studio/package-lock.json
 yarn.lock
 pnpm-lock.yaml
 .vite/

@@ -123,7 +123,7 @@ fidelity_planalign/
 ### Prerequisites
 
 - **Python 3.11 or 3.12** (3.13+ not yet supported — pydantic-core wheels unavailable)
-- **Node.js 18+** (for the PlanAlign Studio frontend)
+- **Node.js 20.19+** (for the PlanAlign Studio frontend)
 - Employee census data
 - On-premises deployment environment
 
