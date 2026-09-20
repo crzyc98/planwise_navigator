@@ -100,6 +100,21 @@ export function validateMatchTiers(
   return warnings;
 }
 
+export function getDeferralSpreadClipping(
+  baseRates: Record<string, number>,
+  maxLift: number,
+  maxVoluntaryDeferral: number,
+): { maxBaseRate: number; spreadCeiling: number } | null {
+  const rates = Object.values(baseRates).map(Number).filter(Number.isFinite);
+  if (rates.length === 0 || maxLift <= 0 || maxVoluntaryDeferral <= 0) return null;
+
+  const maxBaseRate = Math.max(...rates);
+  const spreadCeiling = maxBaseRate + maxLift;
+  return spreadCeiling > maxVoluntaryDeferral
+    ? { maxBaseRate, spreadCeiling }
+    : null;
+}
+
 export function DCPlanSection() {
   const { formData, setFormData, handleChange, inputProps, activeWorkspace } = useConfigContext();
 
@@ -135,6 +150,11 @@ export function DCPlanSection() {
   const midCareerModerateRate =
     Number(formData.dcVoluntaryDeferralBaseRates?.mid_career_moderate
       ?? DEFAULT_VOLUNTARY_DEFERRAL_BASE_RATES.mid_career_moderate);
+  const deferralSpreadClipping = getDeferralSpreadClipping(
+    formData.dcVoluntaryDeferralBaseRates ?? DEFAULT_VOLUNTARY_DEFERRAL_BASE_RATES,
+    Number(formData.dcDeferralSpreadMaxLift),
+    Number(formData.dcMaxVoluntaryDeferral),
+  );
 
   // Hard-bound the spread to 0-10pp. The `max` attribute only governs the
   // steppers -- a typed value lands in formData unchecked -- and the bound is
@@ -449,6 +469,20 @@ export function DCPlanSection() {
                }).join(', ')}
                . Raises the average deferral rate, and therefore projected employer match cost.
              </p>
+           )}
+           {deferralSpreadClipping && (
+             <div
+               className="mt-2 flex items-start gap-1.5 rounded border border-warning-border bg-warning-surface p-2 text-xs text-warning-ink"
+               role="alert"
+             >
+               <AlertTriangle className="mt-0.5 h-3 w-3 flex-shrink-0" />
+               <p>
+                 The highest segment starts at {deferralSpreadClipping.maxBaseRate}% and can
+                 spread to {deferralSpreadClipping.spreadCeiling}%, above the{' '}
+                 {formData.dcMaxVoluntaryDeferral}% Max Voluntary Deferral. Rates above that
+                 cap will be clipped; raise the cap or lower the spread to preserve them.
+               </p>
+             </div>
            )}
          </div>
 
