@@ -9,7 +9,7 @@ name: CI Pipeline
 #   the nightly schedule, and on demand.
 #
 # The full pipeline measured ~66 minutes of wall time on PR #545 (shards at
-# 49/65/49/63 min, edge-config-matrix 14m, multi-year-invariants 5m). Paying that
+# 49/65/49/63 min, edge-config-matrix 14m, multi-year-invariants 16-20m). Paying that
 # on every push made the feedback loop unusable, and it is dominated by
 # integration tests driving real dbt runs rather than by anything a typical PR
 # touches.
@@ -301,7 +301,9 @@ jobs:
     if: >-
       github.event_name != 'pull_request' ||
       contains(github.event.pull_request.labels.*.name, 'full-ci')
-    timeout-minutes: 20
+    # Recent successful runs take 16-20 minutes; leave enough headroom for
+    # normal hosted-runner variance without masking a genuinely stuck suite.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
