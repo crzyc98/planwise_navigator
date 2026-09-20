@@ -118,7 +118,8 @@ Key optimizations:
       COUNT(CASE WHEN EXTRACT(MONTH FROM enrollment_date) BETWEEN 10 AND 12 THEN 1 END) as q4_enrollments
 
     FROM {{ ref('int_enrollment_events') }}
-    WHERE simulation_year = {{ simulation_year }}
+    WHERE scenario_id = '{{ var('scenario_id', 'default') }}'
+      AND simulation_year = {{ simulation_year }}
     GROUP BY enrollment_type
   )
   SELECT * FROM enrollment_summary

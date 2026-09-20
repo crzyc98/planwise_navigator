@@ -1630,6 +1630,10 @@ models:
     config:
       tags: ["enrollment", "dc_plan", "epic_e023", "event_sourcing"]
     columns:
+      - name: scenario_id
+        description: Scenario partition key
+        data_tests:
+          - not_null
       - name: employee_id
         description: Unique identifier for each employee
         data_tests:

@@ -37,7 +37,8 @@ enrollment_event_counts AS (
     MIN(effective_date) as earliest_event_date,
     MAX(effective_date) as latest_event_date
   FROM {{ ref('int_enrollment_events') }}
-  WHERE simulation_year = {{ var('simulation_year') }}
+  WHERE scenario_id = '{{ var('scenario_id', 'default') }}'
+    AND simulation_year = {{ var('simulation_year') }}
 ),
 
 demographic_breakdown AS (

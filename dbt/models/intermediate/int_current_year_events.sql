@@ -161,7 +161,7 @@ WITH all_events AS (
   UNION ALL
 
   SELECT
-    '{{ sid }}' AS scenario_id,
+    scenario_id,
     employee_id,
     employee_ssn,
     event_type,
@@ -180,7 +180,8 @@ WITH all_events AS (
     event_probability,
     event_category
   FROM {{ ref('int_enrollment_events') }}
-  WHERE simulation_year = {{ simulation_year }}
+  WHERE scenario_id = '{{ sid }}'
+    AND simulation_year = {{ simulation_year }}
 
   UNION ALL
 

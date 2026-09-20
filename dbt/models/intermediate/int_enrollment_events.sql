@@ -1,10 +1,10 @@
 {{ config(
   materialized='incremental',
   incremental_strategy='delete+insert',
-  unique_key=['employee_id', 'simulation_year', 'event_type', 'effective_date'],
+  unique_key=['scenario_id', 'employee_id', 'simulation_year', 'event_type', 'effective_date'],
   on_schema_change='sync_all_columns',
   pre_hook=[
-    "{% if is_incremental() %}DELETE FROM {{ this }} WHERE simulation_year = {{ var('simulation_year') }}{% endif %}"
+    "{% if is_incremental() %}DELETE FROM {{ this }} WHERE scenario_id = '{{ var('scenario_id', 'default') }}' AND simulation_year = {{ var('simulation_year') }}{% endif %}"
   ],
   tags=['EVENT_GENERATION']
 ) }}
@@ -851,6 +851,7 @@ deduplicated_events AS (
 -- Phase 2 Fix: Restored all critical WHERE clauses to prevent duplicate enrollments
 -- Phase 3 Fix: Added deduplication to prevent multiple enrollments per employee per year
 SELECT
+  '{{ var("scenario_id", "default") }}' AS scenario_id,
   employee_id,
   employee_ssn,
   event_type,

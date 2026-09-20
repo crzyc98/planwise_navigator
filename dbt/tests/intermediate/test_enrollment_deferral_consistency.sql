@@ -39,6 +39,7 @@ enrolled_employees_from_events AS (
         effective_date as enrollment_date
     FROM {{ ref('int_enrollment_events') }}
     WHERE LOWER(event_type) = 'enrollment'
+      AND scenario_id = '{{ var('scenario_id', 'default') }}'
       AND simulation_year <= {{ var('simulation_year') }}
 ),
 

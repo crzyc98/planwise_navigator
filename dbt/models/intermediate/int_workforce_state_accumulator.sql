@@ -288,7 +288,11 @@ prorated_without_events AS (
       ELSE w.employee_gross_compensation
     END AS prorated_annual_compensation
   FROM deduplicated_workforce w
-  WHERE w.employee_id NOT IN (SELECT employee_id FROM compensation_events)
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM compensation_events c
+    WHERE c.employee_id = w.employee_id
+  )
     AND w.employment_status = {{ status_active() }}
 ),
 

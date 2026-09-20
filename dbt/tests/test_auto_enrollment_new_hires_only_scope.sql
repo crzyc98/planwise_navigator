@@ -22,6 +22,7 @@ WITH auto_enrolled_employees AS (
     ee.effective_date
   FROM {{ ref('int_enrollment_events') }} ee
   WHERE ee.event_category = 'auto_enrollment'
+    AND ee.scenario_id = '{{ var('scenario_id', 'default') }}'
     AND ee.simulation_year = {{ var('simulation_year') }}
 ),
 

@@ -288,7 +288,6 @@ export default function VestingAnalysis() {
   };
 
   const handleRefresh = () => {
-    fetchWorkspaces();
     fetchSchedules();
     if (selectedWorkspaceId) {
       fetchScenarios(selectedWorkspaceId);
