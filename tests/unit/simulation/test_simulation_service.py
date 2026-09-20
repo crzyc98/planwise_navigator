@@ -299,14 +299,16 @@ class TestRunLocalLifecycle:
         def export(**kwargs):
             order.append("export")
 
-        with patch(
-            "planalign_api.services.simulation.service.archive_run",
-            side_effect=archive,
-        ), patch(
-            "planalign_api.services.simulation.service.export_run_excel",
-            side_effect=export,
-        ), patch(
-            "planalign_api.services.simulation.service.get_telemetry_service"
+        with (
+            patch(
+                "planalign_api.services.simulation.service.archive_run",
+                side_effect=archive,
+            ),
+            patch(
+                "planalign_api.services.simulation.service.export_run_excel_in_process",
+                side_effect=export,
+            ),
+            patch("planalign_api.services.simulation.service.get_telemetry_service"),
         ):
             asyncio.run(
                 service._finalize_successful_simulation(
@@ -332,7 +334,7 @@ class TestRunLocalLifecycle:
         # is slow for large populations and must run AFTER completed status
         # is reported, not before (feature 122 regression: it used to block
         # completion for minutes on large runs). It is offloaded to a worker
-        # thread so the event loop stays free to flush the completion frame.
+        # process so it cannot contend with the API event loop for the GIL.
         assert order == [
             "metadata",
             "provenance",

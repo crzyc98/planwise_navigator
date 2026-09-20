@@ -21,7 +21,8 @@ from ..database_path_resolver import (
 from .log_writer import SimulationLogWriter
 from .output_parser import SimulationOutputParser
 from .results_reader import read_results
-from .run_archiver import archive_failed_run, archive_run, export_run_excel
+from .run_archiver import archive_failed_run, archive_run
+from .excel_export_worker import export_run_excel_in_process
 from .run_execution import (
     active_process_registry as _active_process_registry,
     build_command,
@@ -291,16 +292,12 @@ class SimulationService:
         )
 
         # Excel export is a non-critical, potentially multi-minute artifact for
-        # large populations. Run it in a worker thread via asyncio.to_thread:
-        # the `await` yields the event loop so the just-queued "completed"
-        # telemetry frame is flushed to the WebSocket immediately (otherwise a
-        # synchronous export blocks the loop and the UI sits at the last
-        # progress value for the whole export), and so other API requests are
-        # served while it runs. Its failure must never flip an already-promoted,
+        # large populations. Run it in a separate process: openpyxl is
+        # CPU-bound Python, so a thread would still contend with the API event
+        # loop for the GIL. Its failure must never flip an already-promoted,
         # already-completed run to "failed", so swallow-and-log here.
         try:
-            await asyncio.to_thread(
-                export_run_excel,
+            await export_run_excel_in_process(
                 scenario_path=scenario_path,
                 scenario_name=scenario_name,
                 config=config,
