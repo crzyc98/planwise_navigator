@@ -1,6 +1,6 @@
 # Testing
 pytest==7.4.0
-pytest-cov==4.1.0
+pytest-cov==7.1.0
 pytest-mock==3.11.1
 pytest-xdist==3.3.1
 # Partitions the suite across CI runners (--splits/--group); see the sharded
