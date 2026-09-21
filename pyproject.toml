@@ -11,7 +11,7 @@ authors = [
 dependencies = [
     # Core runtime dependencies
     "duckdb==1.0.0",
-    "dbt-core==1.8.8",
+    "dbt-core==1.12.5",
     "dbt-duckdb==1.8.1",
     "pydantic==2.7.4",
     "python-dotenv>=1.0.0",
