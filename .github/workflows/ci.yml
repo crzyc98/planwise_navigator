@@ -95,6 +95,50 @@ jobs:
           ruff check .
           mypy planalign_orchestrator/ planalign_cli/ planalign_core/ --ignore-missing-imports
 
+  # Blocking gate over the resolved Python dependency graph (#705). Runs on
+  # every PR/push -- pip-audit is a dependency-resolve + vulnerability-DB
+  # lookup, comparable cost to `lint`, so there is no reason to gate it
+  # behind `full-ci`.
+  #
+  # Findings not covered by an --ignore-vuln below fail the build. Each
+  # ignored ID is a reviewed, temporary exception -- see "Approved Python
+  # Dependency Exceptions" in SECURITY.md for the advisory, exposure
+  # assessment, owner, and review date behind every entry. Do not add an
+  # --ignore-vuln here without a matching SECURITY.md entry.
+  python-dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install pip-audit
+        run: pip install pip-audit==2.10.1
+
+      - name: Audit runtime dependencies (requirements.txt)
+        run: |
+          pip-audit -r requirements.txt \
+            --ignore-vuln PYSEC-2024-203 \
+            --ignore-vuln PYSEC-2026-2440 \
+            --ignore-vuln PYSEC-2026-327 \
+            --ignore-vuln PYSEC-2026-2445 \
+            --ignore-vuln PYSEC-2026-1805 \
+            --ignore-vuln PYSEC-2026-3696 \
+            --ignore-vuln PYSEC-2026-3697 \
+            --ignore-vuln PYSEC-2026-3698 \
+            --ignore-vuln PYSEC-2026-3699 \
+            --ignore-vuln PYSEC-2026-3923
+
+      - name: Audit dev dependencies (requirements-dev.txt)
+        run: |
+          pip-audit -r requirements-dev.txt \
+            --ignore-vuln PYSEC-2024-48 \
+            --ignore-vuln PYSEC-2026-2120 \
+            --ignore-vuln PYSEC-2026-2121
+
   # The PR gate. Unit-only, no dbt runs, no database: ~4 minutes for ~2,180
   # tests. This is the check developers wait on, so keep it fast -- anything
   # needing a real dbt invocation belongs in `test` below, not here.
