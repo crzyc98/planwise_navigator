@@ -655,6 +655,7 @@ export default function ScenarioCostComparison() {
 
     return processedData.map(row => {
       const year = row.year;
+      if (year === null) return row;
       const augmented: Record<string, number | null> = { ...row };
 
       selectedScenarioIds.forEach(id => {

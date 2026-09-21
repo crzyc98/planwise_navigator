@@ -72,7 +72,7 @@ const KPICard = ({ title, value, subtext, icon: Icon, color, trend, loading }: R
             <div className="flex items-center mt-1">
               {trend === 'up' && <TrendingUp size={14} className="text-danger-ink mr-1" />}
               {trend === 'down' && <TrendingDown size={14} className="text-success-ink mr-1" />}
-              <span className={`text-xs font-medium ${TREND_COLOR_MAP[trend] || 'text-ink-muted'}`}>{subtext}</span>
+              <span className={`text-xs font-medium ${(trend && TREND_COLOR_MAP[trend]) || 'text-ink-muted'}`}>{subtext}</span>
             </div>
           )}
         </>

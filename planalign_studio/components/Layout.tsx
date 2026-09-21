@@ -178,7 +178,7 @@ const toFrontendWorkspace = (ws: ApiWorkspace | ApiWorkspaceSummary): Workspace 
     : 'Never',
   lastRunAt: 'last_run_at' in ws ? ws.last_run_at : null,
   created_at: ws.created_at,
-  updated_at: 'updated_at' in ws ? ws.updated_at : ws.created_at,
+  updated_at: ws.updated_at,
   base_config: 'base_config' in ws ? ws.base_config : {},
 });
 

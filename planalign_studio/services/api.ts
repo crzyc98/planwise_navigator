@@ -89,7 +89,7 @@ export interface WorkspaceListOptions {
 
 export interface WorkspaceCreate {
   name: string;
-  description?: string;
+  description?: string | null;
   base_config?: Record<string, any>;
   lifecycle?: 'active' | 'archived';
 }

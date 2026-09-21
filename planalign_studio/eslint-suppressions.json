@@ -1,0 +1,72 @@
+{
+  "components/AnalyticsDashboard.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 3
+    }
+  },
+  "components/CalibrationPanel.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "components/CensusAnalysis.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "components/DCPlanAnalytics.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 4
+    }
+  },
+  "components/DCPlanComparisonSection.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 8
+    }
+  },
+  "components/ForfeitureProjection.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "components/OptimizerPanel.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "components/ScenarioComparison.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 4
+    }
+  },
+  "components/ScenarioCostComparison.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "components/SimulationControl.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "components/VestingAnalysis.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "components/WinnersLosersTab.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 2
+    }
+  },
+  "components/config/ConfigContext.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 2
+    }
+  },
+  "components/imports/FieldMappingStep.tsx": {
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  }
+}

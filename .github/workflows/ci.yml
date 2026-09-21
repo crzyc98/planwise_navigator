@@ -33,7 +33,7 @@ env:
   PYTHON_VERSION: '3.11'
 
 jobs:
-  frontend-dependency-audit:
+  studio:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -51,6 +51,18 @@ jobs:
 
       - name: Audit frontend dependencies
         run: npm run audit:dependencies --prefix planalign_studio
+
+      - name: Typecheck frontend
+        run: npm run typecheck --prefix planalign_studio
+
+      - name: Lint frontend
+        run: npm run lint --prefix planalign_studio
+
+      - name: Test frontend
+        run: npm test --prefix planalign_studio
+
+      - name: Build frontend
+        run: npm run build --prefix planalign_studio
 
   lint:
     runs-on: ubuntu-latest
