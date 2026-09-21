@@ -16,6 +16,10 @@
     "moduleDetection": "force",
     "allowJs": true,
     "jsx": "react-jsx",
+    "strict": true,
+    // Recharts' callback props are narrower than its ValueType declarations.
+    // Keep null/implicit-any strictness while those upstream types are broad.
+    "strictFunctionTypes": false,
     "paths": {
       "@/*": [
         "./*"
