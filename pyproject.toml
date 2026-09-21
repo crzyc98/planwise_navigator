@@ -62,7 +62,7 @@ dev = [
 
     # Code Quality
     "ruff==0.4.3",
-    "black==23.9.1",
+    "black==26.5.1",
     "isort==5.12.0",
     "mypy==1.5.1",
     # Type stubs for the CI mypy lint job (see requirements-dev.txt / #333)
