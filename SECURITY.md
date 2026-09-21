@@ -87,7 +87,7 @@ Security-relevant properties of the simulation engine itself:
 
 ### Approved Python Dependency Exceptions
 
-Temporary `pip-audit` exceptions, tracked in [#705](https://github.com/crzyc98/planwise_navigator/issues/705). All are currently blocked by the dbt-core 1.8.8 engine pin (see above) except `black`, a dev/build-only tooling bump deferred rather than blocked. Owner: crzyc98. Review by: 2026-12-01, or whenever the dbt-core 1.9.x migration (#705 phase 2) lands, whichever is first.
+Temporary `pip-audit` exceptions, tracked in [#705](https://github.com/crzyc98/planwise_navigator/issues/705). All are currently blocked by the dbt-core 1.8.8 engine pin (see above). Owner: crzyc98. Review by: 2026-12-01, or whenever the dbt-core 1.9.x migration (#705 phase 2) lands, whichever is first.
 
 `pytest`/`pytest-cov`/`pytest-mock`/`pytest-xdist`/`pytest-split` and `mkdocs`/`mkdocs-material`/`pymdown-extensions` were bumped directly (2026-09-21) — no longer exceptions. Verified: full fast suite (2,776 tests) plus the `--splits`/`--group`/`--cov` flags CI's sharded job relies on all pass unchanged under pytest 9.1.1.
 
@@ -100,7 +100,7 @@ Temporary `pip-audit` exceptions, tracked in [#705](https://github.com/crzyc98/p
 | PYSEC-2026-1805 | protobuf 4.25.9 | 5.29.6 / 6.33.5 | Recursion-depth bypass DoS in `json_format.ParseDict()` for nested `Any` messages. PlanAlign is on-premises with zero cloud dependencies (see Deployment Security Model above); nothing parses untrusted protobuf/JSON over a network boundary. Blocked: dbt-core 1.8.8 caps `protobuf<5`; fixed at dbt-core 1.9.11 (`protobuf<7,>=6`). |
 | PYSEC-2026-3696, PYSEC-2026-3697, PYSEC-2026-3698, PYSEC-2026-3699 | sqlparse 0.5.5 | 0.6.0 | Code-gen string-breakout and formatting-filter issues in sqlparse's Python/PHP export modes and statement splitting. PlanAlign never calls those export modes; sqlparse is used internally by dbt to parse first-party SQL. Blocked: **no current dbt-core release allows sqlparse 0.6.0** — every checked line (1.8.x, 1.9.x, 1.10.x) caps `sqlparse<0.6.0`, and 1.10.x tightens further to `<0.5.5`. This is an upstream dbt limitation, not something we can resolve locally. |
 | PYSEC-2026-3923 | sqlparse 0.5.5 | 0.6.0 | Quadratic-CPU DoS in `ReindentFilter` on attacker-controlled SQL near the grouping-token cap. All SQL processed here is first-party dbt project code (see the sqlparse `MAX_GROUPING_TOKENS` auto-patch in `planalign_orchestrator`), not attacker-controlled. Blocked: same upstream limitation as above. |
-| PYSEC-2024-48, PYSEC-2026-2120, PYSEC-2026-2121 | black 23.9.1 | 26.3.1 | Regex/formatting DoS issues in black's own source-processing. Dev/CI tooling only. Deferred: black's fix requires jumping 23→26, and black upgrades commonly change default formatting rules, which would reformat the entire codebase as a side effect — that belongs in its own reviewed PR, not bundled into a dependency-audit gate. |
+| PYSEC-2024-48, PYSEC-2026-2120, PYSEC-2026-2121 | black 23.9.1 | 26.3.1 | Regex/formatting DoS issues in black's own source-processing. Dev/CI tooling only. Blocked, not just deferred: black first requires `pathspec>=1.0.0` at 26.3.0 (the same release that fixes PYSEC-2026-2120), but dbt-core caps `pathspec<0.13,>=0.9` in every line checked (1.8.x, 1.9.x, 1.10.x) — installing black 26.3.1 alongside the pinned dbt-core is an unsatisfiable dependency graph today, independent of the reformat-scope concern. Re-check the pathspec cap when phase 2 lands; if dbt-core still caps it, this stays an exception past phase 2. |
 
 ## Scope
 
