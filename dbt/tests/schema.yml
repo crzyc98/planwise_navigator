@@ -5,12 +5,13 @@ version: 2
 # Purpose: Configure behavior for all validation tests converted from models
 # These tests validate data quality, business logic, and compliance without
 # materializing tables (90% faster than previous validation models)
-
-data_tests:
-  # Global defaults for all tests
-  +severity: warn  # Don't fail pipeline on validation errors (allows pipeline to complete)
-  +store_failures: true  # Store failure details for debugging in test_failures schema
-  +schema: test_failures  # Schema where failed test results are stored
+#
+# The actual config (+severity: warn, +store_failures: true,
+# +schema: test_failures) lives in dbt_project.yml's `data_tests:` block --
+# moved there (#705 phase 2, 2026-09-21) because dbt-core 1.9 rejects a
+# top-level `data_tests:` key here as directory config; it's only valid as
+# a list of test definitions in a schema.yml. dbt_project.yml is the only
+# supported location for project-wide data test defaults.
 
 # Test Naming Convention:
 #   Original Model: dq_xxx.sql → Test: test_xxx.sql
