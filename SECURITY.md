@@ -83,6 +83,24 @@ Security-relevant properties of the simulation engine itself:
 - Core storage/transform versions are intentionally pinned (DuckDB 1.0.0, dbt-core 1.8.8, dbt-duckdb 1.8.1, Pydantic 2.7.4) — upgrade deliberately, not opportunistically.
 - The Studio frontend bundles **all** assets locally via Vite. Never add CDN `<script>`/`<link>` tags or import maps to `index.html` — this is both a security and a corporate-firewall requirement.
 - Report vulnerable-dependency findings through the same private channel as code vulnerabilities.
+- A `pip-audit` CI gate (`python-dependency-audit` job, `.github/workflows/ci.yml`) runs on every PR/push against `requirements.txt` and `requirements-dev.txt`. It fails the build on any advisory not explicitly listed below — new findings must be remediated or added here with justification, never silently ignored in CI.
+
+### Approved Python Dependency Exceptions
+
+Temporary `pip-audit` exceptions, tracked in [#705](https://github.com/crzyc98/planwise_navigator/issues/705). All are currently blocked by the dbt-core 1.8.8 engine pin (see above) except `black`, a dev/build-only tooling bump deferred rather than blocked. Owner: crzyc98. Review by: 2026-12-01, or whenever the dbt-core 1.9.x migration (#705 phase 2) lands, whichever is first.
+
+`pytest`/`pytest-cov`/`pytest-mock`/`pytest-xdist`/`pytest-split` and `mkdocs`/`mkdocs-material`/`pymdown-extensions` were bumped directly (2026-09-21) — no longer exceptions. Verified: full fast suite (2,776 tests) plus the `--splits`/`--group`/`--cov` flags CI's sharded job relies on all pass unchanged under pytest 9.1.1.
+
+| Advisory | Package | Fix version | Exposure assessment |
+|---|---|---|---|
+| PYSEC-2024-203 | duckdb 1.0.0 | 1.1.0 | `sniff_csv` can read the filesystem even with `enable_external_access=false`. PlanAlign never sets that flag or sandboxes untrusted SQL — all SQL is first-party dbt project code against trusted local census data. Blocked: dbt-duckdb declares no upper bound on duckdb, but the engine version is intentionally pinned pending simulation-parity validation (#705 phase 2). |
+| PYSEC-2026-2440 | dbt-common 1.10.0 | 1.34.2 / 1.37.3 | Path traversal in `safe_extract()`'s tarball handling, used by `dbt deps` when unpacking package tarballs. `packages.yml` in this repo names a small, first-party-controlled package set — no untrusted tarball source. Blocked: dbt-core 1.8.8 caps `dbt-common<1.11.0`; the fix versions require dbt-core 1.9.x+. |
+| PYSEC-2026-327 | deepdiff 7.0.1 | 8.6.1 | Class-pollution in `Delta`'s constructor, chainable to DoS/RCE. PlanAlign code never calls DeepDiff's `Delta`/diff-apply APIs on untrusted input; it's pulled in transitively by dbt-common. Highest-severity item in this list — prioritize in phase 2. Blocked: transitively capped by dbt-common's `deepdiff<8.0` under dbt-core 1.8.8. |
+| PYSEC-2026-2445 | deepdiff 7.0.1 | 8.6.2 | Memory-exhaustion DoS via `SAFE_TO_IMPORT` pickle unpickling. Not reachable — PlanAlign never deserializes DeepDiff delta pickles from untrusted sources. Blocked: same as PYSEC-2026-327. |
+| PYSEC-2026-1805 | protobuf 4.25.9 | 5.29.6 / 6.33.5 | Recursion-depth bypass DoS in `json_format.ParseDict()` for nested `Any` messages. PlanAlign is on-premises with zero cloud dependencies (see Deployment Security Model above); nothing parses untrusted protobuf/JSON over a network boundary. Blocked: dbt-core 1.8.8 caps `protobuf<5`; fixed at dbt-core 1.9.11 (`protobuf<7,>=6`). |
+| PYSEC-2026-3696, PYSEC-2026-3697, PYSEC-2026-3698, PYSEC-2026-3699 | sqlparse 0.5.5 | 0.6.0 | Code-gen string-breakout and formatting-filter issues in sqlparse's Python/PHP export modes and statement splitting. PlanAlign never calls those export modes; sqlparse is used internally by dbt to parse first-party SQL. Blocked: **no current dbt-core release allows sqlparse 0.6.0** — every checked line (1.8.x, 1.9.x, 1.10.x) caps `sqlparse<0.6.0`, and 1.10.x tightens further to `<0.5.5`. This is an upstream dbt limitation, not something we can resolve locally. |
+| PYSEC-2026-3923 | sqlparse 0.5.5 | 0.6.0 | Quadratic-CPU DoS in `ReindentFilter` on attacker-controlled SQL near the grouping-token cap. All SQL processed here is first-party dbt project code (see the sqlparse `MAX_GROUPING_TOKENS` auto-patch in `planalign_orchestrator`), not attacker-controlled. Blocked: same upstream limitation as above. |
+| PYSEC-2024-48, PYSEC-2026-2120, PYSEC-2026-2121 | black 23.9.1 | 26.3.1 | Regex/formatting DoS issues in black's own source-processing. Dev/CI tooling only. Deferred: black's fix requires jumping 23→26, and black upgrades commonly change default formatting rules, which would reformat the entire codebase as a side effect — that belongs in its own reviewed PR, not bundled into a dependency-audit gate. |
 
 ## Scope
 

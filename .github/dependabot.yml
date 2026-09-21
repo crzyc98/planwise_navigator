@@ -19,9 +19,20 @@ updates:
       interval: weekly
       day: monday
     groups:
+      # Excludes the intentionally-pinned engine packages (SECURITY.md
+      # "Dependencies & Supply Chain") so a dbt/DuckDB/Pydantic bump never
+      # rides along in an otherwise-routine grouped PR. Each still gets its
+      # own individual Dependabot PR for any update type -- it's isolated,
+      # not silenced -- so it gets deliberate review and, per CLAUDE.md,
+      # simulation-parity validation before merge (#705).
       python-minor-and-patch:
         patterns:
           - "*"
+        exclude-patterns:
+          - "duckdb"
+          - "dbt-core"
+          - "dbt-duckdb"
+          - "pydantic"
         update-types:
           - minor
           - patch

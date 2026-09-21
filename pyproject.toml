@@ -51,11 +51,13 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     # Testing
-    "pytest==7.4.0",
-    "pytest-cov==4.1.0",
-    "pytest-mock==3.11.1",
-    "pytest-xdist==3.3.1",
-    "pytest-split==0.9.0",
+    # pytest 9.1.1 (was 7.4.0) fixes PYSEC-2026-1845; plugins bumped
+    # alongside it for compatibility (#705) -- see requirements-dev.txt.
+    "pytest==9.1.1",
+    "pytest-cov==7.1.0",
+    "pytest-mock==3.15.1",
+    "pytest-xdist==3.8.0",
+    "pytest-split==0.11.0",
     "hypothesis>=6.0.0",
     "factory-boy==3.3.0",
     "Faker==19.3.0",
@@ -70,10 +72,16 @@ dev = [
     "pylint==3.0.2",
     "flake8==6.1.0",
     "pre-commit==3.3.3",
+    # Dependency vulnerability scanning (#705)
+    "pip-audit==2.10.1",
 
     # Docs / Dev tools
-    "mkdocs==1.5.2",
-    "mkdocs-material==9.3.1",
+    # mkdocs-material 9.7.7 (was 9.3.1) fixes PYSEC-2026-3864 and requires
+    # mkdocs>=1.6; pymdown-extensions pinned explicitly (was transitive) at
+    # its own fix version to clear PYSEC-2026-3609/PYSEC-2026-3654 (#705).
+    "mkdocs==1.6.1",
+    "mkdocs-material==9.7.7",
+    "pymdown-extensions==11.0.1",
     "mkdocstrings-python==1.5.0",
     "jupyter==1.0.0",
     "ipython==8.14.0",
