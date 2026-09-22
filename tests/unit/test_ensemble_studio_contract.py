@@ -19,9 +19,8 @@ def test_ensemble_panel_preserves_distribution_and_experimental_semantics() -> N
         "p90",
         "is_sufficient",
         "Threshold-exceedance risk",
-        "[EXPERIMENTAL] Variance attribution",
-        "not a ranked decomposition",
-        "not included in client-facing exports",
+        "Variance attribution (diagnostic)",
+        "ranked by share within each metric and year",
         "anchor-averaged conditional variance shares",
     ):
         assert text in source

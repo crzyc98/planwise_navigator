@@ -3469,3 +3469,93 @@ export async function getOptimizerCandidate(
   );
   return handleResponse<Candidate>(response);
 }
+
+// ---------------------------------------------------------------------------
+// Ensembles (#554) -- Studio band charts over a seed-ensemble aggregate DB.
+// ---------------------------------------------------------------------------
+
+export interface EnsembleDistributionRow {
+  ensemble_id: string;
+  scenario_id: string;
+  metric: string;
+  simulation_year: number;
+  p10: number | null;
+  p50: number | null;
+  p90: number | null;
+  n_seeds: number;
+  n_seeds_requested: number;
+  is_sufficient: boolean;
+}
+
+export interface EnsembleRiskStatement {
+  metric: string;
+  threshold_value: number;
+  simulation_year: number | null;
+  exceedance_probability: number | null;
+  n_seeds: number;
+  is_evaluable: boolean;
+  reason?: string | null;
+}
+
+export interface EnsembleAttributionRow {
+  metric: string;
+  simulation_year: number;
+  subsystem: string;
+  variance_share: number | null;
+  ci_low: number | null;
+  ci_high: number | null;
+  stochastic_status: 'stochastic' | 'not_stochastic';
+}
+
+export interface EnsembleDatabaseSummary {
+  database_path: string;
+  ensemble_ids: string[];
+  scenario_ids: string[];
+  metrics: string[];
+  min_simulation_year: number | null;
+  max_simulation_year: number | null;
+  modified_at: number;
+  size_bytes: number;
+}
+
+/** List ensemble databases under a scan root (defaults to the server's configured root). */
+export async function discoverEnsembleDatabases(root?: string): Promise<EnsembleDatabaseSummary[]> {
+  const params = new URLSearchParams();
+  if (root) params.set('root', root);
+  const query = params.toString();
+  const response = await fetchWithAuth(`${API_BASE}/api/ensembles/discover${query ? `?${query}` : ''}`);
+  return handleResponse<EnsembleDatabaseSummary[]>(response);
+}
+
+export async function getEnsembleDistributions(
+  database: string,
+  scenarioId: string,
+  ensembleId: string
+): Promise<EnsembleDistributionRow[]> {
+  const params = new URLSearchParams({ database, ensemble_scenario_id: scenarioId, ensemble_id: ensembleId });
+  const response = await fetchWithAuth(`${API_BASE}/api/ensembles/distributions?${params}`);
+  return handleResponse<EnsembleDistributionRow[]>(response);
+}
+
+/** Thresholds aren't persisted anywhere -- evaluated on demand against stored seed evidence. */
+export async function getEnsembleRisk(
+  database: string,
+  scenarioId: string,
+  ensembleId: string,
+  thresholds: { metric: string; value: number }[]
+): Promise<EnsembleRiskStatement[]> {
+  const params = new URLSearchParams({ database, ensemble_scenario_id: scenarioId, ensemble_id: ensembleId });
+  for (const threshold of thresholds) params.append('threshold', `${threshold.metric}:${threshold.value}`);
+  const response = await fetchWithAuth(`${API_BASE}/api/ensembles/risk?${params}`);
+  return handleResponse<EnsembleRiskStatement[]>(response);
+}
+
+export async function getEnsembleAttribution(
+  database: string,
+  scenarioId: string,
+  ensembleId: string
+): Promise<EnsembleAttributionRow[]> {
+  const params = new URLSearchParams({ database, ensemble_scenario_id: scenarioId, ensemble_id: ensembleId });
+  const response = await fetchWithAuth(`${API_BASE}/api/ensembles/attribution?${params}`);
+  return handleResponse<EnsembleAttributionRow[]>(response);
+}

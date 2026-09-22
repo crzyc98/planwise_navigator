@@ -57,6 +57,9 @@ class APISettings(BaseSettings):
         default_factory=lambda: Path("config/simulation_config.yaml")
     )
 
+    # Default scan root for the Studio ensemble-database picker
+    ensembles_root: Path = Field(default_factory=lambda: Path("var/ensembles"))
+
     # Git remote sync policy (SSRF / outbound-network control)
     # Allowed URL schemes for sync remotes; widen only deliberately.
     git_remote_allowed_schemes: List[str] = ["https", "ssh"]

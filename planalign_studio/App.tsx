@@ -20,6 +20,7 @@ import WinnersLosersTab from './components/WinnersLosersTab';
 import DataImportWizard from './components/DataImportWizard';
 import CalibrationPanel from './components/CalibrationPanel';
 import OptimizerPanel from './components/OptimizerPanel';
+import EnsemblesPage from './components/EnsemblesPage';
 import RunProvenanceReport from './components/RunProvenanceReport';
 import EmployeeTimelinePage from './components/timeline/EmployeeTimelinePage';
 import { getWorkspace, listWorkspaces } from './services/api';
@@ -152,6 +153,7 @@ export default function App() {
             <Route path="config" element={<ConfigStudio />} />
             <Route path="calibrate" element={<CalibrationPanel />} />
             <Route path="optimize" element={<OptimizerPanel />} />
+            <Route path="ensembles" element={<EnsemblesPage />} />
             <Route path="config/:scenarioId" element={<ConfigStudio />} />
             <Route path="analytics" element={<AnalyticsDashboard />} />
             <Route path="analytics/compare" element={<ScenarioComparison />} />
