@@ -42,6 +42,7 @@ from planalign_api.services.provenance.capture import config_fingerprint, sha256
 
 from ..config import APISettings, get_settings
 from ..errors import sanitize_job_error
+from ..models.scenario import Scenario
 from ..services.current_result import CurrentResultIntegrityError
 from ..storage.workspace_storage import WorkspaceStorage
 
@@ -386,10 +387,10 @@ def _matching_source(
     start_year: int,
     end_year: int,
 ) -> tuple[str, str, Path]:
-    scenarios = (
+    scenarios: List[Optional[Scenario]] = (
         [storage.get_scenario(workspace_id, scenario_id)]
         if scenario_id
-        else storage.list_scenarios(workspace_id)
+        else list(storage.list_scenarios(workspace_id))
     )
     for scenario in scenarios:
         if scenario is None:

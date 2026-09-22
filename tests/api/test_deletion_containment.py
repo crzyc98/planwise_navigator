@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import shutil
 import json
 import uuid
@@ -80,16 +79,12 @@ def env(tmp_path, monkeypatch):
 
 
 def _delete_workspace(env, workspace_id):
-    return asyncio.run(
-        workspaces_router.delete_workspace(workspace_id, storage=env["storage"])
-    )
+    return workspaces_router.delete_workspace(workspace_id, storage=env["storage"])
 
 
 def _delete_scenario(env, workspace_id, scenario_id):
-    return asyncio.run(
-        scenarios_router.delete_scenario(
-            workspace_id, scenario_id, storage=env["storage"]
-        )
+    return scenarios_router.delete_scenario(
+        workspace_id, scenario_id, storage=env["storage"]
     )
 
 

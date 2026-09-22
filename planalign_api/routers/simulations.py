@@ -142,7 +142,7 @@ def _find_scenario_and_workspace(
 
 
 @router.post("/{scenario_id}/run", response_model=SimulationRun)
-async def start_simulation(
+def start_simulation(
     scenario_id: str,
     request: RunRequest = RunRequest(),
     background_tasks: BackgroundTasks = BackgroundTasks(),
@@ -229,7 +229,7 @@ async def start_simulation(
 
 
 @router.get("/{scenario_id}/run/status", response_model=SimulationRun)
-async def get_run_status(
+def get_run_status(
     scenario_id: str,
     storage: WorkspaceStorage = Depends(get_storage),
 ) -> SimulationRun:
@@ -270,7 +270,7 @@ async def get_run_status(
 
 
 @router.get("/{scenario_id}/run/telemetry", response_model=RunTelemetryResponse)
-async def get_run_telemetry(
+def get_run_telemetry(
     scenario_id: str,
     storage: WorkspaceStorage = Depends(get_storage),
 ) -> RunTelemetryResponse:
@@ -374,7 +374,7 @@ async def cancel_simulation(
 
 
 @router.post("/{scenario_id}/run/reset")
-async def reset_simulation_status(
+def reset_simulation_status(
     scenario_id: str,
     storage: WorkspaceStorage = Depends(get_storage),
 ) -> Dict[str, Any]:
@@ -414,7 +414,7 @@ async def reset_simulation_status(
 
 
 @router.get("/{scenario_id}/runs", response_model=List[RunSummary])
-async def list_runs(
+def list_runs(
     scenario_id: str,
     storage: WorkspaceStorage = Depends(get_storage),
 ) -> List[RunSummary]:
@@ -489,7 +489,7 @@ async def list_runs(
 
 
 @router.get("/{scenario_id}/runs/{run_id}", response_model=RunDetails)
-async def get_run(
+def get_run(
     scenario_id: str,
     run_id: str,
     storage: WorkspaceStorage = Depends(get_storage),
@@ -596,7 +596,7 @@ async def get_run(
 
 
 @router.get("/{scenario_id}/runs/{run_id}/logs", response_model=LogPage)
-async def get_run_logs(
+def get_run_logs(
     scenario_id: str,
     run_id: str,
     page: int = Query(default=1, ge=1),
@@ -669,7 +669,7 @@ async def get_run_logs(
 
 
 @router.get("/{scenario_id}/runs/{run_id}/health", response_model=RunHealthReport)
-async def get_run_health(
+def get_run_health(
     scenario_id: str,
     run_id: str,
     storage: WorkspaceStorage = Depends(get_storage),
@@ -700,7 +700,7 @@ async def get_run_health(
 
 
 @router.get("/{scenario_id}/run-health", response_model=RunHealthReport)
-async def get_scenario_run_health(
+def get_scenario_run_health(
     scenario_id: str,
     storage: WorkspaceStorage = Depends(get_storage),
 ) -> RunHealthReport:
@@ -780,7 +780,7 @@ def _parse_log_file(log_file: Path) -> List[SimulationLogLine]:
 
 
 @router.get("/{scenario_id}/results", response_model=SimulationResults)
-async def get_results(
+def get_results(
     scenario_id: str,
     population: str = Query("all"),
     storage: WorkspaceStorage = Depends(get_storage),
@@ -819,7 +819,7 @@ async def get_results(
 
 
 @router.get("/{scenario_id}/results/export")
-async def export_results(
+def export_results(
     scenario_id: str,
     format: str = "excel",
     storage: WorkspaceStorage = Depends(get_storage),
@@ -867,7 +867,7 @@ async def export_results(
 
 
 @router.get("/active", summary="Get active simulation runs")
-async def get_active_simulations():
+def get_active_simulations():
     """Return all currently active simulation runs for page-refresh recovery."""
     return {"active_runs": get_active_runs()}
 
@@ -941,7 +941,7 @@ def _list_artifacts(scenario_path: Path) -> List[Artifact]:
 
 
 @router.get("/{scenario_id}/details", response_model=RunDetails)
-async def get_run_details(
+def get_run_details(
     scenario_id: str,
     storage: WorkspaceStorage = Depends(get_storage),
 ) -> RunDetails:
@@ -1096,7 +1096,7 @@ async def get_run_details(
 
 
 @router.get("/{scenario_id}/artifacts/{artifact_path:path}")
-async def download_artifact(
+def download_artifact(
     scenario_id: str,
     artifact_path: str,
     storage: WorkspaceStorage = Depends(get_storage),

@@ -326,7 +326,7 @@ async def upload_file(
     response_model=ImportSession,
     summary="Select Excel sheet",
 )
-async def select_sheet(
+def select_sheet(
     workspace_id: str,
     import_id: str,
     body: SheetSelectRequest,
@@ -385,7 +385,7 @@ async def select_sheet(
     response_model=MappingSaveResponse,
     summary="Save field mapping configuration",
 )
-async def save_mapping(
+def save_mapping(
     workspace_id: str,
     import_id: str,
     body: MappingSaveRequest,

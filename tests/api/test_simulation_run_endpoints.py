@@ -1,6 +1,5 @@
 """Security and behavior tests for the run-details and run-log endpoints."""
 
-import asyncio
 import json
 import os
 import shutil
@@ -46,7 +45,7 @@ def run_storage(tmp_path, monkeypatch):
 
 
 def _call_get_run(storage, run_id):
-    return asyncio.run(simulations.get_run("scenario-1", run_id, storage))
+    return simulations.get_run("scenario-1", run_id, storage)
 
 
 def _call_get_run_logs(storage, run_id):
@@ -54,15 +53,13 @@ def _call_get_run_logs(storage, run_id):
 
 
 def _call_get_run_logs_severity(storage, run_id, *, severity):
-    return asyncio.run(
-        simulations.get_run_logs(
-            "scenario-1",
-            run_id,
-            page=1,
-            page_size=200,
-            severity=severity,
-            storage=storage,
-        )
+    return simulations.get_run_logs(
+        "scenario-1",
+        run_id,
+        page=1,
+        page_size=200,
+        severity=severity,
+        storage=storage,
     )
 
 

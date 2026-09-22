@@ -33,7 +33,7 @@ def get_ndt_service(
     "/{workspace_id}/analytics/ndt/available-years",
     response_model=AvailableYearsResponse,
 )
-async def get_ndt_available_years(
+def get_ndt_available_years(
     workspace_id: str,
     scenario_id: str = Query(..., description="Scenario ID"),
     storage: WorkspaceStorage = Depends(get_storage),
@@ -61,7 +61,7 @@ async def get_ndt_available_years(
     "/{workspace_id}/analytics/ndt/acp",
     response_model=ACPTestResponse,
 )
-async def run_acp_test(
+def run_acp_test(
     workspace_id: str,
     scenarios: str = Query(..., description="Comma-separated scenario IDs"),
     year: int = Query(..., description="Simulation year to analyze"),
@@ -125,7 +125,7 @@ async def run_acp_test(
     "/{workspace_id}/analytics/ndt/401a4",
     response_model=Section401a4TestResponse,
 )
-async def run_401a4_test(
+def run_401a4_test(
     workspace_id: str,
     scenarios: str = Query(..., description="Comma-separated scenario IDs"),
     year: int = Query(..., description="Simulation year to analyze"),
@@ -189,7 +189,7 @@ async def run_401a4_test(
     "/{workspace_id}/analytics/ndt/415",
     response_model=Section415TestResponse,
 )
-async def run_415_test(
+def run_415_test(
     workspace_id: str,
     scenarios: str = Query(..., description="Comma-separated scenario IDs"),
     year: int = Query(..., description="Simulation year to analyze"),
@@ -253,7 +253,7 @@ async def run_415_test(
     "/{workspace_id}/analytics/ndt/adp",
     response_model=ADPTestResponse,
 )
-async def run_adp_test(
+def run_adp_test(
     workspace_id: str,
     scenarios: str = Query(..., description="Comma-separated scenario IDs"),
     year: int = Query(..., description="Simulation year to analyze"),

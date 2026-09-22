@@ -32,7 +32,7 @@ def get_storage_usage(workspaces_root: Path) -> tuple[float, int, int]:
 
 
 @router.get("/health", response_model=HealthResponse)
-async def health_check(settings: APISettings = Depends(get_settings)) -> HealthResponse:
+def health_check(settings: APISettings = Depends(get_settings)) -> HealthResponse:
     """
     Check system health.
 
@@ -79,7 +79,7 @@ async def health_check(settings: APISettings = Depends(get_settings)) -> HealthR
     response_model=SystemStatus,
     dependencies=[Depends(require_api_token)],
 )
-async def system_status(settings: APISettings = Depends(get_settings)) -> SystemStatus:
+def system_status(settings: APISettings = Depends(get_settings)) -> SystemStatus:
     """
     Get detailed system status.
 
@@ -123,7 +123,7 @@ async def system_status(settings: APISettings = Depends(get_settings)) -> System
     response_model=Dict[str, Any],
     dependencies=[Depends(require_api_token)],
 )
-async def get_default_config(
+def get_default_config(
     settings: APISettings = Depends(get_settings),
 ) -> Dict[str, Any]:
     """

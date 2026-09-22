@@ -39,7 +39,7 @@ def get_analytics_service(
     "/{workspace_id}/scenarios/{scenario_id}/analytics/dc-plan",
     response_model=DCPlanAnalytics,
 )
-async def get_dc_plan_analytics(
+def get_dc_plan_analytics(
     workspace_id: str,
     scenario_id: str,
     active_only: bool = Query(
@@ -124,7 +124,7 @@ async def get_dc_plan_analytics(
     "/{workspace_id}/analytics/dc-plan/compare",
     response_model=DCPlanComparisonResponse,
 )
-async def compare_dc_plan_analytics(
+def compare_dc_plan_analytics(
     workspace_id: str,
     scenarios: str = Query(
         ..., description=f"Comma-separated scenario IDs (max {MAX_SCENARIO_COMPARISON})"
@@ -235,7 +235,7 @@ async def compare_dc_plan_analytics(
     "/{workspace_id}/analytics/dc-plan/grandfathered-cost",
     response_model=GrandfatheredCostComparisonResponse,
 )
-async def compare_grandfathered_cost(
+def compare_grandfathered_cost(
     workspace_id: str,
     baseline_scenario: str = Query(...),
     scenarios: str = Query(...),
@@ -310,7 +310,7 @@ def get_winners_losers_service(
     "/{workspace_id}/analytics/winners-losers",
     response_model=WinnersLosersResponse,
 )
-async def get_winners_losers(
+def get_winners_losers(
     workspace_id: str,
     plan_a: str = Query(..., description="Scenario ID for Plan A (reference)"),
     plan_b: str = Query(..., description="Scenario ID for Plan B (alternative)"),

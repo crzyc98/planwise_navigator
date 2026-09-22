@@ -1,6 +1,5 @@
 """Tests for simulation artifact downloads."""
 
-import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -33,7 +32,7 @@ def test_download_artifact_rejects_path_traversal(artifact_storage, tmp_path):
     (tmp_path / "workspace" / "scenarios" / "secret").write_text("secret")
 
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(simulations.download_artifact("scenario-1", "../secret", storage))
+        simulations.download_artifact("scenario-1", "../secret", storage)
 
     assert exc_info.value.status_code == 404
     assert exc_info.value.detail == "Artifact ../secret not found"
@@ -46,8 +45,8 @@ def test_download_artifact_returns_file_within_scenario(artifact_storage):
     artifact_path.parent.mkdir()
     artifact_path.write_text("metric,value\nheadcount,100\n")
 
-    response = asyncio.run(
-        simulations.download_artifact("scenario-1", "reports/summary.csv", storage)
+    response = simulations.download_artifact(
+        "scenario-1", "reports/summary.csv", storage
     )
 
     assert response.path == artifact_path.resolve()

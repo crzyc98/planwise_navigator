@@ -17,7 +17,7 @@ _service = TemplateService()
     summary="List templates",
     description="List all available pre-configured scenario templates",
 )
-async def list_templates() -> TemplateListResponse:
+def list_templates() -> TemplateListResponse:
     """List all available templates."""
     return TemplateListResponse(templates=_service.list_templates())
 
@@ -28,7 +28,7 @@ async def list_templates() -> TemplateListResponse:
     summary="Get template",
     description="Get a specific template by ID",
 )
-async def get_template(template_id: str) -> Template:
+def get_template(template_id: str) -> Template:
     """Get a specific template by ID."""
     template = _service.get_template(template_id)
     if not template:

@@ -186,7 +186,7 @@ async def upload_census_file(
     summary="Validate file path",
     description="Validate a file path and return metadata if valid",
 )
-async def validate_file_path(
+def validate_file_path(
     workspace_id: str,
     request: FileValidationRequest,
 ) -> FileValidationResponse:
@@ -210,7 +210,7 @@ async def validate_file_path(
     summary="Set census path",
     description="Assign an existing Parquet file as the workspace census data source",
 )
-async def set_census_path(
+def set_census_path(
     workspace_id: str,
     request: SetCensusPathRequest,
 ) -> SetCensusPathResponse:
@@ -245,7 +245,7 @@ async def set_census_path(
     summary="Analyze age distribution from census",
     description="Analyze the age distribution of employees in a census file to match hiring patterns",
 )
-async def analyze_age_distribution(
+def analyze_age_distribution(
     workspace_id: str,
     request: FileValidationRequest,
 ) -> dict:
@@ -280,7 +280,7 @@ async def analyze_age_distribution(
         "when the census file lacks a scheduled hours column."
     ),
 )
-async def analyze_part_time_pct(
+def analyze_part_time_pct(
     workspace_id: str,
     request: FileValidationRequest,
 ) -> PartTimePctResponse:
@@ -314,7 +314,7 @@ async def analyze_part_time_pct(
         "Use lookback_years=0 to analyze all employees."
     ),
 )
-async def analyze_compensation_by_level(
+def analyze_compensation_by_level(
     workspace_id: str,
     request: CompensationAnalysisRequest,
 ) -> dict:
@@ -352,7 +352,7 @@ async def analyze_compensation_by_level(
         "average compensation growth."
     ),
 )
-async def solve_compensation_growth(
+def solve_compensation_growth(
     workspace_id: str,
     request: CompensationSolverRequest,
 ) -> CompensationSolverResponse:
