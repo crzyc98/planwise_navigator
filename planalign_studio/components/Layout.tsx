@@ -81,6 +81,7 @@ const NAV_SECTIONS: ReadonlyArray<{
       { to: '/simulate', icon: <PlayCircle size={20} />, label: 'Simulate' },
       { to: '/batch', icon: <Database size={20} />, label: 'Batch Processing' },
       { to: '/timeline', icon: <Users size={20} />, label: 'Timeline' },
+      { to: '/events', icon: <Search size={20} />, label: 'Event Audit' },
       { to: '/calibrate', icon: <SlidersHorizontal size={20} />, label: 'Calibration' },
       { to: '/optimize', icon: <Target size={20} />, label: 'Optimizer' },
       { to: '/ensembles', icon: <Shuffle size={20} />, label: 'Ensembles' },

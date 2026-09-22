@@ -23,6 +23,7 @@ import OptimizerPanel from './components/OptimizerPanel';
 import EnsemblesPage from './components/EnsemblesPage';
 import RunProvenanceReport from './components/RunProvenanceReport';
 import EmployeeTimelinePage from './components/timeline/EmployeeTimelinePage';
+import EventExplorerPage from './components/events/EventExplorerPage';
 import { getWorkspace, listWorkspaces } from './services/api';
 
 // Error boundary to catch and display React errors
@@ -168,6 +169,8 @@ export default function App() {
             <Route path="import" element={<DataImportWizard />} />
             <Route path="timeline" element={<EmployeeTimelinePage />} />
             <Route path="timeline/:scenarioId/:employeeId" element={<EmployeeTimelinePage />} />
+            <Route path="events" element={<EventExplorerPage />} />
+            <Route path="events/:scenarioId" element={<EventExplorerPage />} />
             <Route path="*" element={<Placeholder title="Page Not Found" />} />
           </Route>
           <Route path="*" element={<LegacyWorkspaceRedirect />} />

@@ -201,6 +201,54 @@ export interface EmployeeSearchParams {
   page_size?: number;
 }
 
+export interface EventRecord {
+  event_id: string;
+  event_type: string;
+  event_category: string | null;
+  event_sequence: number | null;
+  effective_date: string;
+  simulation_year: number;
+  employee_id: string;
+  employee_ssn: string | null;
+  employee_age: number | null;
+  employee_tenure: number | null;
+  level_id: number | null;
+  age_band: string | null;
+  tenure_band: string | null;
+  scenario_id: string;
+  plan_design_id: string;
+  event_details: string | null;
+  compensation_amount: number | null;
+  previous_compensation: number | null;
+  employee_deferral_rate: number | null;
+  prev_employee_deferral_rate: number | null;
+  event_probability: number | null;
+  parameter_scenario_id: string | null;
+  parameter_source: string | null;
+  data_quality_flag: string | null;
+  created_at: string | null;
+}
+
+export interface EventListResponse {
+  workspace_id: string;
+  scenario_id: string;
+  run_id: string | null;
+  database_source: string | null;
+  events: EventRecord[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface EventListParams {
+  simulation_year?: number;
+  event_type?: string;
+  event_category?: string;
+  employee_id?: string;
+  page?: number;
+  page_size?: number;
+}
+
 export interface SimulationRun {
   id: string;
   scenario_id: string;
@@ -599,6 +647,23 @@ export async function searchEmployees(
     `${API_BASE}/api/workspaces/${encodeURIComponent(workspaceId)}/scenarios/${encodeURIComponent(scenarioId)}/employees?${query}`,
   );
   if (!response.ok) throw new Error(`Employee search failed: ${response.statusText}`);
+  return response.json();
+}
+
+export async function listEvents(
+  workspaceId: string,
+  scenarioId: string,
+  params: EventListParams,
+): Promise<EventListResponse> {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') query.set(key, String(value));
+  });
+  const suffix = query.size ? `?${query}` : '';
+  const response = await fetchWithAuth(
+    `${API_BASE}/api/workspaces/${encodeURIComponent(workspaceId)}/scenarios/${encodeURIComponent(scenarioId)}/events${suffix}`,
+  );
+  if (!response.ok) throw new Error(`Event explorer failed: ${response.statusText}`);
   return response.json();
 }
 
