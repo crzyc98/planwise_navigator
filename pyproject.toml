@@ -160,7 +160,7 @@ addopts = [
 # Test markers
 markers = [
     # Execution speed markers
-    "fast: Fast unit tests (<1s each)",
+    "fast: Unit tests run on every PR; aggregate suite budget enforced in CI (see constitution.md III), not a per-test cap",
     "slow: Slow integration tests (1-10s each)",
     "very_slow: E2E tests (10s+ each)",
 
