@@ -1,6 +1,6 @@
 """Tests for simulation start concurrency guards."""
 
-import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -42,7 +42,7 @@ def test_start_rejects_scenario_with_queued_run(simulation_start):
     scenario.status = "queued"
 
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(_start(storage, service))
+        _start(storage, service)
 
     assert exc_info.value.status_code == 409
     storage.update_scenario_status.assert_not_called()
@@ -52,14 +52,14 @@ def test_overlapping_starts_accept_at_most_one_run(simulation_start):
     """The check-and-reserve section admits only one run per scenario."""
     _, storage, service = simulation_start
 
-    async def start_twice():
-        return await asyncio.gather(
-            _start(storage, service),
-            _start(storage, service),
-            return_exceptions=True,
-        )
+    def start_once(_):
+        try:
+            return _start(storage, service)
+        except HTTPException as exc:
+            return exc
 
-    results = asyncio.run(start_twice())
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(start_once, range(2)))
 
     assert sum(isinstance(result, SimulationRun) for result in results) == 1
     conflicts = [result for result in results if isinstance(result, HTTPException)]
@@ -80,7 +80,7 @@ def test_start_allows_terminal_previous_runs(simulation_start, previous_status):
         started_at=datetime.now(timezone.utc),
     )
 
-    run = asyncio.run(_start(storage, service))
+    run = _start(storage, service)
 
     assert run.status == "pending"
     storage.update_scenario_status.assert_called_once_with(
@@ -124,7 +124,7 @@ def test_status_uses_persisted_terminal_state_after_registry_eviction(
     )
     simulations.update_run_status("run-1", status="completed")
 
-    result = asyncio.run(simulations.get_run_status("scenario-123", storage))
+    result = simulations.get_run_status("scenario-123", storage)
 
     assert result.status == "completed"
     assert result.id == "run-1"

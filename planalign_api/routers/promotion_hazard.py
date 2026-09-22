@@ -43,7 +43,7 @@ def get_storage(settings: APISettings = Depends(get_settings)) -> WorkspaceStora
     summary="Get promotion hazard configuration",
     description="Retrieve current promotion hazard parameters from dbt seed files",
 )
-async def get_promotion_hazard_config(
+def get_promotion_hazard_config(
     workspace_id: str,
     storage: WorkspaceStorage = Depends(get_storage),
 ) -> PromotionHazardConfig:

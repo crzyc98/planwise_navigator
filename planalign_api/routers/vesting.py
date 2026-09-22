@@ -42,7 +42,7 @@ def get_vesting_service(
 
 
 @router.get("/vesting/schedules", response_model=VestingScheduleListResponse)
-async def list_vesting_schedules() -> VestingScheduleListResponse:
+def list_vesting_schedules() -> VestingScheduleListResponse:
     """
     List all pre-defined vesting schedules (T030).
 
@@ -56,7 +56,7 @@ async def list_vesting_schedules() -> VestingScheduleListResponse:
     "/workspaces/{workspace_id}/scenarios/{scenario_id}/analytics/vesting/years",
     response_model=ScenarioYearsResponse,
 )
-async def get_vesting_years(
+def get_vesting_years(
     workspace_id: str,
     scenario_id: str,
     vesting_service: VestingService = Depends(get_vesting_service),
@@ -133,7 +133,7 @@ def _resolve_selected_scenarios(
     "/workspaces/{workspace_id}/analytics/vesting/forfeitures",
     response_model=ForfeitureProjectionResponse,
 )
-async def project_vesting_forfeitures(
+def project_vesting_forfeitures(
     workspace_id: str,
     scenarios: str = Query(
         ...,
@@ -196,7 +196,7 @@ async def project_vesting_forfeitures(
     "/workspaces/{workspace_id}/scenarios/{scenario_id}/analytics/vesting",
     response_model=VestingAnalysisResponse,
 )
-async def analyze_vesting(
+def analyze_vesting(
     workspace_id: str,
     scenario_id: str,
     request: VestingAnalysisRequest,

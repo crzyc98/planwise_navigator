@@ -77,7 +77,7 @@ def _validate_scenario_pair(
     "/{workspace_id}/comparison/config-diff",
     response_model=ConfigDiffResponse,
 )
-async def compare_scenario_configs(
+def compare_scenario_configs(
     workspace_id: str,
     scenario_a: str = Query(...),
     scenario_b: str = Query(...),
@@ -103,7 +103,7 @@ async def compare_scenario_configs(
 
 
 @router.get("/{workspace_id}/comparison", response_model=ComparisonResponse)
-async def compare_scenarios(
+def compare_scenarios(
     workspace_id: str,
     scenarios: str = Query(..., description="Comma-separated scenario IDs"),
     baseline: str = Query(..., description="Baseline scenario ID"),

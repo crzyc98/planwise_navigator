@@ -122,7 +122,7 @@ async def get_default_config(
 
 
 @router.get("", response_model=WorkspacePage)
-async def list_workspaces(
+def list_workspaces(
     q: Optional[str] = Query(None, max_length=200),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
@@ -147,7 +147,7 @@ async def list_workspaces(
 
 
 @router.get("/recent", response_model=List[WorkspaceSummary])
-async def list_recent_workspaces(
+def list_recent_workspaces(
     limit: int = Query(5, ge=1, le=20),
     storage: WorkspaceStorage = Depends(get_storage),
 ) -> List[WorkspaceSummary]:
@@ -159,7 +159,7 @@ async def list_recent_workspaces(
 
 
 @router.post("", response_model=WorkspaceResponse, status_code=status.HTTP_201_CREATED)
-async def create_workspace(
+def create_workspace(
     data: WorkspaceCreate,
     storage: WorkspaceStorage = Depends(get_storage),
     default_config: Dict[str, Any] = Depends(get_default_config),
@@ -173,7 +173,7 @@ async def create_workspace(
 
 
 @router.get("/{workspace_id}", response_model=WorkspaceResponse)
-async def get_workspace(
+def get_workspace(
     workspace_id: str,
     storage: WorkspaceStorage = Depends(get_storage),
 ) -> Workspace:
@@ -192,7 +192,7 @@ async def get_workspace(
 
 
 @router.put("/{workspace_id}", response_model=WorkspaceResponse)
-async def update_workspace(
+def update_workspace(
     workspace_id: str,
     data: WorkspaceUpdate,
     storage: WorkspaceStorage = Depends(get_storage),
@@ -235,7 +235,7 @@ async def update_workspace(
 
 
 @router.delete("/{workspace_id}")
-async def delete_workspace(
+def delete_workspace(
     workspace_id: str,
     storage: WorkspaceStorage = Depends(get_storage),
 ) -> Dict[str, bool]:
@@ -269,7 +269,7 @@ async def delete_workspace(
 
 
 @router.post("/{workspace_id}/export")
-async def export_workspace(
+def export_workspace(
     workspace_id: str,
     export_service: ExportService = Depends(get_export_service),
 ) -> FileResponse:
@@ -309,7 +309,7 @@ async def export_workspace(
 
 
 @router.post("/bulk-export", response_model=BulkExportStatus)
-async def start_bulk_export(
+def start_bulk_export(
     request: BulkExportRequest,
     export_service: ExportService = Depends(get_export_service),
 ) -> BulkExportStatus:
@@ -328,7 +328,7 @@ async def start_bulk_export(
 
 
 @router.get("/bulk-export/{operation_id}", response_model=BulkExportStatus)
-async def get_bulk_export_status(
+def get_bulk_export_status(
     operation_id: str,
     export_service: ExportService = Depends(get_export_service),
 ) -> BulkExportStatus:
@@ -347,7 +347,7 @@ async def get_bulk_export_status(
 
 
 @router.get("/bulk-export/{operation_id}/download/{workspace_id}")
-async def download_bulk_export(
+def download_bulk_export(
     operation_id: str,
     workspace_id: str,
     export_service: ExportService = Depends(get_export_service),
@@ -549,7 +549,7 @@ async def start_bulk_import(
 
 
 @router.get("/bulk-import/{operation_id}", response_model=BulkImportStatus)
-async def get_bulk_import_status(
+def get_bulk_import_status(
     operation_id: str,
     export_service: ExportService = Depends(get_export_service),
 ) -> BulkImportStatus:

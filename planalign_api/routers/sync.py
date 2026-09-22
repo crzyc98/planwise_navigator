@@ -40,7 +40,7 @@ def get_sync_service() -> SyncService:
 
 
 @router.get("/status", response_model=SyncStatus)
-async def get_sync_status():
+def get_sync_status():
     """Get current sync status.
 
     Returns information about:
@@ -60,7 +60,7 @@ async def get_sync_status():
 
 
 @router.get("/config", response_model=SyncConfig)
-async def get_sync_config():
+def get_sync_config():
     """Get sync configuration."""
     try:
         service = get_sync_service()
@@ -73,7 +73,7 @@ async def get_sync_config():
 
 
 @router.post("/init", response_model=SyncStatus)
-async def init_sync(request: SyncInitRequest):
+def init_sync(request: SyncInitRequest):
     """Initialize sync with a Git remote.
 
     Sets up Git-based synchronization for all workspaces.
@@ -100,7 +100,7 @@ async def init_sync(request: SyncInitRequest):
 
 
 @router.post("/push", response_model=SyncPushResult)
-async def push_changes(message: str = None):  # type: ignore[assignment]
+def push_changes(message: str = None):  # type: ignore[assignment]
     """Push local changes to remote.
 
     Stages all workspace metadata files and pushes to the configured remote.
@@ -128,7 +128,7 @@ async def push_changes(message: str = None):  # type: ignore[assignment]
 
 
 @router.post("/pull", response_model=SyncPullResult)
-async def pull_changes():
+def pull_changes():
     """Pull remote changes to local workspaces.
 
     Fetches and merges changes from the remote repository.
@@ -164,7 +164,7 @@ async def pull_changes():
 
 
 @router.get("/log", response_model=List[SyncLogEntry])
-async def get_sync_log(limit: int = 20):
+def get_sync_log(limit: int = 20):
     """Get sync operation history.
 
     Returns recent push, pull, and other sync operations.
@@ -180,7 +180,7 @@ async def get_sync_log(limit: int = 20):
 
 
 @router.get("/workspaces", response_model=List[WorkspaceSyncInfo])
-async def get_workspace_sync_info():
+def get_workspace_sync_info():
     """Get sync information for all workspaces.
 
     Returns status of each workspace including whether
@@ -197,7 +197,7 @@ async def get_workspace_sync_info():
 
 
 @router.post("/disconnect")
-async def disconnect_sync():
+def disconnect_sync():
     """Disconnect sync from remote.
 
     Removes Git remote configuration but preserves local files.

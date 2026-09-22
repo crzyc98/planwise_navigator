@@ -194,7 +194,7 @@ async def run_all_scenarios(
 
 
 @router.get("/batches/{batch_id}/status", response_model=BatchJob)
-async def get_batch_status(batch_id: str) -> BatchJob:
+def get_batch_status(batch_id: str) -> BatchJob:
     """
     Get the status of a batch job.
 
@@ -212,7 +212,7 @@ async def get_batch_status(batch_id: str) -> BatchJob:
 
 
 @router.get("/workspaces/{workspace_id}/batches", response_model=List[BatchJob])
-async def list_batch_jobs(
+def list_batch_jobs(
     workspace_id: str,
     storage: WorkspaceStorage = Depends(get_storage),
 ) -> List[BatchJob]:

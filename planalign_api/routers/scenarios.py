@@ -31,7 +31,7 @@ def get_storage(settings: APISettings = Depends(get_settings)) -> WorkspaceStora
 
 
 @router.get("/{workspace_id}/scenarios", response_model=List[Scenario])
-async def list_scenarios(
+def list_scenarios(
     workspace_id: str,
     storage: WorkspaceStorage = Depends(get_storage),
 ) -> List[Scenario]:
@@ -54,7 +54,7 @@ async def list_scenarios(
     response_model=Scenario,
     status_code=status.HTTP_201_CREATED,
 )
-async def create_scenario(
+def create_scenario(
     workspace_id: str,
     data: ScenarioCreate,
     storage: WorkspaceStorage = Depends(get_storage),
@@ -75,7 +75,7 @@ async def create_scenario(
 
 
 @router.get("/{workspace_id}/scenarios/{scenario_id}", response_model=Scenario)
-async def get_scenario(
+def get_scenario(
     workspace_id: str,
     scenario_id: str,
     storage: WorkspaceStorage = Depends(get_storage),
@@ -96,7 +96,7 @@ async def get_scenario(
     "/{workspace_id}/scenarios/{scenario_id}/config",
     response_model=Dict[str, Any],
 )
-async def get_scenario_config(
+def get_scenario_config(
     workspace_id: str,
     scenario_id: str,
     storage: WorkspaceStorage = Depends(get_storage),
@@ -117,7 +117,7 @@ async def get_scenario_config(
 
 
 @router.put("/{workspace_id}/scenarios/{scenario_id}", response_model=Scenario)
-async def update_scenario(
+def update_scenario(
     workspace_id: str,
     scenario_id: str,
     data: ScenarioUpdate,
@@ -164,7 +164,7 @@ async def update_scenario(
     "/{workspace_id}/scenarios/{scenario_id}/apply-workforce-params",
     response_model=WorkforceParamsApplyResult,
 )
-async def apply_workforce_params(
+def apply_workforce_params(
     workspace_id: str,
     scenario_id: str,
     request: WorkforceParamsApplyRequest,
@@ -207,7 +207,7 @@ async def apply_workforce_params(
 
 
 @router.delete("/{workspace_id}/scenarios/{scenario_id}")
-async def delete_scenario(
+def delete_scenario(
     workspace_id: str,
     scenario_id: str,
     storage: WorkspaceStorage = Depends(get_storage),
@@ -244,7 +244,7 @@ async def delete_scenario(
 
 
 @router.delete("/{workspace_id}/scenarios/{scenario_id}/database")
-async def delete_scenario_database(
+def delete_scenario_database(
     workspace_id: str,
     scenario_id: str,
     storage: WorkspaceStorage = Depends(get_storage),
@@ -296,7 +296,7 @@ async def delete_scenario_database(
 
 
 @router.get("/{workspace_id}/scenarios/{scenario_id}/results/export")
-async def export_scenario_results(
+def export_scenario_results(
     workspace_id: str,
     scenario_id: str,
     format: str = "excel",

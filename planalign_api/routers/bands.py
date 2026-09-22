@@ -57,7 +57,7 @@ def get_storage(settings: APISettings = Depends(get_settings)) -> WorkspaceStora
     summary="Get band configurations",
     description="Retrieve current age and tenure band definitions from dbt seed files",
 )
-async def get_band_configs(
+def get_band_configs(
     workspace_id: str,
     storage: WorkspaceStorage = Depends(get_storage),
 ) -> BandConfig:
@@ -165,7 +165,7 @@ employee age distribution. Focuses on recent hires when possible.
 Uses percentile-based boundary detection.
 """,
 )
-async def analyze_age_bands(
+def analyze_age_bands(
     workspace_id: str,
     request: BandAnalysisRequest,
 ) -> BandAnalysisResult:
@@ -214,7 +214,7 @@ Analyzes census data to suggest optimal tenure band boundaries based on
 employee tenure distribution. Uses percentile-based boundary detection.
 """,
 )
-async def analyze_tenure_bands(
+def analyze_tenure_bands(
     workspace_id: str,
     request: BandAnalysisRequest,
 ) -> BandAnalysisResult:
@@ -269,7 +269,7 @@ Analyzes census data to suggest termination rates for experienced employees
 and new hires based on actual termination history in the census file.
 """,
 )
-async def analyze_turnover(
+def analyze_turnover(
     workspace_id: str,
     request: TurnoverAnalysisRequest,
 ) -> TurnoverAnalysisResult:
@@ -325,7 +325,7 @@ Analyzes census data to suggest a target opt-out rate based on the non-participa
 rate among employees hired within a configurable tenure lookback window.
 """,
 )
-async def analyze_opt_out_rate(
+def analyze_opt_out_rate(
     workspace_id: str,
     request: OptOutRateAnalysisRequest,
 ) -> OptOutRateAnalysisResult:
@@ -382,7 +382,7 @@ with a deferral rate above zero are averaged, since the configured segment rates
 are conditional on enrolling.
 """,
 )
-async def analyze_deferral_segments(
+def analyze_deferral_segments(
     workspace_id: str,
     request: DeferralSegmentAnalysisRequest,
 ) -> DeferralSegmentAnalysisResult:
@@ -443,7 +443,7 @@ fields, duplicate IDs, out-of-range values) so a census can be sanity-checked
 before a scenario is ever run.
 """,
 )
-async def analyze_census(
+def analyze_census(
     workspace_id: str,
     request: CensusAnalysisRequest,
 ) -> CensusAnalysisResult:

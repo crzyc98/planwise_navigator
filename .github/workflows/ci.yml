@@ -93,7 +93,7 @@ jobs:
         run: |
           black --check .
           ruff check .
-          mypy planalign_orchestrator/ planalign_cli/ planalign_core/ --ignore-missing-imports
+          mypy planalign_orchestrator/ planalign_cli/ planalign_core/ planalign_api/ --ignore-missing-imports
 
   # Blocking gate over the resolved Python dependency graph (#705). Runs on
   # every PR/push -- pip-audit is a dependency-resolve + vulnerability-DB
