@@ -11,39 +11,13 @@ import {
 } from 'recharts';
 import { AlertTriangle, Info } from 'lucide-react';
 import { useChartTheme } from '../hooks/useChartTheme';
+import {
+  EnsembleAttributionRow,
+  EnsembleDistributionRow,
+  EnsembleRiskStatement,
+} from '../services/api';
 
-export interface EnsembleDistributionRow {
-  ensemble_id: string;
-  scenario_id: string;
-  metric: string;
-  simulation_year: number;
-  p10: number | null;
-  p50: number | null;
-  p90: number | null;
-  n_seeds: number;
-  n_seeds_requested: number;
-  is_sufficient: boolean;
-}
-
-export interface EnsembleRiskStatement {
-  metric: string;
-  threshold_value: number;
-  simulation_year: number | null;
-  exceedance_probability: number | null;
-  n_seeds: number;
-  is_evaluable: boolean;
-  reason?: string | null;
-}
-
-export interface EnsembleAttributionRow {
-  metric: string;
-  simulation_year: number;
-  subsystem: string;
-  variance_share: number | null;
-  ci_low: number | null;
-  ci_high: number | null;
-  stochastic_status: 'stochastic' | 'not_stochastic';
-}
+export type { EnsembleAttributionRow, EnsembleDistributionRow, EnsembleRiskStatement };
 
 export interface EnsembleAnalysisData {
   distributions: EnsembleDistributionRow[];
@@ -136,10 +110,10 @@ function ExperimentalAttribution({ rows }: Readonly<{ rows: EnsembleAttributionR
   return (
     <section className="mt-8 rounded-xl border border-warning-border bg-warning-surface p-5" aria-labelledby="experimental-attribution-heading">
       <h2 id="experimental-attribution-heading" className="flex items-center gap-2 text-base font-semibold text-warning-ink">
-        <Info size={17} /> [EXPERIMENTAL] Variance attribution
+        <Info size={17} /> Variance attribution (diagnostic)
       </h2>
       <p className="mt-2 text-sm text-warning-ink">
-        These are anchor-averaged conditional variance shares, not a ranked decomposition. Shares do not need to sum to 100%; interaction effects are not separated. This view is for analyst exploration and is not included in client-facing exports.
+        These are anchor-averaged conditional variance shares, ranked by share within each metric and year. Shares do not need to sum to 100%; interaction effects are not separated, so this remains diagnostic rather than a full causal decomposition.
       </p>
       <div className="mt-4 overflow-x-auto">
         <table className="w-full min-w-[640px] text-left text-sm">

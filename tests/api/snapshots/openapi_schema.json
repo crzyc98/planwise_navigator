@@ -580,6 +580,130 @@
         "title": "Artifact",
         "type": "object"
       },
+      "AttributionShare": {
+        "description": "Anchor-averaged conditional variance share for one metric and subsystem.\n\n`variance_share` is the average, across `n_anchors` independently pinned\nanchor seeds, of `1 - Var(Y | subsystem seed = anchor) / Var(Y)`. By the law\nof total variance this approximates the first-order Sobol index for the\nsubsystem: the share of outcome variance associated with that subsystem's\ndraw, averaged rather than measured at one arbitrary anchor (#543). It\ncaptures only this subsystem's main effect \u2014 pinning one subsystem's seed\nalso fixes the population later subsystems draw from, so interaction effects\nare not decomposed and shares across subsystems need not sum to 1. This is\nstill not a causal attribution or a full variance decomposition.\n\n`ci_low`/`ci_high` are a paired bootstrap interval: each replicate resamples\nthe paired (baseline, frozen) seed values within every anchor with\nreplacement, recomputes the anchor-averaged share, and the interval is the\n2.5th/97.5th percentile of those replicates. The bootstrap RNG is seeded\ndeterministically from (metric, simulation_year, subsystem), so re-running\nthe same evidence reproduces the same interval.",
+        "properties": {
+          "anchor_seeds": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Anchor Seeds",
+            "type": "array"
+          },
+          "baseline_variance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline Variance"
+          },
+          "baselines_executed": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Baselines Executed",
+            "type": "integer"
+          },
+          "baselines_reused": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Baselines Reused",
+            "type": "integer"
+          },
+          "bootstrap_iterations": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Bootstrap Iterations",
+            "type": "integer"
+          },
+          "ci_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci High"
+          },
+          "ci_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci Low"
+          },
+          "frozen_variance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Frozen Variance"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "n_anchors": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "N Anchors",
+            "type": "integer"
+          },
+          "n_seeds": {
+            "minimum": 0.0,
+            "title": "N Seeds",
+            "type": "integer"
+          },
+          "simulation_year": {
+            "title": "Simulation Year",
+            "type": "integer"
+          },
+          "stochastic_status": {
+            "enum": [
+              "stochastic",
+              "not_stochastic"
+            ],
+            "title": "Stochastic Status",
+            "type": "string"
+          },
+          "subsystem": {
+            "$ref": "#/components/schemas/Subsystem"
+          },
+          "variance_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Variance Share"
+          }
+        },
+        "required": [
+          "metric",
+          "simulation_year",
+          "subsystem",
+          "n_seeds",
+          "stochastic_status"
+        ],
+        "title": "AttributionShare",
+        "type": "object"
+      },
       "AutoCalibrationRequest": {
         "description": "Request body for POST /api/calibration/optimize.\n\nSet the two targets; the optimizer sets workforce growth directly (it is\ndeterministic via E077) and searches until every annual avg-comp growth\nresult is within tolerance of the compensation target.",
         "properties": {
@@ -4632,6 +4756,78 @@
         "title": "EmployerCostOffsetRow",
         "type": "object"
       },
+      "EnsembleDatabaseSummary": {
+        "description": "One discovered ensemble database, for a Studio picker.",
+        "properties": {
+          "database_path": {
+            "title": "Database Path",
+            "type": "string"
+          },
+          "ensemble_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Ensemble Ids",
+            "type": "array"
+          },
+          "max_simulation_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Simulation Year"
+          },
+          "metrics": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "min_simulation_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Simulation Year"
+          },
+          "modified_at": {
+            "title": "Modified At",
+            "type": "number"
+          },
+          "scenario_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Scenario Ids",
+            "type": "array"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "database_path",
+          "ensemble_ids",
+          "scenario_ids",
+          "metrics",
+          "min_simulation_year",
+          "max_simulation_year",
+          "modified_at",
+          "size_bytes"
+        ],
+        "title": "EnsembleDatabaseSummary",
+        "type": "object"
+      },
       "EscalationMetrics": {
         "description": "Deferral escalation metrics.",
         "properties": {
@@ -6696,6 +6892,138 @@
         "title": "MetricChange",
         "type": "object"
       },
+      "MetricDistribution": {
+        "description": "A seed-sufficient (or explicitly insufficient) metric distribution.",
+        "properties": {
+          "ensemble_id": {
+            "title": "Ensemble Id",
+            "type": "string"
+          },
+          "is_sufficient": {
+            "title": "Is Sufficient",
+            "type": "boolean"
+          },
+          "mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "n_seeds": {
+            "minimum": 0.0,
+            "title": "N Seeds",
+            "type": "integer"
+          },
+          "n_seeds_requested": {
+            "minimum": 1.0,
+            "title": "N Seeds Requested",
+            "type": "integer"
+          },
+          "p10": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P10"
+          },
+          "p25": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P25"
+          },
+          "p50": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P50"
+          },
+          "p75": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P75"
+          },
+          "p90": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P90"
+          },
+          "percentile_method": {
+            "const": "linear",
+            "default": "linear",
+            "enum": [
+              "linear"
+            ],
+            "title": "Percentile Method",
+            "type": "string"
+          },
+          "scenario_id": {
+            "title": "Scenario Id",
+            "type": "string"
+          },
+          "simulation_year": {
+            "title": "Simulation Year",
+            "type": "integer"
+          },
+          "stddev": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stddev"
+          }
+        },
+        "required": [
+          "ensemble_id",
+          "scenario_id",
+          "metric",
+          "simulation_year",
+          "n_seeds",
+          "n_seeds_requested",
+          "is_sufficient"
+        ],
+        "title": "MetricDistribution",
+        "type": "object"
+      },
       "ObjectiveConstraintSpec": {
         "description": "The objectives and hard constraints for a search.",
         "properties": {
@@ -8244,6 +8572,69 @@
           "report_digest"
         ],
         "title": "ReviewSignOff",
+        "type": "object"
+      },
+      "RiskStatement": {
+        "description": "One threshold result for one metric and simulation year.",
+        "properties": {
+          "exceedance_probability": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exceedance Probability"
+          },
+          "is_evaluable": {
+            "title": "Is Evaluable",
+            "type": "boolean"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "n_seeds": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "N Seeds",
+            "type": "integer"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "simulation_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Simulation Year"
+          },
+          "threshold_value": {
+            "title": "Threshold Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "metric",
+          "threshold_value",
+          "is_evaluable"
+        ],
+        "title": "RiskStatement",
         "type": "object"
       },
       "RunDetails": {
@@ -10284,6 +10675,18 @@
         ],
         "title": "StructuredWarning",
         "type": "object"
+      },
+      "Subsystem": {
+        "description": "Known sources of stochasticity and their attribution status.",
+        "enum": [
+          "termination",
+          "hiring",
+          "promotion",
+          "enrollment",
+          "merit"
+        ],
+        "title": "Subsystem",
+        "type": "string"
       },
       "SuggestionsResponse": {
         "properties": {
@@ -12557,6 +12960,268 @@
         "summary": "Get Default Config",
         "tags": [
           "System"
+        ]
+      }
+    },
+    "/api/ensembles/attribution": {
+      "get": {
+        "description": "Read variance attribution, ranked like the Excel Variance_Attribution sheet.",
+        "operationId": "get_attribution_api_ensembles_attribution_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "database",
+            "required": true,
+            "schema": {
+              "title": "Database",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ensemble_scenario_id",
+            "required": true,
+            "schema": {
+              "title": "Ensemble Scenario Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ensemble_id",
+            "required": true,
+            "schema": {
+              "title": "Ensemble Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AttributionShare"
+                  },
+                  "title": "Response Get Attribution Api Ensembles Attribution Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Attribution",
+        "tags": [
+          "Ensembles"
+        ]
+      }
+    },
+    "/api/ensembles/discover": {
+      "get": {
+        "description": "List ensemble databases under a scan root for the Studio picker.",
+        "operationId": "discover_ensembles_api_ensembles_discover_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "root",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Root"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EnsembleDatabaseSummary"
+                  },
+                  "title": "Response Discover Ensembles Api Ensembles Discover Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Discover Ensembles",
+        "tags": [
+          "Ensembles"
+        ]
+      }
+    },
+    "/api/ensembles/distributions": {
+      "get": {
+        "description": "Read P10-P90 distributions for one scenario/ensemble.\n\nThe query param is named ``ensemble_scenario_id``, not ``scenario_id`` --\nit identifies a row in the ensemble database, not a workspace-scoped\nscenario resource, so it must not be mistaken for one of the run-tracked\nscenario reads that owe an ``X-PlanAlign-Run-*`` consistency header.",
+        "operationId": "get_distributions_api_ensembles_distributions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "database",
+            "required": true,
+            "schema": {
+              "title": "Database",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ensemble_scenario_id",
+            "required": true,
+            "schema": {
+              "title": "Ensemble Scenario Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ensemble_id",
+            "required": true,
+            "schema": {
+              "title": "Ensemble Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MetricDistribution"
+                  },
+                  "title": "Response Get Distributions Api Ensembles Distributions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Distributions",
+        "tags": [
+          "Ensembles"
+        ]
+      }
+    },
+    "/api/ensembles/risk": {
+      "get": {
+        "description": "Evaluate ad hoc metric:value thresholds against stored seed evidence.\n\nThresholds are never persisted in an ensemble database (they're CLI/config\ninput only), so Studio supplies them per request, the same way\n``--threshold metric:value`` does on the CLI.",
+        "operationId": "get_risk_api_ensembles_risk_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "database",
+            "required": true,
+            "schema": {
+              "title": "Database",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ensemble_scenario_id",
+            "required": true,
+            "schema": {
+              "title": "Ensemble Scenario Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ensemble_id",
+            "required": true,
+            "schema": {
+              "title": "Ensemble Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "threshold",
+            "required": false,
+            "schema": {
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "title": "Threshold",
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RiskStatement"
+                  },
+                  "title": "Response Get Risk Api Ensembles Risk Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Risk",
+        "tags": [
+          "Ensembles"
         ]
       }
     },

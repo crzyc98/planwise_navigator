@@ -60,6 +60,7 @@ from .routers.vesting import router as vesting_router
 from .routers.sync import router as sync_router
 from .routers.calibration import router as calibration_router
 from .routers.optimizer import router as optimizer_router
+from .routers.ensembles import router as ensembles_router
 from .websocket.handlers import simulation_websocket, batch_websocket
 from .services.current_result import CurrentResultIntegrityError
 from .services.scenario_read_warning import (
@@ -400,6 +401,12 @@ def create_app() -> FastAPI:
         optimizer_router,
         prefix="/api",
         tags=["Optimizer"],
+        dependencies=protected_dependencies,
+    )
+    app.include_router(
+        ensembles_router,
+        prefix="/api",
+        tags=["Ensembles"],
         dependencies=protected_dependencies,
     )
     app.include_router(
