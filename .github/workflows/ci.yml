@@ -134,8 +134,9 @@ jobs:
             --ignore-vuln PYSEC-2026-2120 \
             --ignore-vuln PYSEC-2026-2121
 
-  # The PR gate. Unit-only, no dbt runs, no database: ~4 minutes for ~2,180
-  # tests. This is the check developers wait on, so keep it fast -- anything
+  # The PR gate. Unit-only, no dbt runs, no database: ~288s for ~2,780 tests
+  # as of 2026-09-21 (budget enforced below per constitution.md III, #648).
+  # This is the check developers wait on, so keep it fast -- anything
   # needing a real dbt invocation belongs in `test` below, not here.
   fast-tests:
     runs-on: ubuntu-latest
@@ -178,7 +179,24 @@ jobs:
           # Same runner-temp sentinel discipline as the sharded job: the fast
           # suite must never reach the global database either.
           DATABASE_PATH: ${{ runner.temp }}/planalign-ci-fast.duckdb
-        run: pytest -m fast -q
+        run: |
+          # Constitution III caps the fast suite's wall-clock time (360s
+          # budget as of 2026-09-21, measured baseline ~288s for ~2,780
+          # tests; see #648). The cap used to be documented but unenforced,
+          # so it drifted silently -- enforce it here instead.
+          FAST_SUITE_BUDGET_SECONDS=360
+          start=$(date +%s)
+          pytest -m fast -q
+          status=$?
+          elapsed=$(( $(date +%s) - start ))
+          echo "Fast suite took ${elapsed}s (budget: ${FAST_SUITE_BUDGET_SECONDS}s)"
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
+          if [ "$elapsed" -gt "$FAST_SUITE_BUDGET_SECONDS" ]; then
+            echo "::error::Fast suite took ${elapsed}s, exceeding the ${FAST_SUITE_BUDGET_SECONDS}s budget in constitution.md III. Re-profile with 'pytest -m fast --durations=50' and either fix the regression or re-baseline the budget."
+            exit 1
+          fi
 
       - name: Assert default database sentinel remains unused
         if: always()

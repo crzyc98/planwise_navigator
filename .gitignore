@@ -144,7 +144,14 @@ Thumbs.db
 
 # ── AI tooling ───────────────────────────────────────────────────────
 .claude/
-.specify/
+# .specify/ is local speckit scaffolding, except constitution.md: CI
+# (.github/workflows/ci.yml's fast-tests job) and pyproject.toml enforce
+# gates it declares, so it must be versioned and reviewable like any other
+# gate definition (#648).
+.specify/*
+!.specify/memory
+.specify/memory/*
+!.specify/memory/constitution.md
 .agents/
 graphify-out/
 
