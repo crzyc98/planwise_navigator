@@ -53,6 +53,7 @@ from .routers import (
     imports_router,
     provenance_router,
     timeline_router,
+    events_router,
     evidence_pack_router,
     report_router,
 )
@@ -419,6 +420,12 @@ def create_app() -> FastAPI:
         timeline_router,
         prefix="/api/workspaces",
         tags=["Timeline"],
+        dependencies=protected_dependencies,
+    )
+    app.include_router(
+        events_router,
+        prefix="/api/workspaces",
+        tags=["Event Explorer"],
         dependencies=protected_dependencies,
     )
     app.include_router(
