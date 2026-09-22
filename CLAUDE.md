@@ -33,8 +33,8 @@ duckdb dbt/simulation.duckdb "SELECT COUNT(*) FROM fct_yearly_events"
 
 | Layer | Technology | Why |
 |-------|-----------|-----|
-| Storage | DuckDB 1.0.0 | Immutable event store; column-store OLAP |
-| Transformation | dbt-core 1.8.8 / dbt-duckdb 1.8.1 | Declarative SQL, testable models |
+| Storage | DuckDB 1.1.3 | Immutable event store; column-store OLAP |
+| Transformation | dbt-core 1.9.11 / dbt-duckdb 1.9.6 | Declarative SQL, testable models |
 | Orchestration | planalign_orchestrator | Modular pipeline with staged execution |
 | CLI | Typer + Rich | Beautiful terminal UI with progress |
 | Web | FastAPI + React/Vite + Tailwind | Modern web-based scenario management |

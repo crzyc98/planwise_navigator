@@ -1,7 +1,13 @@
 # Core runtime dependencies
-duckdb==1.0.0
-dbt-core==1.8.8
-dbt-duckdb==1.8.1
+# Engine bump (#705 phase 2, 2026-09-21): dbt-core 1.8.8->1.9.11 and
+# dbt-duckdb 1.8.1->1.9.6 unblock protobuf/dbt-common/deepdiff advisories
+# (see SECURITY.md exception table); duckdb 1.0.0->1.1.3 fixes PYSEC-2024-203
+# (last patch release on the minimal-fix minor line, to limit engine drift).
+# sqlparse stays capped <0.6.0 by dbt-core in every checked line -- durable
+# upstream exception, unaffected by this bump.
+duckdb==1.1.3
+dbt-core==1.9.11
+dbt-duckdb==1.9.6
 pydantic==2.7.4
 python-dotenv>=1.0.0
 pyyaml>=6.0.0

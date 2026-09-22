@@ -10,9 +10,11 @@ authors = [
 
 dependencies = [
     # Core runtime dependencies
-    "duckdb==1.0.0",
-    "dbt-core==1.8.8",
-    "dbt-duckdb==1.8.1",
+    # Engine bump (#705 phase 2, 2026-09-21) -- see requirements.txt for
+    # rationale and SECURITY.md for the advisories this clears.
+    "duckdb==1.1.3",
+    "dbt-core==1.9.11",
+    "dbt-duckdb==1.9.6",
     "pydantic==2.7.4",
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0.0",

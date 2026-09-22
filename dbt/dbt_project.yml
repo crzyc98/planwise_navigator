@@ -160,10 +160,17 @@ snapshots:
     +updated_at: updated_at
 
 # Data test configuration
+# Consolidated here (#705 phase 2, 2026-09-21) from tests/schema.yml's
+# top-level `data_tests:` block, which dbt-core 1.9 rejects with
+# "data_tests must be a list, got <class 'dict'>" -- a top-level data_tests
+# key in a schema.yml is only valid as a list of test definitions, never as
+# +-prefixed directory config (confirmed against dbt's own docs). This is
+# the one and only place dbt supports project-wide data test config.
 data_tests:
   fidelity_planalign_engine:
+    +severity: warn
     +store_failures: true
-    +schema: main
+    +schema: test_failures
 
 # Variables
 vars:
