@@ -18,18 +18,22 @@ from __future__ import annotations
 import logging
 import tempfile
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Dict, Literal, Optional
 from uuid import uuid4
 
 import yaml  # type: ignore[import]
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, ValidationError
 
 from planalign_optimizer.baseline import load_baseline, stale_baseline_warning
 from planalign_optimizer.design_space import sample_candidates
-from planalign_optimizer.evaluate import validate_levers_against_baseline
+from planalign_optimizer.evaluate import (
+    resolve_candidate_config,
+    validate_levers_against_baseline,
+)
 from planalign_optimizer.export import write_exports
 from planalign_optimizer.models import OptimizerRun, OptimizerSpec
 from planalign_optimizer.paths import require_fresh_directory, resolve_output_paths
@@ -40,9 +44,11 @@ from planalign_optimizer.spec_io import (
     dump_resolved_spec,
     validate_spec,
 )
+from planalign_orchestrator.config import SimulationConfig
 
 from ..config import APISettings, get_settings
 from ..errors import sanitize_job_error
+from ..models.scenario import Scenario, ScenarioCreate
 from ..storage.workspace_storage import WorkspaceStorage
 
 logger = logging.getLogger(__name__)
@@ -222,6 +228,16 @@ class OptimizerStartResponse(BaseModel):
     output_dir: str
 
 
+class OptimizerPromoteRequest(BaseModel):
+    """Request to materialize an optimizer candidate as an editable scenario."""
+
+    workspace_id: str
+    source_scenario_id: str
+    name: str = Field(..., min_length=1, max_length=100)
+    description: Optional[str] = None
+    force: bool = False
+
+
 # ---------------------------------------------------------------------------
 # Config materialization helpers (mirrors calibration.py's workspace-config
 # materialization -- reimplemented here rather than imported since that
@@ -283,6 +299,17 @@ def _parse_spec(spec: Optional[dict], spec_yaml: Optional[str]) -> OptimizerSpec
         return validate_spec(parsed)
     except (yaml.YAMLError, ValidationError, OptimizerSpecError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+def _generate_unique_scenario_name(base_name: str, scenarios: list[Scenario]) -> str:
+    """Mirror export name-collision suffixing for scenario promotion."""
+    existing_names = {scenario.name.lower() for scenario in scenarios}
+    counter = 2
+    while True:
+        suggested_name = f"{base_name} ({counter})"
+        if suggested_name.lower() not in existing_names:
+            return suggested_name
+        counter += 1
 
 
 # ---------------------------------------------------------------------------
@@ -441,3 +468,112 @@ def get_optimizer_candidate(run_id: str, candidate_id: str) -> dict:
         status_code=404,
         detail=f"Candidate {candidate_id} not found in run {run_id}",
     )
+
+
+@router.post(
+    "/optimizer/runs/{run_id}/candidates/{candidate_id}/promote",
+    response_model=Scenario,
+    status_code=201,
+)
+def promote_optimizer_candidate(
+    run_id: str,
+    candidate_id: str,
+    request: OptimizerPromoteRequest,
+    storage: WorkspaceStorage = Depends(get_storage),
+) -> Scenario | JSONResponse:
+    """Create a managed scenario from a completed optimizer candidate."""
+    with _jobs_lock:
+        job = _jobs.get(run_id)
+        if job is not None:
+            job = job.model_copy(deep=True)
+    if job is None or job.status != "completed" or job.result is None:
+        raise HTTPException(
+            status_code=404, detail="optimizer run not found or expired"
+        )
+
+    candidate = next(
+        (item for item in job.result.candidates if item.candidate_id == candidate_id),
+        None,
+    )
+    if candidate is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"candidate {candidate_id} not found in run {run_id}",
+        )
+    if candidate.status != "feasible" and not request.force:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"candidate status is '{candidate.status}'; "
+                "pass force=true to promote anyway"
+            ),
+        )
+
+    workspace = storage.get_workspace(request.workspace_id)
+    if workspace is None:
+        raise HTTPException(status_code=404, detail="workspace not found")
+    source_scenario = storage.get_scenario(
+        request.workspace_id, request.source_scenario_id
+    )
+    if source_scenario is None:
+        raise HTTPException(status_code=404, detail="source scenario not found")
+    merged = storage.get_merged_config(request.workspace_id, request.source_scenario_id)
+    if merged is None:
+        raise HTTPException(status_code=404, detail="source scenario not found")
+
+    try:
+        source_config = SimulationConfig.model_validate(merged)
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=f"source scenario configuration is invalid: {exc}",
+        ) from exc
+    try:
+        candidate_config, dbt_delta = resolve_candidate_config(
+            source_config, candidate.lever_values
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=f"candidate is stale relative to source scenario: {exc}",
+        ) from exc
+
+    scenarios = storage.list_scenarios(request.workspace_id)
+    if any(scenario.name.lower() == request.name.lower() for scenario in scenarios):
+        return JSONResponse(
+            status_code=409,
+            content={
+                "detail": "scenario name already exists",
+                "suggested_name": _generate_unique_scenario_name(
+                    request.name, scenarios
+                ),
+            },
+        )
+
+    provenance = {
+        "source": "optimizer_candidate",
+        "optimizer_run_id": run_id,
+        "candidate_id": candidate_id,
+        "source_scenario_id": request.source_scenario_id,
+        "candidate_status": candidate.status,
+        "override_used": bool(request.force and candidate.status != "feasible"),
+        "applied_lever_values": candidate.lever_values,
+        "config_delta": dbt_delta,
+        "promoted_at": datetime.now(timezone.utc).isoformat(),
+    }
+    create_data = ScenarioCreate(
+        name=request.name,
+        description=request.description,
+        config_overrides=candidate_config.model_dump(mode="json"),
+        provenance=provenance,
+    )
+    try:
+        scenario = storage.create_scenario(request.workspace_id, create_data)
+    except Exception as exc:  # Storage rolls back its allocated directory.
+        logger.exception("Failed to promote optimizer candidate %s", candidate_id)
+        raise HTTPException(
+            status_code=500, detail="failed to create scenario"
+        ) from exc
+    if scenario is None:
+        raise HTTPException(status_code=404, detail="workspace not found")
+    return scenario

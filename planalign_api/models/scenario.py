@@ -17,6 +17,10 @@ class ScenarioCreate(BaseModel):
         default_factory=dict,
         description="Configuration overrides (merged with workspace base config)",
     )
+    provenance: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Optional record of how this scenario was created",
+    )
 
 
 class ScenarioUpdate(BaseModel):
@@ -46,6 +50,9 @@ class Scenario(BaseModel):
     description: Optional[str] = Field(None, description="Scenario description")
     config_overrides: Dict[str, Any] = Field(
         default_factory=dict, description="Configuration overrides"
+    )
+    provenance: Optional[Dict[str, Any]] = Field(
+        default=None, description="Optional record of how this scenario was created"
     )
     status: Literal[
         "not_run", "queued", "running", "completed", "failed", "cancelled"

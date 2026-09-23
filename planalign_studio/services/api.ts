@@ -100,6 +100,7 @@ export interface Scenario {
   name: string;
   description: string | null;
   config_overrides: Record<string, any>;
+  provenance: Record<string, any> | null;
   status: 'not_run' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
   created_at: string;
   last_run_at: string | null;
@@ -540,6 +541,16 @@ export class ApiError extends Error {
   ) {
     super(detail || statusText);
     this.name = 'ApiError';
+  }
+}
+
+export class ScenarioNameConflictError extends Error {
+  constructor(
+    public detail: string,
+    public suggestedName: string
+  ) {
+    super(detail);
+    this.name = 'ScenarioNameConflictError';
   }
 }
 
@@ -3476,6 +3487,14 @@ export interface OptimizerJob {
   error_status: number | null;
 }
 
+export interface PromoteCandidateParams {
+  workspaceId: string;
+  sourceScenarioId: string;
+  name: string;
+  description?: string;
+  force?: boolean;
+}
+
 /** Cheap, synchronous spec validation + optional seed-phase preview. Always
  * resolves 200; a bad spec is reported via `valid`/`error`, never thrown. */
 export async function validateOptimizerSpec(
@@ -3533,6 +3552,37 @@ export async function getOptimizerCandidate(
     `${API_BASE}/api/optimizer/runs/${runId}/candidates/${candidateId}`
   );
   return handleResponse<Candidate>(response);
+}
+
+/** Create an editable scenario from an optimizer candidate. */
+export async function promoteOptimizerCandidate(
+  runId: string,
+  candidateId: string,
+  params: PromoteCandidateParams
+): Promise<Scenario> {
+  const response = await fetchWithAuth(
+    `${API_BASE}/api/optimizer/runs/${runId}/candidates/${candidateId}/promote`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        workspace_id: params.workspaceId,
+        source_scenario_id: params.sourceScenarioId,
+        name: params.name,
+        description: params.description,
+        force: params.force ?? false,
+      }),
+    }
+  );
+
+  if (response.status === 409) {
+    const error: { detail?: unknown; suggested_name?: unknown } = await response.json();
+    const detail = typeof error.detail === 'string' ? error.detail : 'scenario name already exists';
+    const suggestedName = typeof error.suggested_name === 'string' ? error.suggested_name : params.name;
+    throw new ScenarioNameConflictError(detail, suggestedName);
+  }
+
+  return handleResponse<Scenario>(response);
 }
 
 // ---------------------------------------------------------------------------

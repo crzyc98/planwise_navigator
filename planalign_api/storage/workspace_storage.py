@@ -372,6 +372,7 @@ class WorkspaceStorage:
                     name=data["name"],
                     description=data.get("description"),
                     config_overrides=data.get("config_overrides", {}),
+                    provenance=data.get("provenance"),
                     status=data.get("status", "not_run"),
                     created_at=datetime.fromisoformat(data["created_at"]),
                     last_run_at=(
@@ -401,6 +402,7 @@ class WorkspaceStorage:
             name=data["name"],
             description=data.get("description"),
             config_overrides=data.get("config_overrides", {}),
+            provenance=data.get("provenance"),
             status=data.get("status", "not_run"),
             created_at=datetime.fromisoformat(data["created_at"]),
             last_run_at=(
@@ -422,32 +424,37 @@ class WorkspaceStorage:
 
         scenario_id = str(uuid.uuid4())
         scenario_path = self._scenario_path(workspace_id, scenario_id)
-        scenario_path.mkdir(parents=True)
+        try:
+            scenario_path.mkdir(parents=True)
 
-        # Create subdirectories
-        (scenario_path / "results").mkdir()
-        (scenario_path / "runs").mkdir()
+            # Create subdirectories
+            (scenario_path / "results").mkdir()
+            (scenario_path / "runs").mkdir()
 
-        now = datetime.now(timezone.utc)
+            now = datetime.now(timezone.utc)
 
-        scenario_data = {
-            "id": scenario_id,
-            "workspace_id": workspace_id,
-            "name": create_data.name,
-            "description": create_data.description,
-            "config_overrides": create_data.config_overrides,
-            "status": "not_run",
-            "created_at": now.isoformat(),
-        }
+            scenario_data = {
+                "id": scenario_id,
+                "workspace_id": workspace_id,
+                "name": create_data.name,
+                "description": create_data.description,
+                "config_overrides": create_data.config_overrides,
+                "provenance": create_data.provenance,
+                "status": "not_run",
+                "created_at": now.isoformat(),
+            }
 
-        with open(self._scenario_json_path(workspace_id, scenario_id), "w") as f:
-            json.dump(scenario_data, f, indent=2)
+            with open(self._scenario_json_path(workspace_id, scenario_id), "w") as f:
+                json.dump(scenario_data, f, indent=2)
 
-        # Save overrides.yaml for reference
-        with open(scenario_path / "overrides.yaml", "w") as f:
-            yaml.dump(create_data.config_overrides, f, default_flow_style=False)
+            # Save overrides.yaml for reference
+            with open(scenario_path / "overrides.yaml", "w") as f:
+                yaml.dump(create_data.config_overrides, f, default_flow_style=False)
 
-        self._refresh_workspace_navigation_metadata(workspace_id)
+            self._refresh_workspace_navigation_metadata(workspace_id)
+        except Exception:
+            shutil.rmtree(scenario_path, ignore_errors=True)
+            raise
 
         return Scenario(
             id=scenario_id,
@@ -455,6 +462,7 @@ class WorkspaceStorage:
             name=create_data.name,
             description=create_data.description,
             config_overrides=create_data.config_overrides,
+            provenance=create_data.provenance,
             status="not_run",
             created_at=now,
         )
@@ -949,16 +957,24 @@ class WorkspaceStorage:
         result = base.copy()
 
         for key, value in overrides.items():
+            matching_key = key
+            if matching_key not in result:
+                matching_key = next(
+                    (base_key for base_key in result if str(base_key) == str(key)),
+                    key,
+                )
             if key in self._ATOMIC_SECTIONS:
                 # Section-level replacement for seed configs
                 result[key] = value
             elif (
-                key in result
-                and isinstance(result[key], dict)
+                matching_key in result
+                and isinstance(result[matching_key], dict)
                 and isinstance(value, dict)
             ):
-                result[key] = self._deep_merge(result[key], value)
+                result[key] = self._deep_merge(result.pop(matching_key), value)
             else:
+                if matching_key != key:
+                    result.pop(matching_key)
                 result[key] = value
 
         return result
