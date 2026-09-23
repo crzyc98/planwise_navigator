@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import {
   ScatterChart,
@@ -29,8 +29,11 @@ import {
   OptimizerSpecPayload,
   OptimizerValidateResponse,
   OptimizerJob,
+  listScenarios,
+  Scenario,
 } from '../services/api';
 import { useChartTheme } from '../hooks/useChartTheme';
+import { PromoteCandidateModal } from './PromoteCandidateModal';
 
 interface OptimizerOutletContext {
   activeWorkspace: Workspace | null;
@@ -198,6 +201,28 @@ export default function OptimizerPanel() {
   const [runError, setRunError] = useState<string | null>(null);
   const [job, setJob] = useState<OptimizerJob | null>(null);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
+  const [scenarios, setScenarios] = useState<Scenario[]>([]);
+  const [showPromoteModal, setShowPromoteModal] = useState(false);
+  const [promotionSuccess, setPromotionSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!activeWorkspace?.id) {
+      setScenarios([]);
+      return;
+    }
+
+    let cancelled = false;
+    void listScenarios(activeWorkspace.id)
+      .then((items) => {
+        if (!cancelled) setScenarios(items);
+      })
+      .catch(() => {
+        if (!cancelled) setScenarios([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeWorkspace?.id]);
 
   const percentileEnabled = ensembleDatabase.trim() !== '';
 
@@ -316,6 +341,8 @@ export default function OptimizerPanel() {
     setRunError(null);
     setJob(null);
     setSelectedCandidateId(null);
+    setShowPromoteModal(false);
+    setPromotionSuccess(null);
     try {
       const completed = await runOptimizer({
         spec: buildSpec(),
@@ -898,17 +925,71 @@ export default function OptimizerPanel() {
               </table>
             </div>
 
+            {promotionSuccess && (
+              <div className="rounded-md border border-success-border bg-success-surface p-3 text-sm text-success-ink">
+                {promotionSuccess}
+              </div>
+            )}
+
             {selectedCandidate && (
               <div className="rounded-md border border-border bg-surface-subtle p-4 text-sm">
-                <h4 className="mb-2 font-semibold text-ink">{selectedCandidate.candidate_id} detail</h4>
-                <pre className="overflow-x-auto whitespace-pre-wrap text-xs text-ink-muted">
-                  {JSON.stringify(selectedCandidate, null, 2)}
-                </pre>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-semibold text-ink">{selectedCandidate.candidate_id}</h4>
+                      <span
+                        className={`rounded px-2 py-0.5 text-xs font-medium ${
+                          selectedCandidate.status === 'feasible'
+                            ? 'bg-success-surface text-success-ink'
+                            : selectedCandidate.status === 'infeasible'
+                            ? 'bg-danger-surface text-danger-ink'
+                            : 'bg-surface-subtle text-ink-muted'
+                        }`}
+                      >
+                        {selectedCandidate.status}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs text-ink-muted">Objective values</p>
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-muted">
+                      {Object.entries(selectedCandidate.objective_values).map(([metric, value]) => (
+                        <span key={metric}>{metric}: {value ?? '—'}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPromoteModal(true)}
+                    disabled={!activeWorkspace}
+                    className="rounded-lg bg-fidelity-green px-3 py-2 text-sm font-medium text-ink-inverse transition-colors hover:bg-fidelity-dark disabled:cursor-not-allowed disabled:bg-surface-disabled"
+                  >
+                    Create scenario from candidate
+                  </button>
+                </div>
+                {selectedCandidate.status !== 'feasible' && (
+                  <p className="mt-3 flex items-center gap-1 text-xs text-warning-ink">
+                    <AlertTriangle size={14} />
+                    This {selectedCandidate.status} candidate requires an explicit override to promote.
+                  </p>
+                )}
               </div>
             )}
           </div>
         )}
       </div>
+      {showPromoteModal && selectedCandidate && activeWorkspace && job && (
+        <PromoteCandidateModal
+          runId={job.run_id}
+          candidate={selectedCandidate}
+          workspaceId={activeWorkspace.id}
+          availableScenarios={scenarios}
+          onClose={() => setShowPromoteModal(false)}
+          onPromoted={(scenario) => {
+            setScenarios((current) => [...current, scenario]);
+            setPromotionSuccess(`Created scenario "${scenario.name}" from ${selectedCandidate.candidate_id}.`);
+            setShowPromoteModal(false);
+          }}
+        />
+      )}
     </div>
   );
 }
