@@ -180,11 +180,11 @@ jobs:
           # suite must never reach the global database either.
           DATABASE_PATH: ${{ runner.temp }}/planalign-ci-fast.duckdb
         run: |
-          # Constitution III caps the fast suite's wall-clock time (360s
-          # budget as of 2026-09-21, measured baseline ~288s for ~2,780
-          # tests; see #648). The cap used to be documented but unenforced,
-          # so it drifted silently -- enforce it here instead.
-          FAST_SUITE_BUDGET_SECONDS=360
+          # Constitution III caps the fast suite's wall-clock time (see #648).
+          # Budget is ~1.2x the worst observed time on GitHub-hosted runners
+          # (490-891s for ~2,810 tests as of 2026-09-27). The original 360s
+          # was measured on a dev Mac (~288s) and failed every CI run.
+          FAST_SUITE_BUDGET_SECONDS=1080
           start=$(date +%s)
           pytest -m fast -q
           status=$?
