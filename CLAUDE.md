@@ -324,6 +324,10 @@ dbt run --select int_baseline_workforce --vars "simulation_year: 2025" --threads
 **Problem:** Duplicate events or missing dates.
 **Solution:** Use `int_enrollment_state_accumulator` with proper temporal tracking (see Critical Patterns).
 
+### Disk Filling Up (`var/`, `workspaces/`)
+**Cause:** Perf campaigns, ensembles, and validation harnesses leave ~250–500 MB isolated DuckDBs under `var/`; Studio runs beyond `storage.max_runs_per_scenario` pile up under `workspaces/`.
+**Fix:** `planalign gc` (dry run) → `planalign gc --yes`. Keeps reports, `campaign.json`, census parquet, and `ensemble.duckdb`; age cutoff is `storage.artifact_max_age_days` (override with `--older-than-days`).
+
 ### Virtual Environment Issues
 **Recreate and reinstall:**
 ```bash

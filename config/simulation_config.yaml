@@ -839,6 +839,7 @@ ops:
       random_seed: 42
       full_refresh: false
 
-# Run retention configuration
+# Run and artifact retention configuration
 storage:
   max_runs_per_scenario: 3  # Maximum archived runs to keep per scenario (0 = unlimited)
+  artifact_max_age_days: 14  # `planalign gc` reclaims var/ campaign DBs older than this

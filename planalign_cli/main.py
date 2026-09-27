@@ -83,6 +83,7 @@ from .commands.fit import run_fit  # noqa: E402
 from .commands.backtest import run_backtest_command  # noqa: E402
 from .commands.optimize import run_optimize  # noqa: E402
 from .commands.provenance import generate_provenance_report  # noqa: E402
+from .commands.gc import gc_command  # noqa: E402
 from .commands.validate_change import run_validate_change  # noqa: E402
 
 # Fast compensation calibration (Feature 105) -- run_calibration already carries
@@ -94,6 +95,8 @@ app.command("calibrate")(run_calibration)
 app.command("fit")(run_fit)
 app.command("backtest")(run_backtest_command)
 app.command("optimize")(run_optimize)
+# Disk reclaim for old Studio runs and var/ campaign artifacts (#660).
+app.command("gc")(gc_command)
 
 
 @app.command("evidence-pack")

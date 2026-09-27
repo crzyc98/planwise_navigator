@@ -1,6 +1,7 @@
 """Tests for WorkspaceStorage.cleanup_old_runs() run retention."""
 
 import json
+import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -130,26 +131,56 @@ class TestCleanupOldRuns:
         for i in range(5):
             assert (sc / "runs" / f"run-{i}").exists()
 
-    def test_handles_missing_metadata(self, storage, tmp_path):
+    def test_missing_metadata_ranked_by_mtime(self, storage, tmp_path):
+        """A stale run without metadata is pruned; a fresh one (in progress) is kept."""
         ws = _make_workspace(tmp_path)
         sc = _make_scenario(ws)
         now = datetime.now(timezone.utc)
 
-        # Run without metadata (should be treated as oldest)
-        run_no_meta = sc / "runs" / "run-no-meta"
-        run_no_meta.mkdir(parents=True)
-        (run_no_meta / "simulation.duckdb").write_bytes(b"\x00" * 512)
+        stale = sc / "runs" / "run-stale-no-meta"
+        stale.mkdir(parents=True)
+        old_ts = (now - timedelta(days=10)).timestamp()
+        os.utime(stale, (old_ts, old_ts))
+        in_progress = sc / "runs" / "run-in-progress"
+        in_progress.mkdir(parents=True)
 
         _make_run(sc, "run-new-1", now - timedelta(hours=1))
-        _make_run(sc, "run-new-2", now)
+        _make_run(sc, "run-new-2", now - timedelta(minutes=30))
+
+        result = storage.cleanup_old_runs(ws.name, "sc-1", max_runs=3)
+
+        assert result["removed_runs"] == ["run-stale-no-meta"]
+        assert not stale.exists()
+        assert in_progress.exists()
+
+    def test_naive_started_at_mixed_with_missing_metadata(self, storage, tmp_path):
+        """Archived runs write naive local timestamps; mixing them with the
+        aware fallback must not raise (it silently disabled retention)."""
+        ws = _make_workspace(tmp_path)
+        sc = _make_scenario(ws)
+        now = datetime.now()
+
+        for i in range(3):
+            _make_run(sc, f"run-{i}", now - timedelta(days=3 - i))
+        (sc / "runs" / "run-no-meta").mkdir()
 
         result = storage.cleanup_old_runs(ws.name, "sc-1", max_runs=2)
 
-        assert result["removed_count"] == 1
-        assert "run-no-meta" in result["removed_runs"]
-        assert not run_no_meta.exists()
-        assert (sc / "runs" / "run-new-1").exists()
-        assert (sc / "runs" / "run-new-2").exists()
+        assert set(result["removed_runs"]) == {"run-0", "run-1"}
+
+    def test_dry_run_reports_without_deleting(self, storage, tmp_path):
+        ws = _make_workspace(tmp_path)
+        sc = _make_scenario(ws)
+        now = datetime.now(timezone.utc)
+
+        for i in range(4):
+            _make_run(sc, f"run-{i}", now - timedelta(hours=4 - i))
+
+        result = storage.cleanup_old_runs(ws.name, "sc-1", max_runs=2, dry_run=True)
+
+        assert set(result["removed_runs"]) == {"run-0", "run-1"}
+        assert result["bytes_freed"] > 0
+        assert len(list((sc / "runs").iterdir())) == 4
 
     def test_preserves_active_database(self, storage, tmp_path):
         ws = _make_workspace(tmp_path)
