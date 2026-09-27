@@ -625,16 +625,19 @@ class WorkspaceStorage:
         workspace_id: str,
         scenario_id: str,
         max_runs: int = 3,
+        dry_run: bool = False,
     ) -> Dict[str, Any]:
         """Prune old run directories beyond the retention limit.
 
-        Keeps the most recent `max_runs` runs (by started_at in run_metadata.json)
-        and removes the rest.
+        Keeps the most recent `max_runs` runs (by started_at in run_metadata.json,
+        falling back to directory mtime) and removes the rest. The run behind the
+        current-result pointer is always kept.
 
         Args:
             workspace_id: UUID of the workspace
             scenario_id: UUID of the scenario
             max_runs: Maximum number of runs to retain (0 = unlimited)
+            dry_run: Report what would be removed without deleting anything
 
         Returns:
             Dictionary with removed_count, bytes_freed, removed_runs list.
@@ -660,21 +663,14 @@ class WorkspaceStorage:
         # Collect run directories with their started_at timestamps
         run_entries: List[Dict[str, Any]] = []
         for run_dir in runs_dir.iterdir():
-            if not run_dir.is_dir():
+            if not run_dir.is_dir() or run_dir.is_symlink():
                 continue
-
-            started_at = datetime.min.replace(tzinfo=timezone.utc)
-            metadata_path = run_dir / "run_metadata.json"
-            if metadata_path.exists():
-                try:
-                    with open(metadata_path) as f:
-                        metadata = json.load(f)
-                    started_at = datetime.fromisoformat(metadata["started_at"])
-                except Exception:
-                    pass  # Treat corrupt/missing metadata as oldest
-
             run_entries.append(
-                {"path": run_dir, "started_at": started_at, "run_id": run_dir.name}
+                {
+                    "path": run_dir,
+                    "started_at": _run_started_at(run_dir),
+                    "run_id": run_dir.name,
+                }
             )
 
         if len(run_entries) <= max_runs:
@@ -695,12 +691,13 @@ class WorkspaceStorage:
                 dir_size = sum(
                     f.stat().st_size for f in run_dir.rglob("*") if f.is_file()
                 )
-                shutil.rmtree(run_dir)
+                if not dry_run:
+                    shutil.rmtree(run_dir)
+                    freed_mb = dir_size / (1024 * 1024)
+                    logger.info(f"Pruned old run {run_id} ({freed_mb:.1f}MB)")
                 result["removed_count"] += 1
                 result["bytes_freed"] += dir_size
                 result["removed_runs"].append(run_id)
-                freed_mb = dir_size / (1024 * 1024)
-                logger.info(f"Pruned old run {run_id} ({freed_mb:.1f}MB)")
             except Exception as e:
                 logger.warning(f"Failed to remove run {run_id}: {e}")
 
@@ -1351,3 +1348,18 @@ class WorkspaceStorage:
                 continue
 
         return False
+
+
+def _run_started_at(run_dir: Path) -> datetime:
+    """Return a run's start time as an aware datetime for retention ordering.
+
+    Archived runs record a naive local ``started_at``; runs without readable
+    metadata (in progress, or corrupt) fall back to directory mtime so a live
+    run is never ranked oldest and pruned out from under itself.
+    """
+    try:
+        with open(run_dir / "run_metadata.json") as f:
+            started_at = datetime.fromisoformat(json.load(f)["started_at"])
+        return started_at if started_at.tzinfo else started_at.astimezone()
+    except (OSError, ValueError, KeyError, TypeError):
+        return datetime.fromtimestamp(run_dir.stat().st_mtime, tz=timezone.utc)

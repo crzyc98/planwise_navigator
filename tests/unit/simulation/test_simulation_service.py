@@ -299,6 +299,9 @@ class TestRunLocalLifecycle:
         def export(**kwargs):
             order.append("export")
 
+        def prune(*args):
+            order.append("prune")
+
         with (
             patch(
                 "planalign_api.services.simulation.service.archive_run",
@@ -307,6 +310,10 @@ class TestRunLocalLifecycle:
             patch(
                 "planalign_api.services.simulation.service.export_run_excel_in_process",
                 side_effect=export,
+            ),
+            patch(
+                "planalign_api.services.simulation.service.prune_old_runs",
+                side_effect=prune,
             ),
             patch("planalign_api.services.simulation.service.get_telemetry_service"),
         ):
@@ -335,6 +342,7 @@ class TestRunLocalLifecycle:
         # is reported, not before (feature 122 regression: it used to block
         # completion for minutes on large runs). It is offloaded to a worker
         # process so it cannot contend with the API event loop for the GIL.
+        # Retention pruning (#660) runs last, after the new run is promoted.
         assert order == [
             "metadata",
             "provenance",
@@ -342,6 +350,7 @@ class TestRunLocalLifecycle:
             "run_status",
             "scenario_status",
             "export",
+            "prune",
         ]
 
     def test_facade_stays_below_module_size_limit(self):

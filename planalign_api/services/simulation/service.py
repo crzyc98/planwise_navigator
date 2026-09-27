@@ -21,7 +21,7 @@ from ..database_path_resolver import (
 from .log_writer import SimulationLogWriter
 from .output_parser import SimulationOutputParser
 from .results_reader import read_results
-from .run_archiver import archive_failed_run, archive_run
+from .run_archiver import archive_failed_run, archive_run, prune_old_runs
 from .excel_export_worker import export_run_excel_in_process
 from .run_execution import (
     active_process_registry as _active_process_registry,
@@ -310,6 +310,11 @@ class SimulationService:
                 run_id,
                 exc,
             )
+
+        # Retention (#660): feature 122 dropped this call, so runs accumulated
+        # past storage.max_runs_per_scenario. Runs last so a prune failure can
+        # never affect the promoted result; prune_old_runs is itself non-fatal.
+        prune_old_runs(self.storage, workspace_id, scenario_id, config)
 
     def _handle_simulation_failure(
         self,
