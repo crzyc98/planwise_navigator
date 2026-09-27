@@ -22,6 +22,7 @@ from fastapi import Depends, FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
 
 from .config import get_settings
 from .errors import (
@@ -188,7 +189,10 @@ def _install_run_header_openapi(app: FastAPI) -> None:
         )
         header_schema = {"schema": {"type": "string"}}
         for route in app.routes:
-            if getattr(route, "name", None) not in SCENARIO_READ_ROUTES:
+            if (
+                not isinstance(route, APIRoute)
+                or route.name not in SCENARIO_READ_ROUTES
+            ):
                 continue
             operation = schema["paths"][route.path_format]["get"]
             for response in operation.get("responses", {}).values():

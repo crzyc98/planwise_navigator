@@ -379,7 +379,7 @@ def _render_pptx(report: ScenarioReport, output: Path) -> None:
         for item in report.provenance
     )
     _add_pptx_footer(provenance, report)
-    presentation.save(output)
+    presentation.save(str(output))
 
 
 def _add_pptx_footer(slide, report: ScenarioReport) -> None:

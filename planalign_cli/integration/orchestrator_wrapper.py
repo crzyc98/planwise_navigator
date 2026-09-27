@@ -10,9 +10,9 @@ from __future__ import annotations
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, TextIO, Union, cast
 
-from planalign_orchestrator.config import load_simulation_config
+from planalign_orchestrator.config import SimulationConfig, load_simulation_config
 from planalign_orchestrator.construction import (
     ConstructionSpec,
     InitializationPolicy,
@@ -41,8 +41,8 @@ class OrchestratorWrapper:
         self.entry_point = entry_point
 
         # Lazy initialization
-        self._config = None
-        self._db = None
+        self._config: Optional[SimulationConfig] = None
+        self._db: Optional[DatabaseConnectionManager] = None
 
     @property
     def config(self):
@@ -387,7 +387,7 @@ class ProgressAwareOrchestrator:
         progress_monitor = _ProgressMonitor(self.progress_callback, original_stdout)
 
         try:
-            sys.stdout = progress_monitor
+            sys.stdout = cast(TextIO, progress_monitor)
             result = self.orchestrator.execute_multi_year_simulation(**kwargs)
             if progress_monitor.buffer.strip():
                 progress_monitor._process_line(progress_monitor.buffer)
