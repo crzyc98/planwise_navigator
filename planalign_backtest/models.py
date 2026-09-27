@@ -168,12 +168,11 @@ class MetricComparison(FrozenModel):
         if actual == 0 or percent is None:
             derived["status"] = "undefined"
             return derived
-        if isinstance(threshold, Threshold):
-            warn, fail = threshold.warn, threshold.fail
-        elif isinstance(threshold, dict):
-            warn, fail = threshold.get("warn"), threshold.get("fail")
-        else:
+        if isinstance(threshold, dict):
+            threshold = Threshold.model_validate(threshold)
+        if not isinstance(threshold, Threshold):
             return derived
+        warn, fail = threshold.warn, threshold.fail
         magnitude = abs(float(percent))
         derived["status"] = (
             "pass" if magnitude < warn else "warn" if magnitude < fail else "fail"

@@ -98,7 +98,7 @@ class CorporateNetworkClient:
 
     def _setup_client(self):
         """Setup HTTP client with proxy and SSL configuration."""
-        handlers = []
+        handlers: list[urllib.request.BaseHandler] = []
 
         # Add proxy handler if configured
         if self.config.proxy.http_proxy or self.config.proxy.https_proxy:

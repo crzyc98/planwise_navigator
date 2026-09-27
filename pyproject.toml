@@ -220,9 +220,12 @@ output = "coverage.xml"
 
 [tool.mypy]
 # The CI lint job runs `mypy planalign_orchestrator/ planalign_cli/ planalign_core/
-# --ignore-missing-imports`; mypy auto-loads this section. The Pydantic v2 plugin
+# planalign_api/ planalign_fit/ planalign_ensemble/ planalign_optimizer/
+# planalign_evidence/ planalign_backtest/ --ignore-missing-imports`.
+# Mypy auto-loads this section. The Pydantic v2 plugin
 # teaches mypy about model-synthesized __init__ (field defaults, default_factory),
 # eliminating false-positive [call-arg] "Missing named argument" errors on valid
 # model construction. ignore_missing_imports mirrors the CI flag for local parity.
 plugins = ["pydantic.mypy"]
 ignore_missing_imports = true
+check_untyped_defs = true
