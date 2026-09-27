@@ -131,6 +131,7 @@ SCENARIO_READ_ROUTES = {
     "search_employees",
     "get_employee_timeline",
     "get_scenario_evidence_pack",
+    "list_events",
 }
 
 
