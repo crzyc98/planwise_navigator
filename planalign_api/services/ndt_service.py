@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set
 
 import yaml
-from pydantic import BaseModel
+from ..models.base import APIModel
 
 from ..storage.workspace_storage import WorkspaceStorage
 from .database_path_resolver import (
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 # ==============================================================================
 
 
-class ACPEmployeeDetail(BaseModel):
+class ACPEmployeeDetail(APIModel):
     employee_id: str
     is_hce: bool
     is_enrolled: bool
@@ -33,7 +33,7 @@ class ACPEmployeeDetail(BaseModel):
     prior_year_compensation: Optional[float] = None
 
 
-class ACPScenarioResult(BaseModel):
+class ACPScenarioResult(APIModel):
     scenario_id: str
     scenario_name: str
     simulation_year: int
@@ -54,13 +54,13 @@ class ACPScenarioResult(BaseModel):
     employees: Optional[List[ACPEmployeeDetail]] = None
 
 
-class ACPTestResponse(BaseModel):
+class ACPTestResponse(APIModel):
     test_type: str = "acp"
     year: int
     results: List[ACPScenarioResult]
 
 
-class AvailableYearsResponse(BaseModel):
+class AvailableYearsResponse(APIModel):
     years: List[int]
     default_year: Optional[int] = None
 
@@ -70,7 +70,7 @@ class AvailableYearsResponse(BaseModel):
 # ==============================================================================
 
 
-class Section401a4EmployeeDetail(BaseModel):
+class Section401a4EmployeeDetail(APIModel):
     employee_id: str
     is_hce: bool
     employer_nec_amount: float = 0.0
@@ -81,7 +81,7 @@ class Section401a4EmployeeDetail(BaseModel):
     years_of_service: float = 0.0
 
 
-class Section401a4ScenarioResult(BaseModel):
+class Section401a4ScenarioResult(APIModel):
     scenario_id: str
     scenario_name: str
     simulation_year: int
@@ -105,7 +105,7 @@ class Section401a4ScenarioResult(BaseModel):
     employees: Optional[List[Section401a4EmployeeDetail]] = None
 
 
-class Section401a4TestResponse(BaseModel):
+class Section401a4TestResponse(APIModel):
     test_type: str = "401a4"
     year: int
     results: List[Section401a4ScenarioResult]
@@ -116,7 +116,7 @@ class Section401a4TestResponse(BaseModel):
 # ==============================================================================
 
 
-class Section415EmployeeDetail(BaseModel):
+class Section415EmployeeDetail(APIModel):
     employee_id: str
     status: str  # "pass", "at_risk", "breach"
     employee_deferrals: float = 0.0
@@ -129,7 +129,7 @@ class Section415EmployeeDetail(BaseModel):
     utilization_pct: float = 0.0
 
 
-class Section415ScenarioResult(BaseModel):
+class Section415ScenarioResult(APIModel):
     scenario_id: str
     scenario_name: str
     simulation_year: int
@@ -146,7 +146,7 @@ class Section415ScenarioResult(BaseModel):
     employees: Optional[List[Section415EmployeeDetail]] = None
 
 
-class Section415TestResponse(BaseModel):
+class Section415TestResponse(APIModel):
     test_type: str = "415"
     year: int
     results: List[Section415ScenarioResult]
@@ -157,7 +157,7 @@ class Section415TestResponse(BaseModel):
 # ==============================================================================
 
 
-class ADPEmployeeDetail(BaseModel):
+class ADPEmployeeDetail(APIModel):
     employee_id: str
     is_hce: bool
     employee_deferrals: float
@@ -166,7 +166,7 @@ class ADPEmployeeDetail(BaseModel):
     prior_year_compensation: Optional[float] = None
 
 
-class ADPScenarioResult(BaseModel):
+class ADPScenarioResult(APIModel):
     scenario_id: str
     scenario_name: str
     simulation_year: int
@@ -189,7 +189,7 @@ class ADPScenarioResult(BaseModel):
     employees: Optional[List[ADPEmployeeDetail]] = None
 
 
-class ADPTestResponse(BaseModel):
+class ADPTestResponse(APIModel):
     test_type: str = "adp"
     year: int
     results: List[ADPScenarioResult]

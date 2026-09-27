@@ -3,10 +3,11 @@
 from datetime import datetime, timezone
 from typing import List
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+from .base import APIModel
 
 
-class HealthResponse(BaseModel):
+class HealthResponse(APIModel):
     """Response for health check endpoint."""
 
     healthy: bool = Field(description="Whether the system is healthy")
@@ -16,7 +17,7 @@ class HealthResponse(BaseModel):
     )
 
 
-class SystemStatus(BaseModel):
+class SystemStatus(APIModel):
     """Detailed system status response."""
 
     system_ready: bool = Field(

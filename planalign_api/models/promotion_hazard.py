@@ -7,10 +7,11 @@ used by the PlanAlign simulation engine.
 
 from typing import List
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+from .base import APIModel
 
 
-class PromotionHazardBase(BaseModel):
+class PromotionHazardBase(APIModel):
     """Global promotion hazard parameters."""
 
     base_rate: float = Field(
@@ -21,21 +22,21 @@ class PromotionHazardBase(BaseModel):
     )
 
 
-class PromotionHazardAgeMultiplier(BaseModel):
+class PromotionHazardAgeMultiplier(APIModel):
     """Per-age-band promotion hazard multiplier."""
 
     age_band: str = Field(..., description="Age band label (read-only)")
     multiplier: float = Field(..., ge=0, description="Promotion hazard multiplier")
 
 
-class PromotionHazardTenureMultiplier(BaseModel):
+class PromotionHazardTenureMultiplier(APIModel):
     """Per-tenure-band promotion hazard multiplier."""
 
     tenure_band: str = Field(..., description="Tenure band label (read-only)")
     multiplier: float = Field(..., ge=0, description="Promotion hazard multiplier")
 
 
-class PromotionHazardConfig(BaseModel):
+class PromotionHazardConfig(APIModel):
     """Container for all promotion hazard configuration."""
 
     base: PromotionHazardBase
@@ -43,7 +44,7 @@ class PromotionHazardConfig(BaseModel):
     tenure_multipliers: List[PromotionHazardTenureMultiplier]
 
 
-class PromotionHazardSaveResponse(BaseModel):
+class PromotionHazardSaveResponse(APIModel):
     """Response after saving promotion hazard configuration."""
 
     success: bool

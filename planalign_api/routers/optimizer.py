@@ -26,7 +26,7 @@ from uuid import uuid4
 import yaml  # type: ignore[import]
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import Field, ValidationError
 
 from planalign_optimizer.baseline import load_baseline, stale_baseline_warning
 from planalign_optimizer.design_space import sample_candidates
@@ -50,6 +50,7 @@ from ..config import APISettings, get_settings
 from ..errors import sanitize_job_error
 from ..models.scenario import Scenario, ScenarioCreate
 from ..storage.workspace_storage import WorkspaceStorage
+from ..models.base import APIModel
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +67,7 @@ def get_storage(settings: APISettings = Depends(get_settings)) -> WorkspaceStora
 # ---------------------------------------------------------------------------
 
 
-class OptimizerJob(BaseModel):
+class OptimizerJob(APIModel):
     """Status/result record for a background optimizer job."""
 
     run_id: str
@@ -193,7 +194,7 @@ def _start_job_thread(
 # ---------------------------------------------------------------------------
 
 
-class OptimizerValidateRequest(BaseModel):
+class OptimizerValidateRequest(APIModel):
     """Exactly one of ``spec``/``spec_yaml`` must be given."""
 
     spec: Optional[dict] = None
@@ -201,7 +202,7 @@ class OptimizerValidateRequest(BaseModel):
     max_runs: Optional[int] = Field(default=None, ge=1)
 
 
-class OptimizerValidateResponse(BaseModel):
+class OptimizerValidateResponse(APIModel):
     valid: bool
     error: Optional[str] = None
     resolved_spec: Optional[dict] = None
@@ -210,7 +211,7 @@ class OptimizerValidateResponse(BaseModel):
     baseline_drift_warning: Optional[str] = None
 
 
-class OptimizerRunRequest(BaseModel):
+class OptimizerRunRequest(APIModel):
     spec: dict
     max_runs: int = Field(..., ge=1)
     search_seed: Optional[int] = None
@@ -221,14 +222,14 @@ class OptimizerRunRequest(BaseModel):
     compare_baseline_to: Optional[str] = None
 
 
-class OptimizerStartResponse(BaseModel):
+class OptimizerStartResponse(APIModel):
     run_id: str
     status: Literal["queued"]
     database_dir: str
     output_dir: str
 
 
-class OptimizerPromoteRequest(BaseModel):
+class OptimizerPromoteRequest(APIModel):
     """Request to materialize an optimizer candidate as an editable scenario."""
 
     workspace_id: str

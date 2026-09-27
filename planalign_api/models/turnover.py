@@ -3,10 +3,11 @@
 from datetime import date
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+from .base import APIModel
 
 
-class TurnoverAnalysisRequest(BaseModel):
+class TurnoverAnalysisRequest(APIModel):
     """Request for census-based turnover rate analysis."""
 
     file_path: str = Field(
@@ -18,7 +19,7 @@ class TurnoverAnalysisRequest(BaseModel):
     )
 
 
-class TurnoverRateSuggestion(BaseModel):
+class TurnoverRateSuggestion(APIModel):
     """A suggested termination rate with supporting statistics."""
 
     rate: float = Field(
@@ -33,7 +34,7 @@ class TurnoverRateSuggestion(BaseModel):
     )
 
 
-class TurnoverAnalysisResult(BaseModel):
+class TurnoverAnalysisResult(APIModel):
     """Result from census-based turnover rate analysis."""
 
     experienced_rate: Optional[TurnoverRateSuggestion] = Field(

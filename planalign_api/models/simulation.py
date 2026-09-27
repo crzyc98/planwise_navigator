@@ -3,10 +3,11 @@
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+from .base import APIModel
 
 
-class SimulationLogLine(BaseModel):
+class SimulationLogLine(APIModel):
     """A single parsed log entry from a simulation run."""
 
     sequence: int = Field(
@@ -21,7 +22,7 @@ class SimulationLogLine(BaseModel):
     message: str = Field(..., description="Log message text")
 
 
-class LogPage(BaseModel):
+class LogPage(APIModel):
     """Paginated log lines for the log viewer endpoint."""
 
     run_id: str = Field(..., description="The run these log lines belong to")
@@ -34,7 +35,7 @@ class LogPage(BaseModel):
     log_available: bool = Field(..., description="False if no log file exists yet")
 
 
-class PerformanceMetrics(BaseModel):
+class PerformanceMetrics(APIModel):
     """Real-time performance metrics during simulation."""
 
     memory_mb: float = Field(description="Memory usage in MB")
@@ -46,7 +47,7 @@ class PerformanceMetrics(BaseModel):
     events_per_second: float = Field(description="Event generation rate")
 
 
-class RecentEvent(BaseModel):
+class RecentEvent(APIModel):
     """Recent event from the simulation stream."""
 
     event_type: str = Field(description="Event type (HIRE, TERMINATION, etc.)")
@@ -55,7 +56,7 @@ class RecentEvent(BaseModel):
     details: Optional[str] = Field(None, description="Additional details")
 
 
-class SimulationRun(BaseModel):
+class SimulationRun(APIModel):
     """Simulation run status model."""
 
     id: str = Field(..., description="Unique run ID (UUID)")
@@ -82,7 +83,7 @@ class SimulationRun(BaseModel):
         }
 
 
-class SimulationTelemetry(BaseModel):
+class SimulationTelemetry(APIModel):
     """WebSocket telemetry message format."""
 
     run_id: str = Field(..., description="Run ID")
@@ -100,7 +101,7 @@ class SimulationTelemetry(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
-class TelemetryMilestone(BaseModel):
+class TelemetryMilestone(APIModel):
     """A timestamped record of a significant run occurrence (feature 094)."""
 
     sequence: int = Field(
@@ -127,7 +128,7 @@ class TelemetryMilestone(BaseModel):
     )
 
 
-class EventTypeCounts(BaseModel):
+class EventTypeCounts(APIModel):
     """Cumulative and per-year event counts; exact at year boundaries only."""
 
     by_type: Dict[str, int] = Field(default_factory=dict)
@@ -138,7 +139,7 @@ class EventTypeCounts(BaseModel):
     )
 
 
-class PerformanceSample(BaseModel):
+class PerformanceSample(APIModel):
     """One trend-chart data point."""
 
     timestamp: datetime
@@ -147,7 +148,7 @@ class PerformanceSample(BaseModel):
     memory_mb: float = Field(0.0, ge=0)
 
 
-class RunTelemetrySnapshot(BaseModel):
+class RunTelemetrySnapshot(APIModel):
     """Full restorable run state — WS `snapshot` body and REST telemetry response."""
 
     run_id: str
@@ -167,14 +168,14 @@ class RunTelemetrySnapshot(BaseModel):
     last_update_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
-class SnapshotMessage(BaseModel):
+class SnapshotMessage(APIModel):
     """WS envelope: full state, sent once per (re)connect before any delta."""
 
     type: Literal["snapshot"] = "snapshot"
     data: RunTelemetrySnapshot
 
 
-class RunTelemetryUpdate(BaseModel):
+class RunTelemetryUpdate(APIModel):
     """Incremental live state: snapshot fields minus history lists."""
 
     run_id: str
@@ -192,21 +193,21 @@ class RunTelemetryUpdate(BaseModel):
     last_update_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
-class UpdateMessage(BaseModel):
+class UpdateMessage(APIModel):
     """WS envelope: incremental live state (throttled to >=1s)."""
 
     type: Literal["update"] = "update"
     data: RunTelemetryUpdate
 
 
-class MilestoneMessage(BaseModel):
+class MilestoneMessage(APIModel):
     """WS envelope: one appended activity-feed entry."""
 
     type: Literal["milestone"] = "milestone"
     data: TelemetryMilestone
 
 
-class RunTelemetryResponse(BaseModel):
+class RunTelemetryResponse(APIModel):
     """REST snapshot endpoint response (contracts/rest-telemetry-snapshot.md)."""
 
     run: Dict[str, Any] = Field(
@@ -217,7 +218,7 @@ class RunTelemetryResponse(BaseModel):
     )
 
 
-class SimulationResults(BaseModel):
+class SimulationResults(APIModel):
     """Full simulation results."""
 
     scenario_id: str = Field(..., description="Scenario ID")
@@ -257,7 +258,7 @@ class SimulationResults(BaseModel):
     )
 
 
-class RunRequest(BaseModel):
+class RunRequest(APIModel):
     """Request to start a simulation run."""
 
     resume_from_checkpoint: bool = Field(
@@ -265,7 +266,7 @@ class RunRequest(BaseModel):
     )
 
 
-class Artifact(BaseModel):
+class Artifact(APIModel):
     """Simulation artifact file info."""
 
     name: str = Field(..., description="File name")
@@ -277,7 +278,7 @@ class Artifact(BaseModel):
     created_at: Optional[datetime] = Field(None, description="File creation time")
 
 
-class RunSummary(BaseModel):
+class RunSummary(APIModel):
     """Summary of a simulation run for listing."""
 
     id: str = Field(..., description="Run ID")
@@ -308,7 +309,7 @@ class RunSummary(BaseModel):
         }
 
 
-class RunDetails(BaseModel):
+class RunDetails(APIModel):
     """Detailed information about a simulation run."""
 
     id: str = Field(..., description="Run ID")

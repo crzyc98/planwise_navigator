@@ -4,10 +4,11 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import Field, field_validator
+from .base import APIModel
 
 
-class TerminationRateSuggestion(BaseModel):
+class TerminationRateSuggestion(APIModel):
     """User-facing termination rate suggestion with confidence and statistics."""
 
     scenario_id: str = Field(..., description="Scenario identifier")

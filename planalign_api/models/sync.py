@@ -3,10 +3,11 @@
 from datetime import datetime
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+from .base import APIModel
 
 
-class SyncConfig(BaseModel):
+class SyncConfig(APIModel):
     """Sync configuration for the workspace directory."""
 
     version: int = Field(default=1, description="Config format version")
@@ -21,7 +22,7 @@ class SyncConfig(BaseModel):
     )
 
 
-class SyncStatus(BaseModel):
+class SyncStatus(APIModel):
     """Current sync status."""
 
     is_initialized: bool = Field(..., description="Whether sync is set up")
@@ -39,7 +40,7 @@ class SyncStatus(BaseModel):
     error: Optional[str] = Field(None, description="Last error message if any")
 
 
-class SyncLogEntry(BaseModel):
+class SyncLogEntry(APIModel):
     """A sync operation log entry."""
 
     timestamp: datetime = Field(..., description="When the operation occurred")
@@ -57,7 +58,7 @@ class SyncLogEntry(BaseModel):
     success: bool = Field(default=True, description="Whether operation succeeded")
 
 
-class SyncPushResult(BaseModel):
+class SyncPushResult(APIModel):
     """Result of a push operation."""
 
     success: bool = Field(..., description="Whether push succeeded")
@@ -66,7 +67,7 @@ class SyncPushResult(BaseModel):
     message: str = Field(..., description="Status message")
 
 
-class SyncPullResult(BaseModel):
+class SyncPullResult(APIModel):
     """Result of a pull operation."""
 
     success: bool = Field(..., description="Whether pull succeeded")
@@ -79,7 +80,7 @@ class SyncPullResult(BaseModel):
     message: str = Field(..., description="Status message")
 
 
-class SyncInitRequest(BaseModel):
+class SyncInitRequest(APIModel):
     """Request to initialize sync."""
 
     remote_url: str = Field(
@@ -89,7 +90,7 @@ class SyncInitRequest(BaseModel):
     auto_sync: bool = Field(default=False, description="Enable auto-sync")
 
 
-class WorkspaceSyncInfo(BaseModel):
+class WorkspaceSyncInfo(APIModel):
     """Sync information for a specific workspace."""
 
     workspace_id: str = Field(..., description="Workspace ID")

@@ -7,10 +7,11 @@ used by the PlanAlign simulation engine.
 from datetime import date
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import Field, field_validator
+from .base import APIModel
 
 
-class Band(BaseModel):
+class Band(APIModel):
     """A single band definition representing a range segment for age or tenure grouping."""
 
     band_id: int = Field(..., ge=1, description="Unique identifier for the band")
@@ -30,14 +31,14 @@ class Band(BaseModel):
         return v
 
 
-class BandConfig(BaseModel):
+class BandConfig(APIModel):
     """Container for all band configurations (age and tenure)."""
 
     age_bands: List[Band] = Field(..., description="Age band definitions")
     tenure_bands: List[Band] = Field(..., description="Tenure band definitions")
 
 
-class BandValidationError(BaseModel):
+class BandValidationError(APIModel):
     """A validation error for band configurations."""
 
     band_type: Literal["age", "tenure"] = Field(
@@ -52,14 +53,14 @@ class BandValidationError(BaseModel):
     )
 
 
-class BandSaveRequest(BaseModel):
+class BandSaveRequest(APIModel):
     """Request payload for saving band configurations."""
 
     age_bands: List[Band] = Field(..., description="Updated age band definitions")
     tenure_bands: List[Band] = Field(..., description="Updated tenure band definitions")
 
 
-class BandSaveResponse(BaseModel):
+class BandSaveResponse(APIModel):
     """Response after saving band configurations."""
 
     success: bool = Field(..., description="Whether save was successful")
@@ -69,7 +70,7 @@ class BandSaveResponse(BaseModel):
     message: str = Field(..., description="Status message")
 
 
-class BandAnalysisRequest(BaseModel):
+class BandAnalysisRequest(APIModel):
     """Request for census-based band analysis."""
 
     file_path: str = Field(
@@ -81,7 +82,7 @@ class BandAnalysisRequest(BaseModel):
     )
 
 
-class DistributionStats(BaseModel):
+class DistributionStats(APIModel):
     """Statistics from census distribution analysis."""
 
     total_employees: int = Field(..., description="Number of employees analyzed")
@@ -95,7 +96,7 @@ class DistributionStats(BaseModel):
     )
 
 
-class BandAnalysisResult(BaseModel):
+class BandAnalysisResult(APIModel):
     """Result from census-based band analysis."""
 
     suggested_bands: List[Band] = Field(

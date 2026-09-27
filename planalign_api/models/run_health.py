@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
+from .base import APIModel
 
 RunHealthStatus = Literal[
     "clean",
@@ -15,7 +16,7 @@ RunHealthStatus = Literal[
 ]
 
 
-class RunHealthCounts(BaseModel):
+class RunHealthCounts(APIModel):
     model_config = ConfigDict(frozen=True)
 
     passed: int = Field(ge=0)
@@ -24,7 +25,7 @@ class RunHealthCounts(BaseModel):
     total: int = Field(ge=0)
 
 
-class RunHealthFinding(BaseModel):
+class RunHealthFinding(APIModel):
     model_config = ConfigDict(frozen=True)
 
     check_name: str
@@ -36,7 +37,7 @@ class RunHealthFinding(BaseModel):
     message: str
 
 
-class RunHealthReport(BaseModel):
+class RunHealthReport(APIModel):
     model_config = ConfigDict(frozen=True)
 
     status: RunHealthStatus

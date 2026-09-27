@@ -2,10 +2,10 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel
+from .base import APIModel
 
 
-class EventRecord(BaseModel):
+class EventRecord(APIModel):
     event_id: str
     event_type: str
     event_category: str | None = None
@@ -33,7 +33,7 @@ class EventRecord(BaseModel):
     created_at: datetime | None = None
 
 
-class EventListResponse(BaseModel):
+class EventListResponse(APIModel):
     workspace_id: str
     scenario_id: str
     run_id: str | None = None

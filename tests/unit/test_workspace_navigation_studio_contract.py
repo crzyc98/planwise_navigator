@@ -59,7 +59,8 @@ def test_palette_is_keyboard_first_compact_and_visually_distinct() -> None:
 
 
 def test_list_uses_summary_contract_and_loads_selected_workspace_detail() -> None:
-    assert "export interface WorkspaceSummary" in API
+    # Generated from the API schema (#661); drift is a CI failure, not a string match.
+    assert "export type WorkspaceSummary = Schemas['WorkspaceSummary']" in API
     assert (
         "listWorkspaces(options: WorkspaceListOptions = {}): Promise<WorkspacePage>"
         in API

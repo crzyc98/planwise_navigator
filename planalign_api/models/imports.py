@@ -6,7 +6,8 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+from .base import APIModel
 
 # ---------------------------------------------------------------------------
 # Schema-mapping types (089-import-schema-mapping)
@@ -19,14 +20,14 @@ SuggestionReason = Literal[
 ]
 
 
-class FormatDetectionResult(BaseModel):
+class FormatDetectionResult(APIModel):
     detected_format: Optional[str] = None
     parsed_sample_values: List[str] = Field(default_factory=list)
     is_ambiguous: bool = False
     format_options: Optional[List[str]] = None
 
 
-class ColumnSuggestion(BaseModel):
+class ColumnSuggestion(APIModel):
     input_column: str
     suggested_canonical_field: Optional[str] = None
     confidence: ConfidenceLevel = "low"
@@ -35,13 +36,13 @@ class ColumnSuggestion(BaseModel):
     format_detection: Optional[FormatDetectionResult] = None
 
 
-class DataQualityResult(BaseModel):
+class DataQualityResult(APIModel):
     duplicate_employee_id_count: int = 0
     null_required_field_counts: Dict[str, int] = Field(default_factory=dict)
     compensation_outlier_count: int = 0
 
 
-class SuggestionsResponse(BaseModel):
+class SuggestionsResponse(APIModel):
     import_id: str
     suggestions: List[ColumnSuggestion]
     data_quality: DataQualityResult
@@ -77,19 +78,19 @@ TransformType = Literal[
 ]
 
 
-class DetectedColumn(BaseModel):
+class DetectedColumn(APIModel):
     name: str
     inferred_type: InferredType
     null_count: int = Field(default=0, ge=0)
     sample_values: List[str] = Field(default_factory=list)
 
 
-class Transformation(BaseModel):
+class Transformation(APIModel):
     transform_type: TransformType
     params: Dict[str, Any] = Field(default_factory=dict)
 
 
-class FieldMapping(BaseModel):
+class FieldMapping(APIModel):
     mapping_id: str = Field(default_factory=lambda: str(uuid4()))
     import_id: str = ""
     input_column: str
@@ -100,7 +101,7 @@ class FieldMapping(BaseModel):
     transformations: List[Transformation] = Field(default_factory=list)
 
 
-class ImportSession(BaseModel):
+class ImportSession(APIModel):
     import_id: str = Field(default_factory=lambda: str(uuid4()))
     correlation_id: str = ""
     workspace_id: str
@@ -127,12 +128,12 @@ class ImportSession(BaseModel):
             self.correlation_id = self.import_id
 
 
-class ParquetColumn(BaseModel):
+class ParquetColumn(APIModel):
     name: str
     type: OutputType
 
 
-class ParquetFile(BaseModel):
+class ParquetFile(APIModel):
     file_id: str = Field(default_factory=lambda: str(uuid4()))
     workspace_id: str
     import_id: str
@@ -148,7 +149,7 @@ class ParquetFile(BaseModel):
     model_config = {"populate_by_name": True}
 
 
-class MappingTemplate(BaseModel):
+class MappingTemplate(APIModel):
     template_id: str = Field(default_factory=lambda: str(uuid4()))
     workspace_id: str
     name: str = Field(..., max_length=128)
@@ -158,7 +159,7 @@ class MappingTemplate(BaseModel):
     created_by: str = "system"
 
 
-class ImportErrorResponse(BaseModel):
+class ImportErrorResponse(APIModel):
     correlation_id: str = Field(default_factory=lambda: str(uuid4()))
     error_code: str
     message: str
@@ -166,23 +167,23 @@ class ImportErrorResponse(BaseModel):
     context: Dict[str, Any] = Field(default_factory=dict)
 
 
-class TransformationWarning(BaseModel):
+class TransformationWarning(APIModel):
     input_column: str
     rows_affected: int
     message: str
 
 
-class MappingValidationError(BaseModel):
+class MappingValidationError(APIModel):
     field: str
     input_column: str
     message: str
 
 
-class MappingSaveRequest(BaseModel):
+class MappingSaveRequest(APIModel):
     field_mappings: List[FieldMapping]
 
 
-class MappingSaveResponse(BaseModel):
+class MappingSaveResponse(APIModel):
     import_id: str
     status: ImportStatusLiteral
     mapping_saved_at: datetime
@@ -190,11 +191,11 @@ class MappingSaveResponse(BaseModel):
     output_column_count: int
 
 
-class SheetSelectRequest(BaseModel):
+class SheetSelectRequest(APIModel):
     sheet_name: str
 
 
-class PreviewResponse(BaseModel):
+class PreviewResponse(APIModel):
     import_id: str
     columns: List[str]
     rows: List[Dict[str, Any]]
@@ -202,7 +203,7 @@ class PreviewResponse(BaseModel):
     preview_row_count: int
 
 
-class MappedPreviewResponse(BaseModel):
+class MappedPreviewResponse(APIModel):
     import_id: str
     columns: List[str]
     rows: List[Dict[str, Any]]
@@ -211,7 +212,7 @@ class MappedPreviewResponse(BaseModel):
     transformation_warnings: List[TransformationWarning] = Field(default_factory=list)
 
 
-class GenerateResponse(BaseModel):
+class GenerateResponse(APIModel):
     import_id: str
     correlation_id: str
     status: ImportStatusLiteral
@@ -220,12 +221,12 @@ class GenerateResponse(BaseModel):
     census_path_set: bool = False
 
 
-class ParquetFilesResponse(BaseModel):
+class ParquetFilesResponse(APIModel):
     parquet_files: List[ParquetFile]
     total_count: int
 
 
-class MappingTemplateSummary(BaseModel):
+class MappingTemplateSummary(APIModel):
     template_id: str
     name: str
     description: Optional[str] = None
@@ -234,21 +235,21 @@ class MappingTemplateSummary(BaseModel):
     created_by: str
 
 
-class MappingTemplatesResponse(BaseModel):
+class MappingTemplatesResponse(APIModel):
     templates: List[MappingTemplateSummary]
 
 
-class SaveTemplateRequest(BaseModel):
+class SaveTemplateRequest(APIModel):
     import_id: str
     name: str = Field(..., max_length=128)
     description: Optional[str] = Field(None, max_length=512)
 
 
-class SaveTemplateResponse(BaseModel):
+class SaveTemplateResponse(APIModel):
     template_id: str
     name: str
     created_at: datetime
 
 
-class ApplyTemplateRequest(BaseModel):
+class ApplyTemplateRequest(APIModel):
     template_id: str

@@ -2,10 +2,11 @@
 
 from typing import Any, Dict, List
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+from .base import APIModel
 
 
-class Template(BaseModel):
+class Template(APIModel):
     """A pre-configured scenario template."""
 
     id: str = Field(..., description="Unique template identifier")
@@ -17,7 +18,7 @@ class Template(BaseModel):
     config: Dict[str, Any] = Field(..., description="Configuration overrides to apply")
 
 
-class TemplateListResponse(BaseModel):
+class TemplateListResponse(APIModel):
     """Response containing list of available templates."""
 
     templates: List[Template] = Field(..., description="Available templates")

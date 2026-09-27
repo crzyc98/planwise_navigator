@@ -2,10 +2,11 @@
 
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+from .base import APIModel
 
 
-class OptOutRateAnalysisRequest(BaseModel):
+class OptOutRateAnalysisRequest(APIModel):
     """Request for census-based opt-out rate analysis."""
 
     file_path: str = Field(
@@ -19,7 +20,7 @@ class OptOutRateAnalysisRequest(BaseModel):
     )
 
 
-class OptOutRateAnalysisResult(BaseModel):
+class OptOutRateAnalysisResult(APIModel):
     """Result from census-based opt-out rate analysis."""
 
     suggested_rate: Optional[float] = Field(

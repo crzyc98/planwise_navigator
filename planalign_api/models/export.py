@@ -4,10 +4,11 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+from .base import APIModel
 
 
-class ManifestContents(BaseModel):
+class ManifestContents(APIModel):
     """Inventory section of the export manifest for validation."""
 
     scenario_count: int = Field(..., ge=0, description="Number of scenarios included")
@@ -19,7 +20,7 @@ class ManifestContents(BaseModel):
     )
 
 
-class ExportManifest(BaseModel):
+class ExportManifest(APIModel):
     """Manifest file included in every workspace archive for integrity and version tracking."""
 
     version: str = Field(default="1.0", description="Manifest schema version")
@@ -46,7 +47,7 @@ class ExportStatus(str, Enum):
     FAILED = "failed"
 
 
-class ExportResult(BaseModel):
+class ExportResult(APIModel):
     """Result for a single workspace export."""
 
     workspace_id: str = Field(..., description="UUID of exported workspace")
@@ -57,7 +58,7 @@ class ExportResult(BaseModel):
     error: Optional[str] = Field(None, description="Error message if failed")
 
 
-class BulkExportRequest(BaseModel):
+class BulkExportRequest(APIModel):
     """Request model for bulk export operation."""
 
     workspace_ids: List[str] = Field(
@@ -77,7 +78,7 @@ class BulkOperationStatus(str, Enum):
     FAILED = "failed"
 
 
-class BulkExportStatus(BaseModel):
+class BulkExportStatus(APIModel):
     """Progress tracking for bulk export operations."""
 
     operation_id: str = Field(..., description="Unique ID for tracking operation")
@@ -92,7 +93,7 @@ class BulkExportStatus(BaseModel):
     )
 
 
-class ImportConflict(BaseModel):
+class ImportConflict(APIModel):
     """Details about a workspace name conflict."""
 
     existing_workspace_id: str = Field(..., description="UUID of conflicting workspace")
@@ -100,7 +101,7 @@ class ImportConflict(BaseModel):
     suggested_name: str = Field(..., description="Auto-generated alternative name")
 
 
-class ImportValidationResponse(BaseModel):
+class ImportValidationResponse(APIModel):
     """Result of archive validation."""
 
     valid: bool = Field(..., description="Whether archive is valid for import")
@@ -133,7 +134,7 @@ class ImportStatus(str, Enum):
     PARTIAL = "partial"
 
 
-class ImportResponse(BaseModel):
+class ImportResponse(APIModel):
     """Result of import operation."""
 
     workspace_id: str = Field(..., description="UUID of imported workspace")
@@ -145,7 +146,7 @@ class ImportResponse(BaseModel):
     )
 
 
-class BulkImportStatus(BaseModel):
+class BulkImportStatus(APIModel):
     """Progress tracking for bulk import operations."""
 
     operation_id: str = Field(..., description="Unique ID for tracking operation")
@@ -160,7 +161,7 @@ class BulkImportStatus(BaseModel):
     )
 
 
-class ErrorResponse(BaseModel):
+class ErrorResponse(APIModel):
     """Standard error response."""
 
     error: str = Field(..., description="Error code")
