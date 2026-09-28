@@ -223,7 +223,14 @@ class CrossScenarioEvidencePack(StrictModel):
         return tuple(figures)
 
 
+class CrossScenarioEvidencePackEnvelope(StrictModel):
+    pack: CrossScenarioEvidencePack
+    text_export: str
+    filename: str = Field(pattern=r"^[A-Za-z0-9._-]+\.md$")
+
+
 __all__ = [
+    "CrossScenarioEvidencePackEnvelope",
     "CROSS_DRIVER_IDS",
     "ConfigDifference",
     "CrossCitation",

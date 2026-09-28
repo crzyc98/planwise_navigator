@@ -1696,6 +1696,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/evidence-pack/compare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Cross Scenario Evidence Pack */
+        get: operations["get_cross_scenario_evidence_pack_api_workspaces__workspace_id__evidence_pack_compare_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workspaces/{workspace_id}/export": {
         parameters: {
             query?: never;
@@ -4029,6 +4046,20 @@ export interface components {
             /** Unchanged Count */
             unchanged_count: number;
         };
+        /** ConfigDifference */
+        ConfigDifference: {
+            /** Path */
+            path: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "changed" | "only_a" | "only_b";
+            /** Value A */
+            value_a: string | null;
+            /** Value B */
+            value_b: string | null;
+        };
         /** ConfigurationEvidence */
         ConfigurationEvidence: {
             /** Effective */
@@ -4181,6 +4212,130 @@ export interface components {
              * @description Simulation year
              */
             year: number;
+        };
+        /** CrossCitation */
+        CrossCitation: {
+            /** Query */
+            query: string;
+            /**
+             * Query Id
+             * @enum {string}
+             */
+            query_id: "QA" | "QB";
+            /** Result Column */
+            result_column: string;
+            /** Result Store */
+            result_store: string;
+        };
+        /** CrossScenarioDriverContribution */
+        CrossScenarioDriverContribution: {
+            contribution: components["schemas"]["CrossScenarioFigure"];
+            /** Description */
+            description: string;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            population: components["schemas"]["CrossScenarioPopulationEvidence"];
+            rate_a?: components["schemas"]["CrossScenarioFigure"] | null;
+            rate_b?: components["schemas"]["CrossScenarioFigure"] | null;
+            share_of_change: components["schemas"]["CrossScenarioFigure"];
+        };
+        /** CrossScenarioEvidencePack */
+        CrossScenarioEvidencePack: {
+            change: components["schemas"]["CrossScenarioMetricChange"];
+            /**
+             * Config Differences
+             * @default []
+             */
+            config_differences: components["schemas"]["ConfigDifference"][];
+            /** Drivers */
+            drivers: components["schemas"]["CrossScenarioDriverContribution"][];
+            /** Executive Summary */
+            executive_summary: string[];
+            /** Population Note */
+            population_note: string;
+            provenance_a: components["schemas"]["PackProvenance"];
+            provenance_b: components["schemas"]["PackProvenance"];
+            residual: components["schemas"]["CrossScenarioResidual"];
+            /**
+             * Schema Version
+             * @default 1.0
+             * @constant
+             * @enum {string}
+             */
+            schema_version: "1.0";
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: components["schemas"]["PackWarning"][];
+        };
+        /** CrossScenarioEvidencePackEnvelope */
+        CrossScenarioEvidencePackEnvelope: {
+            /** Filename */
+            filename: string;
+            pack: components["schemas"]["CrossScenarioEvidencePack"];
+            /** Text Export */
+            text_export: string;
+        };
+        /** CrossScenarioFigure */
+        CrossScenarioFigure: {
+            /** Citations */
+            citations: components["schemas"]["CrossCitation"][];
+            /** Reason */
+            reason?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "defined" | "undefined" | "suppressed";
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "count" | "currency" | "rate" | "percent_of_change";
+            /** Value */
+            value: string | null;
+        };
+        /** CrossScenarioMetricChange */
+        CrossScenarioMetricChange: {
+            /** Label */
+            label: string;
+            /**
+             * Metric
+             * @enum {string}
+             */
+            metric: "active_headcount" | "total_compensation" | "employer_match_cost" | "total_employer_plan_cost" | "participation_rate" | "avg_deferral_rate";
+            population_a: components["schemas"]["CrossScenarioFigure"];
+            population_b: components["schemas"]["CrossScenarioFigure"];
+            /** Scenario A Id */
+            scenario_a_id: string;
+            /** Scenario B Id */
+            scenario_b_id: string;
+            /** Shares Suppressed Reason */
+            shares_suppressed_reason?: string | null;
+            total_change: components["schemas"]["CrossScenarioFigure"];
+            value_a: components["schemas"]["CrossScenarioFigure"];
+            value_b: components["schemas"]["CrossScenarioFigure"];
+            /** Year */
+            year: number;
+        };
+        /** CrossScenarioPopulationEvidence */
+        CrossScenarioPopulationEvidence: {
+            count_a: components["schemas"]["CrossScenarioFigure"];
+            count_b: components["schemas"]["CrossScenarioFigure"];
+            /** Label */
+            label: string;
+        };
+        /** CrossScenarioResidual */
+        CrossScenarioResidual: {
+            contribution: components["schemas"]["CrossScenarioFigure"];
+            /** Largest Contribution */
+            largest_contribution: boolean;
+            /** Material */
+            material: boolean;
+            share_of_change: components["schemas"]["CrossScenarioFigure"];
         };
         /**
          * DCPlanAnalytics
@@ -6368,7 +6523,7 @@ export interface components {
              * Code
              * @enum {string}
              */
-            code: "run_in_progress" | "legacy_result" | "current_config_mismatch" | "current_seed_mismatch" | "mixed_generation" | "incomplete_build" | "incomplete_provenance" | "integrity_mismatch" | "material_residual" | "residual_dominates" | "shares_suppressed" | "scenario_seed_mismatch";
+            code: "run_in_progress" | "legacy_result" | "current_config_mismatch" | "current_seed_mismatch" | "mixed_generation" | "incomplete_build" | "incomplete_provenance" | "integrity_mismatch" | "material_residual" | "residual_dominates" | "shares_suppressed" | "scenario_seed_mismatch" | "census_mismatch";
             /** Message */
             message: string;
             /**
@@ -11638,6 +11793,48 @@ export interface operations {
             /** @description Validation Error */
             422: {
                 headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_cross_scenario_evidence_pack_api_workspaces__workspace_id__evidence_pack_compare_get: {
+        parameters: {
+            query: {
+                scenario_a: string;
+                scenario_b: string;
+                metric: "active_headcount" | "total_compensation" | "employer_match_cost" | "total_employer_plan_cost" | "participation_rate" | "avg_deferral_rate";
+                year: number;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrossScenarioEvidencePackEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
                     [name: string]: unknown;
                 };
                 content: {

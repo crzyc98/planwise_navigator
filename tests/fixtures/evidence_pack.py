@@ -76,11 +76,12 @@ def create_evidence_scenario(
     rows: tuple[tuple[Any, ...], ...] = DEFAULT_ROWS,
     managed: bool = True,
     scenario_id: str = "evidence-scenario",
+    run_id: str = RUN_ID,
 ) -> EvidenceScenario:
     """Create one contained scenario with a completed deterministic result."""
     workspace_id = "evidence-workspace"
     scenario_path = root / "workspaces" / workspace_id / "scenarios" / scenario_id
-    run_dir = scenario_path / "runs" / RUN_ID if managed else scenario_path
+    run_dir = scenario_path / "runs" / run_id if managed else scenario_path
     run_dir.mkdir(parents=True)
     database_path = run_dir / "simulation.duckdb"
     with duckdb.connect(str(database_path)) as connection:
@@ -93,7 +94,7 @@ def create_evidence_scenario(
         connection.execute(
             "INSERT INTO run_metadata VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [
-                RUN_ID,
+                run_id,
                 datetime(2026, 8, 12, 12, 0, tzinfo=timezone.utc),
                 "simulate",
                 FINGERPRINT,
@@ -106,20 +107,20 @@ def create_evidence_scenario(
                 True,
             ],
         )
-    _write_scenario_files(scenario_path, run_dir, scenario_id, managed)
+    _write_scenario_files(scenario_path, run_dir, scenario_id, managed, run_id)
     return EvidenceScenario(
         root=root,
         workspace_id=workspace_id,
         scenario_id=scenario_id,
         scenario_path=scenario_path,
-        run_id=RUN_ID if managed else "legacy",
+        run_id=run_id if managed else "legacy",
         run_dir=run_dir,
         database_path=database_path,
     )
 
 
 def _write_scenario_files(
-    scenario_path: Path, run_dir: Path, scenario_id: str, managed: bool
+    scenario_path: Path, run_dir: Path, scenario_id: str, managed: bool, run_id: str
 ) -> None:
     scenario_path.mkdir(parents=True, exist_ok=True)
     (scenario_path / "scenario.json").write_text(
@@ -133,7 +134,7 @@ def _write_scenario_files(
                 "status": "completed",
                 "created_at": "2026-08-12T11:00:00+00:00",
                 "last_run_at": "2026-08-12T12:01:00+00:00",
-                "last_run_id": RUN_ID if managed else None,
+                "last_run_id": run_id if managed else None,
             },
             sort_keys=True,
         ),
@@ -142,7 +143,7 @@ def _write_scenario_files(
     if not managed:
         return
     metadata = {
-        "run_id": RUN_ID,
+        "run_id": run_id,
         "status": "completed",
         "started_at": "2026-08-12T12:00:00+00:00",
         "completed_at": "2026-08-12T12:01:00+00:00",
@@ -160,7 +161,7 @@ def _write_scenario_files(
         json.dumps(
             {
                 "schema_version": "1.0",
-                "run_id": RUN_ID,
+                "run_id": run_id,
                 "capture_state": "completed",
                 "validation_disposition": "passed",
             },
@@ -169,7 +170,7 @@ def _write_scenario_files(
         encoding="utf-8",
     )
     (scenario_path / "current_result.json").write_text(
-        json.dumps({"schema_version": 1, "run_id": RUN_ID}, sort_keys=True),
+        json.dumps({"schema_version": 1, "run_id": run_id}, sort_keys=True),
         encoding="utf-8",
     )
 
