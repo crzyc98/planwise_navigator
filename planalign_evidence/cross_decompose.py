@@ -340,6 +340,8 @@ def _display(value: Decimal, unit: str, signed: bool = False) -> str:
 def build_cross_executive_summary(
     change: CrossScenarioMetricChange,
     drivers: tuple[CrossScenarioDriverContribution, ...],
+    name_a: str,
+    name_b: str,
 ) -> tuple[str, ...]:
     a = Decimal(change.value_a.value or "0")
     b = Decimal(change.value_b.value or "0")
@@ -350,9 +352,9 @@ def build_cross_executive_summary(
         else " (percent undefined from zero baseline)"
     )
     sentences = [
-        f"{change.label}: scenario {change.scenario_a_id} {_display(a, change.value_a.unit)}, "
-        f"scenario {change.scenario_b_id} {_display(b, change.value_b.unit)}; "
-        f"difference {_display(delta, change.total_change.unit, True)}{percent}."
+        f"{change.label}: {name_a} (A) {_display(a, change.value_a.unit)}, "
+        f"{name_b} (B) {_display(b, change.value_b.unit)}; "
+        f"difference B − A {_display(delta, change.total_change.unit, True)}{percent}."
     ]
     sentences.extend(
         f"{driver.label}: {_display(Decimal(driver.contribution.value), change.total_change.unit, True)}."

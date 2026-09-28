@@ -30,6 +30,7 @@ import {
   WorkforceMetrics,
 } from '../services/api';
 import { useWorkspaceNavigate } from '../hooks/useWorkspaceNavigation';
+import CrossScenarioEvidencePanel from './CrossScenarioEvidencePanel';
 import { LayoutContextType } from './Layout';
 
 interface ChartPoint {
@@ -300,6 +301,15 @@ export default function ScenarioDiff() {
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         {METRICS.map(metric => <MetricPanel key={metric.key} comparison={comparison} metric={metric} scenarioA={scenarioA} scenarioB={scenarioB} nameA={nameA} nameB={nameB} />)}
       </div>
+
+      <CrossScenarioEvidencePanel
+        workspaceId={activeWorkspace.id}
+        scenarioA={scenarioA}
+        scenarioB={scenarioB}
+        nameA={nameA}
+        nameB={nameB}
+        years={comparison.workforce_comparison.map(year => year.year)}
+      />
     </div>
   );
 }

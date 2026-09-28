@@ -8,7 +8,7 @@ import {
   getScenarioEvidencePack,
 } from '../services/api';
 
-const METRICS: Array<{ id: EvidenceMetric; label: string }> = [
+export const EVIDENCE_METRICS: Array<{ id: EvidenceMetric; label: string }> = [
   { id: 'active_headcount', label: 'Active headcount' },
   { id: 'total_compensation', label: 'Total compensation' },
   { id: 'employer_match_cost', label: 'Employer match cost' },
@@ -24,7 +24,10 @@ interface Props {
   endYear: number;
 }
 
-function formatFigure(figure: EvidenceFigure): string {
+/** The fields needed to display a figure; shared with cross-scenario packs. */
+export type FigureLike = Pick<EvidenceFigure, 'value' | 'unit' | 'status'> & { reason?: string | null };
+
+function formatFigure(figure: FigureLike): string {
   if (figure.status === 'defined') {
     const value = Number(figure.value ?? 0);
     if (figure.unit === 'currency') {
@@ -37,7 +40,7 @@ function formatFigure(figure: EvidenceFigure): string {
   return `${figure.status === 'suppressed' ? 'Suppressed' : 'Undefined'} — ${figure.reason}`;
 }
 
-function FigureValue({ figure }: { figure: EvidenceFigure }) {
+export function FigureValue({ figure }: { figure: FigureLike }) {
   return <span title={figure.value === null ? figure.reason ?? undefined : `Canonical: ${figure.value}`}>{formatFigure(figure)}</span>;
 }
 
@@ -71,7 +74,7 @@ export default function EvidencePackPanel({ workspaceId, scenarioId, startYear, 
       <div className="grid gap-3 rounded-lg border border-border bg-surface-raised p-4 md:grid-cols-4">
         <label className="text-sm text-ink-muted">Metric
           <select aria-label="Evidence metric" value={metric} onChange={event => setMetric(event.target.value as EvidenceMetric)} className="mt-1 w-full rounded border border-border-strong p-2">
-            {METRICS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+            {EVIDENCE_METRICS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
           </select>
         </label>
         <label className="text-sm text-ink-muted">Base year

@@ -48,6 +48,9 @@ def test_api_returns_bound_deterministic_cross_pack_and_text(
     assert pack["provenance_a"]["run_id"] == a.run_id
     assert pack["provenance_b"]["run_id"] == b.run_id
     assert pack["config_differences"] == []
+    assert pack["executive_summary"][0].startswith(
+        "Total compensation: Evidence Scenario (A) $"
+    )
     assert payload["text_export"].startswith(
         "# Cross-Scenario Evidence Pack: Total compensation, 2025"
     )
