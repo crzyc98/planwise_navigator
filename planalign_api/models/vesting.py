@@ -7,9 +7,10 @@ from decimal import Decimal
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, field_serializer
+from pydantic import Field, field_serializer
 
 from .employer_cost import EmployerCostOffsetRow, ForfeiturePolicy
+from .base import APIModel
 
 
 class VestingScheduleType(str, Enum):
@@ -27,7 +28,7 @@ class VestingScheduleType(str, Enum):
     GRADED_6_YEAR = "graded_6_year"
 
 
-class VestingScheduleInfo(BaseModel):
+class VestingScheduleInfo(APIModel):
     """Information about a vesting schedule for display."""
 
     schedule_type: VestingScheduleType
@@ -38,7 +39,7 @@ class VestingScheduleInfo(BaseModel):
     )
 
 
-class VestingScheduleConfig(BaseModel):
+class VestingScheduleConfig(APIModel):
     """User-selected vesting schedule configuration."""
 
     schedule_type: VestingScheduleType
@@ -55,7 +56,7 @@ class VestingScheduleConfig(BaseModel):
     )
 
 
-class VestingAnalysisRequest(BaseModel):
+class VestingAnalysisRequest(APIModel):
     """Request to run vesting analysis comparing two schedules."""
 
     current_schedule: VestingScheduleConfig = Field(
@@ -72,7 +73,7 @@ class VestingAnalysisRequest(BaseModel):
     )
 
 
-class EmployeeVestingDetail(BaseModel):
+class EmployeeVestingDetail(APIModel):
     """Vesting calculation details for a single employee."""
 
     employee_id: str = Field(..., min_length=1)
@@ -113,7 +114,7 @@ class EmployeeVestingDetail(BaseModel):
         return float(v)
 
 
-class TenureBandSummary(BaseModel):
+class TenureBandSummary(APIModel):
     """Forfeiture summary for a tenure band."""
 
     tenure_band: str
@@ -134,7 +135,7 @@ class TenureBandSummary(BaseModel):
         return float(v)
 
 
-class VestingAnalysisSummary(BaseModel):
+class VestingAnalysisSummary(APIModel):
     """High-level summary of vesting analysis."""
 
     analysis_year: int
@@ -191,7 +192,7 @@ class VestingAnalysisSummary(BaseModel):
         return float(v)
 
 
-class VestingAnalysisResponse(BaseModel):
+class VestingAnalysisResponse(APIModel):
     """Complete response from vesting analysis."""
 
     scenario_id: str
@@ -203,13 +204,13 @@ class VestingAnalysisResponse(BaseModel):
     employee_details: List[EmployeeVestingDetail]
 
 
-class VestingScheduleListResponse(BaseModel):
+class VestingScheduleListResponse(APIModel):
     """Response listing available vesting schedules."""
 
     schedules: List[VestingScheduleInfo]
 
 
-class ScenarioYearsResponse(BaseModel):
+class ScenarioYearsResponse(APIModel):
     """Available simulation years for a scenario."""
 
     years: List[int] = Field(
@@ -218,7 +219,7 @@ class ScenarioYearsResponse(BaseModel):
     default_year: int = Field(..., description="The most recent (final) year")
 
 
-class ForfeitureYearRow(BaseModel):
+class ForfeitureYearRow(APIModel):
     """Forfeitures for one scenario in one simulation year."""
 
     simulation_year: int
@@ -255,7 +256,7 @@ class ForfeitureYearRow(BaseModel):
         return float(v)
 
 
-class ScenarioForfeitureSeries(BaseModel):
+class ScenarioForfeitureSeries(APIModel):
     """One scenario's forfeitures across every simulation year it contains."""
 
     scenario_id: str = Field(..., min_length=1)
@@ -283,7 +284,7 @@ class ScenarioForfeitureSeries(BaseModel):
         return float(v)
 
 
-class SkippedScenario(BaseModel):
+class SkippedScenario(APIModel):
     """A requested scenario excluded from the projection, with the reason."""
 
     scenario_id: str = Field(..., min_length=1)
@@ -293,7 +294,7 @@ class SkippedScenario(BaseModel):
     )
 
 
-class ForfeitureProjectionResponse(BaseModel):
+class ForfeitureProjectionResponse(APIModel):
     """Multi-year, multi-scenario forfeitures under a single vesting schedule."""
 
     schedule: VestingScheduleConfig

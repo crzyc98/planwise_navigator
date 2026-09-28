@@ -3,10 +3,11 @@
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+from .base import APIModel
 
 
-class TimelineEvent(BaseModel):
+class TimelineEvent(APIModel):
     event_id: str
     source: Literal["yearly", "employer_match"]
     event_type: str
@@ -20,7 +21,7 @@ class TimelineEvent(BaseModel):
     level_id: int | None = None
 
 
-class YearState(BaseModel):
+class YearState(APIModel):
     simulation_year: int
     employment_status: str | None = None
     detailed_status_code: str | None = None
@@ -44,20 +45,20 @@ class YearState(BaseModel):
     irs_limit_reached: bool | None = None
 
 
-class TimelineYear(BaseModel):
+class TimelineYear(APIModel):
     simulation_year: int
     events: list[TimelineEvent] = Field(default_factory=list)
     state: YearState | None = None
 
 
-class EmployeeIdentity(BaseModel):
+class EmployeeIdentity(APIModel):
     employee_id: str
     employee_ssn: str | None = None
     employee_birth_date: date | None = None
     employee_hire_date: date | None = None
 
 
-class EmployeeTimelineResponse(BaseModel):
+class EmployeeTimelineResponse(APIModel):
     workspace_id: str
     scenario_id: str
     employee_id: str
@@ -68,7 +69,7 @@ class EmployeeTimelineResponse(BaseModel):
     years_requested: int
 
 
-class EmployeeSearchResult(BaseModel):
+class EmployeeSearchResult(APIModel):
     employee_id: str
     employment_status: str | None = None
     level_id: int | None = None
@@ -76,7 +77,7 @@ class EmployeeSearchResult(BaseModel):
     simulation_year: int
 
 
-class EmployeeSearchResponse(BaseModel):
+class EmployeeSearchResponse(APIModel):
     results: list[EmployeeSearchResult]
     total: int
     page: int

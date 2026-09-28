@@ -8,10 +8,11 @@ date), independent of any simulation run.
 from datetime import date
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+from .base import APIModel
 
 
-class CensusAnalysisRequest(BaseModel):
+class CensusAnalysisRequest(APIModel):
     """Request for census-based pre-simulation analysis."""
 
     file_path: str = Field(
@@ -23,7 +24,7 @@ class CensusAnalysisRequest(BaseModel):
     )
 
 
-class CensusMetrics(BaseModel):
+class CensusMetrics(APIModel):
     """Participation, savings-rate, and cost metrics for one population slice."""
 
     employee_count: int = Field(..., description="Employees in this slice")
@@ -91,7 +92,7 @@ class CensusSegmentMetrics(CensusMetrics):
     value: str = Field(..., description="Segment value, e.g. 'Engineering' or '30-39'")
 
 
-class CensusDeferralRateBucket(BaseModel):
+class CensusDeferralRateBucket(APIModel):
     """One bucket of the eligible-employee deferral rate distribution."""
 
     bucket: str = Field(
@@ -103,7 +104,7 @@ class CensusDeferralRateBucket(BaseModel):
     )
 
 
-class CensusDataQualityIssue(BaseModel):
+class CensusDataQualityIssue(APIModel):
     """A data quality flag surfaced instead of failing an import outright."""
 
     issue_type: str = Field(
@@ -121,7 +122,7 @@ class CensusDataQualityIssue(BaseModel):
     message: str = Field(..., description="Human-readable description")
 
 
-class CensusAnalysisResult(BaseModel):
+class CensusAnalysisResult(APIModel):
     """Result from census-based pre-simulation analysis."""
 
     total_employees: int = Field(..., description="Total rows in the census file")

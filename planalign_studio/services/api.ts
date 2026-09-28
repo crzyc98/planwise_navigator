@@ -4,6 +4,8 @@
  * Connects to the FastAPI backend at planalign_api/
  */
 
+import type { components } from './api.generated';
+
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
 const API_TOKEN = import.meta.env.VITE_PLANALIGN_API_TOKEN as string | undefined;
 
@@ -48,36 +50,19 @@ export async function fetchWithAuth(input: RequestInfo | URL, init?: RequestInit
 
 // ============================================================================
 // Types (aligned with backend Pydantic models)
+//
+// Migrating to types generated from the API's OpenAPI schema (#661):
+// `npm run generate:api-types` rewrites services/api.generated.ts. Prefer
+// `Schemas['Name']` aliases over new hand-written interfaces.
 // ============================================================================
 
-export interface Workspace {
-  id: string;
-  name: string;
-  description: string | null;
-  lifecycle: 'active' | 'archived';
-  created_at: string;
-  updated_at: string;
-  base_config: Record<string, any>;
-}
+type Schemas = components['schemas'];
 
-export interface WorkspaceSummary {
-  id: string;
-  name: string;
-  description: string | null;
-  lifecycle: 'active' | 'archived';
-  created_at: string;
-  updated_at: string;
-  scenario_count: number;
-  last_run_at: string | null;
-  storage_used_mb: number | null;
-}
+export type Workspace = Schemas['WorkspaceResponse'];
 
-export interface WorkspacePage {
-  items: WorkspaceSummary[];
-  total: number;
-  limit: number;
-  offset: number;
-}
+export type WorkspaceSummary = Schemas['WorkspaceSummary'];
+
+export type WorkspacePage = Schemas['WorkspacePage'];
 
 export interface WorkspaceListOptions {
   q?: string;
@@ -87,12 +72,8 @@ export interface WorkspaceListOptions {
   lifecycle?: 'active' | 'archived' | 'all';
 }
 
-export interface WorkspaceCreate {
-  name: string;
-  description?: string | null;
-  base_config?: Record<string, any>;
-  lifecycle?: 'active' | 'archived';
-}
+export type WorkspaceCreate = Schemas['WorkspaceCreate'];
+export type WorkspaceUpdate = Schemas['WorkspaceUpdate'];
 
 export interface Scenario {
   id: string;
@@ -619,7 +600,7 @@ export async function createWorkspace(data: WorkspaceCreate): Promise<Workspace>
 
 export async function updateWorkspace(
   workspaceId: string,
-  data: Partial<WorkspaceCreate>
+  data: WorkspaceUpdate
 ): Promise<Workspace> {
   const response = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}`, {
     method: 'PUT',

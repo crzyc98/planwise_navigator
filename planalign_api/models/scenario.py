@@ -3,10 +3,11 @@
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+from .base import APIModel
 
 
-class ScenarioCreate(BaseModel):
+class ScenarioCreate(APIModel):
     """Request model for creating a scenario."""
 
     name: str = Field(..., min_length=1, max_length=100, description="Scenario name")
@@ -23,7 +24,7 @@ class ScenarioCreate(BaseModel):
     )
 
 
-class ScenarioUpdate(BaseModel):
+class ScenarioUpdate(APIModel):
     """Request model for updating a scenario."""
 
     name: Optional[str] = Field(None, min_length=1, max_length=100)
@@ -31,7 +32,7 @@ class ScenarioUpdate(BaseModel):
     config_overrides: Optional[Dict[str, Any]] = None
 
 
-class ScenarioResultsSummary(BaseModel):
+class ScenarioResultsSummary(APIModel):
     """Summary of scenario results."""
 
     final_headcount: int = Field(description="Final year headcount")
@@ -41,7 +42,7 @@ class ScenarioResultsSummary(BaseModel):
     total_events: int = Field(description="Total events generated")
 
 
-class Scenario(BaseModel):
+class Scenario(APIModel):
     """Full scenario model."""
 
     id: str = Field(..., description="Unique scenario ID (UUID)")
@@ -70,7 +71,7 @@ class Scenario(BaseModel):
         }
 
 
-class WorkforceParamsApplyRequest(BaseModel):
+class WorkforceParamsApplyRequest(APIModel):
     """Request model for applying workforce parameters to target scenarios."""
 
     target_scenario_ids: List[str] = Field(
@@ -80,7 +81,7 @@ class WorkforceParamsApplyRequest(BaseModel):
     )
 
 
-class ScenarioApplyOutcome(BaseModel):
+class ScenarioApplyOutcome(APIModel):
     """Per-scenario result within a bulk apply operation."""
 
     scenario_id: str = Field(..., description="Target scenario ID")
@@ -89,7 +90,7 @@ class ScenarioApplyOutcome(BaseModel):
     error: Optional[str] = Field(None, description="Error message if failed")
 
 
-class WorkforceParamsApplyResult(BaseModel):
+class WorkforceParamsApplyResult(APIModel):
     """Response model for bulk workforce parameter apply operation."""
 
     source_scenario_id: str = Field(..., description="Source scenario ID")
@@ -100,7 +101,7 @@ class WorkforceParamsApplyResult(BaseModel):
     total_failed: int = Field(0, description="Count of failed scenarios")
 
 
-class ScenarioConfig(BaseModel):
+class ScenarioConfig(APIModel):
     """Full merged configuration for a scenario."""
 
     # Simulation settings

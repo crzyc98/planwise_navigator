@@ -52,6 +52,15 @@ jobs:
       - name: Audit frontend dependencies
         run: npm run audit:dependencies --prefix planalign_studio
 
+      - name: Check generated API types are current
+        # services/api.generated.ts is generated from the committed OpenAPI
+        # snapshot (itself pinned to the live API by tests/api/
+        # test_openapi_contract.py), so backend response-model changes that
+        # Studio hasn't picked up fail here instead of at runtime (#661).
+        run: |
+          npm run generate:api-types --prefix planalign_studio
+          git diff --exit-code -- planalign_studio/services/api.generated.ts
+
       - name: Typecheck frontend
         run: npm run typecheck --prefix planalign_studio
 

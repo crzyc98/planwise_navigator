@@ -5,10 +5,11 @@ from decimal import Decimal
 from typing import Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import Field, field_validator
+from .base import APIModel
 
 
-class TerminationRateCalculation(BaseModel):
+class TerminationRateCalculation(APIModel):
     """Intermediate calculation state for deriving termination rate suggestion."""
 
     calculation_id: UUID = Field(

@@ -3,10 +3,11 @@
 from datetime import date
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+from .base import APIModel
 
 
-class DeferralSegmentAnalysisRequest(BaseModel):
+class DeferralSegmentAnalysisRequest(APIModel):
     """Request for census-based deferral segment analysis."""
 
     file_path: str = Field(
@@ -18,7 +19,7 @@ class DeferralSegmentAnalysisRequest(BaseModel):
     )
 
 
-class DeferralSegment(BaseModel):
+class DeferralSegment(APIModel):
     """Observed deferral behavior for one age x income segment."""
 
     segment: str = Field(
@@ -52,7 +53,7 @@ class DeferralSegment(BaseModel):
     )
 
 
-class DeferralSegmentAnalysisResult(BaseModel):
+class DeferralSegmentAnalysisResult(APIModel):
     """Result from census-based deferral segment analysis."""
 
     segments: List[DeferralSegment] = Field(

@@ -2,10 +2,11 @@
 
 from typing import List
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+from .base import APIModel
 
 
-class BandGroupResult(BaseModel):
+class BandGroupResult(APIModel):
     """Aggregated winner/loser/neutral counts for a single band."""
 
     band_label: str = Field(description="Age band or tenure band label")
@@ -15,7 +16,7 @@ class BandGroupResult(BaseModel):
     total: int = Field(description="Total employees in this band")
 
 
-class HeatmapCell(BaseModel):
+class HeatmapCell(APIModel):
     """Single cell in the age × tenure heatmap grid."""
 
     age_band: str = Field(description="Row label (age band)")
@@ -29,7 +30,7 @@ class HeatmapCell(BaseModel):
     )
 
 
-class WinnersLosersResponse(BaseModel):
+class WinnersLosersResponse(APIModel):
     """Complete Winners & Losers comparison response."""
 
     plan_a_scenario_id: str = Field(description="Plan A scenario ID")

@@ -24,7 +24,7 @@ from uuid import uuid4
 
 import yaml  # type: ignore[import]
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from planalign_orchestrator.calibration_optimizer import (
     AutoCalibrationResult,
@@ -45,6 +45,7 @@ from ..errors import sanitize_job_error
 from ..models.scenario import Scenario
 from ..services.current_result import CurrentResultIntegrityError
 from ..storage.workspace_storage import WorkspaceStorage
+from ..models.base import APIModel
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,7 @@ def get_storage(settings: APISettings = Depends(get_settings)) -> WorkspaceStora
 # ---------------------------------------------------------------------------
 
 
-class CalibrationJob(BaseModel):
+class CalibrationJob(APIModel):
     """Status/result record for a background calibration job."""
 
     run_id: str
@@ -193,7 +194,7 @@ def _start_job_thread(
 # ---------------------------------------------------------------------------
 
 
-class CalibrationRunRequest(BaseModel):
+class CalibrationRunRequest(APIModel):
     """Request body for POST /api/calibration/run (contracts/api-calibration.md)."""
 
     start_year: Optional[int] = Field(default=None, ge=2000)
@@ -208,14 +209,14 @@ class CalibrationRunRequest(BaseModel):
     params: CalibrationParameterSet = Field(default_factory=CalibrationParameterSet)
 
 
-class CalibrationStartResponse(BaseModel):
+class CalibrationStartResponse(APIModel):
     """Acknowledgement that a calibration job was enqueued."""
 
     run_id: str
     status: Literal["queued"]
 
 
-class AutoCalibrationRequest(BaseModel):
+class AutoCalibrationRequest(APIModel):
     """Request body for POST /api/calibration/optimize.
 
     Set the two targets; the optimizer sets workforce growth directly (it is
@@ -234,7 +235,7 @@ class AutoCalibrationRequest(BaseModel):
     params: CalibrationParameterSet = Field(default_factory=CalibrationParameterSet)
 
 
-class CalibrationApplyRequest(BaseModel):
+class CalibrationApplyRequest(APIModel):
     """Exact optimizer candidate and the target context it was evaluated in."""
 
     context: "CalibrationContext"
@@ -242,13 +243,13 @@ class CalibrationApplyRequest(BaseModel):
     target_comp_growth_pct: float = Field(ge=-100.0, le=100.0)
 
 
-class CalibrationApplyOutcome(BaseModel):
+class CalibrationApplyOutcome(APIModel):
     scenario_id: str
     success: bool
     error: Optional[str] = None
 
 
-class CalibrationApplyResult(BaseModel):
+class CalibrationApplyResult(APIModel):
     workspace_updated: bool
     scenarios: List[CalibrationApplyOutcome]
     total_applied: int
@@ -260,7 +261,7 @@ class CalibrationApplyResult(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class CalibrationContext(BaseModel):
+class CalibrationContext(APIModel):
     """PII-safe identity of the exact target and matched source run."""
 
     workspace_id: str

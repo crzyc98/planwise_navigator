@@ -4,12 +4,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+from .base import APIModel
 
 WorkspaceLifecycle = Literal["active", "archived"]
 
 
-class WorkspaceCreate(BaseModel):
+class WorkspaceCreate(APIModel):
     """Request model for creating a workspace."""
 
     name: str = Field(..., min_length=1, max_length=100, description="Workspace name")
@@ -21,7 +22,7 @@ class WorkspaceCreate(BaseModel):
     )
 
 
-class WorkspaceUpdate(BaseModel):
+class WorkspaceUpdate(APIModel):
     """Request model for updating a workspace."""
 
     name: Optional[str] = Field(None, min_length=1, max_length=100)
@@ -30,7 +31,7 @@ class WorkspaceUpdate(BaseModel):
     lifecycle: Optional[WorkspaceLifecycle] = None
 
 
-class Workspace(BaseModel):
+class Workspace(APIModel):
     """Full workspace model.
 
     Internal domain representation used by ``WorkspaceStorage`` and services
@@ -59,7 +60,7 @@ class Workspace(BaseModel):
         }
 
 
-class WorkspaceResponse(BaseModel):
+class WorkspaceResponse(APIModel):
     """Public workspace representation returned by the API.
 
     Same shape as :class:`Workspace` minus ``storage_path``: the absolute
@@ -85,7 +86,7 @@ class WorkspaceResponse(BaseModel):
         }
 
 
-class WorkspaceSummary(BaseModel):
+class WorkspaceSummary(APIModel):
     """Lightweight workspace model for list views."""
 
     id: str = Field(..., description="Unique workspace ID")
@@ -115,7 +116,7 @@ class WorkspaceSummary(BaseModel):
         }
 
 
-class WorkspacePage(BaseModel):
+class WorkspacePage(APIModel):
     """Paginated workspace navigation result."""
 
     items: List[WorkspaceSummary]

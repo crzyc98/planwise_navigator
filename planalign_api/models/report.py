@@ -5,16 +5,17 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+from .base import APIModel
 
 
-class ReportWarning(BaseModel):
+class ReportWarning(APIModel):
     code: str
     message: str
     severity: Literal["info", "warning", "error"] = "warning"
 
 
-class ReportYearMetrics(BaseModel):
+class ReportYearMetrics(APIModel):
     year: int
     headcount: int | None = None
     average_compensation: float | None = None
@@ -23,7 +24,7 @@ class ReportYearMetrics(BaseModel):
     estimated: bool = False
 
 
-class ReportProvenance(BaseModel):
+class ReportProvenance(APIModel):
     workspace_id: str
     scenario_id: str
     scenario_name: str
@@ -35,7 +36,7 @@ class ReportProvenance(BaseModel):
     source_result: str | None = None
 
 
-class ScenarioReport(BaseModel):
+class ScenarioReport(APIModel):
     title: str
     generated_at: datetime
     years: list[ReportYearMetrics] = Field(default_factory=list)

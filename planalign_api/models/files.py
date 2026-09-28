@@ -3,10 +3,11 @@
 from datetime import date, datetime
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+from .base import APIModel
 
 
-class StructuredWarning(BaseModel):
+class StructuredWarning(APIModel):
     """A structured validation warning about a census column."""
 
     field_name: str = Field(..., description="Expected census column name")
@@ -23,14 +24,14 @@ class StructuredWarning(BaseModel):
     suggested_action: str = Field(..., description="Recommended user action")
 
 
-class DataQualitySample(BaseModel):
+class DataQualitySample(APIModel):
     """A sample row exhibiting a data quality issue."""
 
     row_number: int = Field(..., description="1-based row number")
     value: Optional[str] = Field(None, description="Problematic value (None if null)")
 
 
-class DataQualityWarning(BaseModel):
+class DataQualityWarning(APIModel):
     """A row-level data quality warning for a census field."""
 
     field_name: str = Field(..., description="Column name with the issue")
@@ -52,7 +53,7 @@ class DataQualityWarning(BaseModel):
     suggested_action: str = Field(..., description="Recommended fix")
 
 
-class FileUploadResponse(BaseModel):
+class FileUploadResponse(APIModel):
     """Response after successful file upload."""
 
     success: bool = Field(..., description="Whether upload was successful")
@@ -84,7 +85,7 @@ class FileUploadResponse(BaseModel):
     )
 
 
-class FileValidationRequest(BaseModel):
+class FileValidationRequest(APIModel):
     """Request to validate a file path."""
 
     file_path: str = Field(
@@ -95,7 +96,7 @@ class FileValidationRequest(BaseModel):
     )
 
 
-class CompensationAnalysisRequest(BaseModel):
+class CompensationAnalysisRequest(APIModel):
     """Request for compensation analysis with lookback option."""
 
     file_path: str = Field(
@@ -109,7 +110,7 @@ class CompensationAnalysisRequest(BaseModel):
     )
 
 
-class PartTimePctResponse(BaseModel):
+class PartTimePctResponse(APIModel):
     """Response from part-time percentage census analysis."""
 
     column_present: bool = Field(
@@ -124,7 +125,7 @@ class PartTimePctResponse(BaseModel):
     )
 
 
-class FileValidationResponse(BaseModel):
+class FileValidationResponse(APIModel):
     """Response from file path validation."""
 
     valid: bool = Field(..., description="Whether the file is valid and readable")
@@ -153,7 +154,7 @@ class FileValidationResponse(BaseModel):
     )
 
 
-class SetCensusPathRequest(BaseModel):
+class SetCensusPathRequest(APIModel):
     """Request to set an existing file as the workspace census data source."""
 
     file_path: str = Field(
@@ -161,7 +162,7 @@ class SetCensusPathRequest(BaseModel):
     )
 
 
-class SetCensusPathResponse(BaseModel):
+class SetCensusPathResponse(APIModel):
     """Response after setting census path."""
 
     success: bool
@@ -169,7 +170,7 @@ class SetCensusPathResponse(BaseModel):
     row_count: int
 
 
-class CompensationSolverRequest(BaseModel):
+class CompensationSolverRequest(APIModel):
     """Request to solve for compensation parameters."""
 
     file_path: Optional[str] = Field(
@@ -215,7 +216,7 @@ class CompensationSolverRequest(BaseModel):
     )
 
 
-class LevelDistributionResponse(BaseModel):
+class LevelDistributionResponse(APIModel):
     """Distribution info for a job level."""
 
     level: int = Field(..., description="Job level ID")
@@ -228,7 +229,7 @@ class LevelDistributionResponse(BaseModel):
     promotion_rate: float = Field(..., description="Expected annual promotion rate")
 
 
-class CompensationSolverResponse(BaseModel):
+class CompensationSolverResponse(APIModel):
     """Response from compensation solver."""
 
     # Target

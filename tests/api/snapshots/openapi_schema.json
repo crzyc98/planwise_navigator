@@ -45,7 +45,8 @@
           "is_enrolled",
           "employer_match_amount",
           "eligible_compensation",
-          "individual_acp"
+          "individual_acp",
+          "prior_year_compensation"
         ],
         "title": "ACPEmployeeDetail",
         "type": "object"
@@ -158,7 +159,21 @@
           "scenario_id",
           "scenario_name",
           "simulation_year",
-          "test_result"
+          "test_result",
+          "test_message",
+          "hce_count",
+          "nhce_count",
+          "excluded_count",
+          "eligible_not_enrolled_count",
+          "hce_average_acp",
+          "nhce_average_acp",
+          "basic_test_threshold",
+          "alternative_test_threshold",
+          "applied_test",
+          "applied_threshold",
+          "margin",
+          "hce_threshold_used",
+          "employees"
         ],
         "title": "ACPScenarioResult",
         "type": "object"
@@ -183,6 +198,7 @@
           }
         },
         "required": [
+          "test_type",
           "year",
           "results"
         ],
@@ -228,7 +244,8 @@
           "is_hce",
           "employee_deferrals",
           "plan_compensation",
-          "individual_adp"
+          "individual_adp",
+          "prior_year_compensation"
         ],
         "title": "ADPEmployeeDetail",
         "type": "object"
@@ -357,7 +374,23 @@
           "scenario_id",
           "scenario_name",
           "simulation_year",
-          "test_result"
+          "test_result",
+          "test_message",
+          "hce_count",
+          "nhce_count",
+          "excluded_count",
+          "hce_average_adp",
+          "nhce_average_adp",
+          "basic_test_threshold",
+          "alternative_test_threshold",
+          "applied_test",
+          "applied_threshold",
+          "margin",
+          "excess_hce_amount",
+          "testing_method",
+          "safe_harbor",
+          "hce_threshold_used",
+          "employees"
         ],
         "title": "ADPScenarioResult",
         "type": "object"
@@ -382,6 +415,7 @@
           }
         },
         "required": [
+          "test_type",
           "year",
           "results"
         ],
@@ -508,7 +542,14 @@
           }
         },
         "required": [
-          "simulation_year"
+          "simulation_year",
+          "opening_workforce",
+          "hires",
+          "terminations",
+          "expected_closing_workforce",
+          "actual_closing_workforce",
+          "variance",
+          "opening_source"
         ],
         "title": "AnnualWorkforceReconciliation",
         "type": "object"
@@ -575,7 +616,8 @@
           "name",
           "type",
           "size_bytes",
-          "path"
+          "path",
+          "created_at"
         ],
         "title": "Artifact",
         "type": "object"
@@ -988,7 +1030,8 @@
           }
         },
         "required": [
-          "years"
+          "years",
+          "default_year"
         ],
         "title": "AvailableYearsResponse",
         "type": "object"
@@ -1128,7 +1171,8 @@
           "analysis_type",
           "source_file",
           "as_of_date",
-          "as_of_date_source"
+          "as_of_date_source",
+          "fallback_notice"
         ],
         "title": "BandAnalysisResult",
         "type": "object"
@@ -1360,7 +1404,13 @@
           "name",
           "workspace_id",
           "status",
-          "submitted_at"
+          "submitted_at",
+          "completed_at",
+          "duration_seconds",
+          "scenarios",
+          "parallel",
+          "export_format",
+          "results_path"
         ],
         "title": "BatchJob",
         "type": "object"
@@ -1414,7 +1464,9 @@
         "required": [
           "scenario_id",
           "name",
-          "status"
+          "status",
+          "progress",
+          "error_message"
         ],
         "title": "BatchScenario",
         "type": "object"
@@ -1600,7 +1652,10 @@
         "required": [
           "operation_id",
           "status",
-          "total"
+          "total",
+          "completed",
+          "current_workspace",
+          "results"
         ],
         "title": "BulkExportStatus",
         "type": "object"
@@ -1658,7 +1713,10 @@
         "required": [
           "operation_id",
           "status",
-          "total"
+          "total",
+          "completed",
+          "current_file",
+          "results"
         ],
         "title": "BulkImportStatus",
         "type": "object"
@@ -1698,7 +1756,8 @@
         },
         "required": [
           "scenario_id",
-          "success"
+          "success",
+          "error"
         ],
         "title": "CalibrationApplyOutcome",
         "type": "object"
@@ -1710,7 +1769,7 @@
             "$ref": "#/components/schemas/CalibrationParameterSet"
           },
           "context": {
-            "$ref": "#/components/schemas/CalibrationContext"
+            "$ref": "#/components/schemas/CalibrationContext-Input"
           },
           "target_comp_growth_pct": {
             "maximum": 100.0,
@@ -1758,7 +1817,7 @@
         "title": "CalibrationApplyResult",
         "type": "object"
       },
-      "CalibrationContext": {
+      "CalibrationContext-Input": {
         "description": "PII-safe identity of the exact target and matched source run.",
         "properties": {
           "census_fingerprint": {
@@ -1818,6 +1877,67 @@
         "title": "CalibrationContext",
         "type": "object"
       },
+      "CalibrationContext-Output": {
+        "description": "PII-safe identity of the exact target and matched source run.",
+        "properties": {
+          "census_fingerprint": {
+            "title": "Census Fingerprint",
+            "type": "string"
+          },
+          "config_fingerprint": {
+            "title": "Config Fingerprint",
+            "type": "string"
+          },
+          "end_year": {
+            "title": "End Year",
+            "type": "integer"
+          },
+          "random_seed": {
+            "title": "Random Seed",
+            "type": "integer"
+          },
+          "scenario_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario Id"
+          },
+          "source_run_id": {
+            "title": "Source Run Id",
+            "type": "string"
+          },
+          "source_scenario_id": {
+            "title": "Source Scenario Id",
+            "type": "string"
+          },
+          "start_year": {
+            "title": "Start Year",
+            "type": "integer"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "scenario_id",
+          "source_scenario_id",
+          "source_run_id",
+          "config_fingerprint",
+          "census_fingerprint",
+          "random_seed",
+          "start_year",
+          "end_year"
+        ],
+        "title": "CalibrationContext",
+        "type": "object"
+      },
       "CalibrationJob": {
         "description": "Status/result record for a background calibration job.",
         "properties": {
@@ -1836,7 +1956,7 @@
           "context": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/CalibrationContext"
+                "$ref": "#/components/schemas/CalibrationContext-Output"
               },
               {
                 "type": "null"
@@ -1921,7 +2041,13 @@
           "run_id",
           "kind",
           "status",
-          "created_at"
+          "created_at",
+          "completed_at",
+          "results",
+          "outcome",
+          "context",
+          "error",
+          "error_status"
         ],
         "title": "CalibrationJob",
         "type": "object"
@@ -2288,7 +2414,8 @@
           "simulation_year",
           "check_name",
           "severity",
-          "passed"
+          "passed",
+          "affected_record_count"
         ],
         "title": "CapturedValidationResult",
         "type": "object"
@@ -2421,10 +2548,13 @@
           "overall",
           "segments",
           "available_segment_dimensions",
+          "deferral_rate_distribution",
           "data_quality_issues",
           "as_of_date",
           "as_of_date_source",
-          "source_file"
+          "hce_compensation_threshold",
+          "source_file",
+          "message"
         ],
         "title": "CensusAnalysisResult",
         "type": "object"
@@ -2467,6 +2597,7 @@
         },
         "required": [
           "issue_type",
+          "field",
           "severity",
           "count",
           "message"
@@ -2614,12 +2745,17 @@
           "employee_count",
           "eligible_count",
           "enrolled_count",
+          "participation_rate",
           "zero_deferral_count",
+          "average_deferral_rate",
+          "median_deferral_rate",
           "total_eligible_compensation",
           "total_employer_match",
           "total_employer_core",
           "total_employer_cost",
-          "hce_count"
+          "hce_count",
+          "average_employer_contribution_rate",
+          "average_total_savings_rate"
         ],
         "title": "CensusMetrics",
         "type": "object"
@@ -2747,12 +2883,17 @@
           "employee_count",
           "eligible_count",
           "enrolled_count",
+          "participation_rate",
           "zero_deferral_count",
+          "average_deferral_rate",
+          "median_deferral_rate",
           "total_eligible_compensation",
           "total_employer_match",
           "total_employer_core",
           "total_employer_cost",
           "hce_count",
+          "average_employer_contribution_rate",
+          "average_total_savings_rate",
           "dimension",
           "value"
         ],
@@ -2851,7 +2992,12 @@
           }
         },
         "required": [
-          "input_column"
+          "input_column",
+          "suggested_canonical_field",
+          "confidence",
+          "confidence_score",
+          "reason",
+          "format_detection"
         ],
         "title": "ColumnSuggestion",
         "type": "object"
@@ -2919,6 +3065,7 @@
           "baseline_scenario",
           "workforce_comparison",
           "event_comparison",
+          "dc_plan_comparison",
           "summary_deltas"
         ],
         "title": "ComparisonResponse",
@@ -3185,9 +3332,17 @@
           "cola_contribution",
           "merit_contribution",
           "promo_contribution",
+          "turnover_contribution",
           "total_headcount",
           "avg_compensation",
-          "weighted_promotion_rate"
+          "weighted_promotion_rate",
+          "turnover_rate",
+          "workforce_growth_rate",
+          "new_hire_comp_ratio",
+          "recommended_new_hire_ratio",
+          "recommended_scale_factor",
+          "level_distribution",
+          "warnings"
         ],
         "title": "CompensationSolverResponse",
         "type": "object"
@@ -3220,6 +3375,8 @@
         },
         "required": [
           "path",
+          "a",
+          "b",
           "status"
         ],
         "title": "ConfigDelta",
@@ -3335,6 +3492,12 @@
             "type": "array"
           }
         },
+        "required": [
+          "effective",
+          "fingerprint",
+          "fingerprint_method",
+          "redactions"
+        ],
         "title": "ConfigurationEvidence",
         "type": "object"
       },
@@ -3540,7 +3703,19 @@
           "total_employer_match",
           "total_employer_core",
           "total_all_contributions",
-          "participant_count"
+          "participant_count",
+          "total_eligible_count",
+          "average_deferral_rate",
+          "participation_rate",
+          "total_employer_cost",
+          "total_compensation",
+          "total_capped_compensation",
+          "employer_cost_rate",
+          "employer_cost_pct_of_capped_compensation",
+          "employee_contribution_rate",
+          "match_contribution_rate",
+          "core_contribution_rate",
+          "total_contribution_rate"
         ],
         "title": "ContributionYearSummary",
         "type": "object"
@@ -3721,8 +3896,19 @@
           "total_employer_core",
           "total_all_contributions",
           "deferral_rate_distribution",
+          "deferral_distribution_by_year",
           "escalation_metrics",
-          "irs_limit_metrics"
+          "irs_limit_metrics",
+          "average_deferral_rate",
+          "total_employer_cost",
+          "total_compensation",
+          "total_capped_compensation",
+          "employer_cost_rate",
+          "employer_cost_pct_of_capped_compensation",
+          "employee_contribution_rate",
+          "match_contribution_rate",
+          "core_contribution_rate",
+          "total_contribution_rate"
         ],
         "title": "DCPlanAnalytics",
         "type": "object"
@@ -3848,6 +4034,16 @@
             "type": "number"
           }
         },
+        "required": [
+          "participation_rate",
+          "avg_deferral_rate",
+          "total_employee_contributions",
+          "total_employer_match",
+          "total_employer_core",
+          "total_employer_cost",
+          "employer_cost_rate",
+          "participant_count"
+        ],
         "title": "DCPlanMetrics",
         "type": "object"
       },
@@ -3871,6 +4067,11 @@
             "type": "object"
           }
         },
+        "required": [
+          "duplicate_employee_id_count",
+          "null_required_field_counts",
+          "compensation_outlier_count"
+        ],
         "title": "DataQualityResult",
         "type": "object"
       },
@@ -3896,7 +4097,8 @@
           }
         },
         "required": [
-          "row_number"
+          "row_number",
+          "value"
         ],
         "title": "DataQualitySample",
         "type": "object"
@@ -3972,6 +4174,7 @@
           "total_count",
           "affected_percentage",
           "message",
+          "samples",
           "suggested_action"
         ],
         "title": "DataQualityWarning",
@@ -4078,6 +4281,7 @@
           "segment",
           "age_segment",
           "income_segment",
+          "average_deferral_rate",
           "participant_count",
           "employee_count",
           "low_confidence"
@@ -4189,11 +4393,13 @@
           "segments",
           "total_employees_analyzed",
           "total_participants",
+          "overall_average_deferral_rate",
           "excluded_count",
           "as_of_date",
           "as_of_date_source",
           "low_confidence_threshold",
-          "source_file"
+          "source_file",
+          "message"
         ],
         "title": "DeferralSegmentAnalysisResult",
         "type": "object"
@@ -4289,7 +4495,9 @@
         },
         "required": [
           "name",
-          "inferred_type"
+          "inferred_type",
+          "null_count",
+          "sample_values"
         ],
         "title": "DetectedColumn",
         "type": "object"
@@ -4336,7 +4544,8 @@
           "min_value",
           "max_value",
           "median_value",
-          "mean_value"
+          "mean_value",
+          "percentiles"
         ],
         "title": "DistributionStats",
         "type": "object"
@@ -4443,7 +4652,10 @@
           }
         },
         "required": [
-          "employee_id"
+          "employee_id",
+          "employee_ssn",
+          "employee_birth_date",
+          "employee_hire_date"
         ],
         "title": "EmployeeIdentity",
         "type": "object"
@@ -4525,6 +4737,9 @@
         },
         "required": [
           "employee_id",
+          "employment_status",
+          "level_id",
+          "current_compensation",
           "simulation_year"
         ],
         "title": "EmployeeSearchResult",
@@ -4751,7 +4966,12 @@
         },
         "required": [
           "simulation_year",
-          "basis_available"
+          "source_year",
+          "forfeitures_generated",
+          "offset_amount",
+          "participant_allocation",
+          "basis_available",
+          "unavailable_reason"
         ],
         "title": "EmployerCostOffsetRow",
         "type": "object"
@@ -4964,6 +5184,8 @@
         "required": [
           "workspace_id",
           "scenario_id",
+          "run_id",
+          "database_source",
           "events",
           "total",
           "page",
@@ -5206,11 +5428,29 @@
         "required": [
           "event_id",
           "event_type",
+          "event_category",
+          "event_sequence",
           "effective_date",
           "simulation_year",
           "employee_id",
+          "employee_ssn",
+          "employee_age",
+          "employee_tenure",
+          "level_id",
+          "age_band",
+          "tenure_band",
           "scenario_id",
-          "plan_design_id"
+          "plan_design_id",
+          "event_details",
+          "compensation_amount",
+          "previous_compensation",
+          "employee_deferral_rate",
+          "prev_employee_deferral_rate",
+          "event_probability",
+          "parameter_scenario_id",
+          "parameter_source",
+          "data_quality_flag",
+          "created_at"
         ],
         "title": "EventRecord",
         "type": "object"
@@ -5254,6 +5494,12 @@
             "type": "integer"
           }
         },
+        "required": [
+          "by_type",
+          "by_year",
+          "total",
+          "as_of_year"
+        ],
         "title": "EventTypeCounts",
         "type": "object"
       },
@@ -5348,7 +5594,8 @@
         "required": [
           "field_path",
           "code",
-          "reason"
+          "reason",
+          "required"
         ],
         "title": "EvidenceFinding",
         "type": "object"
@@ -5496,6 +5743,13 @@
             "title": "Terminal Stage"
           }
         },
+        "required": [
+          "started_at",
+          "completed_at",
+          "duration_seconds",
+          "terminal_stage",
+          "stage_completions"
+        ],
         "title": "ExecutionTimingEvidence",
         "type": "object"
       },
@@ -5539,6 +5793,7 @@
           }
         },
         "required": [
+          "version",
           "export_date",
           "app_version",
           "workspace_id",
@@ -5598,7 +5853,10 @@
         "required": [
           "workspace_id",
           "workspace_name",
-          "status"
+          "filename",
+          "size_bytes",
+          "status",
+          "error"
         ],
         "title": "ExportResult",
         "type": "object"
@@ -5764,7 +6022,12 @@
           "file_size_bytes",
           "row_count",
           "columns",
-          "upload_timestamp"
+          "upload_timestamp",
+          "validation_warnings",
+          "structured_warnings",
+          "data_quality_warnings",
+          "column_renames",
+          "original_filename"
         ],
         "title": "FileUploadResponse",
         "type": "object"
@@ -5913,7 +6176,16 @@
         "required": [
           "valid",
           "file_path",
-          "exists"
+          "exists",
+          "readable",
+          "file_size_bytes",
+          "row_count",
+          "columns",
+          "last_modified",
+          "error_message",
+          "validation_warnings",
+          "structured_warnings",
+          "data_quality_warnings"
         ],
         "title": "FileValidationResponse",
         "type": "object"
@@ -5948,7 +6220,7 @@
             "type": "array"
           },
           "schedule": {
-            "$ref": "#/components/schemas/VestingScheduleConfig"
+            "$ref": "#/components/schemas/VestingScheduleConfig-Output"
           },
           "skipped": {
             "description": "Requested scenarios that could not be read; the rest still return",
@@ -5969,8 +6241,10 @@
         },
         "required": [
           "schedule",
+          "forfeiture_policy",
           "years",
-          "scenarios"
+          "scenarios",
+          "skipped"
         ],
         "title": "ForfeitureProjectionResponse",
         "type": "object"
@@ -6064,6 +6338,12 @@
             "type": "array"
           }
         },
+        "required": [
+          "detected_format",
+          "parsed_sample_values",
+          "is_ambiguous",
+          "format_options"
+        ],
         "title": "FormatDetectionResult",
         "type": "object"
       },
@@ -6115,7 +6395,9 @@
           "import_id",
           "correlation_id",
           "status",
-          "started_at"
+          "started_at",
+          "storage_path",
+          "census_path_set"
         ],
         "title": "GenerateResponse",
         "type": "object"
@@ -6153,7 +6435,8 @@
           "baseline_scenario_id",
           "cutoff_year",
           "forfeiture_policy",
-          "scenarios"
+          "scenarios",
+          "warnings"
         ],
         "title": "GrandfatheredCostComparisonResponse",
         "type": "object"
@@ -6188,7 +6471,8 @@
         "required": [
           "scenario_id",
           "scenario_name",
-          "years"
+          "years",
+          "employer_cost_offsets"
         ],
         "title": "GrandfatheredCostSeries",
         "type": "object"
@@ -6252,7 +6536,11 @@
         },
         "required": [
           "year",
-          "available"
+          "total_employer_cost",
+          "baseline_cohort_cost",
+          "new_hire_cohort_cost",
+          "available",
+          "unavailable_reason"
         ],
         "title": "GrandfatheredCostYear",
         "type": "object"
@@ -6296,7 +6584,9 @@
           }
         },
         "required": [
-          "healthy"
+          "healthy",
+          "issues",
+          "warnings"
         ],
         "title": "HealthResponse",
         "type": "object"
@@ -6440,7 +6730,8 @@
           "workspace_id",
           "name",
           "scenario_count",
-          "status"
+          "status",
+          "warnings"
         ],
         "title": "ImportResponse",
         "type": "object"
@@ -6595,9 +6886,26 @@
           }
         },
         "required": [
+          "import_id",
+          "correlation_id",
           "workspace_id",
           "original_filename",
-          "source_format"
+          "source_format",
+          "sheet_name",
+          "available_sheets",
+          "row_count",
+          "column_count",
+          "detected_columns",
+          "preview_rows",
+          "status",
+          "created_at",
+          "created_by",
+          "mapping_saved_at",
+          "parquet_file_id",
+          "error_message",
+          "error_rows",
+          "encoding_warnings",
+          "encoding_used"
         ],
         "title": "ImportSession",
         "type": "object"
@@ -6659,7 +6967,11 @@
           }
         },
         "required": [
-          "valid"
+          "valid",
+          "manifest",
+          "conflict",
+          "warnings",
+          "errors"
         ],
         "title": "ImportValidationResponse",
         "type": "object"
@@ -6713,7 +7025,10 @@
         },
         "required": [
           "logical_name",
-          "sha256"
+          "sha256",
+          "size_bytes",
+          "record_count",
+          "format"
         ],
         "title": "InputFingerprint",
         "type": "object"
@@ -6885,6 +7200,7 @@
         },
         "required": [
           "run_id",
+          "lines",
           "total_lines",
           "page",
           "page_size",
@@ -6981,7 +7297,8 @@
           "columns",
           "rows",
           "total_row_count",
-          "preview_row_count"
+          "preview_row_count",
+          "transformation_warnings"
         ],
         "title": "MappedPreviewResponse",
         "type": "object"
@@ -7041,6 +7358,7 @@
           "import_id",
           "status",
           "mapping_saved_at",
+          "validation_errors",
           "output_column_count"
         ],
         "title": "MappingSaveResponse",
@@ -7084,6 +7402,7 @@
         "required": [
           "template_id",
           "name",
+          "description",
           "field_count",
           "created_at",
           "created_by"
@@ -7472,6 +7791,7 @@
           }
         },
         "required": [
+          "suggested_rate",
           "eligible_count",
           "non_participant_count",
           "total_eligible_in_census",
@@ -7479,7 +7799,8 @@
           "lookback_years",
           "hire_date_column_used",
           "analysis_type",
-          "source_file"
+          "source_file",
+          "message"
         ],
         "title": "OptOutRateAnalysisResult",
         "type": "object"
@@ -7615,7 +7936,12 @@
         "required": [
           "run_id",
           "status",
-          "created_at"
+          "created_at",
+          "completed_at",
+          "result",
+          "output_dir",
+          "error",
+          "error_status"
         ],
         "title": "OptimizerJob",
         "type": "object"
@@ -7965,7 +8291,12 @@
           }
         },
         "required": [
-          "valid"
+          "valid",
+          "error",
+          "resolved_spec",
+          "seed_phase_candidates",
+          "seed_phase_count",
+          "baseline_drift_warning"
         ],
         "title": "OptimizerValidateResponse",
         "type": "object"
@@ -8189,11 +8520,17 @@
           }
         },
         "required": [
+          "file_id",
           "workspace_id",
           "import_id",
           "filename",
           "storage_path",
-          "original_filename"
+          "original_filename",
+          "row_count",
+          "file_size_bytes",
+          "schema",
+          "created_at",
+          "created_by"
         ],
         "title": "ParquetFile",
         "type": "object"
@@ -8469,7 +8806,10 @@
           }
         },
         "required": [
-          "timestamp"
+          "timestamp",
+          "elapsed_seconds",
+          "events_per_second",
+          "memory_mb"
         ],
         "title": "PerformanceSample",
         "type": "object"
@@ -8699,7 +9039,9 @@
           }
         },
         "required": [
+          "report_schema_version",
           "evidence",
+          "missing_evidence",
           "verification_disposition",
           "digest",
           "sign_off"
@@ -8752,6 +9094,8 @@
           }
         },
         "required": [
+          "algorithm",
+          "canonicalization",
           "value"
         ],
         "title": "ReportDigest",
@@ -8831,6 +9175,12 @@
           "timing",
           "software",
           "configuration",
+          "random_seed",
+          "census_input",
+          "seed_files",
+          "event_counts",
+          "workforce_reconciliations",
+          "validation_results",
           "validation_disposition"
         ],
         "title": "ReportEvidence",
@@ -8917,7 +9267,11 @@
           }
         },
         "required": [
-          "report_digest"
+          "report_digest",
+          "reviewer_name",
+          "decision",
+          "timestamp",
+          "comments"
         ],
         "title": "ReviewSignOff",
         "type": "object"
@@ -9187,7 +9541,20 @@
           "scenario_name",
           "workspace_id",
           "workspace_name",
-          "status"
+          "status",
+          "started_at",
+          "completed_at",
+          "duration_seconds",
+          "start_year",
+          "end_year",
+          "total_years",
+          "final_headcount",
+          "total_events",
+          "participation_rate",
+          "config",
+          "artifacts",
+          "error_message",
+          "storage_path"
         ],
         "title": "RunDetails",
         "type": "object"
@@ -9269,6 +9636,7 @@
           "simulation_year",
           "stage",
           "passed",
+          "affected_record_count",
           "message"
         ],
         "title": "RunHealthFinding",
@@ -9321,7 +9689,9 @@
           "status",
           "scenario_id",
           "run_id",
-          "counts"
+          "disposition",
+          "counts",
+          "findings"
         ],
         "title": "RunHealthReport",
         "type": "object"
@@ -9403,7 +9773,13 @@
         },
         "required": [
           "run_id",
-          "status"
+          "workspace_id",
+          "scenario_id",
+          "plan_design_id",
+          "status",
+          "intended_start_year",
+          "intended_end_year",
+          "completed_years"
         ],
         "title": "RunIdentityEvidence",
         "type": "object"
@@ -9536,7 +9912,14 @@
           "id",
           "scenario_id",
           "status",
-          "started_at"
+          "started_at",
+          "completed_at",
+          "duration_seconds",
+          "start_year",
+          "end_year",
+          "total_events",
+          "final_headcount",
+          "artifact_count"
         ],
         "title": "RunSummary",
         "type": "object"
@@ -9562,7 +9945,8 @@
           }
         },
         "required": [
-          "run"
+          "run",
+          "telemetry"
         ],
         "title": "RunTelemetryResponse",
         "type": "object"
@@ -9646,7 +10030,18 @@
         },
         "required": [
           "run_id",
-          "performance_metrics"
+          "scenario_id",
+          "status",
+          "progress",
+          "current_stage",
+          "current_year",
+          "total_years",
+          "start_year",
+          "performance_metrics",
+          "event_counts",
+          "milestones",
+          "performance_samples",
+          "last_update_at"
         ],
         "title": "RunTelemetrySnapshot",
         "type": "object"
@@ -9814,7 +10209,14 @@
           "id",
           "workspace_id",
           "name",
-          "created_at"
+          "description",
+          "config_overrides",
+          "provenance",
+          "status",
+          "created_at",
+          "last_run_at",
+          "last_run_id",
+          "results_summary"
         ],
         "title": "Scenario",
         "type": "object"
@@ -9859,7 +10261,9 @@
         },
         "required": [
           "scenario_id",
-          "success"
+          "scenario_name",
+          "success",
+          "error"
         ],
         "title": "ScenarioApplyOutcome",
         "type": "object"
@@ -9957,7 +10361,8 @@
           "years",
           "total_employer_contributions",
           "total_vested",
-          "total_forfeited"
+          "total_forfeited",
+          "employer_cost_offsets"
         ],
         "title": "ScenarioForfeitureSeries",
         "type": "object"
@@ -10024,7 +10429,12 @@
           }
         },
         "required": [
-          "available"
+          "available",
+          "config_fingerprint",
+          "random_seed",
+          "run_timestamp",
+          "drift_warning",
+          "drift_reasons"
         ],
         "title": "ScenarioProvenance",
         "type": "object"
@@ -10178,7 +10588,13 @@
         },
         "required": [
           "employee_id",
-          "is_hce"
+          "is_hce",
+          "employer_nec_amount",
+          "employer_match_amount",
+          "total_employer_amount",
+          "plan_compensation",
+          "contribution_rate",
+          "years_of_service"
         ],
         "title": "Section401a4EmployeeDetail",
         "type": "object"
@@ -10312,7 +10728,24 @@
           "scenario_id",
           "scenario_name",
           "simulation_year",
-          "test_result"
+          "test_result",
+          "test_message",
+          "applied_test",
+          "hce_count",
+          "nhce_count",
+          "excluded_count",
+          "hce_average_rate",
+          "nhce_average_rate",
+          "hce_median_rate",
+          "nhce_median_rate",
+          "ratio",
+          "ratio_test_threshold",
+          "margin",
+          "include_match",
+          "service_risk_flag",
+          "service_risk_detail",
+          "hce_threshold_used",
+          "employees"
         ],
         "title": "Section401a4ScenarioResult",
         "type": "object"
@@ -10337,6 +10770,7 @@
           }
         },
         "required": [
+          "test_type",
           "year",
           "results"
         ],
@@ -10396,7 +10830,15 @@
         },
         "required": [
           "employee_id",
-          "status"
+          "status",
+          "employee_deferrals",
+          "employer_match",
+          "employer_nec",
+          "total_annual_additions",
+          "gross_compensation",
+          "applicable_limit",
+          "headroom",
+          "utilization_pct"
         ],
         "title": "Section415EmployeeDetail",
         "type": "object"
@@ -10489,7 +10931,17 @@
           "scenario_id",
           "scenario_name",
           "simulation_year",
-          "test_result"
+          "test_result",
+          "test_message",
+          "total_participants",
+          "excluded_count",
+          "breach_count",
+          "at_risk_count",
+          "passing_count",
+          "max_utilization_pct",
+          "warning_threshold_pct",
+          "annual_additions_limit",
+          "employees"
         ],
         "title": "Section415ScenarioResult",
         "type": "object"
@@ -10514,6 +10966,7 @@
           }
         },
         "required": [
+          "test_type",
           "year",
           "results"
         ],
@@ -10729,7 +11182,9 @@
           "participation_rate",
           "workforce_progression",
           "event_trends",
-          "growth_analysis"
+          "growth_analysis",
+          "compensation_by_status",
+          "cagr_metrics"
         ],
         "title": "SimulationResults",
         "type": "object"
@@ -10840,7 +11295,13 @@
           "id",
           "scenario_id",
           "status",
-          "started_at"
+          "progress",
+          "current_stage",
+          "current_year",
+          "total_years",
+          "started_at",
+          "completed_at",
+          "error_message"
         ],
         "title": "SimulationRun",
         "type": "object"
@@ -10918,6 +11379,12 @@
             "type": "string"
           }
         },
+        "required": [
+          "planalign_version",
+          "git_commit_sha",
+          "working_tree_state",
+          "working_tree_fingerprint"
+        ],
         "title": "SoftwareEvidence",
         "type": "object"
       },
@@ -10982,7 +11449,12 @@
           }
         },
         "required": [
-          "stage"
+          "simulation_year",
+          "stage",
+          "started_at",
+          "completed_at",
+          "duration_seconds",
+          "outcome"
         ],
         "title": "StageCompletion",
         "type": "object"
@@ -11043,6 +11515,7 @@
           "severity",
           "warning_type",
           "impact_description",
+          "detected_alias",
           "suggested_action"
         ],
         "title": "StructuredWarning",
@@ -11087,7 +11560,8 @@
         "required": [
           "import_id",
           "suggestions",
-          "data_quality"
+          "data_quality",
+          "canonical_schema"
         ],
         "title": "SuggestionsResponse",
         "type": "object"
@@ -11144,6 +11618,14 @@
             "type": "integer"
           }
         },
+        "required": [
+          "version",
+          "enabled",
+          "remote",
+          "branch",
+          "auto_sync",
+          "conflict_strategy"
+        ],
         "title": "SyncConfig",
         "type": "object"
       },
@@ -11234,7 +11716,11 @@
         "required": [
           "timestamp",
           "operation",
-          "message"
+          "workspaces_affected",
+          "scenarios_affected",
+          "message",
+          "commit_sha",
+          "success"
         ],
         "title": "SyncLogEntry",
         "type": "object"
@@ -11281,6 +11767,10 @@
         },
         "required": [
           "success",
+          "files_updated",
+          "files_added",
+          "files_removed",
+          "conflicts",
           "message"
         ],
         "title": "SyncPullResult",
@@ -11320,6 +11810,8 @@
         },
         "required": [
           "success",
+          "commit_sha",
+          "files_pushed",
           "message"
         ],
         "title": "SyncPushResult",
@@ -11404,7 +11896,15 @@
           }
         },
         "required": [
-          "is_initialized"
+          "is_initialized",
+          "remote_url",
+          "branch",
+          "local_changes",
+          "ahead",
+          "behind",
+          "last_sync",
+          "conflicts",
+          "error"
         ],
         "title": "SyncStatus",
         "type": "object"
@@ -11486,7 +11986,16 @@
         "required": [
           "system_ready",
           "system_message",
-          "storage_limit_mb"
+          "timestamp",
+          "active_simulations",
+          "queued_simulations",
+          "total_storage_mb",
+          "storage_limit_mb",
+          "storage_percent",
+          "workspace_count",
+          "scenario_count",
+          "thread_count",
+          "recommendations"
         ],
         "title": "SystemStatus",
         "type": "object"
@@ -11577,7 +12086,11 @@
           "sequence",
           "timestamp",
           "kind",
-          "message"
+          "severity",
+          "year",
+          "stage",
+          "message",
+          "detail"
         ],
         "title": "TelemetryMilestone",
         "type": "object"
@@ -11778,7 +12291,13 @@
           "source",
           "event_type",
           "simulation_year",
-          "effective_date"
+          "effective_date",
+          "event_details",
+          "compensation_amount",
+          "previous_compensation",
+          "deferral_rate",
+          "prev_deferral_rate",
+          "level_id"
         ],
         "title": "TimelineEvent",
         "type": "object"
@@ -11808,7 +12327,9 @@
           }
         },
         "required": [
-          "simulation_year"
+          "simulation_year",
+          "events",
+          "state"
         ],
         "title": "TimelineYear",
         "type": "object"
@@ -11963,10 +12484,13 @@
           }
         },
         "required": [
+          "experienced_rate",
+          "new_hire_rate",
           "total_employees",
           "total_terminated",
           "analysis_type",
           "source_file",
+          "message",
           "as_of_date",
           "as_of_date_source"
         ],
@@ -12052,7 +12576,7 @@
           "current_schedule": {
             "allOf": [
               {
-                "$ref": "#/components/schemas/VestingScheduleConfig"
+                "$ref": "#/components/schemas/VestingScheduleConfig-Input"
               }
             ],
             "description": "Current vesting schedule to analyze"
@@ -12060,7 +12584,7 @@
           "proposed_schedule": {
             "allOf": [
               {
-                "$ref": "#/components/schemas/VestingScheduleConfig"
+                "$ref": "#/components/schemas/VestingScheduleConfig-Input"
               }
             ],
             "description": "Proposed vesting schedule to compare"
@@ -12098,7 +12622,7 @@
             "type": "array"
           },
           "current_schedule": {
-            "$ref": "#/components/schemas/VestingScheduleConfig"
+            "$ref": "#/components/schemas/VestingScheduleConfig-Output"
           },
           "employee_details": {
             "items": {
@@ -12108,7 +12632,7 @@
             "type": "array"
           },
           "proposed_schedule": {
-            "$ref": "#/components/schemas/VestingScheduleConfig"
+            "$ref": "#/components/schemas/VestingScheduleConfig-Output"
           },
           "scenario_id": {
             "title": "Scenario Id",
@@ -12206,7 +12730,7 @@
         "title": "VestingAnalysisSummary",
         "type": "object"
       },
-      "VestingScheduleConfig": {
+      "VestingScheduleConfig-Input": {
         "description": "User-selected vesting schedule configuration.",
         "properties": {
           "hours_threshold": {
@@ -12236,6 +12760,42 @@
         "required": [
           "schedule_type",
           "name"
+        ],
+        "title": "VestingScheduleConfig",
+        "type": "object"
+      },
+      "VestingScheduleConfig-Output": {
+        "description": "User-selected vesting schedule configuration.",
+        "properties": {
+          "hours_threshold": {
+            "default": 1000,
+            "description": "Minimum annual hours for vesting credit (default: 1000)",
+            "maximum": 2080.0,
+            "minimum": 0.0,
+            "title": "Hours Threshold",
+            "type": "integer"
+          },
+          "name": {
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "require_hours_credit": {
+            "default": false,
+            "description": "If true, employees must meet hours threshold for vesting credit",
+            "title": "Require Hours Credit",
+            "type": "boolean"
+          },
+          "schedule_type": {
+            "$ref": "#/components/schemas/VestingScheduleType"
+          }
+        },
+        "required": [
+          "schedule_type",
+          "name",
+          "require_hours_credit",
+          "hours_threshold"
         ],
         "title": "VestingScheduleConfig",
         "type": "object"
@@ -12466,7 +13026,8 @@
           "active",
           "terminated",
           "new_hires",
-          "growth_pct"
+          "growth_pct",
+          "avg_compensation"
         ],
         "title": "WorkforceMetrics",
         "type": "object"
@@ -12520,7 +13081,10 @@
           }
         },
         "required": [
-          "source_scenario_id"
+          "source_scenario_id",
+          "results",
+          "total_applied",
+          "total_failed"
         ],
         "title": "WorkforceParamsApplyResult",
         "type": "object"
@@ -12658,6 +13222,8 @@
         "required": [
           "id",
           "name",
+          "description",
+          "lifecycle",
           "created_at",
           "updated_at",
           "base_config"
@@ -12747,8 +13313,13 @@
         "required": [
           "id",
           "name",
+          "description",
+          "lifecycle",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "scenario_count",
+          "last_run_at",
+          "storage_used_mb"
         ],
         "title": "WorkspaceSummary",
         "type": "object"
@@ -12794,7 +13365,10 @@
         },
         "required": [
           "workspace_id",
-          "workspace_name"
+          "workspace_name",
+          "scenario_count",
+          "has_local_changes",
+          "last_synced"
         ],
         "title": "WorkspaceSyncInfo",
         "type": "object"
@@ -13086,7 +13660,27 @@
           }
         },
         "required": [
-          "simulation_year"
+          "simulation_year",
+          "employment_status",
+          "detailed_status_code",
+          "current_compensation",
+          "prorated_annual_compensation",
+          "level_id",
+          "current_age",
+          "current_tenure",
+          "eligibility_status",
+          "is_enrolled",
+          "enrollment_date",
+          "current_deferral_rate",
+          "participation_status",
+          "total_deferral_escalations",
+          "ytd_contributions",
+          "pre_tax_contributions",
+          "roth_contributions",
+          "employer_match_amount",
+          "employer_core_amount",
+          "total_employer_contributions",
+          "irs_limit_reached"
         ],
         "title": "YearState",
         "type": "object"

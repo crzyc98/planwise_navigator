@@ -3,10 +3,11 @@
 from datetime import datetime
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+from .base import APIModel
 
 
-class BatchScenario(BaseModel):
+class BatchScenario(APIModel):
     """Status of a scenario within a batch."""
 
     scenario_id: str = Field(..., description="Scenario ID")
@@ -18,7 +19,7 @@ class BatchScenario(BaseModel):
     error_message: Optional[str] = Field(None, description="Error message if failed")
 
 
-class BatchCreate(BaseModel):
+class BatchCreate(APIModel):
     """Request to create a batch job."""
 
     name: Optional[str] = Field(None, description="Batch job name")
@@ -31,7 +32,7 @@ class BatchCreate(BaseModel):
     )
 
 
-class BatchJob(BaseModel):
+class BatchJob(APIModel):
     """Batch job status model."""
 
     id: str = Field(..., description="Unique batch job ID")
@@ -56,7 +57,7 @@ class BatchJob(BaseModel):
         }
 
 
-class BatchHistory(BaseModel):
+class BatchHistory(APIModel):
     """List of batch jobs for history view."""
 
     jobs: List[BatchJob] = Field(default_factory=list)

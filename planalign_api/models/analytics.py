@@ -2,12 +2,13 @@
 
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from .employer_cost import EmployerCostOffsetRow, ForfeiturePolicy
+from .base import APIModel
 
 
-class ContributionYearSummary(BaseModel):
+class ContributionYearSummary(APIModel):
     """Contribution summary for a single year."""
 
     year: int = Field(description="Simulation year")
@@ -67,7 +68,7 @@ class ContributionYearSummary(BaseModel):
     )
 
 
-class DeferralRateBucket(BaseModel):
+class DeferralRateBucket(APIModel):
     """Deferral rate distribution bucket."""
 
     bucket: str = Field(description="Deferral rate bucket (e.g., '0%', '1%', '10%+')")
@@ -75,7 +76,7 @@ class DeferralRateBucket(BaseModel):
     percentage: float = Field(description="Percentage of eligible active employees")
 
 
-class DeferralDistributionYear(BaseModel):
+class DeferralDistributionYear(APIModel):
     """Deferral rate distribution for a specific simulation year."""
 
     year: int = Field(description="Simulation year")
@@ -84,7 +85,7 @@ class DeferralDistributionYear(BaseModel):
     )
 
 
-class ParticipationByMethod(BaseModel):
+class ParticipationByMethod(APIModel):
     """Participation breakdown by enrollment method."""
 
     auto_enrolled: int = Field(description="Auto-enrolled employees")
@@ -92,7 +93,7 @@ class ParticipationByMethod(BaseModel):
     census_enrolled: int = Field(description="Census/baseline enrolled employees")
 
 
-class EscalationMetrics(BaseModel):
+class EscalationMetrics(APIModel):
     """Deferral escalation metrics."""
 
     employees_with_escalations: int = Field(
@@ -106,7 +107,7 @@ class EscalationMetrics(BaseModel):
     )
 
 
-class IRSLimitMetrics(BaseModel):
+class IRSLimitMetrics(APIModel):
     """IRS contribution limit metrics."""
 
     employees_at_irs_limit: int = Field(
@@ -115,7 +116,7 @@ class IRSLimitMetrics(BaseModel):
     irs_limit_rate: float = Field(description="Percentage of participants at limit")
 
 
-class DCPlanAnalytics(BaseModel):
+class DCPlanAnalytics(APIModel):
     """Complete DC Plan analytics for a scenario."""
 
     scenario_id: str = Field(description="Scenario identifier")
@@ -209,7 +210,7 @@ class DCPlanAnalytics(BaseModel):
     )
 
 
-class DCPlanComparisonResponse(BaseModel):
+class DCPlanComparisonResponse(APIModel):
     """Response for comparing DC Plan analytics across scenarios."""
 
     scenarios: List[str] = Field(description="List of scenario IDs in comparison")
@@ -217,7 +218,7 @@ class DCPlanComparisonResponse(BaseModel):
     analytics: List[DCPlanAnalytics] = Field(description="Analytics for each scenario")
 
 
-class GrandfatheredCostYear(BaseModel):
+class GrandfatheredCostYear(APIModel):
     """One year of a gross employer-cost cohort splice."""
 
     year: int
@@ -231,7 +232,7 @@ class GrandfatheredCostYear(BaseModel):
     unavailable_reason: Optional[str] = None
 
 
-class GrandfatheredCostSeries(BaseModel):
+class GrandfatheredCostSeries(APIModel):
     """Employer cost for one proposed scenario spliced with the anchor."""
 
     scenario_id: str
@@ -243,7 +244,7 @@ class GrandfatheredCostSeries(BaseModel):
     )
 
 
-class GrandfatheredCostComparisonResponse(BaseModel):
+class GrandfatheredCostComparisonResponse(APIModel):
     """Grandfathered gross cost and cohort-spliced forfeiture offsets."""
 
     baseline_scenario_id: str

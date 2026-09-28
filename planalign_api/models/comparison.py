@@ -3,10 +3,11 @@
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+from .base import APIModel
 
 
-class WorkforceMetrics(BaseModel):
+class WorkforceMetrics(APIModel):
     """Workforce metrics for a single year."""
 
     headcount: int = Field(description="Total headcount")
@@ -19,7 +20,7 @@ class WorkforceMetrics(BaseModel):
     )
 
 
-class ConfigDelta(BaseModel):
+class ConfigDelta(APIModel):
     """One effective configuration difference between two scenarios."""
 
     path: str = Field(description="Stable dotted configuration path")
@@ -28,7 +29,7 @@ class ConfigDelta(BaseModel):
     status: Literal["changed", "only_a", "only_b"]
 
 
-class ScenarioProvenance(BaseModel):
+class ScenarioProvenance(APIModel):
     """Latest available run provenance for a scenario."""
 
     available: bool
@@ -47,7 +48,7 @@ class ScenarioProvenance(BaseModel):
     ] = Field(default_factory=list)
 
 
-class RunTrustResult(BaseModel):
+class RunTrustResult(APIModel):
     """Run-ID-aware, read-only trust signals reusable outside comparison."""
 
     available: bool
@@ -65,7 +66,7 @@ class RunTrustResult(BaseModel):
     ] = Field(default_factory=list)
 
 
-class ConfigDiffResponse(BaseModel):
+class ConfigDiffResponse(APIModel):
     """Effective configuration diff and provenance for exactly two scenarios."""
 
     scenario_a: str
@@ -78,7 +79,7 @@ class ConfigDiffResponse(BaseModel):
     drift_warning: bool
 
 
-class WorkforceComparisonYear(BaseModel):
+class WorkforceComparisonYear(APIModel):
     """Workforce comparison for a single year."""
 
     year: int = Field(description="Simulation year")
@@ -88,7 +89,7 @@ class WorkforceComparisonYear(BaseModel):
     )
 
 
-class EventComparisonMetric(BaseModel):
+class EventComparisonMetric(APIModel):
     """Event comparison for a single metric."""
 
     metric: str = Field(description="Metric name (hires, terminations, etc.)")
@@ -99,7 +100,7 @@ class EventComparisonMetric(BaseModel):
     delta_pcts: Dict[str, float] = Field(description="Delta percentage")
 
 
-class DeltaValue(BaseModel):
+class DeltaValue(APIModel):
     """Delta calculation for a summary metric."""
 
     baseline: float = Field(description="Baseline value")
@@ -108,7 +109,7 @@ class DeltaValue(BaseModel):
     delta_pcts: Dict[str, float] = Field(description="Percentage deltas")
 
 
-class DCPlanMetrics(BaseModel):
+class DCPlanMetrics(APIModel):
     """DC plan metrics for a single scenario in a single year."""
 
     participation_rate: float = Field(default=0.0, description="Participation rate (%)")
@@ -127,7 +128,7 @@ class DCPlanMetrics(BaseModel):
     )
 
 
-class DCPlanComparisonYear(BaseModel):
+class DCPlanComparisonYear(APIModel):
     """DC plan comparison for a single year."""
 
     year: int = Field(description="Simulation year")
@@ -137,7 +138,7 @@ class DCPlanComparisonYear(BaseModel):
     )
 
 
-class ComparisonResponse(BaseModel):
+class ComparisonResponse(APIModel):
     """Full comparison response."""
 
     scenarios: List[str] = Field(description="List of scenario IDs in comparison")
