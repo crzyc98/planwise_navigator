@@ -3,7 +3,7 @@ name: CI Pipeline
 
 # Gating policy (measured 2026-08-04):
 #
-#   Pull requests run lint + validate-models + the fast suite: about 5 minutes.
+#   Pull requests run lint + validate-models + the fast suite: about 8 minutes.
 #   Everything heavier -- the four integration shards, multi-year invariants, the
 #   edge-config matrix, and the coverage gate -- runs on push to main/develop, on
 #   the nightly schedule, and on demand.
@@ -143,8 +143,9 @@ jobs:
             --ignore-vuln PYSEC-2026-2120 \
             --ignore-vuln PYSEC-2026-2121
 
-  # The PR gate. Unit-only, no dbt runs, no database: ~288s for ~2,780 tests
-  # as of 2026-09-21 (budget enforced below per constitution.md III, #648).
+  # The PR gate. Unit-only, no dbt runs, no database: ~330s for ~2,800 tests
+  # on 4 xdist workers as of 2026-09-28 (budget enforced below per
+  # constitution.md III, #648).
   # This is the check developers wait on, so keep it fast -- anything
   # needing a real dbt invocation belongs in `test` below, not here.
   fast-tests:
@@ -190,12 +191,14 @@ jobs:
           DATABASE_PATH: ${{ runner.temp }}/planalign-ci-fast.duckdb
         run: |
           # Constitution III caps the fast suite's wall-clock time (see #648).
-          # Budget is ~1.2x the worst observed time on GitHub-hosted runners
-          # (490-891s for ~2,810 tests as of 2026-09-27). The original 360s
-          # was measured on a dev Mac (~288s) and failed every CI run.
-          FAST_SUITE_BUDGET_SECONDS=1080
+          # Budget is ~1.25x the worst observed time on GitHub-hosted runners:
+          # 322-356s with -n 4 (one worker per vCPU) vs 615-915s serial, as of
+          # 2026-09-28. Re-measure here, not on a laptop, when re-baselining.
+          # --dist load: tests must not depend on sharing a worker with their
+          # file-mates; keep collection deterministic (no uuid4() in IDs).
+          FAST_SUITE_BUDGET_SECONDS=450
           start=$(date +%s)
-          pytest -m fast -q
+          pytest -m fast -q -n 4 --dist load
           status=$?
           elapsed=$(( $(date +%s) - start ))
           echo "Fast suite took ${elapsed}s (budget: ${FAST_SUITE_BUDGET_SECONDS}s)"
