@@ -962,9 +962,11 @@ class TestRunResultStorage:
 # ==================== Deletion path containment ====================
 
 
-WORKSPACE_ID = str(uuid.uuid4())
-SCENARIO_ID = str(uuid.uuid4())
-OTHER_WORKSPACE_ID = str(uuid.uuid4())
+# Fixed, not uuid4(): these feed parametrize IDs below, and pytest-xdist requires
+# every worker to collect an identical test list (#648).
+WORKSPACE_ID = "7f3c2a1e-4b5d-4c6e-8f90-1a2b3c4d5e6f"
+SCENARIO_ID = "0e9d8c7b-6a5f-4e3d-9c2b-1a0f9e8d7c6b"
+OTHER_WORKSPACE_ID = "5a4b3c2d-1e0f-4a9b-8c7d-6e5f4a3b2c1d"
 
 TRAVERSAL_IDS = [
     ".",
