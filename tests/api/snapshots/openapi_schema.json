@@ -8409,7 +8409,8 @@
               "integrity_mismatch",
               "material_residual",
               "residual_dominates",
-              "shares_suppressed"
+              "shares_suppressed",
+              "scenario_seed_mismatch"
             ],
             "title": "Code",
             "type": "string"

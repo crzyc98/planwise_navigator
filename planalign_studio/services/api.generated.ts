@@ -6368,7 +6368,7 @@ export interface components {
              * Code
              * @enum {string}
              */
-            code: "run_in_progress" | "legacy_result" | "current_config_mismatch" | "current_seed_mismatch" | "mixed_generation" | "incomplete_build" | "incomplete_provenance" | "integrity_mismatch" | "material_residual" | "residual_dominates" | "shares_suppressed";
+            code: "run_in_progress" | "legacy_result" | "current_config_mismatch" | "current_seed_mismatch" | "mixed_generation" | "incomplete_build" | "incomplete_provenance" | "integrity_mismatch" | "material_residual" | "residual_dominates" | "shares_suppressed" | "scenario_seed_mismatch";
             /** Message */
             message: string;
             /**
