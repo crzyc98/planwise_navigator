@@ -116,9 +116,11 @@ def _failing_worker(job: ScenarioJob) -> dict:
     return {"name": job.name}
 
 
-def _slow_worker(job: ScenarioJob) -> dict:
+def _timed_worker(job: ScenarioJob) -> dict:
+    """Report when the job ran; CLOCK_MONOTONIC is system-wide on Linux/macOS."""
+    start = time.monotonic()
     time.sleep(job.payload.get("sleep", 0.5))
-    return {"name": job.name}
+    return {"name": job.name, "start": start, "end": time.monotonic()}
 
 
 def _slow_echo_worker(job: ScenarioJob) -> dict:
@@ -267,14 +269,18 @@ class TestPoolParallelExecution:
         assert not marker.exists(), "worker was killed before it could clean up"
 
     def test_concurrency_actually_overlaps(self):
-        """Four 0.5s jobs on four workers must beat the 2.0s serial total."""
-        jobs = [_job(f"s{i}", sleep=0.5) for i in range(4)]
-        started = time.monotonic()
-        results = ScenarioRunPool(4).run(_slow_worker, jobs)
-        elapsed = time.monotonic() - started
+        """Jobs on separate workers must run at the same time.
+
+        Asserts on the jobs' own run intervals rather than total wall time,
+        which also counts process spawn and flakes on a contended CPU (#648).
+        """
+        jobs = [_job(f"s{i}", sleep=1.0) for i in range(4)]
+        results = ScenarioRunPool(4).run(_timed_worker, jobs)
 
         assert all(r.succeeded for r in results.values())
-        assert elapsed < 2.0, f"no overlap observed: {elapsed:.2f}s"
+        spans = sorted((r.value["start"], r.value["end"]) for r in results.values())
+        overlapping = any(nxt[0] < cur[1] for cur, nxt in zip(spans, spans[1:]))
+        assert overlapping, f"no overlap observed: {spans}"
 
 
 class TestSignalSessionScoping:
