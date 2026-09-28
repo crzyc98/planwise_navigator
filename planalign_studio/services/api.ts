@@ -1302,7 +1302,22 @@ export async function getScenarioEvidencePack(
   return handleResponse<EvidencePackEnvelope>(response);
 }
 
-export function downloadEvidencePack(envelope: EvidencePackEnvelope): void {
+export type CrossScenarioEvidencePackEnvelope = Schemas['CrossScenarioEvidencePackEnvelope'];
+export type CrossScenarioFigure = Schemas['CrossScenarioFigure'];
+
+export async function getCrossScenarioEvidencePack(
+  workspaceId: string,
+  scenarioA: string,
+  scenarioB: string,
+  metric: EvidenceMetric,
+  year: number,
+): Promise<CrossScenarioEvidencePackEnvelope> {
+  const params = new URLSearchParams({ scenario_a: scenarioA, scenario_b: scenarioB, metric, year: String(year) });
+  const response = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/evidence-pack/compare?${params}`);
+  return handleResponse<CrossScenarioEvidencePackEnvelope>(response);
+}
+
+export function downloadEvidencePack(envelope: Pick<EvidencePackEnvelope, 'text_export' | 'filename'>): void {
   saveBrowserDownload(
     new Blob([envelope.text_export], { type: 'text/markdown;charset=utf-8' }),
     envelope.filename,

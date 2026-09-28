@@ -152,7 +152,12 @@ def build_cross_scenario_evidence_pack(
                 key=_warning_key,
             )
         ),
-        executive_summary=build_cross_executive_summary(change, drivers),
+        executive_summary=build_cross_executive_summary(
+            change,
+            drivers,
+            resolved_a.scenario_name or resolved_a.scenario_id,
+            resolved_b.scenario_name or resolved_b.scenario_id,
+        ),
         population_note="Canonical snapshot populations include all rows for compensation, employer cost, and participation; average deferral rate excludes null-deferral rows; only active headcount filters employment status. Each scenario's aggregate is computed independently from its own result store — no employee-level record is matched or compared across scenarios.",
     )
 
