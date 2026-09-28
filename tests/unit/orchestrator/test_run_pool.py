@@ -132,8 +132,11 @@ def _slow_echo_worker(job: ScenarioJob) -> dict:
 def _lock_holding_worker(job: ScenarioJob) -> dict:
     """Hold a context manager across a long sleep, so SIGTERM must unwind it."""
     marker = Path(job.payload["marker"])
-    marker.write_text("held")
     try:
+        # Create the marker inside the try: the test signals as soon as the
+        # file exists, which is mid-write_text, and a SIGTERM landing before
+        # the try would skip the cleanup this test asserts on.
+        marker.write_text("held")
         time.sleep(job.payload.get("sleep", 30))
     finally:
         marker.unlink(missing_ok=True)
