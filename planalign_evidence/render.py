@@ -4,8 +4,29 @@ from __future__ import annotations
 
 import re
 from decimal import Decimal
+from typing import Protocol
 
-from .models import EvidenceFigure, EvidencePack, EvidencePackEnvelope
+from .models import EvidencePack, EvidencePackEnvelope
+
+
+class FigureLike(Protocol):
+    """The fields a figure needs to render; shared by single and cross packs."""
+
+    @property
+    def value(self) -> str | None:
+        ...
+
+    @property
+    def unit(self) -> str:
+        ...
+
+    @property
+    def status(self) -> str:
+        ...
+
+    @property
+    def reason(self) -> str | None:
+        ...
 
 
 def render_evidence_pack(pack: EvidencePack) -> str:
@@ -42,11 +63,11 @@ def render_evidence_pack(pack: EvidencePack) -> str:
             "",
             "## Movement",
             "",
-            f"- Base ({change.base_year}): {_figure(change.base_value)}",
-            f"- Target ({change.target_year}): {_figure(change.target_value)}",
-            f"- Total change: {_figure(change.total_change)}",
-            f"- Base population: **{_human(change.base_population)}** (`Q1.base_population`)",
-            f"- Target population: **{_human(change.target_population)}** (`Q1.target_population`)",
+            f"- Base ({change.base_year}): {format_figure(change.base_value)}",
+            f"- Target ({change.target_year}): {format_figure(change.target_value)}",
+            f"- Total change: {format_figure(change.total_change)}",
+            f"- Base population: **{human_value(change.base_population)}** (`Q1.base_population`)",
+            f"- Target population: **{human_value(change.target_population)}** (`Q1.target_population`)",
         ]
     )
     if change.shares_suppressed_reason:
@@ -64,20 +85,20 @@ def render_evidence_pack(pack: EvidencePack) -> str:
         rate_context = ""
         if driver.base_rate is not None and driver.target_rate is not None:
             rate_context = (
-                f"<br>Effective retained payout rate: {_figure(driver.base_rate)} → "
-                f"{_figure(driver.target_rate)}"
+                f"<br>Effective retained payout rate: {format_figure(driver.base_rate)} → "
+                f"{format_figure(driver.target_rate)}"
             )
         lines.append(
-            f"| {driver.label}{rate_context} | {_figure(driver.contribution)} | {_figure(driver.share_of_change)} | "
-            f"{_figure(driver.population.count)} {driver.population.label} | `Q1.{driver.contribution.citation.result_column}` |"
+            f"| {driver.label}{rate_context} | {format_figure(driver.contribution)} | {format_figure(driver.share_of_change)} | "
+            f"{format_figure(driver.population.count)} {driver.population.label} | `Q1.{driver.contribution.citation.result_column}` |"
         )
     lines.extend(
         [
             "",
             "## Residual",
             "",
-            f"- Amount: {_figure(pack.residual.contribution)}",
-            f"- Share: {_figure(pack.residual.share_of_change)}",
+            f"- Amount: {format_figure(pack.residual.contribution)}",
+            f"- Share: {format_figure(pack.residual.share_of_change)}",
         ]
     )
     if pack.residual.material:
@@ -118,9 +139,9 @@ def build_envelope(pack: EvidencePack) -> EvidencePackEnvelope:
     )
 
 
-def _figure(figure: EvidenceFigure) -> str:
+def format_figure(figure: FigureLike) -> str:
     if figure.status == "defined":
-        human = _human(figure)
+        human = human_value(figure)
         canonical = str(figure.value)
         return (
             human if human == canonical else f"**{human}** (canonical: `{canonical}`)"
@@ -128,7 +149,7 @@ def _figure(figure: EvidenceFigure) -> str:
     return f"{figure.status.title()} — {figure.reason}"
 
 
-def _human(figure: EvidenceFigure) -> str:
+def human_value(figure: FigureLike) -> str:
     if figure.value is None:
         return figure.status.title()
     value = Decimal(figure.value)
@@ -158,4 +179,10 @@ def _figure_mappings(pack: EvidencePack):
     yield "Residual share", pack.residual.share_of_change
 
 
-__all__ = ["build_envelope", "render_evidence_pack"]
+__all__ = [
+    "FigureLike",
+    "build_envelope",
+    "format_figure",
+    "human_value",
+    "render_evidence_pack",
+]

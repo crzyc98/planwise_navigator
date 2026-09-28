@@ -35,6 +35,7 @@ WarningCode = Literal[
     "residual_dominates",
     "shares_suppressed",
     "scenario_seed_mismatch",
+    "census_mismatch",
 ]
 
 # Reconciliation holds at the precision a pack actually reports, not at the
