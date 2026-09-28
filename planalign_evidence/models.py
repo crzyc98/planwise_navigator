@@ -34,6 +34,7 @@ WarningCode = Literal[
     "material_residual",
     "residual_dominates",
     "shares_suppressed",
+    "scenario_seed_mismatch",
 ]
 
 # Reconciliation holds at the precision a pack actually reports, not at the
@@ -63,6 +64,22 @@ _WRITE_SQL = re.compile(
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
+
+
+def validate_figure_status(status: str, value: str | None, reason: str | None) -> None:
+    """Validate the shared value/status contract for cited figures."""
+    if status == "defined":
+        if value is None or reason is not None:
+            raise ValueError("defined figures require a value and no reason")
+        if not _DECIMAL_PATTERN.fullmatch(value):
+            raise ValueError("value must be a canonical finite decimal string")
+        try:
+            if not Decimal(value).is_finite():
+                raise ValueError("value must be finite")
+        except InvalidOperation as exc:
+            raise ValueError("value must be a decimal") from exc
+    elif value is not None or not reason:
+        raise ValueError("undefined/suppressed figures require only a reason")
 
 
 class Citation(StrictModel):
@@ -98,18 +115,7 @@ class EvidenceFigure(StrictModel):
 
     @model_validator(mode="after")
     def _status_matches_value(self) -> "EvidenceFigure":
-        if self.status == "defined":
-            if self.value is None or self.reason is not None:
-                raise ValueError("defined figures require a value and no reason")
-            if not _DECIMAL_PATTERN.fullmatch(self.value):
-                raise ValueError("value must be a canonical finite decimal string")
-            try:
-                if not Decimal(self.value).is_finite():
-                    raise ValueError("value must be finite")
-            except InvalidOperation as exc:
-                raise ValueError("value must be a decimal") from exc
-        elif self.value is not None or not self.reason:
-            raise ValueError("undefined/suppressed figures require only a reason")
+        validate_figure_status(self.status, self.value, self.reason)
         return self
 
 
@@ -280,4 +286,5 @@ __all__ = [
     "PackWarning",
     "PopulationEvidence",
     "Residual",
+    "validate_figure_status",
 ]
