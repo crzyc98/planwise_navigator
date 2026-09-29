@@ -9,6 +9,7 @@ validation, small-cell handling, pack shape, and the drop-in application path.
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 import duckdb
@@ -1161,3 +1162,84 @@ class TestPromotionReportContract:
         report = render_fit_report(inseparable_run)
         assert "Promotion hazard — not fitted" in report
         assert "promotion_base_rate" not in report
+
+
+class TestDiagnosticsRecord:
+    """``diagnostics.json`` is the machine-readable twin of the report (#588)."""
+
+    def test_every_fitted_value_is_grouped(self, fit_run):
+        from planalign_fit.diagnostics import build_diagnostics
+
+        payload = build_diagnostics(fit_run)
+        grouped = [row for rows in payload["groups"].values() for row in rows]
+        assert len(grouped) == len(fit_run.result.all_fitted())
+        assert set(payload["groups"]) <= {
+            "termination",
+            "promotion",
+            "merit",
+            "deferral",
+            "config",
+        }
+
+    def test_thin_cells_are_flagged_consistently(self, fit_run):
+        from planalign_fit.diagnostics import build_diagnostics
+
+        payload = build_diagnostics(fit_run)
+        rows = [row for rows in payload["groups"].values() for row in rows]
+        assert all(row["thin"] == (row["basis"] in ("pooled", "prior")) for row in rows)
+        assert payload["summary"]["thin_count"] == fit_run.result.thin_cell_count
+        assert payload["summary"]["fitted_count"] == len(rows)
+
+    def test_summary_carries_the_cli_panel_fields(self, fit_run, history):
+        from planalign_fit.diagnostics import build_diagnostics
+
+        summary = build_diagnostics(fit_run)["summary"]
+        assert summary["snapshot_years"] == list(history.years)
+        assert summary["linked_employees"] > 0
+        assert summary["promotion_basis"] in {"measured", "estimated", "not_fitted"}
+
+    def test_diagnostics_are_json_serializable(self, fit_run):
+        from planalign_fit.diagnostics import build_diagnostics
+
+        json.dumps(build_diagnostics(fit_run), allow_nan=False)
+
+    def test_writing_diagnostics_leaves_the_fingerprint_alone(self, fit_run, tmp_path):
+        from planalign_fit.diagnostics import build_diagnostics
+
+        write_pack(
+            fit_run.pack,
+            tmp_path / "with",
+            diagnostics=build_diagnostics(fit_run),
+        )
+        write_pack(fit_run.pack, tmp_path / "without")
+        assert (tmp_path / "with" / "diagnostics.json").is_file()
+        assert not (tmp_path / "without" / "diagnostics.json").exists()
+        with_pack = load_pack(tmp_path / "with")
+        without_pack = load_pack(tmp_path / "without")
+        assert with_pack.manifest.fingerprint == without_pack.manifest.fingerprint
+        assert with_pack.seed_files == without_pack.seed_files
+        assert verify_pack(with_pack)
+
+
+class TestApplyPackSeedsRoot:
+    """A pack overlays the seed set it was fitted against, not always dbt/seeds."""
+
+    def test_overlay_starts_from_the_supplied_seed_set(self, fit_run, tmp_path):
+        seeds_root = tmp_path / "scenario_seeds"
+        shutil.copytree(Path("dbt/seeds"), seeds_root)
+        marker = seeds_root / "config_age_bands.csv"
+        marker.write_text(marker.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+        write_pack(fit_run.pack, tmp_path / "pack")
+        applied = apply_pack(
+            tmp_path / "pack",
+            Path("config/simulation_config.yaml"),
+            workdir=tmp_path / "run",
+            seeds_root=seeds_root,
+        )
+        overlay_seeds = applied.dbt_project_dir / "seeds"
+        assert (overlay_seeds / "config_age_bands.csv").read_text(
+            encoding="utf-8"
+        ) == marker.read_text(encoding="utf-8")
+        assert (overlay_seeds / "config_termination_hazard_base.csv").read_text(
+            encoding="utf-8"
+        ) == fit_run.pack.seed_files["config_termination_hazard_base.csv"]

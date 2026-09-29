@@ -16,6 +16,35 @@ planalign fit data/history/ --output var/param_packs/acme-2024
 planalign simulate 2025-2029 --params var/param_packs/acme-2024 --database iso.duckdb
 ```
 
+### From Studio (#588)
+
+Studio exposes the same fit without the command line: **Run → Fit & Backtest**.
+
+1. Upload the 2–5 annual snapshots. Studio validates them with the fitter and
+   shows each year's file, row count, SHA-256, and as-of date, plus the source
+   digest. A gap, a duplicate year, or a missing column is rejected at upload.
+2. Choose a **base scenario**. Its effective config and seeds (including any
+   pack already applied to it) supply the priors that thin cells lean on.
+3. Review the pre-run summary and run. The fit runs in the background as a
+   `planalign fit` subprocess, so it can be cancelled.
+4. Inspect the summary, the per-cell diagnostics (thin cells highlighted), the
+   provenance, and the full `fit_report.md`.
+5. **Apply to a new scenario**. Studio shows the config diff and asks for
+   explicit acknowledgement of thin cells, unfittable groups, and a missing or
+   non-passing backtest. It then creates a *new* scenario; the source scenario
+   is never modified. The pack's promotion hazard becomes the scenario's
+   editable `promotion_hazard` section. Its other fitted seeds (termination
+   hazard, merit levers, deferral rates) are layered into every run of that
+   scenario, and the run records the pack id and fingerprint in `run_metadata`.
+
+Jobs and packs live under `workspaces/<ws>/param_fits/` and survive a Studio
+restart. The newest 20 finished jobs per workspace are kept
+(`PLANALIGN_API_PARAM_FIT_MAX_JOBS_PER_WORKSPACE`). `planalign gc` reclaims
+scratch left by interrupted jobs.
+
+Packs now also carry `diagnostics.json`, a machine-readable version of the
+report. It is not part of the pack fingerprint.
+
 ---
 
 ## Input: the snapshot directory

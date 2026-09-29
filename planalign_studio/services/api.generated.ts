@@ -1740,6 +1740,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/fit-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Fit History */
+        get: operations["list_fit_history_api_workspaces__workspace_id__fit_history_get"];
+        put?: never;
+        /**
+         * Upload Fit History
+         * @description Upload and validate a census history set (validated by the fitter).
+         */
+        post: operations["upload_fit_history_api_workspaces__workspace_id__fit_history_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/fit-history/{history_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Fit History
+         * @description Re-hash and re-validate a stored history set.
+         */
+        get: operations["get_fit_history_api_workspaces__workspace_id__fit_history__history_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Fit History */
+        delete: operations["delete_fit_history_api_workspaces__workspace_id__fit_history__history_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workspaces/{workspace_id}/imports/upload": {
         parameters: {
             query?: never;
@@ -1905,6 +1947,127 @@ export interface paths {
         put?: never;
         /** Save mapping as reusable template */
         post: operations["save_mapping_template_api_workspaces__workspace_id__mapping_templates_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/param-fits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Param Fits */
+        get: operations["list_param_fits_api_workspaces__workspace_id__param_fits_get"];
+        put?: never;
+        /**
+         * Start Param Fit
+         * @description Enqueue a fit or fit+backtest job; poll GET …/param-fits/{job_id}.
+         */
+        post: operations["start_param_fit_api_workspaces__workspace_id__param_fits_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/param-fits/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Param Fit
+         * @description Job status, progress, and — once completed — its result.
+         */
+        get: operations["get_param_fit_api_workspaces__workspace_id__param_fits__job_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/param-fits/{job_id}/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply Param Pack
+         * @description Create a NEW scenario from a reviewed pack; the source is never modified.
+         */
+        post: operations["apply_param_pack_api_workspaces__workspace_id__param_fits__job_id__apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/param-fits/{job_id}/apply-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview Param Pack Apply
+         * @description What applying this pack to a source scenario would change and require.
+         */
+        get: operations["preview_param_pack_apply_api_workspaces__workspace_id__param_fits__job_id__apply_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/param-fits/{job_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Param Fit
+         * @description Stop a queued/running job and remove its partial artifacts.
+         */
+        post: operations["cancel_param_fit_api_workspaces__workspace_id__param_fits__job_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/param-fits/{job_id}/reports/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Param Fit Report
+         * @description The written fit report or backtest scorecard (Markdown).
+         */
+        get: operations["get_param_fit_report_api_workspaces__workspace_id__param_fits__job_id__reports__kind__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2617,6 +2780,42 @@ export interface components {
             /** Variance */
             variance: number | null;
         };
+        /** ApplyPreview */
+        ApplyPreview: {
+            /** Backtest Verdict */
+            backtest_verdict: string | null;
+            /** Diff */
+            diff: components["schemas"]["ConfigDelta"][];
+            /** Pack Fingerprint */
+            pack_fingerprint: string;
+            /** Pack Id */
+            pack_id: string;
+            /** Required Acknowledgements */
+            required_acknowledgements: ("thin_cells" | "unfittable" | "no_backtest" | "backtest_warn" | "backtest_fail")[];
+            /** Seed Files */
+            seed_files: string[];
+            /** Source Config Fingerprint */
+            source_config_fingerprint: string;
+            /** Source Scenario Id */
+            source_scenario_id: string;
+            /** Suggested Name */
+            suggested_name: string;
+        };
+        /** ApplyRequest */
+        ApplyRequest: {
+            /** Acknowledgements */
+            acknowledgements?: ("thin_cells" | "unfittable" | "no_backtest" | "backtest_warn" | "backtest_fail")[];
+            /** Description */
+            description?: string | null;
+            /** Name */
+            name: string;
+            /** Pack Fingerprint */
+            pack_fingerprint: string;
+            /** Source Config Fingerprint */
+            source_config_fingerprint: string;
+            /** Source Scenario Id */
+            source_scenario_id: string;
+        };
         /** ApplyTemplateRequest */
         ApplyTemplateRequest: {
             /** Template Id */
@@ -3129,6 +3328,14 @@ export interface components {
         Body_upload_file_api_workspaces__workspace_id__imports_upload_post: {
             /** File */
             file: string;
+        };
+        /** Body_upload_fit_history_api_workspaces__workspace_id__fit_history_post */
+        Body_upload_fit_history_api_workspaces__workspace_id__fit_history_post: {
+            /**
+             * Files
+             * @description 2-5 annual census snapshots
+             */
+            files: string[];
         };
         /** Body_validate_import_api_workspaces_import_validate_post */
         Body_validate_import_api_workspaces_import_validate_post: {
@@ -5585,6 +5792,52 @@ export interface components {
              */
             validation_warnings: string[];
         };
+        /** FitOptionsModel */
+        "FitOptionsModel-Input": {
+            /**
+             * Credibility K
+             * @default 200
+             */
+            credibility_k: number;
+            /**
+             * Level Coverage Threshold
+             * @default 0.95
+             */
+            level_coverage_threshold: number;
+            /**
+             * Min Exposure
+             * @default 50
+             */
+            min_exposure: number;
+            /**
+             * Separation Exposure Gate
+             * @default 0.5
+             */
+            separation_exposure_gate: number;
+        };
+        /** FitOptionsModel */
+        "FitOptionsModel-Output": {
+            /**
+             * Credibility K
+             * @default 200
+             */
+            credibility_k: number;
+            /**
+             * Level Coverage Threshold
+             * @default 0.95
+             */
+            level_coverage_threshold: number;
+            /**
+             * Min Exposure
+             * @default 50
+             */
+            min_exposure: number;
+            /**
+             * Separation Exposure Gate
+             * @default 0.5
+             */
+            separation_exposure_gate: number;
+        };
         /**
          * ForfeiturePolicy
          * @description What the plan does with forfeited employer money.
@@ -5806,6 +6059,22 @@ export interface components {
              */
             winners: number;
         };
+        /** HistorySet */
+        HistorySet: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** History Id */
+            history_id: string;
+            /** Snapshots */
+            snapshots: components["schemas"]["SnapshotInfo"][];
+            /** Source Digest */
+            source_digest: string;
+            /** Splits */
+            splits: components["schemas"]["SplitOption"][];
+        };
         /**
          * IRSLimitMetrics
          * @description IRS contribution limit metrics.
@@ -5982,6 +6251,57 @@ export interface components {
             sha256: string;
             /** Size Bytes */
             size_bytes: number | null;
+        };
+        /** JobError */
+        JobError: {
+            /** Failed Seed */
+            failed_seed: number | null;
+            /** Failed Year */
+            failed_year: number | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "invalid_input" | "invalid_history" | "output_conflict" | "simulation_failure" | "interrupted" | "unexpected";
+            /** Message */
+            message: string;
+            /** Status */
+            status: number;
+        };
+        /** JobInputs */
+        JobInputs: {
+            /** Base Scenario Fingerprint */
+            base_scenario_fingerprint: string;
+            /** Base Scenario Id */
+            base_scenario_id: string;
+            /** Base Scenario Name */
+            base_scenario_name: string;
+            /** History Id */
+            history_id: string;
+            /** Moved Settings */
+            moved_settings: Record<string, unknown>;
+            /** Snapshots */
+            snapshots: components["schemas"]["SnapshotInfo"][];
+            /** Source Digest */
+            source_digest: string;
+            split: components["schemas"]["SplitPreview"] | null;
+        };
+        /** JobProgress */
+        JobProgress: {
+            /** Index */
+            index: number | null;
+            /** Seed */
+            seed: number | null;
+            /**
+             * Stage
+             * @default queued
+             * @enum {string}
+             */
+            stage: "queued" | "loading_history" | "fitting" | "simulating" | "scoring" | "writing_pack";
+            /** Total */
+            total: number | null;
+            /** Updated At */
+            updated_at: string | null;
         };
         /**
          * LevelDistributionResponse
@@ -6531,6 +6851,161 @@ export interface components {
              * @enum {string}
              */
             severity: "info" | "caution" | "critical";
+        };
+        /** ParamFitJob */
+        ParamFitJob: {
+            /** Completed At */
+            completed_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            error: components["schemas"]["JobError"] | null;
+            inputs: components["schemas"]["JobInputs"];
+            /** Job Id */
+            job_id: string;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "fit" | "backtest";
+            progress: components["schemas"]["JobProgress"];
+            request: components["schemas"]["ParamFitRequest-Output"];
+            result: components["schemas"]["ParamFitResult"] | null;
+            /** Started At */
+            started_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "completed" | "failed" | "cancelled";
+            /** Workspace Id */
+            workspace_id: string;
+        };
+        /** ParamFitJobSummary */
+        ParamFitJobSummary: {
+            /** Base Scenario Id */
+            base_scenario_id: string;
+            /** Base Scenario Name */
+            base_scenario_name: string;
+            /** Completed At */
+            completed_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            error: components["schemas"]["JobError"] | null;
+            /** History Id */
+            history_id: string;
+            /** Job Id */
+            job_id: string;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "fit" | "backtest";
+            /** Pack Id */
+            pack_id: string | null;
+            progress: components["schemas"]["JobProgress"];
+            /** Snapshot Years */
+            snapshot_years: number[];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "completed" | "failed" | "cancelled";
+            /** Verdict */
+            verdict: string | null;
+        };
+        /** ParamFitRequest */
+        "ParamFitRequest-Input": {
+            /** Base Scenario Id */
+            base_scenario_id: string;
+            fit_options?: components["schemas"]["FitOptionsModel-Input"];
+            /** History Id */
+            history_id: string;
+            /**
+             * Holdout Years
+             * @default 1
+             */
+            holdout_years: number;
+            /**
+             * Mode
+             * @default fit
+             * @enum {string}
+             */
+            mode: "fit" | "backtest";
+            /**
+             * Notes
+             * @default
+             */
+            notes: string;
+            /** Seeds */
+            seeds?: number[];
+            thresholds?: components["schemas"]["ThresholdsModel-Input"];
+        };
+        /** ParamFitRequest */
+        "ParamFitRequest-Output": {
+            /** Base Scenario Id */
+            base_scenario_id: string;
+            fit_options: components["schemas"]["FitOptionsModel-Output"];
+            /** History Id */
+            history_id: string;
+            /**
+             * Holdout Years
+             * @default 1
+             */
+            holdout_years: number;
+            /**
+             * Mode
+             * @default fit
+             * @enum {string}
+             */
+            mode: "fit" | "backtest";
+            /**
+             * Notes
+             * @default
+             */
+            notes: string;
+            /** Seeds */
+            seeds: number[];
+            thresholds: components["schemas"]["ThresholdsModel-Output"];
+        };
+        /**
+         * ParamFitResult
+         * @description What a completed job produced, read back from its pack.
+         */
+        ParamFitResult: {
+            /** Diagnostics */
+            diagnostics: {
+                [key: string]: Record<string, unknown>[];
+            };
+            /**
+             * Has Fit Report
+             * @default false
+             */
+            has_fit_report: boolean;
+            /** Promotion Classification */
+            promotion_classification: Record<string, unknown> | null;
+            /** Provenance */
+            provenance: Record<string, unknown>;
+            /** Scorecard */
+            scorecard: Record<string, unknown> | null;
+            /**
+             * Scorecard Current
+             * @default false
+             */
+            scorecard_current: boolean;
+            /** Stale */
+            stale: components["schemas"]["StaleReason"][];
+            /** Summary */
+            summary: Record<string, unknown>;
+            /** Unfittable */
+            unfittable: Record<string, unknown>[];
+            /** Warnings */
+            warnings: string[];
         };
         /** ParquetColumn */
         ParquetColumn: {
@@ -7911,6 +8386,24 @@ export interface components {
             /** Scenario Name */
             scenario_name: string;
         };
+        /** SnapshotInfo */
+        SnapshotInfo: {
+            /**
+             * As Of Date
+             * Format: date
+             */
+            as_of_date: string;
+            /** Columns Present */
+            columns_present: string[];
+            /** Filename */
+            filename: string;
+            /** Row Count */
+            row_count: number;
+            /** Sha256 */
+            sha256: string;
+            /** Year */
+            year: number;
+        };
         /** SoftwareEvidence */
         SoftwareEvidence: {
             /** Git Commit Sha */
@@ -7925,6 +8418,31 @@ export interface components {
              * @enum {string}
              */
             working_tree_state: "clean" | "dirty" | "unavailable";
+        };
+        /**
+         * SplitOption
+         * @description The backtest split one holdout choice produces, or why it cannot.
+         */
+        SplitOption: {
+            /** Error */
+            error: string | null;
+            /** Holdout Years */
+            holdout_years: number;
+            split: components["schemas"]["SplitPreview"] | null;
+        };
+        /** SplitPreview */
+        SplitPreview: {
+            /** Boundary Year */
+            boundary_year: number;
+            /** Fit Years */
+            fit_years: number[];
+            /** Holdout Years */
+            holdout_years: number[];
+            /**
+             * Simulation Effective Date
+             * Format: date
+             */
+            simulation_effective_date: string;
         };
         /** StageCompletion */
         StageCompletion: {
@@ -7943,6 +8461,16 @@ export interface components {
             stage: string;
             /** Started At */
             started_at: string | null;
+        };
+        /** StaleReason */
+        StaleReason: {
+            /** Message */
+            message: string;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "history_changed" | "pack_modified" | "base_scenario_changed";
         };
         /**
          * StructuredWarning
@@ -8412,6 +8940,33 @@ export interface components {
             tenure_band: string;
             /** Total Contributions */
             total_contributions: string;
+        };
+        /** ThresholdPair */
+        ThresholdPair: {
+            /** Fail */
+            fail: number;
+            /** Warn */
+            warn: number;
+        };
+        /**
+         * ThresholdsModel
+         * @description Backtest pass/warn/fail bands — defaults match the CLI.
+         */
+        "ThresholdsModel-Input": {
+            compensation?: components["schemas"]["ThresholdPair"];
+            flows?: components["schemas"]["ThresholdPair"];
+            headcount?: components["schemas"]["ThresholdPair"];
+            plan?: components["schemas"]["ThresholdPair"];
+        };
+        /**
+         * ThresholdsModel
+         * @description Backtest pass/warn/fail bands — defaults match the CLI.
+         */
+        "ThresholdsModel-Output": {
+            compensation: components["schemas"]["ThresholdPair"];
+            flows: components["schemas"]["ThresholdPair"];
+            headcount: components["schemas"]["ThresholdPair"];
+            plan: components["schemas"]["ThresholdPair"];
         };
         /** TimelineEvent */
         TimelineEvent: {
@@ -11874,6 +12429,134 @@ export interface operations {
             };
         };
     };
+    list_fit_history_api_workspaces__workspace_id__fit_history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistorySet"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_fit_history_api_workspaces__workspace_id__fit_history_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_fit_history_api_workspaces__workspace_id__fit_history_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistorySet"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_fit_history_api_workspaces__workspace_id__fit_history__history_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                history_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistorySet"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_fit_history_api_workspaces__workspace_id__fit_history__history_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                history_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     upload_file_api_workspaces__workspace_id__imports_upload_post: {
         parameters: {
             query?: never;
@@ -12240,6 +12923,239 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SaveTemplateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_param_fits_api_workspaces__workspace_id__param_fits_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParamFitJobSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_param_fit_api_workspaces__workspace_id__param_fits_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ParamFitRequest-Input"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParamFitJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_param_fit_api_workspaces__workspace_id__param_fits__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParamFitJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_param_pack_api_workspaces__workspace_id__param_fits__job_id__apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Scenario"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_param_pack_apply_api_workspaces__workspace_id__param_fits__job_id__apply_preview_get: {
+        parameters: {
+            query: {
+                source_scenario_id: string;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplyPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_param_fit_api_workspaces__workspace_id__param_fits__job_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParamFitJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_param_fit_report_api_workspaces__workspace_id__param_fits__job_id__reports__kind__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                job_id: string;
+                kind: "fit" | "scorecard";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
                 };
             };
             /** @description Validation Error */

@@ -554,6 +554,141 @@
         "title": "AnnualWorkforceReconciliation",
         "type": "object"
       },
+      "ApplyPreview": {
+        "properties": {
+          "backtest_verdict": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Backtest Verdict"
+          },
+          "diff": {
+            "items": {
+              "$ref": "#/components/schemas/ConfigDelta"
+            },
+            "title": "Diff",
+            "type": "array"
+          },
+          "pack_fingerprint": {
+            "title": "Pack Fingerprint",
+            "type": "string"
+          },
+          "pack_id": {
+            "title": "Pack Id",
+            "type": "string"
+          },
+          "required_acknowledgements": {
+            "items": {
+              "enum": [
+                "thin_cells",
+                "unfittable",
+                "no_backtest",
+                "backtest_warn",
+                "backtest_fail"
+              ],
+              "type": "string"
+            },
+            "title": "Required Acknowledgements",
+            "type": "array"
+          },
+          "seed_files": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Seed Files",
+            "type": "array"
+          },
+          "source_config_fingerprint": {
+            "title": "Source Config Fingerprint",
+            "type": "string"
+          },
+          "source_scenario_id": {
+            "title": "Source Scenario Id",
+            "type": "string"
+          },
+          "suggested_name": {
+            "title": "Suggested Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_scenario_id",
+          "source_config_fingerprint",
+          "pack_id",
+          "pack_fingerprint",
+          "backtest_verdict",
+          "required_acknowledgements",
+          "diff",
+          "seed_files",
+          "suggested_name"
+        ],
+        "title": "ApplyPreview",
+        "type": "object"
+      },
+      "ApplyRequest": {
+        "properties": {
+          "acknowledgements": {
+            "items": {
+              "enum": [
+                "thin_cells",
+                "unfittable",
+                "no_backtest",
+                "backtest_warn",
+                "backtest_fail"
+              ],
+              "type": "string"
+            },
+            "title": "Acknowledgements",
+            "type": "array"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "pack_fingerprint": {
+            "minLength": 1,
+            "title": "Pack Fingerprint",
+            "type": "string"
+          },
+          "source_config_fingerprint": {
+            "minLength": 1,
+            "title": "Source Config Fingerprint",
+            "type": "string"
+          },
+          "source_scenario_id": {
+            "minLength": 1,
+            "title": "Source Scenario Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_scenario_id",
+          "name",
+          "pack_fingerprint",
+          "source_config_fingerprint"
+        ],
+        "title": "ApplyRequest",
+        "type": "object"
+      },
       "ApplyTemplateRequest": {
         "properties": {
           "template_id": {
@@ -1563,6 +1698,24 @@
           "file"
         ],
         "title": "Body_upload_file_api_workspaces__workspace_id__imports_upload_post",
+        "type": "object"
+      },
+      "Body_upload_fit_history_api_workspaces__workspace_id__fit_history_post": {
+        "properties": {
+          "files": {
+            "description": "2-5 annual census snapshots",
+            "items": {
+              "contentMediaType": "application/octet-stream",
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "array"
+          }
+        },
+        "required": [
+          "files"
+        ],
+        "title": "Body_upload_fit_history_api_workspaces__workspace_id__fit_history_post",
         "type": "object"
       },
       "Body_validate_import_api_workspaces_import_validate_post": {
@@ -6617,6 +6770,76 @@
         "title": "FileValidationResponse",
         "type": "object"
       },
+      "FitOptionsModel-Input": {
+        "properties": {
+          "credibility_k": {
+            "default": 200.0,
+            "minimum": 0.0,
+            "title": "Credibility K",
+            "type": "number"
+          },
+          "level_coverage_threshold": {
+            "default": 0.95,
+            "exclusiveMinimum": 0.0,
+            "maximum": 1.0,
+            "title": "Level Coverage Threshold",
+            "type": "number"
+          },
+          "min_exposure": {
+            "default": 50.0,
+            "minimum": 0.0,
+            "title": "Min Exposure",
+            "type": "number"
+          },
+          "separation_exposure_gate": {
+            "default": 0.5,
+            "exclusiveMinimum": 0.0,
+            "maximum": 1.0,
+            "title": "Separation Exposure Gate",
+            "type": "number"
+          }
+        },
+        "title": "FitOptionsModel",
+        "type": "object"
+      },
+      "FitOptionsModel-Output": {
+        "properties": {
+          "credibility_k": {
+            "default": 200.0,
+            "minimum": 0.0,
+            "title": "Credibility K",
+            "type": "number"
+          },
+          "level_coverage_threshold": {
+            "default": 0.95,
+            "exclusiveMinimum": 0.0,
+            "maximum": 1.0,
+            "title": "Level Coverage Threshold",
+            "type": "number"
+          },
+          "min_exposure": {
+            "default": 50.0,
+            "minimum": 0.0,
+            "title": "Min Exposure",
+            "type": "number"
+          },
+          "separation_exposure_gate": {
+            "default": 0.5,
+            "exclusiveMinimum": 0.0,
+            "maximum": 1.0,
+            "title": "Separation Exposure Gate",
+            "type": "number"
+          }
+        },
+        "required": [
+          "credibility_k",
+          "min_exposure",
+          "level_coverage_threshold",
+          "separation_exposure_gate"
+        ],
+        "title": "FitOptionsModel",
+        "type": "object"
+      },
       "ForfeiturePolicy": {
         "description": "What the plan does with forfeited employer money.\n\nThese are not three flavours of the same subtraction. Only the first two\nreduce the sponsor's outlay; reallocation moves the money to remaining\nparticipants' accounts and the sponsor still funds the full match.",
         "enum": [
@@ -7069,6 +7292,46 @@
         "title": "HeatmapCell",
         "type": "object"
       },
+      "HistorySet": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "history_id": {
+            "title": "History Id",
+            "type": "string"
+          },
+          "snapshots": {
+            "items": {
+              "$ref": "#/components/schemas/SnapshotInfo"
+            },
+            "title": "Snapshots",
+            "type": "array"
+          },
+          "source_digest": {
+            "title": "Source Digest",
+            "type": "string"
+          },
+          "splits": {
+            "items": {
+              "$ref": "#/components/schemas/SplitOption"
+            },
+            "title": "Splits",
+            "type": "array"
+          }
+        },
+        "required": [
+          "history_id",
+          "created_at",
+          "snapshots",
+          "source_digest",
+          "splits"
+        ],
+        "title": "HistorySet",
+        "type": "object"
+      },
       "IRSLimitMetrics": {
         "description": "IRS contribution limit metrics.",
         "properties": {
@@ -7458,6 +7721,189 @@
           "format"
         ],
         "title": "InputFingerprint",
+        "type": "object"
+      },
+      "JobError": {
+        "properties": {
+          "failed_seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failed Seed"
+          },
+          "failed_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failed Year"
+          },
+          "kind": {
+            "enum": [
+              "invalid_input",
+              "invalid_history",
+              "output_conflict",
+              "simulation_failure",
+              "interrupted",
+              "unexpected"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "message",
+          "status",
+          "failed_seed",
+          "failed_year"
+        ],
+        "title": "JobError",
+        "type": "object"
+      },
+      "JobInputs": {
+        "properties": {
+          "base_scenario_fingerprint": {
+            "title": "Base Scenario Fingerprint",
+            "type": "string"
+          },
+          "base_scenario_id": {
+            "title": "Base Scenario Id",
+            "type": "string"
+          },
+          "base_scenario_name": {
+            "title": "Base Scenario Name",
+            "type": "string"
+          },
+          "history_id": {
+            "title": "History Id",
+            "type": "string"
+          },
+          "moved_settings": {
+            "title": "Moved Settings",
+            "type": "object"
+          },
+          "snapshots": {
+            "items": {
+              "$ref": "#/components/schemas/SnapshotInfo"
+            },
+            "title": "Snapshots",
+            "type": "array"
+          },
+          "source_digest": {
+            "title": "Source Digest",
+            "type": "string"
+          },
+          "split": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SplitPreview"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "history_id",
+          "source_digest",
+          "snapshots",
+          "split",
+          "base_scenario_id",
+          "base_scenario_name",
+          "base_scenario_fingerprint",
+          "moved_settings"
+        ],
+        "title": "JobInputs",
+        "type": "object"
+      },
+      "JobProgress": {
+        "properties": {
+          "index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Index"
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed"
+          },
+          "stage": {
+            "default": "queued",
+            "enum": [
+              "queued",
+              "loading_history",
+              "fitting",
+              "simulating",
+              "scoring",
+              "writing_pack"
+            ],
+            "title": "Stage",
+            "type": "string"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "stage",
+          "seed",
+          "index",
+          "total",
+          "updated_at"
+        ],
+        "title": "JobProgress",
         "type": "object"
       },
       "LevelDistributionResponse": {
@@ -8864,6 +9310,432 @@
           "message"
         ],
         "title": "PackWarning",
+        "type": "object"
+      },
+      "ParamFitJob": {
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JobError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inputs": {
+            "$ref": "#/components/schemas/JobInputs"
+          },
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "fit",
+              "backtest"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/JobProgress"
+          },
+          "request": {
+            "$ref": "#/components/schemas/ParamFitRequest-Output"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ParamFitResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id",
+          "workspace_id",
+          "mode",
+          "status",
+          "created_at",
+          "started_at",
+          "completed_at",
+          "request",
+          "inputs",
+          "progress",
+          "error",
+          "result"
+        ],
+        "title": "ParamFitJob",
+        "type": "object"
+      },
+      "ParamFitJobSummary": {
+        "properties": {
+          "base_scenario_id": {
+            "title": "Base Scenario Id",
+            "type": "string"
+          },
+          "base_scenario_name": {
+            "title": "Base Scenario Name",
+            "type": "string"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JobError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "history_id": {
+            "title": "History Id",
+            "type": "string"
+          },
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "fit",
+              "backtest"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "pack_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pack Id"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/JobProgress"
+          },
+          "snapshot_years": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Snapshot Years",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verdict"
+          }
+        },
+        "required": [
+          "job_id",
+          "mode",
+          "status",
+          "created_at",
+          "completed_at",
+          "history_id",
+          "snapshot_years",
+          "base_scenario_id",
+          "base_scenario_name",
+          "progress",
+          "error",
+          "pack_id",
+          "verdict"
+        ],
+        "title": "ParamFitJobSummary",
+        "type": "object"
+      },
+      "ParamFitRequest-Input": {
+        "properties": {
+          "base_scenario_id": {
+            "minLength": 1,
+            "title": "Base Scenario Id",
+            "type": "string"
+          },
+          "fit_options": {
+            "$ref": "#/components/schemas/FitOptionsModel-Input"
+          },
+          "history_id": {
+            "minLength": 1,
+            "title": "History Id",
+            "type": "string"
+          },
+          "holdout_years": {
+            "default": 1,
+            "maximum": 2.0,
+            "minimum": 1.0,
+            "title": "Holdout Years",
+            "type": "integer"
+          },
+          "mode": {
+            "default": "fit",
+            "enum": [
+              "fit",
+              "backtest"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "notes": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Notes",
+            "type": "string"
+          },
+          "seeds": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Seeds",
+            "type": "array"
+          },
+          "thresholds": {
+            "$ref": "#/components/schemas/ThresholdsModel-Input"
+          }
+        },
+        "required": [
+          "history_id",
+          "base_scenario_id"
+        ],
+        "title": "ParamFitRequest",
+        "type": "object"
+      },
+      "ParamFitRequest-Output": {
+        "properties": {
+          "base_scenario_id": {
+            "minLength": 1,
+            "title": "Base Scenario Id",
+            "type": "string"
+          },
+          "fit_options": {
+            "$ref": "#/components/schemas/FitOptionsModel-Output"
+          },
+          "history_id": {
+            "minLength": 1,
+            "title": "History Id",
+            "type": "string"
+          },
+          "holdout_years": {
+            "default": 1,
+            "maximum": 2.0,
+            "minimum": 1.0,
+            "title": "Holdout Years",
+            "type": "integer"
+          },
+          "mode": {
+            "default": "fit",
+            "enum": [
+              "fit",
+              "backtest"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "notes": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Notes",
+            "type": "string"
+          },
+          "seeds": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Seeds",
+            "type": "array"
+          },
+          "thresholds": {
+            "$ref": "#/components/schemas/ThresholdsModel-Output"
+          }
+        },
+        "required": [
+          "history_id",
+          "base_scenario_id",
+          "mode",
+          "holdout_years",
+          "seeds",
+          "thresholds",
+          "fit_options",
+          "notes"
+        ],
+        "title": "ParamFitRequest",
+        "type": "object"
+      },
+      "ParamFitResult": {
+        "description": "What a completed job produced, read back from its pack.",
+        "properties": {
+          "diagnostics": {
+            "additionalProperties": {
+              "items": {
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "title": "Diagnostics",
+            "type": "object"
+          },
+          "has_fit_report": {
+            "default": false,
+            "title": "Has Fit Report",
+            "type": "boolean"
+          },
+          "promotion_classification": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Promotion Classification"
+          },
+          "provenance": {
+            "title": "Provenance",
+            "type": "object"
+          },
+          "scorecard": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scorecard"
+          },
+          "scorecard_current": {
+            "default": false,
+            "title": "Scorecard Current",
+            "type": "boolean"
+          },
+          "stale": {
+            "items": {
+              "$ref": "#/components/schemas/StaleReason"
+            },
+            "title": "Stale",
+            "type": "array"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "object"
+          },
+          "unfittable": {
+            "items": {
+              "type": "object"
+            },
+            "title": "Unfittable",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "summary",
+          "diagnostics",
+          "unfittable",
+          "warnings",
+          "promotion_classification",
+          "provenance",
+          "scorecard",
+          "scorecard_current",
+          "has_fit_report",
+          "stale"
+        ],
+        "title": "ParamFitResult",
         "type": "object"
       },
       "ParquetColumn": {
@@ -11761,6 +12633,48 @@
         "title": "SkippedScenario",
         "type": "object"
       },
+      "SnapshotInfo": {
+        "properties": {
+          "as_of_date": {
+            "format": "date",
+            "title": "As Of Date",
+            "type": "string"
+          },
+          "columns_present": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Columns Present",
+            "type": "array"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "row_count": {
+            "title": "Row Count",
+            "type": "integer"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "year": {
+            "title": "Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "year",
+          "filename",
+          "row_count",
+          "sha256",
+          "as_of_date",
+          "columns_present"
+        ],
+        "title": "SnapshotInfo",
+        "type": "object"
+      },
       "SoftwareEvidence": {
         "additionalProperties": false,
         "properties": {
@@ -11815,6 +12729,78 @@
           "working_tree_fingerprint"
         ],
         "title": "SoftwareEvidence",
+        "type": "object"
+      },
+      "SplitOption": {
+        "description": "The backtest split one holdout choice produces, or why it cannot.",
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "holdout_years": {
+            "title": "Holdout Years",
+            "type": "integer"
+          },
+          "split": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SplitPreview"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "holdout_years",
+          "split",
+          "error"
+        ],
+        "title": "SplitOption",
+        "type": "object"
+      },
+      "SplitPreview": {
+        "properties": {
+          "boundary_year": {
+            "title": "Boundary Year",
+            "type": "integer"
+          },
+          "fit_years": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Fit Years",
+            "type": "array"
+          },
+          "holdout_years": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Holdout Years",
+            "type": "array"
+          },
+          "simulation_effective_date": {
+            "format": "date",
+            "title": "Simulation Effective Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fit_years",
+          "holdout_years",
+          "boundary_year",
+          "simulation_effective_date"
+        ],
+        "title": "SplitPreview",
         "type": "object"
       },
       "StageCompletion": {
@@ -11886,6 +12872,29 @@
           "outcome"
         ],
         "title": "StageCompletion",
+        "type": "object"
+      },
+      "StaleReason": {
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "history_changed",
+              "pack_modified",
+              "base_scenario_changed"
+            ],
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "message"
+        ],
+        "title": "StaleReason",
         "type": "object"
       },
       "StructuredWarning": {
@@ -12619,6 +13628,70 @@
           "forfeiture_variance"
         ],
         "title": "TenureBandSummary",
+        "type": "object"
+      },
+      "ThresholdPair": {
+        "properties": {
+          "fail": {
+            "exclusiveMinimum": 0.0,
+            "title": "Fail",
+            "type": "number"
+          },
+          "warn": {
+            "exclusiveMinimum": 0.0,
+            "title": "Warn",
+            "type": "number"
+          }
+        },
+        "required": [
+          "warn",
+          "fail"
+        ],
+        "title": "ThresholdPair",
+        "type": "object"
+      },
+      "ThresholdsModel-Input": {
+        "description": "Backtest pass/warn/fail bands \u2014 defaults match the CLI.",
+        "properties": {
+          "compensation": {
+            "$ref": "#/components/schemas/ThresholdPair"
+          },
+          "flows": {
+            "$ref": "#/components/schemas/ThresholdPair"
+          },
+          "headcount": {
+            "$ref": "#/components/schemas/ThresholdPair"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/ThresholdPair"
+          }
+        },
+        "title": "ThresholdsModel",
+        "type": "object"
+      },
+      "ThresholdsModel-Output": {
+        "description": "Backtest pass/warn/fail bands \u2014 defaults match the CLI.",
+        "properties": {
+          "compensation": {
+            "$ref": "#/components/schemas/ThresholdPair"
+          },
+          "flows": {
+            "$ref": "#/components/schemas/ThresholdPair"
+          },
+          "headcount": {
+            "$ref": "#/components/schemas/ThresholdPair"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/ThresholdPair"
+          }
+        },
+        "required": [
+          "headcount",
+          "compensation",
+          "flows",
+          "plan"
+        ],
+        "title": "ThresholdsModel",
         "type": "object"
       },
       "TimelineEvent": {
@@ -19147,6 +20220,197 @@
         ]
       }
     },
+    "/api/workspaces/{workspace_id}/fit-history": {
+      "get": {
+        "operationId": "list_fit_history_api_workspaces__workspace_id__fit_history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/HistorySet"
+                  },
+                  "title": "Response List Fit History Api Workspaces  Workspace Id  Fit History Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Fit History",
+        "tags": [
+          "Parameter Fit & Backtest"
+        ]
+      },
+      "post": {
+        "description": "Upload and validate a census history set (validated by the fitter).",
+        "operationId": "upload_fit_history_api_workspaces__workspace_id__fit_history_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_fit_history_api_workspaces__workspace_id__fit_history_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistorySet"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Fit History",
+        "tags": [
+          "Parameter Fit & Backtest"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/fit-history/{history_id}": {
+      "delete": {
+        "operationId": "delete_fit_history_api_workspaces__workspace_id__fit_history__history_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "history_id",
+            "required": true,
+            "schema": {
+              "title": "History Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Fit History",
+        "tags": [
+          "Parameter Fit & Backtest"
+        ]
+      },
+      "get": {
+        "description": "Re-hash and re-validate a stored history set.",
+        "operationId": "get_fit_history_api_workspaces__workspace_id__fit_history__history_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "history_id",
+            "required": true,
+            "schema": {
+              "title": "History Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistorySet"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Fit History",
+        "tags": [
+          "Parameter Fit & Backtest"
+        ]
+      }
+    },
     "/api/workspaces/{workspace_id}/imports/upload": {
       "post": {
         "operationId": "upload_file_api_workspaces__workspace_id__imports_upload_post",
@@ -19776,6 +21040,396 @@
         "summary": "Save mapping as reusable template",
         "tags": [
           "Data Import"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/param-fits": {
+      "get": {
+        "operationId": "list_param_fits_api_workspaces__workspace_id__param_fits_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ParamFitJobSummary"
+                  },
+                  "title": "Response List Param Fits Api Workspaces  Workspace Id  Param Fits Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Param Fits",
+        "tags": [
+          "Parameter Fit & Backtest"
+        ]
+      },
+      "post": {
+        "description": "Enqueue a fit or fit+backtest job; poll GET \u2026/param-fits/{job_id}.",
+        "operationId": "start_param_fit_api_workspaces__workspace_id__param_fits_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParamFitRequest-Input"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParamFitJob"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Param Fit",
+        "tags": [
+          "Parameter Fit & Backtest"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/param-fits/{job_id}": {
+      "get": {
+        "description": "Job status, progress, and \u2014 once completed \u2014 its result.",
+        "operationId": "get_param_fit_api_workspaces__workspace_id__param_fits__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParamFitJob"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Param Fit",
+        "tags": [
+          "Parameter Fit & Backtest"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/param-fits/{job_id}/apply": {
+      "post": {
+        "description": "Create a NEW scenario from a reviewed pack; the source is never modified.",
+        "operationId": "apply_param_pack_api_workspaces__workspace_id__param_fits__job_id__apply_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Scenario"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Param Pack",
+        "tags": [
+          "Parameter Fit & Backtest"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/param-fits/{job_id}/apply-preview": {
+      "get": {
+        "description": "What applying this pack to a source scenario would change and require.",
+        "operationId": "preview_param_pack_apply_api_workspaces__workspace_id__param_fits__job_id__apply_preview_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source_scenario_id",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "title": "Source Scenario Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplyPreview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Param Pack Apply",
+        "tags": [
+          "Parameter Fit & Backtest"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/param-fits/{job_id}/cancel": {
+      "post": {
+        "description": "Stop a queued/running job and remove its partial artifacts.",
+        "operationId": "cancel_param_fit_api_workspaces__workspace_id__param_fits__job_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParamFitJob"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Param Fit",
+        "tags": [
+          "Parameter Fit & Backtest"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/param-fits/{job_id}/reports/{kind}": {
+      "get": {
+        "description": "The written fit report or backtest scorecard (Markdown).",
+        "operationId": "get_param_fit_report_api_workspaces__workspace_id__param_fits__job_id__reports__kind__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "fit",
+                "scorecard"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Param Fit Report",
+        "tags": [
+          "Parameter Fit & Backtest"
         ]
       }
     },

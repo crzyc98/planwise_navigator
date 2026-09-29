@@ -138,6 +138,13 @@ class ConfigDiffService:
         return _build_provenance(rows, effective_config)
 
 
+def diff_configs(
+    config_a: Mapping[str, Any], config_b: Mapping[str, Any]
+) -> tuple[list[ConfigDelta], int]:
+    """Sorted effective-config differences, plus the count of equal leaves."""
+    return _diff_configs(config_a, config_b)
+
+
 def _diff_configs(
     config_a: Mapping[str, Any], config_b: Mapping[str, Any]
 ) -> tuple[list[ConfigDelta], int]:

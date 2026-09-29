@@ -117,3 +117,48 @@ def test_config_age_and_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     assert "Would remove 0 var/ artifact(s)" in runner.invoke(app, args).output
     overridden = runner.invoke(app, [*args, "--older-than-days", "7"])
     assert "Would remove 5 var/ artifact(s)" in overridden.output
+
+
+def _make_param_fit_jobs(workspaces: Path) -> dict[str, Path]:
+    jobs = workspaces / "ws" / "param_fits"
+    paths = {
+        "stale_work": _touch(jobs / "fit_old" / "work" / "seed_42.duckdb").parent,
+        "fresh_work": _touch(
+            jobs / "fit_new" / "work" / "seed_42.duckdb", mtime=time.time()
+        ).parent,
+        "pack": _touch(jobs / "fit_old" / "pack" / "manifest.json"),
+        "record": _touch(jobs / "fit_old" / "job.json"),
+    }
+    os.utime(paths["stale_work"], (OLD, OLD))
+    return paths
+
+
+def test_param_fit_scratch_is_reclaimed_but_packs_are_kept(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    workspaces = tmp_path / "workspaces"
+    paths = _make_param_fit_jobs(workspaces)
+    monkeypatch.setattr(gc, "PROJECT_ROOT", tmp_path / "project")
+    args = ["gc", "--workspaces-root", str(workspaces)]
+
+    assert {item.path for item in gc.find_stale_param_fit_scratch(workspaces, 14)} == {
+        paths["stale_work"]
+    }
+    dry = runner.invoke(app, args)
+    assert "Would remove 1 fit/backtest scratch tree(s)" in dry.output
+    assert paths["stale_work"].exists()
+
+    real = runner.invoke(app, [*args, "--yes"])
+    assert real.exit_code == 0, real.output
+    assert not paths["stale_work"].exists()
+    for key in ("fresh_work", "pack", "record"):
+        assert paths[key].exists()
+
+
+def test_param_fit_scratch_of_a_running_job_is_never_reclaimed(tmp_path: Path):
+    workspaces = tmp_path / "workspaces"
+    work = _touch(workspaces / "ws" / "param_fits" / "fit_live" / "work" / "s.duckdb")
+    os.utime(work.parent, (OLD, OLD))
+    (work.parent.parent / "job.json").write_text(json.dumps({"status": "running"}))
+
+    assert gc.find_stale_param_fit_scratch(workspaces, 0) == []

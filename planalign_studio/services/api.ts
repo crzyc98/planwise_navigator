@@ -3670,3 +3670,139 @@ export async function getEnsembleAttribution(
   const response = await fetchWithAuth(`${API_BASE}/api/ensembles/attribution?${params}`);
   return handleResponse<EnsembleAttributionRow[]>(response);
 }
+
+// ---------------------------------------------------------------------------
+// Parameter fit & backtest (#588) -- fit simulation parameters from census
+// history, score them against held-out years, apply a pack to a new scenario.
+// ---------------------------------------------------------------------------
+
+export type FitHistorySet = Schemas['HistorySet'];
+export type FitSnapshotInfo = Schemas['SnapshotInfo'];
+export type FitSplitOption = Schemas['SplitOption'];
+export type ParamFitRequest = Schemas['ParamFitRequest-Input'];
+export type ParamFitThresholds = Schemas['ThresholdsModel-Input'];
+export type ParamFitOptions = Schemas['FitOptionsModel-Input'];
+export type ParamFitJob = Schemas['ParamFitJob'];
+export type ParamFitJobSummary = Schemas['ParamFitJobSummary'];
+export type ParamFitResult = Schemas['ParamFitResult'];
+export type ParamFitProgress = Schemas['JobProgress'];
+export type ParamFitStatus = ParamFitJob['status'];
+export type ParamPackApplyPreview = Schemas['ApplyPreview'];
+export type ParamPackAcknowledgement = ParamPackApplyPreview['required_acknowledgements'][number];
+export type ParamPackApplyRequest = Schemas['ApplyRequest'];
+
+const paramFitsBase = (workspaceId: string) =>
+  `${API_BASE}/api/workspaces/${encodeURIComponent(workspaceId)}`;
+
+/** Upload 2-5 annual census snapshots; the server validates them with the fitter. */
+export async function uploadFitHistory(workspaceId: string, files: File[]): Promise<FitHistorySet> {
+  const formData = new FormData();
+  for (const file of files) formData.append('files', file);
+  const response = await fetchWithAuth(`${paramFitsBase(workspaceId)}/fit-history`, {
+    method: 'POST',
+    body: formData,
+  });
+  return handleResponse<FitHistorySet>(response);
+}
+
+export async function listFitHistory(workspaceId: string): Promise<FitHistorySet[]> {
+  const response = await fetchWithAuth(`${paramFitsBase(workspaceId)}/fit-history`);
+  return handleResponse<FitHistorySet[]>(response);
+}
+
+export async function deleteFitHistory(workspaceId: string, historyId: string): Promise<void> {
+  const response = await fetchWithAuth(`${paramFitsBase(workspaceId)}/fit-history/${historyId}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) await handleResponse<never>(response);
+}
+
+/** Enqueue a fit or fit+backtest job; returns immediately (202). */
+export async function startParamFit(workspaceId: string, request: ParamFitRequest): Promise<ParamFitJob> {
+  const response = await fetchWithAuth(`${paramFitsBase(workspaceId)}/param-fits`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<ParamFitJob>(response);
+}
+
+export async function listParamFits(workspaceId: string): Promise<ParamFitJobSummary[]> {
+  const response = await fetchWithAuth(`${paramFitsBase(workspaceId)}/param-fits`);
+  return handleResponse<ParamFitJobSummary[]>(response);
+}
+
+export async function getParamFit(workspaceId: string, jobId: string): Promise<ParamFitJob> {
+  const response = await fetchWithAuth(`${paramFitsBase(workspaceId)}/param-fits/${jobId}`);
+  return handleResponse<ParamFitJob>(response);
+}
+
+export async function cancelParamFit(workspaceId: string, jobId: string): Promise<ParamFitJob> {
+  const response = await fetchWithAuth(`${paramFitsBase(workspaceId)}/param-fits/${jobId}/cancel`, {
+    method: 'POST',
+  });
+  return handleResponse<ParamFitJob>(response);
+}
+
+/** The written fit report or backtest scorecard, as Markdown. */
+export async function getParamFitReport(
+  workspaceId: string,
+  jobId: string,
+  kind: 'fit' | 'scorecard'
+): Promise<string> {
+  const response = await fetchWithAuth(`${paramFitsBase(workspaceId)}/param-fits/${jobId}/reports/${kind}`);
+  if (!response.ok) await handleResponse<never>(response);
+  return response.text();
+}
+
+export async function getParamPackApplyPreview(
+  workspaceId: string,
+  jobId: string,
+  sourceScenarioId: string
+): Promise<ParamPackApplyPreview> {
+  const params = new URLSearchParams({ source_scenario_id: sourceScenarioId });
+  const response = await fetchWithAuth(
+    `${paramFitsBase(workspaceId)}/param-fits/${jobId}/apply-preview?${params}`
+  );
+  return handleResponse<ParamPackApplyPreview>(response);
+}
+
+/** A refused apply: stale inputs or missing acknowledgements, each spelled out. */
+export class ParamPackApplyError extends ApiError {
+  constructor(
+    status: number,
+    detail: string,
+    public stale: { reason: string; message: string }[] = [],
+    public missingAcknowledgements: string[] = []
+  ) {
+    super(status, detail, detail);
+    this.name = 'ParamPackApplyError';
+  }
+}
+
+/** Create a NEW scenario from a reviewed pack. The source scenario is never modified. */
+export async function applyParamPack(
+  workspaceId: string,
+  jobId: string,
+  request: ParamPackApplyRequest
+): Promise<Scenario> {
+  const response = await fetchWithAuth(`${paramFitsBase(workspaceId)}/param-fits/${jobId}/apply`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  if (response.status === 409 || response.status === 422) {
+    const body: {
+      detail?: unknown;
+      suggested_name?: unknown;
+      stale?: { reason: string; message: string }[];
+      missing_acknowledgements?: string[];
+    } = await response.json();
+    const detail = typeof body.detail === 'string' ? body.detail : 'The pack could not be applied.';
+    if (typeof body.suggested_name === 'string') {
+      throw new ScenarioNameConflictError(detail, body.suggested_name);
+    }
+    throw new ParamPackApplyError(response.status, detail, body.stale ?? [], body.missing_acknowledgements ?? []);
+  }
+  return handleResponse<Scenario>(response);
+}

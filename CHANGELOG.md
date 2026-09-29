@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+### Fit & Backtest in Studio (issue #588)
+
+**Added — Run → Fit & Backtest page.** Analysts can now upload annual census
+history, fit parameters, backtest them against held-out years, and apply an
+accepted pack to a *new* scenario, all without the command line. Jobs run as
+cancellable `planalign fit|backtest` subprocesses, persist per workspace
+across restarts, and are pruned to the newest 20 finished jobs. Applying
+requires reviewing the config diff and acknowledging thin cells, unfittable
+groups, and a missing, WARN, or FAIL backtest. It is refused if the history,
+the pack, or the source scenario changed after review.
+
+**Added — `diagnostics.json` in every parameter pack**, plus `fit_report.md`
+in backtest packs. Both are additive; pack fingerprints are unchanged.
+
+**Changed — backtest simulations layer the pack over `--seeds-dir`** when one
+is given, rather than always over `dbt/seeds`, so the held-out run uses the
+same bands and priors the fit did. Runs without `--seeds-dir` are unchanged.
+
+
 ### New-hire enrollment rates and deferral spread (issue #652)
 
 **Changed — `voluntary_enrollment_rate` now means what it says.** It was a multiplier on demographic enrollment probabilities, so setting it to 100% was a no-op that still produced roughly 58-73% enrollment. It is now the exact fraction of eligible new hires who voluntarily enroll in their hire year. Leaving it unset keeps the previous demographic behaviour, so scenarios that never set it reproduce exactly.

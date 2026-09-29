@@ -14,6 +14,7 @@ See ``docs/guides/parameter_fitting.md`` for the full workflow.
 
 from __future__ import annotations
 
+from planalign_fit import progress
 from planalign_fit.bands import Band, BandDefinitions, load_band_definitions
 from planalign_fit.models import FitResult, FittedValue, HazardFit, Unfittable
 from planalign_fit.pack import (
@@ -62,6 +63,7 @@ __all__ = [
     "load_pack",
     "load_priors",
     "load_snapshots",
+    "progress",
     "render_fit_report",
     "shrink_toward",
     "verify_pack",

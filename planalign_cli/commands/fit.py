@@ -26,7 +26,9 @@ from planalign_fit import (
     render_fit_report,
     write_pack,
 )
+from planalign_fit import progress
 from planalign_fit.bands import BandDefinitionError
+from planalign_fit.diagnostics import build_diagnostics, promotion_basis_label
 from planalign_fit.priors import PriorsError
 from planalign_fit.promotion import (
     DEFAULT_LEVEL_COVERAGE_THRESHOLD,
@@ -140,11 +142,23 @@ def run_fit(
         raise typer.Exit(EXIT_BAD_INPUT) from exc
 
     destination = Path(output) if output else _default_output(run)
+    progress.emit("stage", stage="writing_pack")
     try:
-        write_pack(run.pack, destination, report=render_fit_report(run), force=force)
+        write_pack(
+            run.pack,
+            destination,
+            report=render_fit_report(run),
+            force=force,
+            diagnostics=build_diagnostics(run),
+        )
     except PackError as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(EXIT_OUTPUT_REFUSED) from exc
+    progress.emit(
+        "completed",
+        pack_id=run.pack.manifest.pack_id,
+        fingerprint=run.pack.manifest.fingerprint,
+    )
 
     _render_summary(run, destination)
 
@@ -172,7 +186,7 @@ def _render_summary(run: FitRun, destination: Path) -> None:
     if classification is not None:
         from planalign_fit.models import PromotionBasis
 
-        label = _promotion_basis_label(classification)
+        label = promotion_basis_label(classification)
         table.add_row(
             "Promotion basis",
             f"[yellow]{label}[/yellow]"
@@ -211,23 +225,3 @@ def _render_summary(run: FitRun, destination: Path) -> None:
         f"\n[dim]Apply it:[/dim] planalign simulate {next_year}-{next_year + 2} "
         f"--params {destination} --database iso.duckdb"
     )
-
-
-def _promotion_basis_label(classification) -> str:
-    """How this fit learned its promotion rate, in one line (#511).
-
-    Surfaced in the terminal, not only the report: an analyst must not have to
-    open `fit_report.md` to discover their promotion hazard is a default.
-    """
-    from planalign_fit.models import PromotionBasis
-
-    if classification.basis is PromotionBasis.MEASURED:
-        return f"measured from level_id (coverage {classification.level_coverage:.0%})"
-    if classification.basis is PromotionBasis.ESTIMATED:
-        separated = sum(1 for level in classification.levels if level.separated)
-        share = classification.separated_exposure_share or 0.0
-        return (
-            f"estimated from raise distribution ({separated} of "
-            f"{len(classification.levels)} levels, {share:.0%} of exposure)"
-        )
-    return "not fitted — default retained"

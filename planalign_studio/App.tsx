@@ -21,6 +21,7 @@ import DataImportWizard from './components/DataImportWizard';
 import CalibrationPanel from './components/CalibrationPanel';
 import OptimizerPanel from './components/OptimizerPanel';
 import EnsemblesPage from './components/EnsemblesPage';
+import ParamFitPage from './components/paramFit/ParamFitPage';
 import RunProvenanceReport from './components/RunProvenanceReport';
 import EmployeeTimelinePage from './components/timeline/EmployeeTimelinePage';
 import EventExplorerPage from './components/events/EventExplorerPage';
@@ -155,6 +156,7 @@ export default function App() {
             <Route path="calibrate" element={<CalibrationPanel />} />
             <Route path="optimize" element={<OptimizerPanel />} />
             <Route path="ensembles" element={<EnsemblesPage />} />
+            <Route path="fit" element={<ParamFitPage />} />
             <Route path="config/:scenarioId" element={<ConfigStudio />} />
             <Route path="analytics" element={<AnalyticsDashboard />} />
             <Route path="analytics/compare" element={<ScenarioComparison />} />

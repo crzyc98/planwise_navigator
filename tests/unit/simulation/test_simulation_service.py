@@ -360,3 +360,81 @@ class TestRunLocalLifecycle:
             .splitlines()
         )
         assert len(source) < 600
+
+
+@pytest.mark.fast
+class TestPackSeedLayering:
+    """A parameter pack applied to a scenario reaches its runs (#588)."""
+
+    PACK_TERMINATION = (
+        "base_rate_for_new_hire,level_discount_factor,min_level_discount_multiplier\n"
+        "0.31,0.1,0.4\n"
+    )
+    PACK_PROMOTION = "base_rate,level_dampener_factor\n0.77,0.15\n"
+
+    def _pack(self, root: Path) -> Path:
+        seeds = root / "param_pack" / "seeds"
+        seeds.mkdir(parents=True)
+        (seeds / "config_termination_hazard_base.csv").write_text(self.PACK_TERMINATION)
+        (seeds / "config_promotion_hazard_base.csv").write_text(self.PACK_PROMOTION)
+        return seeds
+
+    def test_pack_seeds_replace_the_defaults(self, tmp_path):
+        from planalign_api.services.simulation.run_execution import write_seeds
+
+        write_seeds({}, tmp_path / "run", self._pack(tmp_path))
+
+        seeds = tmp_path / "run" / "seeds"
+        assert (
+            seeds / "config_termination_hazard_base.csv"
+        ).read_text() == self.PACK_TERMINATION
+        assert (seeds / "config_age_bands.csv").is_file()
+
+    def test_config_driven_seeds_win_over_pack_seeds(self, tmp_path):
+        from planalign_api.services.simulation.run_execution import write_seeds
+
+        config = {
+            "promotion_hazard": {
+                "base_rate": 0.05,
+                "level_dampener_factor": 0.2,
+                "age_multipliers": [],
+                "tenure_multipliers": [],
+            }
+        }
+        write_seeds(config, tmp_path / "run", self._pack(tmp_path))
+
+        promotion = tmp_path / "run" / "seeds" / "config_promotion_hazard_base.csv"
+        assert "0.05" in promotion.read_text()
+        assert "0.77" not in promotion.read_text()
+
+    def test_scenario_pack_seeds_are_found_only_when_present(self, tmp_path):
+        from planalign_api.services.simulation.run_execution import (
+            scenario_pack_seeds,
+        )
+
+        assert scenario_pack_seeds(tmp_path) is None
+        seeds = self._pack(tmp_path)
+        assert scenario_pack_seeds(tmp_path) == seeds
+
+    def test_prepare_simulation_layers_the_scenario_pack(self, tmp_path):
+        scenario = tmp_path / "scenario"
+        self._pack(scenario)
+        run_dir = scenario / "runs" / "run"
+        run_dir.mkdir(parents=True)
+        census = tmp_path / "census.parquet"
+        census.touch()
+        storage = MagicMock()
+        storage._scenario_path.return_value = scenario
+        service = SimulationService(storage)
+        config = {
+            "setup": {"census_parquet_path": str(census)},
+            "simulation": {"start_year": 2025, "end_year": 2025},
+        }
+
+        with patch("planalign_api.services.simulation.service.validate_census"):
+            service._prepare_simulation("ws", "scenario", config, run_dir)
+
+        seeds = run_dir / "seeds"
+        assert (
+            seeds / "config_termination_hazard_base.csv"
+        ).read_text() == self.PACK_TERMINATION

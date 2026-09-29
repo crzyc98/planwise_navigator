@@ -27,8 +27,9 @@ from planalign_backtest.simulate import (
 )
 from planalign_backtest.split import plan_split
 from planalign_fit.apply import apply_pack
+from planalign_fit import progress
 from planalign_fit.pack import ParameterPack, write_pack
-from planalign_fit.runner import fit_parameter_pack
+from planalign_fit.runner import FitRun, fit_parameter_pack
 from planalign_fit.snapshots import load_snapshots
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,8 @@ class BacktestRun:
     split: SnapshotSplit
     seed_runs: tuple[SeedRun, ...]
     diagnostics: dict[str, object]
+    # The fit behind ``pack`` — its report and diagnostics ride with the pack.
+    fit_run: Optional[FitRun] = None
 
 
 def run_backtest(
@@ -65,10 +68,12 @@ def run_backtest(
     scratch_pack = root / "parameter_pack"
     write_pack(fit_run.pack, scratch_pack)
     base_config = options.base_config or Path("config/simulation_config.yaml")
+    # Simulate on the same seed set the fit's priors and bands came from.
     applied = apply_pack(
         scratch_pack,
         base_config,
         workdir=root / "applied_pack",
+        seeds_root=options.fit_options.seeds_dir,
     )
     boundary = next(
         snapshot for snapshot in snapshot_set if snapshot.year == split.boundary_year
@@ -78,7 +83,15 @@ def run_backtest(
     actuals = extract_actuals(snapshot_set, split, fit_run.bands)
     seed_runs: list[SeedRun] = []
     predictions = []
-    for seed in options.seeds:
+    total = len(options.seeds)
+    for index, seed in enumerate(options.seeds, start=1):
+        progress.emit(
+            "seed_started",
+            seed=seed,
+            index=index,
+            total=total,
+            years=list(split.holdout_years),
+        )
         logger.info(
             "Backtest seed %s: simulating %s",
             seed,
@@ -90,7 +103,9 @@ def run_backtest(
         predictions.append(extract_predicted(completed.database, split))
         if not options.keep_databases:
             completed.database.unlink(missing_ok=True)
+        progress.emit("seed_completed", seed=seed, index=index, total=total)
 
+    progress.emit("stage", stage="scoring")
     comparisons = score(actuals, predictions, options.thresholds)
     provenance = _provenance(snapshot_set, split, fit_run.pack)
     scorecard = Scorecard(
@@ -112,6 +127,7 @@ def run_backtest(
         split=split,
         seed_runs=tuple(seed_runs),
         diagnostics={"workdir": str(root), "metric_count": len(comparisons)},
+        fit_run=fit_run,
     )
 
 

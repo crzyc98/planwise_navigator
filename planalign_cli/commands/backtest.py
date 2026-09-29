@@ -17,7 +17,15 @@ from planalign_backtest.errors import SimulationFailure
 from planalign_backtest.models import Threshold
 from planalign_backtest.report import write_scorecard
 from planalign_backtest.runner import run_backtest
-from planalign_fit import FitOptions, PackError, SnapshotError, write_pack
+from planalign_fit import (
+    FitOptions,
+    PackError,
+    SnapshotError,
+    progress,
+    render_fit_report,
+    write_pack,
+)
+from planalign_fit.diagnostics import build_diagnostics
 from planalign_fit.promotion import (
     DEFAULT_LEVEL_COVERAGE_THRESHOLD,
     DEFAULT_SEPARATION_EXPOSURE_GATE,
@@ -58,6 +66,18 @@ def _seed_values(count: int, raw: Optional[str]) -> tuple[int, ...]:
         return values
     except ValueError as exc:
         raise ValueError("--seed-list must contain comma-separated integers") from exc
+
+
+def _write_pack(run, destination: Path, force: bool) -> None:
+    """The pack plus the fit's report and diagnostics, as `planalign fit` writes."""
+    fit_run = run.fit_run
+    write_pack(
+        run.pack,
+        destination,
+        force=force,
+        report=render_fit_report(fit_run) if fit_run is not None else "",
+        diagnostics=build_diagnostics(fit_run) if fit_run is not None else None,
+    )
 
 
 def _render(run, destination: Path) -> None:
@@ -186,9 +206,19 @@ def run_backtest_command(
         )
         run = run_backtest(snapshots_dir, options)
         destination = output or Path("var/param_packs") / run.pack.manifest.pack_id
-        write_pack(run.pack, destination, force=force)
+        progress.emit("stage", stage="writing_pack")
+        _write_pack(run, destination, force)
         write_scorecard(run.scorecard, destination, force=force)
+        progress.emit(
+            "completed",
+            pack_id=run.pack.manifest.pack_id,
+            fingerprint=run.pack.manifest.fingerprint,
+            verdict=run.scorecard.verdict,
+        )
     except SimulationFailure as exc:
+        progress.emit(
+            "simulation_failed", seed=exc.seed, year=exc.year, message=str(exc)
+        )
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(EXIT_SIMULATION) from exc
     except (BacktestError, SnapshotError, PackError) as exc:

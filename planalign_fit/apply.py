@@ -135,8 +135,14 @@ def apply_pack(
     *,
     workdir: Optional[Path] = None,
     dbt_root: Optional[Path] = None,
+    seeds_root: Optional[Path] = None,
 ) -> AppliedPack:
-    """Materialize the config and dbt project a pack-backed run needs."""
+    """Materialize the config and dbt project a pack-backed run needs.
+
+    ``seeds_root`` is the seed set the pack is layered over (default: the dbt
+    project's own ``seeds/``). Pass the seed set the pack was fitted against
+    so the overlay's bands and untouched seeds match the fit's priors (#588).
+    """
     pack = load_pack(pack_dir)
     verified = verify_pack(pack)
     if not verified:
@@ -151,7 +157,9 @@ def apply_pack(
     root.mkdir(parents=True, exist_ok=True)
 
     config_path = _write_effective_config(pack, Path(base_config), root, Path(pack_dir))
-    project_dir = _build_overlay_project(pack, root, dbt_root or DBT_ROOT)
+    project_dir = _build_overlay_project(
+        pack, root, dbt_root or DBT_ROOT, seeds_root=seeds_root
+    )
 
     return AppliedPack(
         manifest=pack.manifest,
@@ -187,8 +195,15 @@ def _write_effective_config(
     return destination
 
 
-def _build_overlay_project(pack: ParameterPack, workdir: Path, dbt_root: Path) -> Path:
+def _build_overlay_project(
+    pack: ParameterPack,
+    workdir: Path,
+    dbt_root: Path,
+    *,
+    seeds_root: Optional[Path] = None,
+) -> Path:
     """A dbt project identical to the real one except for its seeds."""
+    base_seeds = seeds_root or dbt_root / SEEDS_DIRNAME
     overlay = workdir / PROJECT_DIRNAME
     overlay.mkdir(parents=True, exist_ok=True)
     shutil.copy2(dbt_root / "dbt_project.yml", overlay / "dbt_project.yml")
@@ -200,13 +215,13 @@ def _build_overlay_project(pack: ParameterPack, workdir: Path, dbt_root: Path) -
         seeds.unlink()
     if seeds.exists():
         shutil.rmtree(seeds)
-    shutil.copytree(dbt_root / SEEDS_DIRNAME, seeds)
+    shutil.copytree(base_seeds, seeds)
 
     for name, text in pack.seed_files.items():
         target = seeds / name
         if not target.exists():
             raise PackError(
-                f"Pack seed '{name}' has no counterpart in {dbt_root / SEEDS_DIRNAME}. "
+                f"Pack seed '{name}' has no counterpart in {base_seeds}. "
                 "The pack was fitted against a different seed set."
             )
         target.write_text(text, encoding="utf-8")

@@ -51,6 +51,7 @@ from planalign_fit.snapshots import SnapshotSet
 MANIFEST_FILENAME = "manifest.json"
 PARAMETERS_FILENAME = "parameters.yaml"
 REPORT_FILENAME = "fit_report.md"
+DIAGNOSTICS_FILENAME = "diagnostics.json"
 SEEDS_DIRNAME = "seeds"
 
 # Enough precision for a rate, few enough digits to review by eye.
@@ -385,8 +386,14 @@ def write_pack(
     *,
     report: str = "",
     force: bool = False,
+    diagnostics: Optional[Mapping[str, Any]] = None,
 ) -> Path:
-    """Materialize a pack on disk. Refuses to overwrite unless ``force``."""
+    """Materialize a pack on disk. Refuses to overwrite unless ``force``.
+
+    ``diagnostics`` (see :mod:`planalign_fit.diagnostics`) is written as
+    ``diagnostics.json`` when given. It describes the fit and is deliberately
+    outside the fingerprint, which covers only what a run consumes.
+    """
     destination = Path(output_dir)
     if destination.exists() and any(destination.iterdir()):
         if not force:
@@ -410,6 +417,11 @@ def write_pack(
         (seeds_dir / name).write_text(text, encoding="utf-8")
     if report:
         (destination / REPORT_FILENAME).write_text(report, encoding="utf-8")
+    if diagnostics is not None:
+        (destination / DIAGNOSTICS_FILENAME).write_text(
+            json.dumps(diagnostics, indent=2, sort_keys=True, allow_nan=False) + "\n",
+            encoding="utf-8",
+        )
     return destination
 
 
