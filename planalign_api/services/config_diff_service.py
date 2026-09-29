@@ -167,6 +167,10 @@ def _walk_diff(
         return unchanged
     if value_a is not _MISSING and value_b is not _MISSING and value_a == value_b:
         return 1
+    if value_a in (_MISSING, None) and value_b in (_MISSING, None):
+        # An explicit null and an unrecorded key both mean "no value": not a
+        # difference, just a config written by a build that omitted the key.
+        return 1
     differences.append(_make_delta(path, value_a, value_b))
     return 0
 

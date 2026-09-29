@@ -14,8 +14,6 @@ from .cross_models import (
 from .models import PackProvenance
 from .render import format_figure, human_value
 
-_STATUS_LABELS = {"changed": "Changed", "only_a": "Only in A", "only_b": "Only in B"}
-
 
 def _cite(figure: CrossScenarioFigure) -> str:
     return ", ".join(f"`{c.query_id}.{c.result_column}`" for c in figure.citations)
@@ -37,9 +35,16 @@ def _provenance(label: str, provenance: PackProvenance) -> list[str]:
     ]
 
 
-def _config_rows(differences: tuple[ConfigDifference, ...]) -> list[str]:
-    if not differences:
-        return ["No effective configuration differences between the selected runs."]
+_STATUS_LABELS = {"changed": "Changed", "only_a": "Only in A", "only_b": "Only in B"}
+UNRECORDED_NOTE = (
+    "These settings appear in only one run's saved configuration, usually because "
+    "the other run was produced by an earlier build that did not record them. Its "
+    "effective value is unknown, so they are listed separately rather than counted "
+    "as differences."
+)
+
+
+def _config_table(differences: list[ConfigDifference]) -> list[str]:
     rows = ["| Path | Scenario A | Scenario B | Status |", "| --- | --- | --- | --- |"]
     for item in differences:
         value_a = "—" if item.value_a is None else f"`{item.value_a}`"
@@ -48,6 +53,21 @@ def _config_rows(differences: tuple[ConfigDifference, ...]) -> list[str]:
             f"| `{item.path}` | {value_a} | {value_b} | {_STATUS_LABELS[item.status]} |"
         )
     return rows
+
+
+def _config_lines(differences: tuple[ConfigDifference, ...]) -> list[str]:
+    changed = [item for item in differences if item.status == "changed"]
+    unrecorded = [item for item in differences if item.status != "changed"]
+    lines = ["## Configuration differences", ""]
+    lines.extend(
+        _config_table(changed)
+        if changed
+        else ["No effective configuration differences between the selected runs."]
+    )
+    if unrecorded:
+        lines.extend(["", "### Recorded in only one run's configuration", ""])
+        lines.extend([UNRECORDED_NOTE, "", *_config_table(unrecorded)])
+    return lines
 
 
 def _driver_rows(pack: CrossScenarioEvidencePack) -> list[str]:
@@ -160,7 +180,7 @@ def render_cross_evidence_pack(pack: CrossScenarioEvidencePack) -> str:
             "",
             *(f"- {s}" for s in pack.executive_summary),
         ],
-        ["## Configuration differences", "", *_config_rows(pack.config_differences)],
+        _config_lines(pack.config_differences),
         _difference_lines(pack),
         ["## Driver decomposition", "", *_driver_rows(pack)],
         _residual_lines(pack),

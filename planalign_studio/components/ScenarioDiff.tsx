@@ -31,6 +31,7 @@ import {
 } from '../services/api';
 import { useWorkspaceNavigate } from '../hooks/useWorkspaceNavigation';
 import CrossScenarioEvidencePanel from './CrossScenarioEvidencePanel';
+import { splitConfigDeltas, UNRECORDED_NOTE } from './configDiff';
 import { LayoutContextType } from './Layout';
 
 interface ChartPoint {
@@ -253,6 +254,7 @@ export default function ScenarioDiff() {
 
   const nameA = configDiff.scenario_names[scenarioA] ?? scenarioA;
   const nameB = configDiff.scenario_names[scenarioB] ?? scenarioB;
+  const { changed, unrecorded } = splitConfigDeltas(configDiff.differences);
   const provenanceA = configDiff.provenance[scenarioA];
   const provenanceB = configDiff.provenance[scenarioB];
 
@@ -287,12 +289,19 @@ export default function ScenarioDiff() {
       <section className="overflow-hidden rounded-xl border border-border bg-surface-raised shadow-sm">
         <div className="flex items-center justify-between px-5 py-4">
           <div><h2 className="font-semibold text-ink">Configuration changes</h2><p className="text-sm text-ink-muted">Effective settings used by the workspace and scenario overrides</p></div>
-          <span className="rounded-full bg-surface-subtle px-3 py-1 text-sm text-ink-muted">{configDiff.differences.length} changed</span>
+          <span className="rounded-full bg-surface-subtle px-3 py-1 text-sm text-ink-muted">{changed.length} changed</span>
         </div>
-        {configDiff.differences.length === 0 ? (
+        {changed.length === 0 ? (
           <div className="flex items-center gap-2 border-t border-border px-5 py-5 text-ink-muted"><CheckCircle className="text-success-ink" />No effective settings differ.</div>
         ) : (
-          <div className="overflow-x-auto"><table className="min-w-full"><thead className="bg-surface-subtle text-left text-xs uppercase text-ink-muted"><tr><th className="px-4 py-3">Setting</th><th className="px-4 py-3">{nameA}</th><th className="px-4 py-3">{nameB}</th></tr></thead><tbody>{configDiff.differences.map(delta => <ConfigDeltaRow key={delta.path} delta={delta} />)}</tbody></table></div>
+          <div className="overflow-x-auto"><table className="min-w-full"><thead className="bg-surface-subtle text-left text-xs uppercase text-ink-muted"><tr><th className="px-4 py-3">Setting</th><th className="px-4 py-3">{nameA}</th><th className="px-4 py-3">{nameB}</th></tr></thead><tbody>{changed.map(delta => <ConfigDeltaRow key={delta.path} delta={delta} />)}</tbody></table></div>
+        )}
+        {unrecorded.length > 0 && (
+          <details className="border-t border-border px-5 py-3">
+            <summary className="cursor-pointer text-sm font-medium text-ink-muted">{unrecorded.length} setting{unrecorded.length === 1 ? '' : 's'} recorded in only one run's config</summary>
+            <p className="mt-2 text-sm text-ink-muted">{UNRECORDED_NOTE}</p>
+            <div className="mt-3 overflow-x-auto"><table className="min-w-full"><thead className="bg-surface-subtle text-left text-xs uppercase text-ink-muted"><tr><th className="px-4 py-3">Setting</th><th className="px-4 py-3">{nameA}</th><th className="px-4 py-3">{nameB}</th></tr></thead><tbody>{unrecorded.map(delta => <ConfigDeltaRow key={delta.path} delta={delta} />)}</tbody></table></div>
+          </details>
         )}
         <div className="border-t border-border px-5 py-3 text-sm text-ink-muted">
           {configDiff.unchanged_count} unchanged settings omitted

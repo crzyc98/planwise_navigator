@@ -20,4 +20,9 @@ describe('cross-scenario evidence labels', () => {
     expect(differencesSummary(1)).toBe('1 configuration difference cited');
     expect(differencesSummary(3)).toBe('3 configuration differences cited');
   });
+
+  it('counts settings recorded in only one run separately', () => {
+    expect(differencesSummary(8, 11)).toBe('8 configuration differences cited (+11 recorded in only one run)');
+    expect(differencesSummary(0, 2)).toBe('No configuration differences cited (+2 recorded in only one run)');
+  });
 });
