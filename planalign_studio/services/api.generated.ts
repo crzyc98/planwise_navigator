@@ -3428,6 +3428,25 @@ export interface components {
          * @enum {string}
          */
         BulkOperationStatus: "pending" | "in_progress" | "completed" | "failed";
+        /**
+         * CagrMetric
+         * @description Compound annual growth of one workforce measure over the run.
+         */
+        CagrMetric: {
+            /** Cagr Pct */
+            cagr_pct: number;
+            /** End Value */
+            end_value: number;
+            /**
+             * Metric
+             * @enum {string}
+             */
+            metric: "Total Headcount" | "Total Compensation" | "Average Compensation";
+            /** Start Value */
+            start_value: number;
+            /** Years */
+            years: number;
+        };
         /** CalibrationApplyOutcome */
         CalibrationApplyOutcome: {
             /** Error */
@@ -4046,6 +4065,20 @@ export interface components {
              * @default 4
              */
             lookback_years?: number;
+        };
+        /**
+         * CompensationByStatusRow
+         * @description Headcount and average compensation for one year and status (E093).
+         */
+        CompensationByStatusRow: {
+            /** Avg Compensation */
+            avg_compensation: number;
+            /** Employee Count */
+            employee_count: number;
+            /** Employment Status */
+            employment_status: string;
+            /** Simulation Year */
+            simulation_year: number;
         };
         /**
          * CompensationSolverRequest
@@ -7606,6 +7639,24 @@ export interface components {
             resume_from_checkpoint?: boolean;
         };
         /**
+         * RunStatusSummary
+         * @description Run identity and status reported alongside (or instead of) telemetry.
+         */
+        RunStatusSummary: {
+            /** Error Message */
+            error_message: string | null;
+            /**
+             * Run Id
+             * @description Null when never run
+             */
+            run_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "queued" | "running" | "completed" | "failed" | "cancelled" | "not_run";
+        };
+        /**
          * RunSummary
          * @description Summary of a simulation run for listing.
          */
@@ -7674,13 +7725,7 @@ export interface components {
          * @description REST snapshot endpoint response (contracts/rest-telemetry-snapshot.md).
          */
         RunTelemetryResponse: {
-            /**
-             * Run
-             * @description run_id / status / error_message summary
-             */
-            run: {
-                [key: string]: unknown;
-            };
+            run: components["schemas"]["RunStatusSummary"];
             /** @description Null when no in-memory state exists */
             telemetry: components["schemas"]["RunTelemetrySnapshot"] | null;
         };
@@ -8312,16 +8357,12 @@ export interface components {
              * Cagr Metrics
              * @description CAGR calculations for headcount, total compensation, and average compensation
              */
-            cagr_metrics: {
-                [key: string]: unknown;
-            }[];
+            cagr_metrics: components["schemas"]["CagrMetric"][];
             /**
              * Compensation By Status
              * @description Compensation breakdown by year and employment status
              */
-            compensation_by_status: {
-                [key: string]: unknown;
-            }[];
+            compensation_by_status: components["schemas"]["CompensationByStatusRow"][];
             /** End Year */
             end_year: number;
             /**
@@ -8360,9 +8401,7 @@ export interface components {
              * Workforce Progression
              * @description Year-by-year workforce breakdown
              */
-            workforce_progression: {
-                [key: string]: unknown;
-            }[];
+            workforce_progression: components["schemas"]["WorkforceProgressionRow"][];
         };
         /**
          * SimulationRun
@@ -9498,6 +9537,22 @@ export interface components {
              * @default 0
              */
             total_failed: number;
+        };
+        /**
+         * WorkforceProgressionRow
+         * @description One simulation year of the workforce snapshot.
+         */
+        WorkforceProgressionRow: {
+            /** Active Avg Compensation */
+            active_avg_compensation: number;
+            /** Avg Compensation */
+            avg_compensation: number;
+            /** Headcount */
+            headcount: number;
+            /** Simulation Year */
+            simulation_year: number;
+            /** Total Compensation */
+            total_compensation: number;
         };
         /**
          * WorkspaceCreate
