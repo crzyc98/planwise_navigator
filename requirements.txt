@@ -35,7 +35,7 @@ typer>=0.9.0
 inquirer>=3.1.0
 
 # API dependencies for PlanAlign Studio backend
-# 0.141 wraps included routers in _IncludedRouter, hiding APIRoutes from app.routes (breaks main.py's OpenAPI header pass and the route-auth test). Pinned; bump deliberately (#736).
+# Pinned so each bump gets its own PR: minor releases have changed routing internals (0.141 stopped flattening included routers into app.routes; walk routes with fastapi.routing.iter_route_contexts).
 fastapi==0.141.1
 uvicorn[standard]>=0.27.0
 pydantic-settings>=2.1.0
