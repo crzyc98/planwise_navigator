@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 
 import pytest
+from fastapi.routing import iter_route_contexts
 from starlette.routing import Route
 
 pytestmark = [pytest.mark.fast]
@@ -42,8 +43,8 @@ _PARAM_PLACEHOLDER = "00000000-0000-4000-8000-000000000115"
 def _enumerate_routes(app) -> list[tuple[str, str]]:
     """Every (path, method) pair for the app's HTTP routes, framework scaffolding excluded."""
     pairs: list[tuple[str, str]] = []
-    for route in app.routes:
-        if not isinstance(route, Route) or not route.methods:
+    for route in iter_route_contexts(app.routes):
+        if not isinstance(route.original_route, Route) or not route.methods:
             continue  # WebSocket routes and mounts are covered elsewhere
         if route.path in _FRAMEWORK_PATHS:
             continue
