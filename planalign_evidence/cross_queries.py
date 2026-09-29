@@ -9,6 +9,7 @@ _DEFAULT_COLUMNS = frozenset(
         "employment_status",
         "prorated_annual_compensation",
         "employer_match_amount",
+        "employer_core_amount",
         "total_employer_contributions",
         "participation_status",
         "current_deferral_rate",
@@ -22,6 +23,15 @@ def _decimal_source(column: str, columns: frozenset[str]) -> str:
         if column in columns
         else "NULL::DECIMAL(38,12)"
     )
+
+
+def _currency_sum(column: str, columns: frozenset[str]) -> str:
+    """Sum a DOUBLE currency column without its ~1e-11 representation noise.
+
+    Six places keeps fractional cents (prorated compensation has them) while
+    dropping float artifacts like 53218778.270000000061 from canonical values.
+    """
+    return f"ROUND(SUM({_decimal_source(column, columns)}), 6)"
 
 
 def build_scenario_aggregate_query(
@@ -42,18 +52,20 @@ def build_scenario_aggregate_query(
             f"COUNT(*) FILTER (WHERE {active}) AS population",
         ]
     elif metric == "total_compensation":
-        compensation = _decimal_source("prorated_annual_compensation", available)
-        fields = [f"SUM({compensation}) AS value", "COUNT(*) AS population"]
-    elif metric in {"employer_match_cost", "total_employer_plan_cost"}:
-        cost_column = (
-            "employer_match_amount"
-            if metric == "employer_match_cost"
-            else "total_employer_contributions"
-        )
+        compensation = _currency_sum("prorated_annual_compensation", available)
+        fields = [f"{compensation} AS value", "COUNT(*) AS population"]
+    elif metric == "employer_match_cost":
         fields = [
-            f"SUM({_decimal_source(cost_column, available)}) AS value",
+            f"{_currency_sum('employer_match_amount', available)} AS value",
             "COUNT(*) AS population",
-            f"SUM({_decimal_source('prorated_annual_compensation', available)}) AS compensation_base",
+            f"{_currency_sum('prorated_annual_compensation', available)} AS compensation_base",
+        ]
+    elif metric == "total_employer_plan_cost":
+        fields = [
+            f"{_currency_sum('total_employer_contributions', available)} AS value",
+            "COUNT(*) AS population",
+            f"{_currency_sum('employer_match_amount', available)} AS match_value",
+            f"{_currency_sum('employer_core_amount', available)} AS core_value",
         ]
     elif metric == "participation_rate":
         participating = (

@@ -35,8 +35,8 @@ CROSS_DRIVER_IDS: dict[str, tuple[str, ...]] = {
         "effective_payout_rate_effect",
     ),
     "total_employer_plan_cost": (
-        "compensation_exposure_effect",
-        "effective_payout_rate_effect",
+        "employer_match_difference",
+        "employer_core_difference",
     ),
     "participation_rate": ("rate_difference",),
     "avg_deferral_rate": ("rate_difference",),

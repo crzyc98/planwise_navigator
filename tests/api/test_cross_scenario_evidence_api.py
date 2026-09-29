@@ -57,7 +57,7 @@ def test_api_returns_bound_deterministic_cross_pack_and_text(
     assert "No effective configuration differences" in payload["text_export"]
     assert (
         payload["filename"]
-        == "evidence-pack-scenario-a-vs-scenario-b-total_compensation-2025.md"
+        == "evidence-pack-evidence-scenario-vs-evidence-scenario-total_compensation-2025.md"
     )
     assert response.headers["X-PlanAlign-Result-Run-Id"] == (
         f"scenario-a={a.run_id},scenario-b={b.run_id}"

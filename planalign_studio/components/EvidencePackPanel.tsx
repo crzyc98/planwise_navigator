@@ -27,9 +27,19 @@ interface Props {
 /** The fields needed to display a figure; shared with cross-scenario packs. */
 export type FigureLike = Pick<EvidenceFigure, 'value' | 'unit' | 'status'> & { reason?: string | null };
 
-function formatFigure(figure: FigureLike): string {
+// Half the smallest displayed step per unit; anything smaller shows as zero,
+// so a tiny negative never renders as "-0.00%".
+const DISPLAY_EPSILON: Record<FigureLike['unit'], number> = {
+  currency: 0.005,
+  count: 0.5,
+  rate: 0.00005,
+  percent_of_change: 0.005,
+};
+
+export function formatFigure(figure: FigureLike): string {
   if (figure.status === 'defined') {
-    const value = Number(figure.value ?? 0);
+    const raw = Number(figure.value ?? 0);
+    const value = Math.abs(raw) < DISPLAY_EPSILON[figure.unit] ? 0 : raw;
     if (figure.unit === 'currency') {
       return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
     }

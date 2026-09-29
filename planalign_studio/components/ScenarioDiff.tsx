@@ -263,6 +263,7 @@ export default function ScenarioDiff() {
         <div className="flex-1">
           <p className="text-sm font-medium uppercase tracking-wide text-fidelity-green">Scenario diff</p>
           <h1 className="text-2xl font-bold text-ink">{nameA} <span className="text-ink-subtle">vs</span> {nameB}</h1>
+          <button onClick={() => document.getElementById('explain-difference')?.scrollIntoView({ behavior: 'smooth' })} className="mt-1 text-sm font-medium text-fidelity-green hover:underline">Explain the difference with a cited evidence pack ↓</button>
           <div className="mt-3 flex flex-wrap gap-2 text-xs">
             {[provenanceA, provenanceB].map((item, index) => (
               <span key={index} className="rounded-full bg-surface-subtle px-3 py-1 text-ink-muted">

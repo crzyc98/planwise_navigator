@@ -9,6 +9,15 @@ from typing import Protocol
 from .models import EvidencePack, EvidencePackEnvelope
 
 
+# Half of the smallest displayed step per unit: values below it round to zero.
+_DISPLAY_EPSILON = {
+    "currency": Decimal("0.005"),
+    "count": Decimal("0.5"),
+    "rate": Decimal("0.00005"),
+    "percent_of_change": Decimal("0.005"),
+}
+
+
 class FigureLike(Protocol):
     """The fields a figure needs to render; shared by single and cross packs."""
 
@@ -153,6 +162,8 @@ def human_value(figure: FigureLike) -> str:
     if figure.value is None:
         return figure.status.title()
     value = Decimal(figure.value)
+    if abs(value) < _DISPLAY_EPSILON[figure.unit]:
+        value = Decimal(0)  # never render a rounded-to-zero value as "-0.00"
     if figure.unit == "currency":
         return f"-${abs(value):,.2f}" if value < 0 else f"${value:,.2f}"
     if figure.unit == "count":
