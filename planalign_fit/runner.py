@@ -15,7 +15,7 @@ from typing import Optional
 
 import duckdb
 
-from planalign_fit import behavior, compensation, hazards, promotion
+from planalign_fit import behavior, compensation, hazards, progress, promotion
 from planalign_fit.bands import BandDefinitions, load_band_definitions
 from planalign_fit.models import FitResult, PromotionBasis, Unfittable
 from planalign_fit.pack import ParameterPack, build_pack
@@ -76,9 +76,11 @@ def fit_parameter_pack(
     # An in-memory database: fitting reads census files and never touches any
     # simulation database, shared or isolated.
     with duckdb.connect(":memory:") as conn:
+        progress.emit("stage", stage="loading_history")
         snapshot_set = load_snapshots(snapshots_dir, conn)
         if options.only_years is not None:
             snapshot_set = snapshot_set.subset(options.only_years)
+        progress.emit("stage", stage="fitting")
         transitions = build_transitions(conn, snapshot_set, bands)
         result = _run_estimators(transitions, priors, options)
 

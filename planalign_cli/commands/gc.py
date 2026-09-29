@@ -7,6 +7,8 @@ Two artifact classes grow without bound on a dev machine:
 * Isolated DuckDBs and scratch trees under ``var/`` left by perf campaigns,
   ensembles, and validation harnesses. Their reports, campaign JSON, census
   parquet, and ensemble aggregates are the durable output and are kept.
+* Backtest scratch (``workspaces/*/param_fits/*/work``) left by Studio fit &
+  backtest jobs that were interrupted (#588). Their packs are kept.
 
 Dry run by default; ``--yes`` deletes.
 """
@@ -73,6 +75,25 @@ def find_stale_artifacts(var_dir: Path, max_age_days: int) -> List[Reclaimable]:
             if path.stat().st_mtime < cutoff:
                 found[path] = Reclaimable(path, _path_bytes(path))
     return sorted(found.values(), key=lambda item: item.path)
+
+
+def find_stale_param_fit_scratch(
+    workspaces_root: Path, max_age_days: int
+) -> List[Reclaimable]:
+    """Studio fit/backtest ``work/`` trees older than the cutoff (#588).
+
+    A finished job removes its own scratch; what remains belongs to a job the
+    API was stopped in the middle of. Packs and job records are never touched.
+    """
+    if not workspaces_root.is_dir():
+        return []
+    cutoff = time.time() - max_age_days * 86400
+    found = [
+        Reclaimable(path, _path_bytes(path))
+        for path in sorted(workspaces_root.glob("*/param_fits/*/work"))
+        if path.is_dir() and not path.is_symlink() and path.stat().st_mtime < cutoff
+    ]
+    return found
 
 
 def delete_artifacts(items: List[Reclaimable]) -> None:
@@ -154,6 +175,14 @@ def run_gc(
     console.print(
         f"{verb} {len(artifacts)} var/ artifact(s) older than {max_age} days "
         f"({_gb(artifact_bytes)})"
+    )
+
+    scratch = find_stale_param_fit_scratch(root, max_age)
+    if yes:
+        delete_artifacts(scratch)
+    console.print(
+        f"{verb} {len(scratch)} fit/backtest scratch tree(s) older than {max_age} "
+        f"days ({_gb(sum(item.size_bytes for item in scratch))})"
     )
     if not yes:
         console.print("[yellow]Dry run.[/yellow] Re-run with --yes to delete.")

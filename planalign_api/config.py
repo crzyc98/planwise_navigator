@@ -51,6 +51,9 @@ class APISettings(BaseSettings):
     batch_operation_max_entries: int = Field(default=100, gt=0)
     bulk_import_operation_ttl_seconds: float = Field(default=3600.0, gt=0)
     bulk_import_operation_max_entries: int = Field(default=100, gt=0)
+    # Finished parameter fit/backtest jobs kept per workspace (#588). Running
+    # jobs are never pruned.
+    param_fit_max_jobs_per_workspace: int = Field(default=20, gt=0)
 
     # Default config path
     default_config_path: Path = Field(

@@ -32,6 +32,7 @@ from .run_execution import (
     prepare_dbt_project,
     validate_census,
     write_config,
+    scenario_pack_seeds,
     write_seeds,
 )
 from ..provenance.capture import ProvenanceRecorder, initialize_manifest
@@ -211,7 +212,7 @@ class SimulationService:
 
         validate_census(self.storage, config, scenario_id, workspace_id)
         write_config(config, config_path)
-        write_seeds(config, run_dir)
+        write_seeds(config, run_dir, scenario_pack_seeds(scenario_path))
 
         return scenario_path, start_year, end_year, total_years
 

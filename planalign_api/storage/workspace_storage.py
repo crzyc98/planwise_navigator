@@ -801,6 +801,26 @@ class WorkspaceStorage:
             return None
         return self._merge_config(workspace, scenario)
 
+    def merge_overrides(
+        self, workspace_id: str, config_overrides: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """The merged config a scenario with ``config_overrides`` would get.
+
+        Lets a caller preview a scenario before creating it (e.g. applying a
+        parameter pack, #588) with exactly the merge a real scenario receives.
+        """
+        workspace = self.get_workspace(workspace_id)
+        if workspace is None:
+            return None
+        draft = Scenario(
+            id="preview",
+            workspace_id=workspace_id,
+            name="preview",
+            config_overrides=config_overrides,
+            created_at=datetime.now(timezone.utc),
+        )
+        return self._merge_config(workspace, draft)
+
     def _merge_config(self, workspace: Workspace, scenario: Scenario) -> Dict[str, Any]:
         """Pure merge of a loaded workspace + scenario (no I/O)."""
         # E091: Debug logging for year range tracking

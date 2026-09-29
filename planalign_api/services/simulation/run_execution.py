@@ -197,7 +197,15 @@ def write_config(config: Dict[str, Any], config_path: Path) -> None:
         yaml.dump(config, handle, default_flow_style=False)
 
 
-def write_seeds(config: Dict[str, Any], run_dir: Path) -> None:
+def write_seeds(
+    config: Dict[str, Any], run_dir: Path, pack_seeds_dir: Optional[Path] = None
+) -> None:
+    """Materialize a run's seeds: defaults, then pack seeds, then config.
+
+    ``pack_seeds_dir`` holds the seeds of a parameter pack applied to the
+    scenario (#588). They replace the shipped defaults, and config-driven seeds
+    (promotion hazard, bands) are written last so Studio edits still win.
+    """
     from planalign_orchestrator.pipeline.seed_writer import write_all_seed_csvs
 
     seeds_dir = run_dir / "seeds"
@@ -205,7 +213,16 @@ def write_seeds(config: Dict[str, Any], run_dir: Path) -> None:
     if seeds_dir.exists():
         shutil.rmtree(seeds_dir)
     shutil.copytree(default_seeds, seeds_dir)
+    if pack_seeds_dir is not None and pack_seeds_dir.is_dir():
+        for seed in sorted(pack_seeds_dir.glob("*.csv")):
+            shutil.copy2(seed, seeds_dir / seed.name)
     write_all_seed_csvs(config, seeds_dir)
+
+
+def scenario_pack_seeds(scenario_path: Path) -> Optional[Path]:
+    """The seeds of the parameter pack applied to a scenario, if any (#588)."""
+    seeds = scenario_path / "param_pack" / "seeds"
+    return seeds if seeds.is_dir() else None
 
 
 def prepare_dbt_project(run_dir: Path) -> Path:
