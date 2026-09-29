@@ -1012,9 +1012,6 @@
           "objective": {
             "const": "max_annual_error",
             "default": "max_annual_error",
-            "enum": [
-              "max_annual_error"
-            ],
             "title": "Objective",
             "type": "string"
           },
@@ -1066,6 +1063,7 @@
             "anyOf": [
               {
                 "items": {
+                  "additionalProperties": true,
                   "type": "object"
                 },
                 "type": "array"
@@ -1267,11 +1265,7 @@
             "type": "string"
           },
           "distribution_stats": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/DistributionStats"
-              }
-            ],
+            "$ref": "#/components/schemas/DistributionStats",
             "description": "Statistics about the analyzed distribution"
           },
           "fallback_notice": {
@@ -1788,11 +1782,7 @@
             "type": "array"
           },
           "status": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BulkOperationStatus"
-              }
-            ],
+            "$ref": "#/components/schemas/BulkOperationStatus",
             "description": "Operation status"
           },
           "total": {
@@ -1849,11 +1839,7 @@
             "type": "array"
           },
           "status": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BulkOperationStatus"
-              }
-            ],
+            "$ref": "#/components/schemas/BulkOperationStatus",
             "description": "Operation status"
           },
           "total": {
@@ -2225,6 +2211,7 @@
             "anyOf": [
               {
                 "items": {
+                  "additionalProperties": true,
                   "type": "object"
                 },
                 "type": "array"
@@ -2421,9 +2408,6 @@
           },
           "status": {
             "const": "queued",
-            "enum": [
-              "queued"
-            ],
             "title": "Status",
             "type": "string"
           }
@@ -2669,11 +2653,7 @@
             "title": "Message"
           },
           "overall": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/CensusMetrics"
-              }
-            ],
+            "$ref": "#/components/schemas/CensusMetrics",
             "description": "Metrics across all active employees, unsegmented"
           },
           "segments": {
@@ -3064,9 +3044,6 @@
           "query_id": {
             "const": "Q1",
             "default": "Q1",
-            "enum": [
-              "Q1"
-            ],
             "title": "Query Id",
             "type": "string"
           },
@@ -3656,6 +3633,7 @@
           "effective": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -4063,9 +4041,6 @@
           "schema_version": {
             "const": "1.0",
             "default": "1.0",
-            "enum": [
-              "1.0"
-            ],
             "title": "Schema Version",
             "type": "string"
           },
@@ -4358,19 +4333,11 @@
             "type": "number"
           },
           "escalation_metrics": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/EscalationMetrics"
-              }
-            ],
+            "$ref": "#/components/schemas/EscalationMetrics",
             "description": "Escalation statistics"
           },
           "irs_limit_metrics": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/IRSLimitMetrics"
-              }
-            ],
+            "$ref": "#/components/schemas/IRSLimitMetrics",
             "description": "IRS limit statistics"
           },
           "match_contribution_rate": {
@@ -4380,11 +4347,7 @@
             "type": "number"
           },
           "participation_by_method": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ParticipationByMethod"
-              }
-            ],
+            "$ref": "#/components/schemas/ParticipationByMethod",
             "description": "Breakdown by enrollment method"
           },
           "participation_rate": {
@@ -5395,15 +5358,15 @@
           },
           "current_forfeiture": {
             "title": "Current Forfeiture",
-            "type": "string"
+            "type": "number"
           },
           "current_vested_amount": {
             "title": "Current Vested Amount",
-            "type": "string"
+            "type": "number"
           },
           "current_vesting_pct": {
             "title": "Current Vesting Pct",
-            "type": "string"
+            "type": "number"
           },
           "employee_id": {
             "minLength": 1,
@@ -5413,7 +5376,7 @@
           "forfeiture_variance": {
             "description": "Proposed - Current forfeiture (negative = less forfeiture)",
             "title": "Forfeiture Variance",
-            "type": "string"
+            "type": "number"
           },
           "hire_date": {
             "format": "date",
@@ -5422,15 +5385,15 @@
           },
           "proposed_forfeiture": {
             "title": "Proposed Forfeiture",
-            "type": "string"
+            "type": "number"
           },
           "proposed_vested_amount": {
             "title": "Proposed Vested Amount",
-            "type": "string"
+            "type": "number"
           },
           "proposed_vesting_pct": {
             "title": "Proposed Vesting Pct",
-            "type": "string"
+            "type": "number"
           },
           "tenure_band": {
             "title": "Tenure Band",
@@ -5448,7 +5411,7 @@
           },
           "total_employer_contributions": {
             "title": "Total Employer Contributions",
-            "type": "string"
+            "type": "number"
           }
         },
         "required": [
@@ -6215,9 +6178,6 @@
           "schema_version": {
             "const": "1.0",
             "default": "1.0",
-            "enum": [
-              "1.0"
-            ],
             "title": "Schema Version",
             "type": "string"
           },
@@ -6342,11 +6302,7 @@
             "type": "string"
           },
           "contents": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ManifestContents"
-              }
-            ],
+            "$ref": "#/components/schemas/ManifestContents",
             "description": "Inventory of archive contents"
           },
           "export_date": {
@@ -6412,11 +6368,7 @@
             "type": "integer"
           },
           "status": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ExportStatus"
-              }
-            ],
+            "$ref": "#/components/schemas/ExportStatus",
             "description": "Export status"
           },
           "workspace_id": {
@@ -6514,6 +6466,7 @@
           "column_renames": {
             "description": "Columns that were auto-renamed from aliases to canonical names",
             "items": {
+              "additionalProperties": true,
               "type": "object"
             },
             "title": "Column Renames",
@@ -6854,11 +6807,7 @@
         "description": "Multi-year, multi-scenario forfeitures under a single vesting schedule.",
         "properties": {
           "forfeiture_policy": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ForfeiturePolicy"
-              }
-            ],
+            "$ref": "#/components/schemas/ForfeiturePolicy",
             "default": "offset_employer_contributions",
             "description": "The policy the employer cost offsets were computed under. reallocate_to_participants yields a $0 offset with the forfeiture still disclosed."
           },
@@ -6904,7 +6853,7 @@
         "properties": {
           "forfeited_amount": {
             "title": "Forfeited Amount",
-            "type": "string"
+            "type": "number"
           },
           "has_prior_year_basis": {
             "description": "False for a scenario's first simulation year, which has no earlier year to source employer contributions from. Such a row is not a measured zero and must not be rendered as $0.",
@@ -6923,11 +6872,11 @@
           },
           "total_employer_contributions": {
             "title": "Total Employer Contributions",
-            "type": "string"
+            "type": "number"
           },
           "vested_amount": {
             "title": "Vested Amount",
-            "type": "string"
+            "type": "number"
           },
           "vesting_eligible_count": {
             "description": "Terminated employees who accrued employer contributions in an earlier simulation year",
@@ -7395,11 +7344,7 @@
             "type": "integer"
           },
           "status": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ImportStatus"
-              }
-            ],
+            "$ref": "#/components/schemas/ImportStatus",
             "description": "Import status"
           },
           "warnings": {
@@ -7488,6 +7433,7 @@
           },
           "error_rows": {
             "items": {
+              "additionalProperties": true,
               "type": "object"
             },
             "title": "Error Rows",
@@ -7527,6 +7473,7 @@
           },
           "preview_rows": {
             "items": {
+              "additionalProperties": true,
               "type": "object"
             },
             "title": "Preview Rows",
@@ -7797,6 +7744,7 @@
             "type": "string"
           },
           "moved_settings": {
+            "additionalProperties": true,
             "title": "Moved Settings",
             "type": "object"
           },
@@ -8148,6 +8096,7 @@
           },
           "rows": {
             "items": {
+              "additionalProperties": true,
               "type": "object"
             },
             "title": "Rows",
@@ -8484,9 +8433,6 @@
           "percentile_method": {
             "const": "linear",
             "default": "linear",
-            "enum": [
-              "linear"
-            ],
             "title": "Percentile Method",
             "type": "string"
           },
@@ -9005,6 +8951,7 @@
             "title": "Search Seed"
           },
           "spec": {
+            "additionalProperties": true,
             "title": "Spec",
             "type": "object"
           },
@@ -9043,9 +8990,6 @@
           },
           "status": {
             "const": "queued",
-            "enum": [
-              "queued"
-            ],
             "title": "Status",
             "type": "string"
           }
@@ -9077,6 +9021,7 @@
           "spec": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -9127,6 +9072,7 @@
           "resolved_spec": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -9654,6 +9600,7 @@
           "diagnostics": {
             "additionalProperties": {
               "items": {
+                "additionalProperties": true,
                 "type": "object"
               },
               "type": "array"
@@ -9669,6 +9616,7 @@
           "promotion_classification": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -9678,12 +9626,14 @@
             "title": "Promotion Classification"
           },
           "provenance": {
+            "additionalProperties": true,
             "title": "Provenance",
             "type": "object"
           },
           "scorecard": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -9705,11 +9655,13 @@
             "type": "array"
           },
           "summary": {
+            "additionalProperties": true,
             "title": "Summary",
             "type": "object"
           },
           "unfittable": {
             "items": {
+              "additionalProperties": true,
               "type": "object"
             },
             "title": "Unfittable",
@@ -10183,6 +10135,7 @@
           },
           "rows": {
             "items": {
+              "additionalProperties": true,
               "type": "object"
             },
             "title": "Rows",
@@ -10320,9 +10273,6 @@
           "report_schema_version": {
             "const": "1.0",
             "default": "1.0",
-            "enum": [
-              "1.0"
-            ],
             "title": "Report Schema Version",
             "type": "string"
           },
@@ -10374,18 +10324,12 @@
           "algorithm": {
             "const": "SHA-256",
             "default": "SHA-256",
-            "enum": [
-              "SHA-256"
-            ],
             "title": "Algorithm",
             "type": "string"
           },
           "canonicalization": {
             "const": "planalign-provenance-json-v1",
             "default": "planalign-provenance-json-v1",
-            "enum": [
-              "planalign-provenance-json-v1"
-            ],
             "title": "Canonicalization",
             "type": "string"
           },
@@ -10667,6 +10611,7 @@
           "config": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -11229,6 +11174,7 @@
         "description": "REST snapshot endpoint response (contracts/rest-telemetry-snapshot.md).",
         "properties": {
           "run": {
+            "additionalProperties": true,
             "description": "run_id / status / error_message summary",
             "title": "Run",
             "type": "object"
@@ -11406,6 +11352,7 @@
         "description": "Full scenario model.",
         "properties": {
           "config_overrides": {
+            "additionalProperties": true,
             "description": "Configuration overrides",
             "title": "Config Overrides",
             "type": "object"
@@ -11466,6 +11413,7 @@
           "provenance": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -11573,6 +11521,7 @@
         "description": "Request model for creating a scenario.",
         "properties": {
           "config_overrides": {
+            "additionalProperties": true,
             "description": "Configuration overrides (merged with workspace base config)",
             "title": "Config Overrides",
             "type": "object"
@@ -11600,6 +11549,7 @@
           "provenance": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -11638,15 +11588,15 @@
           },
           "total_employer_contributions": {
             "title": "Total Employer Contributions",
-            "type": "string"
+            "type": "number"
           },
           "total_forfeited": {
             "title": "Total Forfeited",
-            "type": "string"
+            "type": "number"
           },
           "total_vested": {
             "title": "Total Vested",
-            "type": "string"
+            "type": "number"
           },
           "years": {
             "items": {
@@ -11785,6 +11735,7 @@
           "config_overrides": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -12401,6 +12352,7 @@
           "cagr_metrics": {
             "description": "CAGR calculations for headcount, total compensation, and average compensation",
             "items": {
+              "additionalProperties": true,
               "type": "object"
             },
             "title": "Cagr Metrics",
@@ -12409,6 +12361,7 @@
           "compensation_by_status": {
             "description": "Compensation breakdown by year and employment status",
             "items": {
+              "additionalProperties": true,
               "type": "object"
             },
             "title": "Compensation By Status",
@@ -12466,6 +12419,7 @@
           "workforce_progression": {
             "description": "Year-by-year workforce breakdown",
             "items": {
+              "additionalProperties": true,
               "type": "object"
             },
             "title": "Workforce Progression",
@@ -12975,6 +12929,7 @@
         "properties": {
           "canonical_schema": {
             "items": {
+              "additionalProperties": true,
               "type": "object"
             },
             "title": "Canonical Schema",
@@ -13444,6 +13399,7 @@
           "detail": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -13542,6 +13498,7 @@
             "type": "string"
           },
           "config": {
+            "additionalProperties": true,
             "description": "Configuration overrides to apply",
             "title": "Config",
             "type": "object"
@@ -13595,7 +13552,7 @@
         "properties": {
           "current_forfeitures": {
             "title": "Current Forfeitures",
-            "type": "string"
+            "type": "number"
           },
           "employee_count": {
             "minimum": 0.0,
@@ -13604,11 +13561,11 @@
           },
           "forfeiture_variance": {
             "title": "Forfeiture Variance",
-            "type": "string"
+            "type": "number"
           },
           "proposed_forfeitures": {
             "title": "Proposed Forfeitures",
-            "type": "string"
+            "type": "number"
           },
           "tenure_band": {
             "title": "Tenure Band",
@@ -13616,7 +13573,7 @@
           },
           "total_contributions": {
             "title": "Total Contributions",
-            "type": "string"
+            "type": "number"
           }
         },
         "required": [
@@ -13839,6 +13796,7 @@
       "Transformation": {
         "properties": {
           "params": {
+            "additionalProperties": true,
             "title": "Params",
             "type": "object"
           },
@@ -14076,19 +14034,11 @@
         "description": "Request to run vesting analysis comparing two schedules.",
         "properties": {
           "current_schedule": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/VestingScheduleConfig-Input"
-              }
-            ],
+            "$ref": "#/components/schemas/VestingScheduleConfig-Input",
             "description": "Current vesting schedule to analyze"
           },
           "proposed_schedule": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/VestingScheduleConfig-Input"
-              }
-            ],
+            "$ref": "#/components/schemas/VestingScheduleConfig-Input",
             "description": "Proposed vesting schedule to compare"
           },
           "simulation_year": {
@@ -14169,29 +14119,29 @@
           },
           "current_total_forfeited": {
             "title": "Current Total Forfeited",
-            "type": "string"
+            "type": "number"
           },
           "current_total_vested": {
             "title": "Current Total Vested",
-            "type": "string"
+            "type": "number"
           },
           "forfeiture_variance": {
             "description": "Proposed - Current total forfeiture",
             "title": "Forfeiture Variance",
-            "type": "string"
+            "type": "number"
           },
           "forfeiture_variance_pct": {
             "description": "Percentage change in forfeitures",
             "title": "Forfeiture Variance Pct",
-            "type": "string"
+            "type": "number"
           },
           "proposed_total_forfeited": {
             "title": "Proposed Total Forfeited",
-            "type": "string"
+            "type": "number"
           },
           "proposed_total_vested": {
             "title": "Proposed Total Vested",
-            "type": "string"
+            "type": "number"
           },
           "terminated_employee_count": {
             "description": "Deprecated compatibility field for the vesting-eligible terminated employee count",
@@ -14201,7 +14151,7 @@
           },
           "total_employer_contributions": {
             "title": "Total Employer Contributions",
-            "type": "string"
+            "type": "number"
           },
           "total_terminated_employee_count": {
             "description": "All employees terminated in the analysis year",
@@ -14597,6 +14547,7 @@
           "base_config": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -14672,6 +14623,7 @@
         "description": "Public workspace representation returned by the API.\n\nSame shape as :class:`Workspace` minus ``storage_path``: the absolute\nserver filesystem path is internal deployment detail the Studio UI does\nnot need (issue #532).",
         "properties": {
           "base_config": {
+            "additionalProperties": true,
             "description": "Base simulation configuration",
             "title": "Base Config",
             "type": "object"
@@ -14881,6 +14833,7 @@
           "base_config": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -15417,6 +15370,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": true,
                   "title": "Response Get Default Config Api Config Defaults Get",
                   "type": "object"
                 }
@@ -15829,6 +15783,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": true,
                   "title": "Response Get Optimizer Candidate Api Optimizer Runs  Run Id  Candidates  Candidate Id  Get",
                   "type": "object"
                 }
@@ -16399,15 +16354,10 @@
           "content": {
             "application/json": {
               "schema": {
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/RunRequest"
-                  }
-                ],
+                "$ref": "#/components/schemas/RunRequest",
                 "default": {
                   "resume_from_checkpoint": false
-                },
-                "title": "Request"
+                }
               }
             }
           }
@@ -16584,6 +16534,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": true,
                   "title": "Response Reset Simulation Status Api Scenarios  Scenario Id  Run Reset Post",
                   "type": "object"
                 }
@@ -18339,13 +18290,8 @@
             "name": "schedule_type",
             "required": false,
             "schema": {
-              "allOf": [
-                {
-                  "$ref": "#/components/schemas/VestingScheduleType"
-                }
-              ],
-              "default": "immediate",
-              "title": "Schedule Type"
+              "$ref": "#/components/schemas/VestingScheduleType",
+              "default": "immediate"
             }
           },
           {
@@ -18353,13 +18299,8 @@
             "name": "forfeiture_policy",
             "required": false,
             "schema": {
-              "allOf": [
-                {
-                  "$ref": "#/components/schemas/ForfeiturePolicy"
-                }
-              ],
-              "default": "offset_employer_contributions",
-              "title": "Forfeiture Policy"
+              "$ref": "#/components/schemas/ForfeiturePolicy",
+              "default": "offset_employer_contributions"
             }
           }
         ],
@@ -19038,13 +18979,8 @@
             "name": "schedule_type",
             "required": true,
             "schema": {
-              "allOf": [
-                {
-                  "$ref": "#/components/schemas/VestingScheduleType"
-                }
-              ],
-              "description": "The single vesting schedule to report under",
-              "title": "Schedule Type"
+              "$ref": "#/components/schemas/VestingScheduleType",
+              "description": "The single vesting schedule to report under"
             }
           },
           {
@@ -19079,14 +19015,9 @@
             "name": "forfeiture_policy",
             "required": false,
             "schema": {
-              "allOf": [
-                {
-                  "$ref": "#/components/schemas/ForfeiturePolicy"
-                }
-              ],
+              "$ref": "#/components/schemas/ForfeiturePolicy",
               "default": "offset_employer_contributions",
-              "description": "What the plan does with forfeited money. Determines whether the returned employer cost offsets reduce sponsor outlay at all.",
-              "title": "Forfeiture Policy"
+              "description": "What the plan does with forfeited money. Determines whether the returned employer cost offsets reduce sponsor outlay at all."
             }
           }
         ],
@@ -19334,6 +19265,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": true,
                   "title": "Response Analyze Age Distribution Api Workspaces  Workspace Id  Analyze Age Distribution Post",
                   "type": "object"
                 }
@@ -19441,6 +19373,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": true,
                   "title": "Response Analyze Compensation By Level Api Workspaces  Workspace Id  Analyze Compensation By Level Post",
                   "type": "object"
                 }
@@ -21597,15 +21530,10 @@
           "content": {
             "application/json": {
               "schema": {
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/BatchCreate"
-                  }
-                ],
+                "$ref": "#/components/schemas/BatchCreate",
                 "default": {
                   "parallel": false
-                },
-                "title": "Data"
+                }
               }
             }
           }
@@ -22359,6 +22287,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": true,
                   "title": "Response Get Scenario Config Api Workspaces  Workspace Id  Scenarios  Scenario Id  Config Get",
                   "type": "object"
                 }
@@ -22446,6 +22375,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": true,
                   "title": "Response Delete Scenario Database Api Workspaces  Workspace Id  Scenarios  Scenario Id  Database Delete",
                   "type": "object"
                 }

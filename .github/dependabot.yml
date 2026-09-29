@@ -38,6 +38,7 @@ updates:
           - "dbt-core"
           - "dbt-duckdb"
           - "pydantic"
+          - "fastapi"
         update-types:
           - minor
           - patch
