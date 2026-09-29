@@ -233,6 +233,7 @@ function DiffList({ preview }: { preview: ParamPackApplyPreview }) {
       </div>
       <p className="text-xs text-ink-muted">
         Also carried with the scenario: {preview.seed_files.join(', ')} (fitted tables layered into every run).
+        Their prior → fitted values are listed under <span className="font-medium">Fitted values</span> on the results page.
       </p>
     </div>
   );

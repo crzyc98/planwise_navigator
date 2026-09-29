@@ -153,3 +153,12 @@ def test_param_fit_scratch_is_reclaimed_but_packs_are_kept(
     assert not paths["stale_work"].exists()
     for key in ("fresh_work", "pack", "record"):
         assert paths[key].exists()
+
+
+def test_param_fit_scratch_of_a_running_job_is_never_reclaimed(tmp_path: Path):
+    workspaces = tmp_path / "workspaces"
+    work = _touch(workspaces / "ws" / "param_fits" / "fit_live" / "work" / "s.duckdb")
+    os.utime(work.parent, (OLD, OLD))
+    (work.parent.parent / "job.json").write_text(json.dumps({"status": "running"}))
+
+    assert gc.find_stale_param_fit_scratch(workspaces, 0) == []

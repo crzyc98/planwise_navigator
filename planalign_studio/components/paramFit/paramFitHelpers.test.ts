@@ -96,13 +96,15 @@ describe('results', () => {
       overridden_thresholds: ['flows'],
       split: { fit_years: [2022, 2023], holdout_years: [2024] },
       comparisons: [
-        { metric: 'headcount.total', period: 2024, family: 'headcount', observable: true, predicted: 101, actual: 100, percent_error: 0.01, status: 'pass' },
+        { metric: 'headcount.total', period: 2024, family: 'headcount', observable: true, predicted: 101, actual: 100, percent_error: 0.01, status: 'pass', spread: { seed_count: 2, minimum: 99, maximum: 103, values: [99, 103], actual_within_spread: true, distance_outside: null } },
         { metric: 'plan.participation', period: 'cumulative', family: 'plan', observable: false, status: 'not_observable', unobservable_reason: 'no column' },
       ],
     });
     expect(view?.verdict).toBe('warn');
     expect(view?.comparisons[0]).toMatchObject({ metric: 'headcount.total', period: '2024', percentError: 0.01 });
     expect(view?.comparisons[1].status).toBe('not_observable');
+    expect(view?.comparisons[0].spread).toEqual({ minimum: 99, maximum: 103, actualWithin: true });
+    expect(view?.comparisons[1].spread).toBeNull();
     expect(view?.holdoutYears).toEqual([2024]);
     expect(view?.overriddenThresholds).toEqual(['flows']);
     expect(scorecardView(null)).toBeNull();

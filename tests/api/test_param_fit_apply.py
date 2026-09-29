@@ -335,3 +335,79 @@ def test_stale_scorecard_counts_as_no_backtest(
 
     assert job["result"]["scorecard_current"] is False
     assert "no_backtest" in required
+
+
+def test_runs_record_the_pack_even_after_studio_drops_the_block(
+    harness, completed, tmp_path
+):
+    """A Config Studio save rebuilds overrides and drops ``param_pack``; the
+    run must still record the pack whose seeds it layers in."""
+    import yaml
+    from unittest.mock import patch
+
+    from planalign_api.services.simulation.service import SimulationService
+
+    preview = _preview(harness, completed["job_id"]).json()
+    scenario = _apply(harness, completed["job_id"], preview).json()
+    overrides = {
+        key: value
+        for key, value in scenario["config_overrides"].items()
+        if key != "param_pack"
+    }
+    harness.storage.update_scenario(
+        harness.workspace_id, scenario["id"], config_overrides=overrides
+    )
+    config = harness.storage.get_merged_config(harness.workspace_id, scenario["id"])
+    assert "param_pack" not in config
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+
+    service = SimulationService(harness.storage)
+    with patch("planalign_api.services.simulation.service.validate_census"):
+        service._prepare_simulation(
+            harness.workspace_id, scenario["id"], config, run_dir
+        )
+
+    written = yaml.safe_load((run_dir / "config.yaml").read_text())
+    assert written["param_pack"]["fingerprint"] == preview["pack_fingerprint"]
+
+
+def test_hand_edited_verdict_cannot_soften_the_review(
+    harness, history, commands, fixture_pack, tmp_path
+):
+    """Verdicts are re-derived from the comparisons, so editing one is inert."""
+    pack = tmp_path / "pack-edited-verdict"
+    shutil.copytree(fixture_pack, pack)
+    add_current_scorecard(pack, verdict="fail")
+    score = pack / "backtest" / "scorecard.json"
+    payload = json.loads(score.read_text())
+    payload["verdict"] = "pass"
+    score.write_text(json.dumps(payload))
+    commands.fixture_pack = pack
+    history_id = harness.upload(history).json()["history_id"]
+    job = harness.wait(harness.start(history_id).json()["job_id"])
+
+    required = _preview(harness, job["job_id"]).json()["required_acknowledgements"]
+
+    assert job["result"]["scorecard"]["verdict"] == "fail"
+    assert "backtest_fail" in required
+
+
+def test_tampered_comparisons_do_not_count_as_a_backtest(
+    harness, history, commands, fixture_pack, tmp_path
+):
+    pack = tmp_path / "pack-edited-numbers"
+    shutil.copytree(fixture_pack, pack)
+    add_current_scorecard(pack, verdict="fail")
+    score = pack / "backtest" / "scorecard.json"
+    payload = json.loads(score.read_text())
+    payload["comparisons"][0]["percent_error"] = 0.001
+    score.write_text(json.dumps(payload))
+    commands.fixture_pack = pack
+    history_id = harness.upload(history).json()["history_id"]
+    job = harness.wait(harness.start(history_id).json()["job_id"])
+
+    required = _preview(harness, job["job_id"]).json()["required_acknowledgements"]
+
+    assert job["result"]["scorecard_current"] is False
+    assert "no_backtest" in required

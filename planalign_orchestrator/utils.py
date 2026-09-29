@@ -26,6 +26,21 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
+def _process_exists(pid: int) -> bool:
+    """Whether ``pid`` is a live process on this host."""
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return True
+    return True
+
+
 class ExecutionMutex:
     """File-based mutex to prevent concurrent simulation runs.
 
@@ -58,10 +73,11 @@ class ExecutionMutex:
             try:
                 if self._try_create_lock():
                     return True
-                # Remove stale lock older than 1 hour
-                if (
-                    self.lock_file.exists()
-                    and time.time() - self.lock_file.stat().st_mtime > 3600
+                # Remove a stale lock: its holder died (e.g. a cancelled Studio
+                # job killed mid-initialization), or it is older than 1 hour.
+                if self.lock_file.exists() and (
+                    self._holder_is_dead()
+                    or time.time() - self.lock_file.stat().st_mtime > 3600
                 ):
                     logger.warning("Removing stale lock file")
                     self.lock_file.unlink()
@@ -75,6 +91,21 @@ class ExecutionMutex:
                 logger.error("Error acquiring lock: %s", e)
                 return False
         logger.error("Failed to acquire execution lock after %d seconds", timeout)
+        return False
+
+    def _holder_is_dead(self) -> bool:
+        """True when the lock names a process that no longer exists here."""
+        try:
+            text = self.lock_file.read_text(encoding="utf-8")
+        except (FileNotFoundError, OSError):
+            return False
+        for line in text.splitlines():
+            if line.startswith("pid:"):
+                try:
+                    pid = int(line.split(":", 1)[1])
+                except ValueError:
+                    return False
+                return not _process_exists(pid)
         return False
 
     def _try_create_lock(self) -> bool:

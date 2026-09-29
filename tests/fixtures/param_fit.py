@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import sys
 import time
 from dataclasses import dataclass, field
@@ -47,22 +46,69 @@ def build_fixture_pack(history_dir: Path, destination: Path) -> Path:
     )
 
 
+_VERDICT_ERROR = {"pass": 0.01, "warn": 0.03, "fail": 0.05}
+
+
 def add_current_scorecard(pack_dir: Path, verdict: str = "pass") -> None:
-    """A minimal scorecard bound to the pack's fingerprint (so it is current)."""
-    manifest = json.loads((pack_dir / "manifest.json").read_text())
-    scorecard = {
-        "verdict": verdict,
-        "verdict_summary": f"1 {verdict}",
-        "scorecard_fingerprint": "f" * 64,
-        "split": {"fit_years": [2022, 2023], "holdout_years": [2024]},
-        "seeds": [42],
-        "comparisons": [],
-        "provenance": {"pack_fingerprint": manifest["fingerprint"]},
-    }
-    target = pack_dir / "backtest"
-    target.mkdir(parents=True, exist_ok=True)
-    (target / "scorecard.json").write_text(json.dumps(scorecard))
-    (target / "scorecard.md").write_text("# Backtest scorecard\n")
+    """A real, verifiable scorecard bound to the pack (so it is current)."""
+    from planalign_backtest.models import (
+        BacktestProvenance,
+        MetricComparison,
+        MetricThresholds,
+        Scorecard,
+        SeedRun,
+        SnapshotSplit,
+        Threshold,
+    )
+    from planalign_backtest.report import write_scorecard
+    from planalign_fit import load_pack
+
+    manifest = load_pack(pack_dir).manifest
+    error = _VERDICT_ERROR[verdict]
+    scorecard = Scorecard(
+        split=SnapshotSplit(
+            fit_years=(2022, 2023),
+            holdout_years=(2024,),
+            boundary_year=2023,
+            all_years=(2022, 2023, 2024),
+        ),
+        seeds=(42,),
+        seed_runs=(
+            SeedRun(
+                seed=42,
+                database=Path("seed_42.duckdb"),
+                config_fingerprint="c" * 64,
+                years_simulated=(2024,),
+            ),
+        ),
+        thresholds=MetricThresholds(),
+        comparisons=(
+            MetricComparison(
+                metric="headcount.total",
+                period=2024,
+                family="headcount",
+                observable=True,
+                predicted=100 * (1 + error),
+                actual=100.0,
+                absolute_error=100 * error,
+                percent_error=error,
+                threshold=Threshold(warn=0.02, fail=0.04),
+            ),
+        ),
+        provenance=BacktestProvenance(
+            snapshots=(),
+            source_digest=manifest.source_digest,
+            pack_id=manifest.pack_id,
+            pack_fingerprint=manifest.fingerprint,
+            promotion_basis=manifest.promotion_basis,
+            level_basis="compensation_band",
+            compensation_basis="annualized",
+            backtest_date="2026-09-28T00:00:00+00:00",
+            tool_version="test",
+        ),
+    )
+    assert scorecard.verdict == verdict
+    write_scorecard(scorecard, pack_dir, force=True)
 
 
 @dataclass

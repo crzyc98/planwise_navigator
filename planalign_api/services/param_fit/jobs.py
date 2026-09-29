@@ -36,6 +36,7 @@ INPUTS_DIRNAME = "inputs"
 PACK_DIRNAME = "pack"
 WORK_DIRNAME = "work"
 LOG_FILENAME = "job.log"
+PROCESS_FILENAME = "process.json"
 
 _write_lock = threading.RLock()
 
@@ -104,6 +105,25 @@ class JobStore:
             mutate(job)
             self.save(job)
             return job
+
+    # -- child process -------------------------------------------------------
+
+    def record_process(self, workspace_id: str, job_id: str, pid: int) -> None:
+        """Remember the child's pid so a restarted API can stop an orphan."""
+        path = self.job_dir(workspace_id, job_id) / PROCESS_FILENAME
+        _atomic_write_json(path, {"pid": pid})
+
+    def recorded_process(self, workspace_id: str, job_id: str) -> Optional[int]:
+        path = self.job_dir(workspace_id, job_id) / PROCESS_FILENAME
+        try:
+            pid = json.loads(path.read_text(encoding="utf-8")).get("pid")
+        except (OSError, ValueError):
+            return None
+        return pid if isinstance(pid, int) else None
+
+    def clear_process(self, workspace_id: str, job_id: str) -> None:
+        path = self.job_dir(workspace_id, job_id) / PROCESS_FILENAME
+        path.unlink(missing_ok=True)
 
     # -- cleanup -------------------------------------------------------------
 

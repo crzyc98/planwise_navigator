@@ -255,7 +255,7 @@ description: "Task list for #588 — Studio workflows for parameter fit and back
 - [x] T055 Run the Studio checks: typecheck, lint (`--max-warnings 0`), vitest
 - [x] T056 Run the slow end-to-end test `tests/api/test_param_fit_backtest_e2e.py` in an isolated temp workspace root
 - [x] T057 [P] Update `docs/guides/parameter_fitting.md` and `docs/guides/backtesting.md` with a "From Studio" section; add a CHANGELOG entry
-- [ ] T058 Independent review (Codex/Opus) of the full diff; address findings
+- [x] T058 Independent review (Codex/Opus) of the full diff; address findings
 
 ---
 

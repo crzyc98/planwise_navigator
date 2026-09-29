@@ -15,6 +15,7 @@ Dry run by default; ``--yes`` deletes.
 
 from __future__ import annotations
 
+import json
 import shutil
 import time
 from dataclasses import dataclass
@@ -91,9 +92,26 @@ def find_stale_param_fit_scratch(
     found = [
         Reclaimable(path, _path_bytes(path))
         for path in sorted(workspaces_root.glob("*/param_fits/*/work"))
-        if path.is_dir() and not path.is_symlink() and path.stat().st_mtime < cutoff
+        if path.is_dir()
+        and not path.is_symlink()
+        and path.stat().st_mtime < cutoff
+        and _param_fit_job_finished(path.parent)
     ]
     return found
+
+
+def _param_fit_job_finished(job_dir: Path) -> bool:
+    """Never reclaim scratch a queued/running job may still be using.
+
+    A job interrupted by a Studio restart is marked failed (and its scratch
+    removed) the next time Studio reads it, so skipping non-terminal records
+    leaves nothing behind for long.
+    """
+    try:
+        status = json.loads((job_dir / "job.json").read_text()).get("status")
+    except (OSError, ValueError):
+        return True
+    return status not in ("queued", "running")
 
 
 def delete_artifacts(items: List[Reclaimable]) -> None:

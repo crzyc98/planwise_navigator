@@ -10,6 +10,7 @@ const STATUS_TONES: Record<string, Tone> = {
 /** Predicted vs actual for every held-out metric and period, with the verdict. */
 export function BacktestScorecard({ scorecard, current }: { scorecard: ScorecardView; current: boolean }) {
   const tone = verdictTone(scorecard.verdict);
+  const hasSpread = scorecard.comparisons.some((row) => row.spread !== null);
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-3">
@@ -38,6 +39,7 @@ export function BacktestScorecard({ scorecard, current }: { scorecard: Scorecard
               <th className="px-3 py-2 text-right">Predicted</th>
               <th className="px-3 py-2 text-right">Actual</th>
               <th className="px-3 py-2 text-right">% error</th>
+              {hasSpread && <th className="px-3 py-2 text-right">Seed range</th>}
               <th className="px-3 py-2">Status</th>
             </tr>
           </thead>
@@ -49,6 +51,15 @@ export function BacktestScorecard({ scorecard, current }: { scorecard: Scorecard
                 <td className="px-3 py-1.5 text-right tabular-nums text-ink">{formatNumber(row.predicted)}</td>
                 <td className="px-3 py-1.5 text-right tabular-nums text-ink">{formatNumber(row.actual)}</td>
                 <td className="px-3 py-1.5 text-right tabular-nums text-ink">{formatPercent(row.percentError, true)}</td>
+                {hasSpread && (
+                  <td
+                    className={`px-3 py-1.5 text-right tabular-nums ${row.spread && !row.spread.actualWithin ? 'text-warning-ink' : 'text-ink-muted'}`}
+                    title={row.spread && !row.spread.actualWithin ? 'Actual falls outside the range the seeds produced' : undefined}
+                  >
+                    {row.spread ? `${formatNumber(row.spread.minimum)} – ${formatNumber(row.spread.maximum)}` : '—'}
+                    {row.spread && !row.spread.actualWithin ? ' ⚠' : ''}
+                  </td>
+                )}
                 <td className="px-3 py-1.5">
                   <Badge tone={STATUS_TONES[row.status] ?? 'neutral'}>{row.status.replace('_', ' ')}</Badge>
                 </td>

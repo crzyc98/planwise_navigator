@@ -210,6 +210,8 @@ export interface ComparisonRow {
   percentError: number | null;
   status: string;
   note: string | null;
+  /** Min/max prediction across seeds; null with a single seed. */
+  spread: { minimum: number; maximum: number; actualWithin: boolean } | null;
 }
 
 export interface ScorecardView {
@@ -243,8 +245,18 @@ export function scorecardView(scorecard: Loose | null | undefined): ScorecardVie
       percentError: num(row.percent_error),
       status: str(row.status) ?? 'undefined',
       note: str(row.unobservable_reason),
+      spread: spreadOf(row.spread),
     })),
   };
+}
+
+function spreadOf(value: unknown): ComparisonRow['spread'] {
+  if (!value || typeof value !== 'object') return null;
+  const spread = value as Loose;
+  const minimum = num(spread.minimum);
+  const maximum = num(spread.maximum);
+  if (minimum === null || maximum === null) return null;
+  return { minimum, maximum, actualWithin: spread.actual_within_spread === true };
 }
 
 // ---------------------------------------------------------------------------

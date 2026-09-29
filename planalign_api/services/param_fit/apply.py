@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any, Iterable, Optional
 
 from planalign_fit.apply import provenance_block
-from planalign_fit.pack import ParameterPack, deep_merge
+from planalign_fit.pack import deep_merge
 from planalign_fit.priors import (
     PROMOTION_AGE_SEED,
     PROMOTION_BASE_SEED,
@@ -65,16 +65,20 @@ def promotion_hazard_from_pack(
 
 
 def build_overrides(
-    source_overrides: dict[str, Any], pack: ParameterPack, pack_dir: Path
+    source_overrides: dict[str, Any], state: PackState, pack_dir: Path
 ) -> dict[str, Any]:
     """The new scenario's overrides: source + fragment + hazard + provenance."""
+    pack = state.pack
     overrides = deep_merge(source_overrides, pack.config_fragment)
     hazard = promotion_hazard_from_pack(pack.seed_files)
     if hazard is not None:
         overrides["promotion_hazard"] = hazard
-    overrides[PROVENANCE_KEY] = provenance_block(
-        pack.manifest, pack=pack, pack_dir=pack_dir
-    )
+    block = provenance_block(pack.manifest, pack=pack, pack_dir=pack_dir)
+    # Only a verified, current scorecard is recorded as this pack's backtest.
+    block.pop("backtest", None)
+    if state.backtest is not None:
+        block["backtest"] = state.backtest
+    overrides[PROVENANCE_KEY] = block
     return overrides
 
 

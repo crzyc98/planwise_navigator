@@ -23,6 +23,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Optional
 
+import psutil
+
 from planalign_fit.pack import MANIFEST_FILENAME
 from planalign_fit.progress import ENV_FLAG, parse_progress_line
 
@@ -70,6 +72,7 @@ class ProcessRegistry:
         self._owned: set[str] = set()
         self._processes: dict[str, subprocess.Popen[str]] = {}
         self._cancelled: set[str] = set()
+        self._finalizing: set[str] = set()
         self._done: dict[str, threading.Event] = {}
 
     def claim(self, job_id: str) -> None:
@@ -95,11 +98,23 @@ class ProcessRegistry:
         with self._lock:
             return job_id in self._cancelled
 
+    def begin_finalize(self, job_id: str) -> bool:
+        """Commit to an outcome; True if the job was cancelled first.
+
+        After this, a cancel request can no longer change the outcome, so a
+        job never reports "cancelled" to one caller and finishes anyway.
+        """
+        with self._lock:
+            self._finalizing.add(job_id)
+            return job_id in self._cancelled
+
     def cancel(self, job_id: str) -> Optional[threading.Event]:
         """Request cancellation; returns an event set once the job has ended."""
         with self._lock:
             if job_id not in self._owned:
                 return None
+            if job_id in self._finalizing:
+                return self._done.get(job_id)  # too late: report the real outcome
             self._cancelled.add(job_id)
             process = self._processes.get(job_id)
             done = self._done.get(job_id)
@@ -112,6 +127,7 @@ class ProcessRegistry:
             self._owned.discard(job_id)
             self._processes.pop(job_id, None)
             self._cancelled.discard(job_id)
+            self._finalizing.discard(job_id)
             done = self._done.pop(job_id, None)
         if done is not None:
             done.set()
@@ -239,6 +255,7 @@ class JobRunner:
             self._fail(job, JobError(kind="unexpected", message=message, status=500))
         finally:
             self._write_log(job, tail)
+            self.store.clear_process(job.workspace_id, job.job_id)
             self.registry.release(job.job_id)
             if self.on_finished is not None:
                 self.on_finished(job.workspace_id)
@@ -265,6 +282,7 @@ class JobRunner:
             start_new_session=IS_POSIX,
         )
         self.registry.attach(job.job_id, process)
+        self.store.record_process(job.workspace_id, job.job_id, process.pid)
         assert process.stdout is not None  # PIPE was requested above
         for line in process.stdout:
             record = parse_progress_line(line)
@@ -299,7 +317,7 @@ class JobRunner:
         tail: deque[str],
         failure: dict[str, object],
     ) -> None:
-        if self.registry.was_cancelled(job.job_id):
+        if self.registry.begin_finalize(job.job_id):
             self.store.remove_artifacts(job.workspace_id, job.job_id)
             self._set_terminal(job, "cancelled")
             return
@@ -425,6 +443,24 @@ def _terminate(process: subprocess.Popen[str]) -> None:
             _signal(process, signal.SIGKILL if IS_POSIX else signal.SIGTERM)
 
     threading.Thread(target=_escalate, daemon=True).start()
+
+
+def terminate_orphan(pid: int, job_id: str) -> None:
+    """Stop a job's child left running by a dead API process.
+
+    Only a process whose command line names this job is touched, so a
+    recycled PID can never take an unrelated process down.
+    """
+    try:
+        process = psutil.Process(pid)
+        if not any(job_id in part for part in process.cmdline()):
+            return
+        if IS_POSIX:
+            os.killpg(pid, signal.SIGKILL)
+        else:
+            process.kill()
+    except (psutil.Error, ProcessLookupError, PermissionError) as exc:
+        logger.debug("Orphaned job %s (pid %s) not stopped: %s", job_id, pid, exc)
 
 
 def _signal(process: subprocess.Popen[str], sig: int) -> None:

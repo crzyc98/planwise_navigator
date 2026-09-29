@@ -14,7 +14,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
-from planalign_fit.apply import provenance_block
+from planalign_backtest.errors import BacktestError
+from planalign_backtest.report import load_scorecard, scorecard_is_current
 from planalign_fit.pack import (
     DIAGNOSTICS_FILENAME,
     REPORT_FILENAME,
@@ -42,10 +43,30 @@ class PackState:
 
 def read_pack_state(pack_dir: Path) -> PackState:
     pack = load_pack(pack_dir)
-    block = provenance_block(pack.manifest, pack=pack, pack_dir=pack_dir)
     return PackState(
-        pack=pack, verified=verify_pack(pack), backtest=block.get("backtest")
+        pack=pack,
+        verified=verify_pack(pack),
+        backtest=_verified_backtest(pack, pack_dir),
     )
+
+
+def _verified_backtest(pack: ParameterPack, pack_dir: Path) -> Optional[dict[str, Any]]:
+    """The pack's backtest only if its scorecard is intact and scores this pack.
+
+    ``load_scorecard`` recomputes the scorecard's own fingerprint, so an edited
+    verdict (say ``fail`` -> ``pass``) cannot quietly remove an acknowledgement.
+    """
+    try:
+        scorecard = load_scorecard(pack_dir)
+    except BacktestError:
+        return None
+    if scorecard is None or not scorecard_is_current(scorecard, pack):
+        return None
+    return {
+        "scorecard_fingerprint": scorecard.scorecard_fingerprint,
+        "verdict": scorecard.verdict,
+        "holdout_years": list(scorecard.split.holdout_years),
+    }
 
 
 def load_result(
@@ -59,7 +80,7 @@ def load_result(
     state = read_pack_state(pack_dir)
     manifest = state.pack.manifest
     diagnostics = _read_json(pack_dir / DIAGNOSTICS_FILENAME) or {}
-    scorecard = _read_json(pack_dir / SCORECARD_JSON)
+    scorecard = _scorecard_payload(pack_dir)
     summary = dict(diagnostics.get("summary") or _summary_from_manifest(manifest))
     summary["verdict"] = scorecard.get("verdict") if scorecard else None
     return ParamFitResult(
@@ -126,7 +147,7 @@ def report_path(pack_dir: Path, kind: str) -> Optional[Path]:
 def pack_summary(pack_dir: Path) -> tuple[Optional[str], Optional[str]]:
     """``(pack_id, verdict)`` for the job list, tolerant of missing files."""
     manifest = _read_json(pack_dir / "manifest.json")
-    scorecard = _read_json(pack_dir / SCORECARD_JSON)
+    scorecard = _scorecard_payload(pack_dir)
     pack_id = manifest.get("pack_id") if manifest else None
     verdict = scorecard.get("verdict") if scorecard else None
     return pack_id, verdict
@@ -177,6 +198,20 @@ def _summary_from_manifest(manifest) -> dict[str, Any]:
         "unfittable_count": len(manifest.unfittable),
         "warning_count": len(manifest.warnings),
     }
+
+
+def _scorecard_payload(pack_dir: Path) -> Optional[dict[str, Any]]:
+    """The scorecard as verified by ``load_scorecard``; raw JSON if it fails.
+
+    Verdicts are derived from the comparisons on load, so a verified payload
+    can never show a hand-edited verdict. A scorecard that fails verification
+    is still shown for inspection, but never counts as current.
+    """
+    try:
+        scorecard = load_scorecard(pack_dir)
+    except BacktestError:
+        return _read_json(pack_dir / SCORECARD_JSON)
+    return scorecard.model_dump(mode="json") if scorecard is not None else None
 
 
 def _read_json(path: Path) -> Optional[dict[str, Any]]:

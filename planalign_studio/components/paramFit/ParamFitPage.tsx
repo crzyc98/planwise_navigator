@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import {
   FitHistorySet,
@@ -44,6 +44,15 @@ export default function ParamFitPage() {
   const [showApply, setShowApply] = useState(false);
   const [applied, setApplied] = useState<Scenario | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The job the user is looking at now; late responses for any other job are dropped.
+  const selectedJobIdRef = useRef<string | null>(null);
+  // Declared before the fetch effects so it updates first on each selection.
+  useEffect(() => {
+    selectedJobIdRef.current = jobId;
+  }, [jobId]);
+  const acceptJob = useCallback((loaded: ParamFitJob) => {
+    if (loaded.job_id === selectedJobIdRef.current) setJob(loaded);
+  }, []);
 
   const refreshHistories = useCallback(
     async (selectId?: string | null) => {
@@ -83,18 +92,18 @@ export default function ParamFitPage() {
   }, [workspaceId, refreshHistories, refreshJobs]);
 
   useEffect(() => {
-    if (!workspaceId || !jobId) {
-      setJob(null);
-      return;
-    }
+    setShowApply(false);
+    // Never show one job's results (or Apply) while another is selected.
+    setJob((current) => (current?.job_id === jobId ? current : null));
+    if (!workspaceId || !jobId) return;
     let cancelled = false;
     getParamFit(workspaceId, jobId)
-      .then((loaded) => !cancelled && setJob(loaded))
+      .then((loaded) => !cancelled && acceptJob(loaded))
       .catch((loadError) => !cancelled && setError(errorText(loadError)));
     return () => {
       cancelled = true;
     };
-  }, [workspaceId, jobId]);
+  }, [workspaceId, jobId, acceptJob]);
 
   const anyActive = jobs.some((item) => !isTerminal(item.status));
   const selectedActive = job !== null && !isTerminal(job.status);
@@ -105,12 +114,12 @@ export default function ParamFitPage() {
       void refreshJobs();
       if (jobId) {
         getParamFit(workspaceId, jobId)
-          .then(setJob)
+          .then(acceptJob)
           .catch(() => undefined);
       }
     }, POLL_MS);
     return () => window.clearInterval(timer);
-  }, [workspaceId, jobId, anyActive, selectedActive, refreshJobs]);
+  }, [workspaceId, jobId, anyActive, selectedActive, refreshJobs, acceptJob]);
 
   const history = histories.find((item) => item.history_id === historyId) ?? null;
   const backtestRunning = jobs.some((item) => item.mode === 'backtest' && !isTerminal(item.status));
@@ -187,7 +196,7 @@ export default function ParamFitPage() {
             workspaceId={workspaceId}
             job={job}
             onChanged={(updated) => {
-              setJob(updated);
+              acceptJob(updated);
               void refreshJobs();
             }}
           />

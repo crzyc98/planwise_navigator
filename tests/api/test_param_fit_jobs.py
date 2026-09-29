@@ -455,3 +455,68 @@ def test_request_defaults_match_the_cli_engine():
     assert options.min_exposure == cli.min_exposure
     assert options.level_coverage_threshold == cli.level_coverage_threshold
     assert options.separation_exposure_gate == cli.separation_exposure_gate
+
+
+def _sleeper(*argv: str):
+    import subprocess
+    import sys
+
+    return subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(60)", *argv],
+        start_new_session=True,
+    )
+
+
+def test_restart_stops_an_orphaned_child_before_marking_it_interrupted(harness):
+    store = JobStore(harness.storage.workspaces_root)
+    store.save(
+        _job(
+            harness.workspace_id,
+            "fit_orphan2",
+            datetime.now(timezone.utc),
+            status="running",
+        )
+    )
+    child = _sleeper("--job", "fit_orphan2")
+    try:
+        store.record_process(harness.workspace_id, "fit_orphan2", child.pid)
+
+        job = harness.client.get(harness.url("/param-fits/fit_orphan2")).json()
+
+        assert job["error"]["kind"] == "interrupted"
+        assert child.wait(timeout=10) is not None
+        assert store.recorded_process(harness.workspace_id, "fit_orphan2") is None
+    finally:
+        if child.poll() is None:
+            child.kill()
+
+
+def test_orphan_cleanup_never_touches_an_unrelated_process(harness):
+    store = JobStore(harness.storage.workspaces_root)
+    store.save(
+        _job(
+            harness.workspace_id, "fit_recycled", datetime.now(timezone.utc), "running"
+        )
+    )
+    unrelated = _sleeper("--something-else")
+    try:
+        store.record_process(harness.workspace_id, "fit_recycled", unrelated.pid)
+
+        harness.client.get(harness.url("/param-fits/fit_recycled"))
+
+        assert unrelated.poll() is None
+    finally:
+        unrelated.kill()
+
+
+def test_cancel_arriving_after_finalization_reports_the_real_outcome():
+    registry = ProcessRegistry()
+    registry.claim("fit_race")
+
+    assert registry.begin_finalize("fit_race") is False
+    done = registry.cancel("fit_race")
+
+    assert done is not None
+    assert registry.was_cancelled("fit_race") is False
+    registry.release("fit_race")
+    assert done.is_set()

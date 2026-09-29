@@ -45,6 +45,7 @@ from .runner import (
     ProcessRegistry,
     build_cli_command,
     default_registry,
+    terminate_orphan,
 )
 
 logger = logging.getLogger(__name__)
@@ -266,7 +267,7 @@ class ParamFitService:
                 stale=[reason.model_dump() for reason in blocking],
             )
         overrides = pack_apply.build_overrides(
-            dict(source.config_overrides), state.pack, pack_dir
+            dict(source.config_overrides), state, pack_dir
         )
         thin = (job.result.summary if job.result else {}).get("thin_count")
         return {
@@ -432,6 +433,10 @@ class ParamFitService:
                 status=500,
             )
 
+        pid = self.jobs.recorded_process(job.workspace_id, job.job_id)
+        if pid is not None:
+            terminate_orphan(pid, job.job_id)
+            self.jobs.clear_process(job.workspace_id, job.job_id)
         updated = self.jobs.update(job.workspace_id, job.job_id, _interrupt)
         self.jobs.remove_artifacts(job.workspace_id, job.job_id)
         return updated or job
