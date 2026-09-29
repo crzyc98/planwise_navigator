@@ -74,7 +74,7 @@ dev = [
     "types-PyYAML==6.0.12.20260518",
     "pylint==4.0.9",
     "flake8==6.1.0",
-    "pre-commit==3.3.3",
+    "pre-commit==4.6.2",
     # Dependency vulnerability scanning (#705)
     "pip-audit==2.10.1",
 
