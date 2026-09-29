@@ -39,5 +39,5 @@ mkdocs-material==9.7.7
 pymdown-extensions==11.0.1
 mkdocstrings-python==1.5.0
 jupyter==1.0.0
-ipython==8.14.0
+ipython==9.17.1
 ipdb==0.13.13
