@@ -2968,7 +2968,6 @@ export interface components {
              * Objective
              * @default max_annual_error
              * @constant
-             * @enum {string}
              */
             objective: "max_annual_error";
             /** Results */
@@ -2990,7 +2989,9 @@ export interface components {
              */
             adjust: "cola" | "merit" | "both";
             /** Base Job Level Compensation */
-            base_job_level_compensation?: Record<string, unknown>[] | null;
+            base_job_level_compensation?: {
+                [key: string]: unknown;
+            }[] | null;
             /**
              * Initial Scale
              * @default 1
@@ -3550,7 +3551,9 @@ export interface components {
             /** Cola Rate */
             cola_rate?: number | null;
             /** Job Level Compensation */
-            job_level_compensation?: Record<string, unknown>[] | null;
+            job_level_compensation?: {
+                [key: string]: unknown;
+            }[] | null;
             /** Merit Budget */
             merit_budget?: number | null;
             /** New Hire Age Distribution */
@@ -3597,7 +3600,6 @@ export interface components {
             /**
              * Status
              * @constant
-             * @enum {string}
              */
             status: "queued";
         };
@@ -3948,7 +3950,6 @@ export interface components {
              * Query Id
              * @default Q1
              * @constant
-             * @enum {string}
              */
             query_id: "Q1";
             /** Result Column */
@@ -4270,7 +4271,9 @@ export interface components {
         /** ConfigurationEvidence */
         ConfigurationEvidence: {
             /** Effective */
-            effective: Record<string, unknown> | null;
+            effective: {
+                [key: string]: unknown;
+            } | null;
             /** Fingerprint */
             fingerprint: string | null;
             /** Fingerprint Method */
@@ -4469,7 +4472,6 @@ export interface components {
              * Schema Version
              * @default 1.0
              * @constant
-             * @enum {string}
              */
             schema_version: "1.0";
             /**
@@ -5190,29 +5192,29 @@ export interface components {
             /** Annual Hours Worked */
             annual_hours_worked: number;
             /** Current Forfeiture */
-            current_forfeiture: string;
+            current_forfeiture: number;
             /** Current Vested Amount */
-            current_vested_amount: string;
+            current_vested_amount: number;
             /** Current Vesting Pct */
-            current_vesting_pct: string;
+            current_vesting_pct: number;
             /** Employee Id */
             employee_id: string;
             /**
              * Forfeiture Variance
              * @description Proposed - Current forfeiture (negative = less forfeiture)
              */
-            forfeiture_variance: string;
+            forfeiture_variance: number;
             /**
              * Hire Date
              * Format: date
              */
             hire_date: string;
             /** Proposed Forfeiture */
-            proposed_forfeiture: string;
+            proposed_forfeiture: number;
             /** Proposed Vested Amount */
-            proposed_vested_amount: string;
+            proposed_vested_amount: number;
             /** Proposed Vesting Pct */
-            proposed_vesting_pct: string;
+            proposed_vesting_pct: number;
             /** Tenure Band */
             tenure_band: string;
             /** Tenure Years */
@@ -5223,7 +5225,7 @@ export interface components {
              */
             termination_date: string;
             /** Total Employer Contributions */
-            total_employer_contributions: string;
+            total_employer_contributions: number;
         };
         /**
          * EmployerCostOffsetRow
@@ -5505,7 +5507,6 @@ export interface components {
              * Schema Version
              * @default 1.0
              * @constant
-             * @enum {string}
              */
             schema_version: "1.0";
             /**
@@ -5651,7 +5652,9 @@ export interface components {
              * Column Renames
              * @description Columns that were auto-renamed from aliases to canonical names
              */
-            column_renames: Record<string, unknown>[];
+            column_renames: {
+                [key: string]: unknown;
+            }[];
             /**
              * Columns
              * @description List of column names
@@ -5878,7 +5881,7 @@ export interface components {
          */
         ForfeitureYearRow: {
             /** Forfeited Amount */
-            forfeited_amount: string;
+            forfeited_amount: number;
             /**
              * Has Prior Year Basis
              * @description False for a scenario's first simulation year, which has no earlier year to source employer contributions from. Such a row is not a measured zero and must not be rendered as $0.
@@ -5892,9 +5895,9 @@ export interface components {
              */
             terminated_employee_count: number;
             /** Total Employer Contributions */
-            total_employer_contributions: string;
+            total_employer_contributions: number;
             /** Vested Amount */
-            vested_amount: string;
+            vested_amount: number;
             /**
              * Vesting Eligible Count
              * @description Terminated employees who accrued employer contributions in an earlier simulation year
@@ -6176,7 +6179,9 @@ export interface components {
             /** Error Message */
             error_message: string | null;
             /** Error Rows */
-            error_rows: Record<string, unknown>[];
+            error_rows: {
+                [key: string]: unknown;
+            }[];
             /** Import Id */
             import_id: string;
             /** Mapping Saved At */
@@ -6186,7 +6191,9 @@ export interface components {
             /** Parquet File Id */
             parquet_file_id: string | null;
             /** Preview Rows */
-            preview_rows: Record<string, unknown>[];
+            preview_rows: {
+                [key: string]: unknown;
+            }[];
             /**
              * Row Count
              * @default 0
@@ -6279,7 +6286,9 @@ export interface components {
             /** History Id */
             history_id: string;
             /** Moved Settings */
-            moved_settings: Record<string, unknown>;
+            moved_settings: {
+                [key: string]: unknown;
+            };
             /** Snapshots */
             snapshots: components["schemas"]["SnapshotInfo"][];
             /** Source Digest */
@@ -6442,7 +6451,9 @@ export interface components {
             /** Preview Row Count */
             preview_row_count: number;
             /** Rows */
-            rows: Record<string, unknown>[];
+            rows: {
+                [key: string]: unknown;
+            }[];
             /** Total Row Count */
             total_row_count: number;
             /** Transformation Warnings */
@@ -6556,7 +6567,6 @@ export interface components {
              * Percentile Method
              * @default linear
              * @constant
-             * @enum {string}
              */
             percentile_method: "linear";
             /** Scenario Id */
@@ -6767,7 +6777,9 @@ export interface components {
             /** Search Seed */
             search_seed?: number | null;
             /** Spec */
-            spec: Record<string, unknown>;
+            spec: {
+                [key: string]: unknown;
+            };
             /** Workspace Id */
             workspace_id?: string | null;
         };
@@ -6782,7 +6794,6 @@ export interface components {
             /**
              * Status
              * @constant
-             * @enum {string}
              */
             status: "queued";
         };
@@ -6794,7 +6805,9 @@ export interface components {
             /** Max Runs */
             max_runs?: number | null;
             /** Spec */
-            spec?: Record<string, unknown> | null;
+            spec?: {
+                [key: string]: unknown;
+            } | null;
             /** Spec Yaml */
             spec_yaml?: string | null;
         };
@@ -6805,7 +6818,9 @@ export interface components {
             /** Error */
             error: string | null;
             /** Resolved Spec */
-            resolved_spec: Record<string, unknown> | null;
+            resolved_spec: {
+                [key: string]: unknown;
+            } | null;
             /** Seed Phase Candidates */
             seed_phase_candidates: unknown[] | null;
             /** Seed Phase Count */
@@ -6980,7 +6995,9 @@ export interface components {
         ParamFitResult: {
             /** Diagnostics */
             diagnostics: {
-                [key: string]: Record<string, unknown>[];
+                [key: string]: {
+                    [key: string]: unknown;
+                }[];
             };
             /**
              * Has Fit Report
@@ -6988,11 +7005,17 @@ export interface components {
              */
             has_fit_report: boolean;
             /** Promotion Classification */
-            promotion_classification: Record<string, unknown> | null;
+            promotion_classification: {
+                [key: string]: unknown;
+            } | null;
             /** Provenance */
-            provenance: Record<string, unknown>;
+            provenance: {
+                [key: string]: unknown;
+            };
             /** Scorecard */
-            scorecard: Record<string, unknown> | null;
+            scorecard: {
+                [key: string]: unknown;
+            } | null;
             /**
              * Scorecard Current
              * @default false
@@ -7001,9 +7024,13 @@ export interface components {
             /** Stale */
             stale: components["schemas"]["StaleReason"][];
             /** Summary */
-            summary: Record<string, unknown>;
+            summary: {
+                [key: string]: unknown;
+            };
             /** Unfittable */
-            unfittable: Record<string, unknown>[];
+            unfittable: {
+                [key: string]: unknown;
+            }[];
             /** Warnings */
             warnings: string[];
         };
@@ -7217,7 +7244,9 @@ export interface components {
             /** Preview Row Count */
             preview_row_count: number;
             /** Rows */
-            rows: Record<string, unknown>[];
+            rows: {
+                [key: string]: unknown;
+            }[];
             /** Total Row Count */
             total_row_count: number;
         };
@@ -7290,7 +7319,6 @@ export interface components {
              * Report Schema Version
              * @default 1.0
              * @constant
-             * @enum {string}
              */
             report_schema_version: "1.0";
             sign_off: components["schemas"]["ReviewSignOff"];
@@ -7312,14 +7340,12 @@ export interface components {
              * Algorithm
              * @default SHA-256
              * @constant
-             * @enum {string}
              */
             algorithm: "SHA-256";
             /**
              * Canonicalization
              * @default planalign-provenance-json-v1
              * @constant
-             * @enum {string}
              */
             canonicalization: "planalign-provenance-json-v1";
             /** Value */
@@ -7409,7 +7435,9 @@ export interface components {
              * Config
              * @description Configuration used for run
              */
-            config: Record<string, unknown> | null;
+            config: {
+                [key: string]: unknown;
+            } | null;
             /**
              * Duration Seconds
              * @description Total duration in seconds
@@ -7644,7 +7672,9 @@ export interface components {
              * Run
              * @description run_id / status / error_message summary
              */
-            run: Record<string, unknown>;
+            run: {
+                [key: string]: unknown;
+            };
             /** @description Null when no in-memory state exists */
             telemetry: components["schemas"]["RunTelemetrySnapshot"] | null;
         };
@@ -7733,7 +7763,9 @@ export interface components {
              * Config Overrides
              * @description Configuration overrides
              */
-            config_overrides: Record<string, unknown>;
+            config_overrides: {
+                [key: string]: unknown;
+            };
             /**
              * Created At
              * Format: date-time
@@ -7769,7 +7801,9 @@ export interface components {
              * Provenance
              * @description Optional record of how this scenario was created
              */
-            provenance: Record<string, unknown> | null;
+            provenance: {
+                [key: string]: unknown;
+            } | null;
             /** @description Summary of last run results */
             results_summary: components["schemas"]["ScenarioResultsSummary"] | null;
             /**
@@ -7820,7 +7854,9 @@ export interface components {
              * Config Overrides
              * @description Configuration overrides (merged with workspace base config)
              */
-            config_overrides?: Record<string, unknown>;
+            config_overrides?: {
+                [key: string]: unknown;
+            };
             /**
              * Description
              * @description Scenario description
@@ -7835,7 +7871,9 @@ export interface components {
              * Provenance
              * @description Optional record of how this scenario was created
              */
-            provenance?: Record<string, unknown> | null;
+            provenance?: {
+                [key: string]: unknown;
+            } | null;
         };
         /**
          * ScenarioForfeitureSeries
@@ -7852,11 +7890,11 @@ export interface components {
             /** Scenario Name */
             scenario_name: string;
             /** Total Employer Contributions */
-            total_employer_contributions: string;
+            total_employer_contributions: number;
             /** Total Forfeited */
-            total_forfeited: string;
+            total_forfeited: number;
             /** Total Vested */
-            total_vested: string;
+            total_vested: number;
             /** Years */
             years: components["schemas"]["ForfeitureYearRow"][];
         };
@@ -7918,7 +7956,9 @@ export interface components {
          */
         ScenarioUpdate: {
             /** Config Overrides */
-            config_overrides?: Record<string, unknown> | null;
+            config_overrides?: {
+                [key: string]: unknown;
+            } | null;
             /** Description */
             description?: string | null;
             /** Name */
@@ -8266,12 +8306,16 @@ export interface components {
              * Cagr Metrics
              * @description CAGR calculations for headcount, total compensation, and average compensation
              */
-            cagr_metrics: Record<string, unknown>[];
+            cagr_metrics: {
+                [key: string]: unknown;
+            }[];
             /**
              * Compensation By Status
              * @description Compensation breakdown by year and employment status
              */
-            compensation_by_status: Record<string, unknown>[];
+            compensation_by_status: {
+                [key: string]: unknown;
+            }[];
             /** End Year */
             end_year: number;
             /**
@@ -8310,7 +8354,9 @@ export interface components {
              * Workforce Progression
              * @description Year-by-year workforce breakdown
              */
-            workforce_progression: Record<string, unknown>[];
+            workforce_progression: {
+                [key: string]: unknown;
+            }[];
         };
         /**
          * SimulationRun
@@ -8519,7 +8565,9 @@ export interface components {
         /** SuggestionsResponse */
         SuggestionsResponse: {
             /** Canonical Schema */
-            canonical_schema: Record<string, unknown>[];
+            canonical_schema: {
+                [key: string]: unknown;
+            }[];
             data_quality: components["schemas"]["DataQualityResult"];
             /** Import Id */
             import_id: string;
@@ -8840,7 +8888,9 @@ export interface components {
              * Detail
              * @description Structured payload (e.g. year counts + duration)
              */
-            detail: Record<string, unknown> | null;
+            detail: {
+                [key: string]: unknown;
+            } | null;
             /**
              * Kind
              * @description Milestone discriminator
@@ -8895,7 +8945,9 @@ export interface components {
              * Config
              * @description Configuration overrides to apply
              */
-            config: Record<string, unknown>;
+            config: {
+                [key: string]: unknown;
+            };
             /**
              * Description
              * @description Template description
@@ -8929,17 +8981,17 @@ export interface components {
          */
         TenureBandSummary: {
             /** Current Forfeitures */
-            current_forfeitures: string;
+            current_forfeitures: number;
             /** Employee Count */
             employee_count: number;
             /** Forfeiture Variance */
-            forfeiture_variance: string;
+            forfeiture_variance: number;
             /** Proposed Forfeitures */
-            proposed_forfeitures: string;
+            proposed_forfeitures: number;
             /** Tenure Band */
             tenure_band: string;
             /** Total Contributions */
-            total_contributions: string;
+            total_contributions: number;
         };
         /** ThresholdPair */
         ThresholdPair: {
@@ -9010,7 +9062,9 @@ export interface components {
         /** Transformation */
         Transformation: {
             /** Params */
-            params?: Record<string, unknown>;
+            params?: {
+                [key: string]: unknown;
+            };
             /**
              * Transform Type
              * @enum {string}
@@ -9168,30 +9222,30 @@ export interface components {
             /** Analysis Year */
             analysis_year: number;
             /** Current Total Forfeited */
-            current_total_forfeited: string;
+            current_total_forfeited: number;
             /** Current Total Vested */
-            current_total_vested: string;
+            current_total_vested: number;
             /**
              * Forfeiture Variance
              * @description Proposed - Current total forfeiture
              */
-            forfeiture_variance: string;
+            forfeiture_variance: number;
             /**
              * Forfeiture Variance Pct
              * @description Percentage change in forfeitures
              */
-            forfeiture_variance_pct: string;
+            forfeiture_variance_pct: number;
             /** Proposed Total Forfeited */
-            proposed_total_forfeited: string;
+            proposed_total_forfeited: number;
             /** Proposed Total Vested */
-            proposed_total_vested: string;
+            proposed_total_vested: number;
             /**
              * Terminated Employee Count
              * @description Deprecated compatibility field for the vesting-eligible terminated employee count
              */
             terminated_employee_count: number;
             /** Total Employer Contributions */
-            total_employer_contributions: string;
+            total_employer_contributions: number;
             /**
              * Total Terminated Employee Count
              * @description All employees terminated in the analysis year
@@ -9448,7 +9502,9 @@ export interface components {
              * Base Config
              * @description Base configuration (uses defaults if not provided)
              */
-            base_config?: Record<string, unknown> | null;
+            base_config?: {
+                [key: string]: unknown;
+            } | null;
             /**
              * Description
              * @description Workspace description
@@ -9487,7 +9543,9 @@ export interface components {
              * Base Config
              * @description Base simulation configuration
              */
-            base_config: Record<string, unknown>;
+            base_config: {
+                [key: string]: unknown;
+            };
             /**
              * Created At
              * Format: date-time
@@ -9618,7 +9676,9 @@ export interface components {
          */
         WorkspaceUpdate: {
             /** Base Config */
-            base_config?: Record<string, unknown> | null;
+            base_config?: {
+                [key: string]: unknown;
+            } | null;
             /** Description */
             description?: string | null;
             /** Lifecycle */
@@ -9856,7 +9916,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, unknown>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };
@@ -10094,7 +10156,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, unknown>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -10508,7 +10572,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, unknown>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -11922,7 +11988,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, unknown>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -11992,7 +12060,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, unknown>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -13657,7 +13727,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, unknown>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -13692,7 +13764,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, unknown>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
