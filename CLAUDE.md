@@ -374,6 +374,8 @@ Managed in `_version.py` and `pyproject.toml`. See `/docs/VERSIONING_GUIDE.md` f
 - DuckDB event store; `int_employee_match_calculations`, `int_employer_core_contributions`, `fct_employer_match_events`, `fct_workforce_snapshot` (633-per-design-formula-families)
 - Python 3.11; dbt-core 1.8.8 / dbt-duckdb 1.8.1 (Jinja-templated SQL); TypeScript/React for Studio + DuckDB 1.0.0, Pydantic v2, `planalign_orchestrator` pipeline (652-flat-newhire-enrollment-rates)
 - DuckDB event store — `int_voluntary_enrollment_decision`, `int_proactive_voluntary_enrollment`, `int_enrollment_events`, `int_enrollment_state_accumulator`, `fct_yearly_events`, `fct_workforce_snapshot` (652-flat-newhire-enrollment-rates)
+- Python 3.11; TypeScript 5.8 / React 19 (Studio) + FastAPI, Pydantic v2, `planalign_fit`, `planalign_backtest`, Typer CLI, React Router 7, Tailwind 4, lucide-reac (588-studio-fit-backtest)
+- Workspace filesystem (JSON records, pack directories). Per-seed isolated DuckDBs for backtest scratch. No shared-DB access. (588-studio-fit-backtest)
 
 ## Recent Changes
 - 633-per-design-formula-families: Added Python 3.11; dbt-core 1.8.8 / dbt-duckdb 1.8.1 (Jinja-templated SQL) + DuckDB 1.0.0, Pydantic v2, `planalign_orchestrator` pipeline
