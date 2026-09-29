@@ -875,7 +875,17 @@
           "metric",
           "simulation_year",
           "subsystem",
+          "variance_share",
+          "ci_low",
+          "ci_high",
+          "baseline_variance",
+          "frozen_variance",
+          "anchor_seeds",
+          "n_anchors",
           "n_seeds",
+          "bootstrap_iterations",
+          "baselines_reused",
+          "baselines_executed",
           "stochastic_status"
         ],
         "title": "AttributionShare",
@@ -1035,9 +1045,11 @@
           "converged",
           "message",
           "best_params",
+          "best_scale",
           "achieved_comp_growth_pct",
           "target_comp_growth_pct",
           "max_abs_error_pct",
+          "objective",
           "start_year",
           "end_year",
           "iterations",
@@ -2511,7 +2523,12 @@
         "required": [
           "candidate_id",
           "lever_values",
-          "status"
+          "db_path",
+          "status",
+          "objective_values",
+          "constraint_results",
+          "is_duplicate_of",
+          "duration_seconds"
         ],
         "title": "Candidate",
         "type": "object"
@@ -3061,6 +3078,7 @@
         },
         "required": [
           "result_store",
+          "query_id",
           "query",
           "result_column"
         ],
@@ -3992,7 +4010,9 @@
           "description",
           "contribution",
           "share_of_change",
-          "population"
+          "population",
+          "rate_a",
+          "rate_b"
         ],
         "title": "CrossScenarioDriverContribution",
         "type": "object"
@@ -4056,11 +4076,14 @@
           }
         },
         "required": [
+          "schema_version",
           "provenance_a",
           "provenance_b",
+          "config_differences",
           "change",
           "drivers",
           "residual",
+          "warnings",
           "executive_summary",
           "population_note"
         ],
@@ -4147,6 +4170,7 @@
           "value",
           "unit",
           "status",
+          "reason",
           "citations"
         ],
         "title": "CrossScenarioFigure",
@@ -4222,7 +4246,8 @@
           "value_b",
           "total_change",
           "population_a",
-          "population_b"
+          "population_b",
+          "shares_suppressed_reason"
         ],
         "title": "CrossScenarioMetricChange",
         "type": "object"
@@ -5149,7 +5174,9 @@
           "description",
           "contribution",
           "share_of_change",
-          "population"
+          "population",
+          "base_rate",
+          "target_rate"
         ],
         "title": "DriverContribution",
         "type": "object"
@@ -6100,6 +6127,7 @@
           "value",
           "unit",
           "status",
+          "reason",
           "citation"
         ],
         "title": "EvidenceFigure",
@@ -6193,10 +6221,12 @@
           }
         },
         "required": [
+          "schema_version",
           "provenance",
           "change",
           "drivers",
           "residual",
+          "warnings",
           "executive_summary",
           "population_note"
         ],
@@ -8336,7 +8366,8 @@
           "target_value",
           "total_change",
           "base_population",
-          "target_population"
+          "target_population",
+          "shares_suppressed_reason"
         ],
         "title": "MetricChange",
         "type": "object"
@@ -8463,9 +8494,17 @@
           "scenario_id",
           "metric",
           "simulation_year",
+          "p10",
+          "p25",
+          "p50",
+          "p75",
+          "p90",
+          "mean",
+          "stddev",
           "n_seeds",
           "n_seeds_requested",
-          "is_sufficient"
+          "is_sufficient",
+          "percentile_method"
         ],
         "title": "MetricDistribution",
         "type": "object"
@@ -9207,8 +9246,13 @@
           }
         },
         "required": [
+          "workspace_id",
           "scenario_id",
+          "scenario_name",
           "run_id",
+          "run_timestamp",
+          "random_seed",
+          "config_fingerprint",
           "result_store",
           "verification_disposition"
         ],
@@ -9983,7 +10027,16 @@
         "required": [
           "simulation_year",
           "avg_compensation",
-          "headcount"
+          "yoy_growth_pct",
+          "target_growth_pct",
+          "growth_delta_pct",
+          "headcount",
+          "headcount_growth_pct",
+          "total_compensation",
+          "total_comp_growth_pct",
+          "new_hire_avg_comp",
+          "existing_avg_comp",
+          "new_hire_gap"
         ],
         "title": "PerYearCompensationResult",
         "type": "object"
@@ -10113,7 +10166,10 @@
         },
         "required": [
           "label",
-          "count"
+          "count",
+          "base_count",
+          "target_count",
+          "changed_count"
         ],
         "title": "PopulationEvidence",
         "type": "object"
@@ -10581,7 +10637,11 @@
         "required": [
           "metric",
           "threshold_value",
-          "is_evaluable"
+          "simulation_year",
+          "exceedance_probability",
+          "n_seeds",
+          "is_evaluable",
+          "reason"
         ],
         "title": "RiskStatement",
         "type": "object"

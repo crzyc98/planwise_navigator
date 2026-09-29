@@ -117,7 +117,9 @@ class ConstraintResult(BaseModel):
 class Candidate(BaseModel):
     """One evaluated or exactly deduplicated design point."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(
+        frozen=True, json_schema_serialization_defaults_required=True
+    )
     candidate_id: str
     lever_values: dict[str, LeverValue]
     db_path: Path | None = None

@@ -1531,17 +1531,7 @@ export async function getPromotionHazardConfig(workspaceId: string): Promise<Pro
  * Vesting schedule type enum values.
  * Maps to VestingScheduleType in backend.
  */
-export type VestingScheduleType =
-  | 'immediate'
-  | 'cliff_1_year'
-  | 'cliff_2_year'
-  | 'cliff_3_year'
-  | 'cliff_4_year'
-  | 'qaca_2_year'
-  | 'graded_3_year'
-  | 'graded_4_year'
-  | 'graded_5_year'
-  | 'graded_6_year';
+export type VestingScheduleType = Schemas['VestingScheduleType'];
 
 /**
  * Vesting schedule metadata for display.
@@ -1556,21 +1546,12 @@ export type VestingScheduleListResponse = Schemas['VestingScheduleListResponse']
 /**
  * Configuration for a vesting schedule in analysis request.
  */
-export interface VestingScheduleConfig {
-  schedule_type: VestingScheduleType;
-  name: string;
-  require_hours_credit?: boolean;
-  hours_threshold?: number;
-}
+export type VestingScheduleConfig = Schemas['VestingScheduleConfig-Input'];
 
 /**
  * Request body for vesting analysis.
  */
-export interface VestingAnalysisRequest {
-  current_schedule: VestingScheduleConfig;
-  proposed_schedule: VestingScheduleConfig;
-  simulation_year?: number;
-}
+export type VestingAnalysisRequest = Schemas['VestingAnalysisRequest'];
 
 /**
  * Summary statistics for vesting analysis.
@@ -1908,11 +1889,7 @@ export type TestResult = 'pass' | 'fail' | 'error';
 
 export type ACPScenarioResult = Schemas['ACPScenarioResult'];
 
-export interface ACPTestResponse {
-  test_type: string;
-  year: number;
-  results: ACPScenarioResult[];
-}
+export type ACPTestResponse = Schemas['ACPTestResponse'];
 
 export interface NDTAvailableYearsResponse {
   years: number[];
@@ -1961,11 +1938,7 @@ export type Section401a4EmployeeDetail = Schemas['Section401a4EmployeeDetail'];
 
 export type Section401a4ScenarioResult = Schemas['Section401a4ScenarioResult'];
 
-export interface Section401a4TestResponse {
-  test_type: string;
-  year: number;
-  results: Section401a4ScenarioResult[];
-}
+export type Section401a4TestResponse = Schemas['Section401a4TestResponse'];
 
 /**
  * Run 401(a)(4) general nondiscrimination test for one or more scenarios.
@@ -1997,11 +1970,7 @@ export type Section415EmployeeDetail = Schemas['Section415EmployeeDetail'];
 
 export type Section415ScenarioResult = Schemas['Section415ScenarioResult'];
 
-export interface Section415TestResponse {
-  test_type: string;
-  year: number;
-  results: Section415ScenarioResult[];
-}
+export type Section415TestResponse = Schemas['Section415TestResponse'];
 
 // ============================================================================
 // NDT ADP (Actual Deferral Percentage) Test (Feature 052)
@@ -2011,11 +1980,7 @@ export type ADPEmployeeDetail = Schemas['ADPEmployeeDetail'];
 
 export type ADPScenarioResult = Schemas['ADPScenarioResult'];
 
-export interface ADPTestResponse {
-  test_type: string;
-  year: number;
-  results: ADPScenarioResult[];
-}
+export type ADPTestResponse = Schemas['ADPTestResponse'];
 
 /**
  * Run ADP non-discrimination test for one or more scenarios.
@@ -2185,20 +2150,7 @@ export interface AutoCalibrationResponse {
   context: CalibrationContext;
 }
 
-export interface PerYearCompensationResult {
-  simulation_year: number;
-  avg_compensation: number;
-  yoy_growth_pct: number | null;
-  target_growth_pct: number | null;
-  growth_delta_pct: number | null;
-  headcount: number;
-  headcount_growth_pct: number | null;
-  total_compensation: number;
-  total_comp_growth_pct: number | null;
-  new_hire_avg_comp: number | null;
-  existing_avg_comp: number | null;
-  new_hire_gap: number | null;
-}
+export type PerYearCompensationResult = Schemas['PerYearCompensationResult'];
 
 export interface CalibrationRunResponse {
   run_id: string;
@@ -2348,16 +2300,7 @@ export type ConstraintResult = Schemas['ConstraintResult'];
 
 export type CandidateStatus = 'feasible' | 'infeasible' | 'non_evaluable' | 'failed';
 
-export interface Candidate {
-  candidate_id: string;
-  lever_values: Record<string, LeverValue>;
-  db_path: string | null;
-  status: CandidateStatus;
-  objective_values: Record<string, number | null>;
-  constraint_results: ConstraintResult[];
-  is_duplicate_of: string | null;
-  duration_seconds: number;
-}
+export type Candidate = Schemas['Candidate'];
 
 export interface OptimizerRun {
   run_id: string;

@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
-    "generate:api-types": "openapi-typescript ../tests/api/snapshots/openapi_schema.json -o services/api.generated.ts --empty-objects-unknown"
+    "generate:api-types": "openapi-typescript ../tests/api/snapshots/openapi_schema.json -o services/api.generated.ts --empty-objects-unknown --default-non-nullable false"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

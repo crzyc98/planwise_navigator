@@ -64,7 +64,9 @@ _WRITE_SQL = re.compile(
 
 
 class StrictModel(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", json_schema_serialization_defaults_required=True
+    )
 
 
 def validate_figure_status(status: str, value: str | None, reason: str | None) -> None:

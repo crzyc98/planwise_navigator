@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import duckdb
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from planalign_orchestrator.config import load_simulation_config
 from planalign_orchestrator.config.export import to_dbt_vars
@@ -142,6 +142,8 @@ class CalibrationRun(BaseModel):
 
 class PerYearCompensationResult(BaseModel):
     """Per-year compensation-growth result row (one per simulation year)."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     simulation_year: int
     avg_compensation: float

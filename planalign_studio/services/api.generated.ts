@@ -2876,9 +2876,9 @@ export interface components {
          */
         AttributionShare: {
             /** Anchor Seeds */
-            anchor_seeds?: number[];
+            anchor_seeds: number[];
             /** Baseline Variance */
-            baseline_variance?: number | null;
+            baseline_variance: number | null;
             /**
              * Baselines Executed
              * @default 0
@@ -2895,11 +2895,11 @@ export interface components {
              */
             bootstrap_iterations: number;
             /** Ci High */
-            ci_high?: number | null;
+            ci_high: number | null;
             /** Ci Low */
-            ci_low?: number | null;
+            ci_low: number | null;
             /** Frozen Variance */
-            frozen_variance?: number | null;
+            frozen_variance: number | null;
             /** Metric */
             metric: string;
             /**
@@ -2918,7 +2918,7 @@ export interface components {
             stochastic_status: "stochastic" | "not_stochastic";
             subsystem: components["schemas"]["Subsystem"];
             /** Variance Share */
-            variance_share?: number | null;
+            variance_share: number | null;
         };
         /**
          * AutoCalibrationRequest
@@ -2953,7 +2953,7 @@ export interface components {
             achieved_comp_growth_pct: number;
             best_params: components["schemas"]["CalibrationParameterSet"];
             /** Best Scale */
-            best_scale?: number | null;
+            best_scale: number | null;
             /** Converged */
             converged: boolean;
             /** End Year */
@@ -2987,7 +2987,7 @@ export interface components {
              * @default both
              * @enum {string}
              */
-            adjust: "cola" | "merit" | "both";
+            adjust?: "cola" | "merit" | "both";
             /** Base Job Level Compensation */
             base_job_level_compensation?: {
                 [key: string]: unknown;
@@ -2996,33 +2996,33 @@ export interface components {
              * Initial Scale
              * @default 1
              */
-            initial_scale: number;
+            initial_scale?: number;
             /**
              * Lever Fallback
              * @default true
              */
-            lever_fallback: boolean;
+            lever_fallback?: boolean;
             /**
              * Max Iterations
              * @default 8
              */
-            max_iterations: number;
+            max_iterations?: number;
             /**
              * Scale Max
              * @default 3
              */
-            scale_max: number;
+            scale_max?: number;
             /**
              * Scale Min
              * @default 0.5
              */
-            scale_min: number;
+            scale_min?: number;
             /**
              * Search Mode
              * @default levers
              * @enum {string}
              */
-            search_mode: "levers" | "new_hire_scale";
+            search_mode?: "levers" | "new_hire_scale";
             /** Target Comp Growth */
             target_comp_growth: number;
             /** Target Workforce Growth */
@@ -3031,7 +3031,7 @@ export interface components {
              * Tolerance Pct
              * @default 0.05
              */
-            tolerance_pct: number;
+            tolerance_pct?: number;
         };
         /** AvailableYearsResponse */
         AvailableYearsResponse: {
@@ -3194,7 +3194,7 @@ export interface components {
              * @description Run scenarios in parallel
              * @default false
              */
-            parallel: boolean;
+            parallel?: boolean;
             /**
              * Scenario Ids
              * @description Specific scenarios to run (runs all if not provided)
@@ -3313,7 +3313,7 @@ export interface components {
              * Default Resolution
              * @default rename
              */
-            default_resolution: string | null;
+            default_resolution?: string | null;
             /** Files */
             files: string[];
         };
@@ -3614,22 +3614,22 @@ export interface components {
             /** Candidate Id */
             candidate_id: string;
             /** Constraint Results */
-            constraint_results?: components["schemas"]["ConstraintResult"][];
+            constraint_results: components["schemas"]["ConstraintResult"][];
             /** Db Path */
-            db_path?: string | null;
+            db_path: string | null;
             /**
              * Duration Seconds
              * @default 0
              */
             duration_seconds: number;
             /** Is Duplicate Of */
-            is_duplicate_of?: string | null;
+            is_duplicate_of: string | null;
             /** Lever Values */
             lever_values: {
                 [key: string]: string | number | boolean;
             };
             /** Objective Values */
-            objective_values?: {
+            objective_values: {
                 [key: string]: number | null;
             };
             /**
@@ -4045,7 +4045,7 @@ export interface components {
              * @description Number of years to look back for recent hires (0 = all employees). Default: 4 years
              * @default 4
              */
-            lookback_years: number;
+            lookback_years?: number;
         };
         /**
          * CompensationSolverRequest
@@ -4453,8 +4453,8 @@ export interface components {
             /** Label */
             label: string;
             population: components["schemas"]["CrossScenarioPopulationEvidence"];
-            rate_a?: components["schemas"]["CrossScenarioFigure"] | null;
-            rate_b?: components["schemas"]["CrossScenarioFigure"] | null;
+            rate_a: components["schemas"]["CrossScenarioFigure"] | null;
+            rate_b: components["schemas"]["CrossScenarioFigure"] | null;
             share_of_change: components["schemas"]["CrossScenarioFigure"];
         };
         /** CrossScenarioEvidencePack */
@@ -4499,7 +4499,7 @@ export interface components {
             /** Citations */
             citations: components["schemas"]["CrossCitation"][];
             /** Reason */
-            reason?: string | null;
+            reason: string | null;
             /**
              * Status
              * @enum {string}
@@ -4529,7 +4529,7 @@ export interface components {
             /** Scenario B Id */
             scenario_b_id: string;
             /** Shares Suppressed Reason */
-            shares_suppressed_reason?: string | null;
+            shares_suppressed_reason: string | null;
             total_change: components["schemas"]["CrossScenarioFigure"];
             value_a: components["schemas"]["CrossScenarioFigure"];
             value_b: components["schemas"]["CrossScenarioFigure"];
@@ -5125,7 +5125,7 @@ export interface components {
         };
         /** DriverContribution */
         DriverContribution: {
-            base_rate?: components["schemas"]["EvidenceFigure"] | null;
+            base_rate: components["schemas"]["EvidenceFigure"] | null;
             contribution: components["schemas"]["EvidenceFigure"];
             /** Description */
             description: string;
@@ -5135,7 +5135,7 @@ export interface components {
             label: string;
             population: components["schemas"]["PopulationEvidence"];
             share_of_change: components["schemas"]["EvidenceFigure"];
-            target_rate?: components["schemas"]["EvidenceFigure"] | null;
+            target_rate: components["schemas"]["EvidenceFigure"] | null;
         };
         /** EmployeeIdentity */
         EmployeeIdentity: {
@@ -5467,7 +5467,7 @@ export interface components {
         EvidenceFigure: {
             citation: components["schemas"]["Citation"];
             /** Reason */
-            reason?: string | null;
+            reason: string | null;
             /**
              * Status
              * @enum {string}
@@ -5624,19 +5624,19 @@ export interface components {
              * Import Id
              * @default
              */
-            import_id: string;
+            import_id?: string;
             /** Input Column */
             input_column: string;
             /**
              * Is Excluded
              * @default false
              */
-            is_excluded: boolean;
+            is_excluded?: boolean;
             /**
              * Is Required
              * @default false
              */
-            is_required: boolean;
+            is_required?: boolean;
             /** Mapping Id */
             mapping_id?: string;
             /** Output Column */
@@ -5807,22 +5807,22 @@ export interface components {
              * Credibility K
              * @default 200
              */
-            credibility_k: number;
+            credibility_k?: number;
             /**
              * Level Coverage Threshold
              * @default 0.95
              */
-            level_coverage_threshold: number;
+            level_coverage_threshold?: number;
             /**
              * Min Exposure
              * @default 50
              */
-            min_exposure: number;
+            min_exposure?: number;
             /**
              * Separation Exposure Gate
              * @default 0.5
              */
-            separation_exposure_gate: number;
+            separation_exposure_gate?: number;
         };
         /** FitOptionsModel */
         "FitOptionsModel-Output": {
@@ -6535,7 +6535,7 @@ export interface components {
              */
             metric: "active_headcount" | "total_compensation" | "employer_match_cost" | "total_employer_plan_cost" | "participation_rate" | "avg_deferral_rate";
             /** Shares Suppressed Reason */
-            shares_suppressed_reason?: string | null;
+            shares_suppressed_reason: string | null;
             target_population: components["schemas"]["EvidenceFigure"];
             target_value: components["schemas"]["EvidenceFigure"];
             /** Target Year */
@@ -6552,7 +6552,7 @@ export interface components {
             /** Is Sufficient */
             is_sufficient: boolean;
             /** Mean */
-            mean?: number | null;
+            mean: number | null;
             /** Metric */
             metric: string;
             /** N Seeds */
@@ -6560,15 +6560,15 @@ export interface components {
             /** N Seeds Requested */
             n_seeds_requested: number;
             /** P10 */
-            p10?: number | null;
+            p10: number | null;
             /** P25 */
-            p25?: number | null;
+            p25: number | null;
             /** P50 */
-            p50?: number | null;
+            p50: number | null;
             /** P75 */
-            p75?: number | null;
+            p75: number | null;
             /** P90 */
-            p90?: number | null;
+            p90: number | null;
             /**
              * Percentile Method
              * @default linear
@@ -6580,7 +6580,7 @@ export interface components {
             /** Simulation Year */
             simulation_year: number;
             /** Stddev */
-            stddev?: number | null;
+            stddev: number | null;
         };
         /**
          * ObjectiveConstraintSpec
@@ -6620,7 +6620,7 @@ export interface components {
              * @description Only include employees hired within this many years of the most recent hire in the census
              * @default 3
              */
-            lookback_years: number;
+            lookback_years?: number;
         };
         /**
          * OptOutRateAnalysisResult
@@ -6736,7 +6736,7 @@ export interface components {
              * Force
              * @default false
              */
-            force: boolean;
+            force?: boolean;
             /** Name */
             name: string;
             /** Source Scenario Id */
@@ -6837,26 +6837,26 @@ export interface components {
         /** PackProvenance */
         PackProvenance: {
             /** Config Fingerprint */
-            config_fingerprint?: string | null;
+            config_fingerprint: string | null;
             /** Random Seed */
-            random_seed?: number | null;
+            random_seed: number | null;
             /** Result Store */
             result_store: string;
             /** Run Id */
             run_id: string;
             /** Run Timestamp */
-            run_timestamp?: string | null;
+            run_timestamp: string | null;
             /** Scenario Id */
             scenario_id: string;
             /** Scenario Name */
-            scenario_name?: string | null;
+            scenario_name: string | null;
             /**
              * Verification Disposition
              * @enum {string}
              */
             verification_disposition: "fully_verified" | "incomplete" | "unverifiable";
             /** Workspace Id */
-            workspace_id?: string | null;
+            workspace_id: string | null;
         };
         /** PackWarning */
         PackWarning: {
@@ -6951,18 +6951,18 @@ export interface components {
              * Holdout Years
              * @default 1
              */
-            holdout_years: number;
+            holdout_years?: number;
             /**
              * Mode
              * @default fit
              * @enum {string}
              */
-            mode: "fit" | "backtest";
+            mode?: "fit" | "backtest";
             /**
              * Notes
              * @default
              */
-            notes: string;
+            notes?: string;
             /** Seeds */
             seeds?: number[];
             thresholds?: components["schemas"]["ThresholdsModel-Input"];
@@ -7149,30 +7149,30 @@ export interface components {
             /** Avg Compensation */
             avg_compensation: number;
             /** Existing Avg Comp */
-            existing_avg_comp?: number | null;
+            existing_avg_comp: number | null;
             /** Growth Delta Pct */
-            growth_delta_pct?: number | null;
+            growth_delta_pct: number | null;
             /** Headcount */
             headcount: number;
             /** Headcount Growth Pct */
-            headcount_growth_pct?: number | null;
+            headcount_growth_pct: number | null;
             /** New Hire Avg Comp */
-            new_hire_avg_comp?: number | null;
+            new_hire_avg_comp: number | null;
             /** New Hire Gap */
-            new_hire_gap?: number | null;
+            new_hire_gap: number | null;
             /** Simulation Year */
             simulation_year: number;
             /** Target Growth Pct */
-            target_growth_pct?: number | null;
+            target_growth_pct: number | null;
             /** Total Comp Growth Pct */
-            total_comp_growth_pct?: number | null;
+            total_comp_growth_pct: number | null;
             /**
              * Total Compensation
              * @default 0
              */
             total_compensation: number;
             /** Yoy Growth Pct */
-            yoy_growth_pct?: number | null;
+            yoy_growth_pct: number | null;
         };
         /**
          * PerformanceMetrics
@@ -7234,12 +7234,12 @@ export interface components {
         };
         /** PopulationEvidence */
         PopulationEvidence: {
-            base_count?: components["schemas"]["EvidenceFigure"] | null;
-            changed_count?: components["schemas"]["EvidenceFigure"] | null;
+            base_count: components["schemas"]["EvidenceFigure"] | null;
+            changed_count: components["schemas"]["EvidenceFigure"] | null;
             count: components["schemas"]["EvidenceFigure"];
             /** Label */
             label: string;
-            target_count?: components["schemas"]["EvidenceFigure"] | null;
+            target_count: components["schemas"]["EvidenceFigure"] | null;
         };
         /** PreviewResponse */
         PreviewResponse: {
@@ -7405,7 +7405,7 @@ export interface components {
          */
         RiskStatement: {
             /** Exceedance Probability */
-            exceedance_probability?: number | null;
+            exceedance_probability: number | null;
             /** Is Evaluable */
             is_evaluable: boolean;
             /** Metric */
@@ -7416,9 +7416,9 @@ export interface components {
              */
             n_seeds: number;
             /** Reason */
-            reason?: string | null;
+            reason: string | null;
             /** Simulation Year */
-            simulation_year?: number | null;
+            simulation_year: number | null;
             /** Threshold Value */
             threshold_value: number;
         };
@@ -7603,7 +7603,7 @@ export interface components {
              * @description Resume from last checkpoint if available
              * @default false
              */
-            resume_from_checkpoint: boolean;
+            resume_from_checkpoint?: boolean;
         };
         /**
          * RunSummary
@@ -8632,13 +8632,13 @@ export interface components {
              * @description Enable auto-sync
              * @default false
              */
-            auto_sync: boolean;
+            auto_sync?: boolean;
             /**
              * Branch
              * @description Branch to use
              * @default main
              */
-            branch: string;
+            branch?: string;
             /**
              * Remote Url
              * @description Git remote URL (e.g., git@github.com:user/repo.git)
@@ -9273,7 +9273,7 @@ export interface components {
              * @description Minimum annual hours for vesting credit (default: 1000)
              * @default 1000
              */
-            hours_threshold: number;
+            hours_threshold?: number;
             /** Name */
             name: string;
             /**
@@ -9281,7 +9281,7 @@ export interface components {
              * @description If true, employees must meet hours threshold for vesting credit
              * @default false
              */
-            require_hours_credit: boolean;
+            require_hours_credit?: boolean;
             schedule_type: components["schemas"]["VestingScheduleType"];
         };
         /**
