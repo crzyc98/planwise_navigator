@@ -15,6 +15,17 @@ With snapshots for 2021–2024, the default command fits 2021–2023 and scores
 `--seed-list 17,29,43` for an explicit seed set, and `--force` only when prior
 scorecard evidence is intentionally being replaced.
 
+**From Studio (#588):** choose **Fit + backtest** on the **Run → Fit &
+Backtest** page. Studio previews the fit/holdout split, the boundary year, and
+the date the held-out simulation starts from before anything runs. Progress
+shows the seed being simulated, and **Cancel** stops the job and discards its
+partial pack and seed databases. Only one backtest runs per workspace at a
+time. The scorecard, verdict, seed spread, and any moved thresholds appear
+beside the fit results, and a current (fingerprint-matched) verdict is recorded
+on any scenario the pack is applied to. The held-out simulations use the base
+scenario's seed set, the same one the fit's priors came from (`apply_pack
+seeds_root`).
+
 ## Reading the scorecard
 
 Every metric reports the lower-median prediction across seeds, actual value,
