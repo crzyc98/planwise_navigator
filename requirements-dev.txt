@@ -16,7 +16,7 @@ Faker==19.3.0
 # Code Quality
 ruff==0.4.3
 black==23.9.1
-isort==5.12.0
+isort==9.0.1
 mypy==1.5.1
 # Type stubs for the CI `mypy` lint job. Without these, mypy reports
 # "Library stubs not installed for 'yaml'" (not suppressed by
