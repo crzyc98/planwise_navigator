@@ -86,7 +86,11 @@ def test_api_cites_config_differences_and_flags_census_mismatch(
     assert setup["status"] == "only_b"
     codes = {w["code"]: w for w in payload["pack"]["warnings"]}
     assert codes["census_mismatch"]["severity"] == "caution"
-    assert "| `setup` |" in payload["text_export"]
+    unrecorded = payload["text_export"].split(
+        "### Recorded in only one run's configuration"
+    )
+    assert len(unrecorded) == 2, "one-sided settings belong in their own subsection"
+    assert "| `setup` |" in unrecorded[1]
 
 
 def _write_workspace(scenario) -> None:

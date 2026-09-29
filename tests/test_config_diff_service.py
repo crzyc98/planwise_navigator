@@ -49,6 +49,17 @@ def test_deep_diff_is_sorted_atomic_and_cosmetic_free() -> None:
     assert result.unchanged_count == 1
 
 
+def test_null_and_unrecorded_keys_are_not_differences() -> None:
+    """A build that omits a key and one that writes it as null agree: no value."""
+    configs = {
+        "a": {"core": {"level_value": None, "rate": 0.03}},
+        "b": {"core": {"rate": 0.03}},
+    }
+    result = _service(configs).compare("ws", "a", "b", {"a": "A", "b": "B"})
+    assert result.differences == []
+    assert result.unchanged_count == 2
+
+
 def test_identical_effective_configs_have_no_differences() -> None:
     config = {"simulation": {"growth": 0.03}}
     result = _service({"a": config, "b": config}).compare(
