@@ -68,7 +68,15 @@ class ConstraintSpec(BaseModel):
     metric: str = Field(min_length=1)
     operator: Literal["<=", ">=", "<", ">", "=="]
     threshold: float
-    percentile: int | None = Field(default=None, ge=1, le=99)
+    percentile: int | None = Field(
+        default=None,
+        ge=1,
+        le=99,
+        description=(
+            "Evaluate the metric at this ensemble percentile. Only takes effect "
+            "when baseline.ensemble_database is also set."
+        ),
+    )
 
 
 class ObjectiveConstraintSpec(BaseModel):

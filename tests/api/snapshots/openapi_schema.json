@@ -2393,6 +2393,7 @@
                 "type": "null"
               }
             ],
+            "description": "When set (and no explicit config_path), calibrate against this workspace's base config (census, termination rates) so the calibrated levers transfer to a full simulation of it.",
             "title": "Workspace Id"
           }
         },
@@ -3756,6 +3757,7 @@
                 "type": "null"
               }
             ],
+            "description": "Evaluate the metric at this ensemble percentile. Only takes effect when baseline.ensemble_database is also set.",
             "title": "Percentile"
           },
           "threshold": {
