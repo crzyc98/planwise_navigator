@@ -201,10 +201,14 @@ class CalibrationRunRequest(APIModel):
     end_year: Optional[int] = Field(default=None, ge=2000)
     config_path: Optional[str] = None
     database_path: Optional[str] = None
-    # When set (and no explicit config_path), calibration runs against the
-    # workspace's base config -- census, termination rates, everything -- so the
-    # calibrated levers transfer to a full simulation of that workspace.
-    workspace_id: Optional[str] = None
+    workspace_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "When set (and no explicit config_path), calibrate against this "
+            "workspace's base config (census, termination rates) so the "
+            "calibrated levers transfer to a full simulation of it."
+        ),
+    )
     scenario_id: Optional[str] = None
     params: CalibrationParameterSet = Field(default_factory=CalibrationParameterSet)
 

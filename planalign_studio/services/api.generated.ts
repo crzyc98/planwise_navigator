@@ -3587,7 +3587,10 @@ export interface components {
             scenario_id?: string | null;
             /** Start Year */
             start_year?: number | null;
-            /** Workspace Id */
+            /**
+             * Workspace Id
+             * @description When set (and no explicit config_path), calibrate against this workspace's base config (census, termination rates) so the calibrated levers transfer to a full simulation of it.
+             */
             workspace_id?: string | null;
         };
         /**
@@ -4310,7 +4313,10 @@ export interface components {
              * @enum {string}
              */
             operator: "<=" | ">=" | "<" | ">" | "==";
-            /** Percentile */
+            /**
+             * Percentile
+             * @description Evaluate the metric at this ensemble percentile. Only takes effect when baseline.ensemble_database is also set.
+             */
             percentile?: number | null;
             /** Threshold */
             threshold: number;
