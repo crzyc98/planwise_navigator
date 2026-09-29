@@ -23,7 +23,7 @@ mypy==1.5.1
 # --ignore-missing-imports because the stub is known to exist on PyPI),
 # keeping the lint job red. See #333.
 types-PyYAML==6.0.12.20260518
-pylint==3.0.2
+pylint==4.0.9
 flake8==6.1.0
 pre-commit==3.3.3
 

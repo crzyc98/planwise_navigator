@@ -72,7 +72,7 @@ dev = [
     "mypy==1.5.1",
     # Type stubs for the CI mypy lint job (see requirements-dev.txt / #333)
     "types-PyYAML==6.0.12.20260518",
-    "pylint==3.0.2",
+    "pylint==4.0.9",
     "flake8==6.1.0",
     "pre-commit==3.3.3",
     # Dependency vulnerability scanning (#705)
