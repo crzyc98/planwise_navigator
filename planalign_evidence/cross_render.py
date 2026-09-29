@@ -171,15 +171,18 @@ def render_cross_evidence_pack(pack: CrossScenarioEvidencePack) -> str:
 
 
 def _slug(value: str) -> str:
-    return re.sub(r"[^A-Za-z0-9._-]+", "-", value).strip("-") or "scenario"
+    slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")[:60].strip("-")
+    return slug or "scenario"
 
 
 def build_cross_envelope(
     pack: CrossScenarioEvidencePack,
 ) -> CrossScenarioEvidencePackEnvelope:
     change = pack.change
+    name_a = pack.provenance_a.scenario_name or change.scenario_a_id
+    name_b = pack.provenance_b.scenario_name or change.scenario_b_id
     filename = (
-        f"evidence-pack-{_slug(change.scenario_a_id)}-vs-{_slug(change.scenario_b_id)}"
+        f"evidence-pack-{_slug(name_a)}-vs-{_slug(name_b)}"
         f"-{change.metric}-{change.year}.md"
     )
     return CrossScenarioEvidencePackEnvelope(

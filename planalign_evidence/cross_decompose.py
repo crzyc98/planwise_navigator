@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Mapping
+from typing import Callable, Mapping
 
 from planalign_ensemble.models import METRIC_REGISTRY
 
@@ -27,6 +27,7 @@ class CrossDriverDef:
     label: str
     description: str
     population_label: str
+    column: str = "value"
 
 
 CROSS_DRIVER_REGISTRY: dict[str, tuple[CrossDriverDef, ...]] = {
@@ -68,16 +69,18 @@ CROSS_DRIVER_REGISTRY: dict[str, tuple[CrossDriverDef, ...]] = {
     ),
     "total_employer_plan_cost": (
         CrossDriverDef(
-            "compensation_exposure_effect",
-            "Compensation exposure effect",
-            "Effect of the two scenarios having different total compensation exposure, holding the effective employer contribution rate fixed.",
+            "employer_match_difference",
+            "Employer match",
+            "Difference in total employer match contributions between the two scenarios.",
             "all records",
+            "match_value",
         ),
         CrossDriverDef(
-            "effective_payout_rate_effect",
-            "Effective plan payout rate effect",
-            "Effect of the two scenarios having a different realized employer contribution rate, holding compensation exposure fixed.",
+            "employer_core_difference",
+            "Employer core contribution",
+            "Difference in total employer core (non-elective) contributions between the two scenarios.",
             "all records",
+            "core_value",
         ),
     ),
     "participation_rate": (
@@ -159,6 +162,8 @@ def _factor_values(
             None,
             None,
         )
+    if metric == "total_employer_plan_cost":
+        return _component_values(a, b)
     c0, c1 = Decimal(str(a["compensation_base"])), Decimal(str(b["compensation_base"]))
     if c0 == 0 or c1 == 0:
         return (
@@ -172,6 +177,21 @@ def _factor_values(
         None,
         (rate0, rate1),
     )
+
+
+def _component_values(
+    a: Mapping[str, object], b: Mapping[str, object]
+) -> tuple[tuple[Decimal | None, ...], str | None, None]:
+    """Split plan cost into its match and core contribution components."""
+    parts = (a["match_value"], b["match_value"], a["core_value"], b["core_value"])
+    if any(part is None for part in parts):
+        return (
+            (None, None),
+            "Employer match or core amounts are unavailable in one or both results, so the plan cost cannot be split by component.",
+            None,
+        )
+    match_a, match_b, core_a, core_b = (Decimal(str(part)) for part in parts)
+    return (match_b - match_a, core_b - core_a), None, None
 
 
 def _suppression(base: Decimal, target: Decimal, unit: str) -> str | None:
@@ -261,14 +281,19 @@ def decompose_cross_scenario(
     context = _DriverContext(
         unit=unit,
         total=total,
-        citations=both,
+        cite=lambda column: (
+            _citation(result_store_a, query_a, "QA", column),
+            _citation(result_store_b, query_b, "QB", column),
+        ),
         count_a=count_a,
         count_b=count_b,
         suppression=suppression,
         undefined=undefined,
         rates=rates,
-        qa=qa,
-        qb=qb,
+        rate_citations=(
+            (qa[0], _citation(result_store_a, query_a, "QA", "compensation_base")),
+            (qb[0], _citation(result_store_b, query_b, "QB", "compensation_base")),
+        ),
     )
     drivers = tuple(
         _make_driver(definition, value, context)
@@ -297,14 +322,13 @@ class _DriverContext:
 
     unit: str
     total: Decimal
-    citations: tuple[CrossCitation, ...]
+    cite: Callable[[str], tuple[CrossCitation, CrossCitation]]
     count_a: CrossScenarioFigure
     count_b: CrossScenarioFigure
     suppression: str | None
     undefined: str | None
     rates: tuple[Decimal, Decimal] | None
-    qa: tuple[CrossCitation, ...]
-    qb: tuple[CrossCitation, ...]
+    rate_citations: tuple[tuple[CrossCitation, ...], tuple[CrossCitation, ...]]
 
 
 def _make_driver(
@@ -312,19 +336,21 @@ def _make_driver(
 ) -> CrossScenarioDriverContribution:
     rate_pair = ctx.rates if definition.id == "effective_payout_rate_effect" else None
     status = "undefined" if ctx.undefined else "defined"
+    citations = ctx.cite(definition.column)
+    rate_a_cites, rate_b_cites = ctx.rate_citations
     return CrossScenarioDriverContribution(
         id=definition.id,
         label=definition.label,
         description=definition.description,
-        contribution=_figure(value, ctx.unit, ctx.citations, ctx.undefined, status),
+        contribution=_figure(value, ctx.unit, citations, ctx.undefined, status),
         share_of_change=_share(
-            value, ctx.total, ctx.citations, ctx.suppression, ctx.undefined
+            value, ctx.total, citations, ctx.suppression, ctx.undefined
         ),
         population=CrossScenarioPopulationEvidence(
             label=definition.population_label, count_a=ctx.count_a, count_b=ctx.count_b
         ),
-        rate_a=_figure(rate_pair[0], "rate", ctx.qa) if rate_pair else None,
-        rate_b=_figure(rate_pair[1], "rate", ctx.qb) if rate_pair else None,
+        rate_a=_figure(rate_pair[0], "rate", rate_a_cites) if rate_pair else None,
+        rate_b=_figure(rate_pair[1], "rate", rate_b_cites) if rate_pair else None,
     )
 
 
@@ -346,16 +372,20 @@ def build_cross_executive_summary(
     a = Decimal(change.value_a.value or "0")
     b = Decimal(change.value_b.value or "0")
     delta = Decimal(change.total_change.value or "0")
-    percent = (
-        f" ({abs(delta/a*100):.2f}%)"
-        if a
-        else " (percent undefined from zero baseline)"
-    )
-    sentences = [
+    unit = change.total_change.unit
+    values = (
         f"{change.label}: {name_a} (A) {_display(a, change.value_a.unit)}, "
-        f"{name_b} (B) {_display(b, change.value_b.unit)}; "
-        f"difference B − A {_display(delta, change.total_change.unit, True)}{percent}."
-    ]
+        f"{name_b} (B) {_display(b, change.value_b.unit)}."
+    )
+    if delta == 0:
+        comparison = " The scenarios are equal."
+    else:
+        direction = "higher" if delta > 0 else "lower"
+        percent = f" ({abs(delta / a * 100):.2f}%)" if a else ""
+        comparison = (
+            f" {name_b} is {direction} by {_display(abs(delta), unit)}{percent}."
+        )
+    sentences = [values + comparison]
     sentences.extend(
         f"{driver.label}: {_display(Decimal(driver.contribution.value), change.total_change.unit, True)}."
         for driver in drivers

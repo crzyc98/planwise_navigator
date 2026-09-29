@@ -142,3 +142,65 @@ def test_seed_differences_qualify_the_comparison(targets, seed_b, severity) -> N
     [(actual, message)] = _seed_warnings(pack)
     assert actual == severity
     assert "simulation noise" in message
+
+
+def _add_core_column(scenario, core_by_employee: dict[str, int]) -> None:
+    """Split each row's plan cost into match + core, as fct_workforce_snapshot does."""
+    import duckdb
+
+    with duckdb.connect(str(scenario.database_path)) as connection:
+        connection.execute(
+            "ALTER TABLE fct_workforce_snapshot ADD COLUMN employer_core_amount DECIMAL(18, 2)"
+        )
+        for employee_id, core in core_by_employee.items():
+            connection.execute(
+                "UPDATE fct_workforce_snapshot SET employer_core_amount = ?, "
+                "total_employer_contributions = employer_match_amount + ? "
+                "WHERE employee_id = ?",
+                [core, core, employee_id],
+            )
+
+
+@pytest.mark.fast
+def test_plan_cost_splits_into_cited_match_and_core_components(tmp_path) -> None:
+    a = create_evidence_scenario(tmp_path, scenario_id="scenario-a")
+    rows_b = tuple((*row[:4], row[4] + 2, *row[5:]) for row in DEFAULT_ROWS)
+    b = create_evidence_scenario(tmp_path, rows=rows_b, scenario_id="scenario-b")
+    _add_core_column(a, {"a": 3, "b": 4, "c": 0, "d": 3})
+    _add_core_column(b, {"a": 0, "b": 0, "c": 0, "d": 0})
+
+    pack = build_cross_scenario_evidence_pack(
+        _target(a), _target(b), "total_employer_plan_cost", 2025
+    )
+
+    match, core = pack.drivers
+    assert (match.id, core.id) == (
+        "employer_match_difference",
+        "employer_core_difference",
+    )
+    assert Decimal(match.contribution.value) == Decimal(2 * 4)  # +2 on each 2025 row
+    assert Decimal(core.contribution.value) == Decimal(-10)
+    assert pack.residual.contribution.value == "0"
+    assert [c.result_column for c in match.contribution.citations] == [
+        "match_value"
+    ] * 2
+    assert [c.result_column for c in core.contribution.citations] == ["core_value"] * 2
+
+
+@pytest.mark.fast
+def test_plan_cost_without_core_amounts_is_left_unexplained(targets) -> None:
+    pack = build_cross_scenario_evidence_pack(
+        *targets, "total_employer_plan_cost", 2025
+    )
+
+    assert all(d.contribution.status == "undefined" for d in pack.drivers)
+    assert pack.residual.contribution.value == pack.change.total_change.value
+
+
+@pytest.mark.fast
+def test_summary_states_direction_and_rate_cites_its_denominator(targets) -> None:
+    pack = build_cross_scenario_evidence_pack(*targets, "employer_match_cost", 2025)
+
+    assert " is higher by $" in pack.executive_summary[0]
+    rate = next(d for d in pack.drivers if d.rate_a is not None).rate_a
+    assert [c.result_column for c in rate.citations] == ["value", "compensation_base"]

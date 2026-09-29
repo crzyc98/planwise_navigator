@@ -225,7 +225,7 @@ export default function ScenariosPage() {
                   className="px-4 py-2 bg-surface-raised border border-border-strong text-ink-muted rounded-lg flex items-center font-medium hover:bg-surface-subtle transition-colors"
                 >
                   <CheckSquare size={18} className="mr-2" />
-                  Select for Batch
+                  Select to Compare or Batch
                 </button>
               )}
               <button

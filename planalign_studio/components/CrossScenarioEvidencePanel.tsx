@@ -139,7 +139,7 @@ export default function CrossScenarioEvidencePanel({ workspaceId, scenarioA, sce
   };
 
   return (
-    <section className="space-y-4 rounded-xl border border-border bg-surface-raised p-5 shadow-sm">
+    <section id="explain-difference" className="scroll-mt-4 space-y-4 rounded-xl border border-border bg-surface-raised p-5 shadow-sm">
       <div>
         <h2 className="font-semibold text-ink">Explain the difference</h2>
         <p className="text-sm text-ink-muted">Decompose one metric's gap between {nameA} (A) and {nameB} (B) into cited drivers and configuration differences.</p>
