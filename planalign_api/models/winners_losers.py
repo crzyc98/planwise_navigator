@@ -35,7 +35,15 @@ class WinnersLosersResponse(APIModel):
 
     plan_a_scenario_id: str = Field(description="Plan A scenario ID")
     plan_b_scenario_id: str = Field(description="Plan B scenario ID")
-    final_year: int = Field(description="Simulation year used for comparison")
+    final_year: int = Field(
+        description="Latest simulation year present in both snapshots"
+    )
+    plan_a_final_year: int = Field(
+        description="Latest snapshot year available for Plan A"
+    )
+    plan_b_final_year: int = Field(
+        description="Latest snapshot year available for Plan B"
+    )
     total_compared: int = Field(description="Employees present in both scenarios")
     total_excluded: int = Field(description="Employees present in only one scenario")
     total_winners: int = Field(description="Total winners")

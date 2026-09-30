@@ -1,8 +1,112 @@
 """Tests for Winners & Losers comparison service."""
 
 import pandas as pd
+import duckdb
+import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from unittest.mock import Mock
 
-from planalign_api.services.winners_losers_service import WinnersLosersService
+from planalign_api.routers import analytics
+from planalign_api.services.database_path_resolver import ResolvedDatabasePath
+from planalign_api.services.winners_losers_service import (
+    IncompatibleSimulationYearsError,
+    WinnersLosersService,
+)
+
+
+@pytest.fixture
+def scenario_service(tmp_path):
+    """Create two disposable databases with deliberately changing contributions."""
+
+    def create(years_a, years_b):
+        paths = {}
+        for scenario_id, years in [("a", years_a), ("b", years_b)]:
+            path = tmp_path / f"{scenario_id}.duckdb"
+            with duckdb.connect(str(path)) as conn:
+                conn.execute(
+                    """
+                    CREATE TABLE fct_workforce_snapshot (
+                        employee_id VARCHAR, simulation_year INTEGER,
+                        employment_status VARCHAR, age_band VARCHAR,
+                        tenure_band VARCHAR, employer_match_amount DOUBLE,
+                        employer_core_amount DOUBLE
+                    )
+                """
+                )
+                for year in years:
+                    # Same-year B loses; comparing an earlier A to a later B wins.
+                    amount = (
+                        1000 + (year - 2025) * 500 - (100 if scenario_id == "b" else 0)
+                    )
+                    conn.execute(
+                        "INSERT INTO fct_workforce_snapshot VALUES "
+                        "('SYNTHETIC', ?, 'active', '25-34', '< 2', ?, 0)",
+                        [year, amount],
+                    )
+            paths[scenario_id] = ResolvedDatabasePath(path=path, source="scenario")
+        resolver = Mock()
+        resolver.resolve.side_effect = lambda workspace_id, scenario_id: paths[
+            scenario_id
+        ]
+        storage = Mock()
+        storage.get_scenario.return_value.status = "completed"
+        return WinnersLosersService(storage, resolver)
+
+    return create
+
+
+@pytest.mark.parametrize(
+    "years_a,years_b,expected_year",
+    [
+        ([2025, 2026], [2025, 2026], 2026),
+        ([2025, 2026], [2026, 2027], 2026),
+        ([2026, 2027], [2025, 2026], 2026),
+        ([2025, 2027], [2025, 2026], 2025),
+    ],
+)
+@pytest.mark.parametrize("via_api", [False, True])
+def test_latest_common_year(
+    scenario_service, monkeypatch, years_a, years_b, expected_year, via_api
+):
+    service = scenario_service(years_a, years_b)
+    if via_api:
+        response = _api_client(service, monkeypatch).get(
+            "/ws/analytics/winners-losers", params={"plan_a": "a", "plan_b": "b"}
+        )
+        assert response.status_code == 200
+        result = response.json()
+    else:
+        result = service.analyze("ws", "a", "b").model_dump()
+    assert result["final_year"] == expected_year
+    assert result["plan_a_final_year"] == max(years_a)
+    assert result["plan_b_final_year"] == max(years_b)
+    assert result["total_compared"] == 1
+    assert result["total_losers"] == 1
+    assert result["total_winners"] == result["total_neutral"] == 0
+    assert result["total_excluded"] == 0
+
+
+def _api_client(service, monkeypatch):
+    app = FastAPI()
+    app.include_router(analytics.router)
+    app.dependency_overrides[analytics.get_storage] = lambda: service.storage
+    app.dependency_overrides[analytics.get_winners_losers_service] = lambda: service
+    monkeypatch.setattr(analytics, "has_selected_result", lambda *args: True)
+    return TestClient(app)
+
+
+def test_disjoint_years_rejected(scenario_service, monkeypatch):
+    service = scenario_service([2025], [2027])
+    with pytest.raises(
+        IncompatibleSimulationYearsError, match="no common simulation year"
+    ):
+        service.analyze("ws", "a", "b")
+    response = _api_client(service, monkeypatch).get(
+        "/ws/analytics/winners-losers", params={"plan_a": "a", "plan_b": "b"}
+    )
+    assert response.status_code == 422
+    assert "no common simulation year" in response.json()["detail"]
 
 
 # ---------------------------------------------------------------------------

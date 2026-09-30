@@ -273,6 +273,12 @@ export default function WinnersLosersTab() {
         />
       ) : (
         <>
+          <div className="rounded-lg border border-border bg-surface-raised p-4 text-sm text-ink-muted">
+            Comparing both plans in simulation year {results.final_year}.
+            {(results.final_year !== results.plan_a_final_year || results.final_year !== results.plan_b_final_year) && (
+              <span> Using the latest common year; Plan A ends in {results.plan_a_final_year} and Plan B ends in {results.plan_b_final_year}.</span>
+            )}
+          </div>
           {/* Summary KPI Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <KPICard title="Total Compared" value={results.total_compared} icon={Users} color="blue" />

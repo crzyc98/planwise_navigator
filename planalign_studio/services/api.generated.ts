@@ -1411,6 +1411,7 @@ export interface paths {
          * Get Winners Losers
          * @description Compare two scenarios and classify employees as winners, losers, or
          *     neutral based on total employer contributions (match + core).
+         *     Uses the latest shared snapshot year; disjoint horizons return HTTP 422.
          */
         get: operations["get_winners_losers_api_workspaces__workspace_id__analytics_winners_losers_get"];
         put?: never;
@@ -9663,7 +9664,7 @@ export interface components {
             age_band_results: components["schemas"]["BandGroupResult"][];
             /**
              * Final Year
-             * @description Simulation year used for comparison
+             * @description Latest simulation year present in both snapshots
              */
             final_year: number;
             /**
@@ -9672,10 +9673,20 @@ export interface components {
              */
             heatmap: components["schemas"]["HeatmapCell"][];
             /**
+             * Plan A Final Year
+             * @description Latest snapshot year available for Plan A
+             */
+            plan_a_final_year: number;
+            /**
              * Plan A Scenario Id
              * @description Plan A scenario ID
              */
             plan_a_scenario_id: string;
+            /**
+             * Plan B Final Year
+             * @description Latest snapshot year available for Plan B
+             */
+            plan_b_final_year: number;
             /**
              * Plan B Scenario Id
              * @description Plan B scenario ID
