@@ -15,8 +15,9 @@ class WorkforceMetrics(APIModel):
     terminated: int = Field(description="Terminated employees")
     new_hires: int = Field(description="New hires")
     growth_pct: float = Field(description="Growth percentage")
-    avg_compensation: float = Field(
-        default=0.0, description="Average prorated compensation for active employees"
+    avg_compensation: Optional[float] = Field(
+        default=None,
+        description="Average prorated compensation for active employees; null if unavailable",
     )
 
 
@@ -122,7 +123,10 @@ class DCPlanMetrics(APIModel):
     total_employer_cost: float = Field(
         default=0.0, description="Total employer cost (match + core)"
     )
-    employer_cost_rate: float = Field(default=0.0, description="Employer cost rate (%)")
+    employer_cost_rate: Optional[float] = Field(
+        default=None,
+        description="Employer cost rate (%); null if compensation unavailable",
+    )
     participant_count: int = Field(
         default=0, description="Number of enrolled employees"
     )
