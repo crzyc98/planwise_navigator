@@ -2342,6 +2342,7 @@
                 "type": "null"
               }
             ],
+            "description": "New-hire age distribution. Overrides the seed via the same dbt var the full simulation uses, so a tuned distribution transfers verbatim.",
             "title": "New Hire Age Distribution"
           },
           "new_hire_termination_rate": {
@@ -2355,6 +2356,7 @@
                 "type": "null"
               }
             ],
+            "description": "New-hire termination rate (workforce.new_hire_termination_rate), as a decimal; held fixed across an auto-calibration search.",
             "title": "New Hire Termination Rate"
           },
           "promotion_increase": {
@@ -2394,6 +2396,7 @@
                 "type": "null"
               }
             ],
+            "description": "Core termination rate (workforce.total_termination_rate), as a decimal; held fixed across an auto-calibration search.",
             "title": "Total Termination Rate"
           },
           "workforce_growth_rate": {
@@ -2407,6 +2410,7 @@
                 "type": "null"
               }
             ],
+            "description": "Workforce/headcount growth target (simulation.target_growth_rate) that sizes hiring. Distinct from target_growth_pct; changing it changes headcount exactly as a full simulation would.",
             "title": "Workforce Growth Rate"
           }
         },

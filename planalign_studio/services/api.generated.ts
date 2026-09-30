@@ -3594,17 +3594,29 @@ export interface components {
             job_level_compensation?: components["schemas"]["JobLevelRange"][] | null;
             /** Merit Budget */
             merit_budget?: number | null;
-            /** New Hire Age Distribution */
+            /**
+             * New Hire Age Distribution
+             * @description New-hire age distribution. Overrides the seed via the same dbt var the full simulation uses, so a tuned distribution transfers verbatim.
+             */
             new_hire_age_distribution?: components["schemas"]["AgeWeight"][] | null;
-            /** New Hire Termination Rate */
+            /**
+             * New Hire Termination Rate
+             * @description New-hire termination rate (workforce.new_hire_termination_rate), as a decimal; held fixed across an auto-calibration search.
+             */
             new_hire_termination_rate?: number | null;
             /** Promotion Increase */
             promotion_increase?: number | null;
             /** Target Growth Pct */
             target_growth_pct?: number | null;
-            /** Total Termination Rate */
+            /**
+             * Total Termination Rate
+             * @description Core termination rate (workforce.total_termination_rate), as a decimal; held fixed across an auto-calibration search.
+             */
             total_termination_rate?: number | null;
-            /** Workforce Growth Rate */
+            /**
+             * Workforce Growth Rate
+             * @description Workforce/headcount growth target (simulation.target_growth_rate) that sizes hiring. Distinct from target_growth_pct; changing it changes headcount exactly as a full simulation would.
+             */
             workforce_growth_rate?: number | null;
         };
         /**

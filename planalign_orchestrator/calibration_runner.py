@@ -94,24 +94,44 @@ class CalibrationParameterSet(BaseModel):
     cola_rate: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     merit_budget: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     promotion_increase: Optional[float] = Field(default=None, ge=0.0, le=1.0)
-    # Workforce/headcount growth target (simulation.target_growth_rate) -- the
-    # rate that sizes E077 hiring. This is a DELIBERATE lever, distinct from
-    # target_growth_pct (the avg-comp growth target used only for the delta
-    # column). Changing it changes headcount, exactly as it would in a full
-    # simulation with the same value.
-    workforce_growth_rate: Optional[float] = Field(default=None, ge=-1.0, le=1.0)
-    # Core termination rates (workforce.total_termination_rate /
-    # workforce.new_hire_termination_rate) -- deterministic workforce-dynamics
-    # inputs the analyst holds fixed. They flow through to_dbt_vars exactly as
-    # the full simulation consumes them; attrition of higher-paid tenured staff
-    # replaced by lower-paid hires materially affects avg-comp growth.
-    total_termination_rate: Optional[float] = Field(default=None, ge=0.0, le=1.0)
-    new_hire_termination_rate: Optional[float] = Field(default=None, ge=0.0, le=1.0)
-    # New-hire age distribution: list of {"age": int, "weight": float}.
-    # Overrides the config_new_hire_age_distribution seed via the
-    # new_hire_age_distribution dbt var -- the same var the full simulation
-    # consumes -- so a distribution tuned here transfers verbatim.
-    new_hire_age_distribution: Optional[List[AgeWeight]] = None
+    workforce_growth_rate: Optional[float] = Field(
+        default=None,
+        ge=-1.0,
+        le=1.0,
+        description=(
+            "Workforce/headcount growth target (simulation.target_growth_rate) "
+            "that sizes hiring. Distinct from target_growth_pct; changing it "
+            "changes headcount exactly as a full simulation would."
+        ),
+    )
+    # Attrition of higher-paid tenured staff replaced by lower-paid hires
+    # materially affects avg-comp growth, so these flow through to_dbt_vars
+    # exactly as the full simulation consumes them.
+    total_termination_rate: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Core termination rate (workforce.total_termination_rate), as a "
+            "decimal; held fixed across an auto-calibration search."
+        ),
+    )
+    new_hire_termination_rate: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "New-hire termination rate (workforce.new_hire_termination_rate), as "
+            "a decimal; held fixed across an auto-calibration search."
+        ),
+    )
+    new_hire_age_distribution: Optional[List[AgeWeight]] = Field(
+        default=None,
+        description=(
+            "New-hire age distribution. Overrides the seed via the same dbt var "
+            "the full simulation uses, so a tuned distribution transfers verbatim."
+        ),
+    )
     # Per-level new-hire compensation ranges derived from "Match Census" x scale,
     # exactly as the Workforce Parameters page produces them. Each item is
     # {"level", "min_compensation", "max_compensation"}. When provided, this

@@ -95,11 +95,7 @@ export type TimelineEvent = Schemas['TimelineEvent'];
 
 export type YearState = Schemas['YearState'];
 
-export interface TimelineYearData {
-  simulation_year: number;
-  events: TimelineEvent[];
-  state: YearState | null;
-}
+export type TimelineYearData = Schemas['TimelineYear'];
 
 export type EmployeeIdentity = Schemas['EmployeeIdentity'];
 
@@ -702,60 +698,19 @@ export async function getRunHealth(scenarioId: string, runId?: string): Promise<
 // Run Provenance Report Endpoints (111-run-provenance-report)
 // ============================================================================
 
-export interface ProvenanceFinding {
-  field_path: string;
-  code: string;
-  reason: string;
-  required: boolean;
-}
+export type ProvenanceFinding = Schemas['EvidenceFinding'];
 
-export interface ProvenanceInputFingerprint {
-  logical_name: string;
-  sha256: string;
-  size_bytes: number | null;
-  record_count: number | null;
-  format: string | null;
-}
+export type ProvenanceInputFingerprint = Schemas['InputFingerprint'];
 
-export interface ProvenanceSeedFingerprint {
-  logical_name: string;
-  sha256: string;
-  size_bytes: number;
-}
+export type ProvenanceSeedFingerprint = Schemas['SeedFingerprint'];
 
-export interface ProvenanceEventCount {
-  simulation_year: number;
-  event_type: string;
-  count: number;
-}
+export type ProvenanceEventCount = Schemas['AnnualEventCount'];
 
-export interface ProvenanceReconciliation {
-  simulation_year: number;
-  opening_workforce: number | null;
-  hires: number | null;
-  terminations: number | null;
-  expected_closing_workforce: number | null;
-  actual_closing_workforce: number | null;
-  variance: number | null;
-  opening_source: string | null;
-}
+export type ProvenanceReconciliation = Schemas['AnnualWorkforceReconciliation'];
 
-export interface ProvenanceValidationResult {
-  simulation_year: number;
-  check_name: string;
-  severity: string;
-  passed: boolean;
-  affected_record_count: number | null;
-}
+export type ProvenanceValidationResult = Schemas['CapturedValidationResult'];
 
-export interface ProvenanceStageCompletion {
-  simulation_year: number | null;
-  stage: string;
-  started_at: string | null;
-  completed_at: string | null;
-  duration_seconds: number | null;
-  outcome: string;
-}
+export type ProvenanceStageCompletion = Schemas['StageCompletion'];
 
 export type ProvenanceReport = Schemas['ProvenanceReport'];
 
@@ -810,25 +765,11 @@ export async function downloadRunProvenanceFile(
 export type EvidenceMetric = 'active_headcount' | 'total_compensation' | 'employer_match_cost' | 'total_employer_plan_cost' | 'participation_rate' | 'avg_deferral_rate';
 export type EvidenceFigureStatus = 'defined' | 'undefined' | 'suppressed';
 
-export interface EvidenceCitation {
-  result_store: string;
-  query_id: 'Q1';
-  query: string;
-  result_column: string;
-}
+export type EvidenceCitation = Schemas['Citation'];
 
 export type EvidenceFigure = Schemas['EvidenceFigure'];
 
-export interface EvidenceDriver {
-  id: string;
-  label: string;
-  description: string;
-  contribution: EvidenceFigure;
-  share_of_change: EvidenceFigure;
-  population: { label: string; count: EvidenceFigure };
-  base_rate: EvidenceFigure | null;
-  target_rate: EvidenceFigure | null;
-}
+export type EvidenceDriver = Schemas['DriverContribution'];
 
 export type EvidencePackEnvelope = Schemas['EvidencePackEnvelope'];
 
@@ -991,12 +932,7 @@ export async function analyzeAgeDistribution(
 }
 
 // 093: Analyze part-time percentage from census data
-export interface PartTimePctAnalysis {
-  column_present: boolean;
-  headcount: number;
-  part_time_count: number;
-  part_time_pct: number;
-}
+export type PartTimePctAnalysis = Schemas['PartTimePctResponse'];
 
 export async function analyzePartTimePct(
   workspaceId: string,
@@ -1082,14 +1018,7 @@ export async function analyzeCompensation(
 
 export type CompensationSolverRequest = Schemas['CompensationSolverRequest'];
 
-export interface LevelDistribution {
-  level: number;
-  name: string;
-  headcount: number;
-  percentage: number;
-  avg_compensation: number;
-  promotion_rate: number;
-}
+export type LevelDistribution = Schemas['LevelDistributionResponse'];
 
 export type CompensationSolverResponse = Schemas['CompensationSolverResponse'];
 
@@ -1258,17 +1187,6 @@ export interface BandValidationError {
   error_type: 'gap' | 'overlap' | 'invalid_range' | 'coverage';
   message: string;
   band_ids: number[];
-}
-
-export interface BandSaveRequest {
-  age_bands: Band[];
-  tenure_bands: Band[];
-}
-
-export interface BandSaveResponse {
-  success: boolean;
-  validation_errors: BandValidationError[];
-  message: string;
 }
 
 export type BandAnalysisRequest = Schemas['BandAnalysisRequest'];
@@ -1466,12 +1384,6 @@ export type PromotionHazardAgeMultiplier = Schemas['PromotionHazardAgeMultiplier
 export type PromotionHazardTenureMultiplier = Schemas['PromotionHazardTenureMultiplier'];
 
 export type PromotionHazardConfig = Schemas['PromotionHazardConfig'];
-
-export interface PromotionHazardSaveResponse {
-  success: boolean;
-  errors: string[];
-  message: string;
-}
 
 /**
  * Get promotion hazard configuration from dbt seed files.
@@ -1851,10 +1763,7 @@ export type ACPScenarioResult = Schemas['ACPScenarioResult'];
 
 export type ACPTestResponse = Schemas['ACPTestResponse'];
 
-export interface NDTAvailableYearsResponse {
-  years: number[];
-  default_year: number | null;
-}
+export type NDTAvailableYearsResponse = Schemas['AvailableYearsResponse'];
 
 /**
  * Run ACP non-discrimination test for one or more scenarios.
@@ -2021,25 +1930,7 @@ export async function applyWorkforceParams(
 // Calibration Endpoints (Feature 105 - Fast Compensation Calibration)
 // ============================================================================
 
-export interface CalibrationParams {
-  target_growth_pct?: number | null;
-  cola_rate?: number | null;
-  merit_budget?: number | null;
-  promotion_increase?: number | null;
-  /** Workforce/headcount growth target (simulation.target_growth_rate). */
-  workforce_growth_rate?: number | null;
-  /** Core termination rates (workforce.*), as decimals; held fixed across the search. */
-  total_termination_rate?: number | null;
-  new_hire_termination_rate?: number | null;
-  /** New-hire age distribution; overrides the seed via the same dbt var the full sim uses. */
-  new_hire_age_distribution?: Array<{ age: number; weight: number }> | null;
-  job_level_compensation?: Array<{
-    level: number;
-    name?: string;
-    min_compensation: number;
-    max_compensation: number;
-  }> | null;
-}
+export type CalibrationParams = Schemas['CalibrationParameterSet'];
 
 export type CalibrationRunRequest = Schemas['CalibrationRunRequest'];
 
@@ -2049,32 +1940,9 @@ export type AutoCalibrationRequest = Schemas['AutoCalibrationRequest'];
 
 export type OptimizationIteration = Schemas['OptimizationIteration'];
 
-export interface AutoCalibrationOutcome {
-  converged: boolean;
-  message: string;
-  best_params: CalibrationParams;
-  best_scale?: number | null;
-  achieved_comp_growth_pct: number;
-  target_comp_growth_pct: number;
-  max_abs_error_pct: number;
-  objective: 'max_annual_error';
-  start_year: number;
-  end_year: number;
-  iterations: OptimizationIteration[];
-  results: PerYearCompensationResult[];
-}
+export type AutoCalibrationOutcome = Schemas['AutoCalibrationResult'];
 
-export interface CalibrationContext {
-  workspace_id: string;
-  scenario_id: string | null;
-  source_scenario_id: string;
-  source_run_id: string;
-  config_fingerprint: string;
-  census_fingerprint: string;
-  random_seed: number;
-  start_year: number;
-  end_year: number;
-}
+export type CalibrationContext = Schemas['CalibrationContext-Output'];
 
 export interface AutoCalibrationResponse {
   run_id: string;
@@ -2332,38 +2200,11 @@ export async function promoteOptimizerCandidate(
 // Ensembles (#554) -- Studio band charts over a seed-ensemble aggregate DB.
 // ---------------------------------------------------------------------------
 
-export interface EnsembleDistributionRow {
-  ensemble_id: string;
-  scenario_id: string;
-  metric: string;
-  simulation_year: number;
-  p10: number | null;
-  p50: number | null;
-  p90: number | null;
-  n_seeds: number;
-  n_seeds_requested: number;
-  is_sufficient: boolean;
-}
+export type EnsembleDistributionRow = Schemas['MetricDistribution'];
 
-export interface EnsembleRiskStatement {
-  metric: string;
-  threshold_value: number;
-  simulation_year: number | null;
-  exceedance_probability: number | null;
-  n_seeds: number;
-  is_evaluable: boolean;
-  reason?: string | null;
-}
+export type EnsembleRiskStatement = Schemas['RiskStatement'];
 
-export interface EnsembleAttributionRow {
-  metric: string;
-  simulation_year: number;
-  subsystem: string;
-  variance_share: number | null;
-  ci_low: number | null;
-  ci_high: number | null;
-  stochastic_status: 'stochastic' | 'not_stochastic';
-}
+export type EnsembleAttributionRow = Schemas['AttributionShare'];
 
 export type EnsembleDatabaseSummary = Schemas['EnsembleDatabaseSummary'];
 
