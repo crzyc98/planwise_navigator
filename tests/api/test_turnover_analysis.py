@@ -119,9 +119,9 @@ class TestTurnoverAnalysisService:
 
     @pytest.mark.parametrize("suffix", [".csv", ".parquet"])
     @pytest.mark.parametrize(
-        "termination_date", ["", "invalid", "2022-12-31", "2025-01-01"]
+        "termination_date", ["", " ", "invalid", "2022-12-31", "2025-01-01"]
     )
-    def test_unusable_termination_date_uses_as_of_tenure(
+    def test_termination_date_precedence_and_validation(
         self, service, workspace_dir, suffix, termination_date
     ):
         file_name = _write_census(
@@ -135,12 +135,74 @@ class TestTurnoverAnalysisService:
             ],
             suffix,
         )
+        if termination_date in ("invalid", "2022-12-31"):
+            with pytest.raises(
+                ValueError, match="invalid termination date.*on or after hire"
+            ):
+                service.analyze_turnover_rates("test-ws", file_name, date(2024, 12, 31))
+            return
         result = service.analyze_turnover_rates(
             "test-ws", file_name, date(2024, 12, 31)
         )
+        assert result.total_employees == 1
         assert result.new_hire_rate is None
-        assert result.experienced_rate is not None
-        assert result.experienced_rate.terminated_count == 1
+        if termination_date == "2025-01-01":
+            assert result.total_terminated == 0
+            assert result.experienced_rate is None
+        else:
+            assert result.total_terminated == 1
+            assert result.experienced_rate is not None
+            assert result.experienced_rate.terminated_count == 1
+
+    @pytest.mark.parametrize("suffix", [".csv", ".parquet"])
+    @pytest.mark.parametrize(
+        "flags",
+        [
+            {"active": "true"},
+            {"active": "false"},
+            {"status": "active"},
+            {"status": "terminated"},
+            {"active": "false", "status": "active"},
+            {},
+        ],
+    )
+    def test_future_termination_excluded_and_as_of_boundary_included(
+        self, service, workspace_dir, suffix, flags
+    ):
+        file_name = _write_census(
+            workspace_dir,
+            [
+                {"hire_date": "2020-01-01", "termination_date": "2026-01-01", **flags},
+                {"hire_date": "2020-01-01", "termination_date": "", **flags},
+            ],
+            suffix,
+        )
+        before = service.analyze_turnover_rates(
+            "test-ws", file_name, date(2025, 12, 31)
+        )
+        on_date = service.analyze_turnover_rates("test-ws", file_name, date(2026, 1, 1))
+        fallback_count = int(
+            flags.get("active") == "false"
+            or ("active" not in flags and flags.get("status") == "terminated")
+        )
+        assert before.total_employees == on_date.total_employees == 2
+        assert before.total_terminated == fallback_count
+        assert on_date.total_terminated == 1 + fallback_count
+        assert on_date.experienced_rate.rate == (1 + fallback_count) / 2
+        if fallback_count == 0:
+            assert before.experienced_rate is None
+        else:
+            assert before.experienced_rate.rate == 0.5
+        for result, expected_date in (
+            (before, date(2025, 12, 31)),
+            (on_date, date(2026, 1, 1)),
+        ):
+            assert result.as_of_date == expected_date
+            assert result.as_of_date_source == "provided"
+        inferred = service.analyze_turnover_rates("test-ws", file_name)
+        assert inferred.as_of_date == date(2026, 12, 31)
+        assert inferred.as_of_date_source == "inferred"
+        assert inferred.total_terminated == 1 + fallback_count
 
     def test_normal_case_with_terminations(self, service, workspace_dir):
         """Test analysis with a mix of active and terminated employees."""

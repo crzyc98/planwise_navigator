@@ -41,8 +41,11 @@ class TurnoverAnalysisService:
 
         Tenure uses days of service / 365.25. It ends at a parseable termination
         date between hire and the analysis date, inclusive. Active employees and
-        employees with only a termination status flag (or no usable termination
-        date) use the analysis date instead; their termination tenure is unknown.
+        employees with only a termination status flag use the analysis date
+        instead; their termination tenure is unknown. Populated termination dates
+        override status flags: future dates are not observed terminations. Invalid
+        dates and dates before hire raise ValueError. Missing dates fall back to
+        'active', then 'status', when available.
 
         Args:
             workspace_id: Workspace ID
@@ -134,6 +137,18 @@ class TurnoverAnalysisService:
             )
             as_of_date_str = resolved_as_of.date.isoformat()
 
+            conn.execute(
+                "ALTER TABLE census ADD COLUMN _is_terminated BOOLEAN DEFAULT false"
+            )
+            _set_termination_status(
+                conn,
+                hire_date_col,
+                term_date_col,
+                has_active_col,
+                has_status_col,
+                as_of_date_str,
+            )
+
             tenure_end = "?::DATE"
             tenure_params = [as_of_date_str]
             if term_date_col:
@@ -161,37 +176,6 @@ class TurnoverAnalysisService:
             conn.execute(
                 "DELETE FROM census WHERE _tenure_years < 0 OR _tenure_years IS NULL"
             )
-
-            # Determine terminated status
-            conn.execute(
-                "ALTER TABLE census ADD COLUMN _is_terminated BOOLEAN DEFAULT false"
-            )
-
-            if term_date_col:
-                # Primary: use termination date column
-                conn.execute(
-                    f"""
-                    UPDATE census SET _is_terminated = true
-                    WHERE {term_date_col} IS NOT NULL
-                      AND CAST({term_date_col} AS VARCHAR) != ''
-                    """
-                )
-            elif has_active_col:
-                # Fallback: use active boolean column
-                conn.execute(
-                    "UPDATE census SET _is_terminated = true WHERE active = false"
-                )
-            elif has_status_col:
-                # Fallback: use status column
-                conn.execute(
-                    "UPDATE census SET _is_terminated = true WHERE LOWER(status) != 'active'"
-                )
-
-            # If we have both term_date and active columns, also check active=false
-            if term_date_col and has_active_col:
-                conn.execute(
-                    "UPDATE census SET _is_terminated = true WHERE active = false"
-                )
 
             # Calculate totals
             total_employees_row = conn.execute("SELECT COUNT(*) FROM census").fetchone()
@@ -303,6 +287,46 @@ class TurnoverAnalysisService:
 
         finally:
             conn.close()
+
+
+def _set_termination_status(
+    conn: duckdb.DuckDBPyConnection,
+    hire_date_col: str,
+    term_date_col: str | None,
+    has_active_col: bool,
+    has_status_col: bool,
+    as_of_date_str: str,
+) -> None:
+    """Prefer explicit dates; use status flags only when the date is missing."""
+    fallback = "false"
+    if has_active_col:
+        fallback = "active = false"
+    elif has_status_col:
+        fallback = "LOWER(status) != 'active'"
+    condition = fallback
+    params: list[str] = []
+    if term_date_col:
+        populated = f"NULLIF(TRIM(CAST({term_date_col} AS VARCHAR)), '') IS NOT NULL"
+        term_date = f"TRY_CAST({term_date_col} AS DATE)"
+        invalid_row = conn.execute(
+            f"""SELECT COUNT(*) FROM census WHERE {populated}
+                AND ({term_date} IS NULL
+                     OR {term_date} < CAST({hire_date_col} AS DATE))"""
+        ).fetchone()
+        assert invalid_row is not None
+        invalid_count = invalid_row[0]
+        if invalid_count:
+            raise ValueError(
+                f"Census contains {invalid_count} invalid termination date(s) in "
+                f"'{term_date_col}': dates must be parseable and on or after hire."
+            )
+        condition = (
+            f"CASE WHEN {populated} THEN {term_date} <= ?::DATE ELSE {fallback} END"
+        )
+        params.append(as_of_date_str)
+    conn.execute(
+        f"UPDATE census SET _is_terminated = COALESCE(({condition}), false)", params
+    )
 
 
 def _confidence_level(terminated_count: int) -> str:
