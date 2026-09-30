@@ -20,8 +20,8 @@ import {
 } from 'recharts';
 import {
   CheckSquare, Square, Search, Filter,
-  Anchor, Calendar, DollarSign, Download,
-  RefreshCw, AlertCircle, Loader2,
+  Anchor, Calendar, DollarSign,
+  RefreshCw, AlertCircle, Loader2, FileSpreadsheet, Database,
   TrendingUp, TrendingDown, Info, Calculator,
   Eye, Copy, Check, ArrowUp, ArrowDown
 } from 'lucide-react';
@@ -33,6 +33,8 @@ import {
   listScenarios,
   compareDCPlanAnalytics,
   compareGrandfatheredCost,
+  downloadComparisonExport,
+  ComparisonExportFormat,
   getScenarioConfig,
   getForfeitureProjection,
   listVestingSchedules,
@@ -355,6 +357,26 @@ const LoadingState = () => (
 // Main Component
 // ============================================================================
 
+const EXPORT_OPTIONS = [
+  {
+    format: 'xlsx',
+    label: 'Excel',
+    title: 'Download workforce snapshots and census for the selected scenarios (.xlsx)',
+    Icon: FileSpreadsheet,
+  },
+  {
+    format: 'hyper',
+    label: 'Tableau',
+    title: 'Download workforce snapshots and census for the selected scenarios (.hyper)',
+    Icon: Database,
+  },
+] as const satisfies ReadonlyArray<{
+  format: ComparisonExportFormat;
+  label: string;
+  title: string;
+  Icon: typeof Database;
+}>;
+
 export default function ScenarioCostComparison() {
   const chartTheme = useChartTheme();
   // -------------------------------------------------------------------------
@@ -404,6 +426,8 @@ export default function ScenarioCostComparison() {
   const [grandfatherData, setGrandfatherData] = useState<GrandfatheredCostComparisonResponse | null>(null);
   const [grandfatherLoading, setGrandfatherLoading] = useState(false);
   const [grandfatherError, setGrandfatherError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState<ComparisonExportFormat | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   // -------------------------------------------------------------------------
   // Copy to Clipboard Hooks
@@ -818,6 +842,19 @@ export default function ScenarioCostComparison() {
       setLoadingScenarios(false);
     }
   }, []);
+
+  const handleExport = useCallback(async (format: ComparisonExportFormat) => {
+    if (!activeWorkspace?.id || selectedScenarioIds.length === 0) return;
+    setExporting(format);
+    setExportError(null);
+    try {
+      await downloadComparisonExport(activeWorkspace.id, selectedScenarioIds, format);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : 'Export failed');
+    } finally {
+      setExporting(null);
+    }
+  }, [activeWorkspace?.id, selectedScenarioIds]);
 
   const fetchComparison = useCallback(async () => {
     if (!activeWorkspace?.id || selectedScenarioIds.length === 0) {
@@ -1377,9 +1414,28 @@ export default function ScenarioCostComparison() {
               {anchorAnalytics?.scenario_name || 'None selected'}
             </div>
           </div>
-          <button className="w-full py-2 bg-surface-raised border border-border-strong rounded-lg text-xs font-bold text-ink-muted hover:bg-surface-subtle flex items-center justify-center transition-colors">
-            <Download size={14} className="mr-2" /> Download Report
-          </button>
+          <div className="grid grid-cols-2 gap-2">
+            {EXPORT_OPTIONS.map(({ format, label, title, Icon }) => (
+              <button
+                key={format}
+                onClick={() => handleExport(format)}
+                disabled={selectedScenarioIds.length === 0 || exporting !== null}
+                title={title}
+                className="py-2 bg-surface-raised border border-border-strong rounded-lg text-xs font-bold text-ink-muted hover:bg-surface-subtle flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {exporting === format
+                  ? <Loader2 size={14} className="mr-2 animate-spin" />
+                  : <Icon size={14} className="mr-2" />}
+                {label}
+              </button>
+            ))}
+          </div>
+          {exporting === 'xlsx' && (
+            <p className="text-[11px] text-ink-subtle">
+              Large Excel exports can take several minutes. Tableau is much faster.
+            </p>
+          )}
+          {exportError && <p className="text-[11px] text-danger-ink">{exportError}</p>}
         </div>
       </aside>
 
