@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { DCPlanComparisonResponse, DCPlanAnalytics, ContributionYearSummary } from '../services/api';
 import { useChartTheme } from '../hooks/useChartTheme';
+import { buildDCTrendData, scenarioSeriesKey, eventSeriesKey } from './scenarioComparisonData';
 
 // --- Props ---
 
@@ -15,7 +16,7 @@ interface DCPlanComparisonSectionProps {
   comparisonData: DCPlanComparisonResponse | null;
   loading: boolean;
   error: string | null;
-  scenarioNames: string[];
+  scenarios: Array<{ id: string; name: string }>;
   scenarioColors: Record<string, string>;
 }
 
@@ -106,10 +107,10 @@ function ChartCard({
 // --- Trend line chart shared across Employer Cost, Participation, Deferral ---
 
 function TrendLineChart({
-  data, scenarioNames, scenarioColors, yDomain, yDecimals = 1,
+  data, scenarios, scenarioColors, yDomain, yDecimals = 1,
 }: {
   data: TrendDataPoint[];
-  scenarioNames: string[];
+  scenarios: Array<{ id: string; name: string }>;
   scenarioColors: Record<string, string>;
   yDomain?: [number, number];
   yDecimals?: number;
@@ -123,15 +124,16 @@ function TrendLineChart({
         <YAxis stroke={chartTheme.axis.line} domain={yDomain} tickFormatter={v => formatPercent(v, 0)} />
         <Tooltip
           contentStyle={chartTheme.tooltip.contentStyle}
-          formatter={(value: number) => [formatPercent(value, yDecimals), '']}
+          formatter={(value: number, name: string) => [formatPercent(value, yDecimals), name]}
         />
         <Legend verticalAlign="top" height={36} formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
-        {scenarioNames.map(name => (
+        {scenarios.map(({ id, name }) => (
           <Line
-            key={name}
+            key={id}
             type="monotone"
-            dataKey={name}
-            stroke={scenarioColors[name]}
+            dataKey={scenarioSeriesKey(id)}
+            name={name}
+            stroke={scenarioColors[id]}
             strokeWidth={3}
             dot={{ r: 4 }}
             activeDot={{ r: 6 }}
@@ -145,10 +147,10 @@ function TrendLineChart({
 // --- Summary comparison table sub-component ---
 
 function SummaryComparisonTable({
-  summaryRows, scenarioNames, scenarioColors, headerRight,
+  summaryRows, scenarios, scenarioColors, headerRight,
 }: {
   summaryRows: SummaryMetricRow[];
-  scenarioNames: string[];
+  scenarios: Array<{ id: string; name: string }>;
   scenarioColors: Record<string, string>;
   headerRight?: React.ReactNode;
 }) {
@@ -180,11 +182,11 @@ function SummaryComparisonTable({
               <th className="px-4 py-3 text-left text-xs font-medium text-ink-muted uppercase tracking-wider">
                 Metric
               </th>
-              {scenarioNames.map((name, idx) => (
+              {scenarios.map(({ id, name }, idx) => (
                 <th
-                  key={name}
+                  key={id}
                   className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider"
-                  style={{ color: scenarioColors[name] }}
+                  style={{ color: scenarioColors[id] }}
                 >
                   {name}{idx === 0 ? ' (Baseline)' : ''}
                 </th>
@@ -195,15 +197,15 @@ function SummaryComparisonTable({
             {summaryRows.map(row => (
               <tr key={row.metric} className="hover:bg-surface-subtle">
                 <td className="px-4 py-3 font-medium text-ink">{row.metric}</td>
-                {scenarioNames.map((name, idx) => {
-                  const value = row.values[name];
-                  const delta = row.deltas[name];
+                {scenarios.map(({ id }, idx) => {
+                  const value = row.values[id];
+                  const delta = row.deltas[id];
                   const isBaseline = idx === 0;
                   const favorable = !isBaseline && delta !== undefined && isFavorable(row, delta);
                   const colorClass = favorable ? 'bg-success-surface text-success-ink' : 'bg-danger-surface text-danger-ink';
 
                   return (
-                    <td key={name} className="px-4 py-3">
+                    <td key={id} className="px-4 py-3">
                       <div className="text-ink font-semibold">{formatValue(row, value)}</div>
                       {!isBaseline && delta !== undefined && (
                         <span className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium ${colorClass}`}>
@@ -244,7 +246,8 @@ function ContributionRateLines({
       const label = isSingleScenario ? series.label : `${scenarioName} - ${series.label}`;
       lines.push(
         <Line
-          key={label} type="monotone" dataKey={label}
+          key={eventSeriesKey(a.scenario_id, series.key)} type="monotone"
+          dataKey={eventSeriesKey(a.scenario_id, series.key)} name={label}
           stroke={chartTheme.semantic.contribution[series.colorKey]}
           strokeWidth={series.key === 'total_contribution_rate' ? 3 : 2}
           strokeDasharray={dashArray}
@@ -263,51 +266,25 @@ export default function DCPlanComparisonSection({
   comparisonData,
   loading,
   error,
-  scenarioNames,
+  scenarios,
   scenarioColors,
 }: DCPlanComparisonSectionProps) {
   const chartTheme = useChartTheme();
 
   // --- Data Transformations ---
 
-  const buildTrendData = (
-    metricKey: string,
-    multiplier: number = 1
-  ): TrendDataPoint[] => {
-    if (!comparisonData || comparisonData.analytics.length === 0) return [];
-
-    const allYears = new Set<number>();
-    comparisonData.analytics.forEach(a => {
-      if (a.contribution_by_year) {
-        a.contribution_by_year.forEach(c => allYears.add(c.year));
-      }
-    });
-
-    return Array.from(allYears).sort((a, b) => a - b).map(year => {
-      const point: TrendDataPoint = { year };
-      comparisonData.analytics.forEach(a => {
-        const scenarioName = comparisonData.scenario_names[a.scenario_id] || a.scenario_id;
-        const yearData = a.contribution_by_year?.find(c => c.year === year);
-        if (yearData) {
-          point[scenarioName] = (yearData as any)[metricKey] * multiplier;
-        }
-      });
-      return point;
-    });
-  };
-
   const employerCostTrendData = useMemo(
-    () => buildTrendData('employer_cost_rate'),
+    () => buildDCTrendData(comparisonData?.analytics ?? [], 'employer_cost_rate'),
     [comparisonData]
   );
 
   const participationTrendData = useMemo(
-    () => buildTrendData('participation_rate'),
+    () => buildDCTrendData(comparisonData?.analytics ?? [], 'participation_rate'),
     [comparisonData]
   );
 
   const deferralTrendData = useMemo(
-    () => buildTrendData('average_deferral_rate', 100),
+    () => buildDCTrendData(comparisonData?.analytics ?? [], 'average_deferral_rate', 100),
     [comparisonData]
   );
 
@@ -325,20 +302,14 @@ export default function DCPlanComparisonSection({
       a.contribution_by_year?.forEach(c => allYears.add(c.year));
     });
 
-    const isSingleScenario = comparisonData.analytics.length === 1;
-
     return Array.from(allYears).sort((a, b) => a - b).map(year => {
       const point: RateTrendDataPoint = { year };
 
       comparisonData.analytics.forEach(a => {
-        const scenarioName = comparisonData.scenario_names[a.scenario_id] || a.scenario_id;
         const yearData = a.contribution_by_year?.find(c => c.year === year);
         if (yearData) {
           RATE_SERIES.forEach(series => {
-            const label = isSingleScenario
-              ? series.label
-              : `${scenarioName} - ${series.label}`;
-            point[label] = (yearData as any)[series.key] ?? 0;
+            point[eventSeriesKey(a.scenario_id, series.key)] = yearData[series.key] ?? 0;
           });
         }
       });
@@ -391,8 +362,6 @@ export default function DCPlanComparisonSection({
       const point: DistributionDataPoint = { bucket };
 
       comparisonData.analytics.forEach(a => {
-        const scenarioName = comparisonData.scenario_names[a.scenario_id] || a.scenario_id;
-
         let distribution = a.deferral_rate_distribution;
         if (useByYear && a.deferral_distribution_by_year && a.deferral_distribution_by_year.length > 0) {
           const yearData = a.deferral_distribution_by_year.find(d => d.year === selectedDistributionYear);
@@ -402,7 +371,7 @@ export default function DCPlanComparisonSection({
         }
 
         const bucketData = distribution?.find(b => b.bucket === bucket);
-        point[scenarioName] = bucketData?.percentage ?? 0;
+        point[scenarioSeriesKey(a.scenario_id)] = bucketData?.percentage ?? 0;
       });
 
       return point;
@@ -522,7 +491,7 @@ export default function DCPlanComparisonSection({
     ];
 
     const baselineAnalytics = comparisonData.analytics[0];
-    const baselineName = comparisonData.scenario_names[baselineAnalytics.scenario_id] || baselineAnalytics.scenario_id;
+    const baselineId = baselineAnalytics.scenario_id;
     const baselineYs = getYearSummary(baselineAnalytics);
 
     return metrics.map(m => {
@@ -533,14 +502,13 @@ export default function DCPlanComparisonSection({
       const baselineValue = baselineYs ? m.getValue(baselineYs) : 0;
 
       comparisonData.analytics.forEach(a => {
-        const name = comparisonData.scenario_names[a.scenario_id] || a.scenario_id;
         const ys = getYearSummary(a);
         const value = ys ? m.getValue(ys) : 0;
-        values[name] = value;
+        values[a.scenario_id] = value;
 
-        if (name !== baselineName) {
-          deltas[name] = value - baselineValue;
-          deltaPcts[name] = baselineValue !== 0
+        if (a.scenario_id !== baselineId) {
+          deltas[a.scenario_id] = value - baselineValue;
+          deltaPcts[a.scenario_id] = baselineValue !== 0
             ? ((value - baselineValue) / baselineValue) * 100
             : 0;
         }
@@ -596,9 +564,9 @@ export default function DCPlanComparisonSection({
   // --- Render ---
 
   let barWidth = 30;
-  if (scenarioNames.length > 4) barWidth = 12;
-  else if (scenarioNames.length > 2) barWidth = 20;
-  const contributionBarSize = scenarioNames.length > 4 ? 16 : 30;
+  if (scenarios.length > 4) barWidth = 12;
+  else if (scenarios.length > 2) barWidth = 20;
+  const contributionBarSize = scenarios.length > 4 ? 16 : 30;
 
   const distributionYearSelector = availableDistributionYears.length > 1 ? (
     <select
@@ -642,7 +610,7 @@ export default function DCPlanComparisonSection({
         emptyMessage="No employer cost data available"
         hasData={employerCostTrendData.length > 0}
       >
-        <TrendLineChart data={employerCostTrendData} scenarioNames={scenarioNames} scenarioColors={scenarioColors} yDecimals={2} />
+        <TrendLineChart data={employerCostTrendData} scenarios={scenarios} scenarioColors={scenarioColors} yDecimals={2} />
       </ChartCard>
 
       {/* E066: Contribution Rate Trends */}
@@ -657,7 +625,7 @@ export default function DCPlanComparisonSection({
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
             <XAxis dataKey="year" stroke={chartTheme.axis.line} />
             <YAxis stroke={chartTheme.axis.line} tickFormatter={v => formatPercent(v)} />
-            <Tooltip contentStyle={chartTheme.tooltip.contentStyle} formatter={(value: number) => [formatPercent(value, 2), '']} />
+            <Tooltip contentStyle={chartTheme.tooltip.contentStyle} formatter={(value: number, name: string) => [formatPercent(value, 2), name]} />
             <Legend verticalAlign="top" height={36} formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
             <ContributionRateLines analytics={comparisonData.analytics} scenarioNames={comparisonData.scenario_names} />
           </LineChart>
@@ -672,7 +640,7 @@ export default function DCPlanComparisonSection({
           emptyMessage="No participation data available"
           hasData={participationTrendData.length > 0}
         >
-          <TrendLineChart data={participationTrendData} scenarioNames={scenarioNames} scenarioColors={scenarioColors} yDomain={[0, 100]} yDecimals={1} />
+          <TrendLineChart data={participationTrendData} scenarios={scenarios} scenarioColors={scenarioColors} yDomain={[0, 100]} yDecimals={1} />
         </ChartCard>
 
         <ChartCard
@@ -681,7 +649,7 @@ export default function DCPlanComparisonSection({
           emptyMessage="No deferral rate data available"
           hasData={deferralTrendData.length > 0}
         >
-          <TrendLineChart data={deferralTrendData} scenarioNames={scenarioNames} scenarioColors={scenarioColors} yDecimals={2} />
+          <TrendLineChart data={deferralTrendData} scenarios={scenarios} scenarioColors={scenarioColors} yDecimals={2} />
         </ChartCard>
       </div>
 
@@ -700,8 +668,8 @@ export default function DCPlanComparisonSection({
             <YAxis stroke={chartTheme.axis.line} tickFormatter={v => formatPercent(v, 0)} />
             <Tooltip contentStyle={chartTheme.tooltip.contentStyle} formatter={(value: number, name: string) => [formatPercent(value, 1), name]} />
             <Legend verticalAlign="top" height={36} formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
-            {scenarioNames.map(name => (
-              <Bar key={name} dataKey={name} fill={scenarioColors[name]} radius={[4, 4, 0, 0]} barSize={barWidth} />
+            {scenarios.map(({ id, name }) => (
+              <Bar key={id} dataKey={scenarioSeriesKey(id)} name={name} fill={scenarioColors[id]} radius={[4, 4, 0, 0]} barSize={barWidth} />
             ))}
           </BarChart>
         </ResponsiveContainer>
@@ -732,7 +700,7 @@ export default function DCPlanComparisonSection({
       {/* Summary Comparison Table */}
       <SummaryComparisonTable
         summaryRows={summaryRows}
-        scenarioNames={scenarioNames}
+        scenarios={scenarios}
         scenarioColors={scenarioColors}
         headerRight={comparisonYearSelector}
       />
