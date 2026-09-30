@@ -21,6 +21,11 @@ from .database_path_resolver import (
 
 logger = logging.getLogger(__name__)
 
+
+class IncompatibleSimulationYearsError(ValueError):
+    """The selected scenarios have no shared snapshot year."""
+
+
 # Path to dbt seeds directory (relative to project root)
 DBT_SEEDS_DIR = Path(__file__).parent.parent.parent / "dbt" / "seeds"
 
@@ -62,18 +67,21 @@ class WinnersLosersService:
     ) -> Optional[WinnersLosersResponse]:
         """Compare two scenarios by employer contributions.
 
-        Queries fct_workforce_snapshot for the final simulation year in each
-        scenario, joins on employee_id, and classifies each employee as
+        Queries both snapshots at their latest shared simulation year,
+        joins on employee_id, and classifies each employee as
         winner, loser, or neutral based on total employer contributions.
+        Disjoint horizons raise IncompatibleSimulationYearsError.
         """
         try:
-            df_a, year_a = self._query_scenario_contributions(workspace_id, plan_a)
-            df_b, year_b = self._query_scenario_contributions(workspace_id, plan_b)
+            selected_years = self._select_comparison_year(workspace_id, plan_a, plan_b)
+            if selected_years is None:
+                return None
+            final_year, year_a, year_b = selected_years
+            df_a = self._query_scenario_contributions(workspace_id, plan_a, final_year)
+            df_b = self._query_scenario_contributions(workspace_id, plan_b, final_year)
 
             if df_a is None or df_b is None:
                 return None
-
-            final_year = max(year_a, year_b)
 
             merged, total_excluded = self._classify_employees(df_a, df_b)
             age_results, tenure_results, heatmap = self._aggregate_results(merged)
@@ -87,6 +95,8 @@ class WinnersLosersService:
                 plan_a_scenario_id=plan_a,
                 plan_b_scenario_id=plan_b,
                 final_year=final_year,
+                plan_a_final_year=year_a,
+                plan_b_final_year=year_b,
                 total_compared=total,
                 total_excluded=total_excluded,
                 total_winners=total_winners,
@@ -96,6 +106,8 @@ class WinnersLosersService:
                 tenure_band_results=tenure_results,
                 heatmap=heatmap,
             )
+        except IncompatibleSimulationYearsError:
+            raise
         except Exception as e:
             logger.error(f"Failed to analyze winners/losers: {e}")
             return None
@@ -104,18 +116,40 @@ class WinnersLosersService:
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _query_scenario_contributions(
-        self, workspace_id: str, scenario_id: str
-    ) -> tuple:
-        """Query employer contributions for active employees at final year.
+    def _select_comparison_year(
+        self, workspace_id: str, plan_a: str, plan_b: str
+    ) -> Optional[tuple[int, int, int]]:
+        """Return the latest common year and each scenario's actual final year."""
+        years_a = self._query_scenario_years(workspace_id, plan_a)
+        years_b = self._query_scenario_years(workspace_id, plan_b)
+        if not years_a or not years_b:
+            return None
+        common_years = years_a & years_b
+        if not common_years:
+            raise IncompatibleSimulationYearsError(
+                "Plan A and Plan B have no common simulation year. "
+                "Run both scenarios with overlapping simulation years."
+            )
+        return max(common_years), max(years_a), max(years_b)
 
-        Returns (DataFrame, final_year) or (None, 0) on failure.
-        """
+    def _query_scenario_years(self, workspace_id: str, scenario_id: str) -> set[int]:
+        """Read actual snapshot years, including years with no active employees."""
         resolved = self.db_resolver.resolve(workspace_id, scenario_id)
         if not resolved.exists:
             logger.error(f"Database not found for scenario {scenario_id}")
-            return None, 0
+            return set()
+        with duckdb.connect(str(resolved.path), read_only=True) as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT simulation_year FROM fct_workforce_snapshot "
+                "WHERE simulation_year IS NOT NULL"
+            ).fetchall()
+        return {int(row[0]) for row in rows}
 
+    def _query_scenario_contributions(
+        self, workspace_id: str, scenario_id: str, comparison_year: int
+    ) -> Optional[pd.DataFrame]:
+        """Query active employees at the selected common year; never fall back."""
+        resolved = self.db_resolver.resolve(workspace_id, scenario_id)
         conn = duckdb.connect(str(resolved.path), read_only=True)
         try:
             df = conn.execute(
@@ -125,22 +159,19 @@ class WinnersLosersService:
                     age_band,
                     tenure_band,
                     COALESCE(employer_match_amount, 0)
-                        + COALESCE(employer_core_amount, 0) AS employer_total,
-                    simulation_year
+                        + COALESCE(employer_core_amount, 0) AS employer_total
                 FROM fct_workforce_snapshot
-                WHERE simulation_year = (
-                    SELECT MAX(simulation_year) FROM fct_workforce_snapshot
-                )
+                WHERE simulation_year = ?
                 AND LOWER(employment_status) = 'active'
-                """
+                """,
+                [comparison_year],
             ).fetchdf()
 
             if df.empty:
                 logger.warning(f"No active employees found for scenario {scenario_id}")
-                return None, 0
+                return None
 
-            final_year = int(df["simulation_year"].iloc[0])
-            return df.drop(columns=["simulation_year"]), final_year
+            return df
         finally:
             conn.close()
 

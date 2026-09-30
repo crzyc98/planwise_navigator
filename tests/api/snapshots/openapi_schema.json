@@ -15068,7 +15068,7 @@
             "type": "array"
           },
           "final_year": {
-            "description": "Simulation year used for comparison",
+            "description": "Latest simulation year present in both snapshots",
             "title": "Final Year",
             "type": "integer"
           },
@@ -15080,10 +15080,20 @@
             "title": "Heatmap",
             "type": "array"
           },
+          "plan_a_final_year": {
+            "description": "Latest snapshot year available for Plan A",
+            "title": "Plan A Final Year",
+            "type": "integer"
+          },
           "plan_a_scenario_id": {
             "description": "Plan A scenario ID",
             "title": "Plan A Scenario Id",
             "type": "string"
+          },
+          "plan_b_final_year": {
+            "description": "Latest snapshot year available for Plan B",
+            "title": "Plan B Final Year",
+            "type": "integer"
           },
           "plan_b_scenario_id": {
             "description": "Plan B scenario ID",
@@ -15128,6 +15138,8 @@
           "plan_a_scenario_id",
           "plan_b_scenario_id",
           "final_year",
+          "plan_a_final_year",
+          "plan_b_final_year",
           "total_compared",
           "total_excluded",
           "total_winners",
@@ -19957,7 +19969,7 @@
     },
     "/api/workspaces/{workspace_id}/analytics/winners-losers": {
       "get": {
-        "description": "Compare two scenarios and classify employees as winners, losers, or\nneutral based on total employer contributions (match + core).",
+        "description": "Compare two scenarios and classify employees as winners, losers, or\nneutral based on total employer contributions (match + core).\nUses the latest shared snapshot year; disjoint horizons return HTTP 422.",
         "operationId": "get_winners_losers_api_workspaces__workspace_id__analytics_winners_losers_get",
         "parameters": [
           {

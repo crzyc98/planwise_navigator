@@ -21,6 +21,8 @@ GET /api/workspaces/{workspace_id}/analytics/winners-losers?plan_a={scenario_id}
   "plan_a_scenario_id": "baseline_2025",
   "plan_b_scenario_id": "high_match_2025",
   "final_year": 2027,
+  "plan_a_final_year": 2027,
+  "plan_b_final_year": 2027,
   "total_compared": 450,
   "total_excluded": 12,
   "total_winners": 180,
@@ -60,9 +62,21 @@ GET /api/workspaces/{workspace_id}/analytics/winners-losers?plan_a={scenario_id}
 
 ## Error Responses
 
+Both scenario queries use the latest year actually present in both workforce
+snapshots, returned as `final_year`. Equal final years preserve the existing
+comparison. When final years differ, the latest shared year is used, including
+when snapshot years have gaps. `plan_a_final_year` and `plan_b_final_year` report
+each scenario's latest available snapshot year; Studio displays these when the
+comparison falls back to an earlier common year. Years are selected before
+filtering for active employees; no alternate year is silently substituted when
+the selected year has no active employees.
+
+Disjoint snapshot years return HTTP 422 with a message explaining that both
+scenarios must be run with overlapping simulation years.
+
 | Status | Condition |
 |--------|-----------|
 | 400 | plan_a or plan_b missing, or same scenario for both |
 | 404 | Workspace not found, or scenario not found |
-| 422 | Scenario not completed (no results available) |
+| 422 | Scenario not completed (no results available), or no common simulation year |
 | 500 | Database query failure |

@@ -29,7 +29,10 @@ from ..services.comparison_export_service import (
     HyperUnavailableError,
 )
 from ..services.vesting_service import SCHEDULE_INFO
-from ..services.winners_losers_service import WinnersLosersService
+from ..services.winners_losers_service import (
+    IncompatibleSimulationYearsError,
+    WinnersLosersService,
+)
 from ..services.scenario_read_warning import has_selected_result
 from ..storage.workspace_storage import WorkspaceStorage
 
@@ -444,6 +447,7 @@ def get_winners_losers(
     """
     Compare two scenarios and classify employees as winners, losers, or
     neutral based on total employer contributions (match + core).
+    Uses the latest shared snapshot year; disjoint horizons return HTTP 422.
     """
     # Validate workspace
     workspace = storage.get_workspace(workspace_id)
@@ -467,7 +471,13 @@ def get_winners_losers(
                 detail=f"{label} scenario {sid} has not completed successfully",
             )
 
-    result = service.analyze(workspace_id, plan_a, plan_b)
+    try:
+        result = service.analyze(workspace_id, plan_a, plan_b)
+    except IncompatibleSimulationYearsError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
     if not result:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
