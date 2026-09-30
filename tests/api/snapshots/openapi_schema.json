@@ -18931,16 +18931,17 @@
             }
           },
           {
-            "description": "xlsx (Excel) or hyper (Tableau)",
+            "description": "xlsx (Excel), hyper (Tableau), or parquet (ZIP of datasets)",
             "in": "query",
             "name": "format",
             "required": false,
             "schema": {
               "default": "xlsx",
-              "description": "xlsx (Excel) or hyper (Tableau)",
+              "description": "xlsx (Excel), hyper (Tableau), or parquet (ZIP of datasets)",
               "enum": [
                 "xlsx",
-                "hyper"
+                "hyper",
+                "parquet"
               ],
               "title": "Format",
               "type": "string"
@@ -18951,7 +18952,8 @@
           "200": {
             "content": {
               "application/octet-stream": {},
-              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {},
+              "application/zip": {}
             },
             "description": "Workforce snapshot and census for the selected scenarios.",
             "headers": {

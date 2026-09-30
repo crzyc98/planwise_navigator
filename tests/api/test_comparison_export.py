@@ -1,9 +1,11 @@
-"""Cost Comparison multi-scenario export (Excel workbook and Tableau .hyper)."""
+"""Cost Comparison multi-scenario export (Excel, Tableau Hyper, and Parquet)."""
 
 from __future__ import annotations
 
 import io
+import zipfile
 from pathlib import Path
+from typing import Any
 
 import duckdb
 import pytest
@@ -207,6 +209,78 @@ def test_hyper_has_all_scenarios_census_and_native_types(tmp_path):
     assert columns["snapshot_created_at"] == "TIMESTAMP_TZ"
 
 
+def test_parquet_has_all_datasets_and_native_types(tmp_path):
+    scenarios = [_scenario(tmp_path, "Baseline", 3), _scenario(tmp_path, "Rich", 2)]
+    path = _export(tmp_path, scenarios, "parquet")
+
+    with zipfile.ZipFile(path) as archive:
+        assert archive.namelist() == [
+            "workforce_snapshot.parquet",
+            "census.parquet",
+            "metadata.parquet",
+        ]
+        archive.extractall(tmp_path / "extracted")
+    with duckdb.connect() as conn:
+        snapshot = conn.read_parquet(
+            str(tmp_path / "extracted/workforce_snapshot.parquet")
+        )
+        assert snapshot.columns[:3] == ["scenario_name", "scenario_id", "employee_id"]
+        assert str(snapshot.types[4]) == "DECIMAL(12,2)"
+        assert str(snapshot.types[5]) == "TIMESTAMP WITH TIME ZONE"
+        assert snapshot.aggregate("scenario_name, scenario_id, count(*)").order(
+            "scenario_name"
+        ).fetchall() == [("Baseline", "id-Baseline", 6), ("Rich", "id-Rich", 4)]
+        census = conn.read_parquet(str(tmp_path / "extracted/census.parquet"))
+        assert census.columns == ["employee_id", "employee_hire_date"]
+        assert str(census.types[1]) == "DATE"
+        assert census.count("*").fetchone()[0] == 3
+        metadata = conn.read_parquet(str(tmp_path / "extracted/metadata.parquet"))
+        assert ("workspace", "W") in metadata.fetchall()
+
+
+def test_parquet_preserves_schema_gaps_and_labels_distinct_census(tmp_path):
+    older = _scenario(tmp_path, "Older", 1, census="older.parquet")
+    with duckdb.connect(str(older.database_path)) as conn:
+        conn.execute(
+            "ALTER TABLE fct_workforce_snapshot DROP COLUMN current_compensation"
+        )
+    scenarios = [_scenario(tmp_path, "Newer", 1), older]
+
+    with zipfile.ZipFile(_export(tmp_path, scenarios, "parquet")) as archive:
+        archive.extractall(tmp_path / "extracted")
+    with duckdb.connect() as conn:
+        snapshot = conn.read_parquet(
+            str(tmp_path / "extracted/workforce_snapshot.parquet")
+        )
+        assert snapshot.project("current_compensation").fetchall() == [
+            (50000,),
+            (50000,),
+            (None,),
+            (None,),
+        ]
+        census = conn.read_parquet(str(tmp_path / "extracted/census.parquet"))
+        assert census.project("scenario_name, scenario_id").fetchall() == [
+            ("Newer", "id-Newer"),
+            ("Older", "id-Older"),
+        ]
+
+
+def test_parquet_retains_schema_for_empty_datasets(tmp_path):
+    with zipfile.ZipFile(
+        _export(tmp_path, [_scenario(tmp_path, "Empty", 0)], "parquet")
+    ) as archive:
+        archive.extractall(tmp_path / "extracted")
+    with duckdb.connect() as conn:
+        snapshot = conn.read_parquet(
+            str(tmp_path / "extracted/workforce_snapshot.parquet")
+        )
+        assert snapshot.count("*").fetchone()[0] == 0
+        assert "current_compensation" in snapshot.columns
+        census = conn.read_parquet(str(tmp_path / "extracted/census.parquet"))
+        assert census.count("*").fetchone()[0] == 0
+        assert census.columns == ["employee_id", "employee_hire_date"]
+
+
 # ---------------------------------------------------------------------------
 # Endpoint
 # ---------------------------------------------------------------------------
@@ -268,6 +342,33 @@ def test_endpoint_allows_a_single_scenario(env):
     )
 
     assert response.status_code == 200
+
+
+def test_endpoint_downloads_parquet_archive_and_cleans_up(env, monkeypatch, tmp_path):
+    client, _, workspace, scenarios = env
+    output_dir = tmp_path / "download"
+    output_dir.mkdir()
+    original_mkdtemp = analytics_router.tempfile.mkdtemp
+
+    def mkdtemp(*args: Any, **kwargs: Any) -> str:
+        if kwargs.get("prefix") == "planalign-compare-export-":
+            return str(output_dir)
+        return original_mkdtemp(*args, **kwargs)
+
+    monkeypatch.setattr(analytics_router.tempfile, "mkdtemp", mkdtemp)
+
+    response = client.get(
+        ENDPOINT.format(workspace_id=workspace.id),
+        params={"scenarios": ",".join(s.id for s in scenarios), "format": "parquet"},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/zip"
+    assert '.zip"' in response.headers["content-disposition"]
+    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+        assert archive.read("workforce_snapshot.parquet").startswith(b"PAR1")
+        assert len(archive.namelist()) == 3
+    assert not output_dir.exists()
 
 
 def test_endpoint_rejects_unknown_and_unfinished_scenarios(env):

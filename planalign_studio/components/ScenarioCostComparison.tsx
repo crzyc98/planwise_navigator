@@ -371,6 +371,12 @@ const EXPORT_OPTIONS = [
     title: 'Download workforce snapshots and census for the selected scenarios (.hyper)',
     Icon: Database,
   },
+  {
+    format: 'parquet',
+    label: 'Parquet',
+    title: 'Download workforce snapshots, census, and metadata as Parquet files (.zip)',
+    Icon: Database,
+  },
 ] as const satisfies ReadonlyArray<{
   format: ComparisonExportFormat;
   label: string;
