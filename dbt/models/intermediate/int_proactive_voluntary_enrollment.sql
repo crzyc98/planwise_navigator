@@ -250,7 +250,7 @@ voluntary_enrollment_probability AS (
     END as job_level_multiplier,
 
     -- Deterministic random value for enrollment decision
-    (ABS(HASH(employee_id || '-proactive-voluntary-' || CAST(simulation_year AS VARCHAR))) % 1000) / 1000.0 as enrollment_random
+    (ABS(PLANALIGN_HASH(employee_id || '-proactive-voluntary-' || CAST(simulation_year AS VARCHAR))) % 1000) / 1000.0 as enrollment_random
   FROM demographic_segmentation
 ),
 
@@ -293,10 +293,10 @@ deferral_rate_selection AS (
     END as selected_deferral_rate,
 
     -- Timing random value for enrollment date within proactive window
-    (ABS(HASH(employee_id || '-proactive-timing-' || CAST(simulation_year AS VARCHAR))) % 1000) / 1000.0 as timing_random,
+    (ABS(PLANALIGN_HASH(employee_id || '-proactive-timing-' || CAST(simulation_year AS VARCHAR))) % 1000) / 1000.0 as timing_random,
 
     -- Issue #652: independent spread seed (see int_voluntary_enrollment_decision)
-    (ABS(HASH(employee_id || '-deferral-spread-' || CAST(simulation_year AS VARCHAR))) % 1000) / 1000.0 as spread_random
+    (ABS(PLANALIGN_HASH(employee_id || '-deferral-spread-' || CAST(simulation_year AS VARCHAR))) % 1000) / 1000.0 as spread_random
   FROM voluntary_enrollment_probability
 ),
 
@@ -319,7 +319,7 @@ match_optimization AS (
         deferral_scalar,
         'source.plan_design_id'
     ) }} AS match_magnet_ceiling,
-    (ABS(HASH(source.employee_id || '-match-magnet-' || CAST(source.simulation_year AS VARCHAR))) % 1000) / 1000.0 AS magnet_random
+    (ABS(PLANALIGN_HASH(source.employee_id || '-match-magnet-' || CAST(source.simulation_year AS VARCHAR))) % 1000) / 1000.0 AS magnet_random
   FROM spread_applied source
 ),
 

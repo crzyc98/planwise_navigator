@@ -57,24 +57,24 @@
                     -- Late-year hire (<30 days remaining): min 1 day, distributed across remaining days
                     WHEN DATEDIFF('day', {{ hire_date_column }}::DATE, CAST('{{ simulation_year }}-12-31' AS DATE)) < 30 THEN
                         1 + (
-                            ABS(HASH({{ employee_id_column }} || '|' || CAST({{ simulation_year }} AS VARCHAR) || '|DATE|{{ random_seed }}'))
+                            ABS(PLANALIGN_HASH({{ employee_id_column }} || '|' || CAST({{ simulation_year }} AS VARCHAR) || '|DATE|{{ random_seed }}'))
                             % GREATEST(1, DATEDIFF('day', {{ hire_date_column }}::DATE, CAST('{{ simulation_year }}-12-31' AS DATE)))
                         )
                     -- Mid-year hire (30-89 days remaining): min 30 days
                     WHEN DATEDIFF('day', {{ hire_date_column }}::DATE, CAST('{{ simulation_year }}-12-31' AS DATE)) < 90 THEN
                         30 + (
-                            ABS(HASH({{ employee_id_column }} || '|' || CAST({{ simulation_year }} AS VARCHAR) || '|DATE|{{ random_seed }}'))
+                            ABS(PLANALIGN_HASH({{ employee_id_column }} || '|' || CAST({{ simulation_year }} AS VARCHAR) || '|DATE|{{ random_seed }}'))
                             % GREATEST(1, DATEDIFF('day', {{ hire_date_column }}::DATE, CAST('{{ simulation_year }}-12-31' AS DATE)) - 29)
                         )
                     -- Early/mid-year hire (90+ days remaining): min 30-90 days (randomized per employee)
                     ELSE
                         -- Random minimum between 30-90 days based on employee hash
-                        (30 + (ABS(HASH({{ employee_id_column }} || '|MIN|{{ random_seed }}')) % 61))
+                        (30 + (ABS(PLANALIGN_HASH({{ employee_id_column }} || '|MIN|{{ random_seed }}')) % 61))
                         + (
-                            ABS(HASH({{ employee_id_column }} || '|' || CAST({{ simulation_year }} AS VARCHAR) || '|DATE|{{ random_seed }}'))
+                            ABS(PLANALIGN_HASH({{ employee_id_column }} || '|' || CAST({{ simulation_year }} AS VARCHAR) || '|DATE|{{ random_seed }}'))
                             % GREATEST(1,
                                 DATEDIFF('day', {{ hire_date_column }}::DATE, CAST('{{ simulation_year }}-12-31' AS DATE))
-                                - (30 + (ABS(HASH({{ employee_id_column }} || '|MIN|{{ random_seed }}')) % 61))
+                                - (30 + (ABS(PLANALIGN_HASH({{ employee_id_column }} || '|MIN|{{ random_seed }}')) % 61))
                                 + 1
                             )
                         )
@@ -86,9 +86,9 @@
             CAST('{{ simulation_year }}-01-01' AS DATE)
             + INTERVAL (
                 -- Random minimum between 30-90 days, then distribute across remaining year
-                (30 + (ABS(HASH({{ employee_id_column }} || '|MIN|{{ random_seed }}')) % 61))
+                (30 + (ABS(PLANALIGN_HASH({{ employee_id_column }} || '|MIN|{{ random_seed }}')) % 61))
                 + (
-                    ABS(HASH({{ employee_id_column }} || '|' || CAST({{ simulation_year }} AS VARCHAR) || '|DATE|{{ random_seed }}'))
+                    ABS(PLANALIGN_HASH({{ employee_id_column }} || '|' || CAST({{ simulation_year }} AS VARCHAR) || '|DATE|{{ random_seed }}'))
                     % (365 - 90)
                 )
             ) DAY

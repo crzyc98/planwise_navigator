@@ -200,9 +200,9 @@ eligible_employees AS (
         {% endif %}
 
         -- Deterministic hash for upward selection
-        (ABS(HASH(w.employee_id || '-match-response-' || CAST({{ simulation_year }} AS VARCHAR))) % 1000) / 1000.0 AS hash_value_up,
+        (ABS(PLANALIGN_HASH(w.employee_id || '-match-response-' || CAST({{ simulation_year }} AS VARCHAR))) % 1000) / 1000.0 AS hash_value_up,
         -- Deterministic hash for downward selection (different salt)
-        (ABS(HASH(w.employee_id || '-match-response-down-' || CAST({{ simulation_year }} AS VARCHAR))) % 1000) / 1000.0 AS hash_value_down
+        (ABS(PLANALIGN_HASH(w.employee_id || '-match-response-down-' || CAST({{ simulation_year }} AS VARCHAR))) % 1000) / 1000.0 AS hash_value_down
 
     FROM {{ ref('int_employee_compensation_by_year') }} w
     INNER JOIN {{ ref('int_plan_design_assignment_accumulator') }} assignment

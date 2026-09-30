@@ -23,7 +23,7 @@
     -- Use DuckDB's hash function for deterministic random generation
     -- Combine all input parameters with global random seed into a single hash key
     ABS(
-      HASH(
+      PLANALIGN_HASH(
         CONCAT(
           CAST({{ var('random_seed', 42) }} AS VARCHAR),
           '|',
@@ -59,7 +59,7 @@
   #}
 
   ABS(
-    HASH(
+    PLANALIGN_HASH(
       CONCAT(
         CAST({{ var('random_seed', 42) }} AS VARCHAR),
         '|shard|',
@@ -82,7 +82,7 @@
     determinism and event-specific randomness.
   #}
 
-  (ABS(HASH(employee_id)) % 1000) / 1000.0
+  (ABS(PLANALIGN_HASH(employee_id)) % 1000) / 1000.0
 
 {% endmacro %}
 

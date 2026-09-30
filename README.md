@@ -28,7 +28,7 @@ Plan sponsors and their advisors use it to estimate the multi-year financial imp
 
 | Layer | Technology | Version | Purpose |
 |-------|------------|---------|---------|
-| **Storage** | DuckDB | 1.0.0 | Immutable event store; in-process OLAP engine |
+| **Storage** | DuckDB | 1.5.5 | Immutable event store; in-process OLAP engine |
 | **Transformation** | dbt-core | 1.8.8 | SQL-based data modeling and testing |
 | **Adapter** | dbt-duckdb | 1.8.1 | Stable DuckDB integration |
 | **Orchestration** | planalign_orchestrator | 2.2.0 | Staged multi-year pipeline execution |

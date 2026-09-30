@@ -20,7 +20,7 @@
 {% set deferral_spread_max_lift = var('deferral_spread_max_lift', 4) %}
 
 {%- set yoy_spread_random -%}
-((ABS(HASH(aw.employee_id || '-deferral-spread-' || CAST(aw.simulation_year AS VARCHAR))) % 1000) / 1000.0)
+((ABS(PLANALIGN_HASH(aw.employee_id || '-deferral-spread-' || CAST(aw.simulation_year AS VARCHAR))) % 1000) / 1000.0)
 {%- endset -%}
 
 {%- set yoy_base_deferral_rate -%}
@@ -224,8 +224,8 @@ eligible_for_enrollment AS (
     END AS is_auto_enrollment_row,
 
     -- Generate deterministic "random" values for enrollment decisions
-    (ABS(HASH(aw.employee_id || '-enroll-' || CAST(aw.simulation_year AS VARCHAR))) % 1000) / 1000.0 as enrollment_random,
-    (ABS(HASH(aw.employee_id || '-optout-' || CAST(aw.simulation_year AS VARCHAR))) % 1000) / 1000.0 as optout_random
+    (ABS(PLANALIGN_HASH(aw.employee_id || '-enroll-' || CAST(aw.simulation_year AS VARCHAR))) % 1000) / 1000.0 as enrollment_random,
+    (ABS(PLANALIGN_HASH(aw.employee_id || '-optout-' || CAST(aw.simulation_year AS VARCHAR))) % 1000) / 1000.0 as optout_random
   FROM active_workforce aw
   LEFT JOIN previous_enrollment_state pe ON aw.employee_id = pe.employee_id
 ),
@@ -496,7 +496,7 @@ year_over_year_enrollment_events AS (
     AND aw.employee_hire_date < CAST(aw.simulation_year || '-01-01' AS DATE)
     -- Apply year-over-year conversion probability
     AND {{ var('year_over_year_conversion_enabled', true) }}
-    AND (ABS(HASH(aw.employee_id || '-yoy-conversion-' || CAST(aw.simulation_year AS VARCHAR))) % 1000) / 1000.0 < (
+    AND (ABS(PLANALIGN_HASH(aw.employee_id || '-yoy-conversion-' || CAST(aw.simulation_year AS VARCHAR))) % 1000) / 1000.0 < (
       CASE
         WHEN aw.current_age < 31 THEN {{ var('year_over_year_conversion_base_rates_by_age_young', 0.03) }}
         WHEN aw.current_age < 46 THEN {{ var('year_over_year_conversion_base_rates_by_age_mid_career', 0.05) }}

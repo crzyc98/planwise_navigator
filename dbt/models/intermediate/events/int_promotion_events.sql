@@ -78,7 +78,7 @@ eligible_workforce AS (
         -- **DETERMINISTIC RANDOM**: Consistent hash-based probability
         -- Issue #385: include random_seed so seed changes reshuffle promotions
         -- the same way they reshuffle terminations.
-        (ABS(HASH(employee_id || '{{ simulation_year }}' || 'promotion' || '{{ subsystem_seed('promotion') }}')) % 1000) / 1000.0 AS random_value
+        (ABS(PLANALIGN_HASH(employee_id || '{{ simulation_year }}' || 'promotion' || '{{ subsystem_seed('promotion') }}')) % 1000) / 1000.0 AS random_value
     FROM current_workforce
 ),
 
@@ -136,11 +136,11 @@ promoted_employees AS (
                             -- Default base rate with configurable distribution
                             {{ base_increase }} +
                             {% if distribution_type == 'uniform' %}
-                                (((ABS(HASH(employee_id || 'promo_pct')) % 1000) / 1000.0 - 0.5) * 2 * {{ distribution_range }})
+                                (((ABS(PLANALIGN_HASH(employee_id || 'promo_pct')) % 1000) / 1000.0 - 0.5) * 2 * {{ distribution_range }})
                             {% elif distribution_type == 'normal' %}
                                 -- Normal distribution approximation using hash-based Box-Muller
-                                (SQRT(-2 * LN((ABS(HASH(employee_id || 'promo_pct1')) % 1000 + 1) / 1001.0))
-                                 * COS(2 * PI() * (ABS(HASH(employee_id || 'promo_pct2')) % 1000) / 1000.0)
+                                (SQRT(-2 * LN((ABS(PLANALIGN_HASH(employee_id || 'promo_pct1')) % 1000 + 1) / 1001.0))
+                                 * COS(2 * PI() * (ABS(PLANALIGN_HASH(employee_id || 'promo_pct2')) % 1000) / 1000.0)
                                  * {{ normal_std_dev }})
                             {% else %}
                                 -- Deterministic: no distribution

@@ -62,7 +62,7 @@ demographic_breakdown AS (
         WHEN current_compensation < 200000 THEN 'high'
         ELSE 'executive'
       END as income_segment,
-      (ABS(HASH(employee_id || '{{ var("simulation_year") }}' || '42')) % 1000000) / 1000000.0 < 0.5 as will_enroll,
+      (ABS(PLANALIGN_HASH(employee_id || '{{ var("simulation_year") }}' || '42')) % 1000000) / 1000000.0 < 0.5 as will_enroll,
       0.5 as final_enrollment_probability
     FROM {{ ref('int_baseline_workforce') }}
     WHERE employment_status = 'active'
