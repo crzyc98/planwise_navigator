@@ -3183,6 +3183,19 @@ export interface components {
             winners: number;
         };
         /**
+         * BaselineSpec
+         * @description Location of the baseline simulation configuration.
+         */
+        BaselineSpec: {
+            /**
+             * Config Path
+             * Format: path
+             */
+            config_path: string;
+            /** Ensemble Database */
+            ensemble_database?: string | null;
+        };
+        /**
          * BatchCreate
          * @description Request to create a batch job.
          */
@@ -4327,7 +4340,7 @@ export interface components {
          */
         ConstraintResult: {
             /** Evaluated Value */
-            evaluated_value?: number | null;
+            evaluated_value: number | null;
             /**
              * Evaluation Mode
              * @enum {string}
@@ -4336,7 +4349,7 @@ export interface components {
             /** Metric */
             metric: string;
             /** Satisfied */
-            satisfied?: boolean | null;
+            satisfied: boolean | null;
         };
         /**
          * ConstraintSpec
@@ -6645,7 +6658,10 @@ export interface components {
         ObjectiveConstraintSpec: {
             /** Constraints */
             constraints?: components["schemas"]["ConstraintSpec"][];
-            /** Objectives */
+            /**
+             * Objectives
+             * @description 1 entry ranks candidates; 2 entries unlock the Pareto frontier.
+             */
             objectives: components["schemas"]["ObjectiveTerm"][];
         };
         /**
@@ -6807,18 +6823,27 @@ export interface components {
         OptimizerRun: {
             /** Baseline Config Fingerprint */
             baseline_config_fingerprint: string;
-            /** Binding Infeasible Constraints */
-            binding_infeasible_constraints?: string[] | null;
+            /**
+             * Binding Infeasible Constraints
+             * @description Set only when no candidate was ranked or on the frontier: names the constraint(s) nobody satisfied. Surface this prominently.
+             */
+            binding_infeasible_constraints: string[] | null;
             /** Candidates */
-            candidates?: components["schemas"]["Candidate"][];
+            candidates: components["schemas"]["Candidate"][];
             design_space: components["schemas"]["DesignSpaceSpec"];
             /** Max Runs */
             max_runs: number;
             objective_constraint_spec: components["schemas"]["ObjectiveConstraintSpec"];
-            /** Pareto Frontier */
-            pareto_frontier?: string[] | null;
-            /** Ranked Feasible */
-            ranked_feasible?: string[];
+            /**
+             * Pareto Frontier
+             * @description Populated only for 2-objective runs; null otherwise.
+             */
+            pareto_frontier: string[] | null;
+            /**
+             * Ranked Feasible
+             * @description Populated only for single-objective runs, best first.
+             */
+            ranked_feasible: string[];
             /** Run Id */
             run_id: string;
             /** Search Seed */
@@ -6845,6 +6870,15 @@ export interface components {
             /** Workspace Id */
             workspace_id?: string | null;
         };
+        /**
+         * OptimizerSpec
+         * @description Top-level user-authored optimizer request.
+         */
+        OptimizerSpec: {
+            baseline: components["schemas"]["BaselineSpec"];
+            design_space: components["schemas"]["DesignSpaceSpec"];
+            objective: components["schemas"]["ObjectiveConstraintSpec"];
+        };
         /** OptimizerStartResponse */
         OptimizerStartResponse: {
             /** Database Dir */
@@ -6864,7 +6898,10 @@ export interface components {
          * @description Exactly one of ``spec``/``spec_yaml`` must be given.
          */
         OptimizerValidateRequest: {
-            /** Max Runs */
+            /**
+             * Max Runs
+             * @description If given, also return a seed-phase dry-run preview.
+             */
             max_runs?: number | null;
             /** Spec */
             spec?: {
@@ -6879,12 +6916,12 @@ export interface components {
             baseline_drift_warning: string | null;
             /** Error */
             error: string | null;
-            /** Resolved Spec */
-            resolved_spec: {
-                [key: string]: unknown;
-            } | null;
+            /** @description The parsed, validated spec on success, so the builder can populate itself from an imported YAML file. */
+            resolved_spec: components["schemas"]["OptimizerSpec"] | null;
             /** Seed Phase Candidates */
-            seed_phase_candidates: unknown[] | null;
+            seed_phase_candidates: {
+                [key: string]: string | number | boolean;
+            }[] | null;
             /** Seed Phase Count */
             seed_phase_count: number | null;
             /** Valid */

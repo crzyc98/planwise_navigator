@@ -20,7 +20,7 @@ import tempfile
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Dict, Literal, Optional
+from typing import Callable, Dict, List, Literal, Optional
 from uuid import uuid4
 
 import yaml  # type: ignore[import]
@@ -35,7 +35,7 @@ from planalign_optimizer.evaluate import (
     validate_levers_against_baseline,
 )
 from planalign_optimizer.export import write_exports
-from planalign_optimizer.models import OptimizerRun, OptimizerSpec
+from planalign_optimizer.models import LeverValue, OptimizerRun, OptimizerSpec
 from planalign_optimizer.paths import require_fresh_directory, resolve_output_paths
 from planalign_optimizer.report import write_report
 from planalign_optimizer.search import run_optimizer, seed_phase_count
@@ -199,14 +199,24 @@ class OptimizerValidateRequest(APIModel):
 
     spec: Optional[dict] = None
     spec_yaml: Optional[str] = None
-    max_runs: Optional[int] = Field(default=None, ge=1)
+    max_runs: Optional[int] = Field(
+        default=None,
+        ge=1,
+        description="If given, also return a seed-phase dry-run preview.",
+    )
 
 
 class OptimizerValidateResponse(APIModel):
     valid: bool
     error: Optional[str] = None
-    resolved_spec: Optional[dict] = None
-    seed_phase_candidates: Optional[list] = None
+    resolved_spec: Optional[OptimizerSpec] = Field(
+        default=None,
+        description=(
+            "The parsed, validated spec on success, so the builder can populate "
+            "itself from an imported YAML file."
+        ),
+    )
+    seed_phase_candidates: Optional[List[Dict[str, LeverValue]]] = None
     seed_phase_count: Optional[int] = None
     baseline_drift_warning: Optional[str] = None
 
@@ -347,9 +357,7 @@ def validate_optimizer_spec(
     except OSError as exc:
         return OptimizerValidateResponse(valid=False, error=str(exc))
 
-    response = OptimizerValidateResponse(
-        valid=True, resolved_spec=parsed.model_dump(mode="json")
-    )
+    response = OptimizerValidateResponse(valid=True, resolved_spec=parsed)
     if request.max_runs is not None:
         seed_count = seed_phase_count(request.max_runs)
         candidates = sample_candidates(parsed.design_space, seed_count, seed=0)

@@ -2188,9 +2188,7 @@ export type LeverValue = string | number | boolean;
 
 export type LeverSpec = Schemas['LeverSpec'];
 
-export interface DesignSpaceSpec {
-  levers: LeverSpec[];
-}
+export type DesignSpaceSpec = Schemas['DesignSpaceSpec'];
 
 export type ObjectiveDirection = 'minimize' | 'maximize';
 
@@ -2200,22 +2198,19 @@ export type ConstraintOperator = '<=' | '>=' | '<' | '>' | '==';
 
 export type ConstraintSpec = Schemas['ConstraintSpec'];
 
-export interface ObjectiveConstraintSpec {
-  /** 1 entry ranks candidates; 2 entries unlocks the Pareto frontier. */
-  objectives: ObjectiveTerm[];
-  constraints: ConstraintSpec[];
-}
+export type ObjectiveConstraintSpec = Schemas['ObjectiveConstraintSpec'];
 
-export interface BaselineSpec {
-  config_path: string;
-  ensemble_database?: string | null;
-}
+export type BaselineSpec = Schemas['BaselineSpec'];
 
-export interface OptimizerSpecPayload {
+/**
+ * The spec Studio sends. Hand-written on purpose: the backend accepts any dict
+ * here so /optimizer/validate can report an invalid spec instead of a 422.
+ */
+export type OptimizerSpecPayload = {
   design_space: DesignSpaceSpec;
   objective: ObjectiveConstraintSpec;
   baseline: BaselineSpec;
-}
+};
 
 export type ConstraintResult = Schemas['ConstraintResult'];
 
@@ -2223,65 +2218,17 @@ export type CandidateStatus = 'feasible' | 'infeasible' | 'non_evaluable' | 'fai
 
 export type Candidate = Schemas['Candidate'];
 
-export interface OptimizerRun {
-  run_id: string;
-  design_space: DesignSpaceSpec;
-  objective_constraint_spec: ObjectiveConstraintSpec;
-  max_runs: number;
-  search_seed: number;
-  baseline_config_fingerprint: string;
-  candidates: Candidate[];
-  /** Populated only for single-objective runs, best first. */
-  ranked_feasible: string[];
-  /** Populated only for 2-objective runs; null otherwise. */
-  pareto_frontier: string[] | null;
-  /** Set only when zero candidates were ranked/on the frontier — names the
-   * constraint(s) nobody satisfied. Surface this loudly in the UI. */
-  binding_infeasible_constraints: string[] | null;
-}
+export type OptimizerRun = Schemas['OptimizerRun'];
 
-export interface OptimizerValidateRequest {
-  /** Exactly one of spec/spec_yaml is required. */
-  spec?: OptimizerSpecPayload | null;
-  spec_yaml?: string | null;
-  /** If given, also returns a seed-phase dry-run preview. */
-  max_runs?: number | null;
-}
+export type OptimizerValidateRequest = Schemas['OptimizerValidateRequest'];
 
-export interface OptimizerValidateResponse {
-  valid: boolean;
-  error?: string | null;
-  /** The parsed/validated spec on success — lets the builder populate itself
-   * from an imported YAML file. */
-  resolved_spec?: OptimizerSpecPayload | null;
-  seed_phase_candidates?: Array<Record<string, LeverValue>> | null;
-  seed_phase_count?: number | null;
-  baseline_drift_warning?: string | null;
-}
+export type OptimizerValidateResponse = Schemas['OptimizerValidateResponse'];
 
-export interface OptimizerRunRequest {
-  spec: OptimizerSpecPayload;
-  max_runs: number;
-  search_seed?: number | null;
-  parallel?: number | null;
-  workspace_id?: string | null;
-  database_dir?: string | null;
-  output_dir?: string | null;
-  compare_baseline_to?: string | null;
-}
+export type OptimizerRunRequest = Schemas['OptimizerRunRequest'];
 
 export type OptimizerStartResponse = Schemas['OptimizerStartResponse'];
 
-export interface OptimizerJob {
-  run_id: string;
-  status: 'queued' | 'running' | 'completed' | 'failed';
-  created_at: string;
-  completed_at: string | null;
-  result: OptimizerRun | null;
-  output_dir: string | null;
-  error: string | null;
-  error_status: number | null;
-}
+export type OptimizerJob = Schemas['OptimizerJob'];
 
 export interface PromoteCandidateParams {
   workspaceId: string;

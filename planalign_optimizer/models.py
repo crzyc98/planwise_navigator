@@ -83,7 +83,11 @@ class ObjectiveConstraintSpec(BaseModel):
     """The objectives and hard constraints for a search."""
 
     model_config = ConfigDict(frozen=True)
-    objectives: tuple[ObjectiveTerm, ...] = Field(min_length=1, max_length=2)
+    objectives: tuple[ObjectiveTerm, ...] = Field(
+        min_length=1,
+        max_length=2,
+        description="1 entry ranks candidates; 2 entries unlock the Pareto frontier.",
+    )
     constraints: tuple[ConstraintSpec, ...] = Field(default_factory=tuple)
 
 
@@ -107,7 +111,9 @@ class OptimizerSpec(BaseModel):
 class ConstraintResult(BaseModel):
     """Evaluated outcome for one declared constraint."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(
+        frozen=True, json_schema_serialization_defaults_required=True
+    )
     metric: str
     evaluation_mode: Literal["point_estimate", "percentile"]
     evaluated_value: float | None = None
@@ -133,7 +139,9 @@ class Candidate(BaseModel):
 class OptimizerRun(BaseModel):
     """Immutable output of one bounded optimizer invocation."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(
+        frozen=True, json_schema_serialization_defaults_required=True
+    )
     run_id: str
     design_space: DesignSpaceSpec
     objective_constraint_spec: ObjectiveConstraintSpec
@@ -141,6 +149,18 @@ class OptimizerRun(BaseModel):
     search_seed: int
     baseline_config_fingerprint: str
     candidates: tuple[Candidate, ...] = Field(default_factory=tuple)
-    ranked_feasible: tuple[str, ...] = Field(default_factory=tuple)
-    pareto_frontier: tuple[str, ...] | None = None
-    binding_infeasible_constraints: tuple[str, ...] | None = None
+    ranked_feasible: tuple[str, ...] = Field(
+        default_factory=tuple,
+        description="Populated only for single-objective runs, best first.",
+    )
+    pareto_frontier: tuple[str, ...] | None = Field(
+        default=None,
+        description="Populated only for 2-objective runs; null otherwise.",
+    )
+    binding_infeasible_constraints: tuple[str, ...] | None = Field(
+        default=None,
+        description=(
+            "Set only when no candidate was ranked or on the frontier: names the "
+            "constraint(s) nobody satisfied. Surface this prominently."
+        ),
+    )
