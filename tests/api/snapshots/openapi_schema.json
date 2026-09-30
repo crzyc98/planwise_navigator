@@ -1402,6 +1402,33 @@
         "title": "BandGroupResult",
         "type": "object"
       },
+      "BaselineSpec": {
+        "description": "Location of the baseline simulation configuration.",
+        "properties": {
+          "config_path": {
+            "format": "path",
+            "title": "Config Path",
+            "type": "string"
+          },
+          "ensemble_database": {
+            "anyOf": [
+              {
+                "format": "path",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ensemble Database"
+          }
+        },
+        "required": [
+          "config_path"
+        ],
+        "title": "BaselineSpec",
+        "type": "object"
+      },
       "BatchCreate": {
         "description": "Request to create a batch job.",
         "properties": {
@@ -3822,7 +3849,9 @@
         },
         "required": [
           "metric",
-          "evaluation_mode"
+          "evaluation_mode",
+          "evaluated_value",
+          "satisfied"
         ],
         "title": "ConstraintResult",
         "type": "object"
@@ -8652,6 +8681,7 @@
             "type": "array"
           },
           "objectives": {
+            "description": "1 entry ranks candidates; 2 entries unlock the Pareto frontier.",
             "items": {
               "$ref": "#/components/schemas/ObjectiveTerm"
             },
@@ -8999,6 +9029,7 @@
                 "type": "null"
               }
             ],
+            "description": "Set only when no candidate was ranked or on the frontier: names the constraint(s) nobody satisfied. Surface this prominently.",
             "title": "Binding Infeasible Constraints"
           },
           "candidates": {
@@ -9031,9 +9062,11 @@
                 "type": "null"
               }
             ],
+            "description": "Populated only for 2-objective runs; null otherwise.",
             "title": "Pareto Frontier"
           },
           "ranked_feasible": {
+            "description": "Populated only for single-objective runs, best first.",
             "items": {
               "type": "string"
             },
@@ -9055,7 +9088,11 @@
           "objective_constraint_spec",
           "max_runs",
           "search_seed",
-          "baseline_config_fingerprint"
+          "baseline_config_fingerprint",
+          "candidates",
+          "ranked_feasible",
+          "pareto_frontier",
+          "binding_infeasible_constraints"
         ],
         "title": "OptimizerRun",
         "type": "object"
@@ -9147,6 +9184,27 @@
         "title": "OptimizerRunRequest",
         "type": "object"
       },
+      "OptimizerSpec": {
+        "description": "Top-level user-authored optimizer request.",
+        "properties": {
+          "baseline": {
+            "$ref": "#/components/schemas/BaselineSpec"
+          },
+          "design_space": {
+            "$ref": "#/components/schemas/DesignSpaceSpec"
+          },
+          "objective": {
+            "$ref": "#/components/schemas/ObjectiveConstraintSpec"
+          }
+        },
+        "required": [
+          "design_space",
+          "objective",
+          "baseline"
+        ],
+        "title": "OptimizerSpec",
+        "type": "object"
+      },
       "OptimizerStartResponse": {
         "properties": {
           "database_dir": {
@@ -9189,6 +9247,7 @@
                 "type": "null"
               }
             ],
+            "description": "If given, also return a seed-phase dry-run preview.",
             "title": "Max Runs"
           },
           "spec": {
@@ -9245,19 +9304,36 @@
           "resolved_spec": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/OptimizerSpec"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Resolved Spec"
+            "description": "The parsed, validated spec on success, so the builder can populate itself from an imported YAML file."
           },
           "seed_phase_candidates": {
             "anyOf": [
               {
-                "items": {},
+                "items": {
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      }
+                    ]
+                  },
+                  "type": "object"
+                },
                 "type": "array"
               },
               {
