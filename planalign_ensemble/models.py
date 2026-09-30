@@ -277,7 +277,9 @@ class MetricSeedValue(BaseModel):
 class MetricDistribution(BaseModel):
     """A seed-sufficient (or explicitly insufficient) metric distribution."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(
+        frozen=True, json_schema_serialization_defaults_required=True
+    )
 
     ensemble_id: str
     scenario_id: str
@@ -319,7 +321,9 @@ class MetricDistribution(BaseModel):
 class RiskStatement(BaseModel):
     """One threshold result for one metric and simulation year."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(
+        frozen=True, json_schema_serialization_defaults_required=True
+    )
 
     metric: str
     threshold_value: float
@@ -351,7 +355,9 @@ class AttributionShare(BaseModel):
     the same evidence reproduces the same interval.
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(
+        frozen=True, json_schema_serialization_defaults_required=True
+    )
 
     metric: str
     simulation_year: int

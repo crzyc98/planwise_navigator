@@ -31,7 +31,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Literal, NamedTuple, Optional, Tuple
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from planalign_orchestrator.calibration_runner import (
     CalibrationParameterSet,
@@ -104,6 +104,8 @@ class OptimizationIteration(BaseModel):
 
 class AutoCalibrationResult(BaseModel):
     """Outcome of the search: best params + the run that produced them."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     converged: bool
     message: str
