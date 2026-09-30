@@ -326,6 +326,12 @@ models:
       - name: current_deferral_rate
         description: "Employee's current contribution deferral rate"
         data_type: decimal(5,4)
+      - name: last_escalation_date
+        description: Last escalation effective date; TIMESTAMP in every simulation year
+        data_type: timestamp
+      - name: total_escalation_amount
+        description: Cumulative escalation amount; DECIMAL(5,4) in every simulation year
+        data_type: decimal(5,4)
       # Epic E034: Employee contribution columns
       - name: prorated_annual_contributions
         description: "Prorated annual contribution amount based on employment periods"

@@ -32,6 +32,19 @@ def test_invariant_simulation_completed(invariant_run_a_result: SimulationRun) -
     )
 
 
+def test_incremental_types_do_not_require_alterations(
+    invariant_run_a_result: SimulationRun,
+) -> None:
+    """Year two must insert without dbt widening the incremental schema (#750)."""
+    assert invariant_run_a_result.error is None, invariant_run_a_result.error
+    log = invariant_run_a_result.database.parent / "dbt/logs/dbt.log"
+    assert log.is_file(), "The reference simulation must preserve its dbt log"
+    assert "__dbt_alter" not in log.read_text(), (
+        "Incremental column types changed during the three-year simulation; "
+        "DuckDB 1.5.5 cannot commit the resulting ALTER plus INSERT transaction"
+    )
+
+
 class _DirectConnectionManager:
     def __init__(self, connection: duckdb.DuckDBPyConnection) -> None:
         self.connection = connection

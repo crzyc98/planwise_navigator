@@ -32,8 +32,8 @@ SELECT
     {{ simulation_year }} AS simulation_year,
     employee_id,
     employee_ssn,
-    employee_birth_date,
-    employee_hire_date,
+    CAST(employee_birth_date AS TIMESTAMP) AS employee_birth_date,
+    CAST(employee_hire_date AS TIMESTAMP) AS employee_hire_date,
     current_compensation AS employee_compensation,
     current_age,
     current_tenure,
@@ -41,7 +41,7 @@ SELECT
     age_band,
     tenure_band,
     employment_status,
-    employee_enrollment_date,  -- Include enrollment status for enrollment events
+    CAST(employee_enrollment_date AS TIMESTAMP) AS employee_enrollment_date,
     CASE WHEN employee_enrollment_date IS NOT NULL THEN true ELSE false END AS is_enrolled_flag,  -- Backup enrollment status flag
     'baseline_workforce' AS data_source,
     -- Additional metadata for validation
@@ -60,8 +60,8 @@ SELECT
     simulation_year,
     employee_id,
     employee_ssn,
-    employee_birth_date,
-    employee_hire_date,
+    CAST(employee_birth_date AS TIMESTAMP) AS employee_birth_date,
+    CAST(employee_hire_date AS TIMESTAMP) AS employee_hire_date,
     employee_compensation,
     current_age,
     current_tenure,
@@ -69,7 +69,7 @@ SELECT
     age_band,
     tenure_band,
     employment_status,
-    employee_enrollment_date,
+    CAST(employee_enrollment_date AS TIMESTAMP) AS employee_enrollment_date,
     is_enrolled_flag,
     data_source,
     starting_year_compensation,
@@ -100,8 +100,8 @@ SELECT
     {{ simulation_year }} AS simulation_year,
     employee_id,
     employee_ssn,
-    employee_birth_date,
-    employee_hire_date,
+    CAST(employee_birth_date AS TIMESTAMP) AS employee_birth_date,
+    CAST(employee_hire_date AS TIMESTAMP) AS employee_hire_date,
     employee_gross_compensation AS employee_compensation,  -- Use helper model's compensation field
     current_age + 1 AS current_age,  -- Increment age for new year
     current_tenure + 1 AS current_tenure,  -- Increment tenure for new year
@@ -110,7 +110,7 @@ SELECT
     {{ assign_age_band('current_age + 1') }} AS age_band,
     {{ assign_tenure_band('current_tenure + 1') }} AS tenure_band,
     employment_status,
-    employee_enrollment_date,  -- Preserve enrollment status from previous year
+    CAST(employee_enrollment_date AS TIMESTAMP) AS employee_enrollment_date,
     is_enrolled_flag,  -- Backup enrollment status flag
     'previous_year_helper_model' AS data_source,
     -- Additional metadata for validation

@@ -414,7 +414,7 @@ SELECT
   total_deferral_escalations,
   has_deferral_escalations,
   original_deferral_rate,
-  total_escalation_amount,
+  CAST(total_escalation_amount AS DECIMAL(5,4)) AS total_escalation_amount,
   annual_contribution_amount AS prorated_annual_contributions,
   annual_contribution_amount * 0.85 AS pre_tax_contributions,
   annual_contribution_amount * 0.15 AS roth_contributions,
@@ -467,6 +467,6 @@ SELECT
   '{{ scenario_id }}'::VARCHAR AS scenario_id,
   plan_design_id,
   CURRENT_TIMESTAMP AS snapshot_created_at,
-  last_escalation_date
+  CAST(last_escalation_date AS TIMESTAMP) AS last_escalation_date
 FROM composed
 CROSS JOIN irs_limits
