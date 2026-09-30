@@ -158,49 +158,9 @@ export type TelemetryWsMessage =
   | { type: 'milestone'; data: TelemetryMilestone }
   | { type: 'heartbeat' };
 
-export interface RunTelemetryResponse {
-  run: {
-    run_id: string | null;
-    status:
-      | 'pending'
-      | 'running'
-      | 'completed'
-      | 'failed'
-      | 'cancelled'
-      | 'not_run';
-    error_message: string | null;
-  };
-  telemetry: RunTelemetrySnapshot | null;
-}
+export type RunTelemetryResponse = Schemas['RunTelemetryResponse'];
 
-export interface SimulationResults {
-  scenario_id: string;
-  run_id: string;
-  start_year: number;
-  end_year: number;
-  final_headcount: number;
-  total_growth_pct: number;
-  cagr: number;
-  participation_rate: number;
-  workforce_progression: Array<Record<string, any>>;
-  event_trends: Record<string, number[]>;
-  growth_analysis: Record<string, number>;
-  // E093: Compensation breakdown by employment status
-  compensation_by_status: Array<{
-    simulation_year: number;
-    employment_status: string;
-    employee_count: number;
-    avg_compensation: number;
-  }>;
-  // CAGR metrics for key workforce measures
-  cagr_metrics: Array<{
-    metric: string;
-    start_value: number;
-    end_value: number;
-    years: number;
-    cagr_pct: number;
-  }>;
-}
+export type SimulationResults = Schemas['SimulationResults'];
 
 export type BandGroupResult = Schemas['BandGroupResult'];
 

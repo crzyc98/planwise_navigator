@@ -335,7 +335,7 @@ export default function AnalyticsDashboard() {
   };
 
   // Transform results for charts
-  const workforceChartData = results?.workforce_progression?.map((row: any) => ({
+  const workforceChartData = results?.workforce_progression?.map((row) => ({
     year: row.simulation_year,
     headcount: row.headcount,
     avgCompensation: Math.round(row.avg_compensation / 1000), // in $K

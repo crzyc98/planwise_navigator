@@ -1883,6 +1883,45 @@
         "title": "BulkOperationStatus",
         "type": "string"
       },
+      "CagrMetric": {
+        "description": "Compound annual growth of one workforce measure over the run.",
+        "properties": {
+          "cagr_pct": {
+            "title": "Cagr Pct",
+            "type": "number"
+          },
+          "end_value": {
+            "title": "End Value",
+            "type": "number"
+          },
+          "metric": {
+            "enum": [
+              "Total Headcount",
+              "Total Compensation",
+              "Average Compensation"
+            ],
+            "title": "Metric",
+            "type": "string"
+          },
+          "start_value": {
+            "title": "Start Value",
+            "type": "number"
+          },
+          "years": {
+            "title": "Years",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "metric",
+          "start_value",
+          "end_value",
+          "years",
+          "cagr_pct"
+        ],
+        "title": "CagrMetric",
+        "type": "object"
+      },
       "CalibrationApplyOutcome": {
         "properties": {
           "error": {
@@ -3241,6 +3280,35 @@
           "file_path"
         ],
         "title": "CompensationAnalysisRequest",
+        "type": "object"
+      },
+      "CompensationByStatusRow": {
+        "description": "Headcount and average compensation for one year and status (E093).",
+        "properties": {
+          "avg_compensation": {
+            "title": "Avg Compensation",
+            "type": "number"
+          },
+          "employee_count": {
+            "title": "Employee Count",
+            "type": "integer"
+          },
+          "employment_status": {
+            "title": "Employment Status",
+            "type": "string"
+          },
+          "simulation_year": {
+            "title": "Simulation Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "simulation_year",
+          "employment_status",
+          "employee_count",
+          "avg_compensation"
+        ],
+        "title": "CompensationByStatusRow",
         "type": "object"
       },
       "CompensationSolverRequest": {
@@ -11105,6 +11173,54 @@
         "title": "RunRequest",
         "type": "object"
       },
+      "RunStatusSummary": {
+        "description": "Run identity and status reported alongside (or instead of) telemetry.",
+        "properties": {
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when never run",
+            "title": "Run Id"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "queued",
+              "running",
+              "completed",
+              "failed",
+              "cancelled",
+              "not_run"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "status",
+          "error_message"
+        ],
+        "title": "RunStatusSummary",
+        "type": "object"
+      },
       "RunSummary": {
         "description": "Summary of a simulation run for listing.",
         "properties": {
@@ -11236,10 +11352,7 @@
         "description": "REST snapshot endpoint response (contracts/rest-telemetry-snapshot.md).",
         "properties": {
           "run": {
-            "additionalProperties": true,
-            "description": "run_id / status / error_message summary",
-            "title": "Run",
-            "type": "object"
+            "$ref": "#/components/schemas/RunStatusSummary"
           },
           "telemetry": {
             "anyOf": [
@@ -12414,8 +12527,7 @@
           "cagr_metrics": {
             "description": "CAGR calculations for headcount, total compensation, and average compensation",
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/CagrMetric"
             },
             "title": "Cagr Metrics",
             "type": "array"
@@ -12423,8 +12535,7 @@
           "compensation_by_status": {
             "description": "Compensation breakdown by year and employment status",
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/CompensationByStatusRow"
             },
             "title": "Compensation By Status",
             "type": "array"
@@ -12481,8 +12592,7 @@
           "workforce_progression": {
             "description": "Year-by-year workforce breakdown",
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/WorkforceProgressionRow"
             },
             "title": "Workforce Progression",
             "type": "array"
@@ -14601,6 +14711,40 @@
           "total_failed"
         ],
         "title": "WorkforceParamsApplyResult",
+        "type": "object"
+      },
+      "WorkforceProgressionRow": {
+        "description": "One simulation year of the workforce snapshot.",
+        "properties": {
+          "active_avg_compensation": {
+            "title": "Active Avg Compensation",
+            "type": "number"
+          },
+          "avg_compensation": {
+            "title": "Avg Compensation",
+            "type": "number"
+          },
+          "headcount": {
+            "title": "Headcount",
+            "type": "integer"
+          },
+          "simulation_year": {
+            "title": "Simulation Year",
+            "type": "integer"
+          },
+          "total_compensation": {
+            "title": "Total Compensation",
+            "type": "number"
+          }
+        },
+        "required": [
+          "simulation_year",
+          "headcount",
+          "avg_compensation",
+          "total_compensation",
+          "active_avg_compensation"
+        ],
+        "title": "WorkforceProgressionRow",
         "type": "object"
       },
       "WorkspaceCreate": {
