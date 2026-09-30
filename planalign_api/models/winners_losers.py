@@ -1,12 +1,66 @@
 """Models for Winners & Losers comparison analysis."""
 
-from typing import List
+from typing import List, Literal
 
 from pydantic import Field
 from .base import APIModel
 
 
-class BandGroupResult(APIModel):
+class DollarImpact(APIModel):
+    """Currency rounded to cents per employee before aggregation (B minus A)."""
+
+    total_increases: float = Field(description="Sum of positive employee deltas")
+    total_decreases: float = Field(
+        description="Sum of negative employee deltas (signed)"
+    )
+    net_contribution_change: float = Field(
+        description="Increases plus signed decreases"
+    )
+    average_change: float = Field(
+        description="Net change per compared employee, or zero"
+    )
+
+
+class ComparisonEvidence(APIModel):
+    """Selected comparison evidence; legacy databases may have no run ID."""
+
+    plan_a_scenario_id: str = Field(description="Plan A scenario ID")
+    plan_b_scenario_id: str = Field(description="Plan B scenario ID")
+    plan_a_run_id: str | None = Field(
+        default=None, description="Selected Plan A run ID; null for legacy results"
+    )
+    plan_b_run_id: str | None = Field(
+        default=None, description="Selected Plan B run ID; null for legacy results"
+    )
+    final_year: int = Field(
+        description="Latest simulation year present in both snapshots"
+    )
+
+
+class EmployeeImpact(APIModel):
+    """Read-only contribution detail without names or SSNs."""
+
+    employee_id: str
+    age_band: str
+    tenure_band: str
+    plan_a_amount: float
+    plan_b_amount: float
+    delta: float
+    status: Literal["winner", "loser", "neutral"]
+
+
+class EmployeeImpactPage(ComparisonEvidence, DollarImpact):
+    """A stable employee-ID-ordered page and totals for the entire filtered group."""
+
+    age_band: str | None = None
+    tenure_band: str | None = None
+    total: int
+    offset: int
+    limit: int
+    employees: List[EmployeeImpact]
+
+
+class BandGroupResult(DollarImpact):
     """Aggregated winner/loser/neutral counts for a single band."""
 
     band_label: str = Field(description="Age band or tenure band label")
@@ -16,7 +70,7 @@ class BandGroupResult(APIModel):
     total: int = Field(description="Total employees in this band")
 
 
-class HeatmapCell(APIModel):
+class HeatmapCell(DollarImpact):
     """Single cell in the age × tenure heatmap grid."""
 
     age_band: str = Field(description="Row label (age band)")
@@ -30,14 +84,9 @@ class HeatmapCell(APIModel):
     )
 
 
-class WinnersLosersResponse(APIModel):
+class WinnersLosersResponse(ComparisonEvidence, DollarImpact):
     """Complete Winners & Losers comparison response."""
 
-    plan_a_scenario_id: str = Field(description="Plan A scenario ID")
-    plan_b_scenario_id: str = Field(description="Plan B scenario ID")
-    final_year: int = Field(
-        description="Latest simulation year present in both snapshots"
-    )
     plan_a_final_year: int = Field(
         description="Latest snapshot year available for Plan A"
     )
