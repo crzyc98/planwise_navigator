@@ -9,7 +9,6 @@ pytestmark = pytest.mark.fast
 
 ROOT = Path(__file__).resolve().parents[2]
 LAYOUT = (ROOT / "planalign_studio/components/Layout.tsx").read_text()
-API = (ROOT / "planalign_studio/services/api.ts").read_text()
 MANAGER = (ROOT / "planalign_studio/components/WorkspaceManager.tsx").read_text()
 APP = (ROOT / "planalign_studio/App.tsx").read_text()
 SCENARIOS = (ROOT / "planalign_studio/components/ScenariosPage.tsx").read_text()
@@ -59,19 +58,14 @@ def test_palette_is_keyboard_first_compact_and_visually_distinct() -> None:
 
 
 def test_list_uses_summary_contract_and_loads_selected_workspace_detail() -> None:
-    # Generated from the API schema (#661); drift is a CI failure, not a string match.
-    assert "export type WorkspaceSummary = Schemas['WorkspaceSummary']" in API
-    assert (
-        "listWorkspaces(options: WorkspaceListOptions = {}): Promise<WorkspacePage>"
-        in API
-    )
+    # Response types are generated from the API schema (#661) and enforced by
+    # the Studio typecheck, so only the loading behavior is asserted here.
     assert "await apiGetWorkspace(routeWorkspaceId)" in LAYOUT
     assert "await apiGetWorkspace(workspace.id)" in LAYOUT
 
 
 def test_archived_workspaces_are_managed_but_excluded_from_palette() -> None:
     assert "workspace.lifecycle === 'active'" in LAYOUT
-    assert "'active' | 'archived'" in API
     assert "setLifecycleFilter" in MANAGER
     assert "['active', 'archived', 'all']" in MANAGER
     assert "toggleArchive" in MANAGER

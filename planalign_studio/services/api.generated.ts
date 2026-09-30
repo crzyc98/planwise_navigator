@@ -2753,6 +2753,80 @@ export interface components {
             year: number;
         };
         /**
+         * ActiveRun
+         * @description One in-flight run, for page-refresh recovery (Feature 045).
+         */
+        ActiveRun: {
+            /** Current Stage */
+            current_stage: string | null;
+            /** Progress */
+            progress: number;
+            /** Run Id */
+            run_id: string;
+            /** Scenario Id */
+            scenario_id: string;
+            /**
+             * Started At
+             * @description ISO-8601 start timestamp
+             */
+            started_at: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "queued" | "running";
+        };
+        /**
+         * ActiveSimulationsResponse
+         * @description All currently active simulation runs.
+         */
+        ActiveSimulationsResponse: {
+            /** Active Runs */
+            active_runs: components["schemas"]["ActiveRun"][];
+        };
+        /**
+         * AgeBucket
+         * @description One census age bucket, weighted for new-hire age distribution.
+         */
+        AgeBucket: {
+            /** Age */
+            age: number;
+            /** Count */
+            count: number;
+            /** Description */
+            description: string;
+            /** Weight */
+            weight: number;
+        };
+        /**
+         * AgeDistributionResponse
+         * @description Census age distribution for matching new-hire hiring patterns.
+         */
+        AgeDistributionResponse: {
+            /** Analysis Type */
+            analysis_type: string;
+            /**
+             * As Of Date
+             * @description ISO date ages were computed as of
+             */
+            as_of_date: string;
+            /**
+             * As Of Date Source
+             * @enum {string}
+             */
+            as_of_date_source: "provided" | "inferred";
+            /** Distribution */
+            distribution: components["schemas"]["AgeBucket"][];
+            /** Fallback Notice */
+            fallback_notice: string | null;
+            /** Recent Hires Only */
+            recent_hires_only: boolean;
+            /** Source File */
+            source_file: string;
+            /** Total Employees */
+            total_employees: number;
+        };
+        /**
          * AgeWeight
          * @description One new-hire age bucket. Stays a plain dict at runtime (dbt var input).
          */
@@ -3594,17 +3668,29 @@ export interface components {
             job_level_compensation?: components["schemas"]["JobLevelRange"][] | null;
             /** Merit Budget */
             merit_budget?: number | null;
-            /** New Hire Age Distribution */
+            /**
+             * New Hire Age Distribution
+             * @description New-hire age distribution. Overrides the seed via the same dbt var the full simulation uses, so a tuned distribution transfers verbatim.
+             */
             new_hire_age_distribution?: components["schemas"]["AgeWeight"][] | null;
-            /** New Hire Termination Rate */
+            /**
+             * New Hire Termination Rate
+             * @description New-hire termination rate (workforce.new_hire_termination_rate), as a decimal; held fixed across an auto-calibration search.
+             */
             new_hire_termination_rate?: number | null;
             /** Promotion Increase */
             promotion_increase?: number | null;
             /** Target Growth Pct */
             target_growth_pct?: number | null;
-            /** Total Termination Rate */
+            /**
+             * Total Termination Rate
+             * @description Core termination rate (workforce.total_termination_rate), as a decimal; held fixed across an auto-calibration search.
+             */
             total_termination_rate?: number | null;
-            /** Workforce Growth Rate */
+            /**
+             * Workforce Growth Rate
+             * @description Workforce/headcount growth target (simulation.target_growth_rate) that sizes hiring. Distinct from target_growth_pct; changing it changes headcount exactly as a full simulation would.
+             */
             workforce_growth_rate?: number | null;
         };
         /**
@@ -4082,6 +4168,43 @@ export interface components {
              * @default 4
              */
             lookback_years?: number;
+        };
+        /**
+         * CompensationByLevelResponse
+         * @description Census compensation by job level (or overall, when levels are absent).
+         */
+        CompensationByLevelResponse: {
+            /** Analysis Type */
+            analysis_type: string;
+            /** Compensation Annualized */
+            compensation_annualized: boolean;
+            /** Has Level Data */
+            has_level_data: boolean;
+            /**
+             * Levels
+             * @description Set when has_level_data is true
+             */
+            levels: components["schemas"]["LevelCompensationStats"][] | null;
+            /** Lookback Years */
+            lookback_years: number | null;
+            /**
+             * Message
+             * @description Set when has_level_data is false
+             */
+            message: string | null;
+            /** @description Set when has_level_data is false */
+            overall_stats: components["schemas"]["OverallCompensationStats"] | null;
+            /** Recent Hires Only */
+            recent_hires_only: boolean;
+            /** Source File */
+            source_file: string;
+            /**
+             * Suggested Levels
+             * @description Set when has_level_data is false
+             */
+            suggested_levels: components["schemas"]["SuggestedLevelRange"][] | null;
+            /** Total Employees */
+            total_employees: number;
         };
         /**
          * CompensationByStatusRow
@@ -6388,6 +6511,40 @@ export interface components {
             updated_at: string | null;
         };
         /**
+         * LevelCompensationStats
+         * @description Compensation statistics for one census job level.
+         */
+        LevelCompensationStats: {
+            /** Avg Compensation */
+            avg_compensation: number;
+            /** Employee Count */
+            employee_count: number;
+            /** Level */
+            level: number;
+            /**
+             * Max Compensation
+             * @description Recommended max (P75)
+             */
+            max_compensation: number;
+            /** Median Compensation */
+            median_compensation: number;
+            /**
+             * Min Compensation
+             * @description Recommended min (P25)
+             */
+            min_compensation: number;
+            /** Name */
+            name: string;
+            /** P25 Compensation */
+            p25_compensation: number;
+            /** P75 Compensation */
+            p75_compensation: number;
+            /** Raw Max Compensation */
+            raw_max_compensation: number;
+            /** Raw Min Compensation */
+            raw_min_compensation: number;
+        };
+        /**
          * LevelDistributionResponse
          * @description Distribution info for a job level.
          */
@@ -6926,6 +7083,28 @@ export interface components {
             seed_phase_count: number | null;
             /** Valid */
             valid: boolean;
+        };
+        /**
+         * OverallCompensationStats
+         * @description Census-wide compensation distribution, used when levels are absent.
+         */
+        OverallCompensationStats: {
+            /** Avg Compensation */
+            avg_compensation: number;
+            /** Max Compensation */
+            max_compensation: number;
+            /** Median Compensation */
+            median_compensation: number;
+            /** Min Compensation */
+            min_compensation: number;
+            /** P10 Compensation */
+            p10_compensation: number;
+            /** P25 Compensation */
+            p25_compensation: number;
+            /** P75 Compensation */
+            p75_compensation: number;
+            /** P90 Compensation */
+            p90_compensation: number;
         };
         /** PackProvenance */
         PackProvenance: {
@@ -8667,6 +8846,22 @@ export interface components {
          * @enum {string}
          */
         Subsystem: "termination" | "hiring" | "promotion" | "enrollment" | "merit";
+        /**
+         * SuggestedLevelRange
+         * @description A percentile-based level range suggested when the census has no levels.
+         */
+        SuggestedLevelRange: {
+            /** Level */
+            level: number;
+            /** Name */
+            name: string;
+            /** Percentile Range */
+            percentile_range: string;
+            /** Suggested Max */
+            suggested_max: number;
+            /** Suggested Min */
+            suggested_min: number;
+        };
         /** SuggestionsResponse */
         SuggestionsResponse: {
             /** Canonical Schema */
@@ -10413,7 +10608,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ActiveSimulationsResponse"];
                 };
             };
         };
@@ -12109,9 +12304,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["AgeDistributionResponse"];
                 };
             };
             /** @description Validation Error */
@@ -12181,9 +12374,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["CompensationByLevelResponse"];
                 };
             };
             /** @description Validation Error */

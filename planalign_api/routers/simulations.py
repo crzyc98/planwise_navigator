@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse
 from ..config import APISettings, get_settings
 from ..errors import sanitize_error
 from ..models.simulation import (
+    ActiveSimulationsResponse,
     Artifact,
     LogPage,
     RunDetails,
@@ -866,10 +867,14 @@ def export_results(
     )
 
 
-@router.get("/active", summary="Get active simulation runs")
-def get_active_simulations():
+@router.get(
+    "/active",
+    response_model=ActiveSimulationsResponse,
+    summary="Get active simulation runs",
+)
+def get_active_simulations() -> ActiveSimulationsResponse:
     """Return all currently active simulation runs for page-refresh recovery."""
-    return {"active_runs": get_active_runs()}
+    return ActiveSimulationsResponse(active_runs=get_active_runs())
 
 
 def get_active_runs() -> list:

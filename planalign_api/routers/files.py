@@ -8,7 +8,9 @@ from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from ..config import get_settings
 from ..errors import sanitize_error
 from ..models.files import (
+    AgeDistributionResponse,
     CompensationAnalysisRequest,
+    CompensationByLevelResponse,
     CompensationSolverRequest,
     CompensationSolverResponse,
     FileUploadResponse,
@@ -248,7 +250,7 @@ def set_census_path(
 def analyze_age_distribution(
     workspace_id: str,
     request: FileValidationRequest,
-) -> dict:
+) -> AgeDistributionResponse:
     """Analyze age distribution from census data."""
     service = get_file_service()
 
@@ -258,7 +260,7 @@ def analyze_age_distribution(
             file_path=request.file_path,
             as_of_date=request.as_of_date,
         )
-        return result
+        return AgeDistributionResponse(**result)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -317,7 +319,7 @@ def analyze_part_time_pct(
 def analyze_compensation_by_level(
     workspace_id: str,
     request: CompensationAnalysisRequest,
-) -> dict:
+) -> CompensationByLevelResponse:
     """Analyze compensation ranges by job level from census data."""
     service = get_file_service()
 
@@ -327,7 +329,7 @@ def analyze_compensation_by_level(
             file_path=request.file_path,
             lookback_years=request.lookback_years,
         )
-        return result
+        return CompensationByLevelResponse(**result)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

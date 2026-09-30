@@ -11,7 +11,6 @@ ROOT = Path(__file__).parents[2] / "planalign_studio"
 
 def test_api_client_exposes_scenario_scoped_run_health() -> None:
     source = (ROOT / "services" / "api.ts").read_text(encoding="utf-8")
-    assert "export type RunHealthReport" in source
     assert "'missing_provenance'" in source
     assert "`/api/scenarios/${scenarioId}/runs/${runId}/health`" in source
     assert "`/api/scenarios/${scenarioId}/run-health`" in source
