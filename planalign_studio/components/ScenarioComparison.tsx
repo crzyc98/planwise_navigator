@@ -20,6 +20,7 @@ import { useChartTheme } from '../hooks/useChartTheme';
 import DCPlanComparisonSection from './DCPlanComparisonSection';
 import { LayoutContextType } from './Layout';
 import { useWorkspaceNavigate, useWorkspacePath } from '../hooks/useWorkspaceNavigation';
+import { buildHeadcountComparison } from './headcountComparison';
 
 interface ScenarioData {
   scenario: Scenario;
@@ -170,16 +171,6 @@ export default function ScenarioComparison() {
 
     const years = Array.from(allYears).sort((a, b) => a - b);
 
-    // Build workforce comparison data
-    const workforce = years.map(year => {
-      const dataPoint: any = { year };
-      scenariosWithResults.forEach(d => {
-        const yearData = d.results?.workforce_progression?.find(r => r.simulation_year === year);
-        dataPoint[d.scenario.name] = yearData?.headcount || 0;
-      });
-      return dataPoint;
-    });
-
     // Build event comparison data
     const events = years.map(year => {
       const dataPoint: any = { year };
@@ -195,10 +186,11 @@ export default function ScenarioComparison() {
       return dataPoint;
     });
 
-    return { workforce, events };
+    return { events };
   };
 
   const comparisonData = buildComparisonData();
+  const headcountComparison = buildHeadcountComparison(scenariosWithResults);
 
   if (loading) {
     return (
@@ -410,14 +402,23 @@ export default function ScenarioComparison() {
         {/* Headcount Comparison Chart */}
         <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
           <h3 className="text-lg font-semibold text-ink mb-6">Headcount Over Time</h3>
+          {headcountComparison.hasMissingYears && (
+            <p className="text-sm text-warning-ink mb-4" role="status">
+              Simulation year coverage differs or has gaps. Missing observations appear as gaps, not zero headcount.
+              {' '}{headcountComparison.commonYearCount === 0
+                ? 'No years have observations for all scenarios.'
+                : `${headcountComparison.commonYearCount} year(s) have observations for all scenarios.`}
+            </p>
+          )}
           <div className="h-80">
-            {comparisonData.workforce.length > 0 ? (
+            {headcountComparison.workforce.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={comparisonData.workforce}>
+                <LineChart data={headcountComparison.workforce}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
                   <XAxis dataKey="year" stroke={chartTheme.axis.line} />
                   <YAxis stroke={chartTheme.axis.line} />
                   <Tooltip
+                    filterNull
                     contentStyle={chartTheme.tooltip.contentStyle}
                     formatter={(value: number) => [value.toLocaleString(), '']}
                   />
@@ -429,6 +430,7 @@ export default function ScenarioComparison() {
                       dataKey={d.scenario.name}
                       stroke={chartTheme.colorAt(idx)}
                       strokeWidth={3}
+                      connectNulls={false}
                       dot={{ r: 4 }}
                       activeDot={{ r: 6 }}
                     />
