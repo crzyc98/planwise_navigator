@@ -75,102 +75,27 @@ export interface WorkspaceListOptions {
 export type WorkspaceCreate = Schemas['WorkspaceCreate'];
 export type WorkspaceUpdate = Schemas['WorkspaceUpdate'];
 
-export interface Scenario {
-  id: string;
-  workspace_id: string;
-  name: string;
-  description: string | null;
+// Config fields are free-form partial simulation configs the API does not
+// model, so Studio declares them as open records; every other field is generated.
+export type Scenario = Omit<Schemas['Scenario'], 'config_overrides'> & {
   config_overrides: Record<string, any>;
-  provenance: Record<string, any> | null;
-  status: 'not_run' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
-  created_at: string;
-  last_run_at: string | null;
-  last_run_id: string | null;
-  results_summary: Record<string, any> | null;
-}
+};
 
-export interface ScenarioCreate {
-  name: string;
-  description?: string;
-  config_overrides?: Record<string, any>;
-}
+export type ScenarioCreate = Schemas['ScenarioCreate'];
 
-export interface TimelineEvent {
-  event_id: string;
-  source: 'yearly' | 'employer_match';
-  event_type: string;
-  simulation_year: number;
-  effective_date: string;
-  event_details: string | null;
-  compensation_amount: number | null;
-  previous_compensation: number | null;
-  deferral_rate: number | null;
-  prev_deferral_rate: number | null;
-  level_id: number | null;
-}
+export type TimelineEvent = Schemas['TimelineEvent'];
 
-export interface YearState {
-  simulation_year: number;
-  employment_status: string | null;
-  detailed_status_code: string | null;
-  current_compensation: number | null;
-  prorated_annual_compensation: number | null;
-  level_id: number | null;
-  current_age: number | null;
-  current_tenure: number | null;
-  eligibility_status: string | null;
-  is_enrolled: boolean | null;
-  enrollment_date: string | null;
-  current_deferral_rate: number | null;
-  participation_status: string | null;
-  total_deferral_escalations: number | null;
-  ytd_contributions: number | null;
-  pre_tax_contributions: number | null;
-  roth_contributions: number | null;
-  employer_match_amount: number | null;
-  employer_core_amount: number | null;
-  total_employer_contributions: number | null;
-  irs_limit_reached: boolean | null;
-}
+export type YearState = Schemas['YearState'];
 
-export interface TimelineYearData {
-  simulation_year: number;
-  events: TimelineEvent[];
-  state: YearState | null;
-}
+export type TimelineYearData = Schemas['TimelineYear'];
 
-export interface EmployeeIdentity {
-  employee_id: string;
-  employee_ssn: string | null;
-  employee_birth_date: string | null;
-  employee_hire_date: string | null;
-}
+export type EmployeeIdentity = Schemas['EmployeeIdentity'];
 
-export interface EmployeeTimelineResponse {
-  workspace_id: string;
-  scenario_id: string;
-  employee_id: string;
-  employee: EmployeeIdentity | null;
-  available_years: number[];
-  years: TimelineYearData[];
-  start_year: number;
-  years_requested: number;
-}
+export type EmployeeTimelineResponse = Schemas['EmployeeTimelineResponse'];
 
-export interface EmployeeSearchResult {
-  employee_id: string;
-  employment_status: string | null;
-  level_id: number | null;
-  current_compensation: number | null;
-  simulation_year: number;
-}
+export type EmployeeSearchResult = Schemas['EmployeeSearchResult'];
 
-export interface EmployeeSearchResponse {
-  results: EmployeeSearchResult[];
-  total: number;
-  page: number;
-  page_size: number;
-}
+export type EmployeeSearchResponse = Schemas['EmployeeSearchResponse'];
 
 export interface EmployeeSearchParams {
   q?: string;
@@ -183,44 +108,9 @@ export interface EmployeeSearchParams {
   page_size?: number;
 }
 
-export interface EventRecord {
-  event_id: string;
-  event_type: string;
-  event_category: string | null;
-  event_sequence: number | null;
-  effective_date: string;
-  simulation_year: number;
-  employee_id: string;
-  employee_ssn: string | null;
-  employee_age: number | null;
-  employee_tenure: number | null;
-  level_id: number | null;
-  age_band: string | null;
-  tenure_band: string | null;
-  scenario_id: string;
-  plan_design_id: string;
-  event_details: string | null;
-  compensation_amount: number | null;
-  previous_compensation: number | null;
-  employee_deferral_rate: number | null;
-  prev_employee_deferral_rate: number | null;
-  event_probability: number | null;
-  parameter_scenario_id: string | null;
-  parameter_source: string | null;
-  data_quality_flag: string | null;
-  created_at: string | null;
-}
+export type EventRecord = Schemas['EventRecord'];
 
-export interface EventListResponse {
-  workspace_id: string;
-  scenario_id: string;
-  run_id: string | null;
-  database_source: string | null;
-  events: EventRecord[];
-  total: number;
-  page: number;
-  page_size: number;
-}
+export type EventListResponse = Schemas['EventListResponse'];
 
 export interface EventListParams {
   simulation_year?: number;
@@ -231,76 +121,19 @@ export interface EventListParams {
   page_size?: number;
 }
 
-export interface SimulationRun {
-  id: string;
-  scenario_id: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
-  progress: number;
-  current_stage: string | null;
-  current_year: number | null;
-  total_years: number | null;
-  started_at: string;
-  completed_at: string | null;
-  error_message: string | null;
-}
+export type SimulationRun = Schemas['SimulationRun'];
 
-export interface PerformanceMetrics {
-  memory_mb: number;
-  memory_pressure: 'low' | 'moderate' | 'high' | 'critical';
-  elapsed_seconds: number;
-  events_generated: number;
-  events_per_second: number;
-}
+export type PerformanceMetrics = Schemas['PerformanceMetrics'];
 
 // Feature 094: live run dashboard telemetry types
 
-export interface TelemetryMilestone {
-  sequence: number;
-  timestamp: string;
-  kind:
-    | 'run_started'
-    | 'stage_started'
-    | 'stage_completed'
-    | 'year_completed'
-    | 'warning'
-    | 'error'
-    | 'terminal';
-  severity: 'info' | 'warning' | 'error';
-  year: number | null;
-  stage: string | null;
-  message: string;
-  detail: Record<string, any> | null;
-}
+export type TelemetryMilestone = Schemas['TelemetryMilestone'];
 
-export interface EventTypeCounts {
-  by_type: Record<string, number>;
-  by_year: Record<string, Record<string, number>>;
-  total: number;
-  as_of_year: number | null;
-}
+export type EventTypeCounts = Schemas['EventTypeCounts'];
 
-export interface PerformanceSample {
-  timestamp: string;
-  elapsed_seconds: number;
-  events_per_second: number;
-  memory_mb: number;
-}
+export type PerformanceSample = Schemas['PerformanceSample'];
 
-export interface RunTelemetrySnapshot {
-  run_id: string;
-  scenario_id: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
-  progress: number;
-  current_stage: string;
-  current_year: number;
-  total_years: number;
-  start_year: number;
-  performance_metrics: PerformanceMetrics;
-  event_counts: EventTypeCounts;
-  milestones: TelemetryMilestone[];
-  performance_samples: PerformanceSample[];
-  last_update_at: string;
-}
+export type RunTelemetrySnapshot = Schemas['RunTelemetrySnapshot'];
 
 export type RunTelemetryUpdate = Omit<
   RunTelemetrySnapshot,
@@ -313,202 +146,37 @@ export type TelemetryWsMessage =
   | { type: 'milestone'; data: TelemetryMilestone }
   | { type: 'heartbeat' };
 
-export interface RunTelemetryResponse {
-  run: {
-    run_id: string | null;
-    status:
-      | 'pending'
-      | 'running'
-      | 'completed'
-      | 'failed'
-      | 'cancelled'
-      | 'not_run';
-    error_message: string | null;
-  };
-  telemetry: RunTelemetrySnapshot | null;
-}
+export type RunTelemetryResponse = Schemas['RunTelemetryResponse'];
 
-export interface SimulationResults {
-  scenario_id: string;
-  run_id: string;
-  start_year: number;
-  end_year: number;
-  final_headcount: number;
-  total_growth_pct: number;
-  cagr: number;
-  participation_rate: number;
-  workforce_progression: Array<Record<string, any>>;
-  event_trends: Record<string, number[]>;
-  growth_analysis: Record<string, number>;
-  // E093: Compensation breakdown by employment status
-  compensation_by_status: Array<{
-    simulation_year: number;
-    employment_status: string;
-    employee_count: number;
-    avg_compensation: number;
-  }>;
-  // CAGR metrics for key workforce measures
-  cagr_metrics: Array<{
-    metric: string;
-    start_value: number;
-    end_value: number;
-    years: number;
-    cagr_pct: number;
-  }>;
-}
+export type SimulationResults = Schemas['SimulationResults'];
 
-export interface BandGroupResult {
-  band_label: string;
-  winners: number;
-  losers: number;
-  neutral: number;
-  total: number;
-}
+export type BandGroupResult = Schemas['BandGroupResult'];
 
-export interface HeatmapCell {
-  age_band: string;
-  tenure_band: string;
-  winners: number;
-  losers: number;
-  neutral: number;
-  total: number;
-  net_pct: number;
-}
+export type HeatmapCell = Schemas['HeatmapCell'];
 
-export interface WinnersLosersResponse {
-  plan_a_scenario_id: string;
-  plan_b_scenario_id: string;
-  final_year: number;
-  total_compared: number;
-  total_excluded: number;
-  total_winners: number;
-  total_losers: number;
-  total_neutral: number;
-  age_band_results: BandGroupResult[];
-  tenure_band_results: BandGroupResult[];
-  heatmap: HeatmapCell[];
-}
+export type WinnersLosersResponse = Schemas['WinnersLosersResponse'];
 
-export interface BatchJob {
-  id: string;
-  name: string;
-  workspace_id: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
-  submitted_at: string;
-  completed_at: string | null;
-  duration_seconds: number | null;
-  scenarios: Array<{
-    scenario_id: string;
-    name: string;
-    status: 'pending' | 'running' | 'completed' | 'failed';
-    progress: number;
-    error_message: string | null;
-  }>;
-  parallel: boolean;
-  export_format: string | null;
-}
+export type BatchJob = Schemas['BatchJob'];
 
-export interface HealthResponse {
-  healthy: boolean;
-  issues: string[];
-  warnings: string[];
-}
+export type HealthResponse = Schemas['HealthResponse'];
 
-export interface SystemStatus {
-  system_ready: boolean;
-  system_message: string;
-  timestamp: string;
-  active_simulations: number;
-  queued_simulations: number;
-  total_storage_mb: number;
-  storage_limit_mb: number;
-  storage_percent: number;
-  workspace_count: number;
-  scenario_count: number;
-  thread_count: number;
-  recommendations: string[];
-}
+export type SystemStatus = Schemas['SystemStatus'];
 
-export interface WorkforceMetrics {
-  headcount: number;
-  active: number;
-  terminated: number;
-  new_hires: number;
-  growth_pct: number;
-  avg_compensation: number;
-}
+export type WorkforceMetrics = Schemas['WorkforceMetrics'];
 
-export interface EventComparisonMetric {
-  metric: string;
-  year: number;
-  baseline: number;
-  scenarios: Record<string, number>;
-  deltas: Record<string, number>;
-  delta_pcts: Record<string, number>;
-}
+export type EventComparisonMetric = Schemas['EventComparisonMetric'];
 
-export interface DCPlanMetrics {
-  participation_rate: number;
-  avg_deferral_rate: number;
-  total_employee_contributions: number;
-  total_employer_match: number;
-  total_employer_core: number;
-  total_employer_cost: number;
-  employer_cost_rate: number;
-  participant_count: number;
-}
+export type DCPlanMetrics = Schemas['DCPlanMetrics'];
 
-export interface DeltaValue {
-  baseline: number;
-  scenarios: Record<string, number>;
-  deltas: Record<string, number>;
-  delta_pcts: Record<string, number>;
-}
+export type DeltaValue = Schemas['DeltaValue'];
 
-export interface ComparisonResponse {
-  scenarios: string[];
-  scenario_names: Record<string, string>;
-  baseline_scenario: string;
-  workforce_comparison: Array<{
-    year: number;
-    values: Record<string, WorkforceMetrics>;
-    deltas: Record<string, WorkforceMetrics>;
-  }>;
-  event_comparison: EventComparisonMetric[];
-  dc_plan_comparison: Array<{
-    year: number;
-    values: Record<string, DCPlanMetrics>;
-    deltas: Record<string, DCPlanMetrics>;
-  }>;
-  summary_deltas: Record<string, DeltaValue>;
-}
+export type ComparisonResponse = Schemas['ComparisonResponse'];
 
-export interface ConfigDelta {
-  path: string;
-  a: unknown;
-  b: unknown;
-  status: 'changed' | 'only_a' | 'only_b';
-}
+export type ConfigDelta = Schemas['ConfigDelta'];
 
-export interface ScenarioProvenance {
-  available: boolean;
-  config_fingerprint: string | null;
-  random_seed: number | null;
-  run_timestamp: string | null;
-  drift_warning: boolean;
-  drift_reasons: Array<'current_config_mismatch' | 'current_seed_mismatch' | 'mixed_generation'>;
-}
+export type ScenarioProvenance = Schemas['ScenarioProvenance'];
 
-export interface ConfigDiffResponse {
-  scenario_a: string;
-  scenario_b: string;
-  scenario_names: Record<string, string>;
-  differences: ConfigDelta[];
-  unchanged_count: number;
-  provenance: Record<string, ScenarioProvenance>;
-  seeds_match: boolean | null;
-  drift_warning: boolean;
-}
+export type ConfigDiffResponse = Schemas['ConfigDiffResponse'];
 
 // ============================================================================
 // API Error Handling
@@ -761,18 +429,9 @@ export async function deleteScenarioDatabase(
 // Active Simulation Detection (Feature 045)
 // ============================================================================
 
-export interface ActiveRun {
-  run_id: string;
-  scenario_id: string;
-  status: string;
-  progress: number;
-  current_stage: string | null;
-  started_at: string;
-}
+export type ActiveRun = Schemas['ActiveRun'];
 
-export interface ActiveSimulationsResponse {
-  active_runs: ActiveRun[];
-}
+export type ActiveSimulationsResponse = Schemas['ActiveSimulationsResponse'];
 
 export async function getActiveSimulations(): Promise<ActiveSimulationsResponse> {
   const response = await fetchWithAuth(`${API_BASE}/api/scenarios/active`);
@@ -847,6 +506,22 @@ export async function downloadResultsExport(
   if (!response.ok) await handleResponse<never>(response);
   const extension = format === 'excel' ? 'xlsx' : 'csv';
   const filename = filenameFromContentDisposition(response, `${scenarioId}-results.${extension}`);
+  saveBrowserDownload(await response.blob(), filename);
+}
+
+export type ComparisonExportFormat = 'xlsx' | 'hyper';
+
+export async function downloadComparisonExport(
+  workspaceId: string,
+  scenarioIds: string[],
+  format: ComparisonExportFormat,
+): Promise<void> {
+  const params = new URLSearchParams({ scenarios: scenarioIds.join(','), format });
+  const response = await fetchWithAuth(
+    `${API_BASE}/api/workspaces/${encodeURIComponent(workspaceId)}/analytics/compare/export?${params}`,
+  );
+  if (!response.ok) await handleResponse<never>(response);
+  const filename = filenameFromContentDisposition(response, `scenario_comparison.${format}`);
   saveBrowserDownload(await response.blob(), filename);
 }
 
@@ -929,49 +604,11 @@ export async function getScenarioConfigDiff(
 // Run Details & Artifacts Endpoints
 // ============================================================================
 
-export interface Artifact {
-  name: string;
-  type: 'excel' | 'yaml' | 'duckdb' | 'json' | 'text' | 'other';
-  size_bytes: number;
-  path: string;
-  created_at: string | null;
-}
+export type Artifact = Schemas['Artifact'];
 
-export interface RunDetails {
-  id: string;
-  scenario_id: string;
-  scenario_name: string;
-  workspace_id: string;
-  workspace_name: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'not_run';
-
-  // Timing
-  started_at: string | null;
-  completed_at: string | null;
-  duration_seconds: number | null;
-
-  // Simulation info
-  start_year: number | null;
-  end_year: number | null;
-  total_years: number | null;
-
-  // Results summary
-  final_headcount: number | null;
-  total_events: number | null;
-  participation_rate: number | null;
-
-  // Configuration snapshot
+export type RunDetails = Omit<Schemas['RunDetails'], 'config'> & {
   config: Record<string, any> | null;
-
-  // Artifacts
-  artifacts: Artifact[];
-
-  // Error info
-  error_message: string | null;
-
-  // E087: Storage location info
-  storage_path: string | null;
-}
+};
 
 export async function getRunDetails(scenarioId: string): Promise<RunDetails> {
   const response = await fetchWithAuth(`${API_BASE}/api/scenarios/${scenarioId}/details`);
@@ -992,19 +629,7 @@ export async function downloadArtifact(
 // Run History Endpoints
 // ============================================================================
 
-export interface RunSummary {
-  id: string;
-  scenario_id: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
-  started_at: string;
-  completed_at: string | null;
-  duration_seconds: number | null;
-  start_year: number | null;
-  end_year: number | null;
-  total_events: number | null;
-  final_headcount: number | null;
-  artifact_count: number;
-}
+export type RunSummary = Schemas['RunSummary'];
 
 export async function listRuns(scenarioId: string): Promise<RunSummary[]> {
   const response = await fetchWithAuth(`${API_BASE}/api/scenarios/${scenarioId}/runs`);
@@ -1022,31 +647,11 @@ export async function getRunById(scenarioId: string, runId: string): Promise<Run
 
 export type RunHealthStatus = 'clean' | 'warnings' | 'failed' | 'missing_provenance' | 'unavailable';
 
-export interface RunHealthCounts {
-  passed: number;
-  warning: number;
-  failed: number;
-  total: number;
-}
+export type RunHealthCounts = Schemas['RunHealthCounts'];
 
-export interface RunHealthFinding {
-  check_name: string;
-  severity: string;
-  simulation_year: number;
-  stage: string;
-  passed: boolean;
-  affected_record_count: number | null;
-  message: string;
-}
+export type RunHealthFinding = Schemas['RunHealthFinding'];
 
-export interface RunHealthReport {
-  status: RunHealthStatus;
-  scenario_id: string;
-  run_id: string;
-  disposition: string | null;
-  counts: RunHealthCounts;
-  findings: RunHealthFinding[];
-}
+export type RunHealthReport = Schemas['RunHealthReport'];
 
 export async function getRunHealth(scenarioId: string, runId?: string): Promise<RunHealthReport> {
   const path = runId
@@ -1060,121 +665,23 @@ export async function getRunHealth(scenarioId: string, runId?: string): Promise<
 // Run Provenance Report Endpoints (111-run-provenance-report)
 // ============================================================================
 
-export interface ProvenanceFinding {
-  field_path: string;
-  code: string;
-  reason: string;
-  required: boolean;
-}
+export type ProvenanceFinding = Schemas['EvidenceFinding'];
 
-export interface ProvenanceInputFingerprint {
-  logical_name: string;
-  sha256: string;
-  size_bytes: number | null;
-  record_count: number | null;
-  format: string | null;
-}
+export type ProvenanceInputFingerprint = Schemas['InputFingerprint'];
 
-export interface ProvenanceSeedFingerprint {
-  logical_name: string;
-  sha256: string;
-  size_bytes: number;
-}
+export type ProvenanceSeedFingerprint = Schemas['SeedFingerprint'];
 
-export interface ProvenanceEventCount {
-  simulation_year: number;
-  event_type: string;
-  count: number;
-}
+export type ProvenanceEventCount = Schemas['AnnualEventCount'];
 
-export interface ProvenanceReconciliation {
-  simulation_year: number;
-  opening_workforce: number | null;
-  hires: number | null;
-  terminations: number | null;
-  expected_closing_workforce: number | null;
-  actual_closing_workforce: number | null;
-  variance: number | null;
-  opening_source: string | null;
-}
+export type ProvenanceReconciliation = Schemas['AnnualWorkforceReconciliation'];
 
-export interface ProvenanceValidationResult {
-  simulation_year: number;
-  check_name: string;
-  severity: string;
-  passed: boolean;
-  affected_record_count: number | null;
-}
+export type ProvenanceValidationResult = Schemas['CapturedValidationResult'];
 
-export interface ProvenanceStageCompletion {
-  simulation_year: number | null;
-  stage: string;
-  started_at: string | null;
-  completed_at: string | null;
-  duration_seconds: number | null;
-  outcome: string;
-}
+export type ProvenanceStageCompletion = Schemas['StageCompletion'];
 
-export interface ProvenanceReport {
-  report_schema_version: string;
-  evidence: {
-    run: {
-      run_id: string;
-      workspace_id: string | null;
-      scenario_id: string | null;
-      plan_design_id: string | null;
-      status: string;
-      intended_start_year: number | null;
-      intended_end_year: number | null;
-      completed_years: number[];
-    };
-    timing: {
-      started_at: string | null;
-      completed_at: string | null;
-      duration_seconds: number | null;
-      terminal_stage: string | null;
-      stage_completions: ProvenanceStageCompletion[];
-    };
-    software: {
-      planalign_version: string | null;
-      git_commit_sha: string | null;
-      working_tree_state: 'clean' | 'dirty' | 'unavailable';
-      working_tree_fingerprint: string | null;
-    };
-    configuration: {
-      effective: Record<string, unknown> | null;
-      fingerprint: string | null;
-      fingerprint_method: string | null;
-      redactions: string[];
-    };
-    random_seed: number | null;
-    census_input: ProvenanceInputFingerprint | null;
-    seed_files: ProvenanceSeedFingerprint[];
-    event_counts: ProvenanceEventCount[];
-    workforce_reconciliations: ProvenanceReconciliation[];
-    validation_results: ProvenanceValidationResult[];
-    validation_disposition: string;
-  };
-  missing_evidence: ProvenanceFinding[];
-  verification_disposition: 'fully_verified' | 'incomplete' | 'unverifiable';
-  digest: {
-    algorithm: 'SHA-256';
-    canonicalization: string;
-    value: string;
-  };
-  sign_off: {
-    report_digest: string;
-    reviewer_name: string | null;
-    decision: string | null;
-    timestamp: string | null;
-    comments: string | null;
-  };
-}
+export type ProvenanceReport = Schemas['ProvenanceReport'];
 
-export interface ProvenanceReportEnvelope {
-  report: ProvenanceReport;
-  audit_sheet: string;
-}
+export type ProvenanceReportEnvelope = Schemas['ProvenanceReportEnvelope'];
 
 export async function getRunProvenance(runId: string): Promise<ProvenanceReportEnvelope> {
   const response = await fetchWithAuth(`${API_BASE}/api/runs/${runId}/provenance`, {
@@ -1225,70 +732,13 @@ export async function downloadRunProvenanceFile(
 export type EvidenceMetric = 'active_headcount' | 'total_compensation' | 'employer_match_cost' | 'total_employer_plan_cost' | 'participation_rate' | 'avg_deferral_rate';
 export type EvidenceFigureStatus = 'defined' | 'undefined' | 'suppressed';
 
-export interface EvidenceCitation {
-  result_store: string;
-  query_id: 'Q1';
-  query: string;
-  result_column: string;
-}
+export type EvidenceCitation = Schemas['Citation'];
 
-export interface EvidenceFigure {
-  value: string | null;
-  unit: 'count' | 'currency' | 'rate' | 'percent_of_change';
-  status: EvidenceFigureStatus;
-  reason: string | null;
-  citation: EvidenceCitation;
-}
+export type EvidenceFigure = Schemas['EvidenceFigure'];
 
-export interface EvidenceDriver {
-  id: string;
-  label: string;
-  description: string;
-  contribution: EvidenceFigure;
-  share_of_change: EvidenceFigure;
-  population: { label: string; count: EvidenceFigure };
-  base_rate: EvidenceFigure | null;
-  target_rate: EvidenceFigure | null;
-}
+export type EvidenceDriver = Schemas['DriverContribution'];
 
-export interface EvidencePackEnvelope {
-  pack: {
-    provenance: {
-      scenario_id: string;
-      scenario_name: string | null;
-      run_id: string;
-      run_timestamp: string | null;
-      random_seed: number | null;
-      config_fingerprint: string | null;
-      result_store: string;
-      verification_disposition: 'fully_verified' | 'incomplete' | 'unverifiable';
-    };
-    change: {
-      metric: EvidenceMetric;
-      label: string;
-      base_year: number;
-      target_year: number;
-      base_value: EvidenceFigure;
-      target_value: EvidenceFigure;
-      total_change: EvidenceFigure;
-      base_population: EvidenceFigure;
-      target_population: EvidenceFigure;
-      shares_suppressed_reason: string | null;
-    };
-    drivers: EvidenceDriver[];
-    residual: {
-      contribution: EvidenceFigure;
-      share_of_change: EvidenceFigure;
-      material: boolean;
-      largest_contribution: boolean;
-    };
-    warnings: Array<{ code: string; severity: 'info' | 'caution' | 'critical'; message: string }>;
-    executive_summary: string[];
-    population_note: string;
-  };
-  text_export: string;
-  filename: string;
-}
+export type EvidencePackEnvelope = Schemas['EvidencePackEnvelope'];
 
 export async function getScenarioEvidencePack(
   workspaceId: string,
@@ -1328,23 +778,9 @@ export function downloadEvidencePack(envelope: Pick<EvidencePackEnvelope, 'text_
 // Simulation Log Endpoints (001-sim-job-logs)
 // ============================================================================
 
-export interface SimulationLogLine {
-  sequence: number;
-  timestamp: string;
-  severity: 'INFO' | 'WARNING' | 'ERROR';
-  message: string;
-}
+export type SimulationLogLine = Schemas['SimulationLogLine'];
 
-export interface LogPage {
-  run_id: string;
-  lines: SimulationLogLine[];
-  total_lines: number;
-  page: number;
-  page_size: number;
-  has_more: boolean;
-  is_running: boolean;
-  log_available: boolean;
-}
+export type LogPage = Schemas['LogPage'];
 
 export async function fetchRunLogs(
   scenarioId: string,
@@ -1372,61 +808,15 @@ export async function downloadRunLog(scenarioId: string, runId: string): Promise
 // File Upload Endpoints
 // ============================================================================
 
-export interface StructuredWarning {
-  field_name: string;
-  severity: 'critical' | 'optional' | 'info';
-  warning_type: 'missing' | 'alias_found' | 'auto_mapped';
-  impact_description: string;
-  detected_alias: string | null;
-  suggested_action: string;
-}
+export type StructuredWarning = Schemas['StructuredWarning'];
 
-export interface DataQualitySample {
-  row_number: number;
-  value: string | null;
-}
+export type DataQualitySample = Schemas['DataQualitySample'];
 
-export interface DataQualityWarning {
-  field_name: string;
-  check_type: 'null_or_empty' | 'unparseable_date' | 'mixed_date_formats' | 'negative_value';
-  severity: 'error' | 'warning' | 'info';
-  affected_count: number;
-  total_count: number;
-  affected_percentage: number;
-  message: string;
-  samples: DataQualitySample[];
-  suggested_action: string;
-}
+export type DataQualityWarning = Schemas['DataQualityWarning'];
 
-export interface FileUploadResponse {
-  success: boolean;
-  file_path: string;
-  file_name: string;
-  file_size_bytes: number;
-  row_count: number;
-  columns: string[];
-  upload_timestamp: string;
-  validation_warnings: string[];
-  structured_warnings: StructuredWarning[];
-  data_quality_warnings: DataQualityWarning[];
-  column_renames: Array<{ original: string; canonical: string }>;
-  original_filename: string | null;
-}
+export type FileUploadResponse = Schemas['FileUploadResponse'];
 
-export interface FileValidationResponse {
-  valid: boolean;
-  file_path: string;
-  exists: boolean;
-  readable: boolean;
-  file_size_bytes?: number;
-  row_count?: number;
-  columns?: string[];
-  last_modified?: string;
-  error_message?: string;
-  validation_warnings: string[];
-  structured_warnings: StructuredWarning[];
-  data_quality_warnings: DataQualityWarning[];
-}
+export type FileValidationResponse = Schemas['FileValidationResponse'];
 
 export async function uploadCensusFile(
   workspaceId: string,
@@ -1476,21 +866,7 @@ export async function setCensusPath(
 }
 
 // E082: Analyze age distribution from census data
-export interface AgeDistributionAnalysis {
-  total_employees: number;
-  recent_hires_only?: boolean;
-  analysis_type?: string;
-  distribution: Array<{
-    age: number;
-    weight: number;
-    description: string;
-    count: number;
-  }>;
-  source_file: string;
-  as_of_date: string;
-  as_of_date_source: 'inferred' | 'provided';
-  fallback_notice?: string | null;
-}
+export type AgeDistributionAnalysis = Schemas['AgeDistributionResponse'];
 
 export async function analyzeAgeDistribution(
   workspaceId: string,
@@ -1509,12 +885,7 @@ export async function analyzeAgeDistribution(
 }
 
 // 093: Analyze part-time percentage from census data
-export interface PartTimePctAnalysis {
-  column_present: boolean;
-  headcount: number;
-  part_time_count: number;
-  part_time_pct: number;
-}
+export type PartTimePctAnalysis = Schemas['PartTimePctResponse'];
 
 export async function analyzePartTimePct(
   workspaceId: string,
@@ -1532,45 +903,7 @@ export async function analyzePartTimePct(
 }
 
 // E082: Analyze compensation distribution from census data
-export interface CompensationAnalysis {
-  total_employees: number;
-  recent_hires_only: boolean;
-  lookback_years?: number;
-  has_level_data: boolean;
-  analysis_type: string;
-  message?: string;
-  // When has_level_data is true
-  levels?: Array<{
-    level: number;
-    name: string;
-    employee_count: number;
-    min_compensation: number;
-    max_compensation: number;
-    median_compensation: number;
-    p25_compensation: number;
-    p75_compensation: number;
-    avg_compensation: number;
-  }>;
-  // When has_level_data is false
-  overall_stats?: {
-    min_compensation: number;
-    max_compensation: number;
-    median_compensation: number;
-    p10_compensation: number;
-    p25_compensation: number;
-    p75_compensation: number;
-    p90_compensation: number;
-    avg_compensation: number;
-  };
-  suggested_levels?: Array<{
-    level: number;
-    name: string;
-    suggested_min: number;
-    suggested_max: number;
-    percentile_range: string;
-  }>;
-  source_file: string;
-}
+export type CompensationAnalysis = Schemas['CompensationByLevelResponse'];
 
 /**
  * Analyze compensation ranges from census data.
@@ -1598,53 +931,11 @@ export async function analyzeCompensation(
 // Compensation Growth Solver
 // ============================================================================
 
-export interface CompensationSolverRequest {
-  file_path?: string;
-  target_growth_rate: number; // As decimal, e.g., 0.02 for 2%
-  promotion_increase?: number; // Lock promotion increase (as decimal)
-  cola_to_merit_ratio?: number; // Ratio of COLA to merit
-  // Workforce dynamics (critical for accurate growth modeling)
-  turnover_rate?: number; // Annual turnover rate as decimal (e.g., 0.15 = 15%)
-  workforce_growth_rate?: number; // Annual workforce growth as decimal (e.g., 0.03 = 3%)
-  new_hire_comp_ratio?: number; // New hire avg comp as ratio of current avg (e.g., 0.85 = 85%)
-}
+export type CompensationSolverRequest = Schemas['CompensationSolverRequest'];
 
-export interface LevelDistribution {
-  level: number;
-  name: string;
-  headcount: number;
-  percentage: number;
-  avg_compensation: number;
-  promotion_rate: number;
-}
+export type LevelDistribution = Schemas['LevelDistributionResponse'];
 
-export interface CompensationSolverResponse {
-  target_growth_rate: number; // As percentage (2.0 for 2%)
-  cola_rate: number; // As percentage
-  merit_budget: number; // As percentage
-  promotion_increase: number; // As percentage
-  promotion_budget: number; // As percentage
-  achieved_growth_rate: number;
-  growth_gap: number;
-  // Growth breakdown (how each factor contributes)
-  cola_contribution: number;
-  merit_contribution: number;
-  promo_contribution: number;
-  turnover_contribution: number; // Impact of turnover/new hires (usually negative)
-  // Workforce context
-  total_headcount: number;
-  avg_compensation: number;
-  weighted_promotion_rate: number;
-  // Workforce dynamics used in calculation
-  turnover_rate: number;
-  workforce_growth_rate: number;
-  new_hire_comp_ratio: number;
-  // Recommendations for new hire compensation
-  recommended_new_hire_ratio: number; // % of avg comp to hire at
-  recommended_scale_factor: number; // Multiplier for census-derived ranges
-  level_distribution?: LevelDistribution[];
-  warnings: string[];
-}
+export type CompensationSolverResponse = Schemas['CompensationSolverResponse'];
 
 /**
  * Solve for compensation parameters given a target growth rate.
@@ -1672,17 +963,11 @@ export async function solveCompensationGrowth(
 // Template Endpoints
 // ============================================================================
 
-export interface Template {
-  id: string;
-  name: string;
-  description: string;
-  category: string;
+export type Template = Omit<Schemas['Template'], 'config'> & {
   config: Record<string, any>;
-}
+};
 
-export interface TemplateListResponse {
-  templates: Template[];
-}
+export type TemplateListResponse = Schemas['TemplateListResponse'];
 
 export async function listTemplates(): Promise<TemplateListResponse> {
   const response = await fetchWithAuth(`${API_BASE}/api/templates`);
@@ -1698,57 +983,17 @@ export async function getTemplate(templateId: string): Promise<Template> {
 // DC Plan Analytics Endpoints (E085)
 // ============================================================================
 
-export interface ContributionYearSummary {
-  year: number;
-  total_employee_contributions: number;
-  total_employer_match: number;
-  total_employer_core: number;
-  total_all_contributions: number;
-  participant_count: number;
-  total_eligible_count: number;
-  // E104: New fields for cost comparison
-  average_deferral_rate: number;
-  participation_rate: number;
-  total_employer_cost: number;
-  // E013: Employer cost ratio metrics
-  total_compensation: number;
-  total_capped_compensation: number;
-  employer_cost_rate: number;
-  employer_cost_pct_of_capped_compensation: number;
-  // E066: Contribution rate percentages
-  employee_contribution_rate: number;
-  match_contribution_rate: number;
-  core_contribution_rate: number;
-  total_contribution_rate: number;
-}
+export type ContributionYearSummary = Schemas['ContributionYearSummary'];
 
-export interface DeferralRateBucket {
-  bucket: string;
-  count: number;
-  percentage: number;
-}
+export type DeferralRateBucket = Schemas['DeferralRateBucket'];
 
-export interface DeferralDistributionYear {
-  year: number;
-  distribution: DeferralRateBucket[];
-}
+export type DeferralDistributionYear = Schemas['DeferralDistributionYear'];
 
-export interface ParticipationByMethod {
-  auto_enrolled: number;
-  voluntary_enrolled: number;
-  census_enrolled: number;
-}
+export type ParticipationByMethod = Schemas['ParticipationByMethod'];
 
-export interface EscalationMetrics {
-  employees_with_escalations: number;
-  avg_escalation_count: number;
-  total_escalation_amount: number;
-}
+export type EscalationMetrics = Schemas['EscalationMetrics'];
 
-export interface IRSLimitMetrics {
-  employees_at_irs_limit: number;
-  irs_limit_rate: number;
-}
+export type IRSLimitMetrics = Schemas['IRSLimitMetrics'];
 
 export type DCPlanCohort = 'all' | 'new_hires' | 'baseline';
 export type DCPlanPopulation =
@@ -1756,67 +1001,15 @@ export type DCPlanPopulation =
   | 'active_eligible'
   | 'terminated_eligible';
 
-export interface DCPlanAnalytics {
-  scenario_id: string;
-  scenario_name: string;
-  resolved_first_simulation_year: number;
-  total_eligible: number;
-  total_enrolled: number;
-  participation_rate: number;
-  participation_by_method: ParticipationByMethod;
-  contribution_by_year: ContributionYearSummary[];
-  total_employee_contributions: number;
-  total_employer_match: number;
-  total_employer_core: number;
-  total_all_contributions: number;
-  deferral_rate_distribution: DeferralRateBucket[];
-  deferral_distribution_by_year: DeferralDistributionYear[];
-  escalation_metrics: EscalationMetrics;
-  irs_limit_metrics: IRSLimitMetrics;
-  // E104: New fields for cost comparison
-  average_deferral_rate: number;
-  total_employer_cost: number;
-  // E013: Employer cost ratio metrics
-  total_compensation: number;
-  total_capped_compensation: number;
-  employer_cost_rate: number;
-  employer_cost_pct_of_capped_compensation: number;
-  // E066: Contribution rate percentages
-  employee_contribution_rate: number;
-  match_contribution_rate: number;
-  core_contribution_rate: number;
-  total_contribution_rate: number;
-}
+export type DCPlanAnalytics = Schemas['DCPlanAnalytics'];
 
-export interface DCPlanComparisonResponse {
-  scenarios: string[];
-  scenario_names: Record<string, string>;
-  analytics: DCPlanAnalytics[];
-}
+export type DCPlanComparisonResponse = Schemas['DCPlanComparisonResponse'];
 
-export interface GrandfatheredCostYear {
-  year: number;
-  total_employer_cost: number | null;
-  baseline_cohort_cost: number | null;
-  new_hire_cohort_cost: number | null;
-  available: boolean;
-  unavailable_reason: string | null;
-}
+export type GrandfatheredCostYear = Schemas['GrandfatheredCostYear'];
 
-export interface GrandfatheredCostSeries {
-  scenario_id: string;
-  scenario_name: string;
-  years: GrandfatheredCostYear[];
-  employer_cost_offsets: EmployerCostOffsetRow[];
-}
+export type GrandfatheredCostSeries = Schemas['GrandfatheredCostSeries'];
 
-export interface GrandfatheredCostComparisonResponse {
-  baseline_scenario_id: string;
-  cutoff_year: number;
-  forfeiture_policy: ForfeiturePolicy;
-  scenarios: GrandfatheredCostSeries[];
-  warnings: string[];
-}
+export type GrandfatheredCostComparisonResponse = Schemas['GrandfatheredCostComparisonResponse'];
 
 export async function getDCPlanAnalytics(
   workspaceId: string,
@@ -1896,18 +1089,9 @@ export async function getWinnersLosersComparison(
 // Band Configuration Endpoints (E003: Studio Band Configuration Management)
 // ============================================================================
 
-export interface Band {
-  band_id: number;
-  band_label: string;
-  min_value: number;
-  max_value: number;
-  display_order: number;
-}
+export type Band = Schemas['Band'];
 
-export interface BandConfig {
-  age_bands: Band[];
-  tenure_bands: Band[];
-}
+export type BandConfig = Schemas['BandConfig'];
 
 export interface BandValidationError {
   band_type: 'age' | 'tenure';
@@ -1916,40 +1100,11 @@ export interface BandValidationError {
   band_ids: number[];
 }
 
-export interface BandSaveRequest {
-  age_bands: Band[];
-  tenure_bands: Band[];
-}
+export type BandAnalysisRequest = Schemas['BandAnalysisRequest'];
 
-export interface BandSaveResponse {
-  success: boolean;
-  validation_errors: BandValidationError[];
-  message: string;
-}
+export type DistributionStats = Schemas['DistributionStats'];
 
-export interface BandAnalysisRequest {
-  file_path: string;
-  as_of_date?: string;
-}
-
-export interface DistributionStats {
-  total_employees: number;
-  min_value: number;
-  max_value: number;
-  median_value: number;
-  mean_value: number;
-  percentiles: Record<number, number>;
-}
-
-export interface BandAnalysisResult {
-  suggested_bands: Band[];
-  distribution_stats: DistributionStats;
-  analysis_type: string;
-  source_file: string;
-  as_of_date: string;
-  as_of_date_source: 'inferred' | 'provided';
-  fallback_notice?: string | null;
-}
+export type BandAnalysisResult = Schemas['BandAnalysisResult'];
 
 /**
  * Get band configurations (age and tenure bands) from dbt seed files.
@@ -2005,24 +1160,9 @@ export async function analyzeTenureBands(
 // Turnover Rate Analysis Endpoints (Feature 056)
 // ============================================================================
 
-export interface TurnoverRateSuggestion {
-  rate: number;
-  sample_size: number;
-  terminated_count: number;
-  confidence: 'high' | 'moderate' | 'low';
-}
+export type TurnoverRateSuggestion = Schemas['TurnoverRateSuggestion'];
 
-export interface TurnoverAnalysisResult {
-  experienced_rate: TurnoverRateSuggestion | null;
-  new_hire_rate: TurnoverRateSuggestion | null;
-  total_employees: number;
-  total_terminated: number;
-  analysis_type: string;
-  source_file: string;
-  message: string | null;
-  as_of_date: string;
-  as_of_date_source: 'inferred' | 'provided';
-}
+export type TurnoverAnalysisResult = Schemas['TurnoverAnalysisResult'];
 
 /**
  * Analyze census data for turnover rate suggestions.
@@ -2048,23 +1188,9 @@ export async function analyzeTurnoverRates(
 // Opt-Out Rate Census Analysis (Feature 085)
 // ============================================================================
 
-export interface OptOutRateAnalysisRequest {
-  file_path: string;
-  lookback_years?: number;
-}
+export type OptOutRateAnalysisRequest = Schemas['OptOutRateAnalysisRequest'];
 
-export interface OptOutRateAnalysisResult {
-  suggested_rate: number | null;
-  eligible_count: number;
-  non_participant_count: number;
-  total_eligible_in_census: number;
-  excluded_null_tenure: number;
-  lookback_years: number;
-  hire_date_column_used: string;
-  analysis_type: string;
-  source_file: string;
-  message: string | null;
-}
+export type OptOutRateAnalysisResult = Schemas['OptOutRateAnalysisResult'];
 
 /**
  * Analyze census data for opt-out rate suggestion.
@@ -2092,33 +1218,11 @@ export async function analyzeOptOutRate(
 // Voluntary Deferral Segment Census Analysis
 // ============================================================================
 
-export interface DeferralSegmentAnalysisRequest {
-  file_path: string;
-  as_of_date?: string;
-}
+export type DeferralSegmentAnalysisRequest = Schemas['DeferralSegmentAnalysisRequest'];
 
-export interface DeferralSegment {
-  segment: string;
-  age_segment: string;
-  income_segment: string;
-  average_deferral_rate: number | null;
-  participant_count: number;
-  employee_count: number;
-  low_confidence: boolean;
-}
+export type DeferralSegment = Schemas['DeferralSegment'];
 
-export interface DeferralSegmentAnalysisResult {
-  segments: DeferralSegment[];
-  total_employees_analyzed: number;
-  total_participants: number;
-  overall_average_deferral_rate: number | null;
-  excluded_count: number;
-  as_of_date: string;
-  as_of_date_source: string;
-  low_confidence_threshold: number;
-  source_file: string;
-  message: string | null;
-}
+export type DeferralSegmentAnalysisResult = Schemas['DeferralSegmentAnalysisResult'];
 
 /**
  * Analyze census data for per-segment starting deferral rate suggestions.
@@ -2146,61 +1250,17 @@ export async function analyzeDeferralSegments(
 // Pre-Simulation Census Analysis
 // ============================================================================
 
-export interface CensusAnalysisRequest {
-  file_path: string;
-  as_of_date?: string;
-}
+export type CensusAnalysisRequest = Schemas['CensusAnalysisRequest'];
 
-export interface CensusMetrics {
-  employee_count: number;
-  eligible_count: number;
-  enrolled_count: number;
-  participation_rate: number | null;
-  zero_deferral_count: number;
-  average_deferral_rate: number | null;
-  median_deferral_rate: number | null;
-  total_eligible_compensation: number;
-  total_employer_match: number;
-  total_employer_core: number;
-  total_employer_cost: number;
-  hce_count: number;
-  average_employer_contribution_rate: number | null;
-  average_total_savings_rate: number | null;
-}
+export type CensusMetrics = Schemas['CensusMetrics'];
 
-export interface CensusSegmentMetrics extends CensusMetrics {
-  dimension: string;
-  value: string;
-}
+export type CensusSegmentMetrics = Schemas['CensusSegmentMetrics'];
 
-export interface CensusDataQualityIssue {
-  issue_type: string;
-  field: string | null;
-  severity: 'error' | 'warning';
-  count: number;
-  message: string;
-}
+export type CensusDataQualityIssue = Schemas['CensusDataQualityIssue'];
 
-export interface CensusDeferralRateBucket {
-  bucket: string;
-  count: number;
-  percentage: number;
-}
+export type CensusDeferralRateBucket = Schemas['CensusDeferralRateBucket'];
 
-export interface CensusAnalysisResult {
-  total_employees: number;
-  active_employees: number;
-  overall: CensusMetrics;
-  segments: CensusSegmentMetrics[];
-  available_segment_dimensions: string[];
-  deferral_rate_distribution: CensusDeferralRateBucket[];
-  data_quality_issues: CensusDataQualityIssue[];
-  as_of_date: string;
-  as_of_date_source: string;
-  hce_compensation_threshold: number | null;
-  source_file: string;
-  message: string | null;
-}
+export type CensusAnalysisResult = Schemas['CensusAnalysisResult'];
 
 /**
  * Analyze the raw/staged census for participation, savings-rate, and cost-proxy
@@ -2228,32 +1288,13 @@ export async function analyzeCensus(
 // Promotion Hazard Configuration Endpoints (Feature 038)
 // ============================================================================
 
-export interface PromotionHazardBase {
-  base_rate: number;
-  level_dampener_factor: number;
-}
+export type PromotionHazardBase = Schemas['PromotionHazardBase'];
 
-export interface PromotionHazardAgeMultiplier {
-  age_band: string;
-  multiplier: number;
-}
+export type PromotionHazardAgeMultiplier = Schemas['PromotionHazardAgeMultiplier'];
 
-export interface PromotionHazardTenureMultiplier {
-  tenure_band: string;
-  multiplier: number;
-}
+export type PromotionHazardTenureMultiplier = Schemas['PromotionHazardTenureMultiplier'];
 
-export interface PromotionHazardConfig {
-  base: PromotionHazardBase;
-  age_multipliers: PromotionHazardAgeMultiplier[];
-  tenure_multipliers: PromotionHazardTenureMultiplier[];
-}
-
-export interface PromotionHazardSaveResponse {
-  success: boolean;
-  errors: string[];
-  message: string;
-}
+export type PromotionHazardConfig = Schemas['PromotionHazardConfig'];
 
 /**
  * Get promotion hazard configuration from dbt seed files.
@@ -2273,144 +1314,57 @@ export async function getPromotionHazardConfig(workspaceId: string): Promise<Pro
  * Vesting schedule type enum values.
  * Maps to VestingScheduleType in backend.
  */
-export type VestingScheduleType =
-  | 'immediate'
-  | 'cliff_1_year'
-  | 'cliff_2_year'
-  | 'cliff_3_year'
-  | 'cliff_4_year'
-  | 'qaca_2_year'
-  | 'graded_3_year'
-  | 'graded_4_year'
-  | 'graded_5_year'
-  | 'graded_6_year';
+export type VestingScheduleType = Schemas['VestingScheduleType'];
 
 /**
  * Vesting schedule metadata for display.
  */
-export interface VestingScheduleInfo {
-  schedule_type: VestingScheduleType;
-  name: string;
-  description: string;
-  percentages: Record<number, number>;
-}
+export type VestingScheduleInfo = Schemas['VestingScheduleInfo'];
 
 /**
  * Response for listing all vesting schedules.
  */
-export interface VestingScheduleListResponse {
-  schedules: VestingScheduleInfo[];
-}
+export type VestingScheduleListResponse = Schemas['VestingScheduleListResponse'];
 
 /**
  * Configuration for a vesting schedule in analysis request.
  */
-export interface VestingScheduleConfig {
-  schedule_type: VestingScheduleType;
-  name: string;
-  require_hours_credit?: boolean;
-  hours_threshold?: number;
-}
+export type VestingScheduleConfig = Schemas['VestingScheduleConfig-Input'];
 
 /**
  * Request body for vesting analysis.
  */
-export interface VestingAnalysisRequest {
-  current_schedule: VestingScheduleConfig;
-  proposed_schedule: VestingScheduleConfig;
-  simulation_year?: number;
-}
+export type VestingAnalysisRequest = Schemas['VestingAnalysisRequest'];
 
 /**
  * Summary statistics for vesting analysis.
  */
-export interface VestingAnalysisSummary {
-  analysis_year: number;
-  /** All employees terminated in the analysis year. */
-  total_terminated_employee_count: number;
-  /** Terminated employees with prior-year employer contributions used in this analysis. */
-  vesting_eligible_terminated_employee_count: number;
-  /** @deprecated Use vesting_eligible_terminated_employee_count. */
-  terminated_employee_count: number;
-  total_employer_contributions: number;
-  current_total_vested: number;
-  current_total_forfeited: number;
-  proposed_total_vested: number;
-  proposed_total_forfeited: number;
-  forfeiture_variance: number;
-  forfeiture_variance_pct: number;
-}
+export type VestingAnalysisSummary = Schemas['VestingAnalysisSummary'];
 
 /**
  * Vesting breakdown by tenure band.
  */
-export interface TenureBandSummary {
-  tenure_band: string;
-  employee_count: number;
-  total_contributions: number;
-  current_forfeitures: number;
-  proposed_forfeitures: number;
-  forfeiture_variance: number;
-}
+export type TenureBandSummary = Schemas['TenureBandSummary'];
 
 /**
  * Employee-level vesting detail.
  */
-export interface EmployeeVestingDetail {
-  employee_id: string;
-  hire_date: string;
-  termination_date: string;
-  tenure_years: number;
-  tenure_band: string;
-  annual_hours_worked: number;
-  total_employer_contributions: number;
-  current_vesting_pct: number;
-  current_vested_amount: number;
-  current_forfeiture: number;
-  proposed_vesting_pct: number;
-  proposed_vested_amount: number;
-  proposed_forfeiture: number;
-  forfeiture_variance: number;
-}
+export type EmployeeVestingDetail = Schemas['EmployeeVestingDetail'];
 
 /**
  * Full vesting analysis response.
  */
-export interface VestingAnalysisResponse {
-  scenario_id: string;
-  scenario_name: string;
-  current_schedule: VestingScheduleConfig;
-  proposed_schedule: VestingScheduleConfig;
-  summary: VestingAnalysisSummary;
-  by_tenure_band: TenureBandSummary[];
-  employee_details: EmployeeVestingDetail[];
-}
+export type VestingAnalysisResponse = Schemas['VestingAnalysisResponse'];
 
 /**
  * Available simulation years for a scenario.
  */
-export interface ScenarioYearsResponse {
-  years: number[];
-  default_year: number;
-}
+export type ScenarioYearsResponse = Schemas['ScenarioYearsResponse'];
 
 /**
  * Forfeitures for one scenario in one simulation year.
  */
-export interface ForfeitureYearRow {
-  simulation_year: number;
-  /**
-   * False for a scenario's first simulation year, which has no prior year to
-   * source employer contributions from. Such a row is not a measured zero and
-   * must not be rendered as $0.
-   */
-  has_prior_year_basis: boolean;
-  terminated_employee_count: number;
-  vesting_eligible_count: number;
-  total_employer_contributions: number;
-  vested_amount: number;
-  forfeited_amount: number;
-}
+export type ForfeitureYearRow = Schemas['ForfeitureYearRow'];
 
 /**
  * What the plan does with forfeited employer money (issue #444).
@@ -2431,55 +1385,22 @@ export type ForfeiturePolicy =
  * Forfeitures from year N terminations are recognized and applied in year
  * N + 1, so `source_year` is always `simulation_year - 1`.
  */
-export interface EmployerCostOffsetRow {
-  simulation_year: number;
-  source_year: number | null;
-  /** Disclosed regardless of policy; null when no measurable basis exists. */
-  forfeitures_generated: number | null;
-  /** $0 under reallocate_to_participants; null when unmeasurable. */
-  offset_amount: number | null;
-  /** Non-zero only under reallocate_to_participants. */
-  participant_allocation: number | null;
-  /** False means render gross-only and flagged — never a $0 offset. */
-  basis_available: boolean;
-  unavailable_reason: string | null;
-}
+export type EmployerCostOffsetRow = Schemas['EmployerCostOffsetRow'];
 
 /**
  * One scenario's forfeitures across every simulation year it contains.
  */
-export interface ScenarioForfeitureSeries {
-  scenario_id: string;
-  scenario_name: string;
-  years: ForfeitureYearRow[];
-  total_employer_contributions: number;
-  total_vested: number;
-  total_forfeited: number;
-  /** Per-year employer cost offsets under the requested policy (#444). */
-  employer_cost_offsets: EmployerCostOffsetRow[];
-}
+export type ScenarioForfeitureSeries = Schemas['ScenarioForfeitureSeries'];
 
 /**
  * A requested scenario excluded from the projection, with the reason.
  */
-export interface SkippedScenario {
-  scenario_id: string;
-  scenario_name: string;
-  reason: string;
-}
+export type SkippedScenario = Schemas['SkippedScenario'];
 
 /**
  * Multi-year, multi-scenario forfeitures under a single vesting schedule.
  */
-export interface ForfeitureProjectionResponse {
-  schedule: VestingScheduleConfig;
-  /** The policy the employer cost offsets were computed under. */
-  forfeiture_policy: ForfeiturePolicy;
-  /** Union of years across included scenarios; a scenario may not cover all. */
-  years: number[];
-  scenarios: ScenarioForfeitureSeries[];
-  skipped: SkippedScenario[];
-}
+export type ForfeitureProjectionResponse = Schemas['ForfeitureProjectionResponse'];
 
 export interface ForfeitureProjectionParams {
   scenarioIds: string[];
@@ -2569,69 +1490,19 @@ export async function getScenarioYears(
 /**
  * Export/Import types aligned with backend models.
  */
-export interface ExportManifest {
-  version: string;
-  export_date: string;
-  app_version: string;
-  workspace_id: string;
-  workspace_name: string;
-  contents: {
-    scenario_count: number;
-    scenarios: string[];
-    file_count: number;
-    total_size_bytes: number;
-    checksum_sha256: string;
-  };
-}
+export type ExportManifest = Schemas['ExportManifest'];
 
-export interface ExportResult {
-  workspace_id: string;
-  workspace_name: string;
-  filename: string;
-  size_bytes: number;
-  status: 'success' | 'failed';
-  error?: string;
-}
+export type ExportResult = Schemas['ExportResult'];
 
-export interface BulkExportStatus {
-  operation_id: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'failed';
-  total: number;
-  completed: number;
-  current_workspace?: string;
-  results: ExportResult[];
-}
+export type BulkExportStatus = Schemas['BulkExportStatus'];
 
-export interface ImportConflict {
-  existing_workspace_id: string;
-  existing_workspace_name: string;
-  suggested_name: string;
-}
+export type ImportConflict = Schemas['ImportConflict'];
 
-export interface ImportValidationResponse {
-  valid: boolean;
-  manifest?: ExportManifest;
-  conflict?: ImportConflict;
-  warnings: string[];
-  errors: string[];
-}
+export type ImportValidationResponse = Schemas['ImportValidationResponse'];
 
-export interface ImportResponse {
-  workspace_id: string;
-  name: string;
-  scenario_count: number;
-  status: 'success' | 'partial';
-  warnings: string[];
-}
+export type ImportResponse = Schemas['ImportResponse'];
 
-export interface BulkImportStatus {
-  operation_id: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'failed';
-  total: number;
-  completed: number;
-  current_file?: string;
-  results: ImportResponse[];
-}
+export type BulkImportStatus = Schemas['BulkImportStatus'];
 
 /**
  * Export a single workspace as a 7z archive.
@@ -2795,49 +1666,15 @@ export async function getBulkImportStatus(
 // NDT Testing Endpoints (Feature 050)
 // ============================================================================
 
-export interface ACPEmployeeDetail {
-  employee_id: string;
-  is_hce: boolean;
-  is_enrolled: boolean;
-  employer_match_amount: number;
-  eligible_compensation: number;
-  individual_acp: number;
-  prior_year_compensation: number | null;
-}
+export type ACPEmployeeDetail = Schemas['ACPEmployeeDetail'];
 
 export type TestResult = 'pass' | 'fail' | 'error';
 
-export interface ACPScenarioResult {
-  scenario_id: string;
-  scenario_name: string;
-  simulation_year: number;
-  test_result: TestResult;
-  test_message?: string;
-  hce_count: number;
-  nhce_count: number;
-  excluded_count: number;
-  eligible_not_enrolled_count: number;
-  hce_average_acp: number;
-  nhce_average_acp: number;
-  basic_test_threshold: number;
-  alternative_test_threshold: number;
-  applied_test: 'basic' | 'alternative';
-  applied_threshold: number;
-  margin: number;
-  hce_threshold_used: number;
-  employees?: ACPEmployeeDetail[];
-}
+export type ACPScenarioResult = Schemas['ACPScenarioResult'];
 
-export interface ACPTestResponse {
-  test_type: string;
-  year: number;
-  results: ACPScenarioResult[];
-}
+export type ACPTestResponse = Schemas['ACPTestResponse'];
 
-export interface NDTAvailableYearsResponse {
-  years: number[];
-  default_year: number | null;
-}
+export type NDTAvailableYearsResponse = Schemas['AvailableYearsResponse'];
 
 /**
  * Run ACP non-discrimination test for one or more scenarios.
@@ -2877,46 +1714,11 @@ export async function getNDTAvailableYears(
 // NDT 401(a)(4) General Test (Feature 051)
 // ============================================================================
 
-export interface Section401a4EmployeeDetail {
-  employee_id: string;
-  is_hce: boolean;
-  employer_nec_amount: number;
-  employer_match_amount: number;
-  total_employer_amount: number;
-  plan_compensation: number;
-  contribution_rate: number;
-  years_of_service: number;
-}
+export type Section401a4EmployeeDetail = Schemas['Section401a4EmployeeDetail'];
 
-export interface Section401a4ScenarioResult {
-  scenario_id: string;
-  scenario_name: string;
-  simulation_year: number;
-  test_result: TestResult;
-  test_message?: string;
-  applied_test: 'ratio' | 'general';
-  hce_count: number;
-  nhce_count: number;
-  excluded_count: number;
-  hce_average_rate: number;
-  nhce_average_rate: number;
-  hce_median_rate: number;
-  nhce_median_rate: number;
-  ratio: number;
-  ratio_test_threshold: number;
-  margin: number;
-  include_match: boolean;
-  service_risk_flag: boolean;
-  service_risk_detail?: string;
-  hce_threshold_used: number;
-  employees?: Section401a4EmployeeDetail[];
-}
+export type Section401a4ScenarioResult = Schemas['Section401a4ScenarioResult'];
 
-export interface Section401a4TestResponse {
-  test_type: string;
-  year: number;
-  results: Section401a4ScenarioResult[];
-}
+export type Section401a4TestResponse = Schemas['Section401a4TestResponse'];
 
 /**
  * Run 401(a)(4) general nondiscrimination test for one or more scenarios.
@@ -2944,83 +1746,21 @@ export async function run401a4Test(
 // NDT 415 Annual Additions Limit Test (Feature 051)
 // ============================================================================
 
-export interface Section415EmployeeDetail {
-  employee_id: string;
-  status: 'pass' | 'at_risk' | 'breach';
-  employee_deferrals: number;
-  employer_match: number;
-  employer_nec: number;
-  total_annual_additions: number;
-  gross_compensation: number;
-  applicable_limit: number;
-  headroom: number;
-  utilization_pct: number;
-}
+export type Section415EmployeeDetail = Schemas['Section415EmployeeDetail'];
 
-export interface Section415ScenarioResult {
-  scenario_id: string;
-  scenario_name: string;
-  simulation_year: number;
-  test_result: TestResult;
-  test_message?: string;
-  total_participants: number;
-  excluded_count: number;
-  breach_count: number;
-  at_risk_count: number;
-  passing_count: number;
-  max_utilization_pct: number;
-  warning_threshold_pct: number;
-  annual_additions_limit: number;
-  employees?: Section415EmployeeDetail[];
-}
+export type Section415ScenarioResult = Schemas['Section415ScenarioResult'];
 
-export interface Section415TestResponse {
-  test_type: string;
-  year: number;
-  results: Section415ScenarioResult[];
-}
+export type Section415TestResponse = Schemas['Section415TestResponse'];
 
 // ============================================================================
 // NDT ADP (Actual Deferral Percentage) Test (Feature 052)
 // ============================================================================
 
-export interface ADPEmployeeDetail {
-  employee_id: string;
-  is_hce: boolean;
-  employee_deferrals: number;
-  plan_compensation: number;
-  individual_adp: number;
-  prior_year_compensation: number | null;
-}
+export type ADPEmployeeDetail = Schemas['ADPEmployeeDetail'];
 
-export interface ADPScenarioResult {
-  scenario_id: string;
-  scenario_name: string;
-  simulation_year: number;
-  test_result: 'pass' | 'fail' | 'exempt' | 'error';
-  test_message?: string;
-  hce_count: number;
-  nhce_count: number;
-  excluded_count: number;
-  hce_average_adp: number;
-  nhce_average_adp: number;
-  basic_test_threshold: number;
-  alternative_test_threshold: number;
-  applied_test: 'basic' | 'alternative';
-  applied_threshold: number;
-  margin: number;
-  excess_hce_amount: number | null;
-  testing_method: 'current' | 'prior';
-  safe_harbor: boolean;
-  hce_threshold_used: number;
-  employees?: ADPEmployeeDetail[];
-}
+export type ADPScenarioResult = Schemas['ADPScenarioResult'];
 
-export interface ADPTestResponse {
-  test_type: string;
-  year: number;
-  results: ADPScenarioResult[];
-}
+export type ADPTestResponse = Schemas['ADPTestResponse'];
 
 /**
  * Run ADP non-discrimination test for one or more scenarios.
@@ -3072,19 +1812,9 @@ export async function run415Test(
 // Apply Workforce Parameters (Feature 072)
 // ============================================================================
 
-export interface ScenarioApplyOutcome {
-  scenario_id: string;
-  scenario_name: string | null;
-  success: boolean;
-  error: string | null;
-}
+export type ScenarioApplyOutcome = Schemas['ScenarioApplyOutcome'];
 
-export interface WorkforceParamsApplyResult {
-  source_scenario_id: string;
-  results: ScenarioApplyOutcome[];
-  total_applied: number;
-  total_failed: number;
-}
+export type WorkforceParamsApplyResult = Schemas['WorkforceParamsApplyResult'];
 
 /**
  * Apply workforce parameters from a source scenario to multiple target scenarios.
@@ -3111,105 +1841,19 @@ export async function applyWorkforceParams(
 // Calibration Endpoints (Feature 105 - Fast Compensation Calibration)
 // ============================================================================
 
-export interface CalibrationParams {
-  target_growth_pct?: number | null;
-  cola_rate?: number | null;
-  merit_budget?: number | null;
-  promotion_increase?: number | null;
-  /** Workforce/headcount growth target (simulation.target_growth_rate). */
-  workforce_growth_rate?: number | null;
-  /** Core termination rates (workforce.*), as decimals; held fixed across the search. */
-  total_termination_rate?: number | null;
-  new_hire_termination_rate?: number | null;
-  /** New-hire age distribution; overrides the seed via the same dbt var the full sim uses. */
-  new_hire_age_distribution?: Array<{ age: number; weight: number }> | null;
-  job_level_compensation?: Array<{
-    level: number;
-    name?: string;
-    min_compensation: number;
-    max_compensation: number;
-  }> | null;
-}
+export type CalibrationParams = Schemas['CalibrationParameterSet'];
 
-export interface CalibrationRunRequest {
-  start_year?: number | null;
-  end_year?: number | null;
-  config_path?: string | null;
-  database_path?: string | null;
-  /** Run against this workspace's base config (census, rates) so levers transfer. */
-  workspace_id?: string | null;
-  scenario_id?: string | null;
-  params?: CalibrationParams;
-}
+export type CalibrationRunRequest = Schemas['CalibrationRunRequest'];
 
-export interface AutoCalibrationSettings {
-  target_workforce_growth: number; // decimal, e.g. 0.03
-  target_comp_growth: number; // decimal, e.g. 0.035
-  tolerance_pct?: number; // percentage points, default 0.05
-  max_iterations?: number; // default 8
-  adjust?: 'cola' | 'merit' | 'both';
-  /** 'new_hire_scale': solve the census scale on new-hire ranges, keeping COLA/merit fixed. */
-  search_mode?: 'levers' | 'new_hire_scale';
-  /** UNSCALED (1.0×) per-level ranges; required for new_hire_scale mode. */
-  base_job_level_compensation?: Array<{
-    level: number;
-    name?: string;
-    min_compensation: number;
-    max_compensation: number;
-  }> | null;
-  initial_scale?: number;
-  scale_min?: number;
-  scale_max?: number;
-  lever_fallback?: boolean;
-}
+export type AutoCalibrationSettings = Schemas['AutoCalibrationSettings'];
 
-export interface AutoCalibrationRequest {
-  start_year?: number | null;
-  end_year?: number | null;
-  config_path?: string | null;
-  database_path?: string | null;
-  workspace_id?: string | null;
-  scenario_id?: string | null;
-  settings: AutoCalibrationSettings;
-  params?: CalibrationParams;
-}
+export type AutoCalibrationRequest = Schemas['AutoCalibrationRequest'];
 
-export interface OptimizationIteration {
-  iteration: number;
-  cola_rate: number;
-  merit_budget: number;
-  scale?: number | null;
-  achieved_growth_pct: number;
-  error_pct: number;
-  max_abs_error_pct: number;
-}
+export type OptimizationIteration = Schemas['OptimizationIteration'];
 
-export interface AutoCalibrationOutcome {
-  converged: boolean;
-  message: string;
-  best_params: CalibrationParams;
-  best_scale?: number | null;
-  achieved_comp_growth_pct: number;
-  target_comp_growth_pct: number;
-  max_abs_error_pct: number;
-  objective: 'max_annual_error';
-  start_year: number;
-  end_year: number;
-  iterations: OptimizationIteration[];
-  results: PerYearCompensationResult[];
-}
+export type AutoCalibrationOutcome = Schemas['AutoCalibrationResult'];
 
-export interface CalibrationContext {
-  workspace_id: string;
-  scenario_id: string | null;
-  source_scenario_id: string;
-  source_run_id: string;
-  config_fingerprint: string;
-  census_fingerprint: string;
-  random_seed: number;
-  start_year: number;
-  end_year: number;
-}
+export type CalibrationContext = Schemas['CalibrationContext-Output'];
 
 export interface AutoCalibrationResponse {
   run_id: string;
@@ -3217,20 +1861,7 @@ export interface AutoCalibrationResponse {
   context: CalibrationContext;
 }
 
-export interface PerYearCompensationResult {
-  simulation_year: number;
-  avg_compensation: number;
-  yoy_growth_pct: number | null;
-  target_growth_pct: number | null;
-  growth_delta_pct: number | null;
-  headcount: number;
-  headcount_growth_pct: number | null;
-  total_compensation: number;
-  total_comp_growth_pct: number | null;
-  new_hire_avg_comp: number | null;
-  existing_avg_comp: number | null;
-  new_hire_gap: number | null;
-}
+export type PerYearCompensationResult = Schemas['PerYearCompensationResult'];
 
 export interface CalibrationRunResponse {
   run_id: string;
@@ -3238,24 +1869,10 @@ export interface CalibrationRunResponse {
 }
 
 /** Acknowledgement returned by the (now async) calibration POST endpoints. */
-export interface CalibrationStartResponse {
-  run_id: string;
-  status: 'queued';
-}
+export type CalibrationStartResponse = Schemas['CalibrationStartResponse'];
 
 /** Background calibration job record (issue #380). */
-export interface CalibrationJob {
-  run_id: string;
-  kind: 'run' | 'optimize';
-  status: 'queued' | 'running' | 'completed' | 'failed';
-  created_at: string;
-  completed_at: string | null;
-  results: PerYearCompensationResult[] | null;
-  outcome: AutoCalibrationOutcome | null;
-  error: string | null;
-  error_status: number | null;
-  context: CalibrationContext | null;
-}
+export type CalibrationJob = Schemas['CalibrationJob'];
 
 export async function getCalibrationRun(runId: string): Promise<CalibrationJob> {
   const response = await fetchWithAuth(`${API_BASE}/api/calibration/runs/${runId}`);
@@ -3323,12 +1940,7 @@ export async function optimizeCalibration(
   return { run_id: job.run_id, outcome: job.outcome, context: job.context };
 }
 
-export interface CalibrationApplyResult {
-  workspace_updated: boolean;
-  scenarios: Array<{ scenario_id: string; success: boolean; error: string | null }>;
-  total_applied: number;
-  total_failed: number;
-}
+export type CalibrationApplyResult = Schemas['CalibrationApplyResult'];
 
 export async function applyCalibrationCandidate(
   context: CalibrationContext,
@@ -3353,135 +1965,49 @@ export async function applyCalibrationCandidate(
 export type LeverKind = 'discrete' | 'continuous';
 export type LeverValue = string | number | boolean;
 
-export interface LeverSpec {
-  name: string;
-  kind: LeverKind;
-  choices?: LeverValue[] | null;
-  bounds?: [number, number] | null;
-}
+export type LeverSpec = Schemas['LeverSpec'];
 
-export interface DesignSpaceSpec {
-  levers: LeverSpec[];
-}
+export type DesignSpaceSpec = Schemas['DesignSpaceSpec'];
 
 export type ObjectiveDirection = 'minimize' | 'maximize';
 
-export interface ObjectiveTerm {
-  metric: string;
-  direction: ObjectiveDirection;
-}
+export type ObjectiveTerm = Schemas['ObjectiveTerm'];
 
 export type ConstraintOperator = '<=' | '>=' | '<' | '>' | '==';
 
-export interface ConstraintSpec {
-  metric: string;
-  operator: ConstraintOperator;
-  threshold: number;
-  /** 1-99; only takes effect when baseline.ensemble_database is also set. */
-  percentile?: number | null;
-}
+export type ConstraintSpec = Schemas['ConstraintSpec'];
 
-export interface ObjectiveConstraintSpec {
-  /** 1 entry ranks candidates; 2 entries unlocks the Pareto frontier. */
-  objectives: ObjectiveTerm[];
-  constraints: ConstraintSpec[];
-}
+export type ObjectiveConstraintSpec = Schemas['ObjectiveConstraintSpec'];
 
-export interface BaselineSpec {
-  config_path: string;
-  ensemble_database?: string | null;
-}
+export type BaselineSpec = Schemas['BaselineSpec'];
 
-export interface OptimizerSpecPayload {
+/**
+ * The spec Studio sends. Hand-written on purpose: the backend accepts any dict
+ * here so /optimizer/validate can report an invalid spec instead of a 422.
+ */
+export type OptimizerSpecPayload = {
   design_space: DesignSpaceSpec;
   objective: ObjectiveConstraintSpec;
   baseline: BaselineSpec;
-}
+};
 
-export interface ConstraintResult {
-  metric: string;
-  evaluation_mode: 'point_estimate' | 'percentile';
-  evaluated_value: number | null;
-  satisfied: boolean | null;
-}
+export type ConstraintResult = Schemas['ConstraintResult'];
 
 export type CandidateStatus = 'feasible' | 'infeasible' | 'non_evaluable' | 'failed';
 
-export interface Candidate {
-  candidate_id: string;
-  lever_values: Record<string, LeverValue>;
-  db_path: string | null;
-  status: CandidateStatus;
-  objective_values: Record<string, number | null>;
-  constraint_results: ConstraintResult[];
-  is_duplicate_of: string | null;
-  duration_seconds: number;
-}
+export type Candidate = Schemas['Candidate'];
 
-export interface OptimizerRun {
-  run_id: string;
-  design_space: DesignSpaceSpec;
-  objective_constraint_spec: ObjectiveConstraintSpec;
-  max_runs: number;
-  search_seed: number;
-  baseline_config_fingerprint: string;
-  candidates: Candidate[];
-  /** Populated only for single-objective runs, best first. */
-  ranked_feasible: string[];
-  /** Populated only for 2-objective runs; null otherwise. */
-  pareto_frontier: string[] | null;
-  /** Set only when zero candidates were ranked/on the frontier — names the
-   * constraint(s) nobody satisfied. Surface this loudly in the UI. */
-  binding_infeasible_constraints: string[] | null;
-}
+export type OptimizerRun = Schemas['OptimizerRun'];
 
-export interface OptimizerValidateRequest {
-  /** Exactly one of spec/spec_yaml is required. */
-  spec?: OptimizerSpecPayload | null;
-  spec_yaml?: string | null;
-  /** If given, also returns a seed-phase dry-run preview. */
-  max_runs?: number | null;
-}
+export type OptimizerValidateRequest = Schemas['OptimizerValidateRequest'];
 
-export interface OptimizerValidateResponse {
-  valid: boolean;
-  error?: string | null;
-  /** The parsed/validated spec on success — lets the builder populate itself
-   * from an imported YAML file. */
-  resolved_spec?: OptimizerSpecPayload | null;
-  seed_phase_candidates?: Array<Record<string, LeverValue>> | null;
-  seed_phase_count?: number | null;
-  baseline_drift_warning?: string | null;
-}
+export type OptimizerValidateResponse = Schemas['OptimizerValidateResponse'];
 
-export interface OptimizerRunRequest {
-  spec: OptimizerSpecPayload;
-  max_runs: number;
-  search_seed?: number | null;
-  parallel?: number | null;
-  workspace_id?: string | null;
-  database_dir?: string | null;
-  output_dir?: string | null;
-  compare_baseline_to?: string | null;
-}
+export type OptimizerRunRequest = Schemas['OptimizerRunRequest'];
 
-export interface OptimizerStartResponse {
-  run_id: string;
-  status: 'queued';
-  database_dir: string;
-  output_dir: string;
-}
+export type OptimizerStartResponse = Schemas['OptimizerStartResponse'];
 
-export interface OptimizerJob {
-  run_id: string;
-  status: 'queued' | 'running' | 'completed' | 'failed';
-  created_at: string;
-  completed_at: string | null;
-  result: OptimizerRun | null;
-  output_dir: string | null;
-  error: string | null;
-  error_status: number | null;
-}
+export type OptimizerJob = Schemas['OptimizerJob'];
 
 export interface PromoteCandidateParams {
   workspaceId: string;
@@ -3585,49 +2111,13 @@ export async function promoteOptimizerCandidate(
 // Ensembles (#554) -- Studio band charts over a seed-ensemble aggregate DB.
 // ---------------------------------------------------------------------------
 
-export interface EnsembleDistributionRow {
-  ensemble_id: string;
-  scenario_id: string;
-  metric: string;
-  simulation_year: number;
-  p10: number | null;
-  p50: number | null;
-  p90: number | null;
-  n_seeds: number;
-  n_seeds_requested: number;
-  is_sufficient: boolean;
-}
+export type EnsembleDistributionRow = Schemas['MetricDistribution'];
 
-export interface EnsembleRiskStatement {
-  metric: string;
-  threshold_value: number;
-  simulation_year: number | null;
-  exceedance_probability: number | null;
-  n_seeds: number;
-  is_evaluable: boolean;
-  reason?: string | null;
-}
+export type EnsembleRiskStatement = Schemas['RiskStatement'];
 
-export interface EnsembleAttributionRow {
-  metric: string;
-  simulation_year: number;
-  subsystem: string;
-  variance_share: number | null;
-  ci_low: number | null;
-  ci_high: number | null;
-  stochastic_status: 'stochastic' | 'not_stochastic';
-}
+export type EnsembleAttributionRow = Schemas['AttributionShare'];
 
-export interface EnsembleDatabaseSummary {
-  database_path: string;
-  ensemble_ids: string[];
-  scenario_ids: string[];
-  metrics: string[];
-  min_simulation_year: number | null;
-  max_simulation_year: number | null;
-  modified_at: number;
-  size_bytes: number;
-}
+export type EnsembleDatabaseSummary = Schemas['EnsembleDatabaseSummary'];
 
 /** List ensemble databases under a scan root (defaults to the server's configured root). */
 export async function discoverEnsembleDatabases(root?: string): Promise<EnsembleDatabaseSummary[]> {

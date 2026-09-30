@@ -18,10 +18,11 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import duckdb
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from typing_extensions import NotRequired, TypedDict
 
 from planalign_orchestrator.config import load_simulation_config
 from planalign_orchestrator.config.export import to_dbt_vars
@@ -59,6 +60,28 @@ DC_PREREQUISITE_TABLES: List[str] = [
 # ---------------------------------------------------------------------------
 # Entities (see data-model.md)
 # ---------------------------------------------------------------------------
+class AgeWeight(TypedDict):
+    """One new-hire age bucket. Stays a plain dict at runtime (dbt var input)."""
+
+    age: float
+    weight: float
+
+
+class JobLevelRange(TypedDict):
+    """Per-level new-hire compensation range. Stays a plain dict at runtime.
+
+    Numbers are int | float so values pass through to the dbt var unchanged;
+    extra keys are preserved for the same reason.
+    """
+
+    __pydantic_config__ = ConfigDict(extra="allow")  # type: ignore[misc]
+
+    level: Union[int, float]
+    name: NotRequired[str]
+    min_compensation: Union[int, float]
+    max_compensation: Union[int, float]
+
+
 class CalibrationParameterSet(BaseModel):
     """Tunable compensation levers, shared identically with the full simulation.
 
@@ -71,45 +94,59 @@ class CalibrationParameterSet(BaseModel):
     cola_rate: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     merit_budget: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     promotion_increase: Optional[float] = Field(default=None, ge=0.0, le=1.0)
-    # Workforce/headcount growth target (simulation.target_growth_rate) -- the
-    # rate that sizes E077 hiring. This is a DELIBERATE lever, distinct from
-    # target_growth_pct (the avg-comp growth target used only for the delta
-    # column). Changing it changes headcount, exactly as it would in a full
-    # simulation with the same value.
-    workforce_growth_rate: Optional[float] = Field(default=None, ge=-1.0, le=1.0)
-    # Core termination rates (workforce.total_termination_rate /
-    # workforce.new_hire_termination_rate) -- deterministic workforce-dynamics
-    # inputs the analyst holds fixed. They flow through to_dbt_vars exactly as
-    # the full simulation consumes them; attrition of higher-paid tenured staff
-    # replaced by lower-paid hires materially affects avg-comp growth.
-    total_termination_rate: Optional[float] = Field(default=None, ge=0.0, le=1.0)
-    new_hire_termination_rate: Optional[float] = Field(default=None, ge=0.0, le=1.0)
-    # New-hire age distribution: list of {"age": int, "weight": float}.
-    # Overrides the config_new_hire_age_distribution seed via the
-    # new_hire_age_distribution dbt var -- the same var the full simulation
-    # consumes -- so a distribution tuned here transfers verbatim.
-    new_hire_age_distribution: Optional[List[Dict[str, float]]] = None
+    workforce_growth_rate: Optional[float] = Field(
+        default=None,
+        ge=-1.0,
+        le=1.0,
+        description=(
+            "Workforce/headcount growth target (simulation.target_growth_rate) "
+            "that sizes hiring. Distinct from target_growth_pct; changing it "
+            "changes headcount exactly as a full simulation would."
+        ),
+    )
+    # Attrition of higher-paid tenured staff replaced by lower-paid hires
+    # materially affects avg-comp growth, so these flow through to_dbt_vars
+    # exactly as the full simulation consumes them.
+    total_termination_rate: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Core termination rate (workforce.total_termination_rate), as a "
+            "decimal; held fixed across an auto-calibration search."
+        ),
+    )
+    new_hire_termination_rate: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "New-hire termination rate (workforce.new_hire_termination_rate), as "
+            "a decimal; held fixed across an auto-calibration search."
+        ),
+    )
+    new_hire_age_distribution: Optional[List[AgeWeight]] = Field(
+        default=None,
+        description=(
+            "New-hire age distribution. Overrides the seed via the same dbt var "
+            "the full simulation uses, so a tuned distribution transfers verbatim."
+        ),
+    )
     # Per-level new-hire compensation ranges derived from "Match Census" x scale,
     # exactly as the Workforce Parameters page produces them. Each item is
     # {"level", "min_compensation", "max_compensation"}. When provided, this
     # overrides the job_level_compensation dbt var -- the same var the full
     # simulation consumes -- so a calibrated scale transfers verbatim.
-    # Items are {"level", "name"?, "min_compensation", "max_compensation"} --
-    # values are mixed (name is a str), so Dict[str, Any] not Dict[str, float].
-    job_level_compensation: Optional[List[Dict[str, Any]]] = None
+    job_level_compensation: Optional[List[JobLevelRange]] = None
 
     @field_validator("new_hire_age_distribution")
     @classmethod
     def _age_distribution_valid(
-        cls, value: Optional[List[Dict[str, float]]]
-    ) -> Optional[List[Dict[str, float]]]:
+        cls, value: Optional[List[AgeWeight]]
+    ) -> Optional[List[AgeWeight]]:
         if value is None:
             return value
         for item in value:
-            if "age" not in item or "weight" not in item:
-                raise ValueError(
-                    "each new_hire_age_distribution item needs 'age' and 'weight'"
-                )
             if not 14 <= float(item["age"]) <= 100:
                 raise ValueError("new_hire_age_distribution ages must be 14-100")
             if float(item["weight"]) < 0:
@@ -142,6 +179,8 @@ class CalibrationRun(BaseModel):
 
 class PerYearCompensationResult(BaseModel):
     """Per-year compensation-growth result row (one per simulation year)."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     simulation_year: int
     avg_compensation: float

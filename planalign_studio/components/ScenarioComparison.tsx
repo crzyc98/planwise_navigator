@@ -20,6 +20,7 @@ import { useChartTheme } from '../hooks/useChartTheme';
 import DCPlanComparisonSection from './DCPlanComparisonSection';
 import { LayoutContextType } from './Layout';
 import { useWorkspaceNavigate, useWorkspacePath } from '../hooks/useWorkspaceNavigation';
+import { buildComparisonData, buildScenarioColors, scenarioSeriesKey } from './scenarioComparisonData';
 
 interface ScenarioData {
   scenario: Scenario;
@@ -153,52 +154,10 @@ export default function ScenarioComparison() {
   }, [scenariosWithResults.map(d => d.scenario.id).join(',')]);
 
   // Build scenario color map (shared between workforce and DC plan charts)
-  const scenarioColors: Record<string, string> = {};
-  scenariosWithResults.forEach((d, idx) => {
-    scenarioColors[d.scenario.name] = chartTheme.colorAt(idx);
-  });
+  const scenarioColors = buildScenarioColors(scenariosWithResults.map(d => d.scenario), chartTheme.colorAt);
 
-  // Build comparison data for charts
-  const buildComparisonData = () => {
-    if (scenariosWithResults.length === 0) return { workforce: [], events: [] };
-
-    // Get all years across all scenarios
-    const allYears = new Set<number>();
-    scenariosWithResults.forEach(d => {
-      d.results?.workforce_progression?.forEach(r => allYears.add(r.simulation_year));
-    });
-
-    const years = Array.from(allYears).sort((a, b) => a - b);
-
-    // Build workforce comparison data
-    const workforce = years.map(year => {
-      const dataPoint: any = { year };
-      scenariosWithResults.forEach(d => {
-        const yearData = d.results?.workforce_progression?.find(r => r.simulation_year === year);
-        dataPoint[d.scenario.name] = yearData?.headcount || 0;
-      });
-      return dataPoint;
-    });
-
-    // Build event comparison data
-    const events = years.map(year => {
-      const dataPoint: any = { year };
-      scenariosWithResults.forEach((d, idx) => {
-        const yearIndex = d.results?.workforce_progression?.findIndex(r => r.simulation_year === year) ?? -1;
-        if (yearIndex >= 0 && d.results?.event_trends) {
-          const hires = d.results.event_trends['hire']?.[yearIndex] || 0;
-          const terminations = d.results.event_trends['termination']?.[yearIndex] || 0;
-          dataPoint[`${d.scenario.name} Hires`] = hires;
-          dataPoint[`${d.scenario.name} Terms`] = terminations;
-        }
-      });
-      return dataPoint;
-    });
-
-    return { workforce, events };
-  };
-
-  const comparisonData = buildComparisonData();
+  const comparisonData = buildComparisonData(scenariosWithResults);
+  const headcountComparison = comparisonData;
 
   if (loading) {
     return (
@@ -410,25 +369,36 @@ export default function ScenarioComparison() {
         {/* Headcount Comparison Chart */}
         <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
           <h3 className="text-lg font-semibold text-ink mb-6">Headcount Over Time</h3>
+          {headcountComparison.hasMissingYears && (
+            <p className="text-sm text-warning-ink mb-4" role="status">
+              Simulation year coverage differs or has gaps. Missing observations appear as gaps, not zero headcount.
+              {' '}{headcountComparison.commonYearCount === 0
+                ? 'No years have observations for all scenarios.'
+                : `${headcountComparison.commonYearCount} year(s) have observations for all scenarios.`}
+            </p>
+          )}
           <div className="h-80">
-            {comparisonData.workforce.length > 0 ? (
+            {headcountComparison.workforce.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={comparisonData.workforce}>
+                <LineChart data={headcountComparison.workforce}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
                   <XAxis dataKey="year" stroke={chartTheme.axis.line} />
                   <YAxis stroke={chartTheme.axis.line} />
                   <Tooltip
+                    filterNull
                     contentStyle={chartTheme.tooltip.contentStyle}
-                    formatter={(value: number) => [value.toLocaleString(), '']}
+                    formatter={(value: number, name: string) => [value.toLocaleString(), name]}
                   />
                   <Legend verticalAlign="top" height={36} formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
                   {scenariosWithResults.map((d, idx) => (
                     <Line
                       key={d.scenario.id}
                       type="monotone"
-                      dataKey={d.scenario.name}
-                      stroke={chartTheme.colorAt(idx)}
+                      dataKey={scenarioSeriesKey(d.scenario.id)}
+                      name={d.scenario.name}
+                      stroke={scenarioColors[d.scenario.id]}
                       strokeWidth={3}
+                      connectNulls={false}
                       dot={{ r: 4 }}
                       activeDot={{ r: 6 }}
                     />
@@ -574,7 +544,7 @@ export default function ScenarioComparison() {
               comparisonData={dcPlanData}
               loading={dcPlanLoading}
               error={dcPlanError}
-              scenarioNames={scenariosWithResults.map(d => d.scenario.name)}
+              scenarios={scenariosWithResults.map(d => d.scenario)}
               scenarioColors={scenarioColors}
             />
           </div>

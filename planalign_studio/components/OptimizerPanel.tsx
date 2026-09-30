@@ -299,7 +299,7 @@ export default function OptimizerPanel() {
       }
       const spec = resp.resolved_spec;
       setLeverRows(
-        spec.design_space.levers.map((l): LeverRow => ({
+        (spec.design_space.levers ?? []).map((l): LeverRow => ({
           id: nextRowId(),
           name: l.name,
           kind: l.kind,
@@ -317,7 +317,7 @@ export default function OptimizerPanel() {
         }))
       );
       setConstraintRows(
-        spec.objective.constraints.map((c): ConstraintRow => ({
+        (spec.objective.constraints ?? []).map((c): ConstraintRow => ({
           id: nextRowId(),
           metric: c.metric,
           operator: c.operator,

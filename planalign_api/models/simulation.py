@@ -207,15 +207,69 @@ class MilestoneMessage(APIModel):
     data: TelemetryMilestone
 
 
+class ActiveRun(APIModel):
+    """One in-flight run, for page-refresh recovery (Feature 045)."""
+
+    run_id: str
+    scenario_id: str
+    status: Literal["pending", "queued", "running"]
+    progress: int
+    current_stage: Optional[str] = None
+    started_at: str = Field(..., description="ISO-8601 start timestamp")
+
+
+class ActiveSimulationsResponse(APIModel):
+    """All currently active simulation runs."""
+
+    active_runs: List[ActiveRun]
+
+
+class RunStatusSummary(APIModel):
+    """Run identity and status reported alongside (or instead of) telemetry."""
+
+    run_id: Optional[str] = Field(None, description="Null when never run")
+    status: Literal[
+        "pending", "queued", "running", "completed", "failed", "cancelled", "not_run"
+    ]
+    error_message: Optional[str] = None
+
+
 class RunTelemetryResponse(APIModel):
     """REST snapshot endpoint response (contracts/rest-telemetry-snapshot.md)."""
 
-    run: Dict[str, Any] = Field(
-        ..., description="run_id / status / error_message summary"
-    )
+    run: RunStatusSummary
     telemetry: Optional[RunTelemetrySnapshot] = Field(
         None, description="Null when no in-memory state exists"
     )
+
+
+class WorkforceProgressionRow(APIModel):
+    """One simulation year of the workforce snapshot."""
+
+    simulation_year: int
+    headcount: int
+    avg_compensation: float
+    total_compensation: float
+    active_avg_compensation: float
+
+
+class CompensationByStatusRow(APIModel):
+    """Headcount and average compensation for one year and status (E093)."""
+
+    simulation_year: int
+    employment_status: str
+    employee_count: int
+    avg_compensation: float
+
+
+class CagrMetric(APIModel):
+    """Compound annual growth of one workforce measure over the run."""
+
+    metric: Literal["Total Headcount", "Total Compensation", "Average Compensation"]
+    start_value: float
+    end_value: float
+    years: int
+    cagr_pct: float
 
 
 class SimulationResults(APIModel):
@@ -233,7 +287,7 @@ class SimulationResults(APIModel):
     participation_rate: float
 
     # Workforce progression
-    workforce_progression: List[Dict[str, Any]] = Field(
+    workforce_progression: List[WorkforceProgressionRow] = Field(
         description="Year-by-year workforce breakdown"
     )
 
@@ -246,13 +300,13 @@ class SimulationResults(APIModel):
     growth_analysis: Dict[str, float] = Field(description="Growth analysis metrics")
 
     # E093: Compensation breakdown by employment status
-    compensation_by_status: List[Dict[str, Any]] = Field(
+    compensation_by_status: List[CompensationByStatusRow] = Field(
         default_factory=list,
         description="Compensation breakdown by year and employment status",
     )
 
     # CAGR metrics for key workforce measures
-    cagr_metrics: List[Dict[str, Any]] = Field(
+    cagr_metrics: List[CagrMetric] = Field(
         default_factory=list,
         description="CAGR calculations for headcount, total compensation, and average compensation",
     )

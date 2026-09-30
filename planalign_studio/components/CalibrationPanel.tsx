@@ -29,12 +29,12 @@ interface CalibrationOutletContext {
   activeWorkspace: Workspace | null;
 }
 
-interface JobRange {
+type JobRange = {
   level: number;
   name: string;
   min_compensation: number;
   max_compensation: number;
-}
+};
 
 /**
  * Fast Compensation Calibration panel (Feature 105, US3).

@@ -125,6 +125,89 @@ class PartTimePctResponse(APIModel):
     )
 
 
+class AgeBucket(APIModel):
+    """One census age bucket, weighted for new-hire age distribution."""
+
+    age: int
+    weight: float
+    description: str
+    count: int
+
+
+class AgeDistributionResponse(APIModel):
+    """Census age distribution for matching new-hire hiring patterns."""
+
+    total_employees: int
+    recent_hires_only: bool
+    analysis_type: str
+    distribution: List[AgeBucket]
+    source_file: str
+    as_of_date: str = Field(..., description="ISO date ages were computed as of")
+    as_of_date_source: Literal["provided", "inferred"]
+    fallback_notice: Optional[str] = None
+
+
+class LevelCompensationStats(APIModel):
+    """Compensation statistics for one census job level."""
+
+    level: int
+    name: str
+    employee_count: int
+    raw_min_compensation: float
+    raw_max_compensation: float
+    min_compensation: float = Field(..., description="Recommended min (P25)")
+    max_compensation: float = Field(..., description="Recommended max (P75)")
+    median_compensation: float
+    p25_compensation: float
+    p75_compensation: float
+    avg_compensation: float
+
+
+class OverallCompensationStats(APIModel):
+    """Census-wide compensation distribution, used when levels are absent."""
+
+    min_compensation: float
+    max_compensation: float
+    median_compensation: float
+    p10_compensation: float
+    p25_compensation: float
+    p75_compensation: float
+    p90_compensation: float
+    avg_compensation: float
+
+
+class SuggestedLevelRange(APIModel):
+    """A percentile-based level range suggested when the census has no levels."""
+
+    level: int
+    name: str
+    suggested_min: float
+    suggested_max: float
+    percentile_range: str
+
+
+class CompensationByLevelResponse(APIModel):
+    """Census compensation by job level (or overall, when levels are absent)."""
+
+    total_employees: int
+    recent_hires_only: bool
+    lookback_years: Optional[int] = None
+    has_level_data: bool
+    analysis_type: str
+    compensation_annualized: bool
+    source_file: str
+    message: Optional[str] = Field(None, description="Set when has_level_data is false")
+    levels: Optional[List[LevelCompensationStats]] = Field(
+        None, description="Set when has_level_data is true"
+    )
+    overall_stats: Optional[OverallCompensationStats] = Field(
+        None, description="Set when has_level_data is false"
+    )
+    suggested_levels: Optional[List[SuggestedLevelRange]] = Field(
+        None, description="Set when has_level_data is false"
+    )
+
+
 class FileValidationResponse(APIModel):
     """Response from file path validation."""
 

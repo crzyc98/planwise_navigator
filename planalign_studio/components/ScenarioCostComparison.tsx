@@ -20,8 +20,8 @@ import {
 } from 'recharts';
 import {
   CheckSquare, Square, Search, Filter,
-  Anchor, Calendar, DollarSign, Download,
-  RefreshCw, AlertCircle, Loader2,
+  Anchor, Calendar, DollarSign,
+  RefreshCw, AlertCircle, Loader2, FileSpreadsheet, Database,
   TrendingUp, TrendingDown, Info, Calculator,
   Eye, Copy, Check, ArrowUp, ArrowDown
 } from 'lucide-react';
@@ -29,10 +29,13 @@ import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 import { useChartTheme } from '../hooks/useChartTheme';
 import { PlanDesignModal, formatMatchMode } from './PlanDesignModal';
 import { LayoutContextType } from './Layout';
+import SelectedComparisonRuns from './SelectedComparisonRuns';
 import {
   listScenarios,
   compareDCPlanAnalytics,
   compareGrandfatheredCost,
+  downloadComparisonExport,
+  ComparisonExportFormat,
   getScenarioConfig,
   getForfeitureProjection,
   listVestingSchedules,
@@ -355,6 +358,26 @@ const LoadingState = () => (
 // Main Component
 // ============================================================================
 
+const EXPORT_OPTIONS = [
+  {
+    format: 'xlsx',
+    label: 'Excel',
+    title: 'Download workforce snapshots and census for the selected scenarios (.xlsx)',
+    Icon: FileSpreadsheet,
+  },
+  {
+    format: 'hyper',
+    label: 'Tableau',
+    title: 'Download workforce snapshots and census for the selected scenarios (.hyper)',
+    Icon: Database,
+  },
+] as const satisfies ReadonlyArray<{
+  format: ComparisonExportFormat;
+  label: string;
+  title: string;
+  Icon: typeof Database;
+}>;
+
 export default function ScenarioCostComparison() {
   const chartTheme = useChartTheme();
   // -------------------------------------------------------------------------
@@ -404,6 +427,8 @@ export default function ScenarioCostComparison() {
   const [grandfatherData, setGrandfatherData] = useState<GrandfatheredCostComparisonResponse | null>(null);
   const [grandfatherLoading, setGrandfatherLoading] = useState(false);
   const [grandfatherError, setGrandfatherError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState<ComparisonExportFormat | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   // -------------------------------------------------------------------------
   // Copy to Clipboard Hooks
@@ -415,7 +440,7 @@ export default function ScenarioCostComparison() {
   // Derived Data: Completed Scenarios
   // -------------------------------------------------------------------------
   const completedScenarios = useMemo(() =>
-    scenarios.filter(s => s.status === 'completed'),
+    scenarios.filter(s => s.has_selected_result === true),
     [scenarios]
   );
 
@@ -743,13 +768,13 @@ export default function ScenarioCostComparison() {
       const data = await listScenarios(workspaceId);
       setScenarios(data);
 
-      const completed = data.filter(s => s.status === 'completed');
+      const completed = data.filter(s => s.has_selected_result === true);
       const completedIds = new Set(completed.map(s => s.id));
 
       // Try to restore saved preferences
       const savedPrefs = loadComparisonPrefs(workspaceId);
       if (savedPrefs) {
-        // Filter to only include scenarios that still exist and are completed
+        // Keep scenarios that still have selected successful results.
         const validSelectedIds = savedPrefs.selectedIds.filter(id => completedIds.has(id));
         const validAnchorId = completedIds.has(savedPrefs.anchorId) ? savedPrefs.anchorId : '';
         // FR-008: an unrecognized/corrupted stored cohort value falls back to 'all'
@@ -801,7 +826,7 @@ export default function ScenarioCostComparison() {
           setSelectedScenarioIds([completed[0].id, completed[1].id]);
           setAnchorScenarioId(completed[0].id);
         } else {
-          // Only one completed scenario
+          // Only one scenario has successful results.
           setSelectedScenarioIds([completed[0].id]);
           setAnchorScenarioId(completed[0].id);
         }
@@ -818,6 +843,19 @@ export default function ScenarioCostComparison() {
       setLoadingScenarios(false);
     }
   }, []);
+
+  const handleExport = useCallback(async (format: ComparisonExportFormat) => {
+    if (!activeWorkspace?.id || selectedScenarioIds.length === 0) return;
+    setExporting(format);
+    setExportError(null);
+    try {
+      await downloadComparisonExport(activeWorkspace.id, selectedScenarioIds, format);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : 'Export failed');
+    } finally {
+      setExporting(null);
+    }
+  }, [activeWorkspace?.id, selectedScenarioIds]);
 
   const fetchComparison = useCallback(async () => {
     if (!activeWorkspace?.id || selectedScenarioIds.length === 0) {
@@ -1247,7 +1285,7 @@ export default function ScenarioCostComparison() {
           ) : filteredScenarios.length === 0 ? (
             <div className="text-center py-8 text-ink-subtle text-xs">
               {completedScenarios.length === 0
-                ? 'No completed scenarios in this workspace'
+                ? 'No successful results in this workspace'
                 : 'No scenarios match your search'
               }
             </div>
@@ -1377,14 +1415,34 @@ export default function ScenarioCostComparison() {
               {anchorAnalytics?.scenario_name || 'None selected'}
             </div>
           </div>
-          <button className="w-full py-2 bg-surface-raised border border-border-strong rounded-lg text-xs font-bold text-ink-muted hover:bg-surface-subtle flex items-center justify-center transition-colors">
-            <Download size={14} className="mr-2" /> Download Report
-          </button>
+          <div className="grid grid-cols-2 gap-2">
+            {EXPORT_OPTIONS.map(({ format, label, title, Icon }) => (
+              <button
+                key={format}
+                onClick={() => handleExport(format)}
+                disabled={selectedScenarioIds.length === 0 || exporting !== null}
+                title={title}
+                className="py-2 bg-surface-raised border border-border-strong rounded-lg text-xs font-bold text-ink-muted hover:bg-surface-subtle flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {exporting === format
+                  ? <Loader2 size={14} className="mr-2 animate-spin" />
+                  : <Icon size={14} className="mr-2" />}
+                {label}
+              </button>
+            ))}
+          </div>
+          {exporting === 'xlsx' && (
+            <p className="text-[11px] text-ink-subtle">
+              Large Excel exports can take several minutes. Tableau is much faster.
+            </p>
+          )}
+          {exportError && <p className="text-[11px] text-danger-ink">{exportError}</p>}
         </div>
       </aside>
 
       {/* ===== Main Content Area ===== */}
       <div className="flex-1 space-y-6 overflow-y-auto pr-2 pb-8">
+        <SelectedComparisonRuns scenarios={scenarios.filter(s => selectedScenarioIds.includes(s.id))} />
         {/* Error State */}
         {error && <ErrorState message={error} onRetry={fetchComparison} />}
 
@@ -1401,7 +1459,7 @@ export default function ScenarioCostComparison() {
         {/* Single Scenario Warning */}
         {!loading && !error && selectedScenarioIds.length === 1 && completedScenarios.length === 1 && (
           <EmptyState
-            message="Only one completed scenario exists. Run more simulations to enable comparison."
+            message="Only one scenario has successful results. Run more simulations to enable comparison."
           />
         )}
 

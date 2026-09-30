@@ -1207,6 +1207,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/analytics/compare/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Scenario Comparison
+         * @description Download every selected scenario's workforce snapshot plus the census.
+         */
+        get: operations["export_scenario_comparison_api_workspaces__workspace_id__analytics_compare_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workspaces/{workspace_id}/analytics/dc-plan/compare": {
         parameters: {
             query?: never;
@@ -1391,6 +1411,7 @@ export interface paths {
          * Get Winners Losers
          * @description Compare two scenarios and classify employees as winners, losers, or
          *     neutral based on total employer contributions (match + core).
+         *     Uses the latest shared snapshot year; disjoint horizons return HTTP 422.
          */
         get: operations["get_winners_losers_api_workspaces__workspace_id__analytics_winners_losers_get"];
         put?: never;
@@ -2752,6 +2773,90 @@ export interface components {
             /** Year */
             year: number;
         };
+        /**
+         * ActiveRun
+         * @description One in-flight run, for page-refresh recovery (Feature 045).
+         */
+        ActiveRun: {
+            /** Current Stage */
+            current_stage: string | null;
+            /** Progress */
+            progress: number;
+            /** Run Id */
+            run_id: string;
+            /** Scenario Id */
+            scenario_id: string;
+            /**
+             * Started At
+             * @description ISO-8601 start timestamp
+             */
+            started_at: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "queued" | "running";
+        };
+        /**
+         * ActiveSimulationsResponse
+         * @description All currently active simulation runs.
+         */
+        ActiveSimulationsResponse: {
+            /** Active Runs */
+            active_runs: components["schemas"]["ActiveRun"][];
+        };
+        /**
+         * AgeBucket
+         * @description One census age bucket, weighted for new-hire age distribution.
+         */
+        AgeBucket: {
+            /** Age */
+            age: number;
+            /** Count */
+            count: number;
+            /** Description */
+            description: string;
+            /** Weight */
+            weight: number;
+        };
+        /**
+         * AgeDistributionResponse
+         * @description Census age distribution for matching new-hire hiring patterns.
+         */
+        AgeDistributionResponse: {
+            /** Analysis Type */
+            analysis_type: string;
+            /**
+             * As Of Date
+             * @description ISO date ages were computed as of
+             */
+            as_of_date: string;
+            /**
+             * As Of Date Source
+             * @enum {string}
+             */
+            as_of_date_source: "provided" | "inferred";
+            /** Distribution */
+            distribution: components["schemas"]["AgeBucket"][];
+            /** Fallback Notice */
+            fallback_notice: string | null;
+            /** Recent Hires Only */
+            recent_hires_only: boolean;
+            /** Source File */
+            source_file: string;
+            /** Total Employees */
+            total_employees: number;
+        };
+        /**
+         * AgeWeight
+         * @description One new-hire age bucket. Stays a plain dict at runtime (dbt var input).
+         */
+        AgeWeight: {
+            /** Age */
+            age: number;
+            /** Weight */
+            weight: number;
+        };
         /** AnnualEventCount */
         AnnualEventCount: {
             /** Count */
@@ -2876,9 +2981,9 @@ export interface components {
          */
         AttributionShare: {
             /** Anchor Seeds */
-            anchor_seeds?: number[];
+            anchor_seeds: number[];
             /** Baseline Variance */
-            baseline_variance?: number | null;
+            baseline_variance: number | null;
             /**
              * Baselines Executed
              * @default 0
@@ -2895,11 +3000,11 @@ export interface components {
              */
             bootstrap_iterations: number;
             /** Ci High */
-            ci_high?: number | null;
+            ci_high: number | null;
             /** Ci Low */
-            ci_low?: number | null;
+            ci_low: number | null;
             /** Frozen Variance */
-            frozen_variance?: number | null;
+            frozen_variance: number | null;
             /** Metric */
             metric: string;
             /**
@@ -2918,7 +3023,7 @@ export interface components {
             stochastic_status: "stochastic" | "not_stochastic";
             subsystem: components["schemas"]["Subsystem"];
             /** Variance Share */
-            variance_share?: number | null;
+            variance_share: number | null;
         };
         /**
          * AutoCalibrationRequest
@@ -2953,7 +3058,7 @@ export interface components {
             achieved_comp_growth_pct: number;
             best_params: components["schemas"]["CalibrationParameterSet"];
             /** Best Scale */
-            best_scale?: number | null;
+            best_scale: number | null;
             /** Converged */
             converged: boolean;
             /** End Year */
@@ -2987,42 +3092,40 @@ export interface components {
              * @default both
              * @enum {string}
              */
-            adjust: "cola" | "merit" | "both";
+            adjust?: "cola" | "merit" | "both";
             /** Base Job Level Compensation */
-            base_job_level_compensation?: {
-                [key: string]: unknown;
-            }[] | null;
+            base_job_level_compensation?: components["schemas"]["JobLevelRange"][] | null;
             /**
              * Initial Scale
              * @default 1
              */
-            initial_scale: number;
+            initial_scale?: number;
             /**
              * Lever Fallback
              * @default true
              */
-            lever_fallback: boolean;
+            lever_fallback?: boolean;
             /**
              * Max Iterations
              * @default 8
              */
-            max_iterations: number;
+            max_iterations?: number;
             /**
              * Scale Max
              * @default 3
              */
-            scale_max: number;
+            scale_max?: number;
             /**
              * Scale Min
              * @default 0.5
              */
-            scale_min: number;
+            scale_min?: number;
             /**
              * Search Mode
              * @default levers
              * @enum {string}
              */
-            search_mode: "levers" | "new_hire_scale";
+            search_mode?: "levers" | "new_hire_scale";
             /** Target Comp Growth */
             target_comp_growth: number;
             /** Target Workforce Growth */
@@ -3031,7 +3134,7 @@ export interface components {
              * Tolerance Pct
              * @default 0.05
              */
-            tolerance_pct: number;
+            tolerance_pct?: number;
         };
         /** AvailableYearsResponse */
         AvailableYearsResponse: {
@@ -3175,6 +3278,19 @@ export interface components {
             winners: number;
         };
         /**
+         * BaselineSpec
+         * @description Location of the baseline simulation configuration.
+         */
+        BaselineSpec: {
+            /**
+             * Config Path
+             * Format: path
+             */
+            config_path: string;
+            /** Ensemble Database */
+            ensemble_database?: string | null;
+        };
+        /**
          * BatchCreate
          * @description Request to create a batch job.
          */
@@ -3194,7 +3310,7 @@ export interface components {
              * @description Run scenarios in parallel
              * @default false
              */
-            parallel: boolean;
+            parallel?: boolean;
             /**
              * Scenario Ids
              * @description Specific scenarios to run (runs all if not provided)
@@ -3313,7 +3429,7 @@ export interface components {
              * Default Resolution
              * @default rename
              */
-            default_resolution: string | null;
+            default_resolution?: string | null;
             /** Files */
             files: string[];
         };
@@ -3428,6 +3544,25 @@ export interface components {
          * @enum {string}
          */
         BulkOperationStatus: "pending" | "in_progress" | "completed" | "failed";
+        /**
+         * CagrMetric
+         * @description Compound annual growth of one workforce measure over the run.
+         */
+        CagrMetric: {
+            /** Cagr Pct */
+            cagr_pct: number;
+            /** End Value */
+            end_value: number;
+            /**
+             * Metric
+             * @enum {string}
+             */
+            metric: "Total Headcount" | "Total Compensation" | "Average Compensation";
+            /** Start Value */
+            start_value: number;
+            /** Years */
+            years: number;
+        };
         /** CalibrationApplyOutcome */
         CalibrationApplyOutcome: {
             /** Error */
@@ -3551,24 +3686,32 @@ export interface components {
             /** Cola Rate */
             cola_rate?: number | null;
             /** Job Level Compensation */
-            job_level_compensation?: {
-                [key: string]: unknown;
-            }[] | null;
+            job_level_compensation?: components["schemas"]["JobLevelRange"][] | null;
             /** Merit Budget */
             merit_budget?: number | null;
-            /** New Hire Age Distribution */
-            new_hire_age_distribution?: {
-                [key: string]: number;
-            }[] | null;
-            /** New Hire Termination Rate */
+            /**
+             * New Hire Age Distribution
+             * @description New-hire age distribution. Overrides the seed via the same dbt var the full simulation uses, so a tuned distribution transfers verbatim.
+             */
+            new_hire_age_distribution?: components["schemas"]["AgeWeight"][] | null;
+            /**
+             * New Hire Termination Rate
+             * @description New-hire termination rate (workforce.new_hire_termination_rate), as a decimal; held fixed across an auto-calibration search.
+             */
             new_hire_termination_rate?: number | null;
             /** Promotion Increase */
             promotion_increase?: number | null;
             /** Target Growth Pct */
             target_growth_pct?: number | null;
-            /** Total Termination Rate */
+            /**
+             * Total Termination Rate
+             * @description Core termination rate (workforce.total_termination_rate), as a decimal; held fixed across an auto-calibration search.
+             */
             total_termination_rate?: number | null;
-            /** Workforce Growth Rate */
+            /**
+             * Workforce Growth Rate
+             * @description Workforce/headcount growth target (simulation.target_growth_rate) that sizes hiring. Distinct from target_growth_pct; changing it changes headcount exactly as a full simulation would.
+             */
             workforce_growth_rate?: number | null;
         };
         /**
@@ -3587,7 +3730,10 @@ export interface components {
             scenario_id?: string | null;
             /** Start Year */
             start_year?: number | null;
-            /** Workspace Id */
+            /**
+             * Workspace Id
+             * @description When set (and no explicit config_path), calibrate against this workspace's base config (census, termination rates) so the calibrated levers transfer to a full simulation of it.
+             */
             workspace_id?: string | null;
         };
         /**
@@ -3611,22 +3757,22 @@ export interface components {
             /** Candidate Id */
             candidate_id: string;
             /** Constraint Results */
-            constraint_results?: components["schemas"]["ConstraintResult"][];
+            constraint_results: components["schemas"]["ConstraintResult"][];
             /** Db Path */
-            db_path?: string | null;
+            db_path: string | null;
             /**
              * Duration Seconds
              * @default 0
              */
             duration_seconds: number;
             /** Is Duplicate Of */
-            is_duplicate_of?: string | null;
+            is_duplicate_of: string | null;
             /** Lever Values */
             lever_values: {
                 [key: string]: string | number | boolean;
             };
             /** Objective Values */
-            objective_values?: {
+            objective_values: {
                 [key: string]: number | null;
             };
             /**
@@ -4042,7 +4188,58 @@ export interface components {
              * @description Number of years to look back for recent hires (0 = all employees). Default: 4 years
              * @default 4
              */
-            lookback_years: number;
+            lookback_years?: number;
+        };
+        /**
+         * CompensationByLevelResponse
+         * @description Census compensation by job level (or overall, when levels are absent).
+         */
+        CompensationByLevelResponse: {
+            /** Analysis Type */
+            analysis_type: string;
+            /** Compensation Annualized */
+            compensation_annualized: boolean;
+            /** Has Level Data */
+            has_level_data: boolean;
+            /**
+             * Levels
+             * @description Set when has_level_data is true
+             */
+            levels: components["schemas"]["LevelCompensationStats"][] | null;
+            /** Lookback Years */
+            lookback_years: number | null;
+            /**
+             * Message
+             * @description Set when has_level_data is false
+             */
+            message: string | null;
+            /** @description Set when has_level_data is false */
+            overall_stats: components["schemas"]["OverallCompensationStats"] | null;
+            /** Recent Hires Only */
+            recent_hires_only: boolean;
+            /** Source File */
+            source_file: string;
+            /**
+             * Suggested Levels
+             * @description Set when has_level_data is false
+             */
+            suggested_levels: components["schemas"]["SuggestedLevelRange"][] | null;
+            /** Total Employees */
+            total_employees: number;
+        };
+        /**
+         * CompensationByStatusRow
+         * @description Headcount and average compensation for one year and status (E093).
+         */
+        CompensationByStatusRow: {
+            /** Avg Compensation */
+            avg_compensation: number;
+            /** Employee Count */
+            employee_count: number;
+            /** Employment Status */
+            employment_status: string;
+            /** Simulation Year */
+            simulation_year: number;
         };
         /**
          * CompensationSolverRequest
@@ -4287,7 +4484,7 @@ export interface components {
          */
         ConstraintResult: {
             /** Evaluated Value */
-            evaluated_value?: number | null;
+            evaluated_value: number | null;
             /**
              * Evaluation Mode
              * @enum {string}
@@ -4296,7 +4493,7 @@ export interface components {
             /** Metric */
             metric: string;
             /** Satisfied */
-            satisfied?: boolean | null;
+            satisfied: boolean | null;
         };
         /**
          * ConstraintSpec
@@ -4310,7 +4507,10 @@ export interface components {
              * @enum {string}
              */
             operator: "<=" | ">=" | "<" | ">" | "==";
-            /** Percentile */
+            /**
+             * Percentile
+             * @description Evaluate the metric at this ensemble percentile. Only takes effect when baseline.ensemble_database is also set.
+             */
             percentile?: number | null;
             /** Threshold */
             threshold: number;
@@ -4447,8 +4647,8 @@ export interface components {
             /** Label */
             label: string;
             population: components["schemas"]["CrossScenarioPopulationEvidence"];
-            rate_a?: components["schemas"]["CrossScenarioFigure"] | null;
-            rate_b?: components["schemas"]["CrossScenarioFigure"] | null;
+            rate_a: components["schemas"]["CrossScenarioFigure"] | null;
+            rate_b: components["schemas"]["CrossScenarioFigure"] | null;
             share_of_change: components["schemas"]["CrossScenarioFigure"];
         };
         /** CrossScenarioEvidencePack */
@@ -4493,7 +4693,7 @@ export interface components {
             /** Citations */
             citations: components["schemas"]["CrossCitation"][];
             /** Reason */
-            reason?: string | null;
+            reason: string | null;
             /**
              * Status
              * @enum {string}
@@ -4523,7 +4723,7 @@ export interface components {
             /** Scenario B Id */
             scenario_b_id: string;
             /** Shares Suppressed Reason */
-            shares_suppressed_reason?: string | null;
+            shares_suppressed_reason: string | null;
             total_change: components["schemas"]["CrossScenarioFigure"];
             value_a: components["schemas"]["CrossScenarioFigure"];
             value_b: components["schemas"]["CrossScenarioFigure"];
@@ -4744,10 +4944,9 @@ export interface components {
             avg_deferral_rate: number;
             /**
              * Employer Cost Rate
-             * @description Employer cost rate (%)
-             * @default 0
+             * @description Employer cost rate (%); null if compensation unavailable
              */
-            employer_cost_rate: number;
+            employer_cost_rate: number | null;
             /**
              * Participant Count
              * @description Number of enrolled employees
@@ -5119,7 +5318,7 @@ export interface components {
         };
         /** DriverContribution */
         DriverContribution: {
-            base_rate?: components["schemas"]["EvidenceFigure"] | null;
+            base_rate: components["schemas"]["EvidenceFigure"] | null;
             contribution: components["schemas"]["EvidenceFigure"];
             /** Description */
             description: string;
@@ -5129,7 +5328,7 @@ export interface components {
             label: string;
             population: components["schemas"]["PopulationEvidence"];
             share_of_change: components["schemas"]["EvidenceFigure"];
-            target_rate?: components["schemas"]["EvidenceFigure"] | null;
+            target_rate: components["schemas"]["EvidenceFigure"] | null;
         };
         /** EmployeeIdentity */
         EmployeeIdentity: {
@@ -5461,7 +5660,7 @@ export interface components {
         EvidenceFigure: {
             citation: components["schemas"]["Citation"];
             /** Reason */
-            reason?: string | null;
+            reason: string | null;
             /**
              * Status
              * @enum {string}
@@ -5618,19 +5817,19 @@ export interface components {
              * Import Id
              * @default
              */
-            import_id: string;
+            import_id?: string;
             /** Input Column */
             input_column: string;
             /**
              * Is Excluded
              * @default false
              */
-            is_excluded: boolean;
+            is_excluded?: boolean;
             /**
              * Is Required
              * @default false
              */
-            is_required: boolean;
+            is_required?: boolean;
             /** Mapping Id */
             mapping_id?: string;
             /** Output Column */
@@ -5801,22 +6000,22 @@ export interface components {
              * Credibility K
              * @default 200
              */
-            credibility_k: number;
+            credibility_k?: number;
             /**
              * Level Coverage Threshold
              * @default 0.95
              */
-            level_coverage_threshold: number;
+            level_coverage_threshold?: number;
             /**
              * Min Exposure
              * @default 50
              */
-            min_exposure: number;
+            min_exposure?: number;
             /**
              * Separation Exposure Gate
              * @default 0.5
              */
-            separation_exposure_gate: number;
+            separation_exposure_gate?: number;
         };
         /** FitOptionsModel */
         "FitOptionsModel-Output": {
@@ -6295,6 +6494,25 @@ export interface components {
             source_digest: string;
             split: components["schemas"]["SplitPreview"] | null;
         };
+        /**
+         * JobLevelRange
+         * @description Per-level new-hire compensation range. Stays a plain dict at runtime.
+         *
+         *     Numbers are int | float so values pass through to the dbt var unchanged;
+         *     extra keys are preserved for the same reason.
+         */
+        JobLevelRange: {
+            /** Level */
+            level: number;
+            /** Max Compensation */
+            max_compensation: number;
+            /** Min Compensation */
+            min_compensation: number;
+            /** Name */
+            name?: string;
+        } & {
+            [key: string]: unknown;
+        };
         /** JobProgress */
         JobProgress: {
             /** Index */
@@ -6311,6 +6529,40 @@ export interface components {
             total: number | null;
             /** Updated At */
             updated_at: string | null;
+        };
+        /**
+         * LevelCompensationStats
+         * @description Compensation statistics for one census job level.
+         */
+        LevelCompensationStats: {
+            /** Avg Compensation */
+            avg_compensation: number;
+            /** Employee Count */
+            employee_count: number;
+            /** Level */
+            level: number;
+            /**
+             * Max Compensation
+             * @description Recommended max (P75)
+             */
+            max_compensation: number;
+            /** Median Compensation */
+            median_compensation: number;
+            /**
+             * Min Compensation
+             * @description Recommended min (P25)
+             */
+            min_compensation: number;
+            /** Name */
+            name: string;
+            /** P25 Compensation */
+            p25_compensation: number;
+            /** P75 Compensation */
+            p75_compensation: number;
+            /** Raw Max Compensation */
+            raw_max_compensation: number;
+            /** Raw Min Compensation */
+            raw_min_compensation: number;
         };
         /**
          * LevelDistributionResponse
@@ -6529,7 +6781,7 @@ export interface components {
              */
             metric: "active_headcount" | "total_compensation" | "employer_match_cost" | "total_employer_plan_cost" | "participation_rate" | "avg_deferral_rate";
             /** Shares Suppressed Reason */
-            shares_suppressed_reason?: string | null;
+            shares_suppressed_reason: string | null;
             target_population: components["schemas"]["EvidenceFigure"];
             target_value: components["schemas"]["EvidenceFigure"];
             /** Target Year */
@@ -6546,7 +6798,7 @@ export interface components {
             /** Is Sufficient */
             is_sufficient: boolean;
             /** Mean */
-            mean?: number | null;
+            mean: number | null;
             /** Metric */
             metric: string;
             /** N Seeds */
@@ -6554,15 +6806,15 @@ export interface components {
             /** N Seeds Requested */
             n_seeds_requested: number;
             /** P10 */
-            p10?: number | null;
+            p10: number | null;
             /** P25 */
-            p25?: number | null;
+            p25: number | null;
             /** P50 */
-            p50?: number | null;
+            p50: number | null;
             /** P75 */
-            p75?: number | null;
+            p75: number | null;
             /** P90 */
-            p90?: number | null;
+            p90: number | null;
             /**
              * Percentile Method
              * @default linear
@@ -6574,7 +6826,7 @@ export interface components {
             /** Simulation Year */
             simulation_year: number;
             /** Stddev */
-            stddev?: number | null;
+            stddev: number | null;
         };
         /**
          * ObjectiveConstraintSpec
@@ -6583,7 +6835,10 @@ export interface components {
         ObjectiveConstraintSpec: {
             /** Constraints */
             constraints?: components["schemas"]["ConstraintSpec"][];
-            /** Objectives */
+            /**
+             * Objectives
+             * @description 1 entry ranks candidates; 2 entries unlock the Pareto frontier.
+             */
             objectives: components["schemas"]["ObjectiveTerm"][];
         };
         /**
@@ -6614,7 +6869,7 @@ export interface components {
              * @description Only include employees hired within this many years of the most recent hire in the census
              * @default 3
              */
-            lookback_years: number;
+            lookback_years?: number;
         };
         /**
          * OptOutRateAnalysisResult
@@ -6730,7 +6985,7 @@ export interface components {
              * Force
              * @default false
              */
-            force: boolean;
+            force?: boolean;
             /** Name */
             name: string;
             /** Source Scenario Id */
@@ -6745,18 +7000,27 @@ export interface components {
         OptimizerRun: {
             /** Baseline Config Fingerprint */
             baseline_config_fingerprint: string;
-            /** Binding Infeasible Constraints */
-            binding_infeasible_constraints?: string[] | null;
+            /**
+             * Binding Infeasible Constraints
+             * @description Set only when no candidate was ranked or on the frontier: names the constraint(s) nobody satisfied. Surface this prominently.
+             */
+            binding_infeasible_constraints: string[] | null;
             /** Candidates */
-            candidates?: components["schemas"]["Candidate"][];
+            candidates: components["schemas"]["Candidate"][];
             design_space: components["schemas"]["DesignSpaceSpec"];
             /** Max Runs */
             max_runs: number;
             objective_constraint_spec: components["schemas"]["ObjectiveConstraintSpec"];
-            /** Pareto Frontier */
-            pareto_frontier?: string[] | null;
-            /** Ranked Feasible */
-            ranked_feasible?: string[];
+            /**
+             * Pareto Frontier
+             * @description Populated only for 2-objective runs; null otherwise.
+             */
+            pareto_frontier: string[] | null;
+            /**
+             * Ranked Feasible
+             * @description Populated only for single-objective runs, best first.
+             */
+            ranked_feasible: string[];
             /** Run Id */
             run_id: string;
             /** Search Seed */
@@ -6783,6 +7047,15 @@ export interface components {
             /** Workspace Id */
             workspace_id?: string | null;
         };
+        /**
+         * OptimizerSpec
+         * @description Top-level user-authored optimizer request.
+         */
+        OptimizerSpec: {
+            baseline: components["schemas"]["BaselineSpec"];
+            design_space: components["schemas"]["DesignSpaceSpec"];
+            objective: components["schemas"]["ObjectiveConstraintSpec"];
+        };
         /** OptimizerStartResponse */
         OptimizerStartResponse: {
             /** Database Dir */
@@ -6802,7 +7075,10 @@ export interface components {
          * @description Exactly one of ``spec``/``spec_yaml`` must be given.
          */
         OptimizerValidateRequest: {
-            /** Max Runs */
+            /**
+             * Max Runs
+             * @description If given, also return a seed-phase dry-run preview.
+             */
             max_runs?: number | null;
             /** Spec */
             spec?: {
@@ -6817,40 +7093,62 @@ export interface components {
             baseline_drift_warning: string | null;
             /** Error */
             error: string | null;
-            /** Resolved Spec */
-            resolved_spec: {
-                [key: string]: unknown;
-            } | null;
+            /** @description The parsed, validated spec on success, so the builder can populate itself from an imported YAML file. */
+            resolved_spec: components["schemas"]["OptimizerSpec"] | null;
             /** Seed Phase Candidates */
-            seed_phase_candidates: unknown[] | null;
+            seed_phase_candidates: {
+                [key: string]: string | number | boolean;
+            }[] | null;
             /** Seed Phase Count */
             seed_phase_count: number | null;
             /** Valid */
             valid: boolean;
         };
+        /**
+         * OverallCompensationStats
+         * @description Census-wide compensation distribution, used when levels are absent.
+         */
+        OverallCompensationStats: {
+            /** Avg Compensation */
+            avg_compensation: number;
+            /** Max Compensation */
+            max_compensation: number;
+            /** Median Compensation */
+            median_compensation: number;
+            /** Min Compensation */
+            min_compensation: number;
+            /** P10 Compensation */
+            p10_compensation: number;
+            /** P25 Compensation */
+            p25_compensation: number;
+            /** P75 Compensation */
+            p75_compensation: number;
+            /** P90 Compensation */
+            p90_compensation: number;
+        };
         /** PackProvenance */
         PackProvenance: {
             /** Config Fingerprint */
-            config_fingerprint?: string | null;
+            config_fingerprint: string | null;
             /** Random Seed */
-            random_seed?: number | null;
+            random_seed: number | null;
             /** Result Store */
             result_store: string;
             /** Run Id */
             run_id: string;
             /** Run Timestamp */
-            run_timestamp?: string | null;
+            run_timestamp: string | null;
             /** Scenario Id */
             scenario_id: string;
             /** Scenario Name */
-            scenario_name?: string | null;
+            scenario_name: string | null;
             /**
              * Verification Disposition
              * @enum {string}
              */
             verification_disposition: "fully_verified" | "incomplete" | "unverifiable";
             /** Workspace Id */
-            workspace_id?: string | null;
+            workspace_id: string | null;
         };
         /** PackWarning */
         PackWarning: {
@@ -6945,18 +7243,18 @@ export interface components {
              * Holdout Years
              * @default 1
              */
-            holdout_years: number;
+            holdout_years?: number;
             /**
              * Mode
              * @default fit
              * @enum {string}
              */
-            mode: "fit" | "backtest";
+            mode?: "fit" | "backtest";
             /**
              * Notes
              * @default
              */
-            notes: string;
+            notes?: string;
             /** Seeds */
             seeds?: number[];
             thresholds?: components["schemas"]["ThresholdsModel-Input"];
@@ -7143,30 +7441,30 @@ export interface components {
             /** Avg Compensation */
             avg_compensation: number;
             /** Existing Avg Comp */
-            existing_avg_comp?: number | null;
+            existing_avg_comp: number | null;
             /** Growth Delta Pct */
-            growth_delta_pct?: number | null;
+            growth_delta_pct: number | null;
             /** Headcount */
             headcount: number;
             /** Headcount Growth Pct */
-            headcount_growth_pct?: number | null;
+            headcount_growth_pct: number | null;
             /** New Hire Avg Comp */
-            new_hire_avg_comp?: number | null;
+            new_hire_avg_comp: number | null;
             /** New Hire Gap */
-            new_hire_gap?: number | null;
+            new_hire_gap: number | null;
             /** Simulation Year */
             simulation_year: number;
             /** Target Growth Pct */
-            target_growth_pct?: number | null;
+            target_growth_pct: number | null;
             /** Total Comp Growth Pct */
-            total_comp_growth_pct?: number | null;
+            total_comp_growth_pct: number | null;
             /**
              * Total Compensation
              * @default 0
              */
             total_compensation: number;
             /** Yoy Growth Pct */
-            yoy_growth_pct?: number | null;
+            yoy_growth_pct: number | null;
         };
         /**
          * PerformanceMetrics
@@ -7228,12 +7526,12 @@ export interface components {
         };
         /** PopulationEvidence */
         PopulationEvidence: {
-            base_count?: components["schemas"]["EvidenceFigure"] | null;
-            changed_count?: components["schemas"]["EvidenceFigure"] | null;
+            base_count: components["schemas"]["EvidenceFigure"] | null;
+            changed_count: components["schemas"]["EvidenceFigure"] | null;
             count: components["schemas"]["EvidenceFigure"];
             /** Label */
             label: string;
-            target_count?: components["schemas"]["EvidenceFigure"] | null;
+            target_count: components["schemas"]["EvidenceFigure"] | null;
         };
         /** PreviewResponse */
         PreviewResponse: {
@@ -7399,7 +7697,7 @@ export interface components {
          */
         RiskStatement: {
             /** Exceedance Probability */
-            exceedance_probability?: number | null;
+            exceedance_probability: number | null;
             /** Is Evaluable */
             is_evaluable: boolean;
             /** Metric */
@@ -7410,9 +7708,9 @@ export interface components {
              */
             n_seeds: number;
             /** Reason */
-            reason?: string | null;
+            reason: string | null;
             /** Simulation Year */
-            simulation_year?: number | null;
+            simulation_year: number | null;
             /** Threshold Value */
             threshold_value: number;
         };
@@ -7597,7 +7895,25 @@ export interface components {
              * @description Resume from last checkpoint if available
              * @default false
              */
-            resume_from_checkpoint: boolean;
+            resume_from_checkpoint?: boolean;
+        };
+        /**
+         * RunStatusSummary
+         * @description Run identity and status reported alongside (or instead of) telemetry.
+         */
+        RunStatusSummary: {
+            /** Error Message */
+            error_message: string | null;
+            /**
+             * Run Id
+             * @description Null when never run
+             */
+            run_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "queued" | "running" | "completed" | "failed" | "cancelled" | "not_run";
         };
         /**
          * RunSummary
@@ -7668,13 +7984,7 @@ export interface components {
          * @description REST snapshot endpoint response (contracts/rest-telemetry-snapshot.md).
          */
         RunTelemetryResponse: {
-            /**
-             * Run
-             * @description run_id / status / error_message summary
-             */
-            run: {
-                [key: string]: unknown;
-            };
+            run: components["schemas"]["RunStatusSummary"];
             /** @description Null when no in-memory state exists */
             telemetry: components["schemas"]["RunTelemetrySnapshot"] | null;
         };
@@ -7778,6 +8088,12 @@ export interface components {
              */
             description: string | null;
             /**
+             * Has Selected Result
+             * @description Whether a successful result is available for comparison
+             * @default false
+             */
+            has_selected_result: boolean;
+            /**
              * Id
              * @description Unique scenario ID (UUID)
              */
@@ -7806,6 +8122,11 @@ export interface components {
             } | null;
             /** @description Summary of last run results */
             results_summary: components["schemas"]["ScenarioResultsSummary"] | null;
+            /**
+             * Selected Result Run Id
+             * @description Selected successful run ID, independent of latest attempt
+             */
+            selected_result_run_id: string | null;
             /**
              * Status
              * @description Scenario execution status
@@ -8306,16 +8627,12 @@ export interface components {
              * Cagr Metrics
              * @description CAGR calculations for headcount, total compensation, and average compensation
              */
-            cagr_metrics: {
-                [key: string]: unknown;
-            }[];
+            cagr_metrics: components["schemas"]["CagrMetric"][];
             /**
              * Compensation By Status
              * @description Compensation breakdown by year and employment status
              */
-            compensation_by_status: {
-                [key: string]: unknown;
-            }[];
+            compensation_by_status: components["schemas"]["CompensationByStatusRow"][];
             /** End Year */
             end_year: number;
             /**
@@ -8354,9 +8671,7 @@ export interface components {
              * Workforce Progression
              * @description Year-by-year workforce breakdown
              */
-            workforce_progression: {
-                [key: string]: unknown;
-            }[];
+            workforce_progression: components["schemas"]["WorkforceProgressionRow"][];
         };
         /**
          * SimulationRun
@@ -8562,6 +8877,22 @@ export interface components {
          * @enum {string}
          */
         Subsystem: "termination" | "hiring" | "promotion" | "enrollment" | "merit";
+        /**
+         * SuggestedLevelRange
+         * @description A percentile-based level range suggested when the census has no levels.
+         */
+        SuggestedLevelRange: {
+            /** Level */
+            level: number;
+            /** Name */
+            name: string;
+            /** Percentile Range */
+            percentile_range: string;
+            /** Suggested Max */
+            suggested_max: number;
+            /** Suggested Min */
+            suggested_min: number;
+        };
         /** SuggestionsResponse */
         SuggestionsResponse: {
             /** Canonical Schema */
@@ -8626,13 +8957,13 @@ export interface components {
              * @description Enable auto-sync
              * @default false
              */
-            auto_sync: boolean;
+            auto_sync?: boolean;
             /**
              * Branch
              * @description Branch to use
              * @default main
              */
-            branch: string;
+            branch?: string;
             /**
              * Remote Url
              * @description Git remote URL (e.g., git@github.com:user/repo.git)
@@ -9267,7 +9598,7 @@ export interface components {
              * @description Minimum annual hours for vesting credit (default: 1000)
              * @default 1000
              */
-            hours_threshold: number;
+            hours_threshold?: number;
             /** Name */
             name: string;
             /**
@@ -9275,7 +9606,7 @@ export interface components {
              * @description If true, employees must meet hours threshold for vesting credit
              * @default false
              */
-            require_hours_credit: boolean;
+            require_hours_credit?: boolean;
             schedule_type: components["schemas"]["VestingScheduleType"];
         };
         /**
@@ -9343,7 +9674,7 @@ export interface components {
             age_band_results: components["schemas"]["BandGroupResult"][];
             /**
              * Final Year
-             * @description Simulation year used for comparison
+             * @description Latest simulation year present in both snapshots
              */
             final_year: number;
             /**
@@ -9352,10 +9683,20 @@ export interface components {
              */
             heatmap: components["schemas"]["HeatmapCell"][];
             /**
+             * Plan A Final Year
+             * @description Latest snapshot year available for Plan A
+             */
+            plan_a_final_year: number;
+            /**
              * Plan A Scenario Id
              * @description Plan A scenario ID
              */
             plan_a_scenario_id: string;
+            /**
+             * Plan B Final Year
+             * @description Latest snapshot year available for Plan B
+             */
+            plan_b_final_year: number;
             /**
              * Plan B Scenario Id
              * @description Plan B scenario ID
@@ -9429,10 +9770,9 @@ export interface components {
             active: number;
             /**
              * Avg Compensation
-             * @description Average prorated compensation for active employees
-             * @default 0
+             * @description Average prorated compensation for active employees; null if unavailable
              */
-            avg_compensation: number;
+            avg_compensation: number | null;
             /**
              * Growth Pct
              * @description Growth percentage
@@ -9492,6 +9832,22 @@ export interface components {
              * @default 0
              */
             total_failed: number;
+        };
+        /**
+         * WorkforceProgressionRow
+         * @description One simulation year of the workforce snapshot.
+         */
+        WorkforceProgressionRow: {
+            /** Active Avg Compensation */
+            active_avg_compensation: number;
+            /** Avg Compensation */
+            avg_compensation: number;
+            /** Headcount */
+            headcount: number;
+            /** Simulation Year */
+            simulation_year: number;
+            /** Total Compensation */
+            total_compensation: number;
         };
         /**
          * WorkspaceCreate
@@ -10292,7 +10648,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ActiveSimulationsResponse"];
                 };
             };
         };
@@ -11527,6 +11883,49 @@ export interface operations {
             };
         };
     };
+    export_scenario_comparison_api_workspaces__workspace_id__analytics_compare_export_get: {
+        parameters: {
+            query: {
+                /** @description Comma-separated scenario IDs (max 6) */
+                scenarios: string;
+                /** @description xlsx (Excel) or hyper (Tableau) */
+                format?: "xlsx" | "hyper";
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Workforce snapshot and census for the selected scenarios. */
+            200: {
+                headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": unknown;
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     compare_dc_plan_analytics_api_workspaces__workspace_id__analytics_dc_plan_compare_get: {
         parameters: {
             query: {
@@ -11988,9 +12387,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["AgeDistributionResponse"];
                 };
             };
             /** @description Validation Error */
@@ -12060,9 +12457,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["CompensationByLevelResponse"];
                 };
             };
             /** @description Validation Error */

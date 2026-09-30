@@ -11,21 +11,21 @@ pytest-xdist==3.8.0
 pytest-split==0.11.0
 hypothesis>=6.0.0
 factory-boy==3.3.3
-Faker==19.3.0
+Faker==40.39.0
 
 # Code Quality
 ruff==0.4.3
 black==23.9.1
-isort==5.12.0
-mypy==1.5.1
+isort==9.0.1
+mypy==2.3.1
 # Type stubs for the CI `mypy` lint job. Without these, mypy reports
 # "Library stubs not installed for 'yaml'" (not suppressed by
 # --ignore-missing-imports because the stub is known to exist on PyPI),
 # keeping the lint job red. See #333.
 types-PyYAML==6.0.12.20260518
-pylint==3.0.2
+pylint==4.0.9
 flake8==6.1.0
-pre-commit==3.3.3
+pre-commit==4.6.2
 
 # Dependency vulnerability scanning (#705)
 pip-audit==2.10.1
@@ -37,7 +37,7 @@ pip-audit==2.10.1
 mkdocs==1.6.1
 mkdocs-material==9.7.7
 pymdown-extensions==11.0.1
-mkdocstrings-python==1.5.0
+mkdocstrings-python==2.0.9
 jupyter==1.1.1
 ipython==9.17.1
 ipdb==0.13.13

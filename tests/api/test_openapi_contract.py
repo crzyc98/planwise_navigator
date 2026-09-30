@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from fastapi.routing import iter_route_contexts
 
 from planalign_api.main import RUN_CONSISTENCY_HEADERS, SCENARIO_READ_ROUTES, create_app
 from planalign_api.models.system import HealthResponse, SystemStatus
@@ -80,8 +81,8 @@ def test_all_scenario_reads_declare_consistency_headers() -> None:
     app = create_app()
     schema = app.openapi()
     candidates = []
-    for route in app.routes:
-        if "GET" not in getattr(route, "methods", set()):
+    for route in iter_route_contexts(app.routes):
+        if "GET" not in (route.methods or set()):
             continue
         dependant = getattr(route, "dependant", None)
         parameter_names = {
@@ -97,6 +98,7 @@ def test_all_scenario_reads_declare_consistency_headers() -> None:
         ):
             candidates.append(route)
 
+    assert candidates, "no scenario-read routes enumerated; route discovery is broken"
     uncovered = sorted(
         route.name for route in candidates if route.name not in SCENARIO_READ_ROUTES
     )

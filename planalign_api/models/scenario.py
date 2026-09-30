@@ -61,6 +61,12 @@ class Scenario(APIModel):
     created_at: datetime = Field(..., description="Creation timestamp")
     last_run_at: Optional[datetime] = Field(None, description="Last run timestamp")
     last_run_id: Optional[str] = Field(None, description="Last run ID")
+    has_selected_result: bool = Field(
+        False, description="Whether a successful result is available for comparison"
+    )
+    selected_result_run_id: Optional[str] = Field(
+        None, description="Selected successful run ID, independent of latest attempt"
+    )
     results_summary: Optional[ScenarioResultsSummary] = Field(
         None, description="Summary of last run results"
     )

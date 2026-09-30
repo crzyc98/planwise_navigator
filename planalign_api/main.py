@@ -22,7 +22,7 @@ from fastapi import Depends, FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
-from fastapi.routing import APIRoute
+from fastapi.routing import APIRoute, iter_route_contexts
 
 from .config import get_settings
 from .errors import (
@@ -121,6 +121,7 @@ SCENARIO_READ_ROUTES = {
     "compare_scenarios",
     "get_dc_plan_analytics",
     "compare_dc_plan_analytics",
+    "export_scenario_comparison",
     "compare_grandfathered_cost",
     "get_winners_losers",
     "get_vesting_years",
@@ -190,9 +191,9 @@ def _install_run_header_openapi(app: FastAPI) -> None:
             routes=app.routes,
         )
         header_schema = {"schema": {"type": "string"}}
-        for route in app.routes:
+        for route in iter_route_contexts(app.routes):
             if (
-                not isinstance(route, APIRoute)
+                not isinstance(route.original_route, APIRoute)
                 or route.name not in SCENARIO_READ_ROUTES
             ):
                 continue

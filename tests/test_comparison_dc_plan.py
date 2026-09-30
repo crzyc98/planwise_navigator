@@ -822,18 +822,14 @@ class TestWorkforceAverageCompensation:
         workforce comparison silently going blank."""
         db_path = str(tmp_path / "legacy.duckdb")
         conn = duckdb.connect(db_path)
+        _create_snapshot_table(conn)
         conn.execute(
-            """
-            CREATE TABLE fct_workforce_snapshot (
-                employee_id VARCHAR,
-                simulation_year INTEGER,
-                employment_status VARCHAR
-            )
-            """
+            "ALTER TABLE fct_workforce_snapshot DROP COLUMN prorated_annual_compensation"
         )
         _create_events_table(conn)
         conn.execute(
-            "INSERT INTO fct_workforce_snapshot VALUES ('A', 2025, 'Active'), "
+            "INSERT INTO fct_workforce_snapshot (employee_id, simulation_year, employment_status) "
+            "VALUES ('A', 2025, 'Active'), "
             "('B', 2025, 'Active'), ('T', 2025, 'Terminated')"
         )
         conn.close()
@@ -845,4 +841,7 @@ class TestWorkforceAverageCompensation:
         assert year.values["legacy"].headcount == 3
         assert year.values["legacy"].active == 2
         assert year.values["legacy"].terminated == 1
-        assert year.values["legacy"].avg_compensation == 0
+        assert year.values["legacy"].avg_compensation is None
+        assert year.deltas["other"].avg_compensation is None
+        assert result.dc_plan_comparison[0].values["legacy"].employer_cost_rate is None
+        assert result.dc_plan_comparison[0].deltas["other"].employer_cost_rate is None

@@ -422,6 +422,187 @@
         "title": "ADPTestResponse",
         "type": "object"
       },
+      "ActiveRun": {
+        "description": "One in-flight run, for page-refresh recovery (Feature 045).",
+        "properties": {
+          "current_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Stage"
+          },
+          "progress": {
+            "title": "Progress",
+            "type": "integer"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "scenario_id": {
+            "title": "Scenario Id",
+            "type": "string"
+          },
+          "started_at": {
+            "description": "ISO-8601 start timestamp",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "queued",
+              "running"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "scenario_id",
+          "status",
+          "progress",
+          "current_stage",
+          "started_at"
+        ],
+        "title": "ActiveRun",
+        "type": "object"
+      },
+      "ActiveSimulationsResponse": {
+        "description": "All currently active simulation runs.",
+        "properties": {
+          "active_runs": {
+            "items": {
+              "$ref": "#/components/schemas/ActiveRun"
+            },
+            "title": "Active Runs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "active_runs"
+        ],
+        "title": "ActiveSimulationsResponse",
+        "type": "object"
+      },
+      "AgeBucket": {
+        "description": "One census age bucket, weighted for new-hire age distribution.",
+        "properties": {
+          "age": {
+            "title": "Age",
+            "type": "integer"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "weight": {
+            "title": "Weight",
+            "type": "number"
+          }
+        },
+        "required": [
+          "age",
+          "weight",
+          "description",
+          "count"
+        ],
+        "title": "AgeBucket",
+        "type": "object"
+      },
+      "AgeDistributionResponse": {
+        "description": "Census age distribution for matching new-hire hiring patterns.",
+        "properties": {
+          "analysis_type": {
+            "title": "Analysis Type",
+            "type": "string"
+          },
+          "as_of_date": {
+            "description": "ISO date ages were computed as of",
+            "title": "As Of Date",
+            "type": "string"
+          },
+          "as_of_date_source": {
+            "enum": [
+              "provided",
+              "inferred"
+            ],
+            "title": "As Of Date Source",
+            "type": "string"
+          },
+          "distribution": {
+            "items": {
+              "$ref": "#/components/schemas/AgeBucket"
+            },
+            "title": "Distribution",
+            "type": "array"
+          },
+          "fallback_notice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Notice"
+          },
+          "recent_hires_only": {
+            "title": "Recent Hires Only",
+            "type": "boolean"
+          },
+          "source_file": {
+            "title": "Source File",
+            "type": "string"
+          },
+          "total_employees": {
+            "title": "Total Employees",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total_employees",
+          "recent_hires_only",
+          "analysis_type",
+          "distribution",
+          "source_file",
+          "as_of_date",
+          "as_of_date_source",
+          "fallback_notice"
+        ],
+        "title": "AgeDistributionResponse",
+        "type": "object"
+      },
+      "AgeWeight": {
+        "description": "One new-hire age bucket. Stays a plain dict at runtime (dbt var input).",
+        "properties": {
+          "age": {
+            "title": "Age",
+            "type": "number"
+          },
+          "weight": {
+            "title": "Weight",
+            "type": "number"
+          }
+        },
+        "required": [
+          "age",
+          "weight"
+        ],
+        "title": "AgeWeight",
+        "type": "object"
+      },
       "AnnualEventCount": {
         "additionalProperties": false,
         "properties": {
@@ -875,7 +1056,17 @@
           "metric",
           "simulation_year",
           "subsystem",
+          "variance_share",
+          "ci_low",
+          "ci_high",
+          "baseline_variance",
+          "frozen_variance",
+          "anchor_seeds",
+          "n_anchors",
           "n_seeds",
+          "bootstrap_iterations",
+          "baselines_reused",
+          "baselines_executed",
           "stochastic_status"
         ],
         "title": "AttributionShare",
@@ -1035,9 +1226,11 @@
           "converged",
           "message",
           "best_params",
+          "best_scale",
           "achieved_comp_growth_pct",
           "target_comp_growth_pct",
           "max_abs_error_pct",
+          "objective",
           "start_year",
           "end_year",
           "iterations",
@@ -1063,8 +1256,7 @@
             "anyOf": [
               {
                 "items": {
-                  "additionalProperties": true,
-                  "type": "object"
+                  "$ref": "#/components/schemas/JobLevelRange"
                 },
                 "type": "array"
               },
@@ -1370,6 +1562,33 @@
           "total"
         ],
         "title": "BandGroupResult",
+        "type": "object"
+      },
+      "BaselineSpec": {
+        "description": "Location of the baseline simulation configuration.",
+        "properties": {
+          "config_path": {
+            "format": "path",
+            "title": "Config Path",
+            "type": "string"
+          },
+          "ensemble_database": {
+            "anyOf": [
+              {
+                "format": "path",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ensemble Database"
+          }
+        },
+        "required": [
+          "config_path"
+        ],
+        "title": "BaselineSpec",
         "type": "object"
       },
       "BatchCreate": {
@@ -1871,6 +2090,45 @@
         "title": "BulkOperationStatus",
         "type": "string"
       },
+      "CagrMetric": {
+        "description": "Compound annual growth of one workforce measure over the run.",
+        "properties": {
+          "cagr_pct": {
+            "title": "Cagr Pct",
+            "type": "number"
+          },
+          "end_value": {
+            "title": "End Value",
+            "type": "number"
+          },
+          "metric": {
+            "enum": [
+              "Total Headcount",
+              "Total Compensation",
+              "Average Compensation"
+            ],
+            "title": "Metric",
+            "type": "string"
+          },
+          "start_value": {
+            "title": "Start Value",
+            "type": "number"
+          },
+          "years": {
+            "title": "Years",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "metric",
+          "start_value",
+          "end_value",
+          "years",
+          "cagr_pct"
+        ],
+        "title": "CagrMetric",
+        "type": "object"
+      },
       "CalibrationApplyOutcome": {
         "properties": {
           "error": {
@@ -2211,8 +2469,7 @@
             "anyOf": [
               {
                 "items": {
-                  "additionalProperties": true,
-                  "type": "object"
+                  "$ref": "#/components/schemas/JobLevelRange"
                 },
                 "type": "array"
               },
@@ -2239,10 +2496,7 @@
             "anyOf": [
               {
                 "items": {
-                  "additionalProperties": {
-                    "type": "number"
-                  },
-                  "type": "object"
+                  "$ref": "#/components/schemas/AgeWeight"
                 },
                 "type": "array"
               },
@@ -2250,6 +2504,7 @@
                 "type": "null"
               }
             ],
+            "description": "New-hire age distribution. Overrides the seed via the same dbt var the full simulation uses, so a tuned distribution transfers verbatim.",
             "title": "New Hire Age Distribution"
           },
           "new_hire_termination_rate": {
@@ -2263,6 +2518,7 @@
                 "type": "null"
               }
             ],
+            "description": "New-hire termination rate (workforce.new_hire_termination_rate), as a decimal; held fixed across an auto-calibration search.",
             "title": "New Hire Termination Rate"
           },
           "promotion_increase": {
@@ -2302,6 +2558,7 @@
                 "type": "null"
               }
             ],
+            "description": "Core termination rate (workforce.total_termination_rate), as a decimal; held fixed across an auto-calibration search.",
             "title": "Total Termination Rate"
           },
           "workforce_growth_rate": {
@@ -2315,6 +2572,7 @@
                 "type": "null"
               }
             ],
+            "description": "Workforce/headcount growth target (simulation.target_growth_rate) that sizes hiring. Distinct from target_growth_pct; changing it changes headcount exactly as a full simulation would.",
             "title": "Workforce Growth Rate"
           }
         },
@@ -2393,6 +2651,7 @@
                 "type": "null"
               }
             ],
+            "description": "When set (and no explicit config_path), calibrate against this workspace's base config (census, termination rates) so the calibrated levers transfer to a full simulation of it.",
             "title": "Workspace Id"
           }
         },
@@ -2510,7 +2769,12 @@
         "required": [
           "candidate_id",
           "lever_values",
-          "status"
+          "db_path",
+          "status",
+          "objective_values",
+          "constraint_results",
+          "is_duplicate_of",
+          "duration_seconds"
         ],
         "title": "Candidate",
         "type": "object"
@@ -3060,6 +3324,7 @@
         },
         "required": [
           "result_store",
+          "query_id",
           "query",
           "result_column"
         ],
@@ -3222,6 +3487,143 @@
           "file_path"
         ],
         "title": "CompensationAnalysisRequest",
+        "type": "object"
+      },
+      "CompensationByLevelResponse": {
+        "description": "Census compensation by job level (or overall, when levels are absent).",
+        "properties": {
+          "analysis_type": {
+            "title": "Analysis Type",
+            "type": "string"
+          },
+          "compensation_annualized": {
+            "title": "Compensation Annualized",
+            "type": "boolean"
+          },
+          "has_level_data": {
+            "title": "Has Level Data",
+            "type": "boolean"
+          },
+          "levels": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/LevelCompensationStats"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when has_level_data is true",
+            "title": "Levels"
+          },
+          "lookback_years": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lookback Years"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when has_level_data is false",
+            "title": "Message"
+          },
+          "overall_stats": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverallCompensationStats"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when has_level_data is false"
+          },
+          "recent_hires_only": {
+            "title": "Recent Hires Only",
+            "type": "boolean"
+          },
+          "source_file": {
+            "title": "Source File",
+            "type": "string"
+          },
+          "suggested_levels": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SuggestedLevelRange"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when has_level_data is false",
+            "title": "Suggested Levels"
+          },
+          "total_employees": {
+            "title": "Total Employees",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total_employees",
+          "recent_hires_only",
+          "lookback_years",
+          "has_level_data",
+          "analysis_type",
+          "compensation_annualized",
+          "source_file",
+          "message",
+          "levels",
+          "overall_stats",
+          "suggested_levels"
+        ],
+        "title": "CompensationByLevelResponse",
+        "type": "object"
+      },
+      "CompensationByStatusRow": {
+        "description": "Headcount and average compensation for one year and status (E093).",
+        "properties": {
+          "avg_compensation": {
+            "title": "Avg Compensation",
+            "type": "number"
+          },
+          "employee_count": {
+            "title": "Employee Count",
+            "type": "integer"
+          },
+          "employment_status": {
+            "title": "Employment Status",
+            "type": "string"
+          },
+          "simulation_year": {
+            "title": "Simulation Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "simulation_year",
+          "employment_status",
+          "employee_count",
+          "avg_compensation"
+        ],
+        "title": "CompensationByStatusRow",
         "type": "object"
       },
       "CompensationSolverRequest": {
@@ -3721,7 +4123,9 @@
         },
         "required": [
           "metric",
-          "evaluation_mode"
+          "evaluation_mode",
+          "evaluated_value",
+          "satisfied"
         ],
         "title": "ConstraintResult",
         "type": "object"
@@ -3756,6 +4160,7 @@
                 "type": "null"
               }
             ],
+            "description": "Evaluate the metric at this ensemble percentile. Only takes effect when baseline.ensemble_database is also set.",
             "title": "Percentile"
           },
           "threshold": {
@@ -3990,7 +4395,9 @@
           "description",
           "contribution",
           "share_of_change",
-          "population"
+          "population",
+          "rate_a",
+          "rate_b"
         ],
         "title": "CrossScenarioDriverContribution",
         "type": "object"
@@ -4054,11 +4461,14 @@
           }
         },
         "required": [
+          "schema_version",
           "provenance_a",
           "provenance_b",
+          "config_differences",
           "change",
           "drivers",
           "residual",
+          "warnings",
           "executive_summary",
           "population_note"
         ],
@@ -4145,6 +4555,7 @@
           "value",
           "unit",
           "status",
+          "reason",
           "citations"
         ],
         "title": "CrossScenarioFigure",
@@ -4220,7 +4631,8 @@
           "value_b",
           "total_change",
           "population_a",
-          "population_b"
+          "population_b",
+          "shares_suppressed_reason"
         ],
         "title": "CrossScenarioMetricChange",
         "type": "object"
@@ -4535,10 +4947,16 @@
             "type": "number"
           },
           "employer_cost_rate": {
-            "default": 0.0,
-            "description": "Employer cost rate (%)",
-            "title": "Employer Cost Rate",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Employer cost rate (%); null if compensation unavailable",
+            "title": "Employer Cost Rate"
           },
           "participant_count": {
             "default": 0,
@@ -5147,7 +5565,9 @@
           "description",
           "contribution",
           "share_of_change",
-          "population"
+          "population",
+          "base_rate",
+          "target_rate"
         ],
         "title": "DriverContribution",
         "type": "object"
@@ -6098,6 +6518,7 @@
           "value",
           "unit",
           "status",
+          "reason",
           "citation"
         ],
         "title": "EvidenceFigure",
@@ -6191,10 +6612,12 @@
           }
         },
         "required": [
+          "schema_version",
           "provenance",
           "change",
           "drivers",
           "residual",
+          "warnings",
           "executive_summary",
           "population_note"
         ],
@@ -7783,6 +8206,56 @@
         "title": "JobInputs",
         "type": "object"
       },
+      "JobLevelRange": {
+        "additionalProperties": true,
+        "description": "Per-level new-hire compensation range. Stays a plain dict at runtime.\n\nNumbers are int | float so values pass through to the dbt var unchanged;\nextra keys are preserved for the same reason.",
+        "properties": {
+          "level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Level"
+          },
+          "max_compensation": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Max Compensation"
+          },
+          "min_compensation": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Min Compensation"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "level",
+          "min_compensation",
+          "max_compensation"
+        ],
+        "title": "JobLevelRange",
+        "type": "object"
+      },
       "JobProgress": {
         "properties": {
           "index": {
@@ -7852,6 +8325,72 @@
           "updated_at"
         ],
         "title": "JobProgress",
+        "type": "object"
+      },
+      "LevelCompensationStats": {
+        "description": "Compensation statistics for one census job level.",
+        "properties": {
+          "avg_compensation": {
+            "title": "Avg Compensation",
+            "type": "number"
+          },
+          "employee_count": {
+            "title": "Employee Count",
+            "type": "integer"
+          },
+          "level": {
+            "title": "Level",
+            "type": "integer"
+          },
+          "max_compensation": {
+            "description": "Recommended max (P75)",
+            "title": "Max Compensation",
+            "type": "number"
+          },
+          "median_compensation": {
+            "title": "Median Compensation",
+            "type": "number"
+          },
+          "min_compensation": {
+            "description": "Recommended min (P25)",
+            "title": "Min Compensation",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "p25_compensation": {
+            "title": "P25 Compensation",
+            "type": "number"
+          },
+          "p75_compensation": {
+            "title": "P75 Compensation",
+            "type": "number"
+          },
+          "raw_max_compensation": {
+            "title": "Raw Max Compensation",
+            "type": "number"
+          },
+          "raw_min_compensation": {
+            "title": "Raw Min Compensation",
+            "type": "number"
+          }
+        },
+        "required": [
+          "level",
+          "name",
+          "employee_count",
+          "raw_min_compensation",
+          "raw_max_compensation",
+          "min_compensation",
+          "max_compensation",
+          "median_compensation",
+          "p25_compensation",
+          "p75_compensation",
+          "avg_compensation"
+        ],
+        "title": "LevelCompensationStats",
         "type": "object"
       },
       "LevelDistributionResponse": {
@@ -8334,7 +8873,8 @@
           "target_value",
           "total_change",
           "base_population",
-          "target_population"
+          "target_population",
+          "shares_suppressed_reason"
         ],
         "title": "MetricChange",
         "type": "object"
@@ -8461,9 +9001,17 @@
           "scenario_id",
           "metric",
           "simulation_year",
+          "p10",
+          "p25",
+          "p50",
+          "p75",
+          "p90",
+          "mean",
+          "stddev",
           "n_seeds",
           "n_seeds_requested",
-          "is_sufficient"
+          "is_sufficient",
+          "percentile_method"
         ],
         "title": "MetricDistribution",
         "type": "object"
@@ -8479,6 +9027,7 @@
             "type": "array"
           },
           "objectives": {
+            "description": "1 entry ranks candidates; 2 entries unlock the Pareto frontier.",
             "items": {
               "$ref": "#/components/schemas/ObjectiveTerm"
             },
@@ -8826,6 +9375,7 @@
                 "type": "null"
               }
             ],
+            "description": "Set only when no candidate was ranked or on the frontier: names the constraint(s) nobody satisfied. Surface this prominently.",
             "title": "Binding Infeasible Constraints"
           },
           "candidates": {
@@ -8858,9 +9408,11 @@
                 "type": "null"
               }
             ],
+            "description": "Populated only for 2-objective runs; null otherwise.",
             "title": "Pareto Frontier"
           },
           "ranked_feasible": {
+            "description": "Populated only for single-objective runs, best first.",
             "items": {
               "type": "string"
             },
@@ -8882,7 +9434,11 @@
           "objective_constraint_spec",
           "max_runs",
           "search_seed",
-          "baseline_config_fingerprint"
+          "baseline_config_fingerprint",
+          "candidates",
+          "ranked_feasible",
+          "pareto_frontier",
+          "binding_infeasible_constraints"
         ],
         "title": "OptimizerRun",
         "type": "object"
@@ -8974,6 +9530,27 @@
         "title": "OptimizerRunRequest",
         "type": "object"
       },
+      "OptimizerSpec": {
+        "description": "Top-level user-authored optimizer request.",
+        "properties": {
+          "baseline": {
+            "$ref": "#/components/schemas/BaselineSpec"
+          },
+          "design_space": {
+            "$ref": "#/components/schemas/DesignSpaceSpec"
+          },
+          "objective": {
+            "$ref": "#/components/schemas/ObjectiveConstraintSpec"
+          }
+        },
+        "required": [
+          "design_space",
+          "objective",
+          "baseline"
+        ],
+        "title": "OptimizerSpec",
+        "type": "object"
+      },
       "OptimizerStartResponse": {
         "properties": {
           "database_dir": {
@@ -9016,6 +9593,7 @@
                 "type": "null"
               }
             ],
+            "description": "If given, also return a seed-phase dry-run preview.",
             "title": "Max Runs"
           },
           "spec": {
@@ -9072,19 +9650,36 @@
           "resolved_spec": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/OptimizerSpec"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Resolved Spec"
+            "description": "The parsed, validated spec on success, so the builder can populate itself from an imported YAML file."
           },
           "seed_phase_candidates": {
             "anyOf": [
               {
-                "items": {},
+                "items": {
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      }
+                    ]
+                  },
+                  "type": "object"
+                },
                 "type": "array"
               },
               {
@@ -9118,6 +9713,55 @@
           "baseline_drift_warning"
         ],
         "title": "OptimizerValidateResponse",
+        "type": "object"
+      },
+      "OverallCompensationStats": {
+        "description": "Census-wide compensation distribution, used when levels are absent.",
+        "properties": {
+          "avg_compensation": {
+            "title": "Avg Compensation",
+            "type": "number"
+          },
+          "max_compensation": {
+            "title": "Max Compensation",
+            "type": "number"
+          },
+          "median_compensation": {
+            "title": "Median Compensation",
+            "type": "number"
+          },
+          "min_compensation": {
+            "title": "Min Compensation",
+            "type": "number"
+          },
+          "p10_compensation": {
+            "title": "P10 Compensation",
+            "type": "number"
+          },
+          "p25_compensation": {
+            "title": "P25 Compensation",
+            "type": "number"
+          },
+          "p75_compensation": {
+            "title": "P75 Compensation",
+            "type": "number"
+          },
+          "p90_compensation": {
+            "title": "P90 Compensation",
+            "type": "number"
+          }
+        },
+        "required": [
+          "min_compensation",
+          "max_compensation",
+          "median_compensation",
+          "p10_compensation",
+          "p25_compensation",
+          "p75_compensation",
+          "p90_compensation",
+          "avg_compensation"
+        ],
+        "title": "OverallCompensationStats",
         "type": "object"
       },
       "PackProvenance": {
@@ -9205,8 +9849,13 @@
           }
         },
         "required": [
+          "workspace_id",
           "scenario_id",
+          "scenario_name",
           "run_id",
+          "run_timestamp",
+          "random_seed",
+          "config_fingerprint",
           "result_store",
           "verification_disposition"
         ],
@@ -9981,7 +10630,16 @@
         "required": [
           "simulation_year",
           "avg_compensation",
-          "headcount"
+          "yoy_growth_pct",
+          "target_growth_pct",
+          "growth_delta_pct",
+          "headcount",
+          "headcount_growth_pct",
+          "total_compensation",
+          "total_comp_growth_pct",
+          "new_hire_avg_comp",
+          "existing_avg_comp",
+          "new_hire_gap"
         ],
         "title": "PerYearCompensationResult",
         "type": "object"
@@ -10111,7 +10769,10 @@
         },
         "required": [
           "label",
-          "count"
+          "count",
+          "base_count",
+          "target_count",
+          "changed_count"
         ],
         "title": "PopulationEvidence",
         "type": "object"
@@ -10579,7 +11240,11 @@
         "required": [
           "metric",
           "threshold_value",
-          "is_evaluable"
+          "simulation_year",
+          "exceedance_probability",
+          "n_seeds",
+          "is_evaluable",
+          "reason"
         ],
         "title": "RiskStatement",
         "type": "object"
@@ -11043,6 +11708,54 @@
         "title": "RunRequest",
         "type": "object"
       },
+      "RunStatusSummary": {
+        "description": "Run identity and status reported alongside (or instead of) telemetry.",
+        "properties": {
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when never run",
+            "title": "Run Id"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "queued",
+              "running",
+              "completed",
+              "failed",
+              "cancelled",
+              "not_run"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "status",
+          "error_message"
+        ],
+        "title": "RunStatusSummary",
+        "type": "object"
+      },
       "RunSummary": {
         "description": "Summary of a simulation run for listing.",
         "properties": {
@@ -11174,10 +11887,7 @@
         "description": "REST snapshot endpoint response (contracts/rest-telemetry-snapshot.md).",
         "properties": {
           "run": {
-            "additionalProperties": true,
-            "description": "run_id / status / error_message summary",
-            "title": "Run",
-            "type": "object"
+            "$ref": "#/components/schemas/RunStatusSummary"
           },
           "telemetry": {
             "anyOf": [
@@ -11375,6 +12085,12 @@
             "description": "Scenario description",
             "title": "Description"
           },
+          "has_selected_result": {
+            "default": false,
+            "description": "Whether a successful result is available for comparison",
+            "title": "Has Selected Result",
+            "type": "boolean"
+          },
           "id": {
             "description": "Unique scenario ID (UUID)",
             "title": "Id",
@@ -11434,6 +12150,18 @@
             ],
             "description": "Summary of last run results"
           },
+          "selected_result_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Selected successful run ID, independent of latest attempt",
+            "title": "Selected Result Run Id"
+          },
           "status": {
             "default": "not_run",
             "description": "Scenario execution status",
@@ -11465,6 +12193,8 @@
           "created_at",
           "last_run_at",
           "last_run_id",
+          "has_selected_result",
+          "selected_result_run_id",
           "results_summary"
         ],
         "title": "Scenario",
@@ -12352,8 +13082,7 @@
           "cagr_metrics": {
             "description": "CAGR calculations for headcount, total compensation, and average compensation",
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/CagrMetric"
             },
             "title": "Cagr Metrics",
             "type": "array"
@@ -12361,8 +13090,7 @@
           "compensation_by_status": {
             "description": "Compensation breakdown by year and employment status",
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/CompensationByStatusRow"
             },
             "title": "Compensation By Status",
             "type": "array"
@@ -12419,8 +13147,7 @@
           "workforce_progression": {
             "description": "Year-by-year workforce breakdown",
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/WorkforceProgressionRow"
             },
             "title": "Workforce Progression",
             "type": "array"
@@ -12924,6 +13651,40 @@
         ],
         "title": "Subsystem",
         "type": "string"
+      },
+      "SuggestedLevelRange": {
+        "description": "A percentile-based level range suggested when the census has no levels.",
+        "properties": {
+          "level": {
+            "title": "Level",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "percentile_range": {
+            "title": "Percentile Range",
+            "type": "string"
+          },
+          "suggested_max": {
+            "title": "Suggested Max",
+            "type": "number"
+          },
+          "suggested_min": {
+            "title": "Suggested Min",
+            "type": "number"
+          }
+        },
+        "required": [
+          "level",
+          "name",
+          "suggested_min",
+          "suggested_max",
+          "percentile_range"
+        ],
+        "title": "SuggestedLevelRange",
+        "type": "object"
       },
       "SuggestionsResponse": {
         "properties": {
@@ -14333,7 +15094,7 @@
             "type": "array"
           },
           "final_year": {
-            "description": "Simulation year used for comparison",
+            "description": "Latest simulation year present in both snapshots",
             "title": "Final Year",
             "type": "integer"
           },
@@ -14345,10 +15106,20 @@
             "title": "Heatmap",
             "type": "array"
           },
+          "plan_a_final_year": {
+            "description": "Latest snapshot year available for Plan A",
+            "title": "Plan A Final Year",
+            "type": "integer"
+          },
           "plan_a_scenario_id": {
             "description": "Plan A scenario ID",
             "title": "Plan A Scenario Id",
             "type": "string"
+          },
+          "plan_b_final_year": {
+            "description": "Latest snapshot year available for Plan B",
+            "title": "Plan B Final Year",
+            "type": "integer"
           },
           "plan_b_scenario_id": {
             "description": "Plan B scenario ID",
@@ -14393,6 +15164,8 @@
           "plan_a_scenario_id",
           "plan_b_scenario_id",
           "final_year",
+          "plan_a_final_year",
+          "plan_b_final_year",
           "total_compared",
           "total_excluded",
           "total_winners",
@@ -14447,10 +15220,16 @@
             "type": "integer"
           },
           "avg_compensation": {
-            "default": 0.0,
-            "description": "Average prorated compensation for active employees",
-            "title": "Avg Compensation",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Average prorated compensation for active employees; null if unavailable",
+            "title": "Avg Compensation"
           },
           "growth_pct": {
             "description": "Growth percentage",
@@ -14539,6 +15318,40 @@
           "total_failed"
         ],
         "title": "WorkforceParamsApplyResult",
+        "type": "object"
+      },
+      "WorkforceProgressionRow": {
+        "description": "One simulation year of the workforce snapshot.",
+        "properties": {
+          "active_avg_compensation": {
+            "title": "Active Avg Compensation",
+            "type": "number"
+          },
+          "avg_compensation": {
+            "title": "Avg Compensation",
+            "type": "number"
+          },
+          "headcount": {
+            "title": "Headcount",
+            "type": "integer"
+          },
+          "simulation_year": {
+            "title": "Simulation Year",
+            "type": "integer"
+          },
+          "total_compensation": {
+            "title": "Total Compensation",
+            "type": "number"
+          }
+        },
+        "required": [
+          "simulation_year",
+          "headcount",
+          "avg_compensation",
+          "total_compensation",
+          "active_avg_compensation"
+        ],
+        "title": "WorkforceProgressionRow",
         "type": "object"
       },
       "WorkspaceCreate": {
@@ -15973,7 +16786,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ActiveSimulationsResponse"
+                }
               }
             },
             "description": "Successful Response",
@@ -18090,6 +18905,107 @@
         ]
       }
     },
+    "/api/workspaces/{workspace_id}/analytics/compare/export": {
+      "get": {
+        "description": "Download every selected scenario's workforce snapshot plus the census.",
+        "operationId": "export_scenario_comparison_api_workspaces__workspace_id__analytics_compare_export_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Comma-separated scenario IDs (max 6)",
+            "in": "query",
+            "name": "scenarios",
+            "required": true,
+            "schema": {
+              "description": "Comma-separated scenario IDs (max 6)",
+              "title": "Scenarios",
+              "type": "string"
+            }
+          },
+          {
+            "description": "xlsx (Excel) or hyper (Tableau)",
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "xlsx",
+              "description": "xlsx (Excel) or hyper (Tableau)",
+              "enum": [
+                "xlsx",
+                "hyper"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {},
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
+            },
+            "description": "Workforce snapshot and census for the selected scenarios.",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Export Scenario Comparison",
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
     "/api/workspaces/{workspace_id}/analytics/dc-plan/compare": {
       "get": {
         "description": "Compare DC Plan analytics across multiple scenarios (max {MAX_SCENARIO_COMPARISON}).\n\nReturns side-by-side analytics for comparison.",
@@ -19085,7 +20001,7 @@
     },
     "/api/workspaces/{workspace_id}/analytics/winners-losers": {
       "get": {
-        "description": "Compare two scenarios and classify employees as winners, losers, or\nneutral based on total employer contributions (match + core).",
+        "description": "Compare two scenarios and classify employees as winners, losers, or\nneutral based on total employer contributions (match + core).\nUses the latest shared snapshot year; disjoint horizons return HTTP 422.",
         "operationId": "get_winners_losers_api_workspaces__workspace_id__analytics_winners_losers_get",
         "parameters": [
           {
@@ -19265,9 +20181,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Analyze Age Distribution Api Workspaces  Workspace Id  Analyze Age Distribution Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/AgeDistributionResponse"
                 }
               }
             },
@@ -19373,9 +20287,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Analyze Compensation By Level Api Workspaces  Workspace Id  Analyze Compensation By Level Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/CompensationByLevelResponse"
                 }
               }
             },

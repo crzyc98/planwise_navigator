@@ -8,7 +8,7 @@ Production-ready code for workforce simulation and event sourcing. This playbook
 
 ```bash
 # Environment
-uv venv .venv --python python3.11
+uv venv .venv --python python3.12
 source .venv/bin/activate
 uv pip install -e ".[dev]"
 
@@ -39,7 +39,7 @@ duckdb dbt/simulation.duckdb "SELECT COUNT(*) FROM fct_yearly_events"
 | CLI | Typer + Rich | Beautiful terminal UI with progress |
 | Web | FastAPI + React/Vite + Tailwind | Modern web-based scenario management |
 | Config | Pydantic v2 | Type-safe validation |
-| Python | 3.11 | LTS, long support window |
+| Python | 3.12 | Version CI tests against |
 
 ---
 
@@ -332,7 +332,7 @@ dbt run --select int_baseline_workforce --vars "simulation_year: 2025" --threads
 **Recreate and reinstall:**
 ```bash
 rm -rf .venv
-uv venv .venv --python python3.11
+uv venv .venv --python python3.12
 source .venv/bin/activate
 uv pip install -e ".[dev]"
 planalign health  # Trigger sqlparse auto-fix

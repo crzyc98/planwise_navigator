@@ -21,7 +21,7 @@
   },
   "components/DCPlanComparisonSection.tsx": {
     "react-hooks/exhaustive-deps": {
-      "count": 8
+      "count": 5
     }
   },
   "components/ForfeitureProjection.tsx": {

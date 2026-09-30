@@ -152,7 +152,7 @@ export default function ScenariosPage() {
     .map(id => scenarios.find(scenario => scenario.id === id))
     .filter((scenario): scenario is Scenario => scenario !== undefined);
   const canDiff = selectedScenarios.length === 2
-    && selectedScenarios.every(scenario => scenario.status === 'completed');
+    && selectedScenarios.every(scenario => scenario.has_selected_result === true);
 
   const handleDiff = () => {
     if (!canDiff) return;
@@ -195,7 +195,7 @@ export default function ScenariosPage() {
               <button
                 onClick={handleDiff}
                 disabled={!canDiff}
-                title={canDiff ? 'Open focused scenario diff' : 'Select exactly two completed scenarios'}
+                title={canDiff ? 'Open focused scenario diff' : 'Select exactly two scenarios with successful results'}
                 className={`px-4 py-2 rounded-lg flex items-center font-medium shadow-sm transition-colors ${canDiff ? 'bg-fidelity-green text-ink-inverse hover:bg-fidelity-dark' : 'bg-surface-disabled text-ink-subtle cursor-not-allowed'}`}
               >
                 <ArrowLeftRight size={18} className="mr-2" />

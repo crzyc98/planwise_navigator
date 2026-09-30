@@ -24,6 +24,11 @@ matplotlib>=3.8.0
 
 # Excel export dependencies
 openpyxl>=3.1.0
+# openpyxl uses lxml when present: ~4x faster large-sheet writes.
+lxml>=5.0.0
+# Tableau .hyper export. Pinned: releases after 0.0.26479 dropped macOS
+# wheels; no Linux aarch64 wheels exist at all.
+tableauhyperapi==0.0.26479; platform_machine != 'aarch64'
 
 # Corporate network and HTTP client dependencies
 requests>=2.28.0
@@ -35,8 +40,8 @@ typer>=0.9.0
 inquirer>=3.1.0
 
 # API dependencies for PlanAlign Studio backend
-# 0.141 wraps included routers in _IncludedRouter, hiding APIRoutes from app.routes (breaks main.py's OpenAPI header pass and the route-auth test). Pinned; bump deliberately (#736).
-fastapi==0.135.1
+# Pinned so each bump gets its own PR: minor releases have changed routing internals (0.141 stopped flattening included routers into app.routes; walk routes with fastapi.routing.iter_route_contexts).
+fastapi==0.141.1
 uvicorn[standard]>=0.27.0
 pydantic-settings>=2.1.0
 python-multipart>=0.0.6

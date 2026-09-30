@@ -15,6 +15,8 @@ from ..models.scenario import (
     WorkforceParamsApplyResult,
 )
 from ..services.scenario_service import ScenarioService
+from ..services.database_path_resolver import create_api_database_path_resolver
+from ..services.current_result import CurrentResultIntegrityError
 from ..services.seed_config_validator import validate_seed_configs
 from ..services.path_guard import PathGuardError, ProtectedPathError
 from ..storage.workspace_storage import WorkspaceStorage
@@ -23,6 +25,29 @@ from ..services.simulation.result_handlers import find_results_export
 router = APIRouter()
 
 logger = logging.getLogger(__name__)
+
+
+def _with_result_selection(storage: WorkspaceStorage, scenario: Scenario) -> Scenario:
+    """Expose selected success independently of the latest attempt status."""
+    try:
+        resolved = create_api_database_path_resolver(storage).resolve(
+            scenario.workspace_id, scenario.id, verify_database=False
+        )
+    except CurrentResultIntegrityError as exc:
+        raise HTTPException(
+            status_code=500, detail="Current result integrity failure"
+        ) from exc
+    available = resolved.exists and (
+        resolved.source == "run" or scenario.status == "completed"
+    )
+    return scenario.model_copy(
+        update={
+            "has_selected_result": available,
+            "selected_result_run_id": (
+                (resolved.run_id or scenario.last_run_id) if available else None
+            ),
+        }
+    )
 
 
 def get_storage(settings: APISettings = Depends(get_settings)) -> WorkspaceStorage:
@@ -46,7 +71,10 @@ def list_scenarios(
             detail=f"Workspace {workspace_id} not found",
         )
 
-    return storage.list_scenarios(workspace_id)
+    return [
+        _with_result_selection(storage, scenario)
+        for scenario in storage.list_scenarios(workspace_id)
+    ]
 
 
 @router.post(
@@ -89,7 +117,7 @@ def get_scenario(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Scenario {scenario_id} not found in workspace {workspace_id}",
         )
-    return scenario
+    return _with_result_selection(storage, scenario)
 
 
 @router.get(
