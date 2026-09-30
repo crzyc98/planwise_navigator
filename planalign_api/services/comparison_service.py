@@ -3,6 +3,8 @@
 import logging
 from typing import Any, Dict, List, Optional
 
+import duckdb
+
 from ..models.comparison import (
     ComparisonResponse,
     DCPlanComparisonYear,
@@ -36,6 +38,21 @@ from .database_path_resolver import (
 logger = logging.getLogger(__name__)
 
 
+class ComparisonDataError(ValueError):
+    """A requested scenario cannot supply trustworthy comparison data."""
+
+    def __init__(self, scenario_id: str, reason: str) -> None:
+        self.scenario_id = scenario_id
+        self.reason = reason
+        super().__init__(f"Scenario {scenario_id}: {reason}")
+
+
+def _optional_delta(
+    value: Optional[float], baseline: Optional[float]
+) -> Optional[float]:
+    return None if value is None or baseline is None else value - baseline
+
+
 class ComparisonService:
     """Service for comparing scenarios."""
 
@@ -57,6 +74,8 @@ class ComparisonService:
         Compare multiple scenarios against a baseline.
 
         Returns pre-calculated deltas for workforce metrics and events.
+        Raises ComparisonDataError if any requested scenario cannot be read;
+        no partial response or deltas are returned after a failed read.
         """
         if len(scenario_ids) < 2:
             logger.error("Need at least 2 scenarios to compare")
@@ -71,14 +90,9 @@ class ComparisonService:
 
         for scenario_id in scenario_ids:
             data = self._load_scenario_data(workspace_id, scenario_id)
-            if data:
-                scenario_data[scenario_id] = data
-            else:
-                logger.warning(f"Could not load data for scenario {scenario_id}")
-
-        if baseline_id not in scenario_data:
-            logger.error(f"Could not load baseline scenario {baseline_id}")
-            return None
+            if not data:
+                raise ComparisonDataError(scenario_id, "results unavailable")
+            scenario_data[scenario_id] = data
 
         baseline_data = scenario_data[baseline_id]
 
@@ -119,7 +133,7 @@ class ComparisonService:
             COUNT(DISTINCT CASE WHEN UPPER(employment_status) = 'TERMINATED' THEN employee_id END) as terminated"""
 
     @classmethod
-    def _query_workforce(cls, conn) -> List[Dict[str, Any]]:
+    def _query_workforce(cls, conn: duckdb.DuckDBPyConnection) -> List[Dict[str, Any]]:
         """Query workforce snapshots grouped by simulation year.
 
         avg_compensation is queried separately from headcount/active/
@@ -141,142 +155,138 @@ class ComparisonService:
             """
             ).fetchdf()
             return df.to_dict("records")
-        except Exception as exc:
+        except duckdb.BinderException as exc:
+            if 'Referenced column "prorated_annual_compensation" not found' not in str(
+                exc
+            ):
+                raise
             logger.warning(
                 "Workforce+compensation query failed (%s); retrying without "
                 "avg_compensation for older scenario databases.",
                 exc,
             )
-        try:
-            df = conn.execute(
-                f"""
-                SELECT{cls._WORKFORCE_COUNTS_CTE}
-                FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
-                GROUP BY simulation_year
-                ORDER BY simulation_year
-            """
-            ).fetchdf()
-            return df.to_dict("records")
-        except Exception as exc:
-            logger.error("Workforce comparison query failed: %s", exc)
-            return []
+        df = conn.execute(
+            f"""
+            SELECT{cls._WORKFORCE_COUNTS_CTE}
+            FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
+            GROUP BY simulation_year
+            ORDER BY simulation_year
+        """
+        ).fetchdf()
+        return [{**row, "avg_compensation": None} for row in df.to_dict("records")]
 
     @staticmethod
-    def _query_events(conn) -> List[Dict[str, Any]]:
+    def _query_events(conn: duckdb.DuckDBPyConnection) -> List[Dict[str, Any]]:
         """Query event counts grouped by simulation year and event type."""
-        try:
-            df = conn.execute(
-                f"""
-                SELECT
-                    simulation_year,
-                    event_type,
-                    COUNT(*) as count
-                FROM {TABLE_FCT_YEARLY_EVENTS}
-                GROUP BY simulation_year, event_type
-                ORDER BY simulation_year, event_type
-            """
-            ).fetchdf()
-            return df.to_dict("records")
-        except Exception:
-            return []
+        df = conn.execute(
+            f"""
+            SELECT
+                simulation_year,
+                event_type,
+                COUNT(*) as count
+            FROM {TABLE_FCT_YEARLY_EVENTS}
+            GROUP BY simulation_year, event_type
+            ORDER BY simulation_year, event_type
+        """
+        ).fetchdf()
+        return df.to_dict("records")
 
     @staticmethod
-    def _query_hires_by_year(conn) -> Dict[int, int]:
+    def _query_hires_by_year(conn: duckdb.DuckDBPyConnection) -> Dict[int, int]:
         """Query hire counts grouped by simulation year."""
-        try:
-            df = conn.execute(
-                f"""
-                SELECT
-                    simulation_year,
-                    COUNT(*) as hires
-                FROM {TABLE_FCT_YEARLY_EVENTS}
-                WHERE event_type = '{EVENT_TYPE_HIRE}'
-                GROUP BY simulation_year
-                ORDER BY simulation_year
-            """
-            ).fetchdf()
-            return {
-                row["simulation_year"]: row["hires"] for row in df.to_dict("records")
-            }
-        except Exception:
-            return {}
+        df = conn.execute(
+            f"""
+            SELECT
+                simulation_year,
+                COUNT(*) as hires
+            FROM {TABLE_FCT_YEARLY_EVENTS}
+            WHERE event_type = '{EVENT_TYPE_HIRE}'
+            GROUP BY simulation_year
+            ORDER BY simulation_year
+        """
+        ).fetchdf()
+        return {row["simulation_year"]: row["hires"] for row in df.to_dict("records")}
 
     @staticmethod
-    def _query_dc_plan(conn) -> List[Dict[str, Any]]:
+    def _query_dc_plan(conn: duckdb.DuckDBPyConnection) -> List[Dict[str, Any]]:
         """Query DC plan metrics grouped by simulation year."""
-        try:
-            df = conn.execute(
-                f"""
-                SELECT
-                    simulation_year,
-                    COALESCE(
-                        COUNT(CASE WHEN UPPER(employment_status) = 'ACTIVE'
-                                   AND is_enrolled_flag THEN 1 END) * 100.0
-                        / NULLIF(COUNT(CASE WHEN UPPER(employment_status) = 'ACTIVE'
-                                           THEN 1 END), 0),
-                        0
-                    ) AS participation_rate,
-                    AVG(CASE WHEN is_enrolled_flag
-                        THEN current_deferral_rate ELSE NULL END
-                    ) AS avg_deferral_rate,
-                    COALESCE(SUM(prorated_annual_contributions), 0)
-                        AS total_employee_contributions,
-                    {GROSS_MATCH_SQL}
-                        AS total_employer_match,
-                    {GROSS_CORE_SQL}
-                        AS total_employer_core,
-                    {GROSS_EMPLOYER_COST_SQL} AS total_employer_cost,
-                    {TOTAL_COMPENSATION_SQL}
-                        AS total_compensation,
-                    COUNT(CASE WHEN is_enrolled_flag THEN 1 END)
-                        AS participant_count
-                FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
-                GROUP BY simulation_year
-                ORDER BY simulation_year
-            """
-            ).fetchdf()
-            dc_plan = df.to_dict("records")
-            for row in dc_plan:
-                total_comp = row.get("total_compensation", 0) or 0
-                total_cost = row.get("total_employer_cost", 0) or 0
-                row["employer_cost_rate"] = (
-                    (total_cost / total_comp * 100) if total_comp > 0 else 0.0
-                )
-                avg_def = row.get("avg_deferral_rate")
-                if avg_def is None or (
-                    isinstance(avg_def, float) and avg_def != avg_def
-                ):
-                    row["avg_deferral_rate"] = 0.0
-            return dc_plan
-        except Exception:
-            return []
+        columns = {
+            row[0]
+            for row in conn.execute(
+                f"DESCRIBE {TABLE_FCT_WORKFORCE_SNAPSHOT}"
+            ).fetchall()
+        }
+        has_compensation = "prorated_annual_compensation" in columns
+        compensation_sql = TOTAL_COMPENSATION_SQL if has_compensation else "NULL"
+        df = conn.execute(
+            f"""
+            SELECT
+                simulation_year,
+                COALESCE(
+                    COUNT(CASE WHEN UPPER(employment_status) = 'ACTIVE'
+                               AND is_enrolled_flag THEN 1 END) * 100.0
+                    / NULLIF(COUNT(CASE WHEN UPPER(employment_status) = 'ACTIVE'
+                                       THEN 1 END), 0),
+                    0
+                ) AS participation_rate,
+                AVG(CASE WHEN is_enrolled_flag
+                    THEN current_deferral_rate ELSE NULL END
+                ) AS avg_deferral_rate,
+                COALESCE(SUM(prorated_annual_contributions), 0)
+                    AS total_employee_contributions,
+                {GROSS_MATCH_SQL}
+                    AS total_employer_match,
+                {GROSS_CORE_SQL}
+                    AS total_employer_core,
+                {GROSS_EMPLOYER_COST_SQL} AS total_employer_cost,
+                {compensation_sql}
+                    AS total_compensation,
+                COUNT(CASE WHEN is_enrolled_flag THEN 1 END)
+                    AS participant_count
+            FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
+            GROUP BY simulation_year
+            ORDER BY simulation_year
+        """
+        ).fetchdf()
+        dc_plan = df.to_dict("records")
+        for row in dc_plan:
+            total_comp = row.get("total_compensation", 0) or 0
+            total_cost = row.get("total_employer_cost", 0) or 0
+            row["employer_cost_rate"] = (
+                ((total_cost / total_comp * 100) if total_comp > 0 else 0.0)
+                if has_compensation
+                else None
+            )
+            avg_def = row.get("avg_deferral_rate")
+            if avg_def is None or (isinstance(avg_def, float) and avg_def != avg_def):
+                row["avg_deferral_rate"] = 0.0
+        return dc_plan
 
     def _load_scenario_data(
         self, workspace_id: str, scenario_id: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
         """Load simulation data for a scenario from its DuckDB database."""
         try:
-            import duckdb
-
             resolved = self.db_resolver.resolve(workspace_id, scenario_id)
-            if not resolved.exists:
-                return None
+            if resolved.path is None or not resolved.path.is_file():
+                raise ComparisonDataError(scenario_id, "database missing")
 
-            conn = duckdb.connect(str(resolved.path), read_only=True)
-
-            result = {
-                "workforce": self._query_workforce(conn),
-                "events": self._query_events(conn),
-                "hires_by_year": self._query_hires_by_year(conn),
-                "dc_plan": self._query_dc_plan(conn),
-            }
-
-            conn.close()
+            with duckdb.connect(str(resolved.path), read_only=True) as conn:
+                result = {
+                    "workforce": self._query_workforce(conn),
+                    "events": self._query_events(conn),
+                    "hires_by_year": self._query_hires_by_year(conn),
+                    "dc_plan": self._query_dc_plan(conn),
+                }
+            if not result["workforce"] or not result["dc_plan"]:
+                raise ComparisonDataError(scenario_id, "snapshot results empty")
             return result
 
-        except Exception as e:
-            logger.error(f"Failed to load scenario data: {e}")
-            return None
+        except (duckdb.Error, OSError) as exc:
+            logger.warning(
+                "Comparison read failed for scenario %s", scenario_id, exc_info=True
+            )
+            raise ComparisonDataError(scenario_id, "database read failed") from exc
 
     def _build_workforce_comparison(
         self,
@@ -338,7 +348,7 @@ class ComparisonService:
                 terminated=0,
                 new_hires=0,
                 growth_pct=0.0,
-                avg_compensation=0.0,
+                avg_compensation=0.0 if baseline_avg_compensation is not None else None,
             )
 
             # Calculate for each non-baseline scenario
@@ -381,7 +391,9 @@ class ComparisonService:
                     terminated=terminated - baseline_terminated,
                     new_hires=hires - baseline_hires,
                     growth_pct=growth - baseline_growth,
-                    avg_compensation=avg_compensation - baseline_avg_compensation,
+                    avg_compensation=_optional_delta(
+                        avg_compensation, baseline_avg_compensation
+                    ),
                 )
 
                 prev_headcounts[scenario_id] = headcount
@@ -521,7 +533,11 @@ class ComparisonService:
                 participant_count=int(baseline_row.get("participant_count", 0)),
             )
             values[baseline_id] = baseline_metrics
-            deltas[baseline_id] = DCPlanMetrics()  # All zeros
+            deltas[baseline_id] = DCPlanMetrics(
+                employer_cost_rate=0.0
+                if baseline_metrics.employer_cost_rate is not None
+                else None
+            )
 
             # Calculate for each non-baseline scenario
             for scenario_id, data in scenario_data.items():
@@ -567,8 +583,10 @@ class ComparisonService:
                     - baseline_metrics.total_employer_core,
                     total_employer_cost=scenario_metrics.total_employer_cost
                     - baseline_metrics.total_employer_cost,
-                    employer_cost_rate=scenario_metrics.employer_cost_rate
-                    - baseline_metrics.employer_cost_rate,
+                    employer_cost_rate=_optional_delta(
+                        scenario_metrics.employer_cost_rate,
+                        baseline_metrics.employer_cost_rate,
+                    ),
                     participant_count=scenario_metrics.participant_count
                     - baseline_metrics.participant_count,
                 )

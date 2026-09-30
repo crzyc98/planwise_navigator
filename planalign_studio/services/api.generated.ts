@@ -4944,10 +4944,9 @@ export interface components {
             avg_deferral_rate: number;
             /**
              * Employer Cost Rate
-             * @description Employer cost rate (%)
-             * @default 0
+             * @description Employer cost rate (%); null if compensation unavailable
              */
-            employer_cost_rate: number;
+            employer_cost_rate: number | null;
             /**
              * Participant Count
              * @description Number of enrolled employees
@@ -9760,10 +9759,9 @@ export interface components {
             active: number;
             /**
              * Avg Compensation
-             * @description Average prorated compensation for active employees
-             * @default 0
+             * @description Average prorated compensation for active employees; null if unavailable
              */
-            avg_compensation: number;
+            avg_compensation: number | null;
             /**
              * Growth Pct
              * @description Growth percentage
