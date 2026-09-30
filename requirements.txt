@@ -24,6 +24,11 @@ matplotlib>=3.8.0
 
 # Excel export dependencies
 openpyxl>=3.1.0
+# openpyxl uses lxml when present: ~4x faster large-sheet writes.
+lxml>=5.0.0
+# Tableau .hyper export. Pinned: releases after 0.0.26479 dropped macOS
+# wheels; no Linux aarch64 wheels exist at all.
+tableauhyperapi==0.0.26479; platform_machine != 'aarch64'
 
 # Corporate network and HTTP client dependencies
 requests>=2.28.0

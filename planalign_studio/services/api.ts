@@ -509,6 +509,22 @@ export async function downloadResultsExport(
   saveBrowserDownload(await response.blob(), filename);
 }
 
+export type ComparisonExportFormat = 'xlsx' | 'hyper';
+
+export async function downloadComparisonExport(
+  workspaceId: string,
+  scenarioIds: string[],
+  format: ComparisonExportFormat,
+): Promise<void> {
+  const params = new URLSearchParams({ scenarios: scenarioIds.join(','), format });
+  const response = await fetchWithAuth(
+    `${API_BASE}/api/workspaces/${encodeURIComponent(workspaceId)}/analytics/compare/export?${params}`,
+  );
+  if (!response.ok) await handleResponse<never>(response);
+  const filename = filenameFromContentDisposition(response, `scenario_comparison.${format}`);
+  saveBrowserDownload(await response.blob(), filename);
+}
+
 export async function downloadScenarioReport(
   workspaceId: string,
   scenarioId: string,

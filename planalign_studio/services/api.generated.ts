@@ -1207,6 +1207,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/analytics/compare/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Scenario Comparison
+         * @description Download every selected scenario's workforce snapshot plus the census.
+         */
+        get: operations["export_scenario_comparison_api_workspaces__workspace_id__analytics_compare_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workspaces/{workspace_id}/analytics/dc-plan/compare": {
         parameters: {
             query?: never;
@@ -11835,6 +11855,49 @@ export interface operations {
             /** @description Validation Error */
             422: {
                 headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_scenario_comparison_api_workspaces__workspace_id__analytics_compare_export_get: {
+        parameters: {
+            query: {
+                /** @description Comma-separated scenario IDs (max 6) */
+                scenarios: string;
+                /** @description xlsx (Excel) or hyper (Tableau) */
+                format?: "xlsx" | "hyper";
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Workforce snapshot and census for the selected scenarios. */
+            200: {
+                headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": unknown;
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
                     [name: string]: unknown;
                 };
                 content: {
