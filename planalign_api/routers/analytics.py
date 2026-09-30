@@ -19,7 +19,7 @@ from ..models.analytics import (
 )
 from ..models.employer_cost import ForfeiturePolicy
 from ..models.vesting import VestingScheduleConfig, VestingScheduleType
-from ..models.winners_losers import WinnersLosersResponse
+from ..models.winners_losers import EmployeeImpactPage, WinnersLosersResponse
 from ..services.analytics_service import AnalyticsService
 from ..services.comparison_export_service import (
     ComparisonExportError,
@@ -30,6 +30,7 @@ from ..services.comparison_export_service import (
 )
 from ..services.vesting_service import SCHEDULE_INFO
 from ..services.winners_losers_service import (
+    ComparisonEvidenceChangedError,
     IncompatibleSimulationYearsError,
     WinnersLosersService,
 )
@@ -297,6 +298,7 @@ def _build_export(
 _EXPORT_MEDIA_TYPES = {
     "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "hyper": "application/octet-stream",
+    "parquet": "application/zip",
 }
 
 
@@ -315,7 +317,10 @@ def export_scenario_comparison(
     scenarios: str = Query(
         ..., description=f"Comma-separated scenario IDs (max {MAX_SCENARIO_COMPARISON})"
     ),
-    format: ExportFormat = Query("xlsx", description="xlsx (Excel) or hyper (Tableau)"),
+    format: ExportFormat = Query(
+        "xlsx",
+        description="xlsx (Excel), hyper (Tableau), or parquet (ZIP of datasets)",
+    ),
     storage: WorkspaceStorage = Depends(get_storage),
     export_service: ComparisonExportService = Depends(get_comparison_export_service),
 ) -> FileResponse:
@@ -347,8 +352,9 @@ def export_scenario_comparison(
         raise
 
     date_str = datetime.now().strftime("%Y%m%d")
+    extension = "zip" if format == "parquet" else format
     filename = (
-        f"{workspace.name.replace(' ', '_')}_scenario_comparison_{date_str}.{format}"
+        f"{workspace.name.replace(' ', '_')}_scenario_comparison_{date_str}.{extension}"
     )
     return FileResponse(
         path=path,
@@ -449,6 +455,25 @@ def get_winners_losers(
     neutral based on total employer contributions (match + core).
     Uses the latest shared snapshot year; disjoint horizons return HTTP 422.
     """
+    _validate_comparison_scenarios(storage, workspace_id, plan_a, plan_b)
+    try:
+        result = service.analyze(workspace_id, plan_a, plan_b)
+    except IncompatibleSimulationYearsError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if not result:
+        raise HTTPException(
+            status_code=500, detail="Failed to generate winners/losers analysis"
+        )
+    return result
+
+
+def _validate_comparison_scenarios(
+    storage: WorkspaceStorage,
+    workspace_id: str,
+    plan_a: str,
+    plan_b: str,
+) -> None:
+    """Use identical result availability rules for summary and employee detail."""
     # Validate workspace
     workspace = storage.get_workspace(workspace_id)
     if not workspace:
@@ -471,17 +496,50 @@ def get_winners_losers(
                 detail=f"{label} scenario {sid} has not completed successfully",
             )
 
-    try:
-        result = service.analyze(workspace_id, plan_a, plan_b)
-    except IncompatibleSimulationYearsError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        ) from exc
-    if not result:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to generate winners/losers analysis",
-        )
 
-    return result
+@router.get(
+    "/{workspace_id}/analytics/winners-losers/employees",
+    response_model=EmployeeImpactPage,
+    responses={409: {"description": "Selected run or comparison year changed"}},
+)
+def get_winners_losers_employees(
+    workspace_id: str,
+    plan_a: str = Query(...),
+    plan_b: str = Query(...),
+    comparison_year: int = Query(
+        ..., description="Year returned by the comparison summary"
+    ),
+    plan_a_run_id: str
+    | None = Query(
+        None, description="Run ID returned by the summary; omit for legacy results"
+    ),
+    plan_b_run_id: str
+    | None = Query(
+        None, description="Run ID returned by the summary; omit for legacy results"
+    ),
+    age_band: str | None = Query(None),
+    tenure_band: str | None = Query(None),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(25, ge=1, le=100),
+    storage: WorkspaceStorage = Depends(get_storage),
+    service: WinnersLosersService = Depends(get_winners_losers_service),
+) -> EmployeeImpactPage:
+    """Page compared employees by band/cell; changed evidence returns HTTP 409."""
+    _validate_comparison_scenarios(storage, workspace_id, plan_a, plan_b)
+    try:
+        return service.employee_impacts(
+            workspace_id,
+            plan_a,
+            plan_b,
+            comparison_year,
+            plan_a_run_id,
+            plan_b_run_id,
+            age_band,
+            tenure_band,
+            offset,
+            limit,
+        )
+    except ComparisonEvidenceChangedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except IncompatibleSimulationYearsError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc

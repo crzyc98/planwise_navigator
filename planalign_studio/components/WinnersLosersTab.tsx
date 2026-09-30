@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useOutletContext } from 'react-router-dom';
 import {
   BarChart, Bar,
@@ -10,6 +10,9 @@ import {
 } from 'lucide-react';
 import { LayoutContextType } from './Layout';
 import { useChartTheme } from '../hooks/useChartTheme';
+import WinnersLosersDetails, { BandImpactTable, ImpactFilters, impactCurrency } from './WinnersLosersDetails';
+import { hasComparisonResult, restoreComparisonSelection } from './comparisonSelection';
+import SelectedComparisonRuns from './SelectedComparisonRuns';
 import {
   listScenarios,
   getWinnersLosersComparison,
@@ -98,6 +101,8 @@ export default function WinnersLosersTab() {
   const [results, setResults] = useState<WinnersLosersResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [detailFilters, setDetailFilters] = useState<ImpactFilters | null>(null);
+  const comparisonRequest = useRef(0);
 
   // Load scenarios when workspace changes
   useEffect(() => {
@@ -113,11 +118,15 @@ export default function WinnersLosersTab() {
 
   // Fetch comparison when plans change
   useEffect(() => {
+    comparisonRequest.current += 1;
+    setResults(null);
+    setDetailFilters(null);
     if (activeWorkspace?.id && planA && planB) {
       fetchComparison();
     } else {
       setResults(null);
     }
+    return () => { comparisonRequest.current += 1; };
   }, [planA, planB, activeWorkspace?.id]);
 
   const fetchScenarios = async (workspaceId: string) => {
@@ -125,28 +134,14 @@ export default function WinnersLosersTab() {
     try {
       const data = await listScenarios(workspaceId);
       setScenarios(data);
-      const completed = data.filter(s => s.status === 'completed');
 
       // Restore from URL params or auto-select defaults
       const urlPlanA = searchParams.get('plan_a');
       const urlPlanB = searchParams.get('plan_b');
 
-      if (urlPlanA && completed.find(s => s.id === urlPlanA)) {
-        setPlanA(urlPlanA);
-      } else if (completed.length > 0) {
-        // Default Plan A: baseline scenario or first completed
-        const baseline = completed.find(s => s.name.toLowerCase().includes('baseline'));
-        setPlanA(baseline?.id || completed[0].id);
-      }
-
-      if (urlPlanB && completed.find(s => s.id === urlPlanB)) {
-        setPlanB(urlPlanB);
-      } else if (completed.length > 1) {
-        // Default Plan B: first completed that isn't Plan A
-        const selectedA = planA || (completed.find(s => s.name.toLowerCase().includes('baseline'))?.id || completed[0].id);
-        const other = completed.find(s => s.id !== selectedA);
-        setPlanB(other?.id || '');
-      }
+      const [selectedA, selectedB] = restoreComparisonSelection(data, urlPlanA, urlPlanB);
+      setPlanA(selectedA);
+      setPlanB(selectedB);
     } catch (err) {
       console.error('Failed to fetch scenarios:', err);
       setScenarios([]);
@@ -159,21 +154,25 @@ export default function WinnersLosersTab() {
     if (!activeWorkspace?.id || !planA || !planB) return;
     setLoading(true);
     setError(null);
+    setDetailFilters(null);
+    const requestId = ++comparisonRequest.current;
     try {
       const data = await getWinnersLosersComparison(activeWorkspace.id, planA, planB);
+      if (requestId !== comparisonRequest.current) return;
       setResults(data);
       // Persist selections in URL
       setSearchParams({ plan_a: planA, plan_b: planB }, { replace: true });
     } catch (err: any) {
+      if (requestId !== comparisonRequest.current) return;
       console.error('Failed to fetch comparison:', err);
       setError(err.message || 'Failed to load comparison');
       setResults(null);
     } finally {
-      setLoading(false);
+      if (requestId === comparisonRequest.current) setLoading(false);
     }
   };
 
-  const completedScenarios = scenarios.filter(s => s.status === 'completed');
+  const completedScenarios = scenarios.filter(hasComparisonResult);
 
   // Band chart data transform
   const toBandChartData = (bands: BandGroupResult[]) =>
@@ -255,9 +254,10 @@ export default function WinnersLosersTab() {
       </div>
 
       {/* Content */}
+      <SelectedComparisonRuns scenarios={scenarios.filter(s => s.id === planA || s.id === planB)} />
       {completedScenarios.length < 2 ? (
         <EmptyState
-          message="At least two completed scenarios are required to compare winners and losers."
+          message="At least two scenarios with successful results are required to compare winners and losers."
           onRefresh={() => activeWorkspace?.id && fetchScenarios(activeWorkspace.id)}
         />
       ) : loading ? (
@@ -268,7 +268,7 @@ export default function WinnersLosersTab() {
         <ErrorState message={error} onRetry={fetchComparison} />
       ) : !results ? (
         <EmptyState
-          message="Select two completed scenarios above to compare winners and losers."
+          message="Select two scenarios with successful results above to compare winners and losers."
           onRefresh={() => activeWorkspace?.id && fetchScenarios(activeWorkspace.id)}
         />
       ) : (
@@ -278,7 +278,24 @@ export default function WinnersLosersTab() {
             {(results.final_year !== results.plan_a_final_year || results.final_year !== results.plan_b_final_year) && (
               <span> Using the latest common year; Plan A ends in {results.plan_a_final_year} and Plan B ends in {results.plan_b_final_year}.</span>
             )}
+            <p className="mt-2">Employer contributions (match + core), Plan B minus Plan A, for active employees present in both plans. Bands use Plan A demographics. Amounts are rounded to cents per employee; decreases are signed negative amounts.</p>
+            <p className="mt-2">Plan A run: {results.plan_a_run_id ?? 'Legacy result (run ID unavailable)'} · Plan B run: {results.plan_b_run_id ?? 'Legacy result (run ID unavailable)'}</p>
           </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <KPICard title="Total Increases" value={impactCurrency(results.total_increases)} icon={TrendingUp} color="green" />
+            <KPICard title="Total Decreases" value={impactCurrency(results.total_decreases)} icon={TrendingDown} color="red" />
+            <KPICard title="Net Contribution Change" value={impactCurrency(results.net_contribution_change)} icon={TrendingUp} color="blue" />
+            <KPICard title="Average Change per Employee" value={impactCurrency(results.average_change)} icon={Users} color="gray" />
+          </div>
+          {results.total_compared === 0 && <p className="text-ink-muted">No active employees are present in both plans for this year. Dollar impact and average change are $0.00.</p>}
+          <button className="text-fidelity-green underline" onClick={() => setDetailFilters({})}>View all compared employees</button>
+          {detailFilters && <WinnersLosersDetails
+            key={JSON.stringify(detailFilters)}
+            workspaceId={activeWorkspace.id} comparison={results} filters={detailFilters}
+            onClose={() => setDetailFilters(null)}
+            onRefresh={fetchComparison}
+          />}
           {/* Summary KPI Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <KPICard title="Total Compared" value={results.total_compared} icon={Users} color="blue" />
@@ -290,7 +307,7 @@ export default function WinnersLosersTab() {
           {/* Excluded employees note */}
           {results.total_excluded > 0 && (
             <div className="bg-warning-surface border border-warning-border rounded-lg p-3 text-sm text-warning-ink">
-              {results.total_excluded} employee(s) were excluded from comparison because they exist in only one scenario.
+              {results.total_excluded} employee(s) were excluded because they are active in only one plan in this year. Excluded employees do not contribute to dollar totals or averages.
             </div>
           )}
 
@@ -323,6 +340,7 @@ export default function WinnersLosersTab() {
                   </div>
                 )}
               </div>
+              <BandImpactTable bands={results.age_band_results} onSelect={label => setDetailFilters({ age_band: label })} />
             </div>
 
             {/* Tenure Band Chart */}
@@ -352,6 +370,7 @@ export default function WinnersLosersTab() {
                   </div>
                 )}
               </div>
+              <BandImpactTable bands={results.tenure_band_results} onSelect={label => setDetailFilters({ tenure_band: label })} />
             </div>
           </div>
 
@@ -384,13 +403,17 @@ export default function WinnersLosersTab() {
                         const cell = getHeatmapCell(ab, tb);
                         const isEmpty = !cell || cell.total === 0;
                         return (
-                          <div
+                          <button
                             key={`${ab}-${tb}`}
-                            className={`relative group rounded-md p-3 text-center cursor-default transition-colors ${cell ? heatmapColor(cell) : 'bg-surface-subtle'}`}
+                            disabled={isEmpty}
+                            aria-label={`View employees: age ${ab}, tenure ${tb}`}
+                            onClick={() => setDetailFilters({ age_band: ab, tenure_band: tb })}
+                            className={`relative group rounded-md p-3 text-center transition-colors focus-visible:outline-2 focus-visible:outline-fidelity-green ${cell ? heatmapColor(cell) : 'bg-surface-subtle'}`}
                           >
                             <span className="text-sm font-semibold">
                               {isEmpty ? '—' : cell!.total}
                             </span>
+                            {!isEmpty && <span className="block text-xs mt-1">{impactCurrency(cell!.net_contribution_change)}</span>}
                             {/* Tooltip */}
                             <div className="absolute z-10 bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block">
                               <div className="bg-surface-inverse text-ink-inverse text-xs rounded-lg px-3 py-2 whitespace-nowrap shadow-lg">
@@ -398,12 +421,14 @@ export default function WinnersLosersTab() {
                                   'No employees in this group'
                                 ) : (
                                   <>
-                                    {cell!.winners} Winners / {cell!.losers} Losers ({cell!.total} total)
+                                    {cell!.winners} Winners / {cell!.losers} Losers / {cell!.neutral} Neutral ({cell!.total} total)<br />
+                                    Increases {impactCurrency(cell!.total_increases)} / Decreases {impactCurrency(cell!.total_decreases)}<br />
+                                    Net {impactCurrency(cell!.net_contribution_change)} / Average {impactCurrency(cell!.average_change)}
                                   </>
                                 )}
                               </div>
                             </div>
-                          </div>
+                          </button>
                         );
                       })}
                     </React.Fragment>

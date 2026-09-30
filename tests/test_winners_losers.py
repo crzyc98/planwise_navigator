@@ -10,6 +10,7 @@ from unittest.mock import Mock
 from planalign_api.routers import analytics
 from planalign_api.services.database_path_resolver import ResolvedDatabasePath
 from planalign_api.services.winners_losers_service import (
+    ComparisonEvidenceChangedError,
     IncompatibleSimulationYearsError,
     WinnersLosersService,
 )
@@ -274,3 +275,222 @@ class TestAggregateResults:
         heatmap_total = sum(c.total for c in heatmap)
 
         assert age_total == tenure_total == heatmap_total == 4
+
+
+@pytest.fixture
+def dollar_service(scenario_service):
+    service = scenario_service([2025, 2026], [2025, 2026])
+    rows = {
+        "a": [
+            ("E1", "25-34", "< 2", 100.005),
+            ("E2", "25-34", "2-4", 1000),
+            ("E3", None, None, 300),
+            ("ONLY_A", "35-44", "< 2", 9000),
+        ],
+        "b": [
+            ("E1", "25-34", "< 2", 5100.005),
+            ("E2", "25-34", "2-4", 999),
+            ("E3", None, None, 300.004),
+            ("ONLY_B", "35-44", "< 2", 8000),
+        ],
+    }
+    for scenario, employees in rows.items():
+        resolved = service.db_resolver.resolve("ws", scenario)
+        with duckdb.connect(str(resolved.path)) as conn:
+            conn.execute(
+                "DELETE FROM fct_workforce_snapshot WHERE simulation_year = 2026"
+            )
+            conn.executemany(
+                "INSERT INTO fct_workforce_snapshot VALUES (?, 2026, 'active', ?, ?, ?, 0)",
+                employees,
+            )
+            conn.execute(
+                "INSERT INTO fct_workforce_snapshot VALUES ('INACTIVE', 2026, 'terminated', '25-34', '< 2', 99999, 0)"
+            )
+            if scenario == "a":
+                conn.execute(
+                    "UPDATE fct_workforce_snapshot SET employer_core_amount = employer_match_amount, employer_match_amount = NULL WHERE employee_id = 'E1'"
+                )
+            else:
+                conn.execute(
+                    "UPDATE fct_workforce_snapshot SET employer_core_amount = NULL WHERE employee_id = 'E1'"
+                )
+    return service
+
+
+def test_dollar_totals_reconcile_and_reverse(dollar_service):
+    result = dollar_service.analyze("ws", "a", "b")
+    page = dollar_service.employee_impacts("ws", "a", "b", 2026)
+    assert result.total_compared == 3
+    assert result.total_excluded == 2
+    assert (result.total_winners, result.total_losers, result.total_neutral) == (
+        1,
+        1,
+        1,
+    )
+    assert result.total_increases == 5000
+    assert result.total_decreases == -1
+    assert result.net_contribution_change == 4999
+    assert result.average_change == 1666.33
+    assert page.employees[0].plan_a_amount == 100.01
+    assert page.employees[0].plan_b_amount == 5100.01
+    assert (
+        sum(employee.delta for employee in page.employees)
+        == result.net_contribution_change
+    )
+    for bands in (result.age_band_results, result.tenure_band_results, result.heatmap):
+        assert sum(band.total for band in bands) == result.total_compared
+        for field in ("total_increases", "total_decreases", "net_contribution_change"):
+            assert sum(getattr(band, field) for band in bands) == getattr(result, field)
+    reverse = dollar_service.analyze("ws", "b", "a")
+    assert reverse.total_winners == result.total_losers
+    assert reverse.total_losers == result.total_winners
+    assert reverse.total_neutral == result.total_neutral
+    assert reverse.net_contribution_change == -result.net_contribution_change
+    assert reverse.total_increases == -result.total_decreases
+    assert reverse.total_decreases == -result.total_increases
+    assert reverse.average_change == -result.average_change
+
+
+def test_detail_filters_pagination_and_contract(dollar_service, monkeypatch):
+    client = _api_client(dollar_service, monkeypatch)
+    params = {
+        "plan_a": "a",
+        "plan_b": "b",
+        "comparison_year": 2026,
+        "age_band": "25-34",
+        "limit": 1,
+    }
+    first = client.get("/ws/analytics/winners-losers/employees", params=params)
+    assert first.status_code == 200
+    body = first.json()
+    assert body["total"] == 2
+    assert body["net_contribution_change"] == 4999
+    assert body["final_year"] == 2026
+    assert body["plan_a_run_id"] is body["plan_b_run_id"] is None
+    assert body["employees"][0]["employee_id"] == "E1"
+    assert set(body["employees"][0]) == {
+        "employee_id",
+        "age_band",
+        "tenure_band",
+        "plan_a_amount",
+        "plan_b_amount",
+        "delta",
+        "status",
+    }
+    params["offset"] = 1
+    second = client.get("/ws/analytics/winners-losers/employees", params=params).json()
+    assert second["employees"][0]["employee_id"] == "E2"
+    assert second["net_contribution_change"] == body["net_contribution_change"]
+    params.update(offset=0, tenure_band="2-4")
+    cell = client.get("/ws/analytics/winners-losers/employees", params=params).json()
+    assert cell["total"] == 1
+    assert cell["total_decreases"] == -1
+    params.update(age_band="Unknown", tenure_band="Unknown")
+    unknown = client.get("/ws/analytics/winners-losers/employees", params=params).json()
+    assert unknown["total"] == 1
+    assert unknown["employees"][0]["status"] == "neutral"
+    params["age_band"] = "No such band"
+    empty = client.get("/ws/analytics/winners-losers/employees", params=params).json()
+    assert empty["total"] == 0
+    assert empty["average_change"] == empty["net_contribution_change"] == 0
+    assert empty["employees"] == []
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [{"limit": 101}, {"limit": 0}, {"offset": -1}, {"comparison_year": "bad"}],
+)
+def test_detail_query_validation(scenario_service, monkeypatch, overrides):
+    service = scenario_service([2026], [2026])
+    params = {"plan_a": "a", "plan_b": "b", "comparison_year": 2026, **overrides}
+    assert (
+        _api_client(service, monkeypatch)
+        .get("/ws/analytics/winners-losers/employees", params=params)
+        .status_code
+        == 422
+    )
+
+
+def test_detail_pins_selected_run_and_year(scenario_service, monkeypatch):
+    service = scenario_service([2026], [2026])
+    paths = {
+        sid: service.db_resolver.resolve("ws", sid).model_copy(
+            update={"run_id": f"run-{sid}"}
+        )
+        for sid in ("a", "b")
+    }
+    service.db_resolver.resolve.side_effect = lambda ws, sid: paths[sid]
+    summary = service.analyze("ws", "a", "b")
+    assert summary.plan_a_run_id == "run-a"
+    assert summary.plan_b_run_id == "run-b"
+    page = service.employee_impacts("ws", "a", "b", 2026, "run-a", "run-b")
+    assert page.plan_a_run_id == "run-a"
+    paths["b"] = paths["b"].model_copy(update={"run_id": "new-b"})
+    with pytest.raises(ComparisonEvidenceChangedError, match="Selected runs changed"):
+        service.employee_impacts("ws", "a", "b", 2026, "run-a", "run-b")
+    client = _api_client(service, monkeypatch)
+    assert (
+        client.get(
+            "/ws/analytics/winners-losers/employees",
+            params={
+                "plan_a": "a",
+                "plan_b": "b",
+                "comparison_year": 2026,
+                "plan_a_run_id": "run-a",
+                "plan_b_run_id": "run-b",
+            },
+        ).status_code
+        == 409
+    )
+    assert (
+        client.get(
+            "/ws/analytics/winners-losers/employees",
+            params={
+                "plan_a": "a",
+                "plan_b": "b",
+                "comparison_year": 2025,
+                "plan_a_run_id": "run-a",
+                "plan_b_run_id": "new-b",
+            },
+        ).status_code
+        == 409
+    )
+
+
+@pytest.mark.parametrize(
+    "empty_scenarios,compared,excluded",
+    [((), 0, 2), (("a",), 0, 1), (("a", "b"), 0, 0)],
+)
+def test_empty_and_disjoint_populations(
+    scenario_service, empty_scenarios, compared, excluded
+):
+    service = scenario_service([2026], [2026])
+    for sid in ("a", "b"):
+        with duckdb.connect(str(service.db_resolver.resolve("ws", sid).path)) as conn:
+            if sid in empty_scenarios:
+                conn.execute(
+                    "UPDATE fct_workforce_snapshot SET employment_status = 'terminated'"
+                )
+            else:
+                conn.execute("UPDATE fct_workforce_snapshot SET employee_id = ?", [sid])
+    result = service.analyze("ws", "a", "b")
+    assert result.total_compared == compared
+    assert result.total_excluded == excluded
+    assert (
+        result.total_increases
+        == result.total_decreases
+        == result.net_contribution_change
+        == result.average_change
+        == 0
+    )
+    assert service.employee_impacts("ws", "a", "b", 2026).employees == []
+
+
+def test_duplicate_employee_grain_fails(scenario_service):
+    service = scenario_service([2026], [2026])
+    with duckdb.connect(str(service.db_resolver.resolve("ws", "a").path)) as conn:
+        conn.execute(
+            "INSERT INTO fct_workforce_snapshot SELECT * FROM fct_workforce_snapshot"
+        )
+    assert service.analyze("ws", "a", "b") is None

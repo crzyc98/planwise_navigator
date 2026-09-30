@@ -124,6 +124,7 @@ SCENARIO_READ_ROUTES = {
     "export_scenario_comparison",
     "compare_grandfathered_cost",
     "get_winners_losers",
+    "get_winners_losers_employees",
     "get_vesting_years",
     "project_vesting_forfeitures",
     "get_ndt_available_years",
@@ -150,7 +151,7 @@ def _scenario_ids(request: Request) -> list[str]:
     )
     if direct:
         values.append(direct)
-    for name in ("scenario_a", "scenario_b", "baseline"):
+    for name in ("scenario_a", "scenario_b", "baseline", "plan_a", "plan_b"):
         value = request.query_params.get(name)
         if value:
             values.append(value)

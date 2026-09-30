@@ -10,7 +10,7 @@ from ..models.comparison import (
 )
 from ..storage.workspace_storage import WorkspaceStorage
 from ..models.scenario import Scenario
-from ..services.comparison_service import ComparisonService
+from ..services.comparison_service import ComparisonDataError, ComparisonService
 from ..services.config_diff_service import ConfigDiffService
 from ..services.scenario_read_warning import has_selected_result
 
@@ -139,9 +139,15 @@ def compare_scenarios(
     }
 
     # Generate comparison
-    comparison = comparison_service.compare_scenarios(
-        workspace_id, scenario_ids, baseline
-    )
+    try:
+        comparison = comparison_service.compare_scenarios(
+            workspace_id, scenario_ids, baseline
+        )
+    except ComparisonDataError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"scenario_id": exc.scenario_id, "reason": exc.reason},
+        ) from exc
 
     if not comparison:
         raise HTTPException(

@@ -29,6 +29,7 @@ import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 import { useChartTheme } from '../hooks/useChartTheme';
 import { PlanDesignModal, formatMatchMode } from './PlanDesignModal';
 import { LayoutContextType } from './Layout';
+import SelectedComparisonRuns from './SelectedComparisonRuns';
 import {
   listScenarios,
   compareDCPlanAnalytics,
@@ -370,6 +371,12 @@ const EXPORT_OPTIONS = [
     title: 'Download workforce snapshots and census for the selected scenarios (.hyper)',
     Icon: Database,
   },
+  {
+    format: 'parquet',
+    label: 'Parquet',
+    title: 'Download workforce snapshots, census, and metadata as Parquet files (.zip)',
+    Icon: Database,
+  },
 ] as const satisfies ReadonlyArray<{
   format: ComparisonExportFormat;
   label: string;
@@ -439,7 +446,7 @@ export default function ScenarioCostComparison() {
   // Derived Data: Completed Scenarios
   // -------------------------------------------------------------------------
   const completedScenarios = useMemo(() =>
-    scenarios.filter(s => s.status === 'completed'),
+    scenarios.filter(s => s.has_selected_result === true),
     [scenarios]
   );
 
@@ -767,13 +774,13 @@ export default function ScenarioCostComparison() {
       const data = await listScenarios(workspaceId);
       setScenarios(data);
 
-      const completed = data.filter(s => s.status === 'completed');
+      const completed = data.filter(s => s.has_selected_result === true);
       const completedIds = new Set(completed.map(s => s.id));
 
       // Try to restore saved preferences
       const savedPrefs = loadComparisonPrefs(workspaceId);
       if (savedPrefs) {
-        // Filter to only include scenarios that still exist and are completed
+        // Keep scenarios that still have selected successful results.
         const validSelectedIds = savedPrefs.selectedIds.filter(id => completedIds.has(id));
         const validAnchorId = completedIds.has(savedPrefs.anchorId) ? savedPrefs.anchorId : '';
         // FR-008: an unrecognized/corrupted stored cohort value falls back to 'all'
@@ -825,7 +832,7 @@ export default function ScenarioCostComparison() {
           setSelectedScenarioIds([completed[0].id, completed[1].id]);
           setAnchorScenarioId(completed[0].id);
         } else {
-          // Only one completed scenario
+          // Only one scenario has successful results.
           setSelectedScenarioIds([completed[0].id]);
           setAnchorScenarioId(completed[0].id);
         }
@@ -1284,7 +1291,7 @@ export default function ScenarioCostComparison() {
           ) : filteredScenarios.length === 0 ? (
             <div className="text-center py-8 text-ink-subtle text-xs">
               {completedScenarios.length === 0
-                ? 'No completed scenarios in this workspace'
+                ? 'No successful results in this workspace'
                 : 'No scenarios match your search'
               }
             </div>
@@ -1441,6 +1448,7 @@ export default function ScenarioCostComparison() {
 
       {/* ===== Main Content Area ===== */}
       <div className="flex-1 space-y-6 overflow-y-auto pr-2 pb-8">
+        <SelectedComparisonRuns scenarios={scenarios.filter(s => selectedScenarioIds.includes(s.id))} />
         {/* Error State */}
         {error && <ErrorState message={error} onRetry={fetchComparison} />}
 
@@ -1457,7 +1465,7 @@ export default function ScenarioCostComparison() {
         {/* Single Scenario Warning */}
         {!loading && !error && selectedScenarioIds.length === 1 && completedScenarios.length === 1 && (
           <EmptyState
-            message="Only one completed scenario exists. Run more simulations to enable comparison."
+            message="Only one scenario has successful results. Run more simulations to enable comparison."
           />
         )}
 

@@ -1528,6 +1528,11 @@
       "BandGroupResult": {
         "description": "Aggregated winner/loser/neutral counts for a single band.",
         "properties": {
+          "average_change": {
+            "description": "Net change per compared employee, or zero",
+            "title": "Average Change",
+            "type": "number"
+          },
           "band_label": {
             "description": "Age band or tenure band label",
             "title": "Band Label",
@@ -1537,6 +1542,11 @@
             "description": "Count of losers in this band",
             "title": "Losers",
             "type": "integer"
+          },
+          "net_contribution_change": {
+            "description": "Increases plus signed decreases",
+            "title": "Net Contribution Change",
+            "type": "number"
           },
           "neutral": {
             "description": "Count of neutral in this band",
@@ -1548,6 +1558,16 @@
             "title": "Total",
             "type": "integer"
           },
+          "total_decreases": {
+            "description": "Sum of negative employee deltas (signed)",
+            "title": "Total Decreases",
+            "type": "number"
+          },
+          "total_increases": {
+            "description": "Sum of positive employee deltas",
+            "title": "Total Increases",
+            "type": "number"
+          },
           "winners": {
             "description": "Count of winners in this band",
             "title": "Winners",
@@ -1555,6 +1575,10 @@
           }
         },
         "required": [
+          "total_increases",
+          "total_decreases",
+          "net_contribution_change",
+          "average_change",
           "band_label",
           "winners",
           "losers",
@@ -4947,10 +4971,16 @@
             "type": "number"
           },
           "employer_cost_rate": {
-            "default": 0.0,
-            "description": "Employer cost rate (%)",
-            "title": "Employer Cost Rate",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Employer cost rate (%); null if compensation unavailable",
+            "title": "Employer Cost Rate"
           },
           "participant_count": {
             "default": 0,
@@ -5615,6 +5645,179 @@
           "employee_hire_date"
         ],
         "title": "EmployeeIdentity",
+        "type": "object"
+      },
+      "EmployeeImpact": {
+        "description": "Read-only contribution detail without names or SSNs.",
+        "properties": {
+          "age_band": {
+            "title": "Age Band",
+            "type": "string"
+          },
+          "delta": {
+            "title": "Delta",
+            "type": "number"
+          },
+          "employee_id": {
+            "title": "Employee Id",
+            "type": "string"
+          },
+          "plan_a_amount": {
+            "title": "Plan A Amount",
+            "type": "number"
+          },
+          "plan_b_amount": {
+            "title": "Plan B Amount",
+            "type": "number"
+          },
+          "status": {
+            "enum": [
+              "winner",
+              "loser",
+              "neutral"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "tenure_band": {
+            "title": "Tenure Band",
+            "type": "string"
+          }
+        },
+        "required": [
+          "employee_id",
+          "age_band",
+          "tenure_band",
+          "plan_a_amount",
+          "plan_b_amount",
+          "delta",
+          "status"
+        ],
+        "title": "EmployeeImpact",
+        "type": "object"
+      },
+      "EmployeeImpactPage": {
+        "description": "A stable employee-ID-ordered page and totals for the entire filtered group.",
+        "properties": {
+          "age_band": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Band"
+          },
+          "average_change": {
+            "description": "Net change per compared employee, or zero",
+            "title": "Average Change",
+            "type": "number"
+          },
+          "employees": {
+            "items": {
+              "$ref": "#/components/schemas/EmployeeImpact"
+            },
+            "title": "Employees",
+            "type": "array"
+          },
+          "final_year": {
+            "description": "Latest simulation year present in both snapshots",
+            "title": "Final Year",
+            "type": "integer"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "net_contribution_change": {
+            "description": "Increases plus signed decreases",
+            "title": "Net Contribution Change",
+            "type": "number"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "plan_a_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Selected Plan A run ID; null for legacy results",
+            "title": "Plan A Run Id"
+          },
+          "plan_a_scenario_id": {
+            "description": "Plan A scenario ID",
+            "title": "Plan A Scenario Id",
+            "type": "string"
+          },
+          "plan_b_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Selected Plan B run ID; null for legacy results",
+            "title": "Plan B Run Id"
+          },
+          "plan_b_scenario_id": {
+            "description": "Plan B scenario ID",
+            "title": "Plan B Scenario Id",
+            "type": "string"
+          },
+          "tenure_band": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tenure Band"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "total_decreases": {
+            "description": "Sum of negative employee deltas (signed)",
+            "title": "Total Decreases",
+            "type": "number"
+          },
+          "total_increases": {
+            "description": "Sum of positive employee deltas",
+            "title": "Total Increases",
+            "type": "number"
+          }
+        },
+        "required": [
+          "total_increases",
+          "total_decreases",
+          "net_contribution_change",
+          "average_change",
+          "plan_a_scenario_id",
+          "plan_b_scenario_id",
+          "plan_a_run_id",
+          "plan_b_run_id",
+          "final_year",
+          "age_band",
+          "tenure_band",
+          "total",
+          "offset",
+          "limit",
+          "employees"
+        ],
+        "title": "EmployeeImpactPage",
         "type": "object"
       },
       "EmployeeSearchResponse": {
@@ -7615,10 +7818,20 @@
             "title": "Age Band",
             "type": "string"
           },
+          "average_change": {
+            "description": "Net change per compared employee, or zero",
+            "title": "Average Change",
+            "type": "number"
+          },
           "losers": {
             "description": "Loser count in this cell",
             "title": "Losers",
             "type": "integer"
+          },
+          "net_contribution_change": {
+            "description": "Increases plus signed decreases",
+            "title": "Net Contribution Change",
+            "type": "number"
           },
           "net_pct": {
             "description": "Net winner percentage: (winners - losers) / total * 100",
@@ -7640,6 +7853,16 @@
             "title": "Total",
             "type": "integer"
           },
+          "total_decreases": {
+            "description": "Sum of negative employee deltas (signed)",
+            "title": "Total Decreases",
+            "type": "number"
+          },
+          "total_increases": {
+            "description": "Sum of positive employee deltas",
+            "title": "Total Increases",
+            "type": "number"
+          },
           "winners": {
             "description": "Winner count in this cell",
             "title": "Winners",
@@ -7647,6 +7870,10 @@
           }
         },
         "required": [
+          "total_increases",
+          "total_decreases",
+          "net_contribution_change",
+          "average_change",
           "age_band",
           "tenure_band",
           "winners",
@@ -12079,6 +12306,12 @@
             "description": "Scenario description",
             "title": "Description"
           },
+          "has_selected_result": {
+            "default": false,
+            "description": "Whether a successful result is available for comparison",
+            "title": "Has Selected Result",
+            "type": "boolean"
+          },
           "id": {
             "description": "Unique scenario ID (UUID)",
             "title": "Id",
@@ -12138,6 +12371,18 @@
             ],
             "description": "Summary of last run results"
           },
+          "selected_result_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Selected successful run ID, independent of latest attempt",
+            "title": "Selected Result Run Id"
+          },
           "status": {
             "default": "not_run",
             "description": "Scenario execution status",
@@ -12169,6 +12414,8 @@
           "created_at",
           "last_run_at",
           "last_run_id",
+          "has_selected_result",
+          "selected_result_run_id",
           "results_summary"
         ],
         "title": "Scenario",
@@ -15067,6 +15314,11 @@
             "title": "Age Band Results",
             "type": "array"
           },
+          "average_change": {
+            "description": "Net change per compared employee, or zero",
+            "title": "Average Change",
+            "type": "number"
+          },
           "final_year": {
             "description": "Latest simulation year present in both snapshots",
             "title": "Final Year",
@@ -15080,10 +15332,27 @@
             "title": "Heatmap",
             "type": "array"
           },
+          "net_contribution_change": {
+            "description": "Increases plus signed decreases",
+            "title": "Net Contribution Change",
+            "type": "number"
+          },
           "plan_a_final_year": {
             "description": "Latest snapshot year available for Plan A",
             "title": "Plan A Final Year",
             "type": "integer"
+          },
+          "plan_a_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Selected Plan A run ID; null for legacy results",
+            "title": "Plan A Run Id"
           },
           "plan_a_scenario_id": {
             "description": "Plan A scenario ID",
@@ -15094,6 +15363,18 @@
             "description": "Latest snapshot year available for Plan B",
             "title": "Plan B Final Year",
             "type": "integer"
+          },
+          "plan_b_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Selected Plan B run ID; null for legacy results",
+            "title": "Plan B Run Id"
           },
           "plan_b_scenario_id": {
             "description": "Plan B scenario ID",
@@ -15113,10 +15394,20 @@
             "title": "Total Compared",
             "type": "integer"
           },
+          "total_decreases": {
+            "description": "Sum of negative employee deltas (signed)",
+            "title": "Total Decreases",
+            "type": "number"
+          },
           "total_excluded": {
             "description": "Employees present in only one scenario",
             "title": "Total Excluded",
             "type": "integer"
+          },
+          "total_increases": {
+            "description": "Sum of positive employee deltas",
+            "title": "Total Increases",
+            "type": "number"
           },
           "total_losers": {
             "description": "Total losers",
@@ -15135,8 +15426,14 @@
           }
         },
         "required": [
+          "total_increases",
+          "total_decreases",
+          "net_contribution_change",
+          "average_change",
           "plan_a_scenario_id",
           "plan_b_scenario_id",
+          "plan_a_run_id",
+          "plan_b_run_id",
           "final_year",
           "plan_a_final_year",
           "plan_b_final_year",
@@ -15194,10 +15491,16 @@
             "type": "integer"
           },
           "avg_compensation": {
-            "default": 0.0,
-            "description": "Average prorated compensation for active employees",
-            "title": "Avg Compensation",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Average prorated compensation for active employees; null if unavailable",
+            "title": "Avg Compensation"
           },
           "growth_pct": {
             "description": "Growth percentage",
@@ -18899,16 +19202,17 @@
             }
           },
           {
-            "description": "xlsx (Excel) or hyper (Tableau)",
+            "description": "xlsx (Excel), hyper (Tableau), or parquet (ZIP of datasets)",
             "in": "query",
             "name": "format",
             "required": false,
             "schema": {
               "default": "xlsx",
-              "description": "xlsx (Excel) or hyper (Tableau)",
+              "description": "xlsx (Excel), hyper (Tableau), or parquet (ZIP of datasets)",
               "enum": [
                 "xlsx",
-                "hyper"
+                "hyper",
+                "parquet"
               ],
               "title": "Format",
               "type": "string"
@@ -18919,7 +19223,8 @@
           "200": {
             "content": {
               "application/octet-stream": {},
-              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {},
+              "application/zip": {}
             },
             "description": "Workforce snapshot and census for the selected scenarios.",
             "headers": {
@@ -20061,6 +20366,223 @@
           }
         },
         "summary": "Get Winners Losers",
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/analytics/winners-losers/employees": {
+      "get": {
+        "description": "Page compared employees by band/cell; changed evidence returns HTTP 409.",
+        "operationId": "get_winners_losers_employees_api_workspaces__workspace_id__analytics_winners_losers_employees_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plan_a",
+            "required": true,
+            "schema": {
+              "title": "Plan A",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plan_b",
+            "required": true,
+            "schema": {
+              "title": "Plan B",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Year returned by the comparison summary",
+            "in": "query",
+            "name": "comparison_year",
+            "required": true,
+            "schema": {
+              "description": "Year returned by the comparison summary",
+              "title": "Comparison Year",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Run ID returned by the summary; omit for legacy results",
+            "in": "query",
+            "name": "plan_a_run_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Run ID returned by the summary; omit for legacy results",
+              "title": "Plan A Run Id"
+            }
+          },
+          {
+            "description": "Run ID returned by the summary; omit for legacy results",
+            "in": "query",
+            "name": "plan_b_run_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Run ID returned by the summary; omit for legacy results",
+              "title": "Plan B Run Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "age_band",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Age Band"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tenure_band",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tenure Band"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeeImpactPage"
+                }
+              }
+            },
+            "description": "Successful Response",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Selected run or comparison year changed",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get Winners Losers Employees",
         "tags": [
           "Analytics"
         ]

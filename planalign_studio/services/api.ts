@@ -155,6 +155,7 @@ export type BandGroupResult = Schemas['BandGroupResult'];
 export type HeatmapCell = Schemas['HeatmapCell'];
 
 export type WinnersLosersResponse = Schemas['WinnersLosersResponse'];
+export type EmployeeImpactPage = Schemas['EmployeeImpactPage'];
 
 export type BatchJob = Schemas['BatchJob'];
 
@@ -509,7 +510,7 @@ export async function downloadResultsExport(
   saveBrowserDownload(await response.blob(), filename);
 }
 
-export type ComparisonExportFormat = 'xlsx' | 'hyper';
+export type ComparisonExportFormat = 'xlsx' | 'hyper' | 'parquet';
 
 export async function downloadComparisonExport(
   workspaceId: string,
@@ -521,7 +522,8 @@ export async function downloadComparisonExport(
     `${API_BASE}/api/workspaces/${encodeURIComponent(workspaceId)}/analytics/compare/export?${params}`,
   );
   if (!response.ok) await handleResponse<never>(response);
-  const filename = filenameFromContentDisposition(response, `scenario_comparison.${format}`);
+  const extension = format === 'parquet' ? 'zip' : format;
+  const filename = filenameFromContentDisposition(response, `scenario_comparison.${extension}`);
   saveBrowserDownload(await response.blob(), filename);
 }
 
@@ -1083,6 +1085,36 @@ export async function getWinnersLosersComparison(
     `${API_BASE}/api/workspaces/${workspaceId}/analytics/winners-losers?${params}`
   );
   return handleResponse<WinnersLosersResponse>(response);
+}
+
+export function employeeImpactParams(
+  comparison: WinnersLosersResponse,
+  filters: { age_band?: string; tenure_band?: string },
+  offset = 0,
+): URLSearchParams {
+  const params = new URLSearchParams({
+    plan_a: comparison.plan_a_scenario_id,
+    plan_b: comparison.plan_b_scenario_id,
+    comparison_year: String(comparison.final_year),
+    offset: String(offset), limit: '25',
+  });
+  if (comparison.plan_a_run_id) params.set('plan_a_run_id', comparison.plan_a_run_id);
+  if (comparison.plan_b_run_id) params.set('plan_b_run_id', comparison.plan_b_run_id);
+  if (filters.age_band !== undefined) params.set('age_band', filters.age_band);
+  if (filters.tenure_band !== undefined) params.set('tenure_band', filters.tenure_band);
+  return params;
+}
+
+export async function getEmployeeImpacts(
+  workspaceId: string,
+  comparison: WinnersLosersResponse,
+  filters: { age_band?: string; tenure_band?: string },
+  offset = 0,
+): Promise<EmployeeImpactPage> {
+  const response = await fetchWithAuth(
+    `${API_BASE}/api/workspaces/${encodeURIComponent(workspaceId)}/analytics/winners-losers/employees?${employeeImpactParams(comparison, filters, offset)}`,
+  );
+  return handleResponse<EmployeeImpactPage>(response);
 }
 
 // ============================================================================

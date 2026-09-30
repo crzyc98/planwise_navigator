@@ -1422,6 +1422,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/analytics/winners-losers/employees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Winners Losers Employees
+         * @description Page compared employees by band/cell; changed evidence returns HTTP 409.
+         */
+        get: operations["get_winners_losers_employees_api_workspaces__workspace_id__analytics_winners_losers_employees_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workspaces/{workspace_id}/analyze-age-bands": {
         parameters: {
             query?: never;
@@ -3252,6 +3272,11 @@ export interface components {
          */
         BandGroupResult: {
             /**
+             * Average Change
+             * @description Net change per compared employee, or zero
+             */
+            average_change: number;
+            /**
              * Band Label
              * @description Age band or tenure band label
              */
@@ -3262,6 +3287,11 @@ export interface components {
              */
             losers: number;
             /**
+             * Net Contribution Change
+             * @description Increases plus signed decreases
+             */
+            net_contribution_change: number;
+            /**
              * Neutral
              * @description Count of neutral in this band
              */
@@ -3271,6 +3301,16 @@ export interface components {
              * @description Total employees in this band
              */
             total: number;
+            /**
+             * Total Decreases
+             * @description Sum of negative employee deltas (signed)
+             */
+            total_decreases: number;
+            /**
+             * Total Increases
+             * @description Sum of positive employee deltas
+             */
+            total_increases: number;
             /**
              * Winners
              * @description Count of winners in this band
@@ -4944,10 +4984,9 @@ export interface components {
             avg_deferral_rate: number;
             /**
              * Employer Cost Rate
-             * @description Employer cost rate (%)
-             * @default 0
+             * @description Employer cost rate (%); null if compensation unavailable
              */
-            employer_cost_rate: number;
+            employer_cost_rate: number | null;
             /**
              * Participant Count
              * @description Number of enrolled employees
@@ -5341,6 +5380,92 @@ export interface components {
             employee_id: string;
             /** Employee Ssn */
             employee_ssn: string | null;
+        };
+        /**
+         * EmployeeImpact
+         * @description Read-only contribution detail without names or SSNs.
+         */
+        EmployeeImpact: {
+            /** Age Band */
+            age_band: string;
+            /** Delta */
+            delta: number;
+            /** Employee Id */
+            employee_id: string;
+            /** Plan A Amount */
+            plan_a_amount: number;
+            /** Plan B Amount */
+            plan_b_amount: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "winner" | "loser" | "neutral";
+            /** Tenure Band */
+            tenure_band: string;
+        };
+        /**
+         * EmployeeImpactPage
+         * @description A stable employee-ID-ordered page and totals for the entire filtered group.
+         */
+        EmployeeImpactPage: {
+            /** Age Band */
+            age_band: string | null;
+            /**
+             * Average Change
+             * @description Net change per compared employee, or zero
+             */
+            average_change: number;
+            /** Employees */
+            employees: components["schemas"]["EmployeeImpact"][];
+            /**
+             * Final Year
+             * @description Latest simulation year present in both snapshots
+             */
+            final_year: number;
+            /** Limit */
+            limit: number;
+            /**
+             * Net Contribution Change
+             * @description Increases plus signed decreases
+             */
+            net_contribution_change: number;
+            /** Offset */
+            offset: number;
+            /**
+             * Plan A Run Id
+             * @description Selected Plan A run ID; null for legacy results
+             */
+            plan_a_run_id: string | null;
+            /**
+             * Plan A Scenario Id
+             * @description Plan A scenario ID
+             */
+            plan_a_scenario_id: string;
+            /**
+             * Plan B Run Id
+             * @description Selected Plan B run ID; null for legacy results
+             */
+            plan_b_run_id: string | null;
+            /**
+             * Plan B Scenario Id
+             * @description Plan B scenario ID
+             */
+            plan_b_scenario_id: string;
+            /** Tenure Band */
+            tenure_band: string | null;
+            /** Total */
+            total: number;
+            /**
+             * Total Decreases
+             * @description Sum of negative employee deltas (signed)
+             */
+            total_decreases: number;
+            /**
+             * Total Increases
+             * @description Sum of positive employee deltas
+             */
+            total_increases: number;
         };
         /** EmployeeSearchResponse */
         EmployeeSearchResponse: {
@@ -6232,10 +6357,20 @@ export interface components {
              */
             age_band: string;
             /**
+             * Average Change
+             * @description Net change per compared employee, or zero
+             */
+            average_change: number;
+            /**
              * Losers
              * @description Loser count in this cell
              */
             losers: number;
+            /**
+             * Net Contribution Change
+             * @description Increases plus signed decreases
+             */
+            net_contribution_change: number;
             /**
              * Net Pct
              * @description Net winner percentage: (winners - losers) / total * 100
@@ -6256,6 +6391,16 @@ export interface components {
              * @description Total employees in this cell
              */
             total: number;
+            /**
+             * Total Decreases
+             * @description Sum of negative employee deltas (signed)
+             */
+            total_decreases: number;
+            /**
+             * Total Increases
+             * @description Sum of positive employee deltas
+             */
+            total_increases: number;
             /**
              * Winners
              * @description Winner count in this cell
@@ -8089,6 +8234,12 @@ export interface components {
              */
             description: string | null;
             /**
+             * Has Selected Result
+             * @description Whether a successful result is available for comparison
+             * @default false
+             */
+            has_selected_result: boolean;
+            /**
              * Id
              * @description Unique scenario ID (UUID)
              */
@@ -8117,6 +8268,11 @@ export interface components {
             } | null;
             /** @description Summary of last run results */
             results_summary: components["schemas"]["ScenarioResultsSummary"] | null;
+            /**
+             * Selected Result Run Id
+             * @description Selected successful run ID, independent of latest attempt
+             */
+            selected_result_run_id: string | null;
             /**
              * Status
              * @description Scenario execution status
@@ -9663,6 +9819,11 @@ export interface components {
              */
             age_band_results: components["schemas"]["BandGroupResult"][];
             /**
+             * Average Change
+             * @description Net change per compared employee, or zero
+             */
+            average_change: number;
+            /**
              * Final Year
              * @description Latest simulation year present in both snapshots
              */
@@ -9673,10 +9834,20 @@ export interface components {
              */
             heatmap: components["schemas"]["HeatmapCell"][];
             /**
+             * Net Contribution Change
+             * @description Increases plus signed decreases
+             */
+            net_contribution_change: number;
+            /**
              * Plan A Final Year
              * @description Latest snapshot year available for Plan A
              */
             plan_a_final_year: number;
+            /**
+             * Plan A Run Id
+             * @description Selected Plan A run ID; null for legacy results
+             */
+            plan_a_run_id: string | null;
             /**
              * Plan A Scenario Id
              * @description Plan A scenario ID
@@ -9687,6 +9858,11 @@ export interface components {
              * @description Latest snapshot year available for Plan B
              */
             plan_b_final_year: number;
+            /**
+             * Plan B Run Id
+             * @description Selected Plan B run ID; null for legacy results
+             */
+            plan_b_run_id: string | null;
             /**
              * Plan B Scenario Id
              * @description Plan B scenario ID
@@ -9703,10 +9879,20 @@ export interface components {
              */
             total_compared: number;
             /**
+             * Total Decreases
+             * @description Sum of negative employee deltas (signed)
+             */
+            total_decreases: number;
+            /**
              * Total Excluded
              * @description Employees present in only one scenario
              */
             total_excluded: number;
+            /**
+             * Total Increases
+             * @description Sum of positive employee deltas
+             */
+            total_increases: number;
             /**
              * Total Losers
              * @description Total losers
@@ -9760,10 +9946,9 @@ export interface components {
             active: number;
             /**
              * Avg Compensation
-             * @description Average prorated compensation for active employees
-             * @default 0
+             * @description Average prorated compensation for active employees; null if unavailable
              */
-            avg_compensation: number;
+            avg_compensation: number | null;
             /**
              * Growth Pct
              * @description Growth percentage
@@ -11879,8 +12064,8 @@ export interface operations {
             query: {
                 /** @description Comma-separated scenario IDs (max 6) */
                 scenarios: string;
-                /** @description xlsx (Excel) or hyper (Tableau) */
-                format?: "xlsx" | "hyper";
+                /** @description xlsx (Excel), hyper (Tableau), or parquet (ZIP of datasets) */
+                format?: "xlsx" | "hyper" | "parquet";
             };
             header?: never;
             path: {
@@ -11901,6 +12086,7 @@ export interface operations {
                 content: {
                     "application/octet-stream": unknown;
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": unknown;
+                    "application/zip": unknown;
                 };
             };
             /** @description Validation Error */
@@ -12307,6 +12493,66 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["WinnersLosersResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_winners_losers_employees_api_workspaces__workspace_id__analytics_winners_losers_employees_get: {
+        parameters: {
+            query: {
+                plan_a: string;
+                plan_b: string;
+                /** @description Year returned by the comparison summary */
+                comparison_year: number;
+                /** @description Run ID returned by the summary; omit for legacy results */
+                plan_a_run_id?: string | null;
+                /** @description Run ID returned by the summary; omit for legacy results */
+                plan_b_run_id?: string | null;
+                age_band?: string | null;
+                tenure_band?: string | null;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeImpactPage"];
+                };
+            };
+            /** @description Selected run or comparison year changed */
+            409: {
+                headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
