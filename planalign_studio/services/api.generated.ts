@@ -11879,8 +11879,8 @@ export interface operations {
             query: {
                 /** @description Comma-separated scenario IDs (max 6) */
                 scenarios: string;
-                /** @description xlsx (Excel) or hyper (Tableau) */
-                format?: "xlsx" | "hyper";
+                /** @description xlsx (Excel), hyper (Tableau), or parquet (ZIP of datasets) */
+                format?: "xlsx" | "hyper" | "parquet";
             };
             header?: never;
             path: {
@@ -11901,6 +11901,7 @@ export interface operations {
                 content: {
                     "application/octet-stream": unknown;
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": unknown;
+                    "application/zip": unknown;
                 };
             };
             /** @description Validation Error */

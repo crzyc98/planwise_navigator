@@ -297,6 +297,7 @@ def _build_export(
 _EXPORT_MEDIA_TYPES = {
     "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "hyper": "application/octet-stream",
+    "parquet": "application/zip",
 }
 
 
@@ -315,7 +316,10 @@ def export_scenario_comparison(
     scenarios: str = Query(
         ..., description=f"Comma-separated scenario IDs (max {MAX_SCENARIO_COMPARISON})"
     ),
-    format: ExportFormat = Query("xlsx", description="xlsx (Excel) or hyper (Tableau)"),
+    format: ExportFormat = Query(
+        "xlsx",
+        description="xlsx (Excel), hyper (Tableau), or parquet (ZIP of datasets)",
+    ),
     storage: WorkspaceStorage = Depends(get_storage),
     export_service: ComparisonExportService = Depends(get_comparison_export_service),
 ) -> FileResponse:
@@ -347,8 +351,9 @@ def export_scenario_comparison(
         raise
 
     date_str = datetime.now().strftime("%Y%m%d")
+    extension = "zip" if format == "parquet" else format
     filename = (
-        f"{workspace.name.replace(' ', '_')}_scenario_comparison_{date_str}.{format}"
+        f"{workspace.name.replace(' ', '_')}_scenario_comparison_{date_str}.{extension}"
     )
     return FileResponse(
         path=path,

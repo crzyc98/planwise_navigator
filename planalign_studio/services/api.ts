@@ -509,7 +509,7 @@ export async function downloadResultsExport(
   saveBrowserDownload(await response.blob(), filename);
 }
 
-export type ComparisonExportFormat = 'xlsx' | 'hyper';
+export type ComparisonExportFormat = 'xlsx' | 'hyper' | 'parquet';
 
 export async function downloadComparisonExport(
   workspaceId: string,
@@ -521,7 +521,8 @@ export async function downloadComparisonExport(
     `${API_BASE}/api/workspaces/${encodeURIComponent(workspaceId)}/analytics/compare/export?${params}`,
   );
   if (!response.ok) await handleResponse<never>(response);
-  const filename = filenameFromContentDisposition(response, `scenario_comparison.${format}`);
+  const extension = format === 'parquet' ? 'zip' : format;
+  const filename = filenameFromContentDisposition(response, `scenario_comparison.${extension}`);
   saveBrowserDownload(await response.blob(), filename);
 }
 

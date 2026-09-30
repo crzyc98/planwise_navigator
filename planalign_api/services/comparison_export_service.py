@@ -1,18 +1,19 @@
 """Multi-scenario workforce export for the Cost Comparison page.
 
-Produces either an Excel workbook or a Tableau ``.hyper`` extract containing
-the full ``fct_workforce_snapshot`` of every selected scenario (labelled with
+Produces an Excel workbook, Tableau ``.hyper`` extract, or ZIP of Parquet files
+containing the full ``fct_workforce_snapshot`` of every selected scenario (labelled with
 ``scenario_name``/``scenario_id``) plus the cleaned census (``stg_census_data``)
 the simulations read.
 
 All scenario databases are ATTACHed read-only to one in-memory DuckDB
-connection, so both writers stream from the same SQL.
+connection, so all writers stream from the same SQL.
 """
 
 from __future__ import annotations
 
 import re
 import tempfile
+import zipfile
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -27,7 +28,7 @@ from .database_path_resolver import (
     create_api_database_path_resolver,
 )
 
-ExportFormat = Literal["xlsx", "hyper"]
+ExportFormat = Literal["xlsx", "hyper", "parquet"]
 
 # Excel's hard per-sheet limit is 1,048,576 rows; one is the header.
 EXCEL_MAX_DATA_ROWS = 1_048_575
@@ -107,11 +108,14 @@ class ComparisonExportService:
         output_dir: Path,
     ) -> Path:
         """Write the export into ``output_dir`` and return the file path."""
-        path = output_dir / f"scenario_comparison.{export_format}"
+        extension = "zip" if export_format == "parquet" else export_format
+        path = output_dir / f"scenario_comparison.{extension}"
         with _attached(scenarios) as conn:
             _create_metadata_table(conn, scenarios, workspace_name)
             if export_format == "hyper":
                 _write_hyper(conn, _hyper_tables(scenarios), path)
+            elif export_format == "parquet":
+                _write_parquet_archive(conn, _hyper_tables(scenarios), path)
             else:
                 _write_xlsx(conn, _excel_sheets(conn, scenarios), path)
         return path
@@ -134,7 +138,7 @@ def _attached(scenarios: list[ExportScenario]) -> Iterator[duckdb.DuckDBPyConnec
     """ATTACH each run database and expose ``s<i>_<table>`` labelled views."""
     conn = duckdb.connect()
     try:
-        # TIMESTAMPTZ columns render in UTC in both writers.
+        # TIMESTAMPTZ columns render in UTC in all writers.
         conn.execute("SET TimeZone = 'UTC'")
         for index, scenario in enumerate(scenarios):
             conn.execute(
@@ -412,6 +416,20 @@ def _write_hyper(
                     f"CREATE TABLE {escape_name(table.name)} AS "
                     f"(SELECT * FROM external({escape_string_literal(str(parquet))}))"
                 )
+
+
+def _write_parquet_archive(
+    conn: duckdb.DuckDBPyConnection, tables: list[ExportTable], path: Path
+) -> None:
+    """Export native types to one Parquet file per dataset in a ZIP download."""
+    with tempfile.TemporaryDirectory(dir=path.parent) as staging:
+        with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_STORED) as archive:
+            for table in tables:
+                parquet = Path(staging) / f"{table.name}.parquet"
+                conn.execute(
+                    f"COPY ({table.query}) TO {_literal(str(parquet))} (FORMAT PARQUET)"
+                )
+                archive.write(parquet, arcname=parquet.name)
 
 
 def _nested_str(config: dict[str, Any] | None, keys: tuple[str, ...]) -> str | None:
