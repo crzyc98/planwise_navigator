@@ -37,6 +37,7 @@ from planalign_orchestrator.calibration_runner import (
     CalibrationParameterSet,
     CalibrationRun,
     CalibrationRunner,
+    JobLevelRange,
     PerYearCompensationResult,
 )
 
@@ -67,7 +68,7 @@ class AutoCalibrationSettings(BaseModel):
     # -- new_hire_scale mode ------------------------------------------------
     search_mode: Literal["levers", "new_hire_scale"] = "levers"
     # UNSCALED (1.0x) per-level ranges, e.g. straight from census analysis.
-    base_job_level_compensation: Optional[List[Dict[str, Any]]] = None
+    base_job_level_compensation: Optional[List[JobLevelRange]] = None
     initial_scale: float = Field(default=1.0, gt=0, le=5.0)
     scale_min: float = Field(default=0.5, gt=0)
     scale_max: float = Field(default=3.0, le=5.0)

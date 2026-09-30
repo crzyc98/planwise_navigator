@@ -18,10 +18,11 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import duckdb
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from typing_extensions import NotRequired, TypedDict
 
 from planalign_orchestrator.config import load_simulation_config
 from planalign_orchestrator.config.export import to_dbt_vars
@@ -59,6 +60,28 @@ DC_PREREQUISITE_TABLES: List[str] = [
 # ---------------------------------------------------------------------------
 # Entities (see data-model.md)
 # ---------------------------------------------------------------------------
+class AgeWeight(TypedDict):
+    """One new-hire age bucket. Stays a plain dict at runtime (dbt var input)."""
+
+    age: float
+    weight: float
+
+
+class JobLevelRange(TypedDict):
+    """Per-level new-hire compensation range. Stays a plain dict at runtime.
+
+    Numbers are int | float so values pass through to the dbt var unchanged;
+    extra keys are preserved for the same reason.
+    """
+
+    __pydantic_config__ = ConfigDict(extra="allow")  # type: ignore[misc]
+
+    level: Union[int, float]
+    name: NotRequired[str]
+    min_compensation: Union[int, float]
+    max_compensation: Union[int, float]
+
+
 class CalibrationParameterSet(BaseModel):
     """Tunable compensation levers, shared identically with the full simulation.
 
@@ -88,28 +111,22 @@ class CalibrationParameterSet(BaseModel):
     # Overrides the config_new_hire_age_distribution seed via the
     # new_hire_age_distribution dbt var -- the same var the full simulation
     # consumes -- so a distribution tuned here transfers verbatim.
-    new_hire_age_distribution: Optional[List[Dict[str, float]]] = None
+    new_hire_age_distribution: Optional[List[AgeWeight]] = None
     # Per-level new-hire compensation ranges derived from "Match Census" x scale,
     # exactly as the Workforce Parameters page produces them. Each item is
     # {"level", "min_compensation", "max_compensation"}. When provided, this
     # overrides the job_level_compensation dbt var -- the same var the full
     # simulation consumes -- so a calibrated scale transfers verbatim.
-    # Items are {"level", "name"?, "min_compensation", "max_compensation"} --
-    # values are mixed (name is a str), so Dict[str, Any] not Dict[str, float].
-    job_level_compensation: Optional[List[Dict[str, Any]]] = None
+    job_level_compensation: Optional[List[JobLevelRange]] = None
 
     @field_validator("new_hire_age_distribution")
     @classmethod
     def _age_distribution_valid(
-        cls, value: Optional[List[Dict[str, float]]]
-    ) -> Optional[List[Dict[str, float]]]:
+        cls, value: Optional[List[AgeWeight]]
+    ) -> Optional[List[AgeWeight]]:
         if value is None:
             return value
         for item in value:
-            if "age" not in item or "weight" not in item:
-                raise ValueError(
-                    "each new_hire_age_distribution item needs 'age' and 'weight'"
-                )
             if not 14 <= float(item["age"]) <= 100:
                 raise ValueError("new_hire_age_distribution ages must be 14-100")
             if float(item["weight"]) < 0:

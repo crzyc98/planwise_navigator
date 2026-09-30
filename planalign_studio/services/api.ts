@@ -2043,37 +2043,9 @@ export interface CalibrationParams {
 
 export type CalibrationRunRequest = Schemas['CalibrationRunRequest'];
 
-export interface AutoCalibrationSettings {
-  target_workforce_growth: number; // decimal, e.g. 0.03
-  target_comp_growth: number; // decimal, e.g. 0.035
-  tolerance_pct?: number; // percentage points, default 0.05
-  max_iterations?: number; // default 8
-  adjust?: 'cola' | 'merit' | 'both';
-  /** 'new_hire_scale': solve the census scale on new-hire ranges, keeping COLA/merit fixed. */
-  search_mode?: 'levers' | 'new_hire_scale';
-  /** UNSCALED (1.0×) per-level ranges; required for new_hire_scale mode. */
-  base_job_level_compensation?: Array<{
-    level: number;
-    name?: string;
-    min_compensation: number;
-    max_compensation: number;
-  }> | null;
-  initial_scale?: number;
-  scale_min?: number;
-  scale_max?: number;
-  lever_fallback?: boolean;
-}
+export type AutoCalibrationSettings = Schemas['AutoCalibrationSettings'];
 
-export interface AutoCalibrationRequest {
-  start_year?: number | null;
-  end_year?: number | null;
-  config_path?: string | null;
-  database_path?: string | null;
-  workspace_id?: string | null;
-  scenario_id?: string | null;
-  settings: AutoCalibrationSettings;
-  params?: CalibrationParams;
-}
+export type AutoCalibrationRequest = Schemas['AutoCalibrationRequest'];
 
 export type OptimizationIteration = Schemas['OptimizationIteration'];
 
@@ -2121,18 +2093,7 @@ export interface CalibrationRunResponse {
 export type CalibrationStartResponse = Schemas['CalibrationStartResponse'];
 
 /** Background calibration job record (issue #380). */
-export interface CalibrationJob {
-  run_id: string;
-  kind: 'run' | 'optimize';
-  status: 'queued' | 'running' | 'completed' | 'failed';
-  created_at: string;
-  completed_at: string | null;
-  results: PerYearCompensationResult[] | null;
-  outcome: AutoCalibrationOutcome | null;
-  error: string | null;
-  error_status: number | null;
-  context: CalibrationContext | null;
-}
+export type CalibrationJob = Schemas['CalibrationJob'];
 
 export async function getCalibrationRun(runId: string): Promise<CalibrationJob> {
   const response = await fetchWithAuth(`${API_BASE}/api/calibration/runs/${runId}`);
