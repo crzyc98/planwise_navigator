@@ -422,6 +422,25 @@
         "title": "ADPTestResponse",
         "type": "object"
       },
+      "AgeWeight": {
+        "description": "One new-hire age bucket. Stays a plain dict at runtime (dbt var input).",
+        "properties": {
+          "age": {
+            "title": "Age",
+            "type": "number"
+          },
+          "weight": {
+            "title": "Weight",
+            "type": "number"
+          }
+        },
+        "required": [
+          "age",
+          "weight"
+        ],
+        "title": "AgeWeight",
+        "type": "object"
+      },
       "AnnualEventCount": {
         "additionalProperties": false,
         "properties": {
@@ -1075,8 +1094,7 @@
             "anyOf": [
               {
                 "items": {
-                  "additionalProperties": true,
-                  "type": "object"
+                  "$ref": "#/components/schemas/JobLevelRange"
                 },
                 "type": "array"
               },
@@ -2262,8 +2280,7 @@
             "anyOf": [
               {
                 "items": {
-                  "additionalProperties": true,
-                  "type": "object"
+                  "$ref": "#/components/schemas/JobLevelRange"
                 },
                 "type": "array"
               },
@@ -2290,10 +2307,7 @@
             "anyOf": [
               {
                 "items": {
-                  "additionalProperties": {
-                    "type": "number"
-                  },
-                  "type": "object"
+                  "$ref": "#/components/schemas/AgeWeight"
                 },
                 "type": "array"
               },
@@ -7881,6 +7895,56 @@
           "moved_settings"
         ],
         "title": "JobInputs",
+        "type": "object"
+      },
+      "JobLevelRange": {
+        "additionalProperties": true,
+        "description": "Per-level new-hire compensation range. Stays a plain dict at runtime.\n\nNumbers are int | float so values pass through to the dbt var unchanged;\nextra keys are preserved for the same reason.",
+        "properties": {
+          "level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Level"
+          },
+          "max_compensation": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Max Compensation"
+          },
+          "min_compensation": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Min Compensation"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "level",
+          "min_compensation",
+          "max_compensation"
+        ],
+        "title": "JobLevelRange",
         "type": "object"
       },
       "JobProgress": {

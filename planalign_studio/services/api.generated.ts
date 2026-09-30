@@ -2752,6 +2752,16 @@ export interface components {
             /** Year */
             year: number;
         };
+        /**
+         * AgeWeight
+         * @description One new-hire age bucket. Stays a plain dict at runtime (dbt var input).
+         */
+        AgeWeight: {
+            /** Age */
+            age: number;
+            /** Weight */
+            weight: number;
+        };
         /** AnnualEventCount */
         AnnualEventCount: {
             /** Count */
@@ -2989,9 +2999,7 @@ export interface components {
              */
             adjust?: "cola" | "merit" | "both";
             /** Base Job Level Compensation */
-            base_job_level_compensation?: {
-                [key: string]: unknown;
-            }[] | null;
+            base_job_level_compensation?: components["schemas"]["JobLevelRange"][] | null;
             /**
              * Initial Scale
              * @default 1
@@ -3570,15 +3578,11 @@ export interface components {
             /** Cola Rate */
             cola_rate?: number | null;
             /** Job Level Compensation */
-            job_level_compensation?: {
-                [key: string]: unknown;
-            }[] | null;
+            job_level_compensation?: components["schemas"]["JobLevelRange"][] | null;
             /** Merit Budget */
             merit_budget?: number | null;
             /** New Hire Age Distribution */
-            new_hire_age_distribution?: {
-                [key: string]: number;
-            }[] | null;
+            new_hire_age_distribution?: components["schemas"]["AgeWeight"][] | null;
             /** New Hire Termination Rate */
             new_hire_termination_rate?: number | null;
             /** Promotion Increase */
@@ -6333,6 +6337,25 @@ export interface components {
             /** Source Digest */
             source_digest: string;
             split: components["schemas"]["SplitPreview"] | null;
+        };
+        /**
+         * JobLevelRange
+         * @description Per-level new-hire compensation range. Stays a plain dict at runtime.
+         *
+         *     Numbers are int | float so values pass through to the dbt var unchanged;
+         *     extra keys are preserved for the same reason.
+         */
+        JobLevelRange: {
+            /** Level */
+            level: number;
+            /** Max Compensation */
+            max_compensation: number;
+            /** Min Compensation */
+            min_compensation: number;
+            /** Name */
+            name?: string;
+        } & {
+            [key: string]: unknown;
         };
         /** JobProgress */
         JobProgress: {
