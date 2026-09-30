@@ -1,8 +1,14 @@
 """Analytics endpoints: DC Plan and Winners & Losers."""
 
-from typing import List, Literal, Optional
+import shutil
+import tempfile
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask
 
 from ..config import APISettings, get_settings
 from ..constants import MAX_SCENARIO_COMPARISON
@@ -15,6 +21,13 @@ from ..models.employer_cost import ForfeiturePolicy
 from ..models.vesting import VestingScheduleConfig, VestingScheduleType
 from ..models.winners_losers import WinnersLosersResponse
 from ..services.analytics_service import AnalyticsService
+from ..services.comparison_export_service import (
+    ComparisonExportError,
+    ComparisonExportService,
+    ExportFormat,
+    ExportScenario,
+    HyperUnavailableError,
+)
 from ..services.vesting_service import SCHEDULE_INFO
 from ..services.winners_losers_service import WinnersLosersService
 from ..services.scenario_read_warning import has_selected_result
@@ -33,6 +46,34 @@ def get_analytics_service(
 ) -> AnalyticsService:
     """Dependency to get analytics service."""
     return AnalyticsService(storage)
+
+
+def get_comparison_export_service(
+    storage: WorkspaceStorage = Depends(get_storage),
+) -> ComparisonExportService:
+    """Dependency to get the multi-scenario export service."""
+    return ComparisonExportService(storage)
+
+
+def _completed_scenario_names(
+    storage: WorkspaceStorage, workspace_id: str, scenario_ids: List[str]
+) -> Dict[str, str]:
+    """Map each scenario ID to its name, rejecting unknown or unfinished scenarios."""
+    scenario_names = {}
+    for scenario_id in scenario_ids:
+        scenario = storage.get_scenario(workspace_id, scenario_id)
+        if not scenario:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Scenario {scenario_id} not found",
+            )
+        if not has_selected_result(storage, workspace_id, scenario_id, scenario.status):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Scenario {scenario_id} has not completed successfully",
+            )
+        scenario_names[scenario_id] = scenario.name
+    return scenario_names
 
 
 @router.get(
@@ -187,21 +228,7 @@ def compare_dc_plan_analytics(
             detail="Use population or active_only, not both",
         )
 
-    # Verify all scenarios exist and are completed
-    scenario_names = {}
-    for scenario_id in scenario_ids:
-        scenario = storage.get_scenario(workspace_id, scenario_id)
-        if not scenario:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Scenario {scenario_id} not found",
-            )
-        if not has_selected_result(storage, workspace_id, scenario_id, scenario.status):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Scenario {scenario_id} has not completed successfully",
-            )
-        scenario_names[scenario_id] = scenario.name
+    scenario_names = _completed_scenario_names(storage, workspace_id, scenario_ids)
 
     # Get analytics for each scenario
     analytics_list: List[DCPlanAnalytics] = []
@@ -228,6 +255,103 @@ def compare_dc_plan_analytics(
         scenarios=scenario_ids,
         scenario_names=scenario_names,
         analytics=analytics_list,
+    )
+
+
+def _resolve_export(
+    export_service: ComparisonExportService,
+    workspace_id: str,
+    scenario_ids: List[str],
+    names: Dict[str, str],
+) -> List[ExportScenario]:
+    try:
+        return export_service.resolve_scenarios(workspace_id, scenario_ids, names)
+    except ComparisonExportError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+
+
+def _build_export(
+    export_service: ComparisonExportService,
+    selected: List[ExportScenario],
+    workspace_name: str,
+    export_format: ExportFormat,
+    output_dir: Path,
+) -> Path:
+    try:
+        return export_service.build(selected, workspace_name, export_format, output_dir)
+    except ComparisonExportError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+    except HyperUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=str(exc)
+        ) from exc
+
+
+_EXPORT_MEDIA_TYPES = {
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "hyper": "application/octet-stream",
+}
+
+
+@router.get(
+    "/{workspace_id}/analytics/compare/export",
+    response_class=FileResponse,
+    responses={
+        200: {
+            "content": {media_type: {} for media_type in _EXPORT_MEDIA_TYPES.values()},
+            "description": "Workforce snapshot and census for the selected scenarios.",
+        }
+    },
+)
+def export_scenario_comparison(
+    workspace_id: str,
+    scenarios: str = Query(
+        ..., description=f"Comma-separated scenario IDs (max {MAX_SCENARIO_COMPARISON})"
+    ),
+    format: ExportFormat = Query("xlsx", description="xlsx (Excel) or hyper (Tableau)"),
+    storage: WorkspaceStorage = Depends(get_storage),
+    export_service: ComparisonExportService = Depends(get_comparison_export_service),
+) -> FileResponse:
+    """Download every selected scenario's workforce snapshot plus the census."""
+    workspace = storage.get_workspace(workspace_id)
+    if not workspace:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Workspace {workspace_id} not found",
+        )
+    scenario_ids = list(
+        dict.fromkeys(s.strip() for s in scenarios.split(",") if s.strip())
+    )
+    if not scenario_ids or len(scenario_ids) > MAX_SCENARIO_COMPARISON:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Select between 1 and {MAX_SCENARIO_COMPARISON} scenarios to export",
+        )
+    names = _completed_scenario_names(storage, workspace_id, scenario_ids)
+
+    output_dir = Path(tempfile.mkdtemp(prefix="planalign-compare-export-"))
+    try:
+        selected = _resolve_export(export_service, workspace_id, scenario_ids, names)
+        path = _build_export(
+            export_service, selected, workspace.name, format, output_dir
+        )
+    except BaseException:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        raise
+
+    date_str = datetime.now().strftime("%Y%m%d")
+    filename = (
+        f"{workspace.name.replace(' ', '_')}_scenario_comparison_{date_str}.{format}"
+    )
+    return FileResponse(
+        path=path,
+        media_type=_EXPORT_MEDIA_TYPES[format],
+        filename=filename,
+        background=BackgroundTask(shutil.rmtree, output_dir, ignore_errors=True),
     )
 
 

@@ -121,6 +121,7 @@ SCENARIO_READ_ROUTES = {
     "compare_scenarios",
     "get_dc_plan_analytics",
     "compare_dc_plan_analytics",
+    "export_scenario_comparison",
     "compare_grandfathered_cost",
     "get_winners_losers",
     "get_vesting_years",

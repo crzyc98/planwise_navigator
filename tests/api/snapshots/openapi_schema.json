@@ -18861,6 +18861,107 @@
         ]
       }
     },
+    "/api/workspaces/{workspace_id}/analytics/compare/export": {
+      "get": {
+        "description": "Download every selected scenario's workforce snapshot plus the census.",
+        "operationId": "export_scenario_comparison_api_workspaces__workspace_id__analytics_compare_export_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Comma-separated scenario IDs (max 6)",
+            "in": "query",
+            "name": "scenarios",
+            "required": true,
+            "schema": {
+              "description": "Comma-separated scenario IDs (max 6)",
+              "title": "Scenarios",
+              "type": "string"
+            }
+          },
+          {
+            "description": "xlsx (Excel) or hyper (Tableau)",
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "xlsx",
+              "description": "xlsx (Excel) or hyper (Tableau)",
+              "enum": [
+                "xlsx",
+                "hyper"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {},
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
+            },
+            "description": "Workforce snapshot and census for the selected scenarios.",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Export Scenario Comparison",
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
     "/api/workspaces/{workspace_id}/analytics/dc-plan/compare": {
       "get": {
         "description": "Compare DC Plan analytics across multiple scenarios (max {MAX_SCENARIO_COMPARISON}).\n\nReturns side-by-side analytics for comparison.",

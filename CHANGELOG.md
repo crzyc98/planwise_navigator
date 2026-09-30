@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+### Cost Comparison export to Excel and Tableau
+
+**Added — Excel and Tableau buttons on the Cost Comparison page.** They export
+every selected scenario's full `fct_workforce_snapshot` (all years, all
+employees) with `scenario_name` and `scenario_id` columns, plus the cleaned
+census (`stg_census_data`) and a metadata tab. Excel puts all scenarios on one
+tab, or one tab per scenario when they would exceed Excel's 1,048,576-row
+limit. Tableau (`.hyper`) has no row limit, keeps column types, and is much
+faster on large workspaces (3 s vs ~6 min for 2.1M rows). The Studio scenario
+ID replaces dbt's internal `scenario_id` ('default') in the export.
+
+**Dependencies:** `tableauhyperapi==0.0.26479` (later releases dropped macOS
+builds; not installed on Linux ARM, where Tableau export returns 501) and
+`lxml` (faster openpyxl writes).
+
+
 ### Fit & Backtest in Studio (issue #588)
 
 **Added — Run → Fit & Backtest page.** Analysts can now upload annual census
