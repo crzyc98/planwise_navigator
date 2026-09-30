@@ -77,7 +77,7 @@
       w.employee_ssn,
       'termination' AS event_type,
       {{ simulation_year }} AS simulation_year,
-      (CAST('{{ simulation_year }}-01-01' AS DATE) + INTERVAL ((ABS(HASH(w.employee_id)) % 365)) DAY) AS effective_date,
+      (CAST('{{ simulation_year }}-01-01' AS DATE) + INTERVAL ((ABS(PLANALIGN_HASH(w.employee_id)) % 365)) DAY) AS effective_date,
       CASE
         WHEN w.random_value < w.termination_rate THEN 'hazard_termination'
         ELSE 'gap_filling_termination'
@@ -115,7 +115,7 @@
       w.employee_ssn,
       'termination' AS event_type,
       {{ simulation_year }} AS simulation_year,
-      (CAST('{{ simulation_year }}-01-01' AS DATE) + INTERVAL ((ABS(HASH(w.employee_id || 'new_hire')) % 365)) DAY) AS effective_date,
+      (CAST('{{ simulation_year }}-01-01' AS DATE) + INTERVAL ((ABS(PLANALIGN_HASH(w.employee_id || 'new_hire')) % 365)) DAY) AS effective_date,
       CASE
         WHEN w.random_value < w.termination_rate THEN 'new_hire_hazard_termination'
         ELSE 'new_hire_gap_filling_termination'

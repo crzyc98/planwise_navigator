@@ -12,7 +12,7 @@ dependencies = [
     # Core runtime dependencies
     # Engine bump (#705 phase 2, 2026-09-21) -- see requirements.txt for
     # rationale and SECURITY.md for the advisories this clears.
-    "duckdb==1.1.3",
+    "duckdb==1.5.5",
     "dbt-core==1.9.11",
     "dbt-duckdb==1.9.6",
     "pydantic==2.13.5",
@@ -74,7 +74,8 @@ dev = [
     "ruff==0.4.3",
     "black==23.9.1",
     "isort==9.0.1",
-    "mypy==2.3.1",
+    # mypy >=1.20 requires pathspec >=1, conflicting with dbt-core's <0.13.
+    "mypy==1.19.1",
     # Type stubs for the CI mypy lint job (see requirements-dev.txt / #333)
     "types-PyYAML==6.0.12.20260518",
     "pylint==4.0.9",

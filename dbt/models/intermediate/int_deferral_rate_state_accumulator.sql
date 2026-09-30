@@ -34,6 +34,17 @@
 {% set start_year = var('start_year', 2025) | int %}
 {% set scenario_id = var('scenario_id', 'default') %}
 
+{% set initial_rate_change %}
+  (ce.new_deferral_rate - COALESCE(he.initial_deferral_rate, br.fallback_rate, 0.03))
+  / COALESCE(he.initial_deferral_rate, br.fallback_rate, 0.03)
+{% endset %}
+{% set carried_rate_change %}
+  (COALESCE(ce.new_deferral_rate, mr.match_responsive_rate, ne.initial_deferral_rate,
+            ps.previous_deferral_rate, br.fallback_rate, 0.03)
+    - COALESCE(ps.original_deferral_rate, ne.initial_deferral_rate, br.fallback_rate, 0.03))
+  / COALESCE(ps.original_deferral_rate, ne.initial_deferral_rate, br.fallback_rate, 0.03)
+{% endset %}
+
 WITH
 -- Get current year's new enrollment events from fct_yearly_events
 -- (supports both SQL and Polars event generation modes)
@@ -315,7 +326,7 @@ first_year_state AS (
 
         -- Track escalations
         CASE WHEN ce.employee_id IS NOT NULL THEN 1 ELSE 0 END as escalations_received,
-        ce.effective_date as last_escalation_date,
+        CAST(ce.effective_date AS TIMESTAMP) as last_escalation_date,
         (ce.employee_id IS NOT NULL) as has_escalations,
         'int_deferral_rate_escalation_events'::VARCHAR as escalation_source,
 
@@ -334,10 +345,10 @@ first_year_state AS (
         -- Rate change calculation
         CASE
             WHEN COALESCE(he.initial_deferral_rate, br.fallback_rate, 0.03) > 0.0001 AND ce.new_deferral_rate IS NOT NULL
-            THEN ((ce.new_deferral_rate - COALESCE(he.initial_deferral_rate, br.fallback_rate, 0.03)) / COALESCE(he.initial_deferral_rate, br.fallback_rate, 0.03))::DECIMAL(8,4)
+            THEN {{ stable_decimal(initial_rate_change, 8, 4) }}
             ELSE NULL
         END as escalation_rate_change_pct,
-        COALESCE(ce.escalation_rate, 0.0000::DECIMAL(5,4)) as total_escalation_amount,
+        CAST(COALESCE(ce.escalation_rate, 0.0000::DECIMAL(5,4)) AS DECIMAL(5,4)) as total_escalation_amount,
 
         -- Time metrics
         NULL::INTEGER as years_since_first_escalation,
@@ -432,7 +443,7 @@ subsequent_year_state AS (
             ELSE COALESCE(ps.previous_escalations_received, 0)
         END as escalations_received,
 
-        COALESCE(ce.effective_date, ps.employee_enrollment_date) as last_escalation_date,
+        CAST(COALESCE(ce.effective_date, ps.employee_enrollment_date) AS TIMESTAMP) as last_escalation_date,
         (COALESCE(ps.previous_escalations_received, 0) > 0 OR ce.employee_id IS NOT NULL) as has_escalations,
         'int_deferral_rate_escalation_events'::VARCHAR as escalation_source,
 
@@ -447,9 +458,7 @@ subsequent_year_state AS (
         -- Rate change calculation
         CASE
             WHEN COALESCE(ps.original_deferral_rate, ne.initial_deferral_rate, br.fallback_rate, 0.03) > 0.0001
-            THEN ((COALESCE(ce.new_deferral_rate, mr.match_responsive_rate, ne.initial_deferral_rate, ps.previous_deferral_rate, br.fallback_rate, 0.03) -
-                   COALESCE(ps.original_deferral_rate, ne.initial_deferral_rate, br.fallback_rate, 0.03)) /
-                   COALESCE(ps.original_deferral_rate, ne.initial_deferral_rate, br.fallback_rate, 0.03))::DECIMAL(8,4)
+            THEN {{ stable_decimal(carried_rate_change, 8, 4) }}
             ELSE NULL
         END as escalation_rate_change_pct,
 

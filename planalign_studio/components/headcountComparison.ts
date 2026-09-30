@@ -1,5 +1,4 @@
 import type { SimulationResults } from '../services/api';
-import { scenarioSeriesKey } from './scenarioComparisonData';
 
 interface HeadcountScenario {
   scenario: { id: string; name: string };
@@ -24,7 +23,7 @@ export function buildHeadcountComparison(scenarios: HeadcountScenario[]) {
   const workforce = years.map(year => {
     const point: Record<string, number | null> = { year };
     scenarios.forEach(({ scenario }, index) => {
-      point[scenarioSeriesKey(scenario.id)] = observations[index].get(year) ?? null;
+      point[`scenario_${scenario.id}`] = observations[index].get(year) ?? null;
     });
     return point;
   });

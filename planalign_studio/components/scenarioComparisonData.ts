@@ -1,3 +1,4 @@
+import { buildHeadcountComparison } from './headcountComparison';
 import type { ContributionYearSummary, DCPlanAnalytics, Scenario, SimulationResults } from '../services/api';
 
 export interface ComparisonScenario {
@@ -58,4 +59,8 @@ export function buildEventComparisonData(scenarios: ComparisonScenario[]) {
   });
 
   return { events };
+}
+
+export function buildComparisonData(scenarios: ComparisonScenario[]) {
+  return { ...buildHeadcountComparison(scenarios), ...buildEventComparisonData(scenarios) };
 }

@@ -382,6 +382,7 @@ quoting:
 
 # E068E: Engine & I/O Tuning - DuckDB Performance Optimization
 on-run-start:
+  - "{{ install_stable_hash() }}"
   # Thread optimization for 16 vCPU machine
   - "PRAGMA threads=16"
 

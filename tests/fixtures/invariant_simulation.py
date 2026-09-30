@@ -106,6 +106,7 @@ def _execute(database: Path, census_parquet: Path) -> SimulationRun:
                 ConstructionSpec(
                     config=_simulation_config(census_parquet),
                     database=database,
+                    dbt_artifacts_dir=database.parent / "dbt",
                     threads=1,
                     entry_point="invariant_test",
                     validation_mode=True,

@@ -20,8 +20,7 @@ import { useChartTheme } from '../hooks/useChartTheme';
 import DCPlanComparisonSection from './DCPlanComparisonSection';
 import { LayoutContextType } from './Layout';
 import { useWorkspaceNavigate, useWorkspacePath } from '../hooks/useWorkspaceNavigation';
-import { buildHeadcountComparison } from './headcountComparison';
-import { buildEventComparisonData, buildScenarioColors, scenarioSeriesKey } from './scenarioComparisonData';
+import { buildComparisonData, buildScenarioColors, scenarioSeriesKey } from './scenarioComparisonData';
 
 interface ScenarioData {
   scenario: Scenario;
@@ -157,9 +156,8 @@ export default function ScenarioComparison() {
   // Build scenario color map (shared between workforce and DC plan charts)
   const scenarioColors = buildScenarioColors(scenariosWithResults.map(d => d.scenario), chartTheme.colorAt);
 
-  // Build comparison data for charts
-  const comparisonData = buildEventComparisonData(scenariosWithResults);
-  const headcountComparison = buildHeadcountComparison(scenariosWithResults);
+  const comparisonData = buildComparisonData(scenariosWithResults);
+  const headcountComparison = comparisonData;
 
   if (loading) {
     return (
@@ -392,7 +390,7 @@ export default function ScenarioComparison() {
                     formatter={(value: number, name: string) => [value.toLocaleString(), name]}
                   />
                   <Legend verticalAlign="top" height={36} formatter={(value) => <span style={{ color: chartTheme.legendText }}>{value}</span>} />
-                  {scenariosWithResults.map(d => (
+                  {scenariosWithResults.map((d, idx) => (
                     <Line
                       key={d.scenario.id}
                       type="monotone"

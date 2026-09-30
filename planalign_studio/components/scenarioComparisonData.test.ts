@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ContributionYearSummary } from '../services/api';
-import { buildHeadcountComparison } from './headcountComparison';
 import {
-  buildDCTrendData, buildEventComparisonData, buildScenarioColors, ComparisonScenario,
+  buildComparisonData, buildDCTrendData, buildEventComparisonData, buildScenarioColors, ComparisonScenario,
 } from './scenarioComparisonData';
 
 function scenario(id: string, name: string, headcount: number, hires: number): ComparisonScenario {
@@ -18,7 +17,7 @@ function scenario(id: string, name: string, headcount: number, hires: number): C
 describe('scenario comparison series identity', () => {
   it.each(['Baseline', 'year', 'bucket', 'name'])('keeps independent values for duplicate names: %s', name => {
     const scenarios = [scenario('a', name, 100, 10), scenario('b', name, 200, 20)];
-    expect(buildHeadcountComparison(scenarios).workforce).toEqual([
+    expect(buildComparisonData(scenarios).workforce).toEqual([
       { year: 2025, scenario_a: 100, scenario_b: 200 },
     ]);
     expect(buildEventComparisonData(scenarios).events).toEqual([
@@ -31,7 +30,7 @@ describe('scenario comparison series identity', () => {
   it('preserves series and color identity when names change', () => {
     const original = [scenario('a', 'Baseline', 100, 10), scenario('b', 'Baseline', 200, 20)];
     const renamed = original.map(d => ({ ...d, scenario: { ...d.scenario, name: 'year' } }));
-    expect(buildHeadcountComparison(renamed)).toEqual(buildHeadcountComparison(original));
+    expect(buildComparisonData(renamed)).toEqual(buildComparisonData(original));
     expect(buildEventComparisonData(renamed)).toEqual(buildEventComparisonData(original));
     const colorAt = (index: number) => ['green', 'blue'][index];
     expect(buildScenarioColors(renamed.map(d => d.scenario), colorAt))
@@ -39,7 +38,7 @@ describe('scenario comparison series identity', () => {
   });
 
   it('protects structural fields even when a scenario ID is year', () => {
-    expect(buildHeadcountComparison([scenario('year', 'year', 100, 10)]).workforce)
+    expect(buildComparisonData([scenario('year', 'year', 100, 10)]).workforce)
       .toEqual([{ year: 2025, scenario_year: 100 }]);
   });
 

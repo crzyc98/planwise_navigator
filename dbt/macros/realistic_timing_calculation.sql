@@ -3,7 +3,7 @@
   WITH month_selection AS (
     SELECT
       {{ employee_id_column }} as emp_id,
-      ABS(HASH({{ employee_id_column }} || '_' || {{ simulation_year }} || '_month')) % 10000 / 10000.0 as month_selector
+      ABS(PLANALIGN_HASH({{ employee_id_column }} || '_' || {{ simulation_year }} || '_month')) % 10000 / 10000.0 as month_selector
   ),
   cumulative_distribution AS (
     SELECT
@@ -27,7 +27,7 @@
       sm.emp_id,
       sm.selected_month,
       -- Generate day within selected month using separate hash
-      (ABS(HASH(sm.emp_id || '_' || {{ simulation_year }} || '_day_' || sm.selected_month)) %
+      (ABS(PLANALIGN_HASH(sm.emp_id || '_' || {{ simulation_year }} || '_day_' || sm.selected_month)) %
        -- Get number of days in the selected month
        EXTRACT(DAY FROM (
          DATE_TRUNC('month', CAST({{ simulation_year }} || '-' || LPAD(sm.selected_month::VARCHAR, 2, '0') || '-01' AS DATE)) +
