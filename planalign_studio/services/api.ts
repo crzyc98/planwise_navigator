@@ -75,19 +75,11 @@ export interface WorkspaceListOptions {
 export type WorkspaceCreate = Schemas['WorkspaceCreate'];
 export type WorkspaceUpdate = Schemas['WorkspaceUpdate'];
 
-export interface Scenario {
-  id: string;
-  workspace_id: string;
-  name: string;
-  description: string | null;
+// Config fields are free-form partial simulation configs the API does not
+// model, so Studio declares them as open records; every other field is generated.
+export type Scenario = Omit<Schemas['Scenario'], 'config_overrides'> & {
   config_overrides: Record<string, any>;
-  provenance: Record<string, any> | null;
-  status: 'not_run' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
-  created_at: string;
-  last_run_at: string | null;
-  last_run_id: string | null;
-  results_summary: Record<string, any> | null;
-}
+};
 
 export type ScenarioCreate = Schemas['ScenarioCreate'];
 
@@ -598,41 +590,9 @@ export async function getScenarioConfigDiff(
 
 export type Artifact = Schemas['Artifact'];
 
-export interface RunDetails {
-  id: string;
-  scenario_id: string;
-  scenario_name: string;
-  workspace_id: string;
-  workspace_name: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'not_run';
-
-  // Timing
-  started_at: string | null;
-  completed_at: string | null;
-  duration_seconds: number | null;
-
-  // Simulation info
-  start_year: number | null;
-  end_year: number | null;
-  total_years: number | null;
-
-  // Results summary
-  final_headcount: number | null;
-  total_events: number | null;
-  participation_rate: number | null;
-
-  // Configuration snapshot
+export type RunDetails = Omit<Schemas['RunDetails'], 'config'> & {
   config: Record<string, any> | null;
-
-  // Artifacts
-  artifacts: Artifact[];
-
-  // Error info
-  error_message: string | null;
-
-  // E087: Storage location info
-  storage_path: string | null;
-}
+};
 
 export async function getRunDetails(scenarioId: string): Promise<RunDetails> {
   const response = await fetchWithAuth(`${API_BASE}/api/scenarios/${scenarioId}/details`);
@@ -987,13 +947,9 @@ export async function solveCompensationGrowth(
 // Template Endpoints
 // ============================================================================
 
-export interface Template {
-  id: string;
-  name: string;
-  description: string;
-  category: string;
+export type Template = Omit<Schemas['Template'], 'config'> & {
   config: Record<string, any>;
-}
+};
 
 export type TemplateListResponse = Schemas['TemplateListResponse'];
 
