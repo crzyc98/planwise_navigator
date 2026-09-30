@@ -35,9 +35,9 @@ Plan sponsors and their advisors use it to estimate the multi-year financial imp
 | **CLI** | planalign (Rich + Typer) | 2.2.0 | Terminal interface with progress tracking |
 | **Web Studio** | FastAPI + React/Vite | 2.2.0 | Web-based scenario management |
 | **Frontend Styling** | Tailwind CSS | 4.x | Bundled via `@tailwindcss/vite` — never CDN |
-| **Configuration** | Pydantic | 2.7.4 | Type-safe parameter management |
+| **Configuration** | Pydantic | 2.13.5 | Type-safe parameter management |
 | **Git Sync** | GitPython | 3.1.0+ | Workspace cloud synchronization |
-| **Python** | CPython | 3.11 / 3.12 | 3.13+ not yet supported (pydantic-core wheels) |
+| **Python** | CPython | 3.12 | Version CI tests against |
 
 ## Architecture
 
@@ -122,7 +122,7 @@ fidelity_planalign/
 
 ### Prerequisites
 
-- **Python 3.11 or 3.12** (3.13+ not yet supported — pydantic-core wheels unavailable)
+- **Python 3.12**
 - **Node.js 20.19+** (for the PlanAlign Studio frontend)
 - Employee census data
 - On-premises deployment environment
@@ -135,7 +135,7 @@ fidelity_planalign/
 git clone <repository-url> fidelity_planalign
 cd fidelity_planalign
 
-uv venv .venv --python 3.11
+uv venv .venv --python 3.12
 source .venv/bin/activate
 uv pip install -e ".[dev]"
 ```
@@ -143,7 +143,7 @@ uv pip install -e ".[dev]"
 **macOS/Linux (pip):**
 
 ```bash
-python3.11 -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
 pip install -e ".[dev]"

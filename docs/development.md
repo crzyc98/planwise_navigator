@@ -3,14 +3,14 @@
 ## Setup
 
 ```bash
-uv venv .venv --python python3.11
+uv venv .venv --python python3.12
 source .venv/bin/activate
 uv pip install -e ".[dev]"
 
 planalign health          # verify system readiness
 ```
 
-Python 3.11 is required. After recreating the venv, import the package once
+Python 3.12 is required. After recreating the venv, import the package once
 (`planalign health` suffices) to auto-install the sqlparse token-limit fix.
 
 ## Everyday commands

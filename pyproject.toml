@@ -3,7 +3,7 @@ name = "fidelity-planalign-engine"
 version = "2.4.0"
 description = "Fidelity PlanAlign Engine - Enterprise workforce simulation platform with immutable event sourcing"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 authors = [
     {name = "Nicholas Amaral", email = "nicholas.amaral@gmail.com"}
 ]
@@ -69,7 +69,7 @@ dev = [
     "ruff==0.4.3",
     "black==23.9.1",
     "isort==9.0.1",
-    "mypy==1.5.1",
+    "mypy==2.3.1",
     # Type stubs for the CI mypy lint job (see requirements-dev.txt / #333)
     "types-PyYAML==6.0.12.20260518",
     "pylint==4.0.9",

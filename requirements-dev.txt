@@ -17,7 +17,7 @@ Faker==40.39.0
 ruff==0.4.3
 black==23.9.1
 isort==9.0.1
-mypy==1.5.1
+mypy==2.3.1
 # Type stubs for the CI `mypy` lint job. Without these, mypy reports
 # "Library stubs not installed for 'yaml'" (not suppressed by
 # --ignore-missing-imports because the stub is known to exist on PyPI),
