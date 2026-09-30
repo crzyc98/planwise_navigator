@@ -1,3 +1,4 @@
+import { buildHeadcountComparison } from './headcountComparison';
 import type { ContributionYearSummary, DCPlanAnalytics, Scenario, SimulationResults } from '../services/api';
 
 export interface ComparisonScenario {
@@ -61,16 +62,5 @@ export function buildEventComparisonData(scenarios: ComparisonScenario[]) {
 }
 
 export function buildComparisonData(scenarios: ComparisonScenario[]) {
-  const years = [...new Set(scenarios.flatMap(d =>
-    d.results.workforce_progression.map(r => r.simulation_year)
-  ))].sort((a, b) => a - b);
-  const workforce = years.map(year => {
-    const point: Record<string, number> = { year };
-    scenarios.forEach(({ scenario, results }) => {
-      const row = results.workforce_progression.find(r => r.simulation_year === year);
-      point[scenarioSeriesKey(scenario.id)] = row?.headcount || 0;
-    });
-    return point;
-  });
-  return { workforce, ...buildEventComparisonData(scenarios) };
+  return { ...buildHeadcountComparison(scenarios), ...buildEventComparisonData(scenarios) };
 }

@@ -157,6 +157,7 @@ export default function ScenarioComparison() {
   const scenarioColors = buildScenarioColors(scenariosWithResults.map(d => d.scenario), chartTheme.colorAt);
 
   const comparisonData = buildComparisonData(scenariosWithResults);
+  const headcountComparison = comparisonData;
 
   if (loading) {
     return (
@@ -368,14 +369,23 @@ export default function ScenarioComparison() {
         {/* Headcount Comparison Chart */}
         <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
           <h3 className="text-lg font-semibold text-ink mb-6">Headcount Over Time</h3>
+          {headcountComparison.hasMissingYears && (
+            <p className="text-sm text-warning-ink mb-4" role="status">
+              Simulation year coverage differs or has gaps. Missing observations appear as gaps, not zero headcount.
+              {' '}{headcountComparison.commonYearCount === 0
+                ? 'No years have observations for all scenarios.'
+                : `${headcountComparison.commonYearCount} year(s) have observations for all scenarios.`}
+            </p>
+          )}
           <div className="h-80">
-            {comparisonData.workforce.length > 0 ? (
+            {headcountComparison.workforce.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={comparisonData.workforce}>
+                <LineChart data={headcountComparison.workforce}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
                   <XAxis dataKey="year" stroke={chartTheme.axis.line} />
                   <YAxis stroke={chartTheme.axis.line} />
                   <Tooltip
+                    filterNull
                     contentStyle={chartTheme.tooltip.contentStyle}
                     formatter={(value: number, name: string) => [value.toLocaleString(), name]}
                   />
@@ -388,6 +398,7 @@ export default function ScenarioComparison() {
                       name={d.scenario.name}
                       stroke={scenarioColors[d.scenario.id]}
                       strokeWidth={3}
+                      connectNulls={false}
                       dot={{ r: 4 }}
                       activeDot={{ r: 6 }}
                     />
