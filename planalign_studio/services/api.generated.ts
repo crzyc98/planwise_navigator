@@ -8088,6 +8088,12 @@ export interface components {
              */
             description: string | null;
             /**
+             * Has Selected Result
+             * @description Whether a successful result is available for comparison
+             * @default false
+             */
+            has_selected_result: boolean;
+            /**
              * Id
              * @description Unique scenario ID (UUID)
              */
@@ -8116,6 +8122,11 @@ export interface components {
             } | null;
             /** @description Summary of last run results */
             results_summary: components["schemas"]["ScenarioResultsSummary"] | null;
+            /**
+             * Selected Result Run Id
+             * @description Selected successful run ID, independent of latest attempt
+             */
+            selected_result_run_id: string | null;
             /**
              * Status
              * @description Scenario execution status

@@ -12085,6 +12085,12 @@
             "description": "Scenario description",
             "title": "Description"
           },
+          "has_selected_result": {
+            "default": false,
+            "description": "Whether a successful result is available for comparison",
+            "title": "Has Selected Result",
+            "type": "boolean"
+          },
           "id": {
             "description": "Unique scenario ID (UUID)",
             "title": "Id",
@@ -12144,6 +12150,18 @@
             ],
             "description": "Summary of last run results"
           },
+          "selected_result_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Selected successful run ID, independent of latest attempt",
+            "title": "Selected Result Run Id"
+          },
           "status": {
             "default": "not_run",
             "description": "Scenario execution status",
@@ -12175,6 +12193,8 @@
           "created_at",
           "last_run_at",
           "last_run_id",
+          "has_selected_result",
+          "selected_result_run_id",
           "results_summary"
         ],
         "title": "Scenario",
