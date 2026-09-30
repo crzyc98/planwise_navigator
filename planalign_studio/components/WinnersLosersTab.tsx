@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import { LayoutContextType } from './Layout';
 import { useChartTheme } from '../hooks/useChartTheme';
+import { hasComparisonResult, restoreComparisonSelection } from './comparisonSelection';
+import SelectedComparisonRuns from './SelectedComparisonRuns';
 import {
   listScenarios,
   getWinnersLosersComparison,
@@ -125,28 +127,14 @@ export default function WinnersLosersTab() {
     try {
       const data = await listScenarios(workspaceId);
       setScenarios(data);
-      const completed = data.filter(s => s.status === 'completed');
 
       // Restore from URL params or auto-select defaults
       const urlPlanA = searchParams.get('plan_a');
       const urlPlanB = searchParams.get('plan_b');
 
-      if (urlPlanA && completed.find(s => s.id === urlPlanA)) {
-        setPlanA(urlPlanA);
-      } else if (completed.length > 0) {
-        // Default Plan A: baseline scenario or first completed
-        const baseline = completed.find(s => s.name.toLowerCase().includes('baseline'));
-        setPlanA(baseline?.id || completed[0].id);
-      }
-
-      if (urlPlanB && completed.find(s => s.id === urlPlanB)) {
-        setPlanB(urlPlanB);
-      } else if (completed.length > 1) {
-        // Default Plan B: first completed that isn't Plan A
-        const selectedA = planA || (completed.find(s => s.name.toLowerCase().includes('baseline'))?.id || completed[0].id);
-        const other = completed.find(s => s.id !== selectedA);
-        setPlanB(other?.id || '');
-      }
+      const [selectedA, selectedB] = restoreComparisonSelection(data, urlPlanA, urlPlanB);
+      setPlanA(selectedA);
+      setPlanB(selectedB);
     } catch (err) {
       console.error('Failed to fetch scenarios:', err);
       setScenarios([]);
@@ -173,7 +161,7 @@ export default function WinnersLosersTab() {
     }
   };
 
-  const completedScenarios = scenarios.filter(s => s.status === 'completed');
+  const completedScenarios = scenarios.filter(hasComparisonResult);
 
   // Band chart data transform
   const toBandChartData = (bands: BandGroupResult[]) =>
@@ -255,9 +243,10 @@ export default function WinnersLosersTab() {
       </div>
 
       {/* Content */}
+      <SelectedComparisonRuns scenarios={scenarios.filter(s => s.id === planA || s.id === planB)} />
       {completedScenarios.length < 2 ? (
         <EmptyState
-          message="At least two completed scenarios are required to compare winners and losers."
+          message="At least two scenarios with successful results are required to compare winners and losers."
           onRefresh={() => activeWorkspace?.id && fetchScenarios(activeWorkspace.id)}
         />
       ) : loading ? (
@@ -268,7 +257,7 @@ export default function WinnersLosersTab() {
         <ErrorState message={error} onRetry={fetchComparison} />
       ) : !results ? (
         <EmptyState
-          message="Select two completed scenarios above to compare winners and losers."
+          message="Select two scenarios with successful results above to compare winners and losers."
           onRefresh={() => activeWorkspace?.id && fetchScenarios(activeWorkspace.id)}
         />
       ) : (

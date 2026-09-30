@@ -4,6 +4,7 @@ import json
 import uuid
 
 import duckdb
+import pytest
 
 from planalign_api.models.scenario import ScenarioCreate
 from planalign_api.models.workspace import WorkspaceCreate
@@ -95,3 +96,61 @@ def test_corrupt_pointer_fails_closed(tmp_path, client_factory):
 
     assert response.status_code == 500
     assert "integrity failure" in response.json()["detail"].lower()
+
+
+@pytest.mark.parametrize(
+    "status", ["completed", "queued", "running", "failed", "cancelled"]
+)
+def test_selected_result_available_in_list_and_detail(tmp_path, client_factory, status):
+    storage, workspace_id, scenario_id = _scenario(tmp_path)
+    successful_run = str(uuid.uuid4())
+    latest_attempt = str(uuid.uuid4())
+    _publish_success(storage, workspace_id, scenario_id, successful_run)
+    storage.update_scenario_status(workspace_id, scenario_id, status, latest_attempt)
+    client = client_factory("secret")
+    base = f"/api/workspaces/{workspace_id}/scenarios"
+
+    for path in [base, f"{base}/{scenario_id}"]:
+        response = client.get(path, headers={"Authorization": "Bearer secret"})
+        assert response.status_code == 200
+        body = response.json()
+        scenario = body[0] if isinstance(body, list) else body
+        assert scenario["has_selected_result"] is True
+        assert scenario["selected_result_run_id"] == successful_run
+        assert scenario["last_run_id"] == latest_attempt
+        assert scenario["status"] == status
+        assert ("X-PlanAlign-Run-Warning" in response.headers) == (
+            status in {"queued", "running"}
+        )
+
+
+@pytest.mark.parametrize(
+    "status", ["not_run", "running", "failed", "cancelled", "completed"]
+)
+def test_attempt_without_success_is_unavailable(tmp_path, client_factory, status):
+    storage, workspace_id, scenario_id = _scenario(tmp_path)
+    storage.update_scenario_status(workspace_id, scenario_id, status, str(uuid.uuid4()))
+    client = client_factory("secret")
+    response = client.get(
+        f"/api/workspaces/{workspace_id}/scenarios",
+        headers={"Authorization": "Bearer secret"},
+    )
+    assert response.status_code == 200
+    assert response.json()[0]["has_selected_result"] is False
+    assert response.json()[0]["selected_result_run_id"] is None
+
+
+def test_completed_legacy_result_remains_available(tmp_path, client_factory):
+    storage, workspace_id, scenario_id = _scenario(tmp_path)
+    run_id = str(uuid.uuid4())
+    duckdb.connect(
+        str(storage.get_scenario_database_path(workspace_id, scenario_id))
+    ).close()
+    storage.update_scenario_status(workspace_id, scenario_id, "completed", run_id)
+    response = client_factory("secret").get(
+        f"/api/workspaces/{workspace_id}/scenarios/{scenario_id}",
+        headers={"Authorization": "Bearer secret"},
+    )
+    assert response.status_code == 200
+    assert response.json()["has_selected_result"] is True
+    assert response.json()["selected_result_run_id"] == run_id

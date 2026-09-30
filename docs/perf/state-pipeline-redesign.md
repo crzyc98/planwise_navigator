@@ -25,6 +25,14 @@ headers into one global in-progress banner. Corrupt pointers fail closed instead
 silently selecting another database. Legacy lookup is retained only for scenarios
 that have never published a current-result pointer.
 
+Scenario list and detail responses expose `has_selected_result` and
+`selected_result_run_id` separately from the latest attempt's `status` and
+`last_run_id`. Studio comparison selections and direct diff links use this
+availability signal, so a queued, running, failed, or cancelled rerun does not hide
+retained successful results. Completed legacy scenarios remain available when a
+legacy database can be resolved. Comparison views show the selected run identity
+alongside the latest attempt status.
+
 Measured read latency remained well inside the two-second requirement: idle p95 was
 0.00361 seconds and active-run p95 was 0.00364 seconds.
 

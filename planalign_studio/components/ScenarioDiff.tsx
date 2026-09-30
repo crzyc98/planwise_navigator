@@ -26,13 +26,15 @@ import {
   ConfigDiffResponse,
   DCPlanMetrics,
   getScenarioConfigDiff,
-  listScenarios,
+  Scenario,
   WorkforceMetrics,
 } from '../services/api';
 import { useWorkspaceNavigate } from '../hooks/useWorkspaceNavigation';
 import CrossScenarioEvidencePanel from './CrossScenarioEvidencePanel';
 import { splitConfigDeltas, UNRECORDED_NOTE } from './configDiff';
 import { LayoutContextType } from './Layout';
+import { loadDiffSelection } from './comparisonSelection';
+import SelectedComparisonRuns from './SelectedComparisonRuns';
 
 interface ChartPoint {
   year: number;
@@ -61,7 +63,7 @@ type MetricDefinition = WorkforceMetricDefinition | DCPlanMetricDefinition;
 
 const METRICS: MetricDefinition[] = [
   { key: 'headcount', label: 'Headcount', format: 'integer', source: 'workforce', select: m => m.headcount },
-  { key: 'avg-compensation', label: 'Average Compensation', format: 'currency', source: 'workforce', select: m => m.avg_compensation },
+  { key: 'avg-compensation', label: 'Average Compensation', format: 'currency', source: 'workforce', select: m => m.avg_compensation ?? undefined },
   { key: 'participation', label: 'Participation Rate', format: 'percent', source: 'dc', select: m => m.participation_rate },
   { key: 'employer-match', label: 'Employer Match Cost', format: 'currency', source: 'dc', select: m => m.total_employer_match },
   { key: 'employer-cost', label: 'Total Employer Cost', format: 'currency', source: 'dc', select: m => m.total_employer_cost },
@@ -200,9 +202,10 @@ export default function ScenarioDiff() {
   const [configDiff, setConfigDiff] = useState<ConfigDiffResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedScenarios, setSelectedScenarios] = useState<Scenario[]>([]);
 
   const queryError = useMemo(() => {
-    if (!scenarioA || !scenarioB) return 'Select exactly two completed scenarios to open a diff.';
+    if (!scenarioA || !scenarioB) return 'Select exactly two scenarios with successful results to open a diff.';
     if (scenarioA === scenarioB) return 'Select two distinct scenarios to open a diff.';
     return null;
   }, [scenarioA, scenarioB]);
@@ -218,15 +221,13 @@ export default function ScenarioDiff() {
       setLoading(true);
       setError(null);
       try {
-        const scenarios = await listScenarios(activeWorkspace.id);
-        const selected = [scenarioA, scenarioB].map(id => scenarios.find(item => item.id === id));
-        if (selected.some(item => !item)) throw new Error('Both scenarios must belong to the active workspace.');
-        if (selected.some(item => item?.status !== 'completed')) throw new Error('Both scenarios must be completed before comparison.');
+        const selected = await loadDiffSelection(activeWorkspace.id, scenarioA, scenarioB);
         const [metricResponse, configResponse] = await Promise.all([
           compareScenarios(activeWorkspace.id, [scenarioA, scenarioB], scenarioA),
           getScenarioConfigDiff(activeWorkspace.id, scenarioA, scenarioB),
         ]);
         if (!cancelled) {
+          setSelectedScenarios(selected);
           setComparison(metricResponse);
           setConfigDiff(configResponse);
         }
@@ -275,6 +276,7 @@ export default function ScenarioDiff() {
           </div>
         </div>
       </header>
+      <SelectedComparisonRuns scenarios={selectedScenarios} />
 
       {configDiff.seeds_match === false && (
         <div className="flex gap-3 rounded-lg border border-warning-border bg-warning-surface p-4 text-warning-ink"><AlertTriangle className="shrink-0" /><span><strong>Seeds differ.</strong> Differences may include seed noise.</span></div>
