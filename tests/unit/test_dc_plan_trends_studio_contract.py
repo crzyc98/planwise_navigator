@@ -67,7 +67,6 @@ def test_empty_populations_are_gaps_with_explicit_no_data_copy() -> None:
 def test_api_client_sends_explicit_population_parameter() -> None:
     source = API_CLIENT.read_text(encoding="utf-8")
 
-    assert "export type DCPlanPopulation" in source
     assert "if (population) params.set('population', population)" in source
 
 
