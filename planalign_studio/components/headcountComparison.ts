@@ -1,7 +1,7 @@
 import type { SimulationResults } from '../services/api';
 
 interface HeadcountScenario {
-  scenario: { name: string };
+  scenario: { id: string; name: string };
   results: {
     workforce_progression: Array<Pick<SimulationResults['workforce_progression'][number], 'simulation_year' | 'headcount'>>;
   };
@@ -23,7 +23,7 @@ export function buildHeadcountComparison(scenarios: HeadcountScenario[]) {
   const workforce = years.map(year => {
     const point: Record<string, number | null> = { year };
     scenarios.forEach(({ scenario }, index) => {
-      point[scenario.name] = observations[index].get(year) ?? null;
+      point[`scenario_${scenario.id}`] = observations[index].get(year) ?? null;
     });
     return point;
   });

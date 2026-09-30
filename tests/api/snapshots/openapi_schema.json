@@ -4947,10 +4947,16 @@
             "type": "number"
           },
           "employer_cost_rate": {
-            "default": 0.0,
-            "description": "Employer cost rate (%)",
-            "title": "Employer Cost Rate",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Employer cost rate (%); null if compensation unavailable",
+            "title": "Employer Cost Rate"
           },
           "participant_count": {
             "default": 0,
@@ -15194,10 +15200,16 @@
             "type": "integer"
           },
           "avg_compensation": {
-            "default": 0.0,
-            "description": "Average prorated compensation for active employees",
-            "title": "Avg Compensation",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Average prorated compensation for active employees; null if unavailable",
+            "title": "Avg Compensation"
           },
           "growth_pct": {
             "description": "Growth percentage",

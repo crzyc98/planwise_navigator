@@ -61,7 +61,7 @@ type MetricDefinition = WorkforceMetricDefinition | DCPlanMetricDefinition;
 
 const METRICS: MetricDefinition[] = [
   { key: 'headcount', label: 'Headcount', format: 'integer', source: 'workforce', select: m => m.headcount },
-  { key: 'avg-compensation', label: 'Average Compensation', format: 'currency', source: 'workforce', select: m => m.avg_compensation },
+  { key: 'avg-compensation', label: 'Average Compensation', format: 'currency', source: 'workforce', select: m => m.avg_compensation ?? undefined },
   { key: 'participation', label: 'Participation Rate', format: 'percent', source: 'dc', select: m => m.participation_rate },
   { key: 'employer-match', label: 'Employer Match Cost', format: 'currency', source: 'dc', select: m => m.total_employer_match },
   { key: 'employer-cost', label: 'Total Employer Cost', format: 'currency', source: 'dc', select: m => m.total_employer_cost },

@@ -14,7 +14,7 @@ describe('headcount comparison year coverage', () => {
       scenario('A', [[2026, 0], [2025, 100]]),
       scenario('B', [[2025, 200], [2026, 210]]),
     ])).toEqual({
-      workforce: [{ year: 2025, A: 100, B: 200 }, { year: 2026, A: 0, B: 210 }],
+      workforce: [{ year: 2025, scenario_A: 100, scenario_B: 200 }, { year: 2026, scenario_A: 0, scenario_B: 210 }],
       hasMissingYears: false,
       commonYearCount: 2,
     });
@@ -25,14 +25,14 @@ describe('headcount comparison year coverage', () => {
       scenario('A', [[2025, 100], [2027, 110]]),
       scenario('B', [[2025, 200], [2026, 210], [2027, 220]]),
     ]);
-    expect(comparison.workforce[1]).toEqual({ year: 2026, A: null, B: 210 });
+    expect(comparison.workforce[1]).toEqual({ year: 2026, scenario_A: null, scenario_B: 210 });
     expect(comparison.hasMissingYears).toBe(true);
     expect(comparison.commonYearCount).toBe(2);
   });
 
   it('includes interior gaps shared by every scenario', () => {
     const comparison = buildHeadcountComparison([scenario('A', [[2025, 100], [2027, 110]])]);
-    expect(comparison.workforce[1]).toEqual({ year: 2026, A: null });
+    expect(comparison.workforce[1]).toEqual({ year: 2026, scenario_A: null });
     expect(comparison.hasMissingYears).toBe(true);
   });
 
@@ -41,7 +41,7 @@ describe('headcount comparison year coverage', () => {
       scenario('A', [[2025, 100], [2026, 110]]),
       scenario('B', [[2026, 200], [2027, 210]]),
     ])).toEqual({
-      workforce: [{ year: 2025, A: 100, B: null }, { year: 2026, A: 110, B: 200 }, { year: 2027, A: null, B: 210 }],
+      workforce: [{ year: 2025, scenario_A: 100, scenario_B: null }, { year: 2026, scenario_A: 110, scenario_B: 200 }, { year: 2027, scenario_A: null, scenario_B: 210 }],
       hasMissingYears: true,
       commonYearCount: 1,
     });
@@ -51,7 +51,7 @@ describe('headcount comparison year coverage', () => {
     expect(buildHeadcountComparison([
       scenario('A', [[2025, 100]]), scenario('B', [[2027, 200]]),
     ])).toEqual({
-      workforce: [{ year: 2025, A: 100, B: null }, { year: 2026, A: null, B: null }, { year: 2027, A: null, B: 200 }],
+      workforce: [{ year: 2025, scenario_A: 100, scenario_B: null }, { year: 2026, scenario_A: null, scenario_B: null }, { year: 2027, scenario_A: null, scenario_B: 200 }],
       hasMissingYears: true,
       commonYearCount: 0,
     });
@@ -60,7 +60,7 @@ describe('headcount comparison year coverage', () => {
   it('handles empty results', () => {
     expect(buildHeadcountComparison([])).toEqual({ workforce: [], hasMissingYears: false, commonYearCount: 0 });
     const comparison = buildHeadcountComparison([scenario('A', []), scenario('B', [[2025, 0]])]);
-    expect(comparison.workforce).toEqual([{ year: 2025, A: null, B: 0 }]);
+    expect(comparison.workforce).toEqual([{ year: 2025, scenario_A: null, scenario_B: 0 }]);
     expect(comparison.commonYearCount).toBe(0);
     expect(comparison.hasMissingYears).toBe(true);
   });
