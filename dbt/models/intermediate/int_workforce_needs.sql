@@ -291,7 +291,7 @@ SELECT
   -- Current workforce state
   cw.total_active_workforce AS starting_workforce_count,
   cw.experienced_workforce AS starting_experienced_count,
-  cw.current_year_hires AS starting_new_hire_count,
+  CAST(cw.current_year_hires AS BIGINT) AS starting_new_hire_count,
   cw.avg_compensation AS avg_current_compensation,
   cw.total_compensation AS total_current_compensation,
 

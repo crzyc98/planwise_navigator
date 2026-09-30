@@ -660,6 +660,19 @@ models:
       - name: contribution_periods_count
         description: Number of contribution periods calculated for this employee
 
+  - name: int_employee_compensation_by_year
+    description: Compensation inputs for event generation, with stable incremental date types from the first simulation year
+    columns:
+      - name: employee_birth_date
+        description: Employee birth date normalized to the final incremental TIMESTAMP type
+        data_type: timestamp
+      - name: employee_hire_date
+        description: Employee hire date normalized to the final incremental TIMESTAMP type
+        data_type: timestamp
+      - name: employee_enrollment_date
+        description: Employee enrollment date normalized to the final incremental TIMESTAMP type
+        data_type: timestamp
+
   - name: int_deferral_rate_state_accumulator
     description: >
       Enhanced temporal state accumulator (v2) for employee deferral rates across years.
@@ -756,8 +769,12 @@ models:
               max_value: 10
               config:
                 severity: error
+      - name: last_escalation_date
+        description: Last escalation effective date; TIMESTAMP in every simulation year
+        data_type: timestamp
       - name: total_escalation_amount
         description: Cumulative deferral rate increase from all escalations
+        data_type: decimal(5,4)
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
@@ -875,6 +892,9 @@ models:
           - not_null
           - dbt_utils.accepted_range:
               min_value: 0
+      - name: starting_new_hire_count
+        description: Current-year hires at the start of planning; BIGINT in every simulation year
+        data_type: bigint
       - name: target_growth_rate
         description: Target workforce growth rate (e.g., 0.03 for 3%)
         data_tests:
