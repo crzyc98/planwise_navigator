@@ -33,7 +33,7 @@ hire_probability_calculation AS (
   SELECT
     bw.*,
     -- Generate deterministic random number for hire probability
-    (ABS(HASH(CONCAT(bw.employee_id, '|', '{{ var("simulation_year") }}', '|hire'))) % 2147483647) / 2147483647.0 AS hire_rng,
+    (ABS(PLANALIGN_HASH(CONCAT(bw.employee_id, '|', '{{ var("simulation_year") }}', '|hire'))) % 2147483647) / 2147483647.0 AS hire_rng,
 
     -- Simplified hire rate logic for debug (replace with actual business logic)
     CASE
@@ -77,11 +77,11 @@ hire_decision_logic AS (
 
     -- Generate deterministic hire date within the simulation year
     '{{ var("simulation_year") }}-01-01'::DATE +
-      INTERVAL (FLOOR((ABS(HASH(CONCAT(hpc.employee_id, '|', '{{ var("simulation_year") }}', '|hire_date'))) % 2147483647) / 2147483647.0 * 365)) DAY AS hire_date,
+      INTERVAL (FLOOR((ABS(PLANALIGN_HASH(CONCAT(hpc.employee_id, '|', '{{ var("simulation_year") }}', '|hire_date'))) % 2147483647) / 2147483647.0 * 365)) DAY AS hire_date,
 
     -- Generate starting salary with some variation
     ROUND(
-      hpc.current_compensation * (0.95 + 0.10 * (ABS(HASH(CONCAT(hpc.employee_id, '|', '{{ var("simulation_year") }}', '|salary'))) % 2147483647) / 2147483647.0)
+      hpc.current_compensation * (0.95 + 0.10 * (ABS(PLANALIGN_HASH(CONCAT(hpc.employee_id, '|', '{{ var("simulation_year") }}', '|salary'))) % 2147483647) / 2147483647.0)
     ) AS starting_salary
 
   FROM hire_probability_calculation hpc

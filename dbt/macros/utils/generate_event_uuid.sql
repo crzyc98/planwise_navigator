@@ -25,7 +25,7 @@
     'evt-',
     SUBSTR(
       ABS(
-        HASH(
+        PLANALIGN_HASH(
           CONCAT(
             CAST({{ var('random_seed', 42) }} AS VARCHAR),
             '|',
@@ -68,7 +68,7 @@
     'evt-',
     SUBSTR(
       ABS(
-        HASH(
+        PLANALIGN_HASH(
           CONCAT(
             CAST({{ var('random_seed', 42) }} AS VARCHAR),
             '|',
@@ -109,7 +109,7 @@
     'wf-',
     SUBSTR(
       ABS(
-        HASH(
+        PLANALIGN_HASH(
           CONCAT(
             CAST({{ var('random_seed', 42) }} AS VARCHAR),
             '|wf|',
@@ -147,7 +147,7 @@
     'scn-',
     SUBSTR(
       ABS(
-        HASH(
+        PLANALIGN_HASH(
           CONCAT(
             CAST({{ var('random_seed', 42) }} AS VARCHAR),
             '|scn|',

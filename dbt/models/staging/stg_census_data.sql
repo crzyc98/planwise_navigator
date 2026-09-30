@@ -63,7 +63,7 @@ raw_data AS (
       -- SSNs never collide.
       COALESCE(
           employee_ssn,
-          'SSN-' || LPAD(CAST(ABS(HASH(employee_id)) % 900000000 AS VARCHAR), 9, '0')
+          'SSN-' || LPAD(CAST(ABS(PLANALIGN_HASH(employee_id)) % 900000000 AS VARCHAR), 9, '0')
       ) AS employee_ssn,
       TRY_CAST(employee_birth_date AS DATE) AS employee_birth_date,
       TRY_CAST(employee_hire_date AS DATE) AS employee_hire_date,
@@ -75,14 +75,14 @@ raw_data AS (
       CAST(employee_gross_compensation AS DOUBLE) AS raw_plan_year_compensation,
 
       -- DC plan fields (now safely available via schema scaffold)
-      CAST(employee_capped_compensation AS DECIMAL(12,2)) AS employee_capped_compensation,
-      CAST(employee_deferral_rate AS DECIMAL(7,5)) AS employee_deferral_rate,
-      CAST(employee_contribution AS DECIMAL(12,2)) AS employee_contribution,
-      CAST(pre_tax_contribution AS DECIMAL(12,2)) AS pre_tax_contribution,
-      CAST(roth_contribution AS DECIMAL(12,2)) AS roth_contribution,
-      CAST(after_tax_contribution AS DECIMAL(12,2)) AS after_tax_contribution,
-      CAST(employer_core_contribution AS DECIMAL(12,2)) AS employer_core_contribution,
-      CAST(employer_match_contribution AS DECIMAL(12,2)) AS employer_match_contribution,
+      {{ stable_decimal('employee_capped_compensation', 12, 2) }} AS employee_capped_compensation,
+      {{ stable_decimal('employee_deferral_rate', 7, 5) }} AS employee_deferral_rate,
+      {{ stable_decimal('employee_contribution', 12, 2) }} AS employee_contribution,
+      {{ stable_decimal('pre_tax_contribution', 12, 2) }} AS pre_tax_contribution,
+      {{ stable_decimal('roth_contribution', 12, 2) }} AS roth_contribution,
+      {{ stable_decimal('after_tax_contribution', 12, 2) }} AS after_tax_contribution,
+      {{ stable_decimal('employer_core_contribution', 12, 2) }} AS employer_core_contribution,
+      {{ stable_decimal('employer_match_contribution', 12, 2) }} AS employer_match_contribution,
       TRY_CAST(eligibility_entry_date AS DATE) AS eligibility_entry_date,
 
       -- Scheduled weekly hours: NULL means full-time (40 hrs/wk assumed downstream)

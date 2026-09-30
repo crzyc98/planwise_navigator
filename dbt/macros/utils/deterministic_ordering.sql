@@ -121,7 +121,7 @@
   WITH run_hashes AS (
     SELECT
       run_number,
-      hash(string_agg(
+      PLANALIGN_HASH(string_agg(
         CONCAT(
           COALESCE(employee_id::VARCHAR, 'null'),
           '|',
@@ -168,7 +168,7 @@
     Returns: SQL expression for row hash
   #}
 
-  hash(
+  PLANALIGN_HASH(
     CONCAT(
       COALESCE(employee_id::VARCHAR, ''),
       '|',
@@ -213,7 +213,7 @@
       ,
     {% endif %}
     -- Add tie-breaking with deterministic hash
-    hash(
+    PLANALIGN_HASH(
       CONCAT(
         {% for key in partition_keys %}
           COALESCE({{ key }}::VARCHAR, ''),

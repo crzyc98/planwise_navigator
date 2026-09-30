@@ -34,6 +34,17 @@
 {% set start_year = var('start_year', 2025) | int %}
 {% set scenario_id = var('scenario_id', 'default') %}
 
+{% set initial_rate_change %}
+  (ce.new_deferral_rate - COALESCE(he.initial_deferral_rate, br.fallback_rate, 0.03))
+  / COALESCE(he.initial_deferral_rate, br.fallback_rate, 0.03)
+{% endset %}
+{% set carried_rate_change %}
+  (COALESCE(ce.new_deferral_rate, mr.match_responsive_rate, ne.initial_deferral_rate,
+            ps.previous_deferral_rate, br.fallback_rate, 0.03)
+    - COALESCE(ps.original_deferral_rate, ne.initial_deferral_rate, br.fallback_rate, 0.03))
+  / COALESCE(ps.original_deferral_rate, ne.initial_deferral_rate, br.fallback_rate, 0.03)
+{% endset %}
+
 WITH
 -- Get current year's new enrollment events from fct_yearly_events
 -- (supports both SQL and Polars event generation modes)
@@ -334,7 +345,7 @@ first_year_state AS (
         -- Rate change calculation
         CASE
             WHEN COALESCE(he.initial_deferral_rate, br.fallback_rate, 0.03) > 0.0001 AND ce.new_deferral_rate IS NOT NULL
-            THEN ((ce.new_deferral_rate - COALESCE(he.initial_deferral_rate, br.fallback_rate, 0.03)) / COALESCE(he.initial_deferral_rate, br.fallback_rate, 0.03))::DECIMAL(8,4)
+            THEN {{ stable_decimal(initial_rate_change, 8, 4) }}
             ELSE NULL
         END as escalation_rate_change_pct,
         CAST(COALESCE(ce.escalation_rate, 0.0000::DECIMAL(5,4)) AS DECIMAL(5,4)) as total_escalation_amount,
@@ -447,9 +458,7 @@ subsequent_year_state AS (
         -- Rate change calculation
         CASE
             WHEN COALESCE(ps.original_deferral_rate, ne.initial_deferral_rate, br.fallback_rate, 0.03) > 0.0001
-            THEN ((COALESCE(ce.new_deferral_rate, mr.match_responsive_rate, ne.initial_deferral_rate, ps.previous_deferral_rate, br.fallback_rate, 0.03) -
-                   COALESCE(ps.original_deferral_rate, ne.initial_deferral_rate, br.fallback_rate, 0.03)) /
-                   COALESCE(ps.original_deferral_rate, ne.initial_deferral_rate, br.fallback_rate, 0.03))::DECIMAL(8,4)
+            THEN {{ stable_decimal(carried_rate_change, 8, 4) }}
             ELSE NULL
         END as escalation_rate_change_pct,
 

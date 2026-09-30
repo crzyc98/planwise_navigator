@@ -86,7 +86,7 @@ workforce_with_ranking AS (
     SELECT
         w.*,
         -- Deterministic hash (no floating point)
-        HASH(w.employee_id || '|' || {{ simulation_year }} || '|TERMINATION|{{ subsystem_seed('termination') }}') % 1000000 AS selection_hash
+        PLANALIGN_HASH(w.employee_id || '|' || {{ simulation_year }} || '|TERMINATION|{{ subsystem_seed('termination') }}') % 1000000 AS selection_hash
     FROM workforce_with_bands w
 ),
 

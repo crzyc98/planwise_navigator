@@ -87,7 +87,7 @@ new_hires_resolved AS (
     nh.employee_id,
     {{ simulation_year }} AS simulation_year,
     (
-      ABS(MOD(HASH(nh.employee_id || '_eligibility_' || CAST({{ simulation_year }} AS VARCHAR)), 1000000)) / 1000000.0
+      ABS(MOD(PLANALIGN_HASH(nh.employee_id || '_eligibility_' || CAST({{ simulation_year }} AS VARCHAR)), 1000000)) / 1000000.0
     ) < {% if match_census %}(SELECT observed_ineligible_rate FROM census_rate){% else %}{{ new_hire_ineligible_pct }}{% endif %} AS is_plan_ineligible_override,
     '{% if match_census %}census_match{% else %}new_hire_dial{% endif %}' AS override_source
   FROM new_hires nh

@@ -209,7 +209,7 @@ enrollment_probability_calculation AS (
     END as job_level_multiplier,
 
     -- Deterministic random value for enrollment decision
-    (ABS(HASH(employee_id || '-voluntary-enroll-' || CAST({{ var('simulation_year') }} AS VARCHAR))) % 1000) / 1000.0 as enrollment_random
+    (ABS(PLANALIGN_HASH(employee_id || '-voluntary-enroll-' || CAST({{ var('simulation_year') }} AS VARCHAR))) % 1000) / 1000.0 as enrollment_random
 
   FROM demographic_segmentation
 ),
@@ -263,12 +263,12 @@ deferral_rate_selection AS (
     END as selected_deferral_rate,
 
     -- Deterministic random value for deferral rate variation
-    (ABS(HASH(employee_id || '-deferral-rate-' || CAST({{ var('simulation_year') }} AS VARCHAR))) % 1000) / 1000.0 as deferral_random,
+    (ABS(PLANALIGN_HASH(employee_id || '-deferral-rate-' || CAST({{ var('simulation_year') }} AS VARCHAR))) % 1000) / 1000.0 as deferral_random,
 
     -- Issue #652: SEPARATE seed from deferral_random, which is already spent on
     -- the match-magnet snap. Sharing it would correlate "spread upward" with
     -- "snapped to the match ceiling".
-    (ABS(HASH(employee_id || '-deferral-spread-' || CAST({{ var('simulation_year') }} AS VARCHAR))) % 1000) / 1000.0 as spread_random
+    (ABS(PLANALIGN_HASH(employee_id || '-deferral-spread-' || CAST({{ var('simulation_year') }} AS VARCHAR))) % 1000) / 1000.0 as spread_random
 
   FROM enrollment_probability_calculation
 ),

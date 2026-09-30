@@ -37,7 +37,7 @@
       {%- if config.termination_distribution == 'monthly' %}
       -- Distribute terminations across the year using employee ID hash
       (CAST('{{ simulation_year }}-01-01' AS DATE) + 
-       INTERVAL (ABS(HASH('{{ employee_id or 'default' }}')) % 365) DAY)
+       INTERVAL (ABS(PLANALIGN_HASH('{{ employee_id or 'default' }}')) % 365) DAY)
       {%- else %}
       CAST('{{ simulation_year }}-{{ config.termination_distribution }}' AS DATE)
       {%- endif %}
@@ -46,7 +46,7 @@
       {%- if config.hiring_distribution == 'monthly' %}
       -- Distribute hires across the year using employee ID hash  
       (CAST('{{ simulation_year }}-01-01' AS DATE) + 
-       INTERVAL (ABS(HASH('{{ employee_id or 'default' }}')) % 365) DAY)
+       INTERVAL (ABS(PLANALIGN_HASH('{{ employee_id or 'default' }}')) % 365) DAY)
       {%- else %}
       CAST('{{ simulation_year }}-{{ config.hiring_distribution }}' AS DATE)
       {%- endif %}

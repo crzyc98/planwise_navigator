@@ -15,10 +15,10 @@ SELECT
   2025 AS simulation_year,
 
   -- Test basic hash function
-  ABS(HASH('test_string')) % 1000000 AS basic_hash_test,
+  ABS(PLANALIGN_HASH('test_string')) % 1000000 AS basic_hash_test,
 
   -- Test the range of hash values
-  ABS(HASH('test_string')) % 2147483647 / 2147483647.0 AS normalized_hash,
+  ABS(PLANALIGN_HASH('test_string')) % 2147483647 / 2147483647.0 AS normalized_hash,
 
   'Basic functionality validated' AS status
 
