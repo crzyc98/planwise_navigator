@@ -39,9 +39,15 @@ class TurnoverAnalysisService:
         - Experienced termination rate: terminated employees with tenure >= 1 year / total experienced
         - New hire termination rate: terminated employees with tenure < 1 year / total new hires
 
+        Tenure uses days of service / 365.25. It ends at a parseable termination
+        date between hire and the analysis date, inclusive. Active employees and
+        employees with only a termination status flag (or no usable termination
+        date) use the analysis date instead; their termination tenure is unknown.
+
         Args:
             workspace_id: Workspace ID
             file_path: Path to census file (relative to workspace or absolute)
+            as_of_date: Analysis date, or infer it from census event dates
 
         Returns:
             TurnoverAnalysisResult with suggested rates and statistics
@@ -128,14 +134,27 @@ class TurnoverAnalysisService:
             )
             as_of_date_str = resolved_as_of.date.isoformat()
 
+            tenure_end = "?::DATE"
+            tenure_params = [as_of_date_str]
+            if term_date_col:
+                tenure_end = f"""
+                    CASE
+                        WHEN TRY_CAST({term_date_col} AS DATE)
+                            BETWEEN CAST({hire_date_col} AS DATE) AND ?::DATE
+                        THEN TRY_CAST({term_date_col} AS DATE)
+                        ELSE ?::DATE
+                    END
+                """
+                tenure_params.append(as_of_date_str)
+
             # Add computed columns for tenure and termination status
             conn.execute("ALTER TABLE census ADD COLUMN _tenure_years DOUBLE")
             conn.execute(
                 f"""
                 UPDATE census SET _tenure_years =
-                    DATEDIFF('day', CAST({hire_date_col} AS DATE), ?::DATE) / 365.25
+                    DATEDIFF('day', CAST({hire_date_col} AS DATE), {tenure_end}) / 365.25
                 """,
-                [as_of_date_str],
+                tenure_params,
             )
 
             # Remove rows with invalid tenure
