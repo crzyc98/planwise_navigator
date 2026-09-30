@@ -437,18 +437,9 @@ export async function deleteScenarioDatabase(
 // Active Simulation Detection (Feature 045)
 // ============================================================================
 
-export interface ActiveRun {
-  run_id: string;
-  scenario_id: string;
-  status: string;
-  progress: number;
-  current_stage: string | null;
-  started_at: string;
-}
+export type ActiveRun = Schemas['ActiveRun'];
 
-export interface ActiveSimulationsResponse {
-  active_runs: ActiveRun[];
-}
+export type ActiveSimulationsResponse = Schemas['ActiveSimulationsResponse'];
 
 export async function getActiveSimulations(): Promise<ActiveSimulationsResponse> {
   const response = await fetchWithAuth(`${API_BASE}/api/scenarios/active`);
@@ -899,21 +890,7 @@ export async function setCensusPath(
 }
 
 // E082: Analyze age distribution from census data
-export interface AgeDistributionAnalysis {
-  total_employees: number;
-  recent_hires_only?: boolean;
-  analysis_type?: string;
-  distribution: Array<{
-    age: number;
-    weight: number;
-    description: string;
-    count: number;
-  }>;
-  source_file: string;
-  as_of_date: string;
-  as_of_date_source: 'inferred' | 'provided';
-  fallback_notice?: string | null;
-}
+export type AgeDistributionAnalysis = Schemas['AgeDistributionResponse'];
 
 export async function analyzeAgeDistribution(
   workspaceId: string,
@@ -950,45 +927,7 @@ export async function analyzePartTimePct(
 }
 
 // E082: Analyze compensation distribution from census data
-export interface CompensationAnalysis {
-  total_employees: number;
-  recent_hires_only: boolean;
-  lookback_years?: number;
-  has_level_data: boolean;
-  analysis_type: string;
-  message?: string;
-  // When has_level_data is true
-  levels?: Array<{
-    level: number;
-    name: string;
-    employee_count: number;
-    min_compensation: number;
-    max_compensation: number;
-    median_compensation: number;
-    p25_compensation: number;
-    p75_compensation: number;
-    avg_compensation: number;
-  }>;
-  // When has_level_data is false
-  overall_stats?: {
-    min_compensation: number;
-    max_compensation: number;
-    median_compensation: number;
-    p10_compensation: number;
-    p25_compensation: number;
-    p75_compensation: number;
-    p90_compensation: number;
-    avg_compensation: number;
-  };
-  suggested_levels?: Array<{
-    level: number;
-    name: string;
-    suggested_min: number;
-    suggested_max: number;
-    percentile_range: string;
-  }>;
-  source_file: string;
-}
+export type CompensationAnalysis = Schemas['CompensationByLevelResponse'];
 
 /**
  * Analyze compensation ranges from census data.

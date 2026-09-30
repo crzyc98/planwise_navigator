@@ -207,6 +207,23 @@ class MilestoneMessage(APIModel):
     data: TelemetryMilestone
 
 
+class ActiveRun(APIModel):
+    """One in-flight run, for page-refresh recovery (Feature 045)."""
+
+    run_id: str
+    scenario_id: str
+    status: Literal["pending", "queued", "running"]
+    progress: int
+    current_stage: Optional[str] = None
+    started_at: str = Field(..., description="ISO-8601 start timestamp")
+
+
+class ActiveSimulationsResponse(APIModel):
+    """All currently active simulation runs."""
+
+    active_runs: List[ActiveRun]
+
+
 class RunStatusSummary(APIModel):
     """Run identity and status reported alongside (or instead of) telemetry."""
 
