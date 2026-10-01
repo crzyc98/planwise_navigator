@@ -48,7 +48,7 @@ def harness(tmp_path, commands):
 def completed(harness, history) -> dict:
     history_id = harness.upload(history).json()["history_id"]
     job = harness.wait(harness.start(history_id).json()["job_id"])
-    assert job["status"] == "completed", job
+    assert job["status"] == "completed", job.get("error")
     return job
 
 

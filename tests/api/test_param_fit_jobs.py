@@ -12,13 +12,16 @@ import shutil
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Callable
 
 import pytest
+from pytest_mock import MockerFixture
 
 from planalign_api.models.param_fit import JobInputs, ParamFitJob, ParamFitRequest
 from planalign_api.services.param_fit.jobs import JobStore
 from planalign_api.services.param_fit.runner import ProcessRegistry
 from tests.fixtures.param_fit import (
+    Harness,
     StubCommands,
     add_current_scorecard,
     build_fixture_pack,
@@ -136,7 +139,7 @@ def test_launch_returns_immediately_and_completes(harness, history_id):
     assert elapsed < 2.0
     assert response.json()["status"] == "queued"
     job = harness.wait(response.json()["job_id"])
-    assert job["status"] == "completed", job
+    assert job["status"] == "completed", job.get("error")
 
 
 def test_completed_fit_exposes_summary_diagnostics_and_provenance(
@@ -280,7 +283,7 @@ def test_backtest_reports_seed_progress_and_scorecard(
         harness.start(history_id, mode="backtest", seeds=[42, 43]).json()["job_id"]
     )
 
-    assert job["status"] == "completed", job
+    assert job["status"] == "completed", job.get("error")
     assert job["inputs"]["split"]["holdout_years"] == [2024]
     assert job["result"]["scorecard"]["verdict"] == "warn"
     assert job["result"]["scorecard_current"] is True
@@ -415,6 +418,54 @@ def test_running_job_from_a_dead_process_reads_as_interrupted(harness):
 
     assert job["status"] == "failed"
     assert job["error"]["kind"] == "interrupted"
+
+
+@pytest.mark.parametrize("status", ["completed", "failed", "cancelled"])
+@pytest.mark.parametrize("finish_during_update", [False, True])
+def test_reconciliation_preserves_a_job_that_finished_after_read(
+    harness: Harness,
+    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
+    status: str,
+    finish_during_update: bool,
+) -> None:
+    service = harness.service()
+    stale = _job(
+        harness.workspace_id, "fit_finished", datetime.now(timezone.utc), "running"
+    )
+    service.jobs.save(stale)
+    service.jobs.record_process(stale.workspace_id, stale.job_id, 123)
+    terminate = mocker.patch(
+        "planalign_api.services.param_fit.service.terminate_orphan"
+    )
+    pack = service.jobs.pack_dir(stale.workspace_id, stale.job_id)
+    pack.mkdir()
+    marker = pack / "retained.txt"
+    marker.write_text("completed output")
+    finished = stale.model_copy(update={"status": status})
+    update = service.jobs.update
+
+    if finish_during_update:
+
+        def finish_then_update(
+            workspace_id: str,
+            job_id: str,
+            mutate: Callable[[ParamFitJob], None],
+        ) -> ParamFitJob | None:
+            service.jobs.save(finished)
+            return update(workspace_id, job_id, mutate)
+
+        monkeypatch.setattr(service.jobs, "update", finish_then_update)
+    else:
+        service.jobs.save(finished)
+
+    reconciled = service._reconcile(stale)
+
+    assert reconciled == finished
+    assert service.jobs.load(stale.workspace_id, stale.job_id) == finished
+    assert marker.read_text() == "completed output"
+    terminate.assert_not_called()
+    assert service.jobs.recorded_process(stale.workspace_id, stale.job_id) == 123
 
 
 def test_retention_prunes_the_oldest_finished_jobs(tmp_path, commands, history):
