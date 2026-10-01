@@ -36,7 +36,7 @@ def test_real_cli_fit_through_studio(tmp_path):
 
     job = harness.wait(harness.start(history_id).json()["job_id"], timeout=300)
 
-    assert job["status"] == "completed", job
+    assert job["status"] == "completed", job.get("error")
     pack = (
         harness.storage.workspaces_root
         / harness.workspace_id
@@ -66,7 +66,7 @@ def test_real_backtest_through_studio_and_apply(tmp_path):
         timeout=1800,
     )
 
-    assert job["status"] == "completed", job
+    assert job["status"] == "completed", job.get("error")
     assert job["result"]["scorecard"]["verdict"] in {"pass", "warn", "fail"}
     assert job["result"]["scorecard_current"] is True
     assert job["result"]["has_fit_report"] is True

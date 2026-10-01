@@ -422,6 +422,16 @@ class ParamFitService:
             return job
 
         def _interrupt(target: ParamFitJob) -> None:
+            # The worker may have finalized and released ownership since the
+            # caller read job. Recheck the current record under the store lock
+            # before changing status or deleting any output.
+            if target.status in TERMINAL_STATUSES or self.registry.owns(target.job_id):
+                return
+            pid = self.jobs.recorded_process(target.workspace_id, target.job_id)
+            if pid is not None:
+                terminate_orphan(pid, target.job_id)
+                self.jobs.clear_process(target.workspace_id, target.job_id)
+            self.jobs.remove_artifacts(target.workspace_id, target.job_id)
             target.status = "failed"
             target.completed_at = datetime.now(timezone.utc)
             target.error = JobError(
@@ -433,12 +443,7 @@ class ParamFitService:
                 status=500,
             )
 
-        pid = self.jobs.recorded_process(job.workspace_id, job.job_id)
-        if pid is not None:
-            terminate_orphan(pid, job.job_id)
-            self.jobs.clear_process(job.workspace_id, job.job_id)
         updated = self.jobs.update(job.workspace_id, job.job_id, _interrupt)
-        self.jobs.remove_artifacts(job.workspace_id, job.job_id)
         return updated or job
 
     def _result(self, job: ParamFitJob):

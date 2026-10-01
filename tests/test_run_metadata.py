@@ -322,11 +322,14 @@ class TestStateMachine:
 
     def test_match_is_silent(self, db_manager, minimal_config, caplog):
         _stamp(db_manager, minimal_config)
-        with caplog.at_level(logging.INFO, logger=LOGGER_NAME):
+        # Exercise the same root INFO level enabled by other CLI tests.
+        with caplog.at_level(logging.INFO), caplog.at_level(
+            logging.INFO, logger=LOGGER_NAME
+        ):
             caplog.clear()
             result = _stamp(db_manager, minimal_config)
         assert result.status is DriftStatus.MATCH
-        assert caplog.records == []
+        assert [record for record in caplog.records if record.name == LOGGER_NAME] == []
         assert len(_rows(db_manager)) == 2
 
     def test_config_drift_warns_with_remedies(self, db_manager, minimal_config, caplog):
