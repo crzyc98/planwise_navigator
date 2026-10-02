@@ -132,6 +132,8 @@ SCENARIO_READ_ROUTES = {
     "run_401a4_test",
     "run_415_test",
     "run_adp_test",
+    "get_compliance_summary",
+    "get_compliance_employees",
     "search_employees",
     "get_employee_timeline",
     "get_scenario_evidence_pack",

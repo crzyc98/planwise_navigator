@@ -24,9 +24,11 @@ import {
 } from '../services/api';
 import { MAX_SCENARIO_SELECTION } from '../constants';
 import type { LayoutContextType } from './Layout';
+import ComplianceOverview from './ComplianceOverview';
+import { getComplianceSummary, ComplianceResponse } from '../services/api';
 
-type TestType = 'acp' | '401a4' | '415' | 'adp';
-type AnyTestResponse = ACPTestResponse | Section401a4TestResponse | Section415TestResponse | ADPTestResponse;
+type TestType = 'acp' | '401a4' | '415' | 'adp' | 'compliance';
+type AnyTestResponse = ACPTestResponse | Section401a4TestResponse | Section415TestResponse | ADPTestResponse | ComplianceResponse;
 
 const formatPercent = (value: number): string => {
   return `${(value * 100).toFixed(2)}%`;
@@ -45,6 +47,7 @@ const getGridColsClass = (count: number): string => {
 };
 
 const TEST_TYPE_LABELS: Record<TestType, string> = {
+  compliance: 'Compliance Overview',
   acp: 'ACP Test',
   adp: 'ADP Test',
   '401a4': '401(a)(4) General Test',
@@ -139,7 +142,9 @@ export default function NDTTesting() {
 
     try {
       let data: AnyTestResponse;
-      if (testType === 'acp') {
+      if (testType === 'compliance') {
+        data = await getComplianceSummary(activeWorkspace.id, selectedScenarioIds, selectedYear, warningThreshold);
+      } else if (testType === 'acp') {
         data = await runACPTest(
           activeWorkspace.id, selectedScenarioIds, selectedYear, showEmployees,
         );
@@ -172,7 +177,9 @@ export default function NDTTesting() {
       setLoading(true);
       try {
         let data: AnyTestResponse;
-        if (testType === 'acp') {
+        if (testType === 'compliance') {
+          return;
+        } else if (testType === 'acp') {
           data = await runACPTest(activeWorkspace.id, selectedScenarioIds, selectedYear, true);
         } else if (testType === 'adp') {
           data = await runADPTest(activeWorkspace.id, selectedScenarioIds, selectedYear, true, safeHarbor, testingMethod);
@@ -234,10 +241,10 @@ export default function NDTTesting() {
         <div>
           <h1 className="text-2xl font-bold text-ink flex items-center">
             <Shield size={28} className="mr-3 text-fidelity-green" />
-            NDT Testing
+            NDT & Compliance
           </h1>
           <p className="text-ink-muted mt-1">
-            Run IRS non-discrimination tests against completed simulations.
+            Review contribution limits and run IRS non-discrimination tests against completed simulations.
           </p>
         </div>
       </div>
@@ -255,6 +262,7 @@ export default function NDTTesting() {
                 value={testType}
                 onChange={(e) => { setTestType(e.target.value as TestType); setTestResponse(null); setError(null); }}
               >
+                <option value="compliance">Compliance Overview</option>
                 <option value="acp">ACP Test</option>
                 <option value="adp">ADP Test</option>
                 <option value="401a4">401(a)(4) General Test</option>
@@ -328,7 +336,7 @@ export default function NDTTesting() {
           )}
 
           {/* 415 specific: Warning Threshold */}
-          {testType === '415' && (
+          {(testType === '415' || testType === 'compliance') && (
             <div>
               <label htmlFor="ndt-warning-threshold" className="block text-xs font-medium text-ink-muted mb-1">Warning Threshold</label>
               <div className="relative">
@@ -539,6 +547,13 @@ export default function NDTTesting() {
               ? 'No completed simulations available. Run a simulation first.'
               : `Select a scenario and year, then click "Run Test" to see ${TEST_TYPE_LABELS[testType]} results.`}
           </p>
+        </div>
+      ) : testType === 'compliance' ? (
+        <div className="space-y-6">
+          {(testResponse as ComplianceResponse).results.map(result => (
+            <ComplianceOverview key={`${result.scenario_id}:${result.evidence}`} workspaceId={activeWorkspace!.id} summary={result}
+              onOpenTest={kind => { setSelectedScenarioIds([result.scenario_id]); setComparisonMode(false); setTestType(kind); }} />
+          ))}
         </div>
       ) : testType === 'adp' ? (
         // ADP results

@@ -94,7 +94,7 @@ const NAV_SECTIONS: ReadonlyArray<{
       { to: '/analytics', icon: <BarChart3 size={20} />, label: 'Overview', end: true },
       { to: '/analytics/dc-plan', icon: <PieChart size={20} />, label: 'DC Plan' },
       { to: '/analytics/vesting', icon: <Scale size={20} />, label: 'Vesting' },
-      { to: '/analytics/ndt', icon: <Shield size={20} />, label: 'NDT Testing' },
+      { to: '/analytics/ndt', icon: <Shield size={20} />, label: 'NDT & Compliance' },
       { to: '/analytics/winners-losers', icon: <ArrowLeftRight size={20} />, label: 'Winners & Losers' },
       { to: '/compare', icon: <BarChart3 size={20} />, label: 'Cost Comparison' },
     ],

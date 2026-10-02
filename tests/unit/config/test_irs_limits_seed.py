@@ -38,3 +38,25 @@ def test_projected_wage_base_rows_remain_estimated() -> None:
         for row in rows
         if int(row["limit_year"]) >= 2027
     )
+
+
+def test_published_2026_limits() -> None:
+    with SEED_PATH.open(newline="") as source:
+        row = next(r for r in csv.DictReader(source) if r["limit_year"] == "2026")
+    assert {
+        key: int(row[key])
+        for key in (
+            "base_limit",
+            "catch_up_limit",
+            "super_catch_up_limit",
+            "annual_additions_limit",
+            "compensation_limit",
+        )
+    } == {
+        "base_limit": 24500,
+        "catch_up_limit": 32500,
+        "super_catch_up_limit": 35750,
+        "annual_additions_limit": 72000,
+        "compensation_limit": 360000,
+    }
+    assert row["is_estimated"] == "false"

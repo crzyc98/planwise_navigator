@@ -1776,6 +1776,31 @@ export type Section415ScenarioResult = Schemas['Section415ScenarioResult'];
 
 export type Section415TestResponse = Schemas['Section415TestResponse'];
 
+export type ComplianceResponse = Schemas['ComplianceResponse'];
+export type ComplianceSummary = Schemas['ComplianceSummary'];
+export type ComplianceEmployeePage = Schemas['ComplianceEmployeePage'];
+export type ComplianceMetric = '402g' | '415c' | '401a17' | 'catch_up' | 'super_catch_up';
+export type ComplianceStatus = 'below_threshold' | 'near_limit' | 'at_limit' | 'over_limit' | 'unavailable';
+
+export async function getComplianceSummary(
+  workspaceId: string, scenarioIds: string[], year: number, warningThreshold = 0.95,
+): Promise<ComplianceResponse> {
+  const params = new URLSearchParams({ scenarios: scenarioIds.join(','), year: String(year), warning_threshold: String(warningThreshold) });
+  return handleResponse<ComplianceResponse>(await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/analytics/ndt/compliance?${params}`));
+}
+
+export async function getComplianceEmployees(
+  workspaceId: string, summary: ComplianceSummary, metric: ComplianceMetric,
+  status: ComplianceStatus | undefined, offset: number,
+): Promise<ComplianceEmployeePage> {
+  const params = new URLSearchParams({
+    scenario_id: summary.scenario_id, year: String(summary.year), evidence: summary.evidence,
+    metric, offset: String(offset), limit: '50', warning_threshold: String(summary.warning_threshold),
+  });
+  if (status) params.set('limit_status', status);
+  return handleResponse<ComplianceEmployeePage>(await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/analytics/ndt/compliance/employees?${params}`));
+}
+
 // ============================================================================
 // NDT ADP (Actual Deferral Percentage) Test (Feature 052)
 // ============================================================================
