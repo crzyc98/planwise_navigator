@@ -60,8 +60,10 @@ describe('gross cost breakdown', () => {
 
   it('renders ordered scenarios, component amounts, shares, and totals using theme colors', () => {
     const row = buildCostBreakdownRows([{ year: 2025, a: 100, b: 40 }], data, ['a', 'b'], false)[0];
-    const html = renderToStaticMarkup(<CostBreakdownTooltip active label={2025} payload={[{ payload: row }]}
-      scenarioIds={['b', 'a']} names={{ a: 'Baseline', b: 'Alternative' }} colors={{ a: '#008800', b: '#000088' }} />);
+    const html = renderToStaticMarkup(React.createElement(CostBreakdownTooltip, {
+      active: true, label: 2025, payload: [{ payload: row }],
+      scenarioIds: ['b', 'a'], names: { a: 'Baseline', b: 'Alternative' }, colors: { a: '#008800', b: '#000088' },
+    }));
     expect(html.indexOf('Alternative')).toBeLessThan(html.indexOf('Baseline'));
     for (const text of ['Employer match:', 'Non-elective core:', '$80.00', '80.0%', '20.0%', 'Total:', '$100.00']) {
       expect(html).toContain(text);
@@ -72,6 +74,8 @@ describe('gross cost breakdown', () => {
   it('handles zero-cost shares and inactive tooltips', () => {
     expect(componentShare(0, 0)).toBe('—');
     expect(componentShare(0, 10)).toBe('0.0%');
-    expect(renderToStaticMarkup(<CostBreakdownTooltip scenarioIds={[]} names={{}} colors={{}} />)).toBe('');
+    expect(renderToStaticMarkup(React.createElement(CostBreakdownTooltip, {
+      scenarioIds: [], names: {}, colors: {},
+    }))).toBe('');
   });
 });
