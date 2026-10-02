@@ -1369,6 +1369,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/analytics/ndt/compliance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Compliance Summary */
+        get: operations["get_compliance_summary_api_workspaces__workspace_id__analytics_ndt_compliance_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/analytics/ndt/compliance/employees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Compliance Employees */
+        get: operations["get_compliance_employees_api_workspaces__workspace_id__analytics_ndt_compliance_employees_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workspaces/{workspace_id}/analytics/vesting/forfeitures": {
         parameters: {
             query?: never;
@@ -3834,6 +3868,41 @@ export interface components {
             /** Simulation Year */
             simulation_year: number;
         };
+        /** CatchUpRollup */
+        CatchUpRollup: {
+            /**
+             * Available Count
+             * @default 0
+             */
+            available_count: number;
+            /**
+             * Capacity
+             * @default 0
+             */
+            capacity: number;
+            /**
+             * Eligible Count
+             * @default 0
+             */
+            eligible_count: number;
+            /**
+             * Remaining Capacity
+             * @default 0
+             */
+            remaining_capacity: number;
+            /**
+             * Used
+             * @default 0
+             */
+            used: number;
+            /** Utilization */
+            utilization: number | null;
+            /**
+             * Utilizing Count
+             * @default 0
+             */
+            utilizing_count: number;
+        };
         /**
          * CensusAnalysisRequest
          * @description Request for census-based pre-simulation analysis.
@@ -4438,6 +4507,124 @@ export interface components {
              * @default 0
              */
             workforce_growth_rate: number;
+        };
+        /** ComplianceEmployee */
+        ComplianceEmployee: {
+            /** Age */
+            age: number | null;
+            annual_additions: components["schemas"]["LimitMeasure"];
+            /** Catch Up Capacity */
+            catch_up_capacity: number | null;
+            /** Catch Up Group */
+            catch_up_group: ("ordinary" | "super") | null;
+            compensation: components["schemas"]["LimitMeasure"];
+            deferrals: components["schemas"]["LimitMeasure"];
+            /** Employee Id */
+            employee_id: string;
+            /** Modeled Catch Up Used */
+            modeled_catch_up_used: number | null;
+            /** Plan Design Id */
+            plan_design_id: string | null;
+            /** Remaining Catch Up Capacity */
+            remaining_catch_up_capacity: number | null;
+        };
+        /** ComplianceEmployeePage */
+        ComplianceEmployeePage: {
+            /** Employees */
+            employees: components["schemas"]["ComplianceEmployee"][];
+            /** Evidence */
+            evidence: string;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** ComplianceLimits */
+        ComplianceLimits: {
+            /** Annual Additions Limit */
+            annual_additions_limit: number;
+            /** Base Limit */
+            base_limit: number;
+            /** Catch Up Age Threshold */
+            catch_up_age_threshold: number;
+            /** Catch Up Limit */
+            catch_up_limit: number;
+            /** Compensation Limit */
+            compensation_limit: number;
+            /**
+             * Differs From Current Seed
+             * @default false
+             */
+            differs_from_current_seed: boolean;
+            /** Is Estimated */
+            is_estimated: boolean | null;
+            /** Super Catch Up Age Max */
+            super_catch_up_age_max: number;
+            /** Super Catch Up Age Min */
+            super_catch_up_age_min: number;
+            /** Super Catch Up Limit */
+            super_catch_up_limit: number;
+            /** Year */
+            year: number;
+        };
+        /** ComplianceNDTResult */
+        ComplianceNDTResult: {
+            /** Margin */
+            margin: number | null;
+            /** Message */
+            message: string | null;
+            /** Result */
+            result: string;
+            /**
+             * Test Type
+             * @enum {string}
+             */
+            test_type: "adp" | "acp" | "415";
+        };
+        /** ComplianceResponse */
+        ComplianceResponse: {
+            /** Results */
+            results: components["schemas"]["ComplianceSummary"][];
+            /**
+             * Test Type
+             * @default compliance
+             * @constant
+             */
+            test_type: "compliance";
+            /** Year */
+            year: number;
+        };
+        /** ComplianceSummary */
+        ComplianceSummary: {
+            annual_additions: components["schemas"]["LimitRollup"];
+            catch_up: components["schemas"]["CatchUpRollup"];
+            compensation: components["schemas"]["LimitRollup"];
+            deferrals: components["schemas"]["LimitRollup"];
+            /** Evidence */
+            evidence: string;
+            limits: components["schemas"]["ComplianceLimits"] | null;
+            /** Ndt */
+            ndt: components["schemas"]["ComplianceNDTResult"][];
+            /** Notes */
+            notes: string[];
+            /**
+             * Participant Count
+             * @default 0
+             */
+            participant_count: number;
+            /** Run Id */
+            run_id: string | null;
+            /** Scenario Id */
+            scenario_id: string;
+            /** Scenario Name */
+            scenario_name: string;
+            super_catch_up: components["schemas"]["CatchUpRollup"];
+            /** Warning Threshold */
+            warning_threshold: number;
+            /** Year */
+            year: number;
         };
         /**
          * ConfigDelta
@@ -6765,6 +6952,58 @@ export interface components {
             kind: "discrete" | "continuous";
             /** Name */
             name: string;
+        };
+        /** LimitMeasure */
+        LimitMeasure: {
+            /** Amount */
+            amount: number | null;
+            /** Excess */
+            excess: number | null;
+            /** Headroom */
+            headroom: number | null;
+            /** Limit */
+            limit: number | null;
+            /**
+             * Status
+             * @default unavailable
+             * @enum {string}
+             */
+            status: "below_threshold" | "near_limit" | "at_limit" | "over_limit" | "unavailable";
+            /** Utilization */
+            utilization: number | null;
+        };
+        /** LimitRollup */
+        LimitRollup: {
+            /**
+             * At Limit
+             * @default 0
+             */
+            at_limit: number;
+            /**
+             * Below Threshold
+             * @default 0
+             */
+            below_threshold: number;
+            /**
+             * Excess
+             * @default 0
+             */
+            excess: number;
+            /**
+             * Near Limit
+             * @default 0
+             */
+            near_limit: number;
+            /**
+             * Over Limit
+             * @default 0
+             */
+            over_limit: number;
+            /**
+             * Unavailable
+             * @default 0
+             */
+            unavailable: number;
         };
         /**
          * LogPage
@@ -12570,6 +12809,94 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AvailableYearsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_compliance_summary_api_workspaces__workspace_id__analytics_ndt_compliance_get: {
+        parameters: {
+            query: {
+                /** @description Comma-separated scenario IDs */
+                scenarios: string;
+                year: number;
+                warning_threshold?: number;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComplianceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_compliance_employees_api_workspaces__workspace_id__analytics_ndt_compliance_employees_get: {
+        parameters: {
+            query: {
+                scenario_id: string;
+                year: number;
+                evidence: string;
+                metric: "402g" | "415c" | "401a17" | "catch_up" | "super_catch_up";
+                limit_status?: ("below_threshold" | "near_limit" | "at_limit" | "over_limit" | "unavailable") | null;
+                offset?: number;
+                limit?: number;
+                warning_threshold?: number;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComplianceEmployeePage"];
                 };
             };
             /** @description Validation Error */

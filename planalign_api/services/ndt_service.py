@@ -7,6 +7,12 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set
 
 import yaml
+from .compliance_metrics import (
+    annual_additions,
+    base_deferrals,
+    limit_status,
+    applicable_deferral_limit,
+)
 from ..models.base import APIModel
 
 from ..storage.workspace_storage import WorkspaceStorage
@@ -215,9 +221,17 @@ class NDTService:
         self,
         storage: WorkspaceStorage,
         db_resolver: Optional[DatabasePathResolver] = None,
+        *,
+        refresh_seeds: bool = False,
     ):
         self.storage = storage
         self.db_resolver = db_resolver or create_api_database_path_resolver(storage)
+        self.refresh_seeds = refresh_seeds
+
+    def _prepare_seed(self, db_path: Path) -> None:
+        """Archived analytics preserve the run's limits; refresh is opt-in."""
+        if self.refresh_seeds:
+            self._ensure_seed_current(db_path)
 
     @staticmethod
     def _get_seed_lock(db_path: Path) -> threading.Lock:
@@ -366,7 +380,7 @@ class NDTService:
 
         try:
             # Ensure seed table has the hce_compensation_threshold column
-            self._ensure_seed_current(resolved.path)
+            self._prepare_seed(resolved.path)
 
             conn = duckdb.connect(str(resolved.path), read_only=True)
 
@@ -672,7 +686,7 @@ class NDTService:
         assert resolved.path is not None  # guaranteed by resolved.exists check above
 
         try:
-            self._ensure_seed_current(resolved.path)
+            self._prepare_seed(resolved.path)
             conn = duckdb.connect(str(resolved.path), read_only=True)
 
             # Get HCE threshold for the prior year
@@ -1044,16 +1058,16 @@ class NDTService:
 
         assert resolved.path is not None  # guaranteed by resolved.exists check above
         try:
-            self._ensure_seed_current(resolved.path)
+            self._prepare_seed(resolved.path)
             conn = duckdb.connect(str(resolved.path), read_only=True)
 
             # Get IRS limits for the test year
             limits_row = conn.execute(
-                "SELECT annual_additions_limit, base_limit FROM config_irs_limits WHERE limit_year = ?",
+                "SELECT annual_additions_limit, base_limit, catch_up_age_threshold, catch_up_limit, super_catch_up_limit, super_catch_up_age_min, super_catch_up_age_max FROM config_irs_limits WHERE limit_year = ?",
                 [year],
             ).fetchone()
 
-            if not limits_row or limits_row[0] is None or limits_row[1] is None:
+            if not limits_row or any(value is None for value in limits_row):
                 conn.close()
                 return Section415ScenarioResult(
                     scenario_id=scenario_id,
@@ -1065,6 +1079,12 @@ class NDTService:
 
             annual_additions_limit = int(limits_row[0])
             base_limit = int(limits_row[1])
+            catch_up_age = int(limits_row[2])
+            columns = {
+                row[0]
+                for row in conn.execute("DESCRIBE fct_workforce_snapshot").fetchall()
+            }
+            age_expression = "current_age" if "current_age" in columns else "NULL"
 
             # Query eligible participants
             query = """
@@ -1074,13 +1094,16 @@ class NDTService:
                 prorated_annual_compensation,
                 COALESCE(prorated_annual_contributions, 0) AS contributions,
                 COALESCE(employer_match_amount, 0) AS match_amount,
-                COALESCE(employer_core_amount, 0) AS core_amount
+                COALESCE(employer_core_amount, 0) AS core_amount,
+                {age_expression} AS age
             FROM fct_workforce_snapshot
             WHERE simulation_year = ?
               AND (current_eligibility_status = 'eligible' OR current_eligibility_status IS NULL)
             """
 
-            rows = conn.execute(query, [year]).fetchall()
+            rows = conn.execute(
+                query.format(age_expression=age_expression), [year]
+            ).fetchall()
             conn.close()
 
             # Process participants
@@ -1099,17 +1122,41 @@ class NDTService:
                     contributions,
                     match_amt,
                     core_amt,
+                    age,
                 ) = row
 
                 if gross_comp is None or gross_comp <= 0:
                     excluded_count += 1
                     continue
 
-                # Base deferrals = min(contributions, base_limit) — excludes catch-up
-                base_deferrals = min(float(contributions), float(base_limit))
+                # Only age-eligible catch-up within its dollar allowance is excluded.
+                total_deferral_limit = applicable_deferral_limit(
+                    age,
+                    base_limit,
+                    float(limits_row[3]),
+                    float(limits_row[4]),
+                    catch_up_age,
+                    int(limits_row[5]),
+                    int(limits_row[6]),
+                )
+                deferrals = base_deferrals(
+                    float(contributions),
+                    base_limit,
+                    age,
+                    catch_up_age,
+                    total_deferral_limit,
+                )
 
                 # Total annual additions
-                total_additions = base_deferrals + float(match_amt) + float(core_amt)
+                total_additions = annual_additions(
+                    float(contributions),
+                    float(match_amt),
+                    float(core_amt),
+                    base_limit,
+                    age,
+                    catch_up_age,
+                    total_deferral_limit,
+                )
 
                 # Applicable 415 limit = lesser of IRS dollar limit or 100% of gross comp
                 applicable_limit = min(float(annual_additions_limit), float(gross_comp))
@@ -1121,10 +1168,13 @@ class NDTService:
                 max_utilization = max(max_utilization, utilization)
 
                 # Classify
-                if total_additions > applicable_limit:
+                status = limit_status(
+                    total_additions, applicable_limit, warning_threshold
+                )
+                if status == "over_limit":
                     emp_status = "breach"
                     breach_count += 1
-                elif utilization >= warning_threshold:
+                elif status in ("near_limit", "at_limit"):
                     emp_status = "at_risk"
                     at_risk_count += 1
                 else:
@@ -1136,7 +1186,7 @@ class NDTService:
                         Section415EmployeeDetail(
                             employee_id=str(emp_id),
                             status=emp_status,
-                            employee_deferrals=base_deferrals,
+                            employee_deferrals=deferrals,
                             employer_match=float(match_amt),
                             employer_nec=float(core_amt),
                             total_annual_additions=total_additions,
@@ -1218,7 +1268,7 @@ class NDTService:
 
         assert resolved.path is not None  # guaranteed by resolved.exists check above
         try:
-            self._ensure_seed_current(resolved.path)
+            self._prepare_seed(resolved.path)
             conn = duckdb.connect(str(resolved.path), read_only=True)
 
             # Get HCE threshold for the prior year

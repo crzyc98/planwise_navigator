@@ -59,7 +59,8 @@ def _create_test_db(conn: duckdb.DuckDBPyConnection):
             current_eligibility_status VARCHAR,
             is_enrolled_flag BOOLEAN,
             employment_status VARCHAR,
-            current_tenure DOUBLE
+            current_tenure DOUBLE,
+            current_age INTEGER
         )
     """
     )
@@ -78,9 +79,10 @@ def _insert_employee(
     enrolled: bool = True,
     status: str = "active",
     tenure: float = 5.0,
+    age: int = 50,
 ):
     conn.execute(
-        """INSERT INTO fct_workforce_snapshot VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        """INSERT INTO fct_workforce_snapshot VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         [
             employee_id,
             year,
@@ -93,6 +95,7 @@ def _insert_employee(
             enrolled,
             status,
             tenure,
+            age,
         ],
     )
 

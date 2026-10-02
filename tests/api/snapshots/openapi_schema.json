@@ -2845,6 +2845,62 @@
         "title": "CapturedValidationResult",
         "type": "object"
       },
+      "CatchUpRollup": {
+        "properties": {
+          "available_count": {
+            "default": 0,
+            "title": "Available Count",
+            "type": "integer"
+          },
+          "capacity": {
+            "default": 0.0,
+            "title": "Capacity",
+            "type": "number"
+          },
+          "eligible_count": {
+            "default": 0,
+            "title": "Eligible Count",
+            "type": "integer"
+          },
+          "remaining_capacity": {
+            "default": 0.0,
+            "title": "Remaining Capacity",
+            "type": "number"
+          },
+          "used": {
+            "default": 0.0,
+            "title": "Used",
+            "type": "number"
+          },
+          "utilization": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Utilization"
+          },
+          "utilizing_count": {
+            "default": 0,
+            "title": "Utilizing Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "eligible_count",
+          "available_count",
+          "utilizing_count",
+          "capacity",
+          "used",
+          "remaining_capacity",
+          "utilization"
+        ],
+        "title": "CatchUpRollup",
+        "type": "object"
+      },
       "CensusAnalysisRequest": {
         "description": "Request for census-based pre-simulation analysis.",
         "properties": {
@@ -3901,6 +3957,387 @@
           "warnings"
         ],
         "title": "CompensationSolverResponse",
+        "type": "object"
+      },
+      "ComplianceEmployee": {
+        "properties": {
+          "age": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age"
+          },
+          "annual_additions": {
+            "$ref": "#/components/schemas/LimitMeasure"
+          },
+          "catch_up_capacity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Catch Up Capacity"
+          },
+          "catch_up_group": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ordinary",
+                  "super"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Catch Up Group"
+          },
+          "compensation": {
+            "$ref": "#/components/schemas/LimitMeasure"
+          },
+          "deferrals": {
+            "$ref": "#/components/schemas/LimitMeasure"
+          },
+          "employee_id": {
+            "title": "Employee Id",
+            "type": "string"
+          },
+          "modeled_catch_up_used": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modeled Catch Up Used"
+          },
+          "plan_design_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Design Id"
+          },
+          "remaining_catch_up_capacity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining Catch Up Capacity"
+          }
+        },
+        "required": [
+          "employee_id",
+          "plan_design_id",
+          "age",
+          "deferrals",
+          "annual_additions",
+          "compensation",
+          "catch_up_group",
+          "catch_up_capacity",
+          "modeled_catch_up_used",
+          "remaining_catch_up_capacity"
+        ],
+        "title": "ComplianceEmployee",
+        "type": "object"
+      },
+      "ComplianceEmployeePage": {
+        "properties": {
+          "employees": {
+            "items": {
+              "$ref": "#/components/schemas/ComplianceEmployee"
+            },
+            "title": "Employees",
+            "type": "array"
+          },
+          "evidence": {
+            "title": "Evidence",
+            "type": "string"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "evidence",
+          "total",
+          "offset",
+          "limit",
+          "employees"
+        ],
+        "title": "ComplianceEmployeePage",
+        "type": "object"
+      },
+      "ComplianceLimits": {
+        "properties": {
+          "annual_additions_limit": {
+            "title": "Annual Additions Limit",
+            "type": "number"
+          },
+          "base_limit": {
+            "title": "Base Limit",
+            "type": "number"
+          },
+          "catch_up_age_threshold": {
+            "title": "Catch Up Age Threshold",
+            "type": "integer"
+          },
+          "catch_up_limit": {
+            "title": "Catch Up Limit",
+            "type": "number"
+          },
+          "compensation_limit": {
+            "title": "Compensation Limit",
+            "type": "number"
+          },
+          "differs_from_current_seed": {
+            "default": false,
+            "title": "Differs From Current Seed",
+            "type": "boolean"
+          },
+          "is_estimated": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Estimated"
+          },
+          "super_catch_up_age_max": {
+            "title": "Super Catch Up Age Max",
+            "type": "integer"
+          },
+          "super_catch_up_age_min": {
+            "title": "Super Catch Up Age Min",
+            "type": "integer"
+          },
+          "super_catch_up_limit": {
+            "title": "Super Catch Up Limit",
+            "type": "number"
+          },
+          "year": {
+            "title": "Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "year",
+          "base_limit",
+          "catch_up_limit",
+          "super_catch_up_limit",
+          "compensation_limit",
+          "annual_additions_limit",
+          "catch_up_age_threshold",
+          "super_catch_up_age_min",
+          "super_catch_up_age_max",
+          "is_estimated",
+          "differs_from_current_seed"
+        ],
+        "title": "ComplianceLimits",
+        "type": "object"
+      },
+      "ComplianceNDTResult": {
+        "properties": {
+          "margin": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Margin"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "result": {
+            "title": "Result",
+            "type": "string"
+          },
+          "test_type": {
+            "enum": [
+              "adp",
+              "acp",
+              "415"
+            ],
+            "title": "Test Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "test_type",
+          "result",
+          "message",
+          "margin"
+        ],
+        "title": "ComplianceNDTResult",
+        "type": "object"
+      },
+      "ComplianceResponse": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/ComplianceSummary"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "test_type": {
+            "const": "compliance",
+            "default": "compliance",
+            "title": "Test Type",
+            "type": "string"
+          },
+          "year": {
+            "title": "Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "test_type",
+          "year",
+          "results"
+        ],
+        "title": "ComplianceResponse",
+        "type": "object"
+      },
+      "ComplianceSummary": {
+        "properties": {
+          "annual_additions": {
+            "$ref": "#/components/schemas/LimitRollup"
+          },
+          "catch_up": {
+            "$ref": "#/components/schemas/CatchUpRollup"
+          },
+          "compensation": {
+            "$ref": "#/components/schemas/LimitRollup"
+          },
+          "deferrals": {
+            "$ref": "#/components/schemas/LimitRollup"
+          },
+          "evidence": {
+            "title": "Evidence",
+            "type": "string"
+          },
+          "limits": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ComplianceLimits"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ndt": {
+            "items": {
+              "$ref": "#/components/schemas/ComplianceNDTResult"
+            },
+            "title": "Ndt",
+            "type": "array"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "participant_count": {
+            "default": 0,
+            "title": "Participant Count",
+            "type": "integer"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "scenario_id": {
+            "title": "Scenario Id",
+            "type": "string"
+          },
+          "scenario_name": {
+            "title": "Scenario Name",
+            "type": "string"
+          },
+          "super_catch_up": {
+            "$ref": "#/components/schemas/CatchUpRollup"
+          },
+          "warning_threshold": {
+            "title": "Warning Threshold",
+            "type": "number"
+          },
+          "year": {
+            "title": "Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "scenario_id",
+          "scenario_name",
+          "year",
+          "run_id",
+          "evidence",
+          "warning_threshold",
+          "limits",
+          "participant_count",
+          "deferrals",
+          "annual_additions",
+          "compensation",
+          "catch_up",
+          "super_catch_up",
+          "ndt",
+          "notes"
+        ],
+        "title": "ComplianceSummary",
         "type": "object"
       },
       "ConfigDelta": {
@@ -8729,6 +9166,131 @@
           "kind"
         ],
         "title": "LeverSpec",
+        "type": "object"
+      },
+      "LimitMeasure": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "excess": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Excess"
+          },
+          "headroom": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headroom"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "status": {
+            "default": "unavailable",
+            "enum": [
+              "below_threshold",
+              "near_limit",
+              "at_limit",
+              "over_limit",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "utilization": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Utilization"
+          }
+        },
+        "required": [
+          "amount",
+          "limit",
+          "headroom",
+          "excess",
+          "utilization",
+          "status"
+        ],
+        "title": "LimitMeasure",
+        "type": "object"
+      },
+      "LimitRollup": {
+        "properties": {
+          "at_limit": {
+            "default": 0,
+            "title": "At Limit",
+            "type": "integer"
+          },
+          "below_threshold": {
+            "default": 0,
+            "title": "Below Threshold",
+            "type": "integer"
+          },
+          "excess": {
+            "default": 0.0,
+            "title": "Excess",
+            "type": "number"
+          },
+          "near_limit": {
+            "default": 0,
+            "title": "Near Limit",
+            "type": "integer"
+          },
+          "over_limit": {
+            "default": 0,
+            "title": "Over Limit",
+            "type": "integer"
+          },
+          "unavailable": {
+            "default": 0,
+            "title": "Unavailable",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "below_threshold",
+          "near_limit",
+          "at_limit",
+          "over_limit",
+          "unavailable",
+          "excess"
+        ],
+        "title": "LimitRollup",
         "type": "object"
       },
       "LogPage": {
@@ -20758,6 +21320,293 @@
           }
         },
         "summary": "Get Ndt Available Years",
+        "tags": [
+          "NDT Testing"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/analytics/ndt/compliance": {
+      "get": {
+        "operationId": "get_compliance_summary_api_workspaces__workspace_id__analytics_ndt_compliance_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Comma-separated scenario IDs",
+            "in": "query",
+            "name": "scenarios",
+            "required": true,
+            "schema": {
+              "description": "Comma-separated scenario IDs",
+              "title": "Scenarios",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "year",
+            "required": true,
+            "schema": {
+              "title": "Year",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "warning_threshold",
+            "required": false,
+            "schema": {
+              "default": 0.95,
+              "exclusiveMinimum": 0.0,
+              "maximum": 1.0,
+              "title": "Warning Threshold",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplianceResponse"
+                }
+              }
+            },
+            "description": "Successful Response",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get Compliance Summary",
+        "tags": [
+          "NDT Testing"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/analytics/ndt/compliance/employees": {
+      "get": {
+        "operationId": "get_compliance_employees_api_workspaces__workspace_id__analytics_ndt_compliance_employees_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scenario_id",
+            "required": true,
+            "schema": {
+              "title": "Scenario Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "year",
+            "required": true,
+            "schema": {
+              "title": "Year",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "evidence",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 64,
+              "title": "Evidence",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "metric",
+            "required": true,
+            "schema": {
+              "enum": [
+                "402g",
+                "415c",
+                "401a17",
+                "catch_up",
+                "super_catch_up"
+              ],
+              "title": "Metric",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "below_threshold",
+                    "near_limit",
+                    "at_limit",
+                    "over_limit",
+                    "unavailable"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Limit Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "warning_threshold",
+            "required": false,
+            "schema": {
+              "default": 0.95,
+              "exclusiveMinimum": 0.0,
+              "maximum": 1.0,
+              "title": "Warning Threshold",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplianceEmployeePage"
+                }
+              }
+            },
+            "description": "Successful Response",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error",
+            "headers": {
+              "X-PlanAlign-Active-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Result-Run-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-PlanAlign-Run-Warning": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get Compliance Employees",
         "tags": [
           "NDT Testing"
         ]
