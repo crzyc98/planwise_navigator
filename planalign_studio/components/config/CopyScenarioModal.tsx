@@ -57,10 +57,15 @@ export function CopyScenarioModal({ availableScenarios, onClose }: CopyScenarioM
                     // 313: Copy seed configs
                     if (cfg.promotion_hazard) {
                       const ph = cfg.promotion_hazard;
-                      setPromotionHazardConfig({
-                        base: { base_rate: ph.base_rate, level_dampener_factor: ph.level_dampener_factor },
-                        age_multipliers: ph.age_multipliers || [],
-                        tenure_multipliers: ph.tenure_multipliers || [],
+                      setPromotionHazardConfig(prev => {
+                        const baseRate = ph.base_rate ?? prev?.base.base_rate;
+                        const dampener = ph.level_dampener_factor ?? prev?.base.level_dampener_factor;
+                        if (baseRate == null || dampener == null) return prev;
+                        return {
+                          base: { base_rate: baseRate, level_dampener_factor: dampener },
+                          age_multipliers: ph.age_multipliers ?? prev?.age_multipliers ?? [],
+                          tenure_multipliers: ph.tenure_multipliers ?? prev?.tenure_multipliers ?? [],
+                        };
                       });
                     }
                     if (cfg.age_bands && cfg.tenure_bands) {

@@ -1,9 +1,10 @@
 """Template models for pre-configured scenarios."""
 
-from typing import Any, Dict, List
+from typing import List
 
 from pydantic import Field
 from .base import APIModel
+from .studio_config import StudioConfigDict
 
 
 class Template(APIModel):
@@ -15,7 +16,9 @@ class Template(APIModel):
     category: str = Field(
         ..., description="Template category (e.g., general, growth, cost)"
     )
-    config: Dict[str, Any] = Field(..., description="Configuration overrides to apply")
+    config: StudioConfigDict = Field(
+        ..., description="Configuration overrides to apply"
+    )
 
 
 class TemplateListResponse(APIModel):

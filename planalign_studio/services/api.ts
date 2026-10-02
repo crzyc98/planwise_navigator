@@ -75,11 +75,7 @@ export interface WorkspaceListOptions {
 export type WorkspaceCreate = Schemas['WorkspaceCreate'];
 export type WorkspaceUpdate = Schemas['WorkspaceUpdate'];
 
-// Config fields are free-form partial simulation configs the API does not
-// model, so Studio declares them as open records; every other field is generated.
-export type Scenario = Omit<Schemas['Scenario'], 'config_overrides'> & {
-  config_overrides: Record<string, any>;
-};
+export type Scenario = Schemas['Scenario'];
 
 export type ScenarioCreate = Schemas['ScenarioCreate'];
 
@@ -608,9 +604,7 @@ export async function getScenarioConfigDiff(
 
 export type Artifact = Schemas['Artifact'];
 
-export type RunDetails = Omit<Schemas['RunDetails'], 'config'> & {
-  config: Record<string, any> | null;
-};
+export type RunDetails = Schemas['RunDetails'];
 
 export async function getRunDetails(scenarioId: string): Promise<RunDetails> {
   const response = await fetchWithAuth(`${API_BASE}/api/scenarios/${scenarioId}/details`);
@@ -965,9 +959,7 @@ export async function solveCompensationGrowth(
 // Template Endpoints
 // ============================================================================
 
-export type Template = Omit<Schemas['Template'], 'config'> & {
-  config: Record<string, any>;
-};
+export type Template = Schemas['Template'];
 
 export type TemplateListResponse = Schemas['TemplateListResponse'];
 

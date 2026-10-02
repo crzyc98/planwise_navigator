@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import Field
 from .base import APIModel
+from .studio_config import StudioConfigDict
 
 
 class ScenarioCreate(APIModel):
@@ -14,7 +15,7 @@ class ScenarioCreate(APIModel):
     description: Optional[str] = Field(
         None, max_length=500, description="Scenario description"
     )
-    config_overrides: Dict[str, Any] = Field(
+    config_overrides: StudioConfigDict = Field(
         default_factory=dict,
         description="Configuration overrides (merged with workspace base config)",
     )
@@ -29,7 +30,7 @@ class ScenarioUpdate(APIModel):
 
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     description: Optional[str] = Field(None, max_length=500)
-    config_overrides: Optional[Dict[str, Any]] = None
+    config_overrides: Optional[StudioConfigDict] = None
 
 
 class ScenarioResultsSummary(APIModel):
@@ -49,7 +50,7 @@ class Scenario(APIModel):
     workspace_id: str = Field(..., description="Parent workspace ID")
     name: str = Field(..., description="Scenario name")
     description: Optional[str] = Field(None, description="Scenario description")
-    config_overrides: Dict[str, Any] = Field(
+    config_overrides: StudioConfigDict = Field(
         default_factory=dict, description="Configuration overrides"
     )
     provenance: Optional[Dict[str, Any]] = Field(

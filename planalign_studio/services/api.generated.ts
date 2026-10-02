@@ -7875,13 +7875,8 @@ export interface components {
              * @description Run completion timestamp
              */
             completed_at: string | null;
-            /**
-             * Config
-             * @description Configuration used for run
-             */
-            config: {
-                [key: string]: unknown;
-            } | null;
+            /** @description Configuration used for run */
+            config: components["schemas"]["StudioConfig"] | null;
             /**
              * Duration Seconds
              * @description Total duration in seconds
@@ -8215,13 +8210,8 @@ export interface components {
          * @description Full scenario model.
          */
         Scenario: {
-            /**
-             * Config Overrides
-             * @description Configuration overrides
-             */
-            config_overrides: {
-                [key: string]: unknown;
-            };
+            /** @description Configuration overrides */
+            config_overrides: components["schemas"]["StudioConfig"];
             /**
              * Created At
              * Format: date-time
@@ -8317,13 +8307,8 @@ export interface components {
          * @description Request model for creating a scenario.
          */
         ScenarioCreate: {
-            /**
-             * Config Overrides
-             * @description Configuration overrides (merged with workspace base config)
-             */
-            config_overrides?: {
-                [key: string]: unknown;
-            };
+            /** @description Configuration overrides (merged with workspace base config) */
+            config_overrides?: components["schemas"]["StudioConfig"];
             /**
              * Description
              * @description Scenario description
@@ -8422,10 +8407,7 @@ export interface components {
          * @description Request model for updating a scenario.
          */
         ScenarioUpdate: {
-            /** Config Overrides */
-            config_overrides?: {
-                [key: string]: unknown;
-            } | null;
+            config_overrides?: components["schemas"]["StudioConfig"] | null;
             /** Description */
             description?: string | null;
             /** Name */
@@ -9017,6 +8999,197 @@ export interface components {
              */
             warning_type: "missing" | "alias_found" | "auto_mapped";
         };
+        /** StudioAgeMultiplier */
+        StudioAgeMultiplier: {
+            /**
+             * Age Band
+             * @description Age band label (read-only)
+             */
+            age_band: string;
+            /**
+             * Multiplier
+             * @description Promotion hazard multiplier
+             */
+            multiplier: number;
+        } & {
+            [key: string]: unknown;
+        };
+        /** StudioBand */
+        StudioBand: {
+            /**
+             * Band Id
+             * @description Unique identifier for the band
+             */
+            band_id: number;
+            /**
+             * Band Label
+             * @description Human-readable label (e.g., '25-34', '< 25')
+             */
+            band_label: string;
+            /**
+             * Display Order
+             * @description Sort order for UI display
+             */
+            display_order: number;
+            /**
+             * Max Value
+             * @description Upper bound (exclusive)
+             */
+            max_value: number;
+            /**
+             * Min Value
+             * @description Lower bound (inclusive)
+             */
+            min_value: number;
+        } & {
+            [key: string]: unknown;
+        };
+        /** StudioCompensationConfig */
+        StudioCompensationConfig: {
+            /** Cola Rate Percent */
+            cola_rate_percent?: number | null;
+            /** Merit Budget */
+            merit_budget?: number | null;
+            /** Merit Budget Percent */
+            merit_budget_percent?: number | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * StudioConfig
+         * @description Partial simulation config exposed in scenario, template and run APIs.
+         */
+        StudioConfig: {
+            /** Age Bands */
+            age_bands?: components["schemas"]["StudioBand"][] | null;
+            compensation?: components["schemas"]["StudioCompensationConfig"] | null;
+            dc_plan?: components["schemas"]["StudioDCPlanConfig"] | null;
+            promotion_hazard?: components["schemas"]["StudioPromotionHazardConfig"] | null;
+            simulation?: components["schemas"]["StudioSimulationConfig"] | null;
+            /** Tenure Bands */
+            tenure_bands?: components["schemas"]["StudioBand"][] | null;
+            turnover?: components["schemas"]["StudioTurnoverConfig"] | null;
+            workforce?: components["schemas"]["StudioWorkforceConfig"] | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /** StudioDCPlanConfig */
+        StudioDCPlanConfig: {
+            /** Auto Enroll */
+            auto_enroll?: boolean | null;
+            /** Auto Escalation */
+            auto_escalation?: boolean | null;
+            /** Match Status */
+            match_status?: string | null;
+            /** Match Template */
+            match_template?: string | null;
+            /** Match Tiers */
+            match_tiers?: components["schemas"]["StudioMatchTier"][] | null;
+            /** Points Match Tiers */
+            points_match_tiers?: components["schemas"]["StudioPointsMatchTier"][] | null;
+            /** Tenure Match Tiers */
+            tenure_match_tiers?: components["schemas"]["StudioTenureMatchTier"][] | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /** StudioMatchTier */
+        StudioMatchTier: {
+            /** Employee Max */
+            employee_max?: number | null;
+            /** Employee Min */
+            employee_min?: number | null;
+            /** Match Rate */
+            match_rate?: number | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /** StudioPointsMatchTier */
+        StudioPointsMatchTier: {
+            /** Match Rate */
+            match_rate?: number | null;
+            /** Max Deferral Pct */
+            max_deferral_pct?: number | null;
+            /** Max Points */
+            max_points?: number | null;
+            /** Min Points */
+            min_points?: number | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /** StudioPromotionHazardConfig */
+        StudioPromotionHazardConfig: {
+            /** Age Multipliers */
+            age_multipliers?: components["schemas"]["StudioAgeMultiplier"][] | null;
+            /** Base Rate */
+            base_rate?: number | null;
+            /** Level Dampener Factor */
+            level_dampener_factor?: number | null;
+            /** Tenure Multipliers */
+            tenure_multipliers?: components["schemas"]["StudioTenureMultiplier"][] | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /** StudioSimulationConfig */
+        StudioSimulationConfig: {
+            /** End Year */
+            end_year?: number | null;
+            /** Growth Target */
+            growth_target?: number | null;
+            /** Random Seed */
+            random_seed?: number | null;
+            /** Seed */
+            seed?: number | null;
+            /** Start Year */
+            start_year?: number | null;
+            /** Target Growth Rate */
+            target_growth_rate?: number | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /** StudioTenureMatchTier */
+        StudioTenureMatchTier: {
+            /** Match Rate */
+            match_rate?: number | null;
+            /** Max Deferral Pct */
+            max_deferral_pct?: number | null;
+            /** Max Years */
+            max_years?: number | null;
+            /** Min Years */
+            min_years?: number | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /** StudioTenureMultiplier */
+        StudioTenureMultiplier: {
+            /**
+             * Multiplier
+             * @description Promotion hazard multiplier
+             */
+            multiplier: number;
+            /**
+             * Tenure Band
+             * @description Tenure band label (read-only)
+             */
+            tenure_band: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /** StudioTurnoverConfig */
+        StudioTurnoverConfig: {
+            /** Base Rate */
+            base_rate?: number | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /** StudioWorkforceConfig */
+        StudioWorkforceConfig: {
+            /** New Hire Termination Rate */
+            new_hire_termination_rate?: number | null;
+            /** Total Termination Rate */
+            total_termination_rate?: number | null;
+        } & {
+            [key: string]: unknown;
+        };
         /**
          * Subsystem
          * @description Known sources of stochasticity and their attribution status.
@@ -9418,13 +9591,8 @@ export interface components {
              * @description Template category (e.g., general, growth, cost)
              */
             category: string;
-            /**
-             * Config
-             * @description Configuration overrides to apply
-             */
-            config: {
-                [key: string]: unknown;
-            };
+            /** @description Configuration overrides to apply */
+            config: components["schemas"]["StudioConfig"];
             /**
              * Description
              * @description Template description
