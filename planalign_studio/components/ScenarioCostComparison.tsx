@@ -30,6 +30,8 @@ import { useChartTheme } from '../hooks/useChartTheme';
 import { PlanDesignModal, formatMatchMode } from './PlanDesignModal';
 import { LayoutContextType } from './Layout';
 import SelectedComparisonRuns from './SelectedComparisonRuns';
+import CostBreakdownTooltip from './CostBreakdownTooltip';
+import { buildCostBreakdownRows, componentKey, restoreCostBreakdown, splitUnavailableReason, type CostBreakdown } from './costBreakdown';
 import {
   listScenarios,
   compareDCPlanAnalytics,
@@ -160,6 +162,7 @@ interface ComparisonPrefs {
   cohort: DCPlanCohort;
   // #444: the net-of-forfeitures selections persist alongside the existing keys.
   costView?: CostView;
+  costBreakdown?: CostBreakdown;
   vestingSchedule?: VestingScheduleType;
   forfeiturePolicy?: ForfeiturePolicy;
   grandfatherExisting?: boolean;
@@ -184,6 +187,7 @@ function loadComparisonPrefs(
   anchorId: string;
   cohort?: unknown;
   costView?: unknown;
+  costBreakdown?: unknown;
   vestingSchedule?: unknown;
   forfeiturePolicy?: unknown;
   grandfatherExisting?: unknown;
@@ -422,6 +426,7 @@ export default function ScenarioCostComparison() {
   // renders exactly the numbers it always has.
   // -------------------------------------------------------------------------
   const [costView, setCostView] = useState<CostView>('gross');
+  const [costBreakdown, setCostBreakdown] = useState<CostBreakdown>('total');
   const [vestingSchedule, setVestingSchedule] = useState<VestingScheduleType>(DEFAULT_VESTING_SCHEDULE);
   const [forfeiturePolicy, setForfeiturePolicy] = useState<ForfeiturePolicy>(DEFAULT_FORFEITURE_POLICY);
   const [schedules, setSchedules] = useState<VestingScheduleInfo[]>([]);
@@ -429,6 +434,8 @@ export default function ScenarioCostComparison() {
   const [forfeitureLoading, setForfeitureLoading] = useState(false);
   const [forfeitureError, setForfeitureError] = useState<string | null>(null);
   const [grandfatherExisting, setGrandfatherExisting] = useState(false);
+  const splitDisabledReason = splitUnavailableReason(costView, grandfatherExisting);
+  const splitActive = costBreakdown === 'split' && splitDisabledReason === null;
   const [grandfatherCutoffYear, setGrandfatherCutoffYear] = useState<number | null>(null);
   const [grandfatherData, setGrandfatherData] = useState<GrandfatheredCostComparisonResponse | null>(null);
   const [grandfatherLoading, setGrandfatherLoading] = useState(false);
@@ -712,6 +719,11 @@ export default function ScenarioCostComparison() {
     });
   }, [netActive, processedData, selectedScenarioIds, appliedOffset, viewMode]);
 
+  const costTrendData = useMemo(() => splitActive
+    ? buildCostBreakdownRows(chartData, comparisonData?.analytics ?? [], selectedScenarioIds, viewMode === 'cumulative')
+    : chartData,
+  [splitActive, chartData, comparisonData, selectedScenarioIds, viewMode]);
+
   // -------------------------------------------------------------------------
   // Derived Data: Anchor Summary
   // -------------------------------------------------------------------------
@@ -779,6 +791,7 @@ export default function ScenarioCostComparison() {
 
       // Try to restore saved preferences
       const savedPrefs = loadComparisonPrefs(workspaceId);
+      setCostBreakdown(restoreCostBreakdown(savedPrefs?.costBreakdown));
       if (savedPrefs) {
         // Keep scenarios that still have selected successful results.
         const validSelectedIds = savedPrefs.selectedIds.filter(id => completedIds.has(id));
@@ -1030,6 +1043,7 @@ export default function ScenarioCostComparison() {
         anchorId: anchorScenarioId,
         cohort,
         costView,
+        costBreakdown,
         vestingSchedule,
         forfeiturePolicy,
         grandfatherExisting,
@@ -1037,7 +1051,7 @@ export default function ScenarioCostComparison() {
       });
     }
   }, [activeWorkspace?.id, selectionWorkspaceId, selectedScenarioIds, anchorScenarioId, cohort,
-      costView, vestingSchedule, forfeiturePolicy, grandfatherExisting, grandfatherCutoffYear]);
+      costView, costBreakdown, vestingSchedule, forfeiturePolicy, grandfatherExisting, grandfatherCutoffYear]);
 
   // -------------------------------------------------------------------------
   // Event Handlers
@@ -1517,7 +1531,7 @@ export default function ScenarioCostComparison() {
                   )}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-2">
                   {/* Cohort Control (134-new-hire-cohort, FR-001) */}
                   <div className="flex bg-surface-subtle p-1 rounded-lg">
                     {VALID_COHORTS.map((value) => (
@@ -1560,8 +1574,28 @@ export default function ScenarioCostComparison() {
                       </button>
                     ))}
                   </div>
+                  <div className="flex bg-surface-subtle p-1 rounded-lg" role="group" aria-label="Employer cost breakdown">
+                    {(['total', 'split'] as const).map(value => (
+                      <button
+                        key={value}
+                        onClick={() => setCostBreakdown(value)}
+                        disabled={value === 'split' && splitDisabledReason !== null}
+                        aria-pressed={value === (splitActive ? 'split' : 'total')}
+                        aria-describedby={splitDisabledReason ? 'cost-split-unavailable' : undefined}
+                        className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all disabled:cursor-not-allowed disabled:opacity-50 ${value === (splitActive ? 'split' : 'total') ? 'bg-surface-raised text-ink shadow-sm' : 'text-ink-muted hover:text-ink-muted'}`}
+                      >
+                        {value === 'total' ? 'Total' : 'Split'}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
+
+              {splitDisabledReason && (
+                <p id="cost-split-unavailable" className="text-xs text-ink-muted mb-6">
+                  Split unavailable: {splitDisabledReason}
+                </p>
+              )}
 
               <div className="-mt-4 mb-6 flex flex-wrap items-center gap-4 rounded-lg border border-border bg-surface-subtle px-4 py-3">
                 <label className="flex items-center gap-2 text-xs font-bold text-ink">
@@ -1677,7 +1711,7 @@ export default function ScenarioCostComparison() {
               <div className="h-96">
                 <ResponsiveContainer width="100%" height="100%">
                   {viewMode === 'annual' ? (
-                    <BarChart key={`${selectedScenarioIds.join(',')}|${netActive}`} data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
+                    <BarChart key={`${selectedScenarioIds.join(',')}|${netActive}|${splitActive}`} data={costTrendData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
                       <XAxis dataKey="year" stroke={chartTheme.axis.line} fontSize={12} />
                       <YAxis stroke={chartTheme.axis.line} fontSize={12} tickFormatter={v => formatCurrency(v)} />
@@ -1685,6 +1719,7 @@ export default function ScenarioCostComparison() {
                         cursor={chartTheme.tooltip.cursorStyle}
                         contentStyle={chartTheme.tooltip.contentStyle}
                         formatter={(value: number) => formatCurrency(value)}
+                        content={splitActive ? props => <CostBreakdownTooltip {...props} scenarioIds={orderedScenarioIds} names={comparisonData.scenario_names} colors={Object.fromEntries(orderedScenarioIds.map(id => [id, id === anchorScenarioId ? chartTheme.semantic.anchor : scenarioColorMap[id]]))} /> : undefined}
                       />
                       <Legend
                         content={() => (
@@ -1693,6 +1728,10 @@ export default function ScenarioCostComparison() {
                               const color = id === anchorScenarioId ? chartTheme.semantic.anchor : scenarioColorMap[id];
                               const name = comparisonData.scenario_names[id] || id;
                               const gross = { name: netActive ? `${name} (gross)` : name, color };
+                              if (splitActive) return [
+                                { name: `${name} — Employer match`, color },
+                                { name: `${name} — Non-elective core`, color, opacity: 0.45 },
+                              ];
                               return netActive
                                 ? [gross, { name: `${name} (net)`, color, opacity: 0.45 }]
                                 : [gross];
@@ -1700,7 +1739,19 @@ export default function ScenarioCostComparison() {
                           />
                         )}
                       />
-                      {orderedScenarioIds.map((id) => (
+                      {splitActive && orderedScenarioIds.flatMap(id => (['match', 'core'] as const).map(component => (
+                        <Bar
+                          key={componentKey(id, component)}
+                          dataKey={componentKey(id, component)}
+                          stackId={id}
+                          name={`${comparisonData.scenario_names[id] || id} — ${component === 'match' ? 'Employer match' : 'Non-elective core'}`}
+                          fill={id === anchorScenarioId ? chartTheme.semantic.anchor : scenarioColorMap[id]}
+                          fillOpacity={component === 'match' ? 1 : 0.45}
+                          radius={component === 'core' ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                          barSize={selectedScenarioIds.length > 4 ? 12 : 30}
+                        />
+                      )))}
+                      {!splitActive && orderedScenarioIds.map((id) => (
                         <Bar
                           key={id}
                           dataKey={id}
@@ -1726,13 +1777,14 @@ export default function ScenarioCostComparison() {
                       ))}
                     </BarChart>
                   ) : (
-                    <AreaChart key={`${selectedScenarioIds.join(',')}|${netActive}`} data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
+                    <AreaChart key={`${selectedScenarioIds.join(',')}|${netActive}|${splitActive}`} data={costTrendData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid.line} />
                       <XAxis dataKey="year" stroke={chartTheme.axis.line} fontSize={12} />
                       <YAxis stroke={chartTheme.axis.line} fontSize={12} tickFormatter={v => formatCurrency(v)} />
                       <Tooltip
                         contentStyle={chartTheme.tooltip.contentStyle}
                         formatter={(value: number) => formatCurrency(value)}
+                        content={splitActive ? props => <CostBreakdownTooltip {...props} scenarioIds={orderedScenarioIds} names={comparisonData.scenario_names} colors={Object.fromEntries(orderedScenarioIds.map(id => [id, id === anchorScenarioId ? chartTheme.semantic.anchor : scenarioColorMap[id]]))} /> : undefined}
                       />
                       <Legend
                         content={() => (
@@ -1741,6 +1793,10 @@ export default function ScenarioCostComparison() {
                               const color = id === anchorScenarioId ? chartTheme.semantic.anchor : scenarioColorMap[id];
                               const name = comparisonData.scenario_names[id] || id;
                               const gross = { name: netActive ? `${name} (gross)` : name, color };
+                              if (splitActive) return [
+                                { name: `${name} — Employer match`, color },
+                                { name: `${name} — Non-elective core`, color, opacity: 0.45 },
+                              ];
                               return netActive
                                 ? [gross, { name: `${name} (net)`, color, opacity: 0.45 }]
                                 : [gross];
@@ -1748,7 +1804,22 @@ export default function ScenarioCostComparison() {
                           />
                         )}
                       />
-                      {orderedScenarioIds.map((id) => (
+                      {splitActive && orderedScenarioIds.flatMap(id => (['match', 'core'] as const).map(component => (
+                        <Area
+                          key={componentKey(id, component)}
+                          type="monotone"
+                          dataKey={componentKey(id, component)}
+                          stackId={id}
+                          name={`${comparisonData.scenario_names[id] || id} — ${component === 'match' ? 'Employer match' : 'Non-elective core'}`}
+                          stroke={id === anchorScenarioId ? chartTheme.semantic.anchor : scenarioColorMap[id]}
+                          strokeDasharray={component === 'core' ? '5 4' : undefined}
+                          fill={id === anchorScenarioId ? chartTheme.semantic.anchor : scenarioColorMap[id]}
+                          fillOpacity={component === 'match' ? 0.3 : 0.12}
+                          strokeWidth={id === anchorScenarioId ? 3 : 2}
+                          connectNulls={false}
+                        />
+                      )))}
+                      {!splitActive && orderedScenarioIds.map((id) => (
                         <Area
                           key={id}
                           type="monotone"
@@ -2261,6 +2332,13 @@ export default function ScenarioCostComparison() {
                     <span className="text-ink-inverse font-bold">Employer cost</span> is employer match
                     plus employer core, summed across every employee in the workforce snapshot for
                     each simulation year. Employee deferrals and salary are not included.
+                  </p>
+                  <p>
+                    <span className="text-ink-inverse font-bold">Split view</span> separates gross employer
+                    cost into match and non-elective core for the selected cohort. Cumulative view
+                    sums each component through the displayed year. Split is unavailable for net
+                    costs because forfeiture offsets are not allocated by component, and for
+                    grandfathered costs because those results provide totals only.
                   </p>
                   <p>
                     <span className="text-ink-inverse font-bold">Cost as % of capped compensation</span>{' '}
