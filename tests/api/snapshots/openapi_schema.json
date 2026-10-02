@@ -11497,15 +11497,13 @@
           "config": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/StudioConfig"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Configuration used for run",
-            "title": "Config"
+            "description": "Configuration used for run"
           },
           "duration_seconds": {
             "anyOf": [
@@ -12283,10 +12281,8 @@
         "description": "Full scenario model.",
         "properties": {
           "config_overrides": {
-            "additionalProperties": true,
-            "description": "Configuration overrides",
-            "title": "Config Overrides",
-            "type": "object"
+            "$ref": "#/components/schemas/StudioConfig",
+            "description": "Configuration overrides"
           },
           "created_at": {
             "description": "Creation timestamp",
@@ -12472,10 +12468,8 @@
         "description": "Request model for creating a scenario.",
         "properties": {
           "config_overrides": {
-            "additionalProperties": true,
-            "description": "Configuration overrides (merged with workspace base config)",
-            "title": "Config Overrides",
-            "type": "object"
+            "$ref": "#/components/schemas/StudioConfig",
+            "description": "Configuration overrides (merged with workspace base config)"
           },
           "description": {
             "anyOf": [
@@ -12686,14 +12680,12 @@
           "config_overrides": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/StudioConfig"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Config Overrides"
+            ]
           },
           "description": {
             "anyOf": [
@@ -13861,6 +13853,642 @@
         "title": "StructuredWarning",
         "type": "object"
       },
+      "StudioAgeMultiplier": {
+        "additionalProperties": true,
+        "properties": {
+          "age_band": {
+            "description": "Age band label (read-only)",
+            "title": "Age Band",
+            "type": "string"
+          },
+          "multiplier": {
+            "description": "Promotion hazard multiplier",
+            "minimum": 0.0,
+            "title": "Multiplier",
+            "type": "number"
+          }
+        },
+        "required": [
+          "age_band",
+          "multiplier"
+        ],
+        "title": "StudioAgeMultiplier",
+        "type": "object"
+      },
+      "StudioBand": {
+        "additionalProperties": true,
+        "properties": {
+          "band_id": {
+            "description": "Unique identifier for the band",
+            "minimum": 1.0,
+            "title": "Band Id",
+            "type": "integer"
+          },
+          "band_label": {
+            "description": "Human-readable label (e.g., '25-34', '< 25')",
+            "maxLength": 50,
+            "title": "Band Label",
+            "type": "string"
+          },
+          "display_order": {
+            "description": "Sort order for UI display",
+            "minimum": 1.0,
+            "title": "Display Order",
+            "type": "integer"
+          },
+          "max_value": {
+            "description": "Upper bound (exclusive)",
+            "exclusiveMinimum": 0.0,
+            "title": "Max Value",
+            "type": "integer"
+          },
+          "min_value": {
+            "description": "Lower bound (inclusive)",
+            "minimum": 0.0,
+            "title": "Min Value",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "band_id",
+          "band_label",
+          "min_value",
+          "max_value",
+          "display_order"
+        ],
+        "title": "StudioBand",
+        "type": "object"
+      },
+      "StudioCompensationConfig": {
+        "additionalProperties": true,
+        "properties": {
+          "cola_rate_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cola Rate Percent"
+          },
+          "merit_budget": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merit Budget"
+          },
+          "merit_budget_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merit Budget Percent"
+          }
+        },
+        "title": "StudioCompensationConfig",
+        "type": "object"
+      },
+      "StudioConfig": {
+        "additionalProperties": true,
+        "description": "Partial simulation config exposed in scenario, template and run APIs.",
+        "properties": {
+          "age_bands": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/StudioBand"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Bands"
+          },
+          "compensation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StudioCompensationConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dc_plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StudioDCPlanConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "promotion_hazard": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StudioPromotionHazardConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "simulation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StudioSimulationConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tenure_bands": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/StudioBand"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tenure Bands"
+          },
+          "turnover": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StudioTurnoverConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "workforce": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StudioWorkforceConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "StudioConfig",
+        "type": "object"
+      },
+      "StudioDCPlanConfig": {
+        "additionalProperties": true,
+        "properties": {
+          "auto_enroll": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto Enroll"
+          },
+          "auto_escalation": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto Escalation"
+          },
+          "match_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match Status"
+          },
+          "match_template": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match Template"
+          },
+          "match_tiers": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/StudioMatchTier"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match Tiers"
+          },
+          "points_match_tiers": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/StudioPointsMatchTier"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points Match Tiers"
+          },
+          "tenure_match_tiers": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/StudioTenureMatchTier"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tenure Match Tiers"
+          }
+        },
+        "title": "StudioDCPlanConfig",
+        "type": "object"
+      },
+      "StudioMatchTier": {
+        "additionalProperties": true,
+        "properties": {
+          "employee_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employee Max"
+          },
+          "employee_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employee Min"
+          },
+          "match_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match Rate"
+          }
+        },
+        "title": "StudioMatchTier",
+        "type": "object"
+      },
+      "StudioPointsMatchTier": {
+        "additionalProperties": true,
+        "properties": {
+          "match_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match Rate"
+          },
+          "max_deferral_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Deferral Pct"
+          },
+          "max_points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Points"
+          },
+          "min_points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Points"
+          }
+        },
+        "title": "StudioPointsMatchTier",
+        "type": "object"
+      },
+      "StudioPromotionHazardConfig": {
+        "additionalProperties": true,
+        "properties": {
+          "age_multipliers": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/StudioAgeMultiplier"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Multipliers"
+          },
+          "base_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Rate"
+          },
+          "level_dampener_factor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level Dampener Factor"
+          },
+          "tenure_multipliers": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/StudioTenureMultiplier"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tenure Multipliers"
+          }
+        },
+        "title": "StudioPromotionHazardConfig",
+        "type": "object"
+      },
+      "StudioSimulationConfig": {
+        "additionalProperties": true,
+        "properties": {
+          "end_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Year"
+          },
+          "growth_target": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Growth Target"
+          },
+          "random_seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Random Seed"
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed"
+          },
+          "start_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Year"
+          },
+          "target_growth_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Growth Rate"
+          }
+        },
+        "title": "StudioSimulationConfig",
+        "type": "object"
+      },
+      "StudioTenureMatchTier": {
+        "additionalProperties": true,
+        "properties": {
+          "match_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match Rate"
+          },
+          "max_deferral_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Deferral Pct"
+          },
+          "max_years": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Years"
+          },
+          "min_years": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Years"
+          }
+        },
+        "title": "StudioTenureMatchTier",
+        "type": "object"
+      },
+      "StudioTenureMultiplier": {
+        "additionalProperties": true,
+        "properties": {
+          "multiplier": {
+            "description": "Promotion hazard multiplier",
+            "minimum": 0.0,
+            "title": "Multiplier",
+            "type": "number"
+          },
+          "tenure_band": {
+            "description": "Tenure band label (read-only)",
+            "title": "Tenure Band",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenure_band",
+          "multiplier"
+        ],
+        "title": "StudioTenureMultiplier",
+        "type": "object"
+      },
+      "StudioTurnoverConfig": {
+        "additionalProperties": true,
+        "properties": {
+          "base_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Rate"
+          }
+        },
+        "title": "StudioTurnoverConfig",
+        "type": "object"
+      },
+      "StudioWorkforceConfig": {
+        "additionalProperties": true,
+        "properties": {
+          "new_hire_termination_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Hire Termination Rate"
+          },
+          "total_termination_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Termination Rate"
+          }
+        },
+        "title": "StudioWorkforceConfig",
+        "type": "object"
+      },
       "Subsystem": {
         "description": "Known sources of stochasticity and their attribution status.",
         "enum": [
@@ -14480,10 +15108,8 @@
             "type": "string"
           },
           "config": {
-            "additionalProperties": true,
-            "description": "Configuration overrides to apply",
-            "title": "Config",
-            "type": "object"
+            "$ref": "#/components/schemas/StudioConfig",
+            "description": "Configuration overrides to apply"
           },
           "description": {
             "description": "Template description",

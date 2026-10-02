@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import Field
 from .base import APIModel
+from .studio_config import StudioConfigDict
 
 
 class SimulationLogLine(APIModel):
@@ -397,7 +398,7 @@ class RunDetails(APIModel):
     )
 
     # Configuration snapshot
-    config: Optional[Dict[str, Any]] = Field(
+    config: Optional[StudioConfigDict] = Field(
         None, description="Configuration used for run"
     )
 

@@ -42,7 +42,7 @@ export function TemplateModal({ templates, onClose }: TemplateModalProps) {
                   dcAutoEnroll: cfg.dc_plan?.auto_enroll ?? prev.dcAutoEnroll,
                   dcMatchTemplate: cfg.dc_plan?.match_template || prev.dcMatchTemplate,
                   dcMatchTiers: cfg.dc_plan?.match_tiers
-                    ? cfg.dc_plan.match_tiers.map((t: any) => ({
+                    ? cfg.dc_plan.match_tiers.map(t => ({
                         deferralMin: (t.employee_min ?? 0) * 100,
                         deferralMax: (t.employee_max ?? 0) * 100,
                         matchRate: (t.match_rate ?? 0) * 100,
@@ -51,7 +51,7 @@ export function TemplateModal({ templates, onClose }: TemplateModalProps) {
                   // E046: Tenure/Points match mode
                   dcMatchMode: cfg.dc_plan?.match_status || prev.dcMatchMode,
                   dcTenureMatchTiers: cfg.dc_plan?.tenure_match_tiers?.length
-                    ? cfg.dc_plan.tenure_match_tiers.map((t: any) => ({
+                    ? cfg.dc_plan.tenure_match_tiers.map(t => ({
                         minYears: t.min_years ?? 0,
                         maxYears: t.max_years ?? null,
                         matchRate: (t.match_rate ?? 0) * 100,
@@ -59,7 +59,7 @@ export function TemplateModal({ templates, onClose }: TemplateModalProps) {
                       }))
                     : prev.dcTenureMatchTiers,
                   dcPointsMatchTiers: cfg.dc_plan?.points_match_tiers?.length
-                    ? cfg.dc_plan.points_match_tiers.map((t: any) => ({
+                    ? cfg.dc_plan.points_match_tiers.map(t => ({
                         minPoints: t.min_points ?? 0,
                         maxPoints: t.max_points ?? null,
                         matchRate: (t.match_rate ?? 0) * 100,

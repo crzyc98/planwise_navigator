@@ -604,25 +604,25 @@ export default function SimulationDetail() {
         {/* Quick Config Summary - Always visible */}
         {details.config && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            {details.config.simulation?.seed !== undefined && (
+            {details.config.simulation?.seed != null && (
               <div className="bg-surface-subtle rounded-lg p-3 border border-border">
                 <span className="text-ink-muted block text-xs">Seed</span>
                 <span className="font-mono text-ink">{details.config.simulation.seed}</span>
               </div>
             )}
-            {details.config.simulation?.growth_target !== undefined && (
+            {details.config.simulation?.growth_target != null && (
               <div className="bg-surface-subtle rounded-lg p-3 border border-border">
                 <span className="text-ink-muted block text-xs">Growth Target</span>
                 <span className="text-ink">{(details.config.simulation.growth_target * 100).toFixed(1)}%</span>
               </div>
             )}
-            {details.config.compensation?.merit_budget !== undefined && (
+            {details.config.compensation?.merit_budget != null && (
               <div className="bg-surface-subtle rounded-lg p-3 border border-border">
                 <span className="text-ink-muted block text-xs">Merit Budget</span>
                 <span className="text-ink">{(details.config.compensation.merit_budget * 100).toFixed(1)}%</span>
               </div>
             )}
-            {details.config.turnover?.base_rate !== undefined && (
+            {details.config.turnover?.base_rate != null && (
               <div className="bg-surface-subtle rounded-lg p-3 border border-border">
                 <span className="text-ink-muted block text-xs">Turnover Rate</span>
                 <span className="text-ink">{(details.config.turnover.base_rate * 100).toFixed(1)}%</span>
