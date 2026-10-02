@@ -10693,9 +10693,6 @@ export interface operations {
             /** @description Successful Response */
             200: {
                 headers: {
-                    "X-PlanAlign-Active-Run-Id"?: string;
-                    "X-PlanAlign-Result-Run-Id"?: string;
-                    "X-PlanAlign-Run-Warning"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -12847,6 +12844,9 @@ export interface operations {
             /** @description Successful Response */
             200: {
                 headers: {
+                    "X-PlanAlign-Active-Run-Id"?: string;
+                    "X-PlanAlign-Result-Run-Id"?: string;
+                    "X-PlanAlign-Run-Warning"?: string;
                     [name: string]: unknown;
                 };
                 content: {

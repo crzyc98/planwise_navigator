@@ -30,18 +30,25 @@ from .database_path_resolver import (
     ResolvedDatabasePath,
     create_api_database_path_resolver,
 )
-from .ndt_service import NDTService
+from .ndt_service import (
+    NDTService,
+    ADPScenarioResult,
+    ACPScenarioResult,
+    Section415ScenarioResult,
+)
 
 
 class ComplianceEvidenceChangedError(ValueError):
     """Selected reporting evidence changed; the client must refresh its summary."""
 
 
-class _PinnedResolver:
+class _PinnedResolver(DatabasePathResolver):
     def __init__(self, resolved: ResolvedDatabasePath) -> None:
         self.resolved = resolved
 
-    def resolve(self, workspace_id: str, scenario_id: str) -> ResolvedDatabasePath:
+    def resolve(
+        self, workspace_id: str, scenario_id: str, *, verify_database: bool = True
+    ) -> ResolvedDatabasePath:
         return self.resolved
 
 
@@ -58,7 +65,7 @@ def _measure(
     amount: float | None, limit: float | None, threshold: float
 ) -> LimitMeasure:
     status = limit_status(amount, limit, threshold)
-    if status == "unavailable":
+    if amount is None or limit is None or status == "unavailable":
         return LimitMeasure(amount=amount, limit=limit)
     difference = float(cents(limit) - cents(amount))
     return LimitMeasure(
@@ -84,13 +91,17 @@ def _rollup(employees: list[ComplianceEmployee], field: str) -> LimitRollup:
 
 def _catch_up(employees: list[ComplianceEmployee], group: str) -> CatchUpRollup:
     eligible = [e for e in employees if e.catch_up_group == group]
-    available = [e for e in eligible if e.modeled_catch_up_used is not None]
-    capacity = sum((cents(e.catch_up_capacity) for e in available), cents(0))
-    used = sum((cents(e.modeled_catch_up_used) for e in available), cents(0))
+    available = [
+        (e.catch_up_capacity, e.modeled_catch_up_used)
+        for e in eligible
+        if e.catch_up_capacity is not None and e.modeled_catch_up_used is not None
+    ]
+    capacity = sum((cents(capacity) for capacity, _ in available), cents(0))
+    used = sum((cents(used) for _, used in available), cents(0))
     return CatchUpRollup(
         eligible_count=len(eligible),
         available_count=len(available),
-        utilizing_count=sum(e.modeled_catch_up_used > 0 for e in available),
+        utilizing_count=sum(used > 0 for _, used in available),
         capacity=float(capacity),
         used=float(used),
         remaining_capacity=float(capacity - used),
@@ -169,7 +180,7 @@ def _employee(
         ),
         catch_up_group=group,
     )
-    if group and limits:
+    if group and limits and applicable is not None:
         _apply_catch_up(result, contributions, applicable, limits.base_limit)
     return result
 
@@ -232,7 +243,9 @@ def _additions(row: dict, limits: ComplianceLimits | None) -> float | None:
     ):
         return None
     return annual_additions(
-        *fields,
+        fields[0],
+        fields[1],
+        fields[2],
         limits.base_limit,
         row["current_age"],
         limits.catch_up_age_threshold,
@@ -442,7 +455,9 @@ class ComplianceService:
     ) -> list[ComplianceNDTResult]:
         service = NDTService(self.storage, db_resolver=_PinnedResolver(resolved))
         arguments = (workspace_id, scenario_id, name, year)
-        results = [
+        results: list[
+            ADPScenarioResult | ACPScenarioResult | Section415ScenarioResult
+        ] = [
             service.run_adp_test(*arguments),
             service.run_acp_test(*arguments),
             service.run_415_test(*arguments, warning_threshold=threshold),
