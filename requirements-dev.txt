@@ -4,19 +4,19 @@
 # tests) plus --splits/--group/--cov flags used by CI all pass unchanged.
 pytest==9.1.1
 pytest-cov==7.1.0
-pytest-mock==3.15.1
+pytest-mock==3.16.0
 pytest-xdist==3.8.0
 # Partitions the suite across CI runners (--splits/--group); see the sharded
 # `test` job in .github/workflows/ci.yml.
 pytest-split==0.11.0
 hypothesis>=6.0.0
 factory-boy==3.3.3
-Faker==40.39.0
+Faker==40.40.0
 
 # Code Quality
 ruff==0.4.3
 black==23.9.1
-isort==9.0.1
+isort==9.0.2
 # Last mypy release compatible with dbt-core 1.9.11's pathspec<0.13.
 mypy==1.19.1
 # Type stubs for the CI `mypy` lint job. Without these, mypy reports
@@ -24,7 +24,7 @@ mypy==1.19.1
 # --ignore-missing-imports because the stub is known to exist on PyPI),
 # keeping the lint job red. See #333.
 types-PyYAML==6.0.12.20260518
-pylint==4.0.9
+pylint==4.1.1
 flake8==6.1.0
 pre-commit==4.6.2
 

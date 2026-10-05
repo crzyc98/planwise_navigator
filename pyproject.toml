@@ -35,7 +35,7 @@ dependencies = [
     "lxml>=5.0.0",
     # Tableau .hyper export (Cost Comparison page). Pinned: releases after
     # 0.0.26479 dropped macOS wheels; no Linux aarch64 wheels exist at all.
-    "tableauhyperapi==0.0.26479; platform_machine != 'aarch64'",
+    "tableauhyperapi==0.0.26700; platform_machine != 'aarch64'",
     # Corporate network and HTTP client dependencies
     "requests>=2.28.0",
     "urllib3>=1.26.0",
@@ -63,22 +63,22 @@ dev = [
     # alongside it for compatibility (#705) -- see requirements-dev.txt.
     "pytest==9.1.1",
     "pytest-cov==7.1.0",
-    "pytest-mock==3.15.1",
+    "pytest-mock==3.16.0",
     "pytest-xdist==3.8.0",
     "pytest-split==0.11.0",
     "hypothesis>=6.0.0",
     "factory-boy==3.3.3",
-    "Faker==40.39.0",
+    "Faker==40.40.0",
 
     # Code Quality
     "ruff==0.4.3",
     "black==23.9.1",
-    "isort==9.0.1",
+    "isort==9.0.2",
     # mypy >=1.20 requires pathspec >=1, conflicting with dbt-core's <0.13.
     "mypy==1.19.1",
     # Type stubs for the CI mypy lint job (see requirements-dev.txt / #333)
     "types-PyYAML==6.0.12.20260518",
-    "pylint==4.0.9",
+    "pylint==4.1.1",
     "flake8==6.1.0",
     "pre-commit==4.6.2",
     # Dependency vulnerability scanning (#705)
