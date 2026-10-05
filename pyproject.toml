@@ -90,7 +90,7 @@ dev = [
     # its own fix version to clear PYSEC-2026-3609/PYSEC-2026-3654 (#705).
     "mkdocs==1.6.1",
     "mkdocs-material==9.7.7",
-    "pymdown-extensions==11.0.1",
+    "pymdown-extensions==12.1",
     "mkdocstrings-python==2.0.9",
     "jupyter==1.1.1",
     "ipython==9.17.1",
