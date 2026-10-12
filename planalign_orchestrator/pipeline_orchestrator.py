@@ -666,6 +666,13 @@ class PipelineOrchestrator:
                         stage, year, fail_on_validation_error
                     )
 
+                if (
+                    stage.name == WorkflowStage.FOUNDATION
+                    and year == self.config.simulation.start_year
+                    and not dry_run
+                ):
+                    self._seed_start_year_enrollment_registry(year)
+
             validation_evidence = None
             if stage.name == WorkflowStage.VALIDATION and not dry_run:
                 validation_results = self.validator.validate_year_results(year)
@@ -737,8 +744,14 @@ class PipelineOrchestrator:
                 f"Staging models failed with code {staging_res.return_code}"
             )
 
-        self.registry_manager.get_enrollment_registry().create_for_year(year)
-        self.registry_manager.get_deferral_registry().create_table()
+    def _seed_start_year_enrollment_registry(self, year: int) -> None:
+        """Seed census enrollments after FOUNDATION creates baseline workforce."""
+        registry = self.registry_manager.get_enrollment_registry()
+        if not registry.create_for_year(year):
+            raise PipelineStageError(
+                "Failed to seed enrollment registry from int_baseline_workforce "
+                f"for simulation year {year}"
+            )
 
     def _record_performance_checkpoint(
         self, stage_name: str, year: int, suffix: str

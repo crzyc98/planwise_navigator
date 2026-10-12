@@ -146,6 +146,31 @@ def test_execute_stage_with_legacy_memory_propagates_stage_failure():
         orchestrator._execute_stage_with_legacy_memory(_foundation_stage(), 2025)
 
 
+def test_start_year_registry_seed_fails_loudly_after_foundation():
+    orchestrator = PipelineOrchestrator.__new__(PipelineOrchestrator)
+    registry = MagicMock()
+    registry.create_for_year.return_value = False
+    orchestrator.registry_manager = MagicMock()
+    orchestrator.registry_manager.get_enrollment_registry.return_value = registry
+
+    with pytest.raises(PipelineStageError, match="int_baseline_workforce"):
+        orchestrator._seed_start_year_enrollment_registry(2025)
+
+    registry.create_for_year.assert_called_once_with(2025)
+
+
+def test_start_year_registry_seed_succeeds_after_foundation():
+    orchestrator = PipelineOrchestrator.__new__(PipelineOrchestrator)
+    registry = MagicMock()
+    registry.create_for_year.return_value = True
+    orchestrator.registry_manager = MagicMock()
+    orchestrator.registry_manager.get_enrollment_registry.return_value = registry
+
+    orchestrator._seed_start_year_enrollment_registry(2025)
+
+    registry.create_for_year.assert_called_once_with(2025)
+
+
 @pytest.mark.parametrize(
     "outcome",
     [
