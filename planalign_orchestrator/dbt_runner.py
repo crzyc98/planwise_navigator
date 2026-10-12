@@ -12,6 +12,7 @@ Provides a `DbtRunner` with:
 from __future__ import annotations
 
 import json
+import re
 import secrets
 import subprocess
 import time
@@ -74,6 +75,48 @@ class DbtDataQualityError(DbtError):
     """Error due to data quality test failures."""
 
 
+_ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
+_DBT_ERROR_STARTS = (
+    "runtime error in model ",
+    "database error in model ",
+    "compilation error in model ",
+    "failure in model ",
+)
+_DBT_ERROR_STOPS = (
+    "compiled code at ",
+    "done. pass=",
+    "finished running ",
+    "completed with ",
+)
+
+
+def extract_dbt_output_failure_detail(stdout: str, stderr: str) -> str:
+    """Return the actionable dbt error block from captured process output."""
+    combined = "\n".join(part for part in (stdout or "", stderr or "") if part)
+    lines = [
+        _ANSI_ESCAPE.sub("", line).strip()
+        for line in combined.splitlines()
+        if line.strip()
+    ]
+    start_indexes = [
+        index
+        for index, line in enumerate(lines)
+        if any(marker in line.lower() for marker in _DBT_ERROR_STARTS)
+    ]
+    if not start_indexes:
+        return ""
+
+    detail_lines: List[str] = []
+    for line in lines[start_indexes[-1] :]:
+        normalized = line.lower()
+        if detail_lines and any(marker in normalized for marker in _DBT_ERROR_STOPS):
+            break
+        detail_lines.append(line)
+        if len(" ".join(detail_lines)) >= 1200:
+            break
+    return " ".join(detail_lines)[:1200]
+
+
 def extract_dbt_failure_detail(
     working_dir: Path | str, *, target_path: Path | str | None = None
 ) -> str:
@@ -129,15 +172,18 @@ def classify_dbt_error(
     present it is appended to the message so the operator sees the real cause
     instead of an empty ``Tail:``.
     """
-    s_err = (stderr or "").lower()
-    s_out = (stdout or "").lower()
+    combined_lower = "\n".join((stdout or "", stderr or "")).lower()
+    failure_detail = failure_detail or extract_dbt_output_failure_detail(stdout, stderr)
     detail = f" Detail: {failure_detail}" if failure_detail else ""
 
-    if "compilation error" in s_err:
+    if "compilation error" in combined_lower:
         return DbtCompilationError(f"Model compilation failed.{detail}".rstrip())
-    if "database error" in s_err or "operationalerror" in s_err:
+    if any(
+        marker in combined_lower
+        for marker in ("database error", "runtime error in model", "operationalerror")
+    ):
         return DbtExecutionError(f"Database execution failed.{detail}".rstrip())
-    if "test failed" in s_out or "failing tests" in s_out:
+    if "test failed" in combined_lower or "failing tests" in combined_lower:
         return DbtDataQualityError(f"Data quality tests failed.{detail}".rstrip())
 
     # Generic fallback: prefer the structured per-node failure detail; otherwise

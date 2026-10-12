@@ -28,6 +28,7 @@ from planalign_orchestrator.dbt_runner import (
     DbtRunner,
     classify_dbt_error,
     extract_dbt_failure_detail,
+    extract_dbt_output_failure_detail,
     retry_with_backoff,
 )
 
@@ -151,6 +152,42 @@ class TestClassifyDbtError:
     def test_generic_tail_includes_stderr(self):
         err = classify_dbt_error("", "boom in stderr", 2)
         assert "boom in stderr" in str(err)
+
+    @pytest.mark.fast
+    def test_streamed_runtime_error_preserves_model_and_cause(self):
+        stdout = """\
+1 of 31 ERROR creating sql table model main.int_example [ERROR in 0.10s]
+Failure in model int_example (models/intermediate/int_example.sql)
+  Runtime Error in model int_example (models/intermediate/int_example.sql)
+    Out of Memory Error: failed to allocate data of size 256.0 MiB
+    > in macro __create_table_as (macros/adapters.sql)
+  compiled code at target/run/fidelity/models/intermediate/int_example.sql
+Done. PASS=30 WARN=0 ERROR=1 SKIP=0 TOTAL=31
+"""
+
+        err = classify_dbt_error(stdout, "", 1)
+
+        assert isinstance(err, DbtExecutionError)
+        assert "int_example" in str(err)
+        assert "Out of Memory Error" in str(err)
+        assert "Done. PASS" not in str(err)
+
+
+class TestExtractDbtOutputFailureDetail:
+    @pytest.mark.fast
+    def test_returns_empty_when_output_has_no_error_block(self):
+        assert extract_dbt_output_failure_detail("Done. PASS=31", "") == ""
+
+    @pytest.mark.fast
+    def test_strips_ansi_and_stops_before_compiled_path(self):
+        detail = extract_dbt_output_failure_detail(
+            "\x1b[31mRuntime Error in model dim_x\x1b[0m\n"
+            "  Binder Error: missing column\n"
+            "  compiled code at target/run/dim_x.sql\n",
+            "",
+        )
+
+        assert detail == ("Runtime Error in model dim_x Binder Error: missing column")
 
 
 # ===================================================================
