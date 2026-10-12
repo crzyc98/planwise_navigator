@@ -30,6 +30,10 @@ def load_production_manifest() -> dict[str, Any]:
     env = dict(os.environ)
     with tempfile.TemporaryDirectory(prefix="dbt-parse-") as scratch:
         env["DATABASE_PATH"] = str(Path(scratch) / "parse-only.duckdb")
+        # xdist workers must not overwrite or read one another's manifests.
+        target = Path(scratch) / "target"
+        env["DBT_TARGET_PATH"] = str(target)
+        env["DBT_LOG_PATH"] = str(Path(scratch) / "logs")
         result = subprocess.run(
             [dbt, "parse", "--no-partial-parse", "--quiet"],
             cwd=ROOT / "dbt",
@@ -38,10 +42,9 @@ def load_production_manifest() -> dict[str, Any]:
             text=True,
             env=env,
         )
-    if result.returncode != 0:
-        raise AssertionError(f"dbt parse failed:\n{result.stdout}\n{result.stderr}")
-
-    return json.loads((ROOT / "dbt/target/manifest.json").read_text())
+        if result.returncode != 0:
+            raise AssertionError(f"dbt parse failed:\n{result.stdout}\n{result.stderr}")
+        return json.loads((target / "manifest.json").read_text())
 
 
 def model_nodes(manifest: dict[str, Any]) -> dict[str, dict[str, Any]]:

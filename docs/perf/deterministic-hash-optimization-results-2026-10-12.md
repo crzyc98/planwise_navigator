@@ -72,6 +72,13 @@ long strings, a nullable vectorized column, supported non-string casts, joins,
 nested lambdas, repeated installation, artifact overrides, stale/malformed/missing
 results, failed invocations, and capture/restoration of reused CLI runners.
 
+During PR validation, the existing graph-contract manifest helper reproduced a
+parallel-worker race: each process used an isolated database but wrote the same
+project-level manifest. The test helper now gives each parse its own temporary
+target/log paths and reads its manifest before cleanup. All 33 focused graph and
+artifact-isolation tests passed with four xdist workers after this test-only fix.
+The production macro and measured candidate remain unchanged.
+
 ## Hash diagnostic
 
 For 60,040 synthetic strings shaped as `EMP_` + eight-digit ID +
