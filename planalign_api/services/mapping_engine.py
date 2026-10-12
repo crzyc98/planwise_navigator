@@ -19,7 +19,11 @@ from typing import Callable, List, Tuple, cast
 import pandas as pd
 
 from ..models.imports import FieldMapping, TransformationWarning
-from .census_schema import BOOLEAN_FALSE_ALIASES, BOOLEAN_TRUE_ALIASES
+from .census_schema import (
+    BOOLEAN_FALSE_ALIASES,
+    BOOLEAN_TRUE_ALIASES,
+    CENSUS_DATE_FORMATS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +31,8 @@ _CURRENCY_STRIP_RE = re.compile(r"[$€£,\s]")
 _PAREN_NEG_RE = re.compile(r"^\((.+)\)$")
 
 
-class BooleanCoercionError(ValueError):
-    """A mapped boolean column contains values outside the supported aliases."""
+class FieldCoercionError(ValueError):
+    """A mapped census column contains values that cannot be safely coerced."""
 
     def __init__(self, message: str, rows_affected: int) -> None:
         super().__init__(message)
@@ -160,6 +164,23 @@ def _strip_currency(series: pd.Series) -> pd.Series:
     return series.apply(_clean)
 
 
+def _coercion_error(
+    *, input_column: str, field_type: str, invalid_values: pd.Series
+) -> FieldCoercionError:
+    examples = ", ".join(
+        repr(str(value).strip()) for value in invalid_values.drop_duplicates().head(5)
+    )
+    return FieldCoercionError(
+        f"Column {input_column!r} contains {len(invalid_values)} value(s) that "
+        f"cannot be parsed as {field_type}, including {examples}.",
+        rows_affected=len(invalid_values),
+    )
+
+
+def _nonempty_mask(series: pd.Series) -> pd.Series:
+    return series.notna() & series.astype("string").str.strip().ne("")
+
+
 def _coerce_boolean(series: pd.Series, *, input_column: str) -> pd.Series:
     """Normalize supported census boolean aliases or reject the mapped column."""
     normalized: list[object] = []
@@ -179,13 +200,66 @@ def _coerce_boolean(series: pd.Series, *, input_column: str) -> pd.Series:
 
     if invalid:
         examples = ", ".join(repr(value) for value in sorted(set(invalid))[:5])
-        raise BooleanCoercionError(
+        raise FieldCoercionError(
             f"Column {input_column!r} contains {len(invalid)} unsupported boolean "
             f"value(s), including {examples}. Use true/false, 1/0, yes/no, y/n, "
             "or active/inactive.",
             rows_affected=len(invalid),
         )
     return pd.Series(normalized, index=series.index, dtype="boolean")
+
+
+def _coerce_decimal(series: pd.Series, *, input_column: str) -> pd.Series:
+    """Normalize currency-formatted values to nullable floating point."""
+    cleaned = _strip_currency(series)
+    converted = pd.to_numeric(cleaned, errors="coerce")
+    invalid_mask = _nonempty_mask(series) & converted.isna()
+    if invalid_mask.any():
+        raise _coercion_error(
+            input_column=input_column,
+            field_type="a number",
+            invalid_values=series[invalid_mask],
+        )
+    return converted.astype("Float64")
+
+
+def _coerce_date(
+    series: pd.Series, *, input_column: str, original: pd.Series
+) -> pd.Series:
+    """Normalize mapped dates and reject source values lost during parsing."""
+    if pd.api.types.is_datetime64_any_dtype(series):
+        converted = series
+    else:
+        converted = pd.Series(pd.NaT, index=series.index, dtype="datetime64[ns]")
+        for date_format in CENSUS_DATE_FORMATS:
+            remaining = _nonempty_mask(series) & converted.isna()
+            if not remaining.any():
+                break
+            converted.loc[remaining] = pd.to_datetime(
+                series[remaining], format=date_format, errors="coerce"
+            )
+    invalid_mask = _nonempty_mask(original) & converted.isna()
+    if invalid_mask.any():
+        raise _coercion_error(
+            input_column=input_column,
+            field_type="a date",
+            invalid_values=original[invalid_mask],
+        )
+    return converted.dt.date
+
+
+def _coerce_employee_id(series: pd.Series, *, input_column: str) -> pd.Series:
+    """Normalize employee identifiers and reject rows without an identifier."""
+    converted = series.astype("string").str.strip()
+    invalid_mask = converted.isna() | converted.eq("")
+    invalid_count = int(invalid_mask.sum())
+    if invalid_count:
+        raise FieldCoercionError(
+            f"Column {input_column!r} contains {invalid_count} blank or null "
+            "employee ID value(s); every census row requires an employee ID.",
+            rows_affected=invalid_count,
+        )
+    return converted
 
 
 class MappingEngine:
@@ -210,6 +284,7 @@ class MappingEngine:
                 continue
 
             col = result[mapping.input_column].copy()
+            original_col = col.copy()
 
             # Auto-strip currency formatting for decimal fields with string source values
             if mapping.output_type == "decimal" and col.dtype == object:
@@ -228,6 +303,16 @@ class MappingEngine:
 
             if mapping.output_type == "boolean":
                 col = _coerce_boolean(col, input_column=mapping.input_column)
+            elif mapping.output_type == "decimal":
+                col = _coerce_decimal(col, input_column=mapping.input_column)
+            elif mapping.output_type == "date":
+                col = _coerce_date(
+                    col,
+                    input_column=mapping.input_column,
+                    original=original_col,
+                )
+            if mapping.output_column == "employee_id":
+                col = _coerce_employee_id(col, input_column=mapping.input_column)
 
             result[mapping.input_column] = col
             if mapping.input_column != mapping.output_column:
@@ -268,6 +353,8 @@ class MappingEngine:
                 continue
 
             col = result[mapping.input_column].copy()
+            original_col = col.copy()
+            date_parse_warning_added = False
 
             for transform in mapping.transformations:
                 t = transform.transform_type
@@ -279,6 +366,7 @@ class MappingEngine:
                     failed = int(converted.isna().sum()) - int(col.isna().sum())
                     failed = max(0, failed)
                     if failed > 0:
+                        date_parse_warning_added = True
                         warnings.append(
                             TransformationWarning(
                                 input_column=mapping.input_column,
@@ -308,7 +396,45 @@ class MappingEngine:
             if mapping.output_type == "boolean":
                 try:
                     col = _coerce_boolean(col, input_column=mapping.input_column)
-                except BooleanCoercionError as exc:
+                except FieldCoercionError as exc:
+                    warnings.append(
+                        TransformationWarning(
+                            input_column=mapping.input_column,
+                            rows_affected=exc.rows_affected,
+                            message=str(exc),
+                        )
+                    )
+            elif mapping.output_type == "decimal":
+                try:
+                    col = _coerce_decimal(col, input_column=mapping.input_column)
+                except FieldCoercionError as exc:
+                    warnings.append(
+                        TransformationWarning(
+                            input_column=mapping.input_column,
+                            rows_affected=exc.rows_affected,
+                            message=str(exc),
+                        )
+                    )
+            elif mapping.output_type == "date":
+                try:
+                    col = _coerce_date(
+                        col,
+                        input_column=mapping.input_column,
+                        original=original_col,
+                    )
+                except FieldCoercionError as exc:
+                    if not date_parse_warning_added:
+                        warnings.append(
+                            TransformationWarning(
+                                input_column=mapping.input_column,
+                                rows_affected=exc.rows_affected,
+                                message=str(exc),
+                            )
+                        )
+            if mapping.output_column == "employee_id":
+                try:
+                    col = _coerce_employee_id(col, input_column=mapping.input_column)
+                except FieldCoercionError as exc:
                     warnings.append(
                         TransformationWarning(
                             input_column=mapping.input_column,

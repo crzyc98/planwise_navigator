@@ -49,6 +49,25 @@ def test_rename_applies_output_column_name():
     assert "EMP_ID" not in result.columns
 
 
+def test_employee_id_is_trimmed():
+    engine = _engine()
+    df = pd.DataFrame({"EMP_ID": [" E001 ", 2002]})
+    mappings = [_mapping("EMP_ID", "employee_id", [])]
+
+    result = engine.apply(df, mappings)
+
+    assert result["employee_id"].tolist() == ["E001", "2002"]
+
+
+def test_blank_employee_id_is_rejected():
+    engine = _engine()
+    df = pd.DataFrame({"EMP_ID": ["E001", " ", None]})
+    mappings = [_mapping("EMP_ID", "employee_id", [])]
+
+    with pytest.raises(ValueError, match="2 blank or null employee ID"):
+        engine.apply(df, mappings)
+
+
 # ---------------------------------------------------------------------------
 # string_case
 # ---------------------------------------------------------------------------
@@ -131,6 +150,35 @@ def test_date_parse_invalid_values_coerced_to_null():
     assert result["hire_date"].notna().sum() == 1
 
 
+def test_date_output_rejects_unparseable_source_values():
+    engine = _engine()
+    df = pd.DataFrame({"HIRE_DATE": ["2020-01-15", "not-a-date"]})
+    mappings = [
+        _mapping(
+            "HIRE_DATE",
+            "employee_hire_date",
+            [{"transform_type": "date_parse", "params": {"format": "%Y-%m-%d"}}],
+            output_type="date",
+        )
+    ]
+
+    with pytest.raises(ValueError, match="cannot be parsed as a date") as exc_info:
+        engine.apply(df, mappings)
+
+    assert "'not-a-date'" in str(exc_info.value)
+
+
+def test_date_output_is_saved_as_date_values():
+    engine = _engine()
+    df = pd.DataFrame({"HIRE_DATE": ["2020-01-15", None]})
+    mappings = [_mapping("HIRE_DATE", "employee_hire_date", [], output_type="date")]
+
+    result = engine.apply(df, mappings)
+
+    assert str(result["employee_hire_date"].iloc[0]) == "2020-01-15"
+    assert pd.isna(result["employee_hire_date"].iloc[1])
+
+
 # ---------------------------------------------------------------------------
 # null_replace
 # ---------------------------------------------------------------------------
@@ -148,6 +196,36 @@ def test_null_replace_fills_nulls():
     ]
     result = engine.apply(df, mappings)
     assert list(result["salary"]) == [50000.0, 0, 70000.0]
+
+
+def test_decimal_output_normalizes_currency_values():
+    engine = _engine()
+    df = pd.DataFrame({"SALARY": ["$75,000.50", "(1,250.25)", None]})
+    mappings = [
+        _mapping("SALARY", "employee_gross_compensation", [], output_type="decimal")
+    ]
+
+    result = engine.apply(df, mappings)
+
+    assert str(result["employee_gross_compensation"].dtype) == "Float64"
+    assert result["employee_gross_compensation"].tolist() == [
+        75000.5,
+        -1250.25,
+        pd.NA,
+    ]
+
+
+def test_decimal_output_rejects_unparseable_values():
+    engine = _engine()
+    df = pd.DataFrame({"SALARY": ["75000", "competitive"]})
+    mappings = [
+        _mapping("SALARY", "employee_gross_compensation", [], output_type="decimal")
+    ]
+
+    with pytest.raises(ValueError, match="cannot be parsed as a number") as exc_info:
+        engine.apply(df, mappings)
+
+    assert "'competitive'" in str(exc_info.value)
 
 
 # ---------------------------------------------------------------------------

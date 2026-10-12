@@ -22,6 +22,7 @@ from ..models.imports import DetectedColumn
 from .census_schema import (
     BOOLEAN_FALSE_ALIASES,
     BOOLEAN_TRUE_ALIASES,
+    CENSUS_DATE_FORMATS,
     FIELDS,
     CensusFieldDefinition,
     get_required_fields,
@@ -32,15 +33,7 @@ _HIGH_THRESHOLD = 0.85
 _MEDIUM_THRESHOLD = 0.50
 
 # Ranked date format strings to try (most unambiguous first)
-_DATE_FORMATS = [
-    "%Y-%m-%d",
-    "%Y/%m/%d",
-    "%m/%d/%Y",
-    "%d/%m/%Y",
-    "%m-%d-%Y",
-    "%d-%m-%Y",
-    "%Y%m%d",
-]
+_DATE_FORMATS = CENSUS_DATE_FORMATS
 
 # Boolean alias tables (lowercase)
 _TRUTHY = BOOLEAN_TRUE_ALIASES
