@@ -11,6 +11,34 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 
+BOOLEAN_TRUE_ALIASES = frozenset(
+    {
+        "y",
+        "yes",
+        "true",
+        "1",
+        "1.0",
+        "active",
+        "enrolled",
+        "eligible",
+        "employed",
+    }
+)
+BOOLEAN_FALSE_ALIASES = frozenset(
+    {
+        "n",
+        "no",
+        "false",
+        "0",
+        "0.0",
+        "inactive",
+        "terminated",
+        "separated",
+        "ineligible",
+    }
+)
+
+
 @dataclass(frozen=True)
 class CensusFieldDefinition:
     field_name: str

@@ -193,11 +193,21 @@ class TestUploadAndMap:
 
 
 class TestGenerateParquet:
-    def _upload_and_map(self, client, workspace_id: str) -> str:
-        with open(SAMPLE_CSV, "rb") as f:
+    def _upload_and_map(
+        self, client, workspace_id: str, csv_bytes: bytes | None = None
+    ) -> str:
+        if csv_bytes is None:
+            csv_bytes = SAMPLE_CSV.read_bytes()
+        with io.BytesIO(csv_bytes) as file_handle:
             upload_resp = client.post(
                 f"/api/workspaces/{workspace_id}/imports/upload",
-                files={"file": ("sample_census_import.csv", f, "text/csv")},
+                files={
+                    "file": (
+                        "sample_census_import.csv",
+                        file_handle,
+                        "text/csv",
+                    )
+                },
             )
         assert upload_resp.status_code == 201
         import_id = upload_resp.json()["import_id"]
@@ -275,11 +285,37 @@ class TestGenerateParquet:
         assert parquet_files["total_count"] >= 1
         storage_path = parquet_files["parquet_files"][0]["storage_path"]
         conn = duckdb.connect(":memory:")
-        count = conn.execute(
-            f"SELECT COUNT(*) FROM read_parquet('{storage_path}')"
-        ).fetchone()[0]
-        conn.close()
+        try:
+            count = conn.execute(
+                "SELECT COUNT(*) FROM read_parquet(?)", [storage_path]
+            ).fetchone()[0]
+            schema_rows = conn.execute(
+                "DESCRIBE SELECT * FROM read_parquet(?)", [storage_path]
+            ).fetchall()
+        finally:
+            conn.close()
         assert count > 0
+        assert next(row[1] for row in schema_rows if row[0] == "active") == "BOOLEAN"
+
+    def test_generate_rejects_unsupported_boolean_values(self, client, workspace_id):
+        invalid_csv = SAMPLE_CSV.read_text().replace(
+            "EMP0001,01/01/1960,11/04/2010,145109.32,Finance,false",
+            "EMP0001,01/01/1960,11/04/2010,145109.32,Finance,sometimes",
+        )
+        import_id = self._upload_and_map(
+            client, workspace_id, invalid_csv.encode("utf-8")
+        )
+
+        response = client.post(
+            f"/api/workspaces/{workspace_id}/imports/{import_id}/generate",
+            json={},
+        )
+
+        assert response.status_code == 422
+        detail = response.json()["detail"]
+        assert "'ACTIVE'" in detail
+        assert "'sometimes'" in detail
+        assert "unsupported boolean value" in detail
 
     def test_generate_without_mapping_returns_409(self, client, workspace_id):
         with open(SAMPLE_CSV, "rb") as f:

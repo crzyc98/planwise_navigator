@@ -19,11 +19,21 @@ from typing import Callable, List, Tuple, cast
 import pandas as pd
 
 from ..models.imports import FieldMapping, TransformationWarning
+from .census_schema import BOOLEAN_FALSE_ALIASES, BOOLEAN_TRUE_ALIASES
 
 logger = logging.getLogger(__name__)
 
 _CURRENCY_STRIP_RE = re.compile(r"[$€£,\s]")
 _PAREN_NEG_RE = re.compile(r"^\((.+)\)$")
+
+
+class BooleanCoercionError(ValueError):
+    """A mapped boolean column contains values outside the supported aliases."""
+
+    def __init__(self, message: str, rows_affected: int) -> None:
+        super().__init__(message)
+        self.rows_affected = rows_affected
+
 
 _ALLOWED_BIN_OPS: dict[type[ast.operator], Callable[[object, object], object]] = {
     ast.Add: operator.add,
@@ -150,6 +160,34 @@ def _strip_currency(series: pd.Series) -> pd.Series:
     return series.apply(_clean)
 
 
+def _coerce_boolean(series: pd.Series, *, input_column: str) -> pd.Series:
+    """Normalize supported census boolean aliases or reject the mapped column."""
+    normalized: list[object] = []
+    invalid: list[str] = []
+    for value in series.tolist():
+        if pd.isna(value):
+            normalized.append(pd.NA)
+            continue
+        token = str(value).strip().lower()
+        if token in BOOLEAN_TRUE_ALIASES:
+            normalized.append(True)
+        elif token in BOOLEAN_FALSE_ALIASES:
+            normalized.append(False)
+        else:
+            normalized.append(pd.NA)
+            invalid.append(token)
+
+    if invalid:
+        examples = ", ".join(repr(value) for value in sorted(set(invalid))[:5])
+        raise BooleanCoercionError(
+            f"Column {input_column!r} contains {len(invalid)} unsupported boolean "
+            f"value(s), including {examples}. Use true/false, 1/0, yes/no, y/n, "
+            "or active/inactive.",
+            rows_affected=len(invalid),
+        )
+    return pd.Series(normalized, index=series.index, dtype="boolean")
+
+
 class MappingEngine:
     """Applies field mappings (rename + ordered transforms) to a DataFrame."""
 
@@ -187,6 +225,9 @@ class MappingEngine:
                     drop_null_columns.append(mapping.input_column)
                 else:
                     col = _apply_transform(col, t, p)
+
+            if mapping.output_type == "boolean":
+                col = _coerce_boolean(col, input_column=mapping.input_column)
 
             result[mapping.input_column] = col
             if mapping.input_column != mapping.output_column:
@@ -263,6 +304,18 @@ class MappingEngine:
                         )
                 else:
                     col = _apply_transform(col, t, p)
+
+            if mapping.output_type == "boolean":
+                try:
+                    col = _coerce_boolean(col, input_column=mapping.input_column)
+                except BooleanCoercionError as exc:
+                    warnings.append(
+                        TransformationWarning(
+                            input_column=mapping.input_column,
+                            rows_affected=exc.rows_affected,
+                            message=str(exc),
+                        )
+                    )
 
             result[mapping.input_column] = col
             if mapping.input_column != mapping.output_column:

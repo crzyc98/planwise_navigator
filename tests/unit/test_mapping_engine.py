@@ -14,11 +14,17 @@ from planalign_api.models.imports import FieldMapping, Transformation
 # ---------------------------------------------------------------------------
 
 
-def _mapping(input_col: str, output_col: str, transforms: list[dict]) -> FieldMapping:
+def _mapping(
+    input_col: str,
+    output_col: str,
+    transforms: list[dict],
+    *,
+    output_type: str = "string",
+) -> FieldMapping:
     return FieldMapping(
         input_column=input_col,
         output_column=output_col,
-        output_type="string",
+        output_type=output_type,
         transformations=[Transformation(**t) for t in transforms],
     )
 
@@ -158,6 +164,75 @@ def test_null_drop_removes_null_rows():
     result = engine.apply(df, mappings)
     assert len(result) == 2
     assert result["salary"].notna().all()
+
+
+# ---------------------------------------------------------------------------
+# boolean normalization
+# ---------------------------------------------------------------------------
+
+
+def test_boolean_output_normalizes_supported_aliases():
+    engine = _engine()
+    df = pd.DataFrame(
+        {
+            "ACTIVE": [
+                1,
+                0,
+                1.0,
+                0.0,
+                "true",
+                "false",
+                "Y",
+                "N",
+                "active",
+                "inactive",
+                None,
+            ]
+        }
+    )
+    mappings = [_mapping("ACTIVE", "active", [], output_type="boolean")]
+
+    result = engine.apply(df, mappings)
+
+    assert str(result["active"].dtype) == "boolean"
+    assert result["active"].tolist() == [
+        True,
+        False,
+        True,
+        False,
+        True,
+        False,
+        True,
+        False,
+        True,
+        False,
+        pd.NA,
+    ]
+
+
+def test_boolean_output_rejects_unsupported_values():
+    engine = _engine()
+    df = pd.DataFrame({"ACTIVE": [1, "sometimes", "unknown"]})
+    mappings = [_mapping("ACTIVE", "active", [], output_type="boolean")]
+
+    with pytest.raises(ValueError, match="2 unsupported boolean value") as exc_info:
+        engine.apply(df, mappings)
+
+    assert "'sometimes'" in str(exc_info.value)
+    assert "'unknown'" in str(exc_info.value)
+
+
+def test_boolean_preview_warns_for_unsupported_values():
+    engine = _engine()
+    df = pd.DataFrame({"ACTIVE": [1, "sometimes"]})
+    mappings = [_mapping("ACTIVE", "active", [], output_type="boolean")]
+
+    _, warnings = engine.apply_preview(df, mappings)
+
+    assert len(warnings) == 1
+    assert warnings[0].input_column == "ACTIVE"
+    assert warnings[0].rows_affected == 1
+    assert "'sometimes'" in warnings[0].message
 
 
 # ---------------------------------------------------------------------------
