@@ -101,6 +101,9 @@ class Invocation(BaseModel):
     command: str
     wall_s: float = Field(ge=0)
     models: List[ModelTiming] = Field(default_factory=list)
+    node_timing_status: Literal[
+        "unavailable", "fresh", "missing", "stale", "malformed"
+    ] = "unavailable"
 
     @property
     def execute_s(self) -> float:

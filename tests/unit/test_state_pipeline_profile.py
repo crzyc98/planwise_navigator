@@ -3,6 +3,11 @@
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
+import json
+
+import pytest
+
+from scripts.perf_profile.dbt_timing import InvocationRecorder, _target_directory
 
 from scripts.perf_profile import run_matrix
 from scripts.perf_profile.profile_config import (
@@ -67,3 +72,108 @@ def test_peak_rss_monitor_falls_back_when_child_enumeration_is_denied(monkeypatc
     monitor._sample()
 
     assert monitor.peak_bytes == 64 * 1024 * 1024
+
+
+def _results(path: Path, name: str, status: str = "success") -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({"results": [{"unique_id": name, "status": status, "timing": []}]})
+    )
+
+
+@pytest.mark.parametrize(
+    "mode", ["default", "project", "artifacts", "command", "environment", "configured"]
+)
+def test_recorder_resolves_actual_target(
+    tmp_path: Path, monkeypatch, mode: str
+) -> None:
+    monkeypatch.delenv("DBT_TARGET_PATH", raising=False)
+    project = tmp_path / "project"
+    project.mkdir()
+    runner = SimpleNamespace(
+        working_dir=tmp_path, project_dir=None, dbt_artifacts_dir=None
+    )
+    args = ["run"]
+    target = tmp_path / "target"
+    if mode in {"project", "configured"}:
+        runner.project_dir = project
+        target = project / "target"
+    if mode == "configured":
+        (project / "dbt_project.yml").write_text("target-path: custom\n")
+        target = project / "custom"
+    if mode == "artifacts":
+        monkeypatch.setenv("DBT_TARGET_PATH", str(tmp_path / "wrong-env-target"))
+        runner.dbt_artifacts_dir = tmp_path / "artifacts"
+        runner.target_path = runner.dbt_artifacts_dir / "target"
+        target = runner.target_path
+    if mode == "command":
+        args += ["--project-dir", str(project), "--target-path=override"]
+        target = project / "override"
+    if mode == "environment":
+        monkeypatch.setenv("DBT_TARGET_PATH", str(tmp_path / "env-target"))
+        target = tmp_path / "env-target"
+    _results(tmp_path / "target/run_results.json", "wrong-stale-node")
+    runner.execute_command = lambda *_args, **_kwargs: _results(
+        target / "run_results.json", "correct-node"
+    )
+    recorder = InvocationRecorder(runner)
+    runner.execute_command(args)
+    assert recorder.invocations[0].models[0].unique_id == "correct-node"
+    assert recorder.invocations[0].node_timing_status == "fresh"
+    assert _target_directory(runner, args) == target
+    recorder.unwrap()
+
+
+@pytest.mark.parametrize("condition", ["missing", "stale", "malformed", "failed"])
+def test_recorder_never_reuses_stale_or_invalid_results(
+    tmp_path: Path, condition: str
+) -> None:
+    path = tmp_path / "target/run_results.json"
+    if condition in {"stale", "failed"}:
+        _results(path, "previous-node")
+
+    def execute(*_args, **_kwargs):
+        if condition == "malformed":
+            path.parent.mkdir(exist_ok=True)
+            path.write_text("[]")
+        if condition == "failed":
+            raise RuntimeError("dbt failed")
+
+    runner = SimpleNamespace(
+        working_dir=tmp_path,
+        project_dir=None,
+        dbt_artifacts_dir=None,
+        execute_command=execute,
+    )
+    recorder = InvocationRecorder(runner)
+    if condition == "failed":
+        with pytest.raises(RuntimeError, match="dbt failed"):
+            runner.execute_command(["run"])
+    else:
+        runner.execute_command(["run"])
+    record = recorder.invocations[0]
+    assert record.models == []
+    assert record.wall_s >= 0
+    assert record.node_timing_status == (
+        "stale" if condition == "failed" else condition
+    )
+
+
+def test_recorder_retains_fresh_failure_nodes(tmp_path: Path) -> None:
+    path = tmp_path / "target/run_results.json"
+
+    def execute(*_args, **_kwargs):
+        _results(path, "failed-node", "error")
+        raise RuntimeError("dbt failed after writing results")
+
+    runner = SimpleNamespace(
+        working_dir=tmp_path,
+        project_dir=None,
+        dbt_artifacts_dir=None,
+        execute_command=execute,
+    )
+    recorder = InvocationRecorder(runner)
+    with pytest.raises(RuntimeError):
+        runner.execute_command(["build"])
+    assert recorder.invocations[0].models[0].unique_id == "failed-node"
+    assert recorder.invocations[0].models[0].status == "error"

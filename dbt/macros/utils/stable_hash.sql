@@ -6,11 +6,15 @@
 CREATE OR REPLACE MACRO pa_hash_mul(x) AS
   ((x::UHUGEINT * 14313749767032793493::UHUGEINT) % 18446744073709551616::UHUGEINT)::UBIGINT;
 CREATE OR REPLACE MACRO pa_hash_mix(x) AS
-  pa_hash_mul(xor(pa_hash_mul(x), pa_hash_mul(x) >> 47));
+  -- Single-element bindings avoid repeating expensive expanded expressions.
+  list_extract(list_transform([pa_hash_mul(x)],
+    h -> pa_hash_mul(xor(h, h >> 47))), 1);
 CREATE OR REPLACE MACRO pa_hash_word(x) AS
   CAST('0x' || array_to_string(list_reverse(regexp_extract_all(x, '..')), '') AS UBIGINT);
 CREATE OR REPLACE MACRO pa_hash_finalize(x) AS
-  xor(pa_hash_mul(xor(x, x >> 47)), pa_hash_mul(xor(x, x >> 47)) >> 47);
+  list_extract(list_transform([x], h ->
+    list_extract(list_transform([pa_hash_mul(xor(h, h >> 47))],
+      k -> xor(k, k >> 47)), 1)), 1);
 CREATE OR REPLACE MACRO pa_hash_blocks(x) AS
   list_reduce(
     list_concat(
@@ -20,8 +24,10 @@ CREATE OR REPLACE MACRO pa_hash_blocks(x) AS
     (a, b) -> pa_hash_mul(xor(a, b))
   );
 CREATE OR REPLACE MACRO pa_hash_hex(x) AS
-  pa_hash_finalize(CASE WHEN length(x) % 16 = 0 THEN pa_hash_blocks(x)
-    ELSE pa_hash_mul(xor(pa_hash_blocks(x), pa_hash_word(substr(x, (length(x) // 16) * 16 + 1)))) END);
+  list_extract(list_transform([pa_hash_blocks(x)], h -> pa_hash_finalize(
+    CASE WHEN length(x) % 16 = 0 THEN h
+    ELSE pa_hash_mul(xor(h,
+      pa_hash_word(substr(x, (length(x) // 16) * 16 + 1)))) END)), 1);
 CREATE OR REPLACE MACRO planalign_hash(x) AS
   CASE WHEN x IS NULL THEN 13787848793156543929::UBIGINT ELSE pa_hash_hex(hex(encode(x::VARCHAR))) END;
 {% endmacro %}

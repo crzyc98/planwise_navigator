@@ -79,6 +79,57 @@ def test_hash_matches_reference_for_utf8(
     assert actual == _reference_hash(value)
 
 
+def test_hash_vectorized_byte_boundaries_and_nulls(
+    connection: duckdb.DuckDBPyConnection,
+) -> None:
+    values = [
+        None,
+        "",
+        "a\x00b",
+        *["x" * n for n in (7, 8, 9, 15, 16, 17, 513)],
+        "你" * 7,
+        "😀" * 33,
+    ]
+    values += [f"EMP_{i:08d}|2025|TERMINATION|42" for i in range(2049)]
+    actual = connection.execute(
+        "SELECT planalign_hash(value), typeof(planalign_hash(value)) "
+        "FROM unnest(?::VARCHAR[]) AS inputs(value)",
+        [values],
+    ).fetchall()
+    expected = [
+        13787848793156543929 if v is None else _reference_hash(v) for v in values
+    ]
+    assert actual == [(value, "UBIGINT") for value in expected]
+
+
+@pytest.mark.parametrize(
+    "expression", ["42", "-7", "12.30::DECIMAL(8,2)", "DATE '2025-01-01'", "true"]
+)
+def test_hash_preserves_varchar_conversion(
+    connection: duckdb.DuckDBPyConnection, expression: str
+) -> None:
+    value, actual = connection.execute(
+        f"SELECT ({expression})::VARCHAR, planalign_hash({expression})"
+    ).fetchone()
+    assert actual == _reference_hash(value)
+
+
+def test_hash_join_nested_lambdas_and_repeat_install(
+    connection: duckdb.DuckDBPyConnection,
+) -> None:
+    module = Environment().from_string((MACROS / "stable_hash.sql").read_text()).module
+    connection.execute(module.install_stable_hash())
+    rows = connection.execute(
+        "WITH inputs AS (SELECT unnest(['abc', '你好', '123456789']) AS value) "
+        "SELECT a.value, list_transform([a.value], item -> planalign_hash(item || '|42')) "
+        "FROM inputs a JOIN inputs b ON planalign_hash(a.value) = planalign_hash(b.value) "
+        "ORDER BY a.value"
+    ).fetchall()
+    assert rows == [
+        (v, [_reference_hash(v + "|42")]) for v in sorted(["abc", "你好", "123456789"])
+    ]
+
+
 @pytest.mark.parametrize(
     "expression,expected",
     [
