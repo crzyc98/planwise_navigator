@@ -22,7 +22,12 @@ from .sql_security import (
     validate_integer,
 )
 from .census_as_of import resolve_as_of_date
-from .census_schema import BOOLEAN_FALSE_ALIASES, BOOLEAN_TRUE_ALIASES, FIELDS
+from .census_schema import (
+    BOOLEAN_FALSE_ALIASES,
+    BOOLEAN_TRUE_ALIASES,
+    CENSUS_DATE_FORMATS,
+    FIELDS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -133,6 +138,12 @@ class FileService:
 
     BOOLEAN_COLUMNS = tuple(
         field.field_name for field in FIELDS if field.data_type == "boolean"
+    )
+    DATE_COLUMNS = tuple(
+        field.field_name for field in FIELDS if field.data_type == "date"
+    )
+    DECIMAL_COLUMNS = tuple(
+        field.field_name for field in FIELDS if field.data_type == "decimal"
     )
 
     def __init__(self, workspaces_root: Path):
@@ -298,7 +309,10 @@ class FileService:
                         renames.append({"original": alias, "canonical": canonical})
                         logger.info(f"Auto-renamed column '{alias}' to '{canonical}'")
 
+                self._normalize_employee_ids(conn, columns)
                 self._normalize_boolean_columns(conn, columns)
+                self._normalize_date_columns(conn, columns)
+                self._normalize_decimal_columns(conn, columns)
 
                 # Export as canonical parquet
                 try:
@@ -360,6 +374,141 @@ class FileService:
             conn.execute(
                 f'ALTER TABLE census RENAME COLUMN "{temporary}" TO "{column}"'
             )
+
+    def _normalize_employee_ids(
+        self, conn: duckdb.DuckDBPyConnection, columns: set[str]
+    ) -> None:
+        """Trim employee IDs and reject rows that cannot be identified."""
+        if "employee_id" not in columns:
+            return
+        invalid_count = int(
+            _fetchone_scalar(
+                conn.execute(
+                    'SELECT COUNT(*) FROM census WHERE "employee_id" IS NULL '
+                    "OR TRIM(CAST(\"employee_id\" AS VARCHAR)) = ''"
+                )
+            )
+        )
+        if invalid_count:
+            raise ValueError(
+                f"Column 'employee_id' contains {invalid_count} blank or null "
+                "employee ID value(s); every census row requires an employee ID."
+            )
+        self._replace_column(
+            conn,
+            column="employee_id",
+            sql_type="VARCHAR",
+            value_expression='TRIM(CAST("employee_id" AS VARCHAR))',
+        )
+
+    def _normalize_date_columns(
+        self, conn: duckdb.DuckDBPyConnection, columns: set[str]
+    ) -> None:
+        """Normalize recognized census date formats to physical DATE columns."""
+        placeholders = ", ".join("?" for _ in CENSUS_DATE_FORMATS)
+        for column in self.DATE_COLUMNS:
+            if column not in columns:
+                continue
+            parse_expression = (
+                f"TRY_STRPTIME(NULLIF(TRIM(CAST(\"{column}\" AS VARCHAR)), ''), "
+                f"[{placeholders}])::DATE"
+            )
+            self._reject_unparseable_values(
+                conn,
+                column=column,
+                parsed_expression=parse_expression,
+                expected_type="a date",
+                params=list(CENSUS_DATE_FORMATS),
+            )
+            self._replace_column(
+                conn,
+                column=column,
+                sql_type="DATE",
+                value_expression=parse_expression,
+                params=list(CENSUS_DATE_FORMATS),
+            )
+
+    def _normalize_decimal_columns(
+        self, conn: duckdb.DuckDBPyConnection, columns: set[str]
+    ) -> None:
+        """Normalize supported currency-style census values to DOUBLE columns."""
+        for column in self.DECIMAL_COLUMNS:
+            if column not in columns:
+                continue
+            token = f"NULLIF(TRIM(CAST(\"{column}\" AS VARCHAR)), '')"
+            unwrapped = (
+                f"CASE WHEN LEFT({token}, 1) = '(' AND RIGHT({token}, 1) = ')' "
+                f"THEN '-' || SUBSTR({token}, 2, LENGTH({token}) - 2) ELSE {token} END"
+            )
+            cleaned = f"REGEXP_REPLACE({unwrapped}, '[$€£,[:space:]]', '', 'g')"
+            parsed_expression = f"TRY_CAST({cleaned} AS DOUBLE)"
+            self._reject_unparseable_values(
+                conn,
+                column=column,
+                parsed_expression=parsed_expression,
+                expected_type="a number",
+            )
+            self._replace_column(
+                conn,
+                column=column,
+                sql_type="DOUBLE",
+                value_expression=parsed_expression,
+            )
+
+    @staticmethod
+    def _reject_unparseable_values(
+        conn: duckdb.DuckDBPyConnection,
+        *,
+        column: str,
+        parsed_expression: str,
+        expected_type: str,
+        params: Optional[List[str]] = None,
+    ) -> None:
+        """Raise an actionable upload error when non-empty values do not parse."""
+        query_params = params or []
+        invalid_clause = (
+            f'"{column}" IS NOT NULL '
+            f"AND TRIM(CAST(\"{column}\" AS VARCHAR)) <> '' "
+            f"AND {parsed_expression} IS NULL"
+        )
+        invalid_count = int(
+            _fetchone_scalar(
+                conn.execute(
+                    f"SELECT COUNT(*) FROM census WHERE {invalid_clause}",
+                    query_params,
+                )
+            )
+        )
+        if not invalid_count:
+            return
+        examples = conn.execute(
+            f'SELECT DISTINCT CAST("{column}" AS VARCHAR) FROM census '
+            f"WHERE {invalid_clause} ORDER BY 1 LIMIT 5",
+            query_params,
+        ).fetchall()
+        rendered = ", ".join(repr(row[0]) for row in examples)
+        raise ValueError(
+            f"Column {column!r} contains {invalid_count} value(s) that cannot be "
+            f"parsed as {expected_type}, including {rendered}."
+        )
+
+    @staticmethod
+    def _replace_column(
+        conn: duckdb.DuckDBPyConnection,
+        *,
+        column: str,
+        sql_type: str,
+        value_expression: str,
+        params: Optional[List[str]] = None,
+    ) -> None:
+        """Replace a canonical census column with its normalized physical type."""
+        temporary = f"__normalized_{column}"
+        conn.execute(f'ALTER TABLE census ADD COLUMN "{temporary}" {sql_type}')
+        conn.execute(
+            f'UPDATE census SET "{temporary}" = {value_expression}', params or []
+        )
+        conn.execute(f'ALTER TABLE census DROP COLUMN "{column}"')
+        conn.execute(f'ALTER TABLE census RENAME COLUMN "{temporary}" TO "{column}"')
 
     def _parse_and_validate_file(self, file_path: Path) -> Dict:
         """

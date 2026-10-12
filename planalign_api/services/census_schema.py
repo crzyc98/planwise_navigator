@@ -38,6 +38,16 @@ BOOLEAN_FALSE_ALIASES = frozenset(
     }
 )
 
+CENSUS_DATE_FORMATS = (
+    "%Y-%m-%d",
+    "%Y/%m/%d",
+    "%m/%d/%Y",
+    "%d/%m/%Y",
+    "%m-%d-%Y",
+    "%d-%m-%Y",
+    "%Y%m%d",
+)
+
 
 @dataclass(frozen=True)
 class CensusFieldDefinition:

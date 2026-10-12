@@ -99,6 +99,68 @@ class TestBooleanNormalization:
         assert not (workspace_root / workspace_id / "data" / "census.parquet").exists()
 
 
+class TestCanonicalTypeNormalization:
+    """Date and numeric inputs are validated and saved with canonical types."""
+
+    def test_dates_and_currency_values_are_normalized(
+        self, file_service, tmp_workspace
+    ):
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root,
+            workspace_id,
+            "formatted-values.csv",
+            columns=[
+                "employee_id",
+                "employee_hire_date",
+                "employee_gross_compensation",
+            ],
+            rows=[["EMP001", "01/15/2020", "$75,000.50"]],
+        )
+
+        _, _, absolute_path = file_service.save_uploaded_file(
+            workspace_id, content, "formatted-values.csv"
+        )
+
+        conn = duckdb.connect(":memory:")
+        try:
+            schema = {
+                row[0]: row[1]
+                for row in conn.execute(
+                    "DESCRIBE SELECT * FROM read_parquet(?)", [absolute_path]
+                ).fetchall()
+            }
+            row = conn.execute(
+                "SELECT employee_hire_date, employee_gross_compensation "
+                "FROM read_parquet(?)",
+                [absolute_path],
+            ).fetchone()
+        finally:
+            conn.close()
+        assert schema["employee_hire_date"] == "DATE"
+        assert schema["employee_gross_compensation"] == "DOUBLE"
+        assert str(row[0]) == "2020-01-15"
+        assert row[1] == 75000.5
+
+    def test_unparseable_numeric_value_is_rejected(self, file_service, tmp_workspace):
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root,
+            workspace_id,
+            "invalid-number.csv",
+            columns=["employee_id", "employee_gross_compensation"],
+            rows=[["EMP001", "competitive"]],
+        )
+
+        with pytest.raises(
+            ValueError, match="cannot be parsed as a number"
+        ) as exc_info:
+            file_service.save_uploaded_file(workspace_id, content, "invalid-number.csv")
+
+        assert "'employee_gross_compensation'" in str(exc_info.value)
+        assert "'competitive'" in str(exc_info.value)
+
+
 # =============================================================================
 # Phase 2 (US1): Critical field warning tests
 # =============================================================================
@@ -536,10 +598,8 @@ class TestEdgeCases:
 class TestDataQualityNullEmpty:
     """Test row-level null/empty data quality checks."""
 
-    def test_null_employee_id_produces_error_severity(
-        self, file_service, tmp_workspace
-    ):
-        """Null employee_id (critical field) should produce error-severity DQ warning."""
+    def test_null_employee_id_is_rejected(self, file_service, tmp_workspace):
+        """A census row without an employee ID must not be persisted."""
         workspace_root, workspace_id = tmp_workspace
         content = _create_csv(
             workspace_root,
@@ -559,21 +619,8 @@ class TestDataQualityNullEmpty:
             ],
         )
 
-        _, metadata, _ = file_service.save_uploaded_file(
-            workspace_id, content, "test.csv"
-        )
-
-        dq = metadata.get("data_quality_warnings", [])
-        null_id = [
-            w
-            for w in dq
-            if w["field_name"] == "employee_id" and w["check_type"] == "null_or_empty"
-        ]
-        assert len(null_id) == 1
-        assert null_id[0]["severity"] == "error"
-        assert null_id[0]["affected_count"] == 1
-        assert null_id[0]["total_count"] == 2
-        assert null_id[0]["affected_percentage"] == 50.0
+        with pytest.raises(ValueError, match="1 blank or null employee ID"):
+            file_service.save_uploaded_file(workspace_id, content, "test.csv")
 
     def test_null_optional_field_produces_warning_severity(
         self, file_service, tmp_workspace
@@ -640,8 +687,10 @@ class TestDataQualityNullEmpty:
         dq = metadata.get("data_quality_warnings", [])
         assert len(dq) == 0
 
-    def test_samples_capped_at_5(self, file_service, tmp_workspace):
-        """Samples should contain at most 5 entries even with more issues."""
+    def test_blank_employee_id_error_reports_all_affected_rows(
+        self, file_service, tmp_workspace
+    ):
+        """The blocking error should report the total affected row count."""
         workspace_root, workspace_id = tmp_workspace
         rows = [
             ["", "2020-01-15", "75000", "1985-06-01", "", "true"] for _ in range(10)
@@ -661,23 +710,25 @@ class TestDataQualityNullEmpty:
             rows=rows,
         )
 
-        _, metadata, _ = file_service.save_uploaded_file(
-            workspace_id, content, "test.csv"
-        )
+        with pytest.raises(ValueError, match="10 blank or null employee ID"):
+            file_service.save_uploaded_file(workspace_id, content, "test.csv")
 
-        dq = metadata.get("data_quality_warnings", [])
-        null_id = [
-            w
-            for w in dq
-            if w["field_name"] == "employee_id" and w["check_type"] == "null_or_empty"
-        ]
-        assert len(null_id) == 1
-        assert null_id[0]["affected_count"] == 10
-        assert len(null_id[0]["samples"]) <= 5
-
-    def test_samples_contain_row_number_and_value(self, file_service, tmp_workspace):
-        """Sample entries should have row_number and value keys."""
+    def test_blank_employee_id_does_not_replace_existing_census(
+        self, file_service, tmp_workspace
+    ):
+        """A rejected upload must leave the prior canonical census intact."""
         workspace_root, workspace_id = tmp_workspace
+        valid_content = _create_csv(
+            workspace_root,
+            workspace_id,
+            "valid.csv",
+            columns=["employee_id"],
+            rows=[["EMP001"]],
+        )
+        _, _, existing_path = file_service.save_uploaded_file(
+            workspace_id, valid_content, "valid.csv"
+        )
+        original_bytes = Path(existing_path).read_bytes()
         content = _create_csv(
             workspace_root,
             workspace_id,
@@ -695,17 +746,10 @@ class TestDataQualityNullEmpty:
             ],
         )
 
-        _, metadata, _ = file_service.save_uploaded_file(
-            workspace_id, content, "test.csv"
-        )
+        with pytest.raises(ValueError, match="blank or null employee ID"):
+            file_service.save_uploaded_file(workspace_id, content, "test.csv")
 
-        dq = metadata.get("data_quality_warnings", [])
-        null_id = [w for w in dq if w["field_name"] == "employee_id"]
-        assert len(null_id) == 1
-        assert len(null_id[0]["samples"]) >= 1
-        sample = null_id[0]["samples"][0]
-        assert "row_number" in sample
-        assert "value" in sample
+        assert Path(existing_path).read_bytes() == original_bytes
 
 
 # =============================================================================
@@ -717,12 +761,7 @@ class TestDataQualityDates:
     """Test row-level date quality checks."""
 
     def test_unparseable_dates_flagged(self, file_service, tmp_workspace):
-        """Unparseable date strings should be flagged.
-
-        Note: DuckDB CSV auto-detect may successfully parse some formats,
-        turning truly unparseable values into NULLs (caught by null check).
-        This test uses a value that is clearly not a date.
-        """
+        """Unparseable date strings should be rejected before persistence."""
         workspace_root, workspace_id = tmp_workspace
         content = _create_csv(
             workspace_root,
@@ -742,22 +781,11 @@ class TestDataQualityDates:
             ],
         )
 
-        _, metadata, _ = file_service.save_uploaded_file(
-            workspace_id, content, "test.csv"
-        )
+        with pytest.raises(ValueError, match="cannot be parsed as a date") as exc_info:
+            file_service.save_uploaded_file(workspace_id, content, "test.csv")
 
-        dq = metadata.get("data_quality_warnings", [])
-        # DuckDB may parse the column as VARCHAR when it sees "not-a-date",
-        # in which case we get an unparseable_date warning.
-        # Or it may fail to auto-detect, leaving the column as VARCHAR.
-        # Either way, there should be some data quality warning flagging the issue.
-        date_or_null_issues = [
-            w
-            for w in dq
-            if w["field_name"] == "employee_hire_date"
-            and w["check_type"] in ("unparseable_date", "null_or_empty")
-        ]
-        assert len(date_or_null_issues) >= 1
+        assert "'employee_hire_date'" in str(exc_info.value)
+        assert "'not-a-date'" in str(exc_info.value)
 
 
 # =============================================================================

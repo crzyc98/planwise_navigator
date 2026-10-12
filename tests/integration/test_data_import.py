@@ -15,6 +15,14 @@ FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 SAMPLE_CSV = FIXTURES_DIR / "sample_census_import.csv"
 
 
+def _valid_sample_csv_bytes() -> bytes:
+    """Return the shared fixture with its deliberate invalid dates repaired."""
+    content = SAMPLE_CSV.read_text()
+    for invalid in ("not-a-date", "13/45/2020", "INVALID"):
+        content = content.replace(invalid, "01/15/2020")
+    return content.encode("utf-8")
+
+
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
     """Create test client with isolated workspace root."""
@@ -197,7 +205,7 @@ class TestGenerateParquet:
         self, client, workspace_id: str, csv_bytes: bytes | None = None
     ) -> str:
         if csv_bytes is None:
-            csv_bytes = SAMPLE_CSV.read_bytes()
+            csv_bytes = _valid_sample_csv_bytes()
         with io.BytesIO(csv_bytes) as file_handle:
             upload_resp = client.post(
                 f"/api/workspaces/{workspace_id}/imports/upload",
@@ -298,9 +306,13 @@ class TestGenerateParquet:
         assert next(row[1] for row in schema_rows if row[0] == "active") == "BOOLEAN"
 
     def test_generate_rejects_unsupported_boolean_values(self, client, workspace_id):
-        invalid_csv = SAMPLE_CSV.read_text().replace(
-            "EMP0001,01/01/1960,11/04/2010,145109.32,Finance,false",
-            "EMP0001,01/01/1960,11/04/2010,145109.32,Finance,sometimes",
+        invalid_csv = (
+            _valid_sample_csv_bytes()
+            .decode("utf-8")
+            .replace(
+                "EMP0001,01/01/1960,11/04/2010,145109.32,Finance,false",
+                "EMP0001,01/01/1960,11/04/2010,145109.32,Finance,sometimes",
+            )
         )
         import_id = self._upload_and_map(
             client, workspace_id, invalid_csv.encode("utf-8")
@@ -340,10 +352,10 @@ class TestFileManagement:
     def _full_flow(
         self, client, workspace_id: str, filename: str = "sample_census_import.csv"
     ):
-        with open(SAMPLE_CSV, "rb") as f:
+        with io.BytesIO(_valid_sample_csv_bytes()) as file_handle:
             upload_resp = client.post(
                 f"/api/workspaces/{workspace_id}/imports/upload",
-                files={"file": (filename, f, "text/csv")},
+                files={"file": (filename, file_handle, "text/csv")},
             )
         import_id = upload_resp.json()["import_id"]
         client.put(
