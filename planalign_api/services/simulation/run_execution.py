@@ -6,6 +6,7 @@ import asyncio
 import logging
 import os
 import shutil
+import sys
 import threading
 from datetime import datetime
 from pathlib import Path
@@ -288,7 +289,9 @@ def build_command(
 ) -> List[str]:
     years = f"{start_year}-{end_year}" if start_year != end_year else str(start_year)
     return [
-        "planalign",
+        sys.executable,
+        "-m",
+        "planalign_cli",
         "simulate",
         years,
         "--config",

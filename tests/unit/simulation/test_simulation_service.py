@@ -1,6 +1,7 @@
 """Tests for SimulationService class."""
 
 import asyncio
+import sys
 from unittest.mock import MagicMock, patch
 from pathlib import Path
 
@@ -233,6 +234,7 @@ class TestScenarioSeedIsolation:
             2025,
             project_a,
         )
+        assert command[:3] == [sys.executable, "-m", "planalign_cli"]
         assert command[command.index("--dbt-project-dir") + 1] == str(project_a)
 
     def test_subprocess_environment_carries_authoritative_run_id(self, tmp_path):
