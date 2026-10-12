@@ -77,7 +77,7 @@ dev = [
     # mypy >=1.20 requires pathspec >=1, conflicting with dbt-core's <0.13.
     "mypy==1.19.1",
     # Type stubs for the CI mypy lint job (see requirements-dev.txt / #333)
-    "types-PyYAML==6.0.12.20260518",
+    "types-PyYAML==6.0.12.20260906",
     "pylint==4.1.1",
     "flake8==6.1.0",
     "pre-commit==4.6.2",
