@@ -22,6 +22,7 @@ from .sql_security import (
     validate_integer,
 )
 from .census_as_of import resolve_as_of_date
+from .census_schema import BOOLEAN_FALSE_ALIASES, BOOLEAN_TRUE_ALIASES, FIELDS
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +130,10 @@ class FileService:
 
     # Supported file extensions
     SUPPORTED_EXTENSIONS = {".parquet", ".csv"}
+
+    BOOLEAN_COLUMNS = tuple(
+        field.field_name for field in FIELDS if field.data_type == "boolean"
+    )
 
     def __init__(self, workspaces_root: Path):
         """Initialize file service with workspace root directory."""
@@ -288,8 +293,12 @@ class FileService:
                         conn.execute(
                             f'ALTER TABLE census RENAME COLUMN "{safe_alias}" TO "{safe_canonical}"'
                         )
+                        columns.remove(alias)
+                        columns.add(canonical)
                         renames.append({"original": alias, "canonical": canonical})
                         logger.info(f"Auto-renamed column '{alias}' to '{canonical}'")
+
+                self._normalize_boolean_columns(conn, columns)
 
                 # Export as canonical parquet
                 try:
@@ -308,6 +317,49 @@ class FileService:
         finally:
             # Clean up temp file
             temp_path.unlink(missing_ok=True)
+
+    def _normalize_boolean_columns(
+        self, conn: duckdb.DuckDBPyConnection, columns: set[str]
+    ) -> None:
+        """Normalize canonical census boolean aliases before persisting Parquet."""
+        truthy = sorted(BOOLEAN_TRUE_ALIASES)
+        falsy = sorted(BOOLEAN_FALSE_ALIASES)
+        accepted = [*truthy, *falsy]
+        placeholders = ", ".join("?" for _ in accepted)
+
+        for column in self.BOOLEAN_COLUMNS:
+            if column not in columns:
+                continue
+            invalid_rows = conn.execute(
+                f'SELECT LOWER(TRIM(CAST("{column}" AS VARCHAR))) AS value, COUNT(*) '
+                f'FROM census WHERE "{column}" IS NOT NULL '
+                f'AND LOWER(TRIM(CAST("{column}" AS VARCHAR))) NOT IN ({placeholders}) '
+                "GROUP BY value ORDER BY COUNT(*) DESC, value LIMIT 5",
+                accepted,
+            ).fetchall()
+            if invalid_rows:
+                invalid_count = sum(int(row[1]) for row in invalid_rows)
+                examples = ", ".join(repr(row[0]) for row in invalid_rows)
+                raise ValueError(
+                    f"Column {column!r} contains at least {invalid_count} unsupported "
+                    f"boolean value(s), including {examples}. Use true/false, 1/0, "
+                    "yes/no, y/n, or active/inactive."
+                )
+
+            temporary = f"__normalized_{column}"
+            truthy_placeholders = ", ".join("?" for _ in truthy)
+            conn.execute(f'ALTER TABLE census ADD COLUMN "{temporary}" BOOLEAN')
+            conn.execute(
+                f'UPDATE census SET "{temporary}" = CASE '
+                f'WHEN "{column}" IS NULL THEN NULL '
+                f'WHEN LOWER(TRIM(CAST("{column}" AS VARCHAR))) '
+                f"IN ({truthy_placeholders}) THEN TRUE ELSE FALSE END",
+                truthy,
+            )
+            conn.execute(f'ALTER TABLE census DROP COLUMN "{column}"')
+            conn.execute(
+                f'ALTER TABLE census RENAME COLUMN "{temporary}" TO "{column}"'
+            )
 
     def _parse_and_validate_file(self, file_path: Path) -> Dict:
         """

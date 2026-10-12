@@ -7,6 +7,7 @@ alias detection, and backward compatibility of flat validation_warnings.
 import csv
 from pathlib import Path
 
+import duckdb
 import pytest
 
 from planalign_api.services.file_service import FileService
@@ -42,6 +43,60 @@ def _create_csv(
         for row in rows:
             writer.writerow(row)
     return file_path.read_bytes()
+
+
+class TestBooleanNormalization:
+    """Boolean-like census inputs are canonicalized at the upload boundary."""
+
+    def test_integer_active_values_are_saved_as_boolean(
+        self, file_service, tmp_workspace
+    ):
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root,
+            workspace_id,
+            "integer-active.csv",
+            columns=["employee_id", "active"],
+            rows=[["EMP001", 1], ["EMP002", 0], ["EMP003", ""]],
+        )
+
+        _, _, absolute_path = file_service.save_uploaded_file(
+            workspace_id, content, "integer-active.csv"
+        )
+
+        conn = duckdb.connect(":memory:")
+        try:
+            schema_rows = conn.execute(
+                "DESCRIBE SELECT * FROM read_parquet(?)", [absolute_path]
+            ).fetchall()
+            column_type = next(row[1] for row in schema_rows if row[0] == "active")
+            values = conn.execute(
+                "SELECT active FROM read_parquet(?) ORDER BY employee_id",
+                [absolute_path],
+            ).fetchall()
+        finally:
+            conn.close()
+        assert column_type == "BOOLEAN"
+        assert values == [(True,), (False,), (None,)]
+
+    def test_unsupported_active_value_is_rejected_before_save(
+        self, file_service, tmp_workspace
+    ):
+        workspace_root, workspace_id = tmp_workspace
+        content = _create_csv(
+            workspace_root,
+            workspace_id,
+            "invalid-active.csv",
+            columns=["employee_id", "active"],
+            rows=[["EMP001", "sometimes"]],
+        )
+
+        with pytest.raises(ValueError, match="unsupported boolean value") as exc_info:
+            file_service.save_uploaded_file(workspace_id, content, "invalid-active.csv")
+
+        assert "'active'" in str(exc_info.value)
+        assert "'sometimes'" in str(exc_info.value)
+        assert not (workspace_root / workspace_id / "data" / "census.parquet").exists()
 
 
 # =============================================================================

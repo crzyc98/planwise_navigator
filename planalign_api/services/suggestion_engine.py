@@ -19,7 +19,13 @@ from ..models.imports import (
     ImportSession,
 )
 from ..models.imports import DetectedColumn
-from .census_schema import FIELDS, CensusFieldDefinition, get_required_fields
+from .census_schema import (
+    BOOLEAN_FALSE_ALIASES,
+    BOOLEAN_TRUE_ALIASES,
+    FIELDS,
+    CensusFieldDefinition,
+    get_required_fields,
+)
 
 # Confidence thresholds (clarified in spec)
 _HIGH_THRESHOLD = 0.85
@@ -37,12 +43,8 @@ _DATE_FORMATS = [
 ]
 
 # Boolean alias tables (lowercase)
-_TRUTHY = frozenset(
-    {"y", "yes", "true", "1", "active", "enrolled", "eligible", "employed"}
-)
-_FALSY = frozenset(
-    {"n", "no", "false", "0", "inactive", "terminated", "separated", "ineligible"}
-)
+_TRUTHY = BOOLEAN_TRUE_ALIASES
+_FALSY = BOOLEAN_FALSE_ALIASES
 
 # Currency pattern for decimal stripping detection
 _CURRENCY_RE = re.compile(r"[$€£,\s]")
