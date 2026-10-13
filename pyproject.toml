@@ -75,7 +75,7 @@ dev = [
     "black==23.9.1",
     "isort==9.0.2",
     # mypy >=1.20 requires pathspec >=1, conflicting with dbt-core's <0.13.
-    "mypy==1.19.1",
+    "mypy==2.4.0",
     # Type stubs for the CI mypy lint job (see requirements-dev.txt / #333)
     "types-PyYAML==6.0.12.20260906",
     "pylint==4.1.1",
