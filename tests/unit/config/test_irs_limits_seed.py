@@ -5,8 +5,52 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
+import pytest
+
 
 SEED_PATH = Path(__file__).resolve().parents[3] / "dbt/seeds/config_irs_limits.csv"
+
+
+@pytest.mark.parametrize(
+    "column",
+    (
+        "base_limit",
+        "catch_up_limit",
+        "super_catch_up_limit",
+        "compensation_limit",
+        "annual_additions_limit",
+    ),
+)
+def test_statutory_limits_never_decrease(column: str) -> None:
+    with SEED_PATH.open(newline="") as source:
+        rows = sorted(csv.DictReader(source), key=lambda row: int(row["limit_year"]))
+
+    for previous, current in zip(rows, rows[1:]):
+        assert int(current[column]) >= int(previous[column]), (
+            f"{column} decreased from {previous['limit_year']} "
+            f"({previous[column]}) to {current['limit_year']} ({current[column]})"
+        )
+
+
+@pytest.mark.parametrize("column", ("catch_up_limit", "super_catch_up_limit"))
+def test_projected_catch_up_allowances_preserve_published_anchor(column: str) -> None:
+    with SEED_PATH.open(newline="") as source:
+        rows = sorted(csv.DictReader(source), key=lambda row: int(row["limit_year"]))
+
+    anchor = next(row for row in rows if row["limit_year"] == "2026")
+    previous_allowance = int(anchor[column]) - int(anchor["base_limit"])
+    previous_year = 2026
+    for row in rows:
+        year = int(row["limit_year"])
+        if year <= previous_year:
+            continue
+        allowance = int(row[column]) - int(row["base_limit"])
+        assert allowance >= previous_allowance, (
+            f"{column} allowance decreased from {previous_year} "
+            f"({previous_allowance}) to {year} ({allowance})"
+        )
+        previous_allowance = allowance
+        previous_year = year
 
 
 def test_social_security_wage_base_seed_is_complete_and_anchored() -> None:

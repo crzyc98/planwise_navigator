@@ -2,7 +2,13 @@ version: 2
 
 seeds:
   - name: config_irs_limits
-    description: "IRS contribution and compensation limits by year"
+    description: >-
+      IRS contribution and compensation limits by year. Published values through
+      2026 are followed by planning estimates for 2027-2035, rebased on 2026:
+      base deferral limits increase $500 annually, compensation limits $5,000,
+      and annual additions limits $1,000. Ordinary and super catch-up allowances
+      remain $8,000 and $11,250 above the base limit. These linear estimates are
+      planning assumptions, not published IRS limits or a statutory COLA forecast.
     config:
       column_types:
         limit_year: integer
@@ -16,6 +22,13 @@ seeds:
         super_catch_up_age_max: integer
         is_estimated: boolean
         social_security_wage_base: integer
+    columns:
+      - name: catch_up_limit
+        description: "Total elective deferral limit including the ordinary catch-up allowance."
+      - name: super_catch_up_limit
+        description: "Total elective deferral limit including the catch-up allowance for ages 60-63."
+      - name: is_estimated
+        description: "True for projected values; false for published values."
 
   - name: comp_levers
     description: "Compensation parameters by scenario and year"
