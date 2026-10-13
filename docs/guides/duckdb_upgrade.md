@@ -10,6 +10,14 @@ PlanAlign pins DuckDB 1.5.5 with dbt-core 1.9.11 and dbt-duckdb 1.9.6. The upgra
 
 Hash algorithm attribution and the MIT notice are in [the third-party notice](../third_party/duckdb_hash_license.txt). The authoritative upstream implementation is [DuckDB v1.1.3 hash.cpp](https://github.com/duckdb/duckdb/blob/v1.1.3/src/common/types/hash.cpp); the version-dependent built-in contract is documented in [DuckDB utility functions](https://duckdb.org/docs/stable/sql/functions/utility.html#hashvalue).
 
+The SQL helpers bind intermediate values through single-element list transforms
+to avoid repeated evaluation when DuckDB expands nested macros. Keep these bindings
+when editing the helpers: removing them can materially increase simulation time.
+This optimization preserves the same UTF-8 bytes, arithmetic, and NULL hash; it
+does not adopt the current engine's built-in hash. See the
+[optimization evidence](../perf/deterministic-hash-optimization-results-2026-10-12.md)
+for the exact-parity checks and repeated matched performance results.
+
 ## Validation evidence
 
 Fresh Python 3.12 environments used the same resolved runtime packages except DuckDB. Each run used a new database and separate dbt artifacts. The SQL simulation covered 2025–2027 with the same 7,505-row census, seed 42, and configuration.
