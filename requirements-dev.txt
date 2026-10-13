@@ -15,7 +15,7 @@ Faker==40.40.0
 
 # Code Quality
 ruff==0.4.3
-black==23.9.1
+black==26.10.1
 isort==9.0.2
 # Last mypy release compatible with dbt-core 1.9.11's pathspec<0.13.
 mypy==1.19.1

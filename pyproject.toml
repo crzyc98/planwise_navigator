@@ -72,7 +72,7 @@ dev = [
 
     # Code Quality
     "ruff==0.4.3",
-    "black==23.9.1",
+    "black==26.10.1",
     "isort==9.0.2",
     # mypy >=1.20 requires pathspec >=1, conflicting with dbt-core's <0.13.
     "mypy==1.19.1",
