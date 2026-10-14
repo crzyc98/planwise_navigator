@@ -307,6 +307,29 @@ def _effective_workspace_config(
     return dict(workspace.base_config or {})
 
 
+def _workspace_census_path(configured: str, workspace_root: Path) -> Path:
+    """Resolve a census reference without allowing workspace escapes."""
+    census = Path(configured)
+    if not census.is_absolute():
+        workspace_relative = workspace_root / census
+        # Older mapped imports persisted paths relative to the server cwd,
+        # already including the workspace root. Accept only contained paths.
+        legacy = census.resolve()
+        census = workspace_relative
+        if not census.is_file() and (
+            legacy.is_relative_to(workspace_root)
+            or Path(configured).absolute().is_relative_to(workspace_root)
+        ):
+            census = legacy
+    resolved = census.resolve()
+    if resolved != workspace_root and workspace_root not in resolved.parents:
+        raise HTTPException(
+            status_code=409,
+            detail="The configured census is not an uploaded artifact in the active workspace.",
+        )
+    return resolved
+
+
 def _canonical_census(
     config: Dict[str, Any], workspace_id: str, storage: WorkspaceStorage
 ) -> Path:
@@ -316,29 +339,29 @@ def _canonical_census(
             status_code=409,
             detail="The target workspace has no uploaded census. Upload one before calibration.",
         )
-    census = Path(str(configured))
     workspace_root = storage._workspace_path(workspace_id).resolve()
-    if not census.is_absolute():
-        workspace_relative = workspace_root / census
-        # Older mapped imports persisted paths relative to the server cwd,
-        # already including the workspace root. Accept only contained paths.
-        legacy = census.resolve()
-        census = workspace_relative
-        if not census.is_file() and legacy.is_relative_to(workspace_root):
-            census = legacy
+    census = _workspace_census_path(str(configured), workspace_root)
+    if not census.is_file():
+        # Match simulation's fallback for obsolete scenario census overrides.
+        # Resolve before fingerprinting so provenance describes the actual input.
+        workspace = storage.get_workspace(workspace_id)
+        fallback = (
+            (workspace.base_config.get("setup") or {}).get("census_parquet_path")
+            if workspace
+            else None
+        )
+        if fallback:
+            census = _workspace_census_path(str(fallback), workspace_root)
     if not census.is_file():
         raise HTTPException(
             status_code=409,
             detail="The target workspace census is missing. Upload it again before calibration.",
         )
-    resolved = census.resolve()
-    if resolved != workspace_root and workspace_root not in resolved.parents:
-        raise HTTPException(
-            status_code=409,
-            detail="The configured census is not an uploaded artifact in the active workspace.",
-        )
-    config.setdefault("setup", {})["census_parquet_path"] = str(resolved)
-    return resolved
+    config["setup"] = {
+        **(config.get("setup") or {}),
+        "census_parquet_path": str(census),
+    }
+    return census
 
 
 def _effective_horizon(

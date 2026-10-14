@@ -1,14 +1,18 @@
 """Census import/calibration path regressions for issue #837."""
 
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
+from planalign_api.models.scenario import ScenarioCreate
 from planalign_api.models.workspace import Workspace, WorkspaceCreate
 from planalign_api.routers import calibration, imports
 from planalign_api.services.import_service import ImportService
+from planalign_api.services.provenance.capture import config_fingerprint, sha256_file
+from planalign_api.services.simulation.run_execution import validate_census
 from planalign_api.storage.workspace_storage import WorkspaceStorage
 
 pytestmark = pytest.mark.fast
@@ -59,6 +63,11 @@ def test_census_outside_active_workspace_is_rejected(
 ) -> None:
     workspace = _workspace(storage)
     root = storage._workspace_path(workspace.id)
+    fallback = root / "valid-census.parquet"
+    fallback.write_bytes(b"workspace-census")
+    storage.update_base_config_key(
+        workspace.id, "setup.census_parquet_path", str(fallback.resolve())
+    )
     outside = storage.workspaces_root / "other-workspace/census.parquet"
     outside.parent.mkdir()
     outside.write_bytes(b"unrelated-census")
@@ -88,6 +97,119 @@ def test_missing_census_does_not_select_another_upload(
 
     with pytest.raises(HTTPException, match="census is missing"):
         calibration._canonical_census(config, workspace.id, storage)
+
+
+@pytest.fixture
+def stale_target(storage: WorkspaceStorage) -> tuple[str, str, Path]:
+    workspace = _workspace(storage)
+    root = storage._workspace_path(workspace.id)
+    census = root / "data/census.parquet"
+    census.parent.mkdir()
+    census.write_bytes(b"current-census")
+    storage.update_base_config_key(
+        workspace.id, "setup.census_parquet_path", str(census.resolve())
+    )
+    missing = str((root / "data/imports/old.parquet").resolve())
+    scenario = storage.create_scenario(
+        workspace.id,
+        ScenarioCreate(
+            name="Baseline",
+            config_overrides={
+                "setup": {"census_parquet_path": missing},
+                "data_sources": {"census_parquet_path": missing},
+                "compensation": {"cola_rate": 0.03},
+            },
+        ),
+    )
+    return workspace.id, scenario.id, census.resolve()
+
+
+def test_missing_override_uses_same_census_as_simulation(
+    storage: WorkspaceStorage, stale_target: tuple[str, str, Path]
+) -> None:
+    wid, sid, census = stale_target
+    config = storage.get_merged_config(wid, sid)
+    persisted = deepcopy(config)
+    simulation_config = deepcopy(config)
+    validate_census(storage, simulation_config, sid, wid)
+
+    assert calibration._canonical_census(config, wid, storage) == census
+    assert config == simulation_config
+    assert storage.get_merged_config(wid, sid) == persisted
+
+
+def test_valid_override_keeps_its_own_census(
+    storage: WorkspaceStorage, stale_target: tuple[str, str, Path]
+) -> None:
+    wid, sid, _ = stale_target
+    config = storage.get_merged_config(wid, sid)
+    own_census = Path(config["setup"]["census_parquet_path"])
+    own_census.parent.mkdir()
+    own_census.write_bytes(b"scenario-census")
+    assert calibration._canonical_census(config, wid, storage) == own_census
+
+
+@pytest.mark.parametrize("missing", [False, True])
+def test_unsafe_override_cannot_be_masked_by_workspace_fallback(
+    storage: WorkspaceStorage,
+    stale_target: tuple[str, str, Path],
+    tmp_path: Path,
+    missing: bool,
+) -> None:
+    wid, sid, _ = stale_target
+    config = storage.get_merged_config(wid, sid)
+    outside = tmp_path / "outside.parquet"
+    if not missing:
+        outside.write_bytes(b"outside-workspace")
+    config["setup"]["census_parquet_path"] = str(outside)
+    with pytest.raises(HTTPException, match="not an uploaded artifact"):
+        calibration._canonical_census(config, wid, storage)
+
+
+def test_fallback_rejects_workspace_census_symlink_escape(
+    storage: WorkspaceStorage, stale_target: tuple[str, str, Path], tmp_path: Path
+) -> None:
+    wid, sid, census = stale_target
+    outside = tmp_path / "outside.parquet"
+    outside.write_bytes(b"outside-workspace")
+    census.unlink()
+    census.symlink_to(outside)
+    config = storage.get_merged_config(wid, sid)
+    with pytest.raises(HTTPException, match="not an uploaded artifact"):
+        calibration._canonical_census(config, wid, storage)
+
+
+def test_missing_workspace_fallback_still_fails(
+    storage: WorkspaceStorage, stale_target: tuple[str, str, Path]
+) -> None:
+    wid, sid, census = stale_target
+    census.unlink()
+    config = storage.get_merged_config(wid, sid)
+    with pytest.raises(HTTPException, match="census is missing"):
+        calibration._canonical_census(config, wid, storage)
+
+
+def test_apply_fingerprints_actual_fallback_census(
+    storage: WorkspaceStorage, stale_target: tuple[str, str, Path]
+) -> None:
+    wid, sid, census = stale_target
+    config = storage.get_merged_config(wid, sid)
+    validate_census(storage, config, sid, wid)
+    context = calibration.CalibrationContext(
+        workspace_id=wid,
+        scenario_id=sid,
+        source_scenario_id=sid,
+        source_run_id="completed-run",
+        config_fingerprint=config_fingerprint(config),
+        census_fingerprint=sha256_file(census)[0],
+        random_seed=42,
+        start_year=2025,
+        end_year=2026,
+    )
+    assert calibration._verify_apply_context(context, storage) == config
+    census.write_bytes(b"replacement-census")
+    with pytest.raises(HTTPException, match="changed after calibration"):
+        calibration._verify_apply_context(context, storage)
 
 
 def _upload_and_map(client: TestClient, workspace_id: str) -> str:
