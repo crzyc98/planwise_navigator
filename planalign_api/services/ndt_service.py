@@ -2,9 +2,8 @@
 
 import logging
 import statistics
-import threading
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import List, Optional
 
 import yaml
 from .compliance_metrics import (
@@ -207,129 +206,18 @@ class ADPTestResponse(APIModel):
 
 
 class NDTService:
-    """Service for Non-Discrimination Testing analytics."""
+    """Read-only NDT analytics using limits materialized during initialization."""
 
     # Path to dbt seeds directory
     _SEEDS_DIR = Path(__file__).resolve().parents[2] / "dbt" / "seeds"
-
-    # Per-path lock to serialize seed checks and avoid racing with readers
-    _seed_lock_guard: threading.Lock = threading.Lock()
-    _seed_locks: Dict[str, threading.Lock] = {}
-    _seed_verified: Set[str] = set()
 
     def __init__(
         self,
         storage: WorkspaceStorage,
         db_resolver: Optional[DatabasePathResolver] = None,
-        *,
-        refresh_seeds: bool = False,
-    ):
+    ) -> None:
         self.storage = storage
         self.db_resolver = db_resolver or create_api_database_path_resolver(storage)
-        self.refresh_seeds = refresh_seeds
-
-    def _prepare_seed(self, db_path: Path) -> None:
-        """Archived analytics preserve the run's limits; refresh is opt-in."""
-        if self.refresh_seeds:
-            self._ensure_seed_current(db_path)
-
-    @staticmethod
-    def _get_seed_lock(db_path: Path) -> threading.Lock:
-        """Get or create a per-path lock for seed operations."""
-        key = str(db_path)
-        with NDTService._seed_lock_guard:
-            if key not in NDTService._seed_locks:
-                NDTService._seed_locks[key] = threading.Lock()
-            return NDTService._seed_locks[key]
-
-    @staticmethod
-    def _ensure_seed_current(db_path: Path) -> None:
-        """Ensure config_irs_limits seed table has required columns.
-
-        Thread-safe: uses a per-path lock so concurrent requests don't
-        race on DROP/CREATE, and caches verification so the check runs
-        at most once per database path per process lifetime.
-        """
-        import duckdb
-
-        key = str(db_path)
-
-        # Fast path: already verified this database, no lock needed
-        if key in NDTService._seed_verified:
-            return
-
-        csv_path = NDTService._SEEDS_DIR / "config_irs_limits.csv"
-        if not csv_path.exists():
-            logger.warning(f"Seed CSV not found: {csv_path}")
-            return
-
-        lock = NDTService._get_seed_lock(db_path)
-        with lock:
-            # Re-check after acquiring lock (another thread may have finished)
-            if key in NDTService._seed_verified:
-                return
-
-            required_columns = (
-                "hce_compensation_threshold",
-                "super_catch_up_limit",
-                "annual_additions_limit",
-                "social_security_wage_base",
-            )
-            placeholders = ", ".join("?" for _ in required_columns)
-            conn = duckdb.connect(str(db_path))
-            try:
-                # Check if all required columns exist
-                column_count_row = conn.execute(
-                    """
-                    SELECT COUNT(*) FROM information_schema.columns
-                    WHERE table_schema = 'main'
-                      AND table_name = 'config_irs_limits'
-                      AND column_name IN ({placeholders})
-                    """.format(
-                        placeholders=placeholders
-                    ),
-                    list(required_columns),
-                ).fetchone()
-                assert column_count_row is not None
-                column_count = column_count_row[0]
-
-                if column_count == len(required_columns):
-                    NDTService._seed_verified.add(key)
-                    return  # Already up to date
-
-                # Column(s) missing — reload the seed table from CSV
-                missing = []
-                for col in required_columns:
-                    has = conn.execute(
-                        """
-                        SELECT 1 FROM information_schema.columns
-                        WHERE table_schema = 'main'
-                          AND table_name = 'config_irs_limits'
-                          AND column_name = ?
-                        LIMIT 1
-                        """,
-                        [col],
-                    ).fetchone()
-                    if not has:
-                        missing.append(col)
-
-                logger.info(
-                    f"config_irs_limits missing column(s): {missing}, "
-                    "reloading seed from CSV"
-                )
-                conn.execute("DROP TABLE IF EXISTS config_irs_limits")
-                conn.execute(
-                    f"""
-                    CREATE TABLE config_irs_limits AS
-                    SELECT * FROM read_csv_auto('{csv_path}')
-                    """
-                )
-                logger.info("config_irs_limits seed reloaded successfully")
-                NDTService._seed_verified.add(key)
-            except Exception as e:
-                logger.error(f"Failed to ensure seed current: {e}")
-            finally:
-                conn.close()
 
     def get_available_years(
         self, workspace_id: str, scenario_id: str
@@ -378,9 +266,6 @@ class NDTService:
         assert resolved.path is not None  # guaranteed by resolved.exists check above
 
         try:
-            # Ensure seed table has the hce_compensation_threshold column
-            self._prepare_seed(resolved.path)
-
             with duckdb.connect(str(resolved.path), read_only=True) as conn:
                 # Get HCE threshold for the prior year (used for HCE determination)
                 hce_threshold_row = conn.execute(
@@ -682,7 +567,6 @@ class NDTService:
         assert resolved.path is not None  # guaranteed by resolved.exists check above
 
         try:
-            self._prepare_seed(resolved.path)
             with duckdb.connect(str(resolved.path), read_only=True) as conn:
                 # Get HCE threshold for the prior year
                 hce_threshold_row = conn.execute(
@@ -1051,7 +935,6 @@ class NDTService:
 
         assert resolved.path is not None  # guaranteed by resolved.exists check above
         try:
-            self._prepare_seed(resolved.path)
             with duckdb.connect(str(resolved.path), read_only=True) as conn:
                 # Get IRS limits for the test year
                 limits_row = conn.execute(
@@ -1260,7 +1143,6 @@ class NDTService:
 
         assert resolved.path is not None  # guaranteed by resolved.exists check above
         try:
-            self._prepare_seed(resolved.path)
             with duckdb.connect(str(resolved.path), read_only=True) as conn:
                 # Get HCE threshold for the prior year
                 hce_threshold_row = conn.execute(
