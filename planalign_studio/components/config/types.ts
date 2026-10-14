@@ -112,6 +112,7 @@ export interface FormData {
   // Data Sources
   censusDataPath: string;
   censusDataStatus: string;
+  censusDataSource?: 'workspace' | 'scenario';
   censusRowCount: number;
   censusLastModified: string;
 
