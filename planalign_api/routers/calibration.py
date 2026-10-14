@@ -319,7 +319,13 @@ def _canonical_census(
     census = Path(str(configured))
     workspace_root = storage._workspace_path(workspace_id).resolve()
     if not census.is_absolute():
-        census = workspace_root / census
+        workspace_relative = workspace_root / census
+        # Older mapped imports persisted paths relative to the server cwd,
+        # already including the workspace root. Accept only contained paths.
+        legacy = census.resolve()
+        census = workspace_relative
+        if not census.is_file() and legacy.is_relative_to(workspace_root):
+            census = legacy
     if not census.is_file():
         raise HTTPException(
             status_code=409,
