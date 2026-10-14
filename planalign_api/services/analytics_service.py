@@ -472,42 +472,41 @@ class AnalyticsService:
                 logger.error(f"Database not found for scenario {scenario_id}")
                 return None
 
-            conn = duckdb.connect(str(resolved.path), read_only=True)
-
-            first_simulation_year = self._resolve_first_simulation_year(
-                conn, workspace_id, scenario_id
-            )
-            participation = self._get_participation_summary(
-                conn, active_only, cohort, first_simulation_year, population
-            )
-            contribution_by_year = self._get_contribution_by_year(
-                conn, active_only, cohort, first_simulation_year, population
-            )
-            totals = self._compute_grand_totals(contribution_by_year)
-            deferral_distribution = self._get_deferral_distribution(
-                conn,
-                effective_rate=effective_rate,
-                active_only=active_only,
-                population=population,
-                cohort=cohort,
-                first_simulation_year=first_simulation_year,
-            )
-            deferral_distribution_by_year = self._get_deferral_distribution_all_years(
-                conn,
-                effective_rate=effective_rate,
-                active_only=active_only,
-                population=population,
-                cohort=cohort,
-                first_simulation_year=first_simulation_year,
-            )
-            escalation = self._get_escalation_metrics(
-                conn, population, cohort, first_simulation_year
-            )
-            irs_limits = self._get_irs_limit_metrics(
-                conn, population, cohort, first_simulation_year
-            )
-
-            conn.close()
+            with duckdb.connect(str(resolved.path), read_only=True) as conn:
+                first_simulation_year = self._resolve_first_simulation_year(
+                    conn, workspace_id, scenario_id
+                )
+                participation = self._get_participation_summary(
+                    conn, active_only, cohort, first_simulation_year, population
+                )
+                contribution_by_year = self._get_contribution_by_year(
+                    conn, active_only, cohort, first_simulation_year, population
+                )
+                totals = self._compute_grand_totals(contribution_by_year)
+                deferral_distribution = self._get_deferral_distribution(
+                    conn,
+                    effective_rate=effective_rate,
+                    active_only=active_only,
+                    population=population,
+                    cohort=cohort,
+                    first_simulation_year=first_simulation_year,
+                )
+                deferral_distribution_by_year = (
+                    self._get_deferral_distribution_all_years(
+                        conn,
+                        effective_rate=effective_rate,
+                        active_only=active_only,
+                        population=population,
+                        cohort=cohort,
+                        first_simulation_year=first_simulation_year,
+                    )
+                )
+                escalation = self._get_escalation_metrics(
+                    conn, population, cohort, first_simulation_year
+                )
+                irs_limits = self._get_irs_limit_metrics(
+                    conn, population, cohort, first_simulation_year
+                )
 
             return DCPlanAnalytics(
                 scenario_id=scenario_id,
