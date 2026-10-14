@@ -2,7 +2,7 @@
 
 **An enterprise-grade, on-premises workforce and DC-plan simulation platform with immutable event sourcing — built on DuckDB, dbt, FastAPI, and React.**
 
-Current version: **2.2.0** ("Calibration") — see [CHANGELOG.md](CHANGELOG.md).
+Current version: **3.0.0** ("Plan Design & Evidence") — see [_version.py](_version.py) and [CHANGELOG.md](CHANGELOG.md).
 
 ## Overview
 
@@ -31,9 +31,9 @@ Plan sponsors and their advisors use it to estimate the multi-year financial imp
 | **Storage** | DuckDB | 1.5.5 | Immutable event store; in-process OLAP engine |
 | **Transformation** | dbt-core | 1.8.8 | SQL-based data modeling and testing |
 | **Adapter** | dbt-duckdb | 1.8.1 | Stable DuckDB integration |
-| **Orchestration** | planalign_orchestrator | 2.2.0 | Staged multi-year pipeline execution |
-| **CLI** | planalign (Rich + Typer) | 2.2.0 | Terminal interface with progress tracking |
-| **Web Studio** | FastAPI + React/Vite | 2.2.0 | Web-based scenario management |
+| **Orchestration** | planalign_orchestrator | 3.0.0 | Staged multi-year pipeline execution |
+| **CLI** | planalign (Rich + Typer) | 3.0.0 | Terminal interface with progress tracking |
+| **Web Studio** | FastAPI + React/Vite | 3.0.0 | Web-based scenario management |
 | **Frontend Styling** | Tailwind CSS | 4.x | Bundled via `@tailwindcss/vite` — never CDN |
 | **Configuration** | Pydantic | 2.13.5 | Type-safe parameter management |
 | **Git Sync** | GitPython | 3.1.0+ | Workspace cloud synchronization |

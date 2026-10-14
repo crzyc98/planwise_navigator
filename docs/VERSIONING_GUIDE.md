@@ -15,13 +15,16 @@ The single source of truth is `_version.py` (`__version__`, `__release_date__`,
 
 1. Update `__version__`, `__release_date__`, and (for minor/major releases)
    `__release_name__` in `_version.py`.
-2. Update `version` in `pyproject.toml` to match.
-3. Add a dated entry to `CHANGELOG.md` describing the changes.
-4. Verify: `python -c "from _version import get_version_dict; print(get_version_dict())"`
+2. Update `version` in `pyproject.toml` and the editable project entry in
+   `uv.lock` to match. Do not change dependency versions for a release bump.
+3. Update the current version and component versions in `README.md` and the
+   versioning section in `CLAUDE.md`. Distinguish unreleased code from tagged releases.
+4. Add a dated entry to `CHANGELOG.md` describing the changes.
+5. Verify: `python -c "from _version import get_version_dict; print(get_version_dict())"`
    and `planalign --version`.
-5. Commit, tag `v<MAJOR>.<MINOR>.<PATCH>`, and push the tag.
+6. Commit, tag `v<MAJOR>.<MINOR>.<PATCH>`, and push the tag.
 
 ## History
 
-See `CHANGELOG.md`. Current version at the time of writing: **2.1.0
-"Studio & Compliance"** (2026-03-03).
+See [CHANGELOG.md](../CHANGELOG.md) for history and
+[_version.py](../_version.py) for the current version and release metadata.
