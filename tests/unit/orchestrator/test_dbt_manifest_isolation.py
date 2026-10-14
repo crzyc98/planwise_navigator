@@ -16,7 +16,7 @@ def isolated_helper(tmp_path: Path, monkeypatch):
     shared_target.mkdir(parents=True)
     (shared_target / "manifest.json").write_text("incomplete concurrent manifest")
     monkeypatch.setattr(dbt_manifest, "ROOT", root)
-    monkeypatch.setattr(dbt_manifest.shutil, "which", lambda _: "dbt")
+    monkeypatch.setattr(dbt_manifest, "find_dbt_executable", lambda: "dbt")
     dbt_manifest.load_production_manifest.cache_clear()
     yield shared_target
     dbt_manifest.load_production_manifest.cache_clear()
