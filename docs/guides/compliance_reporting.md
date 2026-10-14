@@ -10,6 +10,9 @@ Reports read the selected successful run without updating its IRS seed or other
 archived data. The overview identifies the run and recorded limits, marks
 estimated years, and warns when limit values differ from the current seed.
 Updated seed values apply to new simulations; rerun a scenario to adopt them.
+NDT tests also use read-only connections and never repair missing or outdated
+seed tables in an archive. Simulation initialization loads the required seeds;
+rerun a legacy scenario if its NDT test reports missing tables or columns.
 The 2026 seed uses the [published IRS limits](https://www.irs.gov/retirement-plans/cola-increases-for-dollar-limitations-on-benefits-and-contributions).
 Employee details reject changed result evidence with HTTP 409, requiring an
 overview refresh. Missing limits or required inputs are unavailable, not zero.
