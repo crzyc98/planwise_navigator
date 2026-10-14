@@ -66,7 +66,7 @@ def run_optimizer(
     budget = resolve_worker_count(parallel, max_runs)
     seed_count = seed_phase_count(max_runs)
     seed_values = sample_candidates(spec.design_space, seed_count, seed=search_seed)
-    candidates = _evaluate_values(
+    candidates = evaluate_candidate_values(
         seed_values,
         spec,
         baseline,
@@ -90,7 +90,7 @@ def run_optimizer(
             seed=search_seed + 1,
             exclude=excluded,
         )
-        candidates += _evaluate_values(
+        candidates += evaluate_candidate_values(
             refinement_values,
             spec,
             baseline,
@@ -157,7 +157,7 @@ def binding_constraints(candidates: Sequence[Candidate]) -> tuple[str, ...]:
     )
 
 
-def _evaluate_values(
+def evaluate_candidate_values(
     values: Sequence[dict[str, LeverValue]],
     spec: OptimizerSpec,
     baseline: SimulationConfig,
@@ -169,6 +169,7 @@ def _evaluate_values(
     *,
     start_index: int = 0,
 ) -> tuple[Candidate, ...]:
+    """Evaluate a fixed design set through the normal isolated optimizer path."""
     jobs, metadata = _build_jobs(
         values, baseline, database_dir, budget_limit, start_index=start_index
     )

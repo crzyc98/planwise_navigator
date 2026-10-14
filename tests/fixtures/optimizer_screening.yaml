@@ -1,0 +1,23 @@
+design_space:
+  levers:
+    - name: eligibility.waiting_period_days
+      kind: discrete
+      choices: [0, 365]
+    - name: auto_enrollment.scope
+      kind: discrete
+      choices: [new_hires_only, all_eligible_employees]
+    - name: auto_escalation.enabled
+      kind: discrete
+      choices: [false, true]
+objective:
+  objectives:
+    - metric: total_employer_plan_cost
+      direction: minimize
+    - metric: avg_deferral_rate
+      direction: maximize
+  constraints:
+    - metric: participation_rate
+      operator: ">="
+      threshold: 0.65
+baseline:
+  config_path: tests/fixtures/invariant_config.yaml

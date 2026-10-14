@@ -121,3 +121,56 @@ pytest -m fast tests/test_optimizer_spec_io.py tests/test_optimizer_design_space
 DATABASE_PATH=/tmp/optimizer_validation/isolated.duckdb \
   pytest -m integration tests/test_optimizer_end_to_end.py
 ```
+
+## Experimental first-year screening benchmark
+
+Before adding a cheaper evaluation mode, measure its decision quality using
+the paired benchmark. This research tool evaluates the same fixed designs at
+one year and across the full baseline horizon, then independently reruns the
+retained designs at full fidelity to measure actual staged wall time. It uses
+the normal optimizer evaluator and the same worker limit for every stage.
+It does not change `planalign optimize` or produce promotable optimizer results.
+
+From the repository root, use the checked-in synthetic census and edge spec:
+
+```bash
+source .venv/bin/activate
+PYTHONPATH=. python scripts/benchmark_optimizer_screening.py \
+  --spec tests/fixtures/optimizer_screening.yaml \
+  --census-csv tests/fixtures/invariant_census.csv \
+  --output var/optimizer_screening/experiment-001 \
+  --candidates 8 --repetitions 3 --max-simulations 72 --parallel 2
+```
+
+The output root must be fresh. `--max-simulations` must reserve the worst-case
+`3 × candidates × repetitions`: full-reference runs, screens, and retained
+full reruns. Failed evaluations count; there are no retries. A finite design
+space can yield fewer designs than requested. The settings, spec, and resolved
+baseline are saved before evaluation; `benchmark.json` and `report.md` retain
+the paired ledgers, fidelity horizons, selection reasons, replay checks,
+wall times, and sampled process-tree RSS. The completed CLI artifact also
+records input/code hashes and environment versions.
+
+The experimental policy keeps first-year feasible candidates, missing/failed
+evidence, unsupported screening constraints, and candidates within 5% of a
+violated constraint boundary. It audits a deterministic 10% of the remaining
+rejections (rounded up). Low-fidelity infeasibility is only a screening signal;
+full-reference results measure false rejection. There is no filtering solely
+by the apparent first-year Pareto frontier.
+
+The prespecified gate requires at least 1.5x measured speedup, no rejected
+full-horizon feasible designs, and exact replay of retained full results.
+Three complete repetitions with feasible evidence are required even for
+`GO_FOR_EXPANDED_BENCHMARK`. That result authorizes further investigation, not
+production rollout. A failed gate yields `NO_GO`; incomplete evidence yields
+`INSUFFICIENT_EVIDENCE`. Percentile constraints and external ensemble inputs
+are rejected by this point-estimate experiment.
+
+Point metrics refer to the latest year of each fidelity. For example, screening
+participation in 2025 does not prove a participation constraint for 2027.
+Employer cost is terminal-year cost, not the sum of annual costs. Compare
+screening against the existing parallel evaluator at equal worker limits;
+do not infer speedup from rejected-candidate percentages alone.
+
+See [the feasibility plan and pilot results](../perf/optimizer_screening.md)
+for the tested workload, decision, and limits of the evidence.
