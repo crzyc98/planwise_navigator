@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { Save, AlertTriangle, FileText, Settings, TrendingUp, Users, DollarSign, PieChart, Database, Check, ArrowLeft, Play, Copy, Layers, Share2, Gauge } from 'lucide-react';
 import { useOutletContext, useParams } from 'react-router-dom';
 import { LayoutContextType } from './Layout';
@@ -35,7 +36,7 @@ const ADVANCED_NAV = [
   { id: 'advanced', label: 'Advanced Settings', icon: Settings },
 ];
 
-function ConfigShell() {
+export function ConfigShell() {
   const navigate = useWorkspaceNavigate();
   const {
     currentScenario, scenarioId, scenarioLoading,
@@ -45,6 +46,22 @@ function ConfigShell() {
   } = useConfigContext();
 
   const [activeSection, setActiveSection] = useState('workforce');
+  const runPending = useRef(false);
+  const latestDirty = useRef(isDirty);
+  latestDirty.current = isDirty;
+  const handleRun = async () => {
+    if (runPending.current || saveStatus === 'saving') return;
+    runPending.current = true;
+    try {
+      flushSync(() => {
+        if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      });
+      if (latestDirty.current && !await handleSaveConfig()) return;
+      navigate(`/simulate?scenario=${scenarioId}`);
+    } finally {
+      runPending.current = false;
+    }
+  };
 
   // Template modal state
   const [showTemplateModal, setShowTemplateModal] = useState(false);
@@ -73,7 +90,7 @@ function ConfigShell() {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <fieldset disabled={saveStatus === 'saving'} className="min-w-0 h-full flex flex-col">
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
@@ -202,11 +219,12 @@ function ConfigShell() {
             )}
           </button>
           <button
-            onClick={() => navigate(`/simulate?scenario=${scenarioId}`)}
+            onClick={handleRun}
+            disabled={saveStatus === 'saving'}
             className={`px-4 py-2 rounded-lg flex items-center font-medium shadow-sm transition-all ${saveStatus === 'success' ? 'bg-info-solid hover:bg-info-solid-hover text-ink-inverse animate-pulse' : 'bg-info-surface hover:bg-info-surface text-info-ink border border-info-border'}`}
           >
             <Play size={18} className="mr-2" />
-            Run Simulation
+            {isDirty ? 'Save & Run' : 'Run Simulation'}
           </button>
         </div>
       </div>
@@ -299,7 +317,7 @@ function ConfigShell() {
           onClose={() => setShowApplyWorkforceModal(false)}
         />
       )}
-    </div>
+    </fieldset>
   );
 }
 
