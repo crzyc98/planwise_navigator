@@ -14,6 +14,14 @@ a completed simulation matching the resolved census, configuration, seed, and
 year range. If it reports that no completed simulation matches, run the target
 scenario successfully with the current inputs before calibrating.
 
+Studio's scenario configuration and Copy Configuration actions also resolve a
+missing scenario census through the workspace census. Data Sources displays the
+resolved file used by Match Census controls. Saving a scenario that uses the
+workspace census preserves inheritance rather than copying its path into an
+override. A valid distinct scenario census remains an explicit override. Existing
+but invalid or unreadable files still report errors rather than selecting a
+different census.
+
 ## Enrollment decision projection
 
 Before every event-generation year, PlanAlign rebuilds the disposable

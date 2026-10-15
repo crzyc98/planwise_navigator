@@ -3,6 +3,8 @@ import type { FormData, DeferralSegmentKey, VoluntaryDeferralBaseRates } from '.
 import { DEFERRAL_AGE_SEGMENTS, DEFERRAL_INCOME_SEGMENTS } from './types';
 import { DEFAULT_FORM_DATA } from './constants';
 import { buildConfigPayload } from './buildConfigPayload';
+import { extractCensusPath, resolveCensusFields } from './censusConfig';
+export { extractCensusPath } from './censusConfig';
 import {
   updateWorkspace as apiUpdateWorkspace,
   getWorkspace,
@@ -66,16 +68,6 @@ export function useConfigContext(): ConfigContextType {
 
 // --- Config-to-FormData mapping helpers ---
 // Extracted to reduce cognitive complexity in useEffect hooks.
-
-// Old builds shipped this placeholder as the form default and persisted it into
-// scenario overrides; treat it as "no census configured" when reading back.
-const LEGACY_CENSUS_PLACEHOLDER = 'data/census_preprocessed.parquet';
-
-/** Extract the census path from a config, ignoring the legacy placeholder. */
-export function extractCensusPath(cfg: any): string | undefined {
-  const path = cfg?.setup?.census_parquet_path || cfg?.data_sources?.census_parquet_path;
-  return path && path !== LEGACY_CENSUS_PLACEHOLDER ? path : undefined;
-}
 
 /** Map simulation, workforce, and data-source config fields to FormData. */
 function mapSimulationFields(cfg: any, prev: FormData): Partial<FormData> {
@@ -417,6 +409,7 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
   // Current scenario
   const [currentScenario, setCurrentScenario] = useState<Scenario | null>(null);
   const [scenarioLoading, setScenarioLoading] = useState(!!scenarioId);
+  const [configLoadError, setConfigLoadError] = useState(false);
 
   // Seed config state
   const [promotionHazardConfig, setPromotionHazardConfig] = useState<PromotionHazardConfig | null>(null);
@@ -437,6 +430,7 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
   // --- useEffect 0: Refetch workspace base_config so the form reflects current state ---
   useEffect(() => {
     if (!activeWorkspace?.id) return;
+    setFreshBaseConfig(null);
     let cancelled = false;
     getWorkspace(activeWorkspace.id)
       .then((ws) => {
@@ -454,65 +448,38 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
 
   // --- useEffect 1: Load scenario config overlay ---
   useEffect(() => {
+    if (freshBaseConfig === null || !activeWorkspace?.id) return;
+    let cancelled = false;
     const loadScenario = async () => {
-      // Wait until the fresh base config has been applied (useEffect 2) so the
-      // scenario overlay lands on top of current workspace values, not under them.
-      if (freshBaseConfig === null) return;
-      if (!scenarioId || !activeWorkspace?.id) {
-        setCurrentScenario(null);
-        setScenarioLoading(false);
-        return;
-      }
-
       setScenarioLoading(true);
+      setConfigLoadError(false);
       try {
-        const scenario = await getScenario(activeWorkspace.id, scenarioId);
+        const scenario = scenarioId ? await getScenario(activeWorkspace.id, scenarioId) : null;
+        const censusFields = await resolveCensusFields(
+          scenario?.config_overrides, freshBaseConfig,
+          path => validateFilePath(activeWorkspace.id, path),
+        );
+        if (cancelled) return;
         setCurrentScenario(scenario);
-
-        if (scenario.config_overrides) {
-          setFormData(prev => applyConfigToFormData(scenario.config_overrides, prev));
-        }
-
-        // E089: Validate the effective census — the scenario override if present,
-        // otherwise the workspace base config. Validating the base_config census is
-        // what flips censusDataStatus to 'loaded' so the New Hire "Match Census"
-        // controls light up immediately after a fresh import (issue #325), not just
-        // when the census has been baked into the scenario overrides.
-        const censusPath = extractCensusPath(scenario.config_overrides) || extractCensusPath(freshBaseConfig);
-        if (censusPath && activeWorkspace?.id) {
-          try {
-            const validation = await validateFilePath(activeWorkspace.id, censusPath);
-            if (validation.valid && validation.row_count) {
-              setFormData(prev => ({
-                ...prev,
-                censusDataPath: prev.censusDataPath || censusPath,
-                censusDataStatus: 'loaded',
-                censusRowCount: validation.row_count || prev.censusRowCount,
-                censusLastModified: validation.last_modified?.split('T')[0] || prev.censusLastModified,
-              }));
-            } else {
-              setFormData(prev => ({ ...prev, censusDataStatus: 'error' }));
-            }
-          } catch (validationError) {
-            console.error('E089: Census file validation failed:', validationError);
-            setFormData(prev => ({ ...prev, censusDataStatus: 'error' }));
-          }
-        }
+        const loadedForm = {
+          ...applyConfigToFormData(scenario?.config_overrides ?? {}, applyConfigToFormData(freshBaseConfig, DEFAULT_FORM_DATA)),
+          ...censusFields,
+        };
+        setFormData(loadedForm);
+        setSavedFormData({ ...loadedForm });
       } catch (err) {
         console.error('Failed to load scenario:', err);
-        setCurrentScenario(null);
+        if (!cancelled) {
+          setConfigLoadError(true);
+          setFormData(prev => ({ ...prev, censusDataStatus: 'error' }));
+        }
       } finally {
-        setScenarioLoading(false);
+        if (!cancelled) setScenarioLoading(false);
       }
     };
     loadScenario();
+    return () => { cancelled = true; };
   }, [scenarioId, activeWorkspace?.id, freshBaseConfig]);
-
-  // --- useEffect 2: Load config from freshly fetched workspace base_config ---
-  useEffect(() => {
-    if (!freshBaseConfig) return;
-    setFormData(prev => applyConfigToFormData(freshBaseConfig, prev));
-  }, [freshBaseConfig]);
 
   // --- useEffect 3: Load seed configs (bands + promotion hazard) ---
   useEffect(() => {
@@ -552,17 +519,6 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
     };
     loadSeedConfigs();
   }, [activeWorkspace?.id, scenarioId]);
-
-  // --- useEffect 4: savedFormData snapshot ---
-  // Gate on !scenarioLoading: Effect 2 applies base_config (synchronously) then Effect 1
-  // applies scenario overrides (async). Without the gate, the snapshot fires after
-  // Effect 2 but before Effect 1 completes, capturing base_config-only values and
-  // permanently marking all scenario-specific fields as dirty.
-  useEffect(() => {
-    if (savedFormData === null && !scenarioLoading && (freshBaseConfig || currentScenario?.config_overrides)) {
-      setSavedFormData({ ...formData });
-    }
-  }, [formData, freshBaseConfig, currentScenario?.config_overrides, savedFormData, scenarioLoading]);
 
   // --- useEffect 5: beforeunload warning ---
   const isDirty = useMemo(() => {
@@ -666,6 +622,11 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
   }), [formData, handleChange]);
 
   const handleSaveConfig = useCallback(async () => {
+    if (scenarioLoading || configLoadError || freshBaseConfig === null) {
+      setSaveStatus('error');
+      setSaveMessage('Wait for configuration to load, or reload the page if loading failed.');
+      return;
+    }
     // Flush pending edits
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
@@ -675,7 +636,10 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
     setSaveMessage('Saving configuration...');
 
     try {
-      const configPayload = buildConfigPayload(formData, promotionHazardConfig, bandConfig);
+      const configPayload = buildConfigPayload(formData, promotionHazardConfig, bandConfig, {
+        isScenario: !!scenarioId,
+        workspacePath: extractCensusPath(freshBaseConfig),
+      });
 
       // Validate seed configs before save
       if (promotionHazardConfig) {
@@ -721,7 +685,7 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
       setSaveStatus('error');
       setSaveMessage(error instanceof Error ? error.message : 'Failed to save configuration');
     }
-  }, [formData, promotionHazardConfig, bandConfig, currentScenario, scenarioId, activeWorkspace]);
+  }, [formData, promotionHazardConfig, bandConfig, currentScenario, scenarioId, activeWorkspace, freshBaseConfig, scenarioLoading, configLoadError]);
 
   const value = useMemo<ConfigContextType>(() => ({
     formData, setFormData, savedFormData,

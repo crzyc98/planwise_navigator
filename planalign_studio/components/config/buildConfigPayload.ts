@@ -23,8 +23,14 @@ const OPT_OUT_INCOME_MULTIPLIERS = {
 export function buildConfigPayload(
   formData: FormData,
   promotionHazardConfig: PromotionHazardConfig | null,
-  bandConfig: BandConfig | null
+  bandConfig: BandConfig | null,
+  censusTarget?: { isScenario: boolean; workspacePath?: string },
 ) {
+  const saveCensusPath = formData.censusDataPath && !(
+    censusTarget?.isScenario && (
+      formData.censusDataSource === 'workspace' || formData.censusDataPath === censusTarget.workspacePath
+    )
+  );
   const configPayload: any = {
     simulation: {
       name: formData.name,
@@ -38,12 +44,9 @@ export function buildConfigPayload(
       new_hire_termination_rate: Number(formData.newHireTerminationRate) / 100,
       part_time_new_hire_pct: Number(formData.partTimeNewHirePct) / 100,
     },
-    // Census path is canonically stored under setup.census_parquet_path — that is
-    // where the simulation engine and the upload flow read it. data_sources is kept
-    // for backward compatibility with older scenarios/readers. Omitted entirely when
-    // the form has no census path, so the scenario override never shadows the
-    // workspace base config with an empty or placeholder value.
-    ...(formData.censusDataPath
+    // Keep workspace inheritance when saving a scenario. Only a distinct census
+    // belongs in scenario overrides; retain the legacy key for existing readers.
+    ...(saveCensusPath
       ? {
           setup: { census_parquet_path: formData.censusDataPath },
           data_sources: { census_parquet_path: formData.censusDataPath },
