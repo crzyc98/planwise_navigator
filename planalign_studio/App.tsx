@@ -11,6 +11,7 @@ import ScenarioComparison from './components/ScenarioComparison';
 import ScenarioDiff from './components/ScenarioDiff';
 import BatchProcessing from './components/BatchProcessing';
 import WorkspaceManager from './components/WorkspaceManager';
+import WorkspaceEntry from './components/WorkspaceEntry';
 import DCPlanAnalytics from './components/DCPlanAnalytics';
 import CensusAnalysis from './components/CensusAnalysis';
 import ScenarioCostComparison from './components/ScenarioCostComparison';
@@ -88,6 +89,7 @@ function LegacyWorkspaceRedirect() {
   const location = useLocation();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
+  const [needsWorkspace, setNeedsWorkspace] = useState(false);
 
   useEffect(() => {
     async function resolveWorkspace() {
@@ -112,7 +114,7 @@ function LegacyWorkspaceRedirect() {
         selectedId = page.items[0]?.id ?? null;
       }
       if (!selectedId) {
-        setError('No active workspace is available. Create or restore one to continue.');
+        setNeedsWorkspace(true);
         return;
       }
 
@@ -132,6 +134,8 @@ function LegacyWorkspaceRedirect() {
       setError(err instanceof Error ? err.message : 'Failed to resolve a workspace.');
     });
   }, [location.pathname, location.search, navigate]);
+
+  if (needsWorkspace) return <WorkspaceEntry />;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface-subtle p-8 text-center text-ink-muted">

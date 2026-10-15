@@ -10,13 +10,17 @@ import { Workspace } from '../types';
 import * as api from '../services/api';
 
 export default function WorkspaceManager() {
-  const {
-    activeWorkspace,
-    setActiveWorkspace,
-    updateWorkspace,
-    deleteWorkspace,
-    addWorkspace
-  } = useOutletContext<LayoutContextType>();
+  const context = useOutletContext<LayoutContextType>();
+  return <WorkspaceManagerContent {...context} />;
+}
+
+export type WorkspaceManagerContext = Pick<LayoutContextType,
+  'setActiveWorkspace' | 'updateWorkspace' | 'deleteWorkspace' | 'addWorkspace'
+> & { activeWorkspace: Workspace | null };
+
+export function WorkspaceManagerContent({
+  activeWorkspace, setActiveWorkspace, updateWorkspace, deleteWorkspace, addWorkspace,
+}: WorkspaceManagerContext) {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -352,7 +356,7 @@ export default function WorkspaceManager() {
         {managedWorkspaces.map(ws => (
           <div
             key={ws.id}
-            className={`border-b border-border px-4 py-3 last:border-b-0 ${activeWorkspace.id === ws.id ? 'bg-success-surface/40' : 'hover:bg-surface-subtle/60'}`}
+            className={`border-b border-border px-4 py-3 last:border-b-0 ${activeWorkspace?.id === ws.id ? 'bg-success-surface/40' : 'hover:bg-surface-subtle/60'}`}
           >
             {editingId === ws.id ? (
               <div className="space-y-3">
@@ -382,13 +386,13 @@ export default function WorkspaceManager() {
               <div className="grid gap-3 md:grid-cols-[minmax(0,2fr)_110px_100px_130px_180px] md:items-center md:gap-4">
                 <div className="min-w-0">
                   <div className="flex items-center gap-3">
-                    <div className={`rounded-lg p-2 ${activeWorkspace.id === ws.id ? 'bg-success-surface text-success-ink' : 'bg-surface-subtle text-ink-muted'}`}>
+                    <div className={`rounded-lg p-2 ${activeWorkspace?.id === ws.id ? 'bg-success-surface text-success-ink' : 'bg-surface-subtle text-ink-muted'}`}>
                       <Briefcase size={18} />
                     </div>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="truncate font-semibold text-ink">{ws.name}</h3>
-                        {activeWorkspace.id === ws.id && (
+                        {activeWorkspace?.id === ws.id && (
                           <span className="rounded-full bg-success-surface px-2 py-0.5 text-xs font-medium text-success-ink">Current</span>
                         )}
                       </div>
@@ -408,7 +412,7 @@ export default function WorkspaceManager() {
                   {isArchiveCandidate(ws) && <span className="text-xs text-warning-ink">Consider archiving</span>}
                 </div>
                 <div className="flex items-center justify-start gap-1 md:justify-end">
-                  {activeWorkspace.id !== ws.id && ws.lifecycle === 'active' && (
+                  {activeWorkspace?.id !== ws.id && ws.lifecycle === 'active' && (
                     <button
                       onClick={() => switchToWorkspace(ws)}
                       className="mr-1 inline-flex items-center rounded-md px-2 py-1.5 text-sm font-medium text-fidelity-green hover:bg-success-surface"

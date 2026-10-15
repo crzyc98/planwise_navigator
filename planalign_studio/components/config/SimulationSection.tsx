@@ -44,7 +44,7 @@ export function SimulationSection({ variant = 'full' }: { variant?: 'full' | 'es
               <div className="ml-3">
                 <h3 className="text-sm font-medium text-warning-ink">Validation Note</h3>
                 <div className="mt-1 text-sm text-warning-ink">
-                  <p>End year must be greater than Start year. Large gaps ({'>'} 10 years) may significantly increase processing time.</p>
+                  <p>End year must be greater than or equal to Start year. Large gaps ({'>'} 10 years) may significantly increase processing time.</p>
                 </div>
               </div>
             </div>

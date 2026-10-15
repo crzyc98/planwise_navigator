@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { flushSync } from 'react-dom';
 import type { FormData, DeferralSegmentKey, VoluntaryDeferralBaseRates } from './types';
 import { DEFERRAL_AGE_SEGMENTS, DEFERRAL_INCOME_SEGMENTS } from './types';
 import { DEFAULT_FORM_DATA } from './constants';
@@ -43,7 +44,7 @@ export interface ConfigContextType {
   isDirty: boolean;
 
   // Save
-  handleSaveConfig: () => Promise<void>;
+  handleSaveConfig: () => Promise<boolean>;
   saveStatus: 'idle' | 'saving' | 'success' | 'error';
   saveMessage: string;
 
@@ -420,6 +421,10 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
   // Save status
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState('');
+  const savePending = useRef(false);
+  const saveResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestConfig = useRef({ formData, promotionHazardConfig, bandConfig });
+  latestConfig.current = { formData, promotionHazardConfig, bandConfig };
 
   // Fresh workspace base_config fetched from the API. The activeWorkspace prop is
   // cached in Layout state from app startup, so changes made after the workspace
@@ -625,17 +630,30 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
     if (scenarioLoading || configLoadError || freshBaseConfig === null) {
       setSaveStatus('error');
       setSaveMessage('Wait for configuration to load, or reload the page if loading failed.');
-      return;
+      return false;
     }
-    // Flush pending edits
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
-
+    if (savePending.current) return false;
+    savePending.current = true;
+    if (saveResetTimer.current) clearTimeout(saveResetTimer.current);
     setSaveStatus('saving');
     setSaveMessage('Saving configuration...');
 
     try {
+      // Commit inputs that buffer edits until blur before reading the payload.
+      flushSync(() => {
+        if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      });
+      const { formData, promotionHazardConfig, bandConfig } = latestConfig.current;
+      const savedSnapshot = JSON.stringify(latestConfig.current);
+      const startYear = Number(formData.startYear);
+      const endYear = Number(formData.endYear);
+      if (!String(formData.startYear).trim() || !String(formData.endYear).trim()
+        || !Number.isInteger(startYear) || !Number.isInteger(endYear)) {
+        throw new Error('Start year and end year must be whole years.');
+      }
+      if (endYear < startYear) {
+        throw new Error('End year must be greater than or equal to start year.');
+      }
       const configPayload = buildConfigPayload(formData, promotionHazardConfig, bandConfig, {
         isScenario: !!scenarioId,
         workspacePath: extractCensusPath(freshBaseConfig),
@@ -647,7 +665,7 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
         if (hazardErrors.length > 0) {
           setSaveStatus('error');
           setSaveMessage(hazardErrors.join('; '));
-          return;
+          return false;
         }
       }
       if (bandConfig) {
@@ -657,7 +675,7 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
         if (allBandErrors.length > 0) {
           setSaveStatus('error');
           setSaveMessage(allBandErrors.map(e => e.message).join('; '));
-          return;
+          return false;
         }
       }
 
@@ -669,9 +687,6 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
         console.log('Config saved to workspace:', activeWorkspace.id, configPayload);
       }
 
-      setSaveStatus('success');
-      setSaveMessage('Configuration saved successfully!');
-
       setSavedFormData({ ...formData });
       if (promotionHazardConfig) {
         setSavedPromotionHazardConfig(JSON.parse(JSON.stringify(promotionHazardConfig)));
@@ -680,12 +695,23 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
         setSavedBandConfig(JSON.parse(JSON.stringify(bandConfig)));
       }
 
-      setTimeout(() => { setSaveStatus('idle'); setSaveMessage(''); }, 3000);
+      if (JSON.stringify(latestConfig.current) !== savedSnapshot) {
+        setSaveStatus('error');
+        setSaveMessage('Configuration changed while saving. Save the latest changes before running.');
+        return false;
+      }
+      setSaveStatus('success');
+      setSaveMessage('Configuration saved successfully!');
+      saveResetTimer.current = setTimeout(() => { setSaveStatus('idle'); setSaveMessage(''); }, 3000);
+      return true;
     } catch (error) {
       setSaveStatus('error');
       setSaveMessage(error instanceof Error ? error.message : 'Failed to save configuration');
+      return false;
+    } finally {
+      savePending.current = false;
     }
-  }, [formData, promotionHazardConfig, bandConfig, currentScenario, scenarioId, activeWorkspace, freshBaseConfig, scenarioLoading, configLoadError]);
+  }, [currentScenario, scenarioId, activeWorkspace, freshBaseConfig, scenarioLoading, configLoadError]);
 
   const value = useMemo<ConfigContextType>(() => ({
     formData, setFormData, savedFormData,
