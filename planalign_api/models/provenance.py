@@ -130,8 +130,8 @@ class SoftwareEvidence(StrictModel):
 
     @model_validator(mode="after")
     def fingerprint_matches_state(self) -> "SoftwareEvidence":
-        if self.working_tree_state == "dirty" and self.working_tree_fingerprint is None:
-            raise ValueError("dirty working tree requires a fingerprint")
+        # Dirty state can be observed even when its content cannot be bound.
+        # Report verification requires the fingerprint independently.
         if (
             self.working_tree_state == "clean"
             and self.working_tree_fingerprint is not None

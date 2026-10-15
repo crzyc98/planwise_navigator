@@ -14,8 +14,47 @@ from planalign_api.services.provenance.render import (
 )
 from planalign_api.services.provenance.report import build_provenance_report
 from tests.fixtures.run_provenance import RUN_ID, build_archive
+from planalign_api.services.provenance.capture import ProvenanceRecorder
+from planalign_api.models.provenance import EvidenceFinding
 
 pytestmark = pytest.mark.fast
+
+
+@pytest.mark.parametrize("capture_finding", [False, True])
+def test_partial_dirty_source_is_unverifiable_and_archive_unchanged(
+    tmp_path: Path,
+    capture_finding: bool,
+):
+    run_dir = build_archive(tmp_path)
+    recorder = ProvenanceRecorder(run_dir)
+    manifest = recorder.read()
+    original_sha = manifest.software.git_commit_sha
+    manifest.software.working_tree_state = "dirty"
+    manifest.software.working_tree_fingerprint = None
+    specific_reason = "nested repository content cannot be bound; use a clean checkout"
+    if capture_finding:
+        manifest.capture_findings.append(
+            EvidenceFinding(
+                field_path="evidence.software.working_tree_fingerprint",
+                code="unavailable",
+                reason=specific_reason,
+                required=True,
+            )
+        )
+    recorder.write(manifest)
+    before = {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in run_dir.iterdir()}
+    report = build_provenance_report(tmp_path, RUN_ID)
+    assert report.evidence.software.git_commit_sha == original_sha
+    assert report.evidence.software.working_tree_state == "dirty"
+    assert report.verification_disposition == "unverifiable"
+    assert any(
+        item.field_path == "evidence.software.working_tree_fingerprint"
+        and (not capture_finding or item.reason == specific_reason)
+        for item in report.missing_evidence
+    )
+    assert before == {
+        p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in run_dir.iterdir()
+    }
 
 
 def test_complete_archive_is_fully_verified_and_unchanged(tmp_path: Path):

@@ -85,7 +85,8 @@ def _from_manifest(archive: LocatedArchive):
         validation_results=manifest.validation_results,
         validation_disposition=manifest.validation_disposition,
     )
-    findings.extend(_required_findings(evidence, manifest.capture_state))
+    # Retain specific capture reasons when a generic required-field check agrees.
+    findings = _required_findings(evidence, manifest.capture_state) + findings
     return _finish(evidence, findings)
 
 
@@ -316,6 +317,17 @@ def _required_findings(e: ReportEvidence, capture_state: str) -> list[EvidenceFi
                 "evidence.software.working_tree_state",
                 "unavailable",
                 "execution-time source state is unavailable",
+            )
+        )
+    if (
+        e.software.working_tree_state == "dirty"
+        and e.software.working_tree_fingerprint is None
+    ):
+        findings.append(
+            _finding(
+                "evidence.software.working_tree_fingerprint",
+                "unavailable",
+                "dirty execution-time source content could not be bound",
             )
         )
     intended = (

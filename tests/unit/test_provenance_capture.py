@@ -1,5 +1,6 @@
 from pathlib import Path
 import subprocess
+from unittest.mock import patch
 
 import pytest
 
@@ -16,6 +17,105 @@ from tests.fixtures.run_provenance import RUN_ID
 from tests.fixtures.run_provenance import build_archive
 
 pytestmark = pytest.mark.fast
+
+
+@pytest.fixture
+def source_repo(tmp_path: Path) -> Path:
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    (tmp_path / "source.py").write_text("original\n")
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.invalid",
+            "commit",
+            "-qm",
+            "initial",
+        ],
+        cwd=tmp_path,
+        check=True,
+    )
+    return tmp_path
+
+
+@pytest.mark.parametrize("entry", ["repository", "worktree", "symlink", "gitlink"])
+def test_unsupported_source_preserves_sha_and_dirty_state(
+    source_repo: Path, entry: str
+):
+    clean = capture_source_state(source_repo)
+    nested = source_repo / "nested"
+    if entry == "symlink":
+        nested.symlink_to(source_repo / "source.py")
+    elif entry == "repository":
+        subprocess.run(["git", "init", "-q", str(nested)], check=True)
+        (nested / "source.py").write_text("nested content")
+    elif entry == "worktree":
+        subprocess.run(
+            ["git", "worktree", "add", "--detach", str(nested), "HEAD"],
+            cwd=source_repo,
+            check=True,
+            capture_output=True,
+        )
+    else:
+        subprocess.run(
+            [
+                "git",
+                "update-index",
+                "--add",
+                "--cacheinfo",
+                f"160000,{clean.git_commit_sha},nested",
+            ],
+            cwd=source_repo,
+            check=True,
+        )
+    findings = []
+    captured = capture_source_state(source_repo, findings=findings)
+    assert captured.git_commit_sha == clean.git_commit_sha
+    assert captured.working_tree_state == "dirty"
+    assert captured.working_tree_fingerprint is None
+    assert findings[0].field_path == "evidence.software.working_tree_fingerprint"
+    assert "nested" in findings[0].reason or "non-regular" in findings[0].reason
+    assert str(source_repo) not in findings[0].reason
+
+
+@pytest.mark.parametrize("failed_command", ["status", "rev-parse"])
+def test_git_failures_preserve_independent_source_evidence(
+    source_repo: Path,
+    failed_command: str,
+):
+    real_run = subprocess.run
+
+    def fail_command(args, **kwargs):
+        if args[1] == failed_command:
+            raise subprocess.TimeoutExpired(args, 10)
+        return real_run(args, **kwargs)
+
+    findings = []
+    with patch(
+        "planalign_api.services.provenance.capture.subprocess.run", fail_command
+    ):
+        captured = capture_source_state(source_repo, findings=findings)
+    if failed_command == "status":
+        assert captured.git_commit_sha
+        assert captured.working_tree_state == "unavailable"
+        assert findings[0].field_path == "evidence.software.working_tree_state"
+    else:
+        assert captured.git_commit_sha is None
+        assert captured.working_tree_state == "clean"
+        assert findings[0].field_path == "evidence.software.git_commit_sha"
+
+
+def test_untracked_regular_source_bytes_are_bound(source_repo: Path):
+    new_source = source_repo / "new.py"
+    new_source.write_text("one")
+    first = capture_source_state(source_repo)
+    new_source.write_text("two")
+    second = capture_source_state(source_repo)
+    assert first.working_tree_fingerprint
+    assert first.working_tree_fingerprint != second.working_tree_fingerprint
 
 
 def test_capture_redacts_paths_and_secrets_and_ingests_annual_evidence(tmp_path: Path):
@@ -49,6 +149,10 @@ def test_capture_redacts_paths_and_secrets_and_ingests_annual_evidence(tmp_path:
     assert "do-not-record" not in payload
     assert manifest.random_seed == 17
     assert manifest.run_identity.plan_design_id == "default"
+    assert {finding.field_path for finding in manifest.capture_findings} == {
+        "evidence.software.git_commit_sha",
+        "evidence.software.working_tree_state",
+    }
     assert manifest.census_input.sha256 == sha256_file(census)[0]
     assert [seed.logical_name for seed in manifest.seed_files] == ["config.csv"]
     recorder.ingest(
@@ -120,8 +224,11 @@ def test_safe_config_projection_preserves_result_values():
 
 
 def test_git_dirty_fingerprint_tracks_content_and_unavailable_state(tmp_path: Path):
-    unavailable = capture_source_state(tmp_path)
+    findings = []
+    unavailable = capture_source_state(tmp_path, findings=findings)
     assert unavailable.working_tree_state == "unavailable"
+    assert unavailable.git_commit_sha is None
+    assert len(findings) == 2
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
     tracked = tmp_path / "tracked.txt"
     tracked.write_text("one", encoding="utf-8")
