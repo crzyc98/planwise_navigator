@@ -189,11 +189,17 @@ models:
     description: >
       Audit table tracking duplicate employee_ids found in raw census data.
       Used for data quality monitoring and source system debugging.
+      Preserves every raw duplicate; optional SSN and termination-date columns
+      are NULL when omitted from the source census.
     columns:
       - name: employee_id
         description: Employee identifier (may have duplicates in this audit table)
         data_tests:
           - not_null
+      - name: employee_ssn
+        description: Raw source SSN; NULL when the optional source column is absent
+      - name: employee_termination_date
+        description: Raw termination date; NULL when the optional source column is absent
       - name: duplicate_count
         description: Total number of times this employee_id appears in raw data
         data_tests:
