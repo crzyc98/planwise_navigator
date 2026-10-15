@@ -41,6 +41,27 @@ The migration does not request a newer storage format. On copies of a 1.1.3 data
 
 Keep a filesystem backup of workspace archives before changing engine versions. Treat compatibility as verified for the tested operations, not a guarantee for arbitrary newer DuckDB features or an explicitly newer storage format. To roll back a deployment, restore the previous code/environment and use the preserved pre-upgrade archive if the affected database cannot be opened by the older engine. Never validate migration behavior in `dbt/simulation.duckdb`.
 
+## Calibration event publication
+
+DuckDB 1.5.5 can report `Attempting to modify table fct_yearly_events but another
+transaction has altered this table` even with one dbt thread and one connection.
+An existing event column changing type triggers dbt's add/update/drop/rename
+schema migration, which conflicts with row changes in the same transaction.
+
+Event publication uses the `replace_event_year` strategy: synchronize the schema
+with native `ALTER COLUMN TYPE`, then delete and insert only the requested
+scenario/year in the same transaction. Empty replacements clear that partition;
+failed replacements roll back both schema and row changes. Other models retain
+the adapter's default type-change behavior. No archive deletion or manual census
+repair is required. Deploy the updated dbt model and macros and restart the
+backend; retry calibration to create a new disposable copy of its source run.
+
+The regression test uses the production event model in a temporary dbt project:
+
+```bash
+pytest tests/integration/test_event_publication_schema_changes.py -v
+```
+
 ## Repeat the regression checks
 
 ```bash

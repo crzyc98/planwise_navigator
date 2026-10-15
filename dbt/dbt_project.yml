@@ -72,13 +72,12 @@ models:
         node_color: "#D5E8D4"
 
       # Specific event models configuration
-      # Issue #465: strategy/hook live in the model file (append + predicate
-      # pre-hook); the old 5-column unique_key here was dead config (the model
-      # file's config always won) and delete+insert on a constant key was
-      # quadratic in events-per-year.
+      # Use a predicate-scoped replacement after schema synchronization.
+      # Issue #465: generic delete+insert on a constant key was quadratic in
+      # events-per-year; this strategy deletes the scenario/year directly.
       fct_yearly_events:
         +materialized: incremental
-        +incremental_strategy: 'append'
+        +incremental_strategy: 'replace_event_year'
         +tags: ["events", "critical", "EVENT_PUBLICATION"]
 
       fct_workforce_snapshot:

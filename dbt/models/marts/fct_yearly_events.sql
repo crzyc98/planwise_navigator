@@ -2,10 +2,7 @@
 
 {{ config(
   materialized='incremental',
-  incremental_strategy='append',
-  pre_hook=[
-    "{% if is_incremental() %}DELETE FROM {{ this }} WHERE scenario_id = '{{ var('scenario_id', 'default') }}' AND simulation_year = {{ var('simulation_year', 2025) }}{% endif %}"
-  ],
+  incremental_strategy='replace_event_year',
   on_schema_change='sync_all_columns',
   tags=['EVENT_GENERATION']
 ) }}
