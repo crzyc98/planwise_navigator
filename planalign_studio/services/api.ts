@@ -692,9 +692,14 @@ export function saveBrowserDownload(blob: Blob, filename: string): void {
   anchor.href = url;
   anchor.download = filename;
   document.body.appendChild(anchor);
-  anchor.click();
-  window.URL.revokeObjectURL(url);
-  document.body.removeChild(anchor);
+  try {
+    anchor.click();
+  } finally {
+    document.body.removeChild(anchor);
+    // Browsers may start consuming the blob after click() returns. Keep the
+    // URL alive during that handoff, especially for large Excel downloads.
+    window.setTimeout(() => window.URL.revokeObjectURL(url), 60_000);
+  }
 }
 
 export async function downloadRunProvenanceBundle(runId: string): Promise<void> {
