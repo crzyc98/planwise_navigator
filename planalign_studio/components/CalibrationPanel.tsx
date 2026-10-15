@@ -7,6 +7,8 @@ import {
 import { SlidersHorizontal, Loader2, Database, Sparkles, Plus, X, Check } from 'lucide-react';
 import {
   optimizeCalibration,
+  retrieveCalibrationResult,
+  CalibrationStatusUnavailable,
   applyCalibrationCandidate,
   AutoCalibrationOutcome,
   CalibrationContext,
@@ -243,6 +245,7 @@ export default function CalibrationPanel() {
   // the two targets (workforce growth is set exactly; comp growth is searched).
   const [autoLoading, setAutoLoading] = useState(false);
   const [autoError, setAutoError] = useState<string | null>(null);
+  const [recoverableRunId, setRecoverableRunId] = useState<string | null>(null);
   const [autoOutcome, setAutoOutcome] = useState<AutoCalibrationOutcome | null>(null);
   const [autoContext, setAutoContext] = useState<CalibrationContext | null>(null);
   const [tolerancePct, setTolerancePct] = useState(0.05);
@@ -329,6 +332,8 @@ export default function CalibrationPanel() {
     setAutoOutcome(null);
     setAutoContext(null);
     setResults([]);
+    setRecoverableRunId(null);
+    setAutoError(null);
     if (!activeWorkspace?.id || !selectedScenarioId) return;
     const seedFromConfig = (cfg: any, workspaceCfg: any) => {
       setCensusPath(extractCensusPath(workspaceCfg) ?? '');
@@ -478,7 +483,7 @@ export default function CalibrationPanel() {
     }
   };
 
-  const runAutoCalibrate = async () => {
+  const runAutoCalibrate = async (resumeRunId?: string) => {
     if (!targetReady || !activeWorkspace || !selectedScenarioId) {
       setAutoError('Select a scenario and wait for its settings to load before calibrating.');
       return;
@@ -487,15 +492,16 @@ export default function CalibrationPanel() {
     setAutoError(null);
     setAutoOutcome(null);
     setAutoContext(null);
+    setResults([]);
     setApplyStatus('idle');
     try {
       // Scale mode NEVER silently falls back: derive the census ranges
       // automatically if Match Census hasn't been run, or fail clearly.
       let scaleBases = baseRanges;
-      if (searchMode === 'new_hire_scale' && scaleBases.length === 0) {
+      if (!resumeRunId && searchMode === 'new_hire_scale' && scaleBases.length === 0) {
         scaleBases = await fetchBaseRanges();
       }
-      const response = await optimizeCalibration({
+      const response = resumeRunId ? await retrieveCalibrationResult(resumeRunId) : await optimizeCalibration({
         start_year: startYear,
         end_year: endYear,
         database_path: null,
@@ -528,6 +534,7 @@ export default function CalibrationPanel() {
         },
       });
       const outcome = response.outcome;
+      setRecoverableRunId(null);
       setAutoContext(response.context);
       setAutoOutcome(outcome);
       setResults(outcome.results);
@@ -542,7 +549,8 @@ export default function CalibrationPanel() {
         setScaleFactor(outcome.best_scale);
       }
     } catch (e) {
-      setAutoError(errorText(e));
+      setRecoverableRunId(e instanceof CalibrationStatusUnavailable ? e.runId : null);
+      setAutoError(errorText(e) || 'Calibration stopped without a result. Please try again.');
     } finally {
       setAutoLoading(false);
     }
@@ -715,6 +723,7 @@ export default function CalibrationPanel() {
                   key={m.key}
                   type="button"
                   onClick={() => setSearchMode(m.key)}
+                  disabled={autoLoading}
                   className={`text-left rounded-lg border p-4 transition ${
                     selected
                       ? 'border-fidelity-green ring-2 ring-fidelity-green/30 bg-success-surface'
@@ -1110,7 +1119,7 @@ export default function CalibrationPanel() {
             )}
             <div className="flex flex-wrap items-end gap-4">
               <button
-                onClick={runAutoCalibrate}
+                onClick={() => void runAutoCalibrate()}
                 disabled={autoLoading || !targetReady || endYear <= startYear}
                 title={!targetReady ? 'Select a scenario and wait for its settings to load' : endYear <= startYear ? 'Needs a multi-year range to measure YoY growth' : undefined}
                 className="inline-flex items-center gap-2 rounded-md bg-info-solid px-4 py-2 text-ink-inverse text-sm font-medium hover:bg-info-solid-hover disabled:opacity-50"
@@ -1136,7 +1145,18 @@ export default function CalibrationPanel() {
               </label>
             </div>
           </div>
-          {autoError && <p className="mt-2 text-xs text-danger-ink">{autoError}</p>}
+          {autoError && (
+            <div role="alert" className="mt-3 rounded-md border border-danger-border bg-danger-surface p-3 text-sm text-danger-ink">
+              <p className="font-semibold">No calibration result is available to apply</p>
+              <p>{autoError}</p>
+              {recoverableRunId && (
+                <button type="button" disabled={autoLoading} onClick={() => void runAutoCalibrate(recoverableRunId)}
+                  className="mt-2 underline font-medium disabled:opacity-50">
+                  Retrieve result
+                </button>
+              )}
+            </div>
+          )}
           {autoOutcome && (
             <div className="mt-3">
               <p className={`text-xs font-medium ${autoOutcome.converged ? 'text-success-ink' : 'text-warning-ink'}`}>
@@ -1189,7 +1209,7 @@ export default function CalibrationPanel() {
             <div className="flex flex-wrap items-center gap-3">
               <button
                 onClick={handleApplyToWorkspace}
-                disabled={applyStatus === 'applying' || !activeWorkspace?.id || results.length === 0}
+                disabled={autoLoading || applyStatus === 'applying' || !activeWorkspace?.id || !autoOutcome || !autoContext || results.length === 0}
                 title={results.length === 0 ? 'Auto-calibrate first' : 'Write these levers to the workspace base config and all its scenarios'}
                 className="inline-flex items-center gap-2 rounded bg-fidelity-green px-4 py-2 text-ink-inverse font-medium hover:bg-fidelity-dark disabled:opacity-50"
               >
