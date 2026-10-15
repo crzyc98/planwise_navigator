@@ -4072,9 +4072,9 @@ export interface components {
             enrolled_count: number;
             /**
              * Hce Count
-             * @description Employees in this slice classified as HCE by current-year compensation
+             * @description Employees in this slice classified as HCE by current-year compensation; null when the HCE threshold or compensation column is unavailable
              */
-            hce_count: number;
+            hce_count: number | null;
             /**
              * Median Deferral Rate
              * @description Median deferral rate among enrolled employees, as a decimal
@@ -4153,9 +4153,9 @@ export interface components {
             enrolled_count: number;
             /**
              * Hce Count
-             * @description Employees in this slice classified as HCE by current-year compensation
+             * @description Employees in this slice classified as HCE by current-year compensation; null when the HCE threshold or compensation column is unavailable
              */
-            hce_count: number;
+            hce_count: number | null;
             /**
              * Median Deferral Rate
              * @description Median deferral rate among enrolled employees, as a decimal

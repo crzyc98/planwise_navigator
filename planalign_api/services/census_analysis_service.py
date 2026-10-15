@@ -180,6 +180,10 @@ class CensusAnalysisService:
                 )
                 available_dimensions.append("hce_status")
 
+            if hce_threshold is None or comp_col is None:
+                for metrics in [overall, *segments]:
+                    metrics.hce_count = None
+
             data_quality_issues = self._data_quality_issues(
                 conn,
                 columns=columns,
@@ -343,7 +347,7 @@ class CensusAnalysisService:
         hce_expr = (
             f"CASE WHEN {comp_expr} >= {hce_threshold} THEN 'HCE' ELSE 'NHCE' END"
             if (hce_threshold is not None and comp_col)
-            else "NULL"
+            else "NULL::VARCHAR"
         )
         eligible_expr = (
             f"(TRY_CAST({eligibility_col} AS DATE) IS NULL "
