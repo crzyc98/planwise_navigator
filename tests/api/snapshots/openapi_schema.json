@@ -3164,9 +3164,16 @@
             "type": "integer"
           },
           "hce_count": {
-            "description": "Employees in this slice classified as HCE by current-year compensation",
-            "title": "Hce Count",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Employees in this slice classified as HCE by current-year compensation; null when the HCE threshold or compensation column is unavailable",
+            "title": "Hce Count"
           },
           "median_deferral_rate": {
             "anyOf": [
@@ -3297,9 +3304,16 @@
             "type": "integer"
           },
           "hce_count": {
-            "description": "Employees in this slice classified as HCE by current-year compensation",
-            "title": "Hce Count",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Employees in this slice classified as HCE by current-year compensation; null when the HCE threshold or compensation column is unavailable",
+            "title": "Hce Count"
           },
           "median_deferral_rate": {
             "anyOf": [
