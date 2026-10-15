@@ -1,10 +1,8 @@
 {{ config(
   materialized='incremental',
-  incremental_strategy='delete+insert',
+  incremental_strategy='replace_simulation_year',
+  year_partition_scope='year',
   unique_key=['employee_id', 'simulation_year'],
-  pre_hook=[
-    "{% if is_incremental() %}DELETE FROM {{ this }} WHERE simulation_year = {{ var('simulation_year') }}{% endif %}"
-  ],
   tags=['EVENT_GENERATION']
 ) }}
 

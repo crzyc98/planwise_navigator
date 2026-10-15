@@ -41,7 +41,7 @@ The migration does not request a newer storage format. On copies of a 1.1.3 data
 
 Keep a filesystem backup of workspace archives before changing engine versions. Treat compatibility as verified for the tested operations, not a guarantee for arbitrary newer DuckDB features or an explicitly newer storage format. To roll back a deployment, restore the previous code/environment and use the preserved pre-upgrade archive if the affected database cannot be opened by the older engine. Never validate migration behavior in `dbt/simulation.duckdb`.
 
-## Calibration event publication
+## Calibration and incremental publication
 
 DuckDB 1.5.5 can report `Attempting to modify table fct_yearly_events but another
 transaction has altered this table` even with one dbt thread and one connection.
@@ -51,15 +51,24 @@ schema migration, which conflicts with row changes in the same transaction.
 Event publication uses the `replace_event_year` strategy: synchronize the schema
 with native `ALTER COLUMN TYPE`, then delete and insert only the requested
 scenario/year in the same transaction. Empty replacements clear that partition;
-failed replacements roll back both schema and row changes. Other models retain
-the adapter's default type-change behavior. No archive deletion or manual census
-repair is required. Deploy the updated dbt model and macros and restart the
+failed replacements roll back both schema and row changes. All incremental models
+use native type changes. Models that previously deleted a year in a pre-hook now
+use `replace_simulation_year`, so deletion follows schema synchronization. The
+default scope is scenario/year; the two eligibility models without scenario
+columns explicitly retain their existing year-only scope. Keyed incremental
+models without pre-hook deletion keep their existing replacement strategy.
+
+This also covers `int_workforce_state_accumulator`, which can raise the same
+commit error when calibrating a copied run with different column types. No archive
+deletion or manual census repair is required. Deploy the updated dbt models and macros and restart the
 backend; retry calibration to create a new disposable copy of its source run.
 
-The regression test uses the production event model in a temporary dbt project:
+Regression tests use the production event model and incremental model configurations
+in temporary dbt projects; the calibration transferability test exercises the full SQL:
 
 ```bash
 pytest tests/integration/test_event_publication_schema_changes.py -v
+pytest tests/integration/test_incremental_schema_changes.py -v
 ```
 
 ## Repeat the regression checks
