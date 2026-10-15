@@ -281,6 +281,17 @@ export default function CensusAnalysis() {
             As of {result.as_of_date} ({result.as_of_date_source}) · {result.active_employees.toLocaleString()} active of {result.total_employees.toLocaleString()} census rows
             {result.hce_compensation_threshold != null && ` · HCE threshold ${formatCurrency(result.hce_compensation_threshold)}`}
           </p>
+          {result.as_of_date_source === 'inferred' && (
+            <p className="text-xs text-ink-subtle">
+              The as-of date is inferred from the latest census hire or termination date,
+              anchored to December 31 of that year. Set an explicit as-of date to analyze another date.
+            </p>
+          )}
+          {result.hce_compensation_threshold == null && (
+            <p className="text-sm text-ink-subtle">
+              HCE classification unavailable: no IRS HCE threshold is available for the as-of year.
+            </p>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
             <KPICard
@@ -326,7 +337,9 @@ export default function CensusAnalysis() {
             <KPICard
               title="Zero-Deferral Employees"
               value={result.overall.zero_deferral_count.toLocaleString()}
-              subtext={`${result.overall.hce_count.toLocaleString()} HCE among eligible`}
+              subtext={result.overall.hce_count == null
+                ? 'HCE classification unavailable'
+                : `${result.overall.hce_count.toLocaleString()} HCE in active census`}
               icon={AlertTriangle}
               color="gray"
               loading={loading}
