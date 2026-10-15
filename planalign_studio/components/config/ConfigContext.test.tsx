@@ -14,6 +14,7 @@ vi.mock('react', async importOriginal => {
     // keep its actual React state, refs, save handler and payload construction.
     useState: (initial: unknown) => {
       const slot = hydration.slot++;
+      if (slot === 1) return actual.useState(hydration.loaded ? { ...DEFAULT_FORM_DATA, startYear: 2025, endYear: 2029, dcEligibilityMonths: 3 } : null);
       if (slot === 4) return actual.useState(hydration.failed);
       if (slot === 11) return actual.useState(hydration.loaded ? {} : null);
       return actual.useState(initial);
@@ -32,7 +33,7 @@ function saveFromProvider() {
   let context!: ConfigContextType;
   function Probe() { context = useConfigContext(); return null; }
   renderToStaticMarkup(
-    <ConfigProvider activeWorkspace={{ id: 'synthetic', base_config: {} } as Workspace} scenarioId={undefined}>
+    <ConfigProvider activeWorkspace={{ id: 'synthetic', base_config: { simulation: { start_year: 2025, end_year: 2029 } } } as unknown as Workspace} scenarioId={undefined}>
       <Probe />
     </ConfigProvider>,
   );
@@ -47,6 +48,9 @@ describe('Configuration save year validation', () => {
     vi.stubGlobal('HTMLElement', class {});
     DEFAULT_FORM_DATA.startYear = 2025;
     DEFAULT_FORM_DATA.endYear = 2029;
+    DEFAULT_FORM_DATA.dcEligibilityMonths = 3;
+    DEFAULT_FORM_DATA.dcVoluntaryEnrollmentMode = undefined;
+    DEFAULT_FORM_DATA.dcVoluntaryEnrollmentRate = '65';
     hydration.loaded = true;
     hydration.failed = false;
   });
@@ -54,6 +58,19 @@ describe('Configuration save year validation', () => {
 
   it('rejects end-before-start before any persistence', async () => {
     DEFAULT_FORM_DATA.endYear = 2024;
+    expect(await saveFromProvider()()).toBe(false);
+    expect(updateWorkspace).not.toHaveBeenCalled();
+  });
+
+  it('rejects a new fractional-month duration rather than silently truncating it', async () => {
+    DEFAULT_FORM_DATA.dcEligibilityMonths = 1.5;
+    expect(await saveFromProvider()()).toBe(false);
+    expect(updateWorkspace).not.toHaveBeenCalled();
+  });
+
+  it('does not turn a blank specified enrollment rate into inheritance', async () => {
+    DEFAULT_FORM_DATA.dcVoluntaryEnrollmentMode = 'specified';
+    DEFAULT_FORM_DATA.dcVoluntaryEnrollmentRate = '';
     expect(await saveFromProvider()()).toBe(false);
     expect(updateWorkspace).not.toHaveBeenCalled();
   });

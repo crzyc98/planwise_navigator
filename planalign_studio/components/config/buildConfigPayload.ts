@@ -5,6 +5,12 @@ import type { FormData } from './types';
 import type { PromotionHazardConfig, BandConfig } from '../../services/api';
 import { calculateMatchCap } from './constants';
 
+function rateOverride(key: string, mode: FormData['dcVoluntaryEnrollmentMode'], value: string) {
+  if (mode === 'inherit') return {};
+  if (mode === 'demographic') return { [key]: null };
+  return value !== '' ? { [key]: Number(value) / 100 } : {};
+}
+
 // Demographic sensitivity multipliers applied to the target opt-out rate.
 // Weights are calibrated so a weighted average across a typical workforce ≈ 1.0.
 const OPT_OUT_AGE_MULTIPLIERS = {
@@ -95,8 +101,8 @@ export function buildConfigPayload(
       auto_enroll_scope: formData.dcAutoEnrollScope,
       auto_enroll_hire_date_cutoff: formData.dcAutoEnrollHireDateCutoff,
       opt_out_rate_target: Number(formData.dcOptOutRateTarget) / 100,
-      ...(formData.dcVoluntaryEnrollmentRate !== '' ? { voluntary_enrollment_rate: Number(formData.dcVoluntaryEnrollmentRate) / 100 } : {}),
-      ...(formData.dcNewHireOptOutRate !== '' ? { new_hire_opt_out_rate: Number(formData.dcNewHireOptOutRate) / 100 } : {}),
+      ...rateOverride('voluntary_enrollment_rate', formData.dcVoluntaryEnrollmentMode, formData.dcVoluntaryEnrollmentRate),
+      ...rateOverride('new_hire_opt_out_rate', formData.dcNewHireOptOutMode, formData.dcNewHireOptOutRate),
       ...(formData.dcDeferralSpreadMaxLift !== '' ? { deferral_spread_max_lift: Number(formData.dcDeferralSpreadMaxLift) } : {}),
       // Per-segment starting deferral rates (UI percent → decimal)
       voluntary_deferral_base_rates: Object.fromEntries(

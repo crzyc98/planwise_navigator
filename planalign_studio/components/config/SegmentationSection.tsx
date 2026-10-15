@@ -1,19 +1,24 @@
+import { NumericInput } from './NumericInput';
 import { useState } from 'react';
 import { AlertTriangle, Users, TrendingUp, Sparkles, Check } from 'lucide-react';
 import { useConfigContext } from './ConfigContext';
+import { useSuggestionPreview } from './useSuggestionPreview';
 import { Band, BandValidationError, BandAnalysisResult, analyzeAgeBands, analyzeTenureBands } from '../../services/api';
 
 export function SegmentationSection() {
-  const { formData, bandConfig, setBandConfig, saveStatus, activeWorkspace } = useConfigContext();
-
-  const [bandConfigError, setBandConfigError] = useState<string | null>(null);
+  const { formData, bandConfig, setBandConfig, saveStatus, activeWorkspace, scenarioId, scenarioLoading } = useConfigContext();
   const [bandValidationErrors, setBandValidationErrors] = useState<BandValidationError[]>([]);
-  const [ageBandAnalysis, setAgeBandAnalysis] = useState<BandAnalysisResult | null>(null);
-  const [ageBandAnalyzing, setAgeBandAnalyzing] = useState(false);
-  const [tenureBandAnalysis, setTenureBandAnalysis] = useState<BandAnalysisResult | null>(null);
-  const [tenureBandAnalyzing, setTenureBandAnalyzing] = useState(false);
   const [asOfYear, setAsOfYear] = useState('');
   const asOfDate = asOfYear ? `${asOfYear}-12-31` : undefined;
+  const inputKey = JSON.stringify([formData, bandConfig, asOfYear, scenarioLoading]);
+  const scopeKey = JSON.stringify([activeWorkspace?.id, scenarioId]);
+  const agePreview = useSuggestionPreview<BandAnalysisResult>(inputKey, scopeKey);
+  const tenurePreview = useSuggestionPreview<BandAnalysisResult>(inputKey, scopeKey);
+  const ageBandAnalysis = agePreview.value;
+  const tenureBandAnalysis = tenurePreview.value;
+  const ageBandAnalyzing = agePreview.pending;
+  const tenureBandAnalyzing = tenurePreview.pending;
+  const bandConfigError = agePreview.error || tenurePreview.error;
 
   const handleBandChange = (
     bandType: 'age' | 'tenure',
@@ -32,57 +37,20 @@ export function SegmentationSection() {
     setBandValidationErrors([]);
   };
 
-  const handleMatchCensusAgeBands = async () => {
-    if (!activeWorkspace?.id || !formData.censusDataPath) {
-      setBandConfigError('Please upload a census file first');
-      return;
-    }
-    setAgeBandAnalyzing(true);
-    setAgeBandAnalysis(null);
-    try {
-      const result = await analyzeAgeBands(activeWorkspace.id, formData.censusDataPath, asOfDate);
-      setAgeBandAnalysis(result);
-      setAsOfYear(result.as_of_date.slice(0, 4));
-    } catch (error) {
-      console.error('Failed to analyze age bands:', error);
-      setBandConfigError(error instanceof Error ? error.message : 'Failed to analyze census for age bands');
-    } finally {
-      setAgeBandAnalyzing(false);
-    }
-  };
-
-  const handleApplyAgeBandSuggestions = () => {
-    if (!ageBandAnalysis || !bandConfig) return;
-    setBandConfig({ ...bandConfig, age_bands: ageBandAnalysis.suggested_bands });
-    setAgeBandAnalysis(null);
+  const handleMatchCensusAgeBands = () => agePreview.calculate(() =>
+    analyzeAgeBands(activeWorkspace.id, formData.censusDataPath, asOfDate));
+  const handleApplyAgeBandSuggestions = () => agePreview.apply(analysis => {
+    if (!bandConfig) return;
+    setBandConfig({ ...bandConfig, age_bands: analysis.suggested_bands });
     setBandValidationErrors([]);
-  };
-
-  const handleMatchCensusTenureBands = async () => {
-    if (!activeWorkspace?.id || !formData.censusDataPath) {
-      setBandConfigError('Please upload a census file first');
-      return;
-    }
-    setTenureBandAnalyzing(true);
-    setTenureBandAnalysis(null);
-    try {
-      const result = await analyzeTenureBands(activeWorkspace.id, formData.censusDataPath, asOfDate);
-      setTenureBandAnalysis(result);
-      setAsOfYear(result.as_of_date.slice(0, 4));
-    } catch (error) {
-      console.error('Failed to analyze tenure bands:', error);
-      setBandConfigError(error instanceof Error ? error.message : 'Failed to analyze census for tenure bands');
-    } finally {
-      setTenureBandAnalyzing(false);
-    }
-  };
-
-  const handleApplyTenureBandSuggestions = () => {
-    if (!tenureBandAnalysis || !bandConfig) return;
-    setBandConfig({ ...bandConfig, tenure_bands: tenureBandAnalysis.suggested_bands });
-    setTenureBandAnalysis(null);
+  });
+  const handleMatchCensusTenureBands = () => tenurePreview.calculate(() =>
+    analyzeTenureBands(activeWorkspace.id, formData.censusDataPath, asOfDate));
+  const handleApplyTenureBandSuggestions = () => tenurePreview.apply(analysis => {
+    if (!bandConfig) return;
+    setBandConfig({ ...bandConfig, tenure_bands: analysis.suggested_bands });
     setBandValidationErrors([]);
-  };
+  });
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -134,14 +102,14 @@ export function SegmentationSection() {
 
           {/* Age Bands Section */}
           <div className="bg-surface-subtle rounded-xl p-6 border border-border">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-wrap gap-3 items-center justify-between mb-4">
               <div className="flex items-center">
                 <Users className="w-5 h-5 text-fidelity-green mr-3" />
                 <h3 className="font-semibold text-ink">Age Bands</h3>
               </div>
               <button
                 onClick={handleMatchCensusAgeBands}
-                disabled={ageBandAnalyzing || !formData.censusDataPath}
+                disabled={ageBandAnalyzing || !formData.censusDataPath || scenarioLoading}
                 className="flex items-center px-3 py-1.5 text-sm bg-fidelity-green text-ink-inverse rounded-lg hover:bg-fidelity-green-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {ageBandAnalyzing ? (
@@ -149,15 +117,17 @@ export function SegmentationSection() {
                 ) : (
                   <Sparkles size={16} className="mr-2" />
                 )}
-                Match Census
+                Suggest from census
               </button>
             </div>
 
             {ageBandAnalysis && (
               <div className="mb-4 bg-info-surface border border-info-border rounded-lg p-4">
-                <div className="flex items-start justify-between">
+                <div className="flex flex-wrap gap-3 items-start justify-between">
                   <div>
-                    <h4 className="text-info-ink font-medium">Suggested Age Bands</h4>
+                    <h4 className="text-info-ink font-medium">Suggested Age Bands — not applied</h4>
+                    <p className="text-xs text-info-ink mt-2">Source: {formData.censusDataPath}. Current draft: {bandConfig.age_bands.map(band => `${band.band_label} [${band.min_value}, ${band.max_value})`).join('; ')}.</p>
+                    {agePreview.stale && <p role="status" className="text-sm text-warning-ink">Needs recalculation: inputs have changed.</p>}
                     <p className="text-sm text-info-ink mt-1">
                       Based on {ageBandAnalysis.distribution_stats.total_employees} employees ({ageBandAnalysis.analysis_type})
                       {' '}as of {ageBandAnalysis.as_of_date} ({ageBandAnalysis.as_of_date_source})
@@ -170,8 +140,8 @@ export function SegmentationSection() {
                     {ageBandAnalysis.fallback_notice && <p className="mt-2 text-xs text-warning-ink">{ageBandAnalysis.fallback_notice}</p>}
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => setAgeBandAnalysis(null)} className="px-3 py-1.5 text-sm text-ink-muted bg-surface-raised border border-border-strong rounded-lg hover:bg-surface-subtle">Cancel</button>
-                    <button onClick={handleApplyAgeBandSuggestions} className="px-3 py-1.5 text-sm bg-info-solid text-ink-inverse rounded-lg hover:bg-info-solid-hover">Apply</button>
+                    <button onClick={agePreview.cancel} className="px-3 py-1.5 text-sm text-ink-muted bg-surface-raised border border-border-strong rounded-lg hover:bg-surface-subtle">Cancel</button>
+                    <button disabled={agePreview.stale} onClick={handleApplyAgeBandSuggestions} className="px-3 py-1.5 text-sm bg-info-solid text-ink-inverse rounded-lg hover:bg-info-solid-hover">Apply</button>
                   </div>
                 </div>
               </div>
@@ -198,13 +168,13 @@ export function SegmentationSection() {
                           <input type="text" value={band.band_label} onChange={(e) => handleBandChange('age', band.band_id, 'band_label', e.target.value)} className={`w-full px-2 py-1 border rounded text-sm ${hasError ? 'border-danger-border' : 'border-border-strong'}`} />
                         </td>
                         <td className="py-2 px-3">
-                          <input type="number" value={band.min_value} onChange={(e) => handleBandChange('age', band.band_id, 'min_value', e.target.value)} className={`w-20 px-2 py-1 border rounded text-sm ${hasError ? 'border-danger-border' : 'border-border-strong'}`} min="0" />
+                          <NumericInput integer type="number" value={band.min_value} onChange={(e) => handleBandChange('age', band.band_id, 'min_value', e.target.value)} className={`w-20 px-2 py-1 border rounded text-sm ${hasError ? 'border-danger-border' : 'border-border-strong'}`} min="0" />
                         </td>
                         <td className="py-2 px-3">
-                          <input type="number" value={band.max_value} onChange={(e) => handleBandChange('age', band.band_id, 'max_value', e.target.value)} className={`w-20 px-2 py-1 border rounded text-sm ${hasError ? 'border-danger-border' : 'border-border-strong'}`} min="1" />
+                          <NumericInput integer type="number" value={band.max_value} onChange={(e) => handleBandChange('age', band.band_id, 'max_value', e.target.value)} className={`w-20 px-2 py-1 border rounded text-sm ${hasError ? 'border-danger-border' : 'border-border-strong'}`} min="1" />
                         </td>
                         <td className="py-2 px-3">
-                          <input type="number" value={band.display_order} onChange={(e) => handleBandChange('age', band.band_id, 'display_order', e.target.value)} className={`w-16 px-2 py-1 border rounded text-sm ${hasError ? 'border-danger-border' : 'border-border-strong'}`} min="1" />
+                          <NumericInput integer type="number" value={band.display_order} onChange={(e) => handleBandChange('age', band.band_id, 'display_order', e.target.value)} className={`w-16 px-2 py-1 border rounded text-sm ${hasError ? 'border-danger-border' : 'border-border-strong'}`} min="1" />
                         </td>
                       </tr>
                     );
@@ -219,14 +189,14 @@ export function SegmentationSection() {
 
           {/* Tenure Bands Section */}
           <div className="bg-surface-subtle rounded-xl p-6 border border-border">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-wrap gap-3 items-center justify-between mb-4">
               <div className="flex items-center">
                 <TrendingUp className="w-5 h-5 text-fidelity-green mr-3" />
                 <h3 className="font-semibold text-ink">Tenure Bands</h3>
               </div>
               <button
                 onClick={handleMatchCensusTenureBands}
-                disabled={tenureBandAnalyzing || !formData.censusDataPath}
+                disabled={tenureBandAnalyzing || !formData.censusDataPath || scenarioLoading}
                 className="flex items-center px-3 py-1.5 text-sm bg-fidelity-green text-ink-inverse rounded-lg hover:bg-fidelity-green-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {tenureBandAnalyzing ? (
@@ -234,15 +204,17 @@ export function SegmentationSection() {
                 ) : (
                   <Sparkles size={16} className="mr-2" />
                 )}
-                Match Census
+                Suggest from census
               </button>
             </div>
 
             {tenureBandAnalysis && (
               <div className="mb-4 bg-info-surface border border-info-border rounded-lg p-4">
-                <div className="flex items-start justify-between">
+                <div className="flex flex-wrap gap-3 items-start justify-between">
                   <div>
-                    <h4 className="text-info-ink font-medium">Suggested Tenure Bands</h4>
+                    <h4 className="text-info-ink font-medium">Suggested Tenure Bands — not applied</h4>
+                    <p className="text-xs text-info-ink mt-2">Source: {formData.censusDataPath}. Current draft: {bandConfig.tenure_bands.map(band => `${band.band_label} [${band.min_value}, ${band.max_value})`).join('; ')}.</p>
+                    {tenurePreview.stale && <p role="status" className="text-sm text-warning-ink">Needs recalculation: inputs have changed.</p>}
                     <p className="text-sm text-info-ink mt-1">
                       Based on {tenureBandAnalysis.distribution_stats.total_employees} employees ({tenureBandAnalysis.analysis_type})
                       {' '}as of {tenureBandAnalysis.as_of_date} ({tenureBandAnalysis.as_of_date_source})
@@ -254,8 +226,8 @@ export function SegmentationSection() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => setTenureBandAnalysis(null)} className="px-3 py-1.5 text-sm text-ink-muted bg-surface-raised border border-border-strong rounded-lg hover:bg-surface-subtle">Cancel</button>
-                    <button onClick={handleApplyTenureBandSuggestions} className="px-3 py-1.5 text-sm bg-info-solid text-ink-inverse rounded-lg hover:bg-info-solid-hover">Apply</button>
+                    <button onClick={tenurePreview.cancel} className="px-3 py-1.5 text-sm text-ink-muted bg-surface-raised border border-border-strong rounded-lg hover:bg-surface-subtle">Cancel</button>
+                    <button disabled={tenurePreview.stale} onClick={handleApplyTenureBandSuggestions} className="px-3 py-1.5 text-sm bg-info-solid text-ink-inverse rounded-lg hover:bg-info-solid-hover">Apply</button>
                   </div>
                 </div>
               </div>
@@ -282,13 +254,13 @@ export function SegmentationSection() {
                           <input type="text" value={band.band_label} onChange={(e) => handleBandChange('tenure', band.band_id, 'band_label', e.target.value)} className={`w-full px-2 py-1 border rounded text-sm ${hasError ? 'border-danger-border' : 'border-border-strong'}`} />
                         </td>
                         <td className="py-2 px-3">
-                          <input type="number" value={band.min_value} onChange={(e) => handleBandChange('tenure', band.band_id, 'min_value', e.target.value)} className={`w-20 px-2 py-1 border rounded text-sm ${hasError ? 'border-danger-border' : 'border-border-strong'}`} min="0" />
+                          <NumericInput integer type="number" value={band.min_value} onChange={(e) => handleBandChange('tenure', band.band_id, 'min_value', e.target.value)} className={`w-20 px-2 py-1 border rounded text-sm ${hasError ? 'border-danger-border' : 'border-border-strong'}`} min="0" />
                         </td>
                         <td className="py-2 px-3">
-                          <input type="number" value={band.max_value} onChange={(e) => handleBandChange('tenure', band.band_id, 'max_value', e.target.value)} className={`w-20 px-2 py-1 border rounded text-sm ${hasError ? 'border-danger-border' : 'border-border-strong'}`} min="1" />
+                          <NumericInput integer type="number" value={band.max_value} onChange={(e) => handleBandChange('tenure', band.band_id, 'max_value', e.target.value)} className={`w-20 px-2 py-1 border rounded text-sm ${hasError ? 'border-danger-border' : 'border-border-strong'}`} min="1" />
                         </td>
                         <td className="py-2 px-3">
-                          <input type="number" value={band.display_order} onChange={(e) => handleBandChange('tenure', band.band_id, 'display_order', e.target.value)} className={`w-16 px-2 py-1 border rounded text-sm ${hasError ? 'border-danger-border' : 'border-border-strong'}`} min="1" />
+                          <NumericInput integer type="number" value={band.display_order} onChange={(e) => handleBandChange('tenure', band.band_id, 'display_order', e.target.value)} className={`w-16 px-2 py-1 border rounded text-sm ${hasError ? 'border-danger-border' : 'border-border-strong'}`} min="1" />
                         </td>
                       </tr>
                     );

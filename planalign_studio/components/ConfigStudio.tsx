@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
+import { validateNumericInputs } from './config/NumericInput';
 import { Save, AlertTriangle, FileText, Settings, TrendingUp, Users, DollarSign, PieChart, Database, Check, ArrowLeft, Play, Copy, Layers, Share2, Gauge } from 'lucide-react';
 import { useOutletContext, useParams } from 'react-router-dom';
 import { LayoutContextType } from './Layout';
@@ -18,6 +19,7 @@ import { TemplateModal } from './config/TemplateModal';
 import { CopyScenarioModal } from './config/CopyScenarioModal';
 import { ApplyWorkforceParamsModal } from './config/ApplyWorkforceParamsModal';
 import { useWorkspaceNavigate } from '../hooks/useWorkspaceNavigation';
+import { EffectiveConfigReview, type ConfigurationReviewDraft } from './config/EffectiveConfigReview';
 
 // Primary nav: the curated essentials path (#358) plus the self-contained DC Plan.
 const PRIMARY_NAV = [
@@ -42,25 +44,74 @@ export function ConfigShell() {
     currentScenario, scenarioId, scenarioLoading,
     dirtySections, isDirty,
     handleSaveConfig, saveStatus, saveMessage,
-    activeWorkspace,
+    activeWorkspace, originalConfig, buildDraftConfig, resolutionWarning,
   } = useConfigContext();
 
   const [activeSection, setActiveSection] = useState('workforce');
+  const [review, setReview] = useState<ConfigurationReviewDraft | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
   const runPending = useRef(false);
-  const latestDirty = useRef(isDirty);
-  latestDirty.current = isDirty;
-  const handleRun = async () => {
-    if (runPending.current || saveStatus === 'saving') return;
+  const reviewPending = useRef(false);
+  const reviewTrigger = useRef<HTMLElement | null>(null);
+  const latest = useRef({ isDirty, buildDraftConfig, handleSaveConfig, workspaceId: activeWorkspace.id, scenarioId, originalConfig });
+  latest.current = { isDirty, buildDraftConfig, handleSaveConfig, workspaceId: activeWorkspace.id, scenarioId, originalConfig };
+  const openReview = (runAfterSave = false, returnFocusTarget?: HTMLElement | null) => {
+    if (reviewPending.current || saveStatus === 'saving') return;
+    if (!validateNumericInputs()) return;
+    const activeElement = document.activeElement;
+    const trigger = returnFocusTarget ?? (activeElement instanceof HTMLElement ? activeElement : null);
+    flushSync(() => {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    });
+    const current = latest.current;
+    try {
+      const draft = structuredClone(current.buildDraftConfig());
+      reviewPending.current = true;
+      reviewTrigger.current = trigger;
+      setReviewError(null);
+      setReview({ draft, saved: structuredClone(current.originalConfig),
+        workspaceId: current.workspaceId, scenarioId: current.scenarioId,
+        targetName: currentScenario?.name ?? activeWorkspace.name, runAfterSave });
+    } catch (cause) {
+      setReviewError(cause instanceof Error ? cause.message : 'Unable to prepare the configuration for review.');
+    }
+  };
+  const closeReview = () => {
+    reviewPending.current = false; setReview(null);
+    const trigger = reviewTrigger.current;
+    reviewTrigger.current = null;
+    if (trigger) requestAnimationFrame(() => {
+      if (trigger.isConnected && !trigger.matches(':disabled')) trigger.focus();
+    });
+  };
+  const reviewedDraftMatches = (snapshot: ConfigurationReviewDraft) => {
+    const current = latest.current;
+    try {
+      return snapshot.workspaceId === current.workspaceId && snapshot.scenarioId === current.scenarioId
+        && JSON.stringify(snapshot.draft) === JSON.stringify(current.buildDraftConfig());
+    } catch { return false; }
+  };
+  const saveReviewedConfig = async () => {
+    if (!review || !reviewedDraftMatches(review) || runPending.current) return false;
     runPending.current = true;
     try {
-      flushSync(() => {
-        if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-      });
-      if (latestDirty.current && !await handleSaveConfig()) return;
-      navigate(`/simulate?scenario=${scenarioId}`);
-    } finally {
-      runPending.current = false;
-    }
+      if (!await latest.current.handleSaveConfig()) return false;
+      const sameTarget = review.workspaceId === latest.current.workspaceId && review.scenarioId === latest.current.scenarioId;
+      closeReview();
+      if (review.runAfterSave && sameTarget) navigate(`/simulate?scenario=${review.scenarioId}`);
+      return true;
+    } finally { runPending.current = false; }
+  };
+  const handleRun = async () => {
+    if (!validateNumericInputs()) return;
+    if (runPending.current || reviewPending.current || saveStatus === 'saving') return;
+    const activeElement = document.activeElement;
+    const trigger = activeElement instanceof HTMLElement ? activeElement : null;
+    flushSync(() => {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    });
+    if (latest.current.isDirty) { openReview(true, trigger); return; }
+    navigate(`/simulate?scenario=${latest.current.scenarioId}`);
   };
 
   // Template modal state
@@ -90,9 +141,10 @@ export function ConfigShell() {
   }
 
   return (
-    <fieldset disabled={saveStatus === 'saving'} className="min-w-0 h-full flex flex-col">
+    <>
+    <fieldset disabled={saveStatus === 'saving' || !!review} className="min-w-0 h-full flex flex-col">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-wrap gap-4 justify-between items-center mb-6">
         <div>
           <div className="flex items-center space-x-3">
             {currentScenario && (
@@ -116,7 +168,7 @@ export function ConfigShell() {
             </div>
           </div>
         </div>
-        <div className="flex space-x-3">
+        <div className="flex flex-wrap gap-3">
           {scenarioId && (
             <button
               onClick={async () => {
@@ -192,7 +244,7 @@ export function ConfigShell() {
             Load Template
           </button>
           <button
-            onClick={handleSaveConfig}
+            onClick={() => openReview()}
             disabled={saveStatus === 'saving'}
             className={`px-4 py-2 text-ink-inverse rounded-lg flex items-center font-medium shadow-sm transition-colors ${saveStatus === 'saving' ? 'bg-surface-disabled cursor-not-allowed' : saveStatus === 'success' ? 'bg-success-solid hover:bg-success-solid-hover' : isDirty ? 'bg-warning-solid hover:bg-warning-solid-hover ring-2 ring-focus' : 'bg-fidelity-green hover:bg-fidelity-dark'}`}
           >
@@ -204,17 +256,17 @@ export function ConfigShell() {
             ) : saveStatus === 'success' ? (
               <>
                 <Check size={18} className="mr-2" />
-                Saved!
+                Review configuration
               </>
             ) : isDirty ? (
               <>
                 <Save size={18} className="mr-2" />
-                Save Changes
+                Review changes
               </>
             ) : (
               <>
                 <Save size={18} className="mr-2" />
-                Save Config
+                Review configuration
               </>
             )}
           </button>
@@ -230,6 +282,8 @@ export function ConfigShell() {
       </div>
 
       {/* Validation error banner */}
+      {resolutionWarning && <p role="status" className="mb-4 rounded-lg bg-warning-surface border border-warning-border p-4 text-sm text-warning-ink">{resolutionWarning}</p>}
+      {reviewError && <p role="alert" className="mb-4 rounded-lg bg-danger-surface border border-danger-border p-4 text-sm text-danger-ink">{reviewError}</p>}
       {saveStatus === 'error' && saveMessage && (
         <div className="mb-4 rounded-lg bg-danger-surface border border-danger-border p-4 flex items-start">
           <AlertTriangle className="h-5 w-5 text-danger-ink mt-0.5 flex-shrink-0" />
@@ -238,14 +292,14 @@ export function ConfigShell() {
       )}
 
       {/* Content: Sidebar + Form */}
-      <div className="flex-1 bg-surface-raised rounded-xl shadow-sm border border-border flex overflow-hidden">
+      <div className="flex-1 min-h-0 bg-surface-raised rounded-xl shadow-sm border border-border flex flex-col xl:flex-row overflow-hidden">
         {/* Sidebar */}
-        <div className="w-64 bg-surface-subtle border-r border-border p-4 flex-shrink-0 overflow-y-auto">
+        <div className="w-full xl:w-56 bg-surface-subtle border-b xl:border-b-0 xl:border-r border-border p-4 flex-shrink-0 max-h-48 xl:max-h-none overflow-y-auto">
           <nav className="space-y-1">
             {PRIMARY_NAV.map((item) => (
               <button
                 key={item.id}
-                onClick={() => setActiveSection(item.id)}
+                onClick={() => { if (validateNumericInputs()) setActiveSection(item.id); }}
                 className={`w-full text-left px-3 py-3 rounded-md text-sm font-medium transition-colors flex items-center justify-between ${activeSection === item.id ? 'bg-surface-raised text-fidelity-green shadow-sm border border-border' : 'text-ink-muted hover:bg-surface-subtle hover:text-ink'}`}
               >
                 <span className="flex items-center">
@@ -265,7 +319,7 @@ export function ConfigShell() {
             {ADVANCED_NAV.map((item) => (
               <button
                 key={item.id}
-                onClick={() => setActiveSection(item.id)}
+                onClick={() => { if (validateNumericInputs()) setActiveSection(item.id); }}
                 className={`w-full text-left px-3 py-3 rounded-md text-sm font-medium transition-colors flex items-center justify-between ${activeSection === item.id ? 'bg-surface-raised text-fidelity-green shadow-sm border border-border' : 'text-ink-muted hover:bg-surface-subtle hover:text-ink'}`}
               >
                 <span className="flex items-center">
@@ -281,7 +335,7 @@ export function ConfigShell() {
         </div>
 
         {/* Form Area */}
-        <div className="flex-1 p-8 overflow-y-auto">
+        <div className="flex-1 min-w-0 p-4 lg:p-8 overflow-y-auto">
           <div className="max-w-3xl">
             {activeSection === 'workforce' && <WorkforceParametersSection />}
             {activeSection === 'simulation' && <SimulationSection />}
@@ -318,6 +372,9 @@ export function ConfigShell() {
         />
       )}
     </fieldset>
+    {review && <EffectiveConfigReview review={review} stale={!reviewedDraftMatches(review)} saving={saveStatus === 'saving'}
+      onClose={closeReview} onSave={saveReviewedConfig} onEdit={section => { closeReview(); setActiveSection(section); }} />}
+    </>
   );
 }
 

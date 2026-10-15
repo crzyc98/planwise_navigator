@@ -5,6 +5,13 @@ All notable changes to Fidelity PlanAlign Engine will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Studio Workforce Parameters and DC Plan now separate plan provisions from behavioral assumptions, preserve custom settings, preview suggestions, and review effective configuration before saving. Numeric fields support direct decimal entry and report unfinished or invalid edits without converting blanks to zero.
+- Explicit `null` for `dc_plan.voluntary_enrollment_rate` or `dc_plan.new_hire_opt_out_rate` now selects demographic behavior even when a legacy enrollment block supplies a flat rate. An omitted key continues to inherit; an explicit zero remains zero. Review configurations containing both forms before rerunning a projection.
+
 ## [3.0.0] - 2026-10-14 "Plan Design & Evidence"
 
 Consolidates development since the last tagged release, v2.2.0. Versions
