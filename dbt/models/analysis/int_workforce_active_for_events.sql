@@ -1,26 +1,12 @@
 {{ config(
     materialized='table',
-    tags=['foundation', 'critical', 'event_generation']
+    tags=['analysis', 'compensation', 'validation']
 ) }}
 
--- Dependency-free model that provides active employees for event generation
---
--- **Purpose:**
--- Provides active employee data for event generation without circular dependencies.
--- This model acts as the single source of truth for all event models.
---
--- **Circular Dependency Solution:**
--- This model breaks the circular dependency by:
--- 1. For year 1 (start year): Use int_baseline_workforce directly
--- 2. For subsequent years: Use int_active_employees_prev_year_snapshot which uses
---    dynamic relation references to get previous year's completed workforce snapshot
--- 3. Never references fct_yearly_events or current year data
---
--- **Data Flow for Year 1:**
--- int_baseline_workforce → int_workforce_active_for_events → event models → fct_yearly_events → fct_workforce_snapshot
---
--- **Data Flow for Year N (N > 1):**
--- fct_workforce_snapshot (year N-1) → int_active_employees_prev_year_snapshot → int_workforce_active_for_events → event models → fct_yearly_events → fct_workforce_snapshot (year N)
+-- Opt-in input for analysis/test_compensation_compounding_validation.sql.
+-- Production event generation consumes canonical compensation/workforce inputs.
+-- Use --select +test_compensation_compounding_validation to build this helper
+-- with its diagnostic consumer. Later years read the prior workforce projection.
 
 {% set simulation_year = var('simulation_year', 2025) | int %}
 {% set start_year = var('start_year', 2025) | int %}

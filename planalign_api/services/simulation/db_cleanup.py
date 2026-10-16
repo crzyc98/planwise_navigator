@@ -13,6 +13,7 @@ TABLES_WITH_YEAR = [
     "fct_yearly_events",
     "int_enrollment_state_accumulator",
     "int_deferral_rate_state_accumulator",
+    # Compatibility only: prune this retired relation in older databases.
     "int_deferral_escalation_state_accumulator",
     "int_baseline_workforce",
     "int_employee_compensation_by_year",

@@ -23,7 +23,6 @@ pytestmark = [pytest.mark.fast]
 # DC models that must NOT appear in a comp-only calibration build.
 _DC_MODELS = {
     "int_employer_eligibility",
-    "int_eligibility_determination",
     "int_voluntary_enrollment_decision",
     "int_proactive_voluntary_enrollment",
     "int_enrollment_events",
@@ -31,15 +30,12 @@ _DC_MODELS = {
     "int_deferral_rate_escalation_events",
     "int_enrollment_state_accumulator",
     "int_deferral_rate_state_accumulator",
-    "int_deferral_escalation_state_accumulator",
     "int_employee_contributions",
     "int_employer_core_contributions",
     "int_employee_match_calculations",
     "fct_employer_match_events",
     "int_synthetic_baseline_enrollment_events",
     "int_plan_eligibility_determination",
-    "int_workforce_pre_enrollment",
-    "int_workforce_active_for_events",
 }
 
 # Comp models that MUST be built.

@@ -15,8 +15,8 @@ from planalign_orchestrator.dbt_executable import find_dbt_executable
 ROOT = Path(__file__).parents[2]
 
 
-@lru_cache(maxsize=1)
-def load_production_manifest() -> dict[str, Any]:
+@lru_cache(maxsize=None)
+def load_production_manifest(simulation_year: int = 2025) -> dict[str, Any]:
     """Return a freshly parsed manifest so tests never trust stale target state."""
     dbt = find_dbt_executable()
     if dbt is None:
@@ -36,7 +36,14 @@ def load_production_manifest() -> dict[str, Any]:
         env["DBT_TARGET_PATH"] = str(target)
         env["DBT_LOG_PATH"] = str(Path(scratch) / "logs")
         result = subprocess.run(
-            [dbt, "parse", "--no-partial-parse", "--quiet"],
+            [
+                dbt,
+                "parse",
+                "--no-partial-parse",
+                "--quiet",
+                "--vars",
+                json.dumps({"simulation_year": simulation_year, "start_year": 2025}),
+            ],
             cwd=ROOT / "dbt",
             capture_output=True,
             check=False,
