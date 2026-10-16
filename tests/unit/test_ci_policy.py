@@ -111,7 +111,7 @@ def test_runner_context_is_step_scoped_and_dbt_stays_isolated() -> None:
         if step.get("name") == "Validate dbt project"
     )
     assert validation["env"]["DATABASE_PATH"] == (
-        "${{ runner.temp }}/planalign-ci-model-validation.duckdb"
+        "${{ runner.temp }}/planalign_ci_model_validation.duckdb"
     )
 
 

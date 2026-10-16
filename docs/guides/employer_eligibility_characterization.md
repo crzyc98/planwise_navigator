@@ -32,6 +32,10 @@ reproduce the amounts in the original CI failure. No differences were found in
 employee/year identities, current or prorated compensation, tenure, age,
 employment status, or current deferral rates.
 
+A second independent current-seed run also matches the first current run exactly
+at annual and employee level, including employee contributions and employer
+core/match amounts. This comparison used separate databases and dbt projects.
+
 | Year | Current core | Current match | Core increase | Match increase | Changed core/match recipients |
 |---|---:|---:|---:|---:|---:|
 | 2025 | 800,365.86 | 822,949.90 | 0.00 | 0.00 | 0 / 0 |

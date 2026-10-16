@@ -551,15 +551,16 @@ jobs:
 
       - name: Validate dbt project
         env:
-          DATABASE_PATH: ${{ runner.temp }}/planalign-ci-model-validation.duckdb
+          # Seed relations use an unquoted catalog name derived from this stem.
+          DATABASE_PATH: ${{ runner.temp }}/planalign_ci_model_validation.duckdb
         run: |
           cd dbt
           dbt deps
           # Band macros read seed tables at compile time (run_query), so
           # seeds must be loaded before parse/compile.
           dbt seed --profiles-dir . --threads 1
-          dbt parse --profiles-dir .
-          dbt compile --profiles-dir .
+          dbt parse --profiles-dir . --threads 1
+          dbt compile --profiles-dir . --threads 1
 
   ci-gate:
     name: CI Gate
