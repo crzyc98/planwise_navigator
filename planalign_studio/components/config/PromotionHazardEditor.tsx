@@ -1,3 +1,4 @@
+import { NumericInput } from './NumericInput';
 import { useState } from 'react';
 import { AlertTriangle, Check } from 'lucide-react';
 import { useConfigContext } from './ConfigContext';
@@ -86,13 +87,13 @@ export function PromotionHazardEditor() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label htmlFor="promo-base-rate" className="block text-xs text-ink-muted mb-1">Base Rate (%)</label>
-            <input
+            <NumericInput
               id="promo-base-rate"
               type="number"
               step="0.1"
               min="0"
               max="100"
-              value={parseFloat((promotionHazardConfig.base.base_rate * 100).toFixed(4))}
+              value={parseFloat((promotionHazardConfig.base.base_rate * 100).toFixed(10))}
               onChange={(e) => handleBaseChange('base_rate', e.target.value)}
               className="w-full shadow-sm focus:ring-fidelity-green focus:border-fidelity-green text-sm border-border-strong rounded-md p-2 border"
             />
@@ -100,13 +101,13 @@ export function PromotionHazardEditor() {
           </div>
           <div>
             <label htmlFor="promo-level-dampener" className="block text-xs text-ink-muted mb-1">Level Dampener (%)</label>
-            <input
+            <NumericInput
               id="promo-level-dampener"
               type="number"
               step="0.1"
               min="0"
               max="100"
-              value={parseFloat((promotionHazardConfig.base.level_dampener_factor * 100).toFixed(4))}
+              value={parseFloat((promotionHazardConfig.base.level_dampener_factor * 100).toFixed(10))}
               onChange={(e) => handleBaseChange('level_dampener_factor', e.target.value)}
               className="w-full shadow-sm focus:ring-fidelity-green focus:border-fidelity-green text-sm border-border-strong rounded-md p-2 border"
             />
@@ -131,7 +132,7 @@ export function PromotionHazardEditor() {
                 <tr key={m.age_band} className="border-b border-border">
                   <td className="py-2 px-3 text-ink-muted">{m.age_band}</td>
                   <td className="py-2 px-3">
-                    <input
+                    <NumericInput
                       type="number"
                       step="0.1"
                       min="0"
@@ -163,7 +164,7 @@ export function PromotionHazardEditor() {
                 <tr key={m.tenure_band} className="border-b border-border">
                   <td className="py-2 px-3 text-ink-muted">{m.tenure_band}</td>
                   <td className="py-2 px-3">
-                    <input
+                    <NumericInput
                       type="number"
                       step="0.1"
                       min="0"

@@ -1,8 +1,10 @@
+import { NumericInput } from './NumericInput';
 import React, { useState } from 'react';
-import { Check, PieChart, DollarSign, Clock } from 'lucide-react';
+import { PieChart, DollarSign, Clock } from 'lucide-react';
 import { useConfigContext } from './ConfigContext';
 import { CompensationInput } from './CompensationInput';
-import { PromotionHazardEditor } from './PromotionHazardEditor';
+import { useSuggestionPreview } from './useSuggestionPreview';
+import type { FormData } from './types';
 import { analyzeAgeDistribution, analyzeCompensation, analyzePartTimePct, CompensationAnalysis } from '../../services/api';
 
 const marketMultipliers: Record<string, { label: string; adjustment: number; description: string }> = {
@@ -14,27 +16,18 @@ const marketMultipliers: Record<string, { label: string; adjustment: number; des
 
 export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essentials' }) {
   const essentials = variant === 'essentials';
-  const { formData, setFormData, handleChange, activeWorkspace } = useConfigContext();
-
-  // E082: Match Census state (age distribution)
-  const [matchCensusLoading, setMatchCensusLoading] = useState(false);
-  const [matchCensusError, setMatchCensusError] = useState<string | null>(null);
-  const [matchCensusSuccess, setMatchCensusSuccess] = useState(false);
-
-  // 093: Match Census state (part-time percentage)
-  const [matchPartTimeLoading, setMatchPartTimeLoading] = useState(false);
-  const [matchPartTimeError, setMatchPartTimeError] = useState<string | null>(null);
-  const [matchPartTimeSuccess, setMatchPartTimeSuccess] = useState(false);
-
-  // E082: Match Census state (compensation)
-  const [matchCompLoading, setMatchCompLoading] = useState(false);
-  const [matchCompError, setMatchCompError] = useState<string | null>(null);
-  const [matchCompSuccess, setMatchCompSuccess] = useState(false);
-  const [compensationAnalysis, setCompensationAnalysis] = useState<CompensationAnalysis | null>(null);
+  const { formData, setFormData, handleChange, activeWorkspace, scenarioId, scenarioLoading } = useConfigContext();
   const [compLookbackYears, setCompLookbackYears] = useState<number>(4);
   const [compScaleFactor, setCompScaleFactor] = useState<number>(1.5);
   const [compScaleLocal, setCompScaleLocal] = useState<string>('1.5');
-
+  const preview = useSuggestionPreview<{
+    update: Partial<FormData>; description: string; before: string; after: string;
+    analysis?: CompensationAnalysis;
+  }>(JSON.stringify([formData, compLookbackYears, compScaleLocal, scenarioLoading]), JSON.stringify([activeWorkspace?.id, scenarioId]));
+  const matchCensusLoading = preview.pending;
+  const matchPartTimeLoading = preview.pending;
+  const matchCompLoading = preview.pending;
+  const compensationAnalysis = preview.value?.analysis;
   const handleAgeWeightChange = (index: number, value: string) => {
     setFormData(prev => ({
       ...prev,
@@ -71,118 +64,66 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
     }));
   };
 
-  const handleMatchCensus = async () => {
-    if (!activeWorkspace?.id || !formData.censusDataPath) {
-      setMatchCensusError('Please upload a census file first');
-      return;
-    }
-    setMatchCensusLoading(true);
-    setMatchCensusError(null);
-    setMatchCensusSuccess(false);
-    try {
-      const result = await analyzeAgeDistribution(activeWorkspace.id, formData.censusDataPath);
-      setFormData(prev => ({
-        ...prev,
-        newHireAgeDistribution: result.distribution.map(d => ({
-          age: d.age,
-          weight: d.weight,
-          description: d.description,
-        }))
-      }));
-      setMatchCensusSuccess(true);
-      setTimeout(() => setMatchCensusSuccess(false), 3000);
-    } catch (error) {
-      console.error('Failed to analyze census:', error);
-      setMatchCensusError(error instanceof Error ? error.message : 'Failed to analyze census');
-    } finally {
-      setMatchCensusLoading(false);
-    }
-  };
+  const handleMatchCensus = () => preview.calculate(async () => {
+    const result = await analyzeAgeDistribution(activeWorkspace.id, formData.censusDataPath);
+    return {
+      update: { newHireAgeDistribution: result.distribution.map(d => ({ age: d.age, weight: d.weight, description: d.description })) },
+      description: `${result.analysis_type}; ${result.total_employees} employees, as of ${result.as_of_date} (${result.as_of_date_source}). ${result.fallback_notice || ''}`,
+      before: formData.newHireAgeDistribution.map(row => `Age ${row.age}: ${(row.weight * 100).toFixed(1)}%`).join('; '),
+      after: result.distribution.map(row => `Age ${row.age}: ${(row.weight * 100).toFixed(1)}%`).join('; '),
+    };
+  });
 
-  const handleMatchPartTime = async () => {
-    if (!activeWorkspace?.id || !formData.censusDataPath) {
-      setMatchPartTimeError('Please upload a census file first');
-      return;
-    }
-    setMatchPartTimeLoading(true);
-    setMatchPartTimeError(null);
-    setMatchPartTimeSuccess(false);
-    try {
-      const result = await analyzePartTimePct(activeWorkspace.id, formData.censusDataPath);
-      if (!result.column_present) {
-        setMatchPartTimeError(
-          'Census file has no scheduled hours column (scheduled_hours_per_week, hours_per_week, scheduled_hours, or weekly_hours)'
-        );
-        return;
-      }
-      setFormData(prev => ({
-        ...prev,
-        partTimeNewHirePct: Math.round(result.part_time_pct * 1000) / 10,
-      }));
-      setMatchPartTimeSuccess(true);
-      setTimeout(() => setMatchPartTimeSuccess(false), 3000);
-    } catch (error) {
-      console.error('Failed to analyze part-time percentage:', error);
-      setMatchPartTimeError(error instanceof Error ? error.message : 'Failed to analyze census');
-    } finally {
-      setMatchPartTimeLoading(false);
-    }
-  };
+  const handleMatchPartTime = () => preview.calculate(async () => {
+    const result = await analyzePartTimePct(activeWorkspace.id, formData.censusDataPath);
+    if (!result.column_present) throw new Error('Census file has no scheduled hours column.');
+    const percentage = Math.round(result.part_time_pct * 1000) / 10;
+    return {
+      update: { partTimeNewHirePct: percentage },
+      description: `Scheduled hours analysis: ${result.part_time_count} part-time employees / ${result.headcount} active employees. Annual hours below 1,000 identify part-time employees.`,
+      before: `Part-time new hires: ${formData.partTimeNewHirePct}%`,
+      after: `Part-time new hires: ${percentage}%`,
+    };
+  });
 
-  const handleMatchCompensation = async () => {
-    if (!activeWorkspace?.id || !formData.censusDataPath) {
-      setMatchCompError('Please upload a census file first');
-      return;
-    }
-    setMatchCompLoading(true);
-    setMatchCompError(null);
-    setMatchCompSuccess(false);
-    try {
-      const result = await analyzeCompensation(activeWorkspace.id, formData.censusDataPath, compLookbackYears);
-      setCompensationAnalysis(result);
-      const scale = compScaleFactor;
-      if (!result.has_level_data && result.suggested_levels) {
-        setFormData(prev => ({
-          ...prev,
-          jobLevelCompensation: result.suggested_levels!.map(sl => ({
-            level: sl.level,
-            name: sl.name,
-            minComp: Math.round(sl.suggested_min * scale),
-            maxComp: Math.round(sl.suggested_max * scale),
-          }))
-        }));
-        setMatchCompSuccess(true);
-        setTimeout(() => setMatchCompSuccess(false), 3000);
-      } else if (result.has_level_data && result.levels) {
-        setFormData(prev => ({
-          ...prev,
-          jobLevelCompensation: result.levels!.map(l => ({
-            level: l.level,
-            name: l.name,
-            minComp: Math.round(l.min_compensation * scale),
-            maxComp: Math.round(l.max_compensation * scale),
-          }))
-        }));
-        setMatchCompSuccess(true);
-        setTimeout(() => setMatchCompSuccess(false), 3000);
-      }
-    } catch (error) {
-      console.error('Failed to analyze compensation:', error);
-      setMatchCompError(error instanceof Error ? error.message : 'Failed to analyze compensation');
-    } finally {
-      setMatchCompLoading(false);
-    }
-  };
+  const handleMatchCompensation = () => preview.calculate(async () => {
+    const result = await analyzeCompensation(activeWorkspace.id, formData.censusDataPath, compLookbackYears);
+    const levels = result.has_level_data
+      ? result.levels?.map(row => ({ level: row.level, name: row.name, minComp: Math.round(row.min_compensation * compScaleFactor), maxComp: Math.round(row.max_compensation * compScaleFactor) }))
+      : result.suggested_levels?.map(row => ({ level: row.level, name: row.name, minComp: Math.round(row.suggested_min * compScaleFactor), maxComp: Math.round(row.suggested_max * compScaleFactor) }));
+    if (!levels?.length) throw new Error(result.message || 'No compensation ranges could be derived.');
+    const describe = (rows: typeof levels) => rows.map(row => `${row.name}: $${row.minComp.toLocaleString()}–$${row.maxComp.toLocaleString()}`).join('; ');
+    return {
+      update: { jobLevelCompensation: levels }, analysis: result,
+      description: `${result.analysis_type}; ${result.total_employees} employees. Lookback: ${compLookbackYears === 0 ? 'all employees' : `last ${compLookbackYears} years`}; scaling: ${compScaleFactor}×. ${result.message || ''}`,
+      before: describe(formData.jobLevelCompensation), after: describe(levels),
+    };
+  });
 
   return (
     <div className="space-y-8 animate-fadeIn">
       <div className="border-b border-border pb-4">
-        <h2 className="text-lg font-bold text-ink">New Hire Compensation</h2>
-        <p className="text-sm text-ink-muted">Define how offers are constructed for external candidates.</p>
+        <h2 className="text-lg font-bold text-ink">New-hire assumptions</h2>
+        <p className="text-sm text-ink-muted">Review age profile, pay ranges, part-time share and market assumptions for new hires.</p>
       </div>
 
+      {preview.error && <p role="alert" className="text-sm text-danger-ink">{preview.error}</p>}
+      {preview.value && <div className="bg-info-surface rounded-lg border border-info-border p-4 space-y-2" aria-label="Census suggestion preview">
+        <h3 className="font-medium text-info-ink">Census suggestion — not applied</h3>
+        <p className="text-xs text-info-ink">Source: {formData.censusDataPath}. {preview.value.description}</p>
+        {preview.stale && <p role="status" className="text-sm text-warning-ink">Needs recalculation: inputs have changed.</p>}
+        <p className="text-sm text-ink"><strong>Current draft:</strong> {preview.value.before}</p>
+        <p className="text-sm text-ink"><strong>Suggested:</strong> {preview.value.after}</p>
+        <div className="flex gap-2">
+          <button type="button" disabled={preview.stale} onClick={() => preview.apply(value => setFormData(previous => ({ ...previous, ...value.update })))} className="px-3 py-2 rounded bg-info-solid text-ink-inverse text-sm disabled:opacity-50">Apply census suggestion</button>
+          <button type="button" onClick={preview.cancel} className="px-3 py-2 rounded border border-border text-sm">Cancel</button>
+        </div>
+      </div>}
+
       <div className="space-y-4">
-        {!essentials && (<>
+        {!essentials && (<fieldset disabled className="space-y-4">
+        <legend className="text-sm font-medium text-ink">Legacy offer controls (unsupported)</legend>
+        <p className="text-xs text-ink-muted">Strategy, target percentile and offer variance are retained from configuration but are not used by the current engine. These values are read-only.</p>
         {/* Strategy Selector */}
         <div className="flex items-center space-x-4 mb-6">
           <label htmlFor="newhire-strategy-percentile" className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors w-1/2 ${formData.newHireStrategy === 'percentile' ? 'bg-success-surface border-fidelity-green ring-1 ring-fidelity-green' : 'bg-surface-raised border-border hover:bg-surface-subtle'}`}>
@@ -210,13 +151,13 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
                 <input id="newhire-target-percentile" type="range" min="0" max="100" value={formData.targetPercentile} onChange={(e) => setFormData({...formData, targetPercentile: parseInt(e.target.value)})} className="w-full h-2 bg-info-surface rounded-lg appearance-none cursor-pointer" />
                 <span className="ml-4 font-bold text-info-ink w-12">P{formData.targetPercentile}</span>
               </div>
-              <p className="text-xs text-info-ink mt-2">New hires will be offered salaries at the {formData.targetPercentile}th percentile.</p>
+              <p className="text-xs text-info-ink mt-2">Retained target percentile: {formData.targetPercentile}. This setting does not affect current engine outputs.</p>
             </div>
             <div className="grid grid-cols-2 gap-4 pt-2">
               <div>
                 <label htmlFor="newhire-offer-variance" className="block text-sm font-medium text-info-ink mb-1">Offer Variance</label>
                 <div className="relative rounded-md shadow-sm">
-                  <input id="newhire-offer-variance" type="number" step="0.5" value={formData.newHireCompVariance} onChange={(e) => setFormData({...formData, newHireCompVariance: parseFloat(e.target.value)})} className="focus:ring-focus focus:border-info-border block w-full sm:text-sm border-info-border rounded-md p-2" />
+                  <NumericInput id="newhire-offer-variance" type="number" step="0.5" value={formData.newHireCompVariance} onChange={(e) => setFormData({...formData, newHireCompVariance: parseFloat(e.target.value)})} className="focus:ring-focus focus:border-info-border block w-full sm:text-sm border-info-border rounded-md p-2" />
                   <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                     <span className="text-info-ink sm:text-sm">± %</span>
                   </div>
@@ -225,17 +166,17 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
             </div>
           </div>
         )}
-        </>)}
+        </fieldset>)}
 
         {/* E082: Age Distribution Section */}
         <div className="bg-surface-subtle p-6 rounded-lg border border-border mt-6">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex flex-wrap gap-3 items-center justify-between mb-2">
             <h3 className="text-sm font-semibold text-ink">New Hire Age Profile</h3>
             <button
               type="button"
               onClick={handleMatchCensus}
-              disabled={matchCensusLoading || !formData.censusDataPath || formData.censusDataStatus !== 'loaded'}
-              className={`inline-flex items-center px-3 py-1.5 border rounded-md text-xs font-medium transition-colors ${matchCensusSuccess ? 'bg-success-surface border-success-border text-success-ink' : (formData.censusDataPath && formData.censusDataStatus === 'loaded') ? 'bg-info-surface border-info-border text-info-ink hover:bg-info-surface' : 'bg-surface-subtle border-border text-ink-subtle cursor-not-allowed'}`}
+              disabled={matchCensusLoading || !formData.censusDataPath || formData.censusDataStatus !== 'loaded' || scenarioLoading}
+              className={`inline-flex items-center px-3 py-1.5 border rounded-md text-xs font-medium transition-colors ${(formData.censusDataPath && formData.censusDataStatus === 'loaded') ? 'bg-info-surface border-info-border text-info-ink hover:bg-info-surface' : 'bg-surface-subtle border-border text-ink-subtle cursor-not-allowed'}`}
               title={formData.censusDataStatus !== 'loaded' ? 'Load a census file first' : 'Analyze census to match current workforce age distribution'}
             >
               {matchCensusLoading ? (
@@ -246,22 +187,17 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
                   </svg>
                   Analyzing...
                 </>
-              ) : matchCensusSuccess ? (
-                <><Check className="h-3 w-3 mr-1" /> Matched!</>
               ) : (
-                <><PieChart className="h-3 w-3 mr-1" /> Match Census</>
+                <><PieChart className="h-3 w-3 mr-1" /> Suggest from census</>
               )}
             </button>
           </div>
           <p className="text-xs text-ink-muted mb-4">
             Define the age distribution for new hires. Weights should sum to 100%.
             {formData.censusDataStatus === 'loaded' && (
-              <span className="text-info-ink ml-1">Click "Match Census" to auto-fill based on your workforce.</span>
+              <span className="text-info-ink ml-1">Click "Suggest from census" to preview values from your workforce.</span>
             )}
           </p>
-          {matchCensusError && (
-            <div className="mb-4 p-2 bg-danger-surface border border-danger-border rounded text-xs text-danger-ink">{matchCensusError}</div>
-          )}
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-border">
               <thead className="bg-surface-subtle">
@@ -276,7 +212,7 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
                   <tr key={row.age}>
                     <td className="px-4 py-2 text-sm text-ink font-medium">{row.age}</td>
                     <td className="px-4 py-2">
-                      <input type="number" step="1" min="0" max="100" value={Math.round(row.weight * 100)} onChange={(e) => handleAgeWeightChange(idx, e.target.value)} className="w-20 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-right" />
+                      <NumericInput type="number" step="1" min="0" max="100" value={Number((row.weight * 100).toFixed(10))} onChange={(e) => handleAgeWeightChange(idx, e.target.value)} className="w-20 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-right" />
                     </td>
                     <td className="px-4 py-2 text-sm text-ink-muted">{row.description}</td>
                   </tr>
@@ -304,13 +240,13 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
         {!essentials && (<>
         {/* 093: Part-Time New Hires Section */}
         <div className="bg-surface-subtle p-6 rounded-lg border border-border mt-6">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex flex-wrap gap-3 items-center justify-between mb-2">
             <h3 className="text-sm font-semibold text-ink">Part-Time New Hires</h3>
             <button
               type="button"
               onClick={handleMatchPartTime}
-              disabled={matchPartTimeLoading || !formData.censusDataPath || formData.censusDataStatus !== 'loaded'}
-              className={`inline-flex items-center px-3 py-1.5 border rounded-md text-xs font-medium transition-colors ${matchPartTimeSuccess ? 'bg-success-surface border-success-border text-success-ink' : (formData.censusDataPath && formData.censusDataStatus === 'loaded') ? 'bg-info-surface border-info-border text-info-ink hover:bg-info-surface' : 'bg-surface-subtle border-border text-ink-subtle cursor-not-allowed'}`}
+              disabled={matchPartTimeLoading || !formData.censusDataPath || formData.censusDataStatus !== 'loaded' || scenarioLoading}
+              className={`inline-flex items-center px-3 py-1.5 border rounded-md text-xs font-medium transition-colors ${(formData.censusDataPath && formData.censusDataStatus === 'loaded') ? 'bg-info-surface border-info-border text-info-ink hover:bg-info-surface' : 'bg-surface-subtle border-border text-ink-subtle cursor-not-allowed'}`}
               title={formData.censusDataStatus !== 'loaded' ? 'Load a census file first' : 'Analyze census to match current part-time workforce percentage'}
             >
               {matchPartTimeLoading ? (
@@ -321,10 +257,8 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
                   </svg>
                   Analyzing...
                 </>
-              ) : matchPartTimeSuccess ? (
-                <><Check className="h-3 w-3 mr-1" /> Matched!</>
               ) : (
-                <><Clock className="h-3 w-3 mr-1" /> Match Census</>
+                <><Clock className="h-3 w-3 mr-1" /> Suggest from census</>
               )}
             </button>
           </div>
@@ -332,17 +266,14 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
             Fraction of new hires assigned a 20 hrs/week part-time schedule. Part-time employees accrue
             fewer annual hours, which affects 1,000-hour eligibility requirements.
             {formData.censusDataStatus === 'loaded' && (
-              <span className="text-info-ink ml-1">Click "Match Census" to derive from your workforce's scheduled hours.</span>
+              <span className="text-info-ink ml-1">Click "Suggest from census" to preview values from your workforce's scheduled hours.</span>
             )}
           </p>
-          {matchPartTimeError && (
-            <div className="mb-4 p-2 bg-danger-surface border border-danger-border rounded text-xs text-danger-ink">{matchPartTimeError}</div>
-          )}
           <div className="flex items-center space-x-3">
             <label htmlFor="part-time-new-hire-pct" className="text-sm font-medium text-ink-muted">
               Part-Time New Hire %
             </label>
-            <input
+            <NumericInput
               id="part-time-new-hire-pct"
               type="number"
               step="0.1"
@@ -357,9 +288,9 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
         </div>
 
         {/* E082: Level Distribution Section */}
-        <div className="bg-surface-subtle p-6 rounded-lg border border-border mt-6">
-          <h3 className="text-sm font-semibold text-ink mb-2">New Hire Level Distribution</h3>
-          <p className="text-xs text-ink-muted mb-4">Choose how new hires are distributed across job levels.</p>
+        <fieldset disabled className="bg-surface-subtle p-6 rounded-lg border border-border mt-6">
+          <legend className="text-sm font-semibold text-ink">Legacy level distribution (unsupported)</legend>
+          <p className="text-xs text-ink-muted mb-4">Stored mode and percentages are retained for compatibility. They are not passed to the current engine and are read-only.</p>
           <div className="flex items-center space-x-4 mb-4">
             <label htmlFor="newhire-level-dist-adaptive" className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${formData.levelDistributionMode === 'adaptive' ? 'bg-success-surface border-fidelity-green ring-1 ring-fidelity-green' : 'bg-surface-raised border-border hover:bg-surface-subtle'}`}>
               <input id="newhire-level-dist-adaptive" type="radio" name="levelDistributionMode" value="adaptive" checked={formData.levelDistributionMode === 'adaptive'} onChange={(e) => setFormData({...formData, levelDistributionMode: e.target.value})} className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-border-strong" />
@@ -393,7 +324,7 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
                       <td className="px-4 py-2 text-sm text-ink font-medium">{row.level}</td>
                       <td className="px-4 py-2 text-sm text-ink-muted">{row.name}</td>
                       <td className="px-4 py-2">
-                        <input type="number" step="1" min="0" max="100" value={row.percentage} onChange={(e) => handleLevelPercentageChange(idx, e.target.value)} className="w-20 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-right" />
+                        <NumericInput type="number" step="1" min="0" max="100" value={row.percentage} onChange={(e) => handleLevelPercentageChange(idx, e.target.value)} className="w-20 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-right" />
                       </td>
                     </tr>
                   ))}
@@ -418,18 +349,18 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
           {formData.levelDistributionMode === 'adaptive' && (
             <div className="bg-info-surface p-4 rounded-lg border border-info-border">
               <p className="text-sm text-info-ink">
-                <strong>Adaptive mode:</strong> New hires will be distributed across levels proportionally to match your current workforce composition. This maintains your existing organizational structure.
+                <strong>Retained adaptive mode:</strong> This legacy selection does not control current simulation outputs.
               </p>
             </div>
           )}
-        </div>
+        </fieldset>
         </>)}
 
         {/* E082: Job Level Compensation Ranges */}
         <div className="bg-surface-subtle p-6 rounded-lg border border-border mt-6">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex flex-wrap gap-3 items-center justify-between mb-2">
             <h3 className="text-sm font-semibold text-ink">Job Level Compensation Ranges</h3>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <div className="flex items-center gap-1">
                 <label htmlFor="newhire-comp-source" className="text-xs text-ink-muted">Source:</label>
                 <select id="newhire-comp-source" value={compLookbackYears} onChange={(e) => setCompLookbackYears(parseInt(e.target.value))} className="text-xs border border-border-strong rounded px-1.5 py-1 bg-surface-raised focus:ring-focus focus:border-info-border">
@@ -443,16 +374,16 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
               </div>
               <div className="flex items-center gap-1">
                 <label htmlFor="newhire-comp-scale" className="text-xs text-ink-muted">Scale:</label>
-                <input
+                <NumericInput
                   id="newhire-comp-scale"
                   type="number"
                   value={compScaleLocal}
                   onChange={(e) => setCompScaleLocal(e.target.value)}
                   onBlur={() => {
                     const val = parseFloat(compScaleLocal);
-                    const clamped = isNaN(val) ? 1.5 : Math.min(3.0, Math.max(0.5, val));
-                    setCompScaleFactor(clamped);
-                    setCompScaleLocal(String(clamped));
+                    if (!Number.isFinite(val) || val < 0.5 || val > 3) return;
+                    setCompScaleFactor(val);
+                    setCompScaleLocal(String(val));
                   }}
                   onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                   min={0.5} max={3.0} step={0.1}
@@ -464,8 +395,8 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
               <button
                 type="button"
                 onClick={handleMatchCompensation}
-                disabled={matchCompLoading || !formData.censusDataPath || formData.censusDataStatus !== 'loaded'}
-                className={`inline-flex items-center px-3 py-1.5 border rounded-md text-xs font-medium transition-colors ${matchCompSuccess ? 'bg-success-surface border-success-border text-success-ink' : (formData.censusDataPath && formData.censusDataStatus === 'loaded') ? 'bg-info-surface border-info-border text-info-ink hover:bg-info-surface' : 'bg-surface-subtle border-border text-ink-subtle cursor-not-allowed'}`}
+                disabled={matchCompLoading || !formData.censusDataPath || formData.censusDataStatus !== 'loaded' || scenarioLoading}
+                className={`inline-flex items-center px-3 py-1.5 border rounded-md text-xs font-medium transition-colors ${(formData.censusDataPath && formData.censusDataStatus === 'loaded') ? 'bg-info-surface border-info-border text-info-ink hover:bg-info-surface' : 'bg-surface-subtle border-border text-ink-subtle cursor-not-allowed'}`}
                 title={formData.censusDataStatus !== 'loaded' ? 'Load a census file first' : 'Analyze census to suggest compensation ranges'}
               >
                 {matchCompLoading ? (
@@ -476,10 +407,8 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
                     </svg>
                     Analyzing...
                   </>
-                ) : matchCompSuccess ? (
-                  <><Check className="h-3 w-3 mr-1" /> Applied!</>
                 ) : (
-                  <><DollarSign className="h-3 w-3 mr-1" /> Match Census</>
+                  <><DollarSign className="h-3 w-3 mr-1" /> Suggest from census</>
                 )}
               </button>
             </div>
@@ -487,12 +416,9 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
           <p className="text-xs text-ink-muted mb-4">
             Define min/max compensation for each job level. Used for new hire offers.
             {formData.censusDataStatus === 'loaded' && (
-              <span className="text-info-ink ml-1">Select lookback period and click "Match Census" to derive ranges from recent hire data.</span>
+              <span className="text-info-ink ml-1">Select lookback period and click "Suggest from census" to derive ranges from recent hire data.</span>
             )}
           </p>
-          {matchCompError && (
-            <div className="mb-4 p-2 bg-danger-surface border border-danger-border rounded text-xs text-danger-ink">{matchCompError}</div>
-          )}
           {compensationAnalysis && (
             <div className={`mb-4 p-2 rounded text-xs ${compensationAnalysis.recent_hires_only ? 'bg-info-surface border border-info-border text-info-ink' : 'bg-warning-surface border border-warning-border text-warning-ink'}`}>
               <strong>Analysis:</strong> {compensationAnalysis.analysis_type} ({compensationAnalysis.total_employees} employees)
@@ -562,25 +488,24 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
               {marketMultipliers[formData.marketScenario]?.description || 'At market (competitive positioning)'}
             </p>
           </div>
-          <div className="mt-4">
+          <fieldset disabled className="mt-4">
             <h4 className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-3">Level-Specific Adjustments</h4>
-            <p className="text-xs text-ink-muted mb-3">Fine-tune market positioning by job level (in addition to overall scenario).</p>
-            <div className="grid grid-cols-5 gap-2">
+            <p className="text-xs text-ink-muted mb-3">Level-specific adjustments are retained but have no current engine consumer. They are read-only.</p>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
               {(formData.levelMarketAdjustments || []).map((row, idx) => (
                 <div key={row.level} className="bg-surface-raised p-2 rounded border border-border">
                   <label htmlFor={`newhire-level-adj-${row.level}`} className="block text-xs text-ink-muted mb-1 text-center">Level {row.level}</label>
                   <div className="relative">
-                    <input id={`newhire-level-adj-${row.level}`} type="number" step="1" value={row.adjustment} onChange={(e) => handleLevelAdjustmentChange(idx, e.target.value)} className="w-full shadow-sm focus:ring-fidelity-green focus:border-fidelity-green text-xs border-border-strong rounded-md p-1 border text-center" />
+                    <NumericInput id={`newhire-level-adj-${row.level}`} type="number" step="1" value={row.adjustment} onChange={(e) => handleLevelAdjustmentChange(idx, e.target.value)} className="w-full shadow-sm focus:ring-fidelity-green focus:border-fidelity-green text-xs border-border-strong rounded-md p-1 border text-center" />
                     <span className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-subtle text-xs">%</span>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
+          </fieldset>
         </div>
 
-        {/* 038: Promotion Hazard Section */}
-        <PromotionHazardEditor />
+        {/* Promotion hazards are grouped with advanced workforce settings. */}
         </>)}
       </div>
     </div>

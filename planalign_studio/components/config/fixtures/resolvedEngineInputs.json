@@ -1,0 +1,139 @@
+{
+  "config": {
+    "simulation": {
+      "start_year": 2025,
+      "end_year": 2026,
+      "random_seed": 0
+    },
+    "compensation": {
+      "merit_budget": 0.035
+    },
+    "new_hire": {
+      "age_distribution": [
+        {
+          "age": 37,
+          "weight": 1
+        }
+      ],
+      "job_level_compensation": [
+        {
+          "level": 1,
+          "name": "Analyst",
+          "min_compensation": 45000,
+          "max_compensation": 85000
+        }
+      ]
+    },
+    "dc_plan": {
+      "tenure_match_tiers": [
+        {
+          "min_years": 0,
+          "max_years": null,
+          "match_rate": 1.5,
+          "max_deferral_pct": 0.06
+        }
+      ],
+      "points_match_tiers": [
+        {
+          "min_points": 0,
+          "max_points": null,
+          "match_rate": 0.5,
+          "max_deferral_pct": 0.08
+        }
+      ],
+      "core_graded_schedule": [
+        {
+          "service_years_min": 3,
+          "service_years_max": 5,
+          "contribution_rate": 0.04
+        }
+      ],
+      "core_points_schedule": [
+        {
+          "min_points": 40,
+          "max_points": null,
+          "contribution_rate": 0.045
+        }
+      ],
+      "core_age_schedule": [
+        {
+          "min_age": 40,
+          "max_age": null,
+          "contribution_rate": 0.05
+        }
+      ],
+      "match_status": "tenure_graded",
+      "eligibility_months": 0
+    }
+  },
+  "variables": {
+    "random_seed": 0,
+    "merit_budget": 0.035,
+    "new_hire_age_distribution": [
+      {
+        "age": 37,
+        "weight": 1
+      }
+    ],
+    "job_level_compensation": [
+      {
+        "level": 1,
+        "name": "Analyst",
+        "min_compensation": 45000,
+        "max_compensation": 85000
+      }
+    ],
+    "tenure_match_tiers": [
+      {
+        "min_years": 0,
+        "max_years": null,
+        "rate": 150,
+        "max_deferral_pct": 6
+      }
+    ],
+    "tenure_graded_bands": [
+      {
+        "min_years": 0,
+        "max_years": null,
+        "tiers": [
+          {
+            "employee_min": 0,
+            "employee_max": 0.06,
+            "match_rate": 1.5
+          }
+        ]
+      }
+    ],
+    "points_match_tiers": [
+      {
+        "min_points": 0,
+        "max_points": null,
+        "rate": 50,
+        "max_deferral_pct": 8
+      }
+    ],
+    "employer_core_graded_schedule": [
+      {
+        "min_years": 3,
+        "max_years": 5,
+        "rate": 4
+      }
+    ],
+    "employer_core_points_schedule": [
+      {
+        "min_points": 40,
+        "max_points": null,
+        "rate": 4.5
+      }
+    ],
+    "employer_core_age_schedule": [
+      {
+        "min_age": 40,
+        "max_age": null,
+        "rate": 5
+      }
+    ],
+    "employer_match_status": "tenure_graded",
+    "plan_eligibility_waiting_period_days": 0
+  }
+}

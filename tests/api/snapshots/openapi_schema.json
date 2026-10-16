@@ -4504,6 +4504,30 @@
         "title": "ConfigDifference",
         "type": "object"
       },
+      "ConfigPreviewRequest": {
+        "description": "Unsaved configuration to resolve without persisting it.",
+        "properties": {
+          "config": {
+            "additionalProperties": true,
+            "title": "Config",
+            "type": "object"
+          },
+          "target": {
+            "default": "scenario",
+            "enum": [
+              "scenario",
+              "workspace"
+            ],
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "config"
+        ],
+        "title": "ConfigPreviewRequest",
+        "type": "object"
+      },
       "ConfigurationEvidence": {
         "additionalProperties": false,
         "properties": {
@@ -22792,6 +22816,61 @@
         "summary": "Compare Scenario Configs",
         "tags": [
           "Comparison"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/config-preview": {
+      "post": {
+        "description": "Resolve an unsaved draft using production merge and export, without running.",
+        "operationId": "preview_configuration_api_workspaces__workspace_id__config_preview_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Preview Configuration Api Workspaces  Workspace Id  Config Preview Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Configuration",
+        "tags": [
+          "Scenarios"
         ]
       }
     },

@@ -368,6 +368,22 @@ export async function getScenarioConfig(
   return handleResponse<Record<string, any>>(response);
 }
 
+export interface ConfigPreview {
+  configuration: Record<string, any>;
+  engine_variables: Record<string, any>;
+  scope: string;
+}
+
+export async function previewConfiguration(
+  workspaceId: string, config: Record<string, any>, target: 'scenario' | 'workspace',
+): Promise<ConfigPreview> {
+  const response = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/config-preview`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ config, target }),
+  });
+  return handleResponse<ConfigPreview>(response);
+}
+
 export async function createScenario(
   workspaceId: string,
   data: ScenarioCreate

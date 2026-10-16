@@ -175,6 +175,8 @@ export interface FormData {
   // which keeps the demographic model. Any value is an exact percentage.
   dcVoluntaryEnrollmentRate: string;
   dcNewHireOptOutRate: string;
+  dcVoluntaryEnrollmentMode?: 'inherit' | 'demographic' | 'specified';
+  dcNewHireOptOutMode?: 'inherit' | 'demographic' | 'specified';
   // DC Plan - upward deferral spread, whole percentage points ('0' or '' = off)
   dcDeferralSpreadMaxLift: string;
 

@@ -1,3 +1,4 @@
+import { NumericInput } from './NumericInput';
 import { useState, useEffect } from 'react';
 
 // E044: Helper component for salary range inputs with onBlur commit pattern
@@ -15,14 +16,14 @@ export function CompensationInput({ value, onCommit, hasError, step = 500, min =
   }, [value]);
 
   const commit = () => {
-    const parsed = parseFloat(localValue) || 0;
-    const clamped = Math.max(parsed, min);
-    onCommit(clamped);
-    setLocalValue(String(clamped));
+    const parsed = Number(localValue);
+    if (!localValue.trim() || !Number.isFinite(parsed) || parsed < min) return;
+    onCommit(parsed);
+    setLocalValue(String(parsed));
   };
 
   return (
-    <input
+    <NumericInput
       type="number"
       step={step}
       min={min}

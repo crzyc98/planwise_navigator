@@ -1,3 +1,4 @@
+import { NumericInput } from './NumericInput';
 import { useEffect, useState } from 'react';
 import { AlertTriangle, BarChart3, Info, X } from 'lucide-react';
 import { useConfigContext } from './ConfigContext';
@@ -7,6 +8,8 @@ import { MATCH_TEMPLATES, calculateMatchCap, DEFAULT_FORM_DATA, DEFAULT_VOLUNTAR
 import { analyzeOptOutRate, OptOutRateAnalysisResult } from '../../services/api';
 import { TenureGradedMatchEditor } from './TenureGradedMatchEditor';
 import { VoluntaryDeferralRatesEditor } from './VoluntaryDeferralRatesEditor';
+import { DCPlanPanel, EmployerEligibilityEditor, coreSummary, dcDisplayConfig, matchSummary, tierSummary } from './DCPlanPanels';
+import { EnrollmentRateInput } from './EnrollmentRateInput';
 
 /**
  * The lowest base core rate any employee could receive, as a percentage.
@@ -116,7 +119,19 @@ export function getDeferralSpreadClipping(
 }
 
 export function DCPlanSection() {
-  const { formData, setFormData, handleChange, inputProps, activeWorkspace } = useConfigContext();
+  const { formData, savedFormData, setFormData, handleChange, inputProps, activeWorkspace, workspaceConfig, originalConfig, buildDraftConfig, resolvedEngineVariables } = useConfigContext();
+  const displayConfig = dcDisplayConfig(workspaceConfig, originalConfig, buildDraftConfig, resolvedEngineVariables);
+  const voluntaryMode = formData.dcVoluntaryEnrollmentMode ?? (formData.dcVoluntaryEnrollmentRate === '' ? 'demographic' : 'specified');
+  const optOutMode = formData.dcNewHireOptOutMode ?? (formData.dcNewHireOptOutRate === '' ? 'demographic' : 'specified');
+  const rateSource = (mode: string, value: string) => mode === 'specified' ? `${value}% specified` : mode === 'demographic' ? 'demographic model' : 'inherited setting';
+  const responseMaximizers = Number(displayConfig.deferral_match_response?.upward_maximize_rate ?? 0.6) * 100;
+  const responsePartialGap = Number(displayConfig.deferral_match_response?.upward_partial_increase_factor ?? 0.5) * 100;
+  const waitingMonths = Number(formData.dcEligibilityMonths);
+  const waitingPeriodUnchanged = savedFormData != null && Number(savedFormData.dcEligibilityMonths) === waitingMonths;
+  const waitingPeriodDays = Number(((waitingPeriodUnchanged ? waitingMonths : Math.trunc(waitingMonths)) * 30).toFixed(6));
+  const waitingPeriodHelper = waitingPeriodUnchanged && !Number.isInteger(waitingMonths)
+    ? `Existing waiting period: ${waitingPeriodDays} days; edits use whole modeled months of 30 days.`
+    : `Each modeled month equals 30 days. Resolved waiting period: ${waitingPeriodDays} days.`;
 
   const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<OptOutRateAnalysisResult | null>(null);
@@ -182,14 +197,7 @@ export function DCPlanSection() {
     }
   }, [lookbackYears]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return (
-    <div className="space-y-8 animate-fadeIn">
-      <div className="border-b border-border pb-4">
-        <h2 className="text-lg font-bold text-ink">401(k) / DC Plan Config</h2>
-        <p className="text-sm text-ink-muted">Configure retirement plan eligibility, matching rules, and vesting.</p>
-      </div>
-
-      <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+  const eligibilityFields = <>
          <div className="sm:col-span-6 bg-success-surface p-4 rounded-lg border border-success-border mb-2 flex items-start">
             <input
                  type="checkbox"
@@ -201,18 +209,17 @@ export function DCPlanSection() {
             />
             <div className="ml-3">
                <label htmlFor="dcAutoEnroll" className="block text-sm font-medium text-success-ink">Enable Auto-Enrollment</label>
-               <p className="text-xs text-success-ink mt-0.5">New hires will be automatically enrolled upon eligibility.</p>
+               <p className="text-xs text-success-ink mt-0.5">Automatically enroll eligible employees within the scope and timing rules below.</p>
             </div>
          </div>
 
-         <InputField label="Eligibility Period" {...inputProps('dcEligibilityMonths')} type="number" suffix="Months" helper="Wait period before joining" />
-         <InputField label="Default Deferral Rate" {...inputProps('dcDefaultDeferral')} type="number" step="0.5" suffix="%" helper="Initial contribution for auto-enrolled" />
+         <InputField label="Eligibility waiting period" {...inputProps('dcEligibilityMonths')} type="number" suffix="Months" helper={waitingPeriodHelper} />
+         <InputField label="Default Deferral Rate" {...inputProps('dcDefaultDeferral')} type="number" step="0.5" suffix="%" disabled={!formData.dcAutoEnroll} helper={formData.dcAutoEnroll ? 'Initial contribution for auto-enrolled employees.' : 'Inactive while auto-enrollment is off. Saved value is retained.'} />
 
          {/* E084: Auto-Enrollment Advanced Settings */}
-         {formData.dcAutoEnroll && (
            <>
-             <InputField label="Enrollment Window" {...inputProps('dcAutoEnrollWindowDays')} type="number" suffix="Days" helper="Days after hire for auto-enrollment" min={30} />
-             <InputField label="Opt-Out Grace Period" {...inputProps('dcAutoEnrollOptOutGracePeriod')} type="number" suffix="Days" helper="Days to opt out without penalty" min={0} />
+             <InputField label="New-hire enrollment delay after eligibility" {...inputProps('dcAutoEnrollWindowDays')} type="number" suffix="Days" helper="Hire-year enrollment branch: eligibility date + this delay. Continuing-employee branch: January 15. This timing also applies to voluntary enrollment when auto-enrollment is off." min={30} />
+             <InputField label="Modeled opt-out delay" {...inputProps('dcAutoEnrollOptOutGracePeriod')} type="number" suffix="Days" disabled={!formData.dcAutoEnroll} helper={formData.dcAutoEnroll ? 'Hire-year opt-out date: eligibility + enrollment delay + this delay. Continuing-employee branch: June 15.' : 'Inactive while auto-enrollment is off. Saved value is retained.'} min={0} />
              <div className="sm:col-span-3">
                <label htmlFor="dcplan-enrollment-scope" className="block text-sm font-medium text-ink-muted">Enrollment Scope</label>
                <select
@@ -225,7 +232,7 @@ export function DCPlanSection() {
                  <option value="new_hires_only">New Hires Only</option>
                  <option value="all_eligible">All Eligible Employees</option>
                </select>
-               <p className="mt-1 text-xs text-ink-muted">Who gets auto-enrolled</p>
+               <p className="mt-1 text-xs text-ink-muted">Scope gates the modeled enrollment branch, including voluntary enrollment when auto-enrollment is off. Already enrolled employees are excluded.</p>
              </div>
              <div className="sm:col-span-3">
                <label htmlFor="dcplan-enroll-hire-cutoff" className="block text-sm font-medium text-ink-muted">Hire Date Cutoff</label>
@@ -237,11 +244,22 @@ export function DCPlanSection() {
                  onChange={handleChange}
                  className="mt-1 block w-full pl-3 pr-3 py-2 text-base border-border-strong focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
                />
-               <p className="mt-1 text-xs text-ink-muted">Auto-enroll employees hired on/after this date</p>
+               <p className="mt-1 text-xs text-ink-muted">Inclusive hire cutoff for the scope rules below. Changing enrollment settings does not reset this date.</p>
+             </div>
+             <div className="sm:col-span-6 rounded-lg border border-border bg-surface-subtle p-3 text-xs text-ink-muted">
+               <p><strong>First year ({formData.startYear}):</strong> Plan-eligible employees hired on or after {formData.dcAutoEnrollHireDateCutoff || 'the configured engine cutoff'}.</p>
+               <p className="mt-1"><strong>Later years:</strong> {formData.dcAutoEnrollScope === 'new_hires_only'
+                 ? 'Only current-year hires who meet plan eligibility; the hire cutoff is not reapplied.'
+                 : `All plan-eligible employees hired on or after ${formData.dcAutoEnrollHireDateCutoff || 'the configured engine cutoff'}; the cutoff still applies.`}</p>
+               {!formData.dcAutoEnroll && <p className="mt-1">Auto-enrollment is off. Default deferral and opt-out settings are inactive; draft values are retained for re-enabling. Voluntary enrollment and plan eligibility remain available.</p>}
              </div>
 
+           </>
+  </>;
+
+  const enrollmentFields = <>
              {/* Opt-Out Assumptions Section */}
-             <div className="sm:col-span-6 mt-4">
+             <fieldset disabled={!formData.dcAutoEnroll} className="sm:col-span-6 mt-4 disabled:opacity-60">
                <div className="flex items-center justify-between mb-3">
                  <h4 className="text-sm font-semibold text-ink">Opt-Out Assumptions</h4>
                  <div className="flex items-center gap-2">
@@ -270,9 +288,7 @@ export function DCPlanSection() {
                <p className="text-xs text-ink-muted mb-3">
                  Target opt-out rate for <strong>continuing employees</strong>. Demographic
                  sensitivity is applied automatically behind the scenes.
-                 {formData.dcNewHireOptOutRate === ''
-                   ? ' New hires use this too, unless you set a New Hire Opt-Out % below.'
-                   : ' New hires are governed by the New Hire Opt-Out % below, not this field.'}
+                 {' '}New-hire opt-outs follow the selected rate source below; this target supplies the demographic model when that decision uses demographic rates.
                </p>
 
                {/* Match Census error */}
@@ -295,7 +311,7 @@ export function DCPlanSection() {
                    {/* Lookback input (US2) */}
                    <div className="flex items-center gap-2 mb-3">
                      <label className="text-success-ink font-medium whitespace-nowrap">Lookback (years):</label>
-                     <input
+                     <NumericInput integer
                        type="number"
                        min={1}
                        max={50}
@@ -350,7 +366,7 @@ export function DCPlanSection() {
                )}
 
                <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-6 mb-4">
-                 <InputField label="Target Opt-Out Rate" {...inputProps('dcOptOutRateTarget')} type="number" step="0.5" suffix="%" helper={formData.dcNewHireOptOutRate === '' ? 'Average opt-out rate across all demographics' : 'Continuing employees only — new hires use the flat rate below'} min={0} max={100} />
+                 <InputField label="Target Opt-Out Rate" {...inputProps('dcOptOutRateTarget')} type="number" step="0.5" suffix="%" helper="Demographic opt-out target for continuing employees and any new hires using the demographic model." min={0} max={100} />
                </div>
 
                {/* Derived rates preview */}
@@ -369,59 +385,28 @@ export function DCPlanSection() {
                    <span>Executive: {(Number(formData.dcOptOutRateTarget) * 0.5).toFixed(1)}%</span>
                  </div>
                </details>
-             </div>
-           </>
-         )}
+             </fieldset>
 
          {/* New Hire Enrollment Rates (issue #652) */}
          <div className="sm:col-span-6 mt-4">
            <h4 className="text-sm font-semibold text-ink mb-1">New Hire Enrollment Rates</h4>
            <p className="text-xs text-ink-muted mb-3">
-             Exact percentages applied to eligible new hires in their hire year. Whatever
-             is left over auto-enrolls. Leave a field empty to keep the demographic model
-             for that decision. These do not affect continuing employees.
+             Exact percentages applied to eligible new hires in their hire year. {formData.dcAutoEnroll
+               ? 'Remaining new hires in the enrollment scope may auto-enroll, subject to opt-outs.'
+               : 'Auto-enrollment is off; remaining new hires are not automatically enrolled.'}{' '}
+             Choose a rate source for each decision. Enrollment also depends on the scope and timing rules above.
            </p>
            <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-6">
-             <InputField
-               label="New Hire Voluntary Enrollment %"
-               name="dcVoluntaryEnrollmentRate"
-               value={formData.dcVoluntaryEnrollmentRate}
-               onChange={handleChange}
-               type="number"
-               step="1"
-               suffix="%"
-               helper="Share of eligible new hires who enroll on their own (0–100%). Empty = demographic rates."
-               min={0}
-               max={100}
-               placeholder="Default"
-             />
-             <InputField
-               label="New Hire Opt-Out %"
-               name="dcNewHireOptOutRate"
-               value={formData.dcNewHireOptOutRate}
-               onChange={handleChange}
-               type="number"
-               step="1"
-               suffix="%"
-               helper="Share of auto-enrolled new hires who opt out (0–100%). Empty = demographic opt-out model."
-               min={0}
-               max={100}
-               placeholder="Default"
-             />
+             <EnrollmentRateInput kind="voluntary" />
+             <EnrollmentRateInput kind="optOut" />
            </div>
-           {formData.dcVoluntaryEnrollmentRate !== '' && (Number(formData.dcVoluntaryEnrollmentRate) < 0 || Number(formData.dcVoluntaryEnrollmentRate) > 100) && (
-             <p className="mt-1 text-xs text-danger-ink">New hire voluntary enrollment must be between 0% and 100%.</p>
-           )}
-           {formData.dcNewHireOptOutRate !== '' && (Number(formData.dcNewHireOptOutRate) < 0 || Number(formData.dcNewHireOptOutRate) > 100) && (
-             <p className="mt-1 text-xs text-danger-ink">New hire opt-out must be between 0% and 100%.</p>
-           )}
-           {formData.dcVoluntaryEnrollmentRate !== '' && formData.dcNewHireOptOutRate !== ''
+           {formData.dcAutoEnroll && voluntaryMode === 'specified' && optOutMode === 'specified' && formData.dcVoluntaryEnrollmentRate !== '' && formData.dcNewHireOptOutRate !== ''
              && Number(formData.dcVoluntaryEnrollmentRate) >= 0
              && Number(formData.dcVoluntaryEnrollmentRate) <= 100
              && Number(formData.dcNewHireOptOutRate) >= 0
              && Number(formData.dcNewHireOptOutRate) <= 100 && (
              <p className="mt-2 text-xs text-ink-muted">
-               Resulting split of eligible new hires:{' '}
+               Resulting split of eligible new hires within the enrollment scope:{' '}
                <strong>{Number(formData.dcVoluntaryEnrollmentRate).toFixed(0)}%</strong> voluntary,{' '}
                <strong>{((100 - Number(formData.dcVoluntaryEnrollmentRate)) * (100 - Number(formData.dcNewHireOptOutRate)) / 100).toFixed(1)}%</strong> auto-enrolled,{' '}
                <strong>{((100 - Number(formData.dcVoluntaryEnrollmentRate)) * Number(formData.dcNewHireOptOutRate) / 100).toFixed(1)}%</strong> opted out.
@@ -429,6 +414,9 @@ export function DCPlanSection() {
            )}
          </div>
 
+  </>;
+
+  const startingRateFields = <>
          <VoluntaryDeferralRatesEditor
            rates={formData.dcVoluntaryDeferralBaseRates}
            onChange={(rates) => setFormData(prev => ({ ...prev, dcVoluntaryDeferralBaseRates: rates }))}
@@ -486,10 +474,13 @@ export function DCPlanSection() {
            )}
          </div>
 
+  </>;
+
+  const responseFields = <>
          {/* Match Magnet dial (Feature 102) */}
          <div className="sm:col-span-6 mt-4">
            <div className="flex items-center justify-between mb-1">
-             <h4 className="text-sm font-semibold text-ink">Match Magnet</h4>
+             <h4 className="text-sm font-semibold text-ink">New enrollees seeking the full match</h4>
              <label htmlFor="dcplan-match-magnet-enabled" className="flex items-center">
                <input
                  id="dcplan-match-magnet-enabled"
@@ -502,17 +493,17 @@ export function DCPlanSection() {
                <span className="ml-2 text-sm text-ink-muted">Enabled</span>
              </label>
            </div>
-           <p className="text-xs text-ink-muted mb-3">Models employees who defer just enough to capture the full employer match: a fraction of below-ceiling voluntary enrollees snap up to the match ceiling. Raise the "snap" share to counteract a declining average deferral when there is no auto-enrollment.</p>
+           <p className="text-xs text-ink-muted mb-3">Models new voluntary enrollees who increase their contributions to the rate needed for the full employer match. The selected share applies only to those starting below that rate.</p>
            <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-6">
-             <InputField label="Snap to Match" {...inputProps('dcMatchMagnetProbability')} type="number" step="1" suffix="%" helper="Share of below-ceiling enrollees who snap to the match ceiling (0–100%)." min={0} max={100} />
-             <InputField label="Max Voluntary Deferral" {...inputProps('dcMaxVoluntaryDeferral')} type="number" step="1" suffix="%" helper="Upper bound on voluntary deferral selection, including magnet-snapped rates." min={1} max={100} />
+             <InputField label="Share seeking the full match" {...inputProps('dcMatchMagnetProbability')} type="number" step="1" suffix="%" disabled={!formData.dcMatchMagnetEnabled} helper={formData.dcMatchMagnetEnabled ? 'Share of below-ceiling voluntary enrollees who increase to the full-match rate (0–100%).' : 'Inactive while new-enrollee match seeking is off. Saved value is retained.'} min={0} max={100} />
+             <InputField label="Max Voluntary Deferral" {...inputProps('dcMaxVoluntaryDeferral')} type="number" step="1" suffix="%" helper="Shared upper bound on voluntary deferral selection and spread, including when match seeking is off." min={1} max={100} />
            </div>
          </div>
 
-         <div className="col-span-6 h-px bg-surface-disabled my-2"></div>
+         <div className="sm:col-span-6 h-px bg-surface-disabled my-2"></div>
          <div className="sm:col-span-6 mt-2">
            <div className="flex items-center justify-between mb-1">
-             <h4 className="text-sm font-semibold text-ink">Match-Responsive Deferral Adjustment</h4>
+             <h4 className="text-sm font-semibold text-ink">First-year response by existing participants</h4>
              <label htmlFor="dcplan-match-response-enabled" className="flex items-center">
                <input
                  id="dcplan-match-response-enabled"
@@ -525,7 +516,8 @@ export function DCPlanSection() {
                <span className="ml-2 text-sm text-ink-muted">Enabled</span>
              </label>
            </div>
-           <p className="text-xs text-ink-muted mb-3">In the first projection year, models active enrolled employees changing deferrals in response to the employer-match ceiling. This is distinct from Match Magnet, which affects voluntary enrollment behavior.</p>
+           <p className="text-xs text-ink-muted mb-3">In the first projection year, models active enrolled employees changing contributions in response to the employer-match ceiling. Current-year new hires are excluded. Some upward responders seek the full match; others close part of the gap according to the inherited response assumptions.</p>
+           <p className="text-xs text-ink-muted mb-3">Upward responders seeking the full match: {responseMaximizers}%. Partial responders close {responsePartialGap}% of the gap. Shared escalation and IRS limits still apply.</p>
            <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-6">
              <InputField
                label="Increase Deferral Response"
@@ -533,7 +525,8 @@ export function DCPlanSection() {
                type="number"
                step="1"
                suffix="%"
-               helper="Share of eligible employees below the match ceiling who increase deferrals (0–100%)."
+               disabled={!formData.dcMatchResponseEnabled}
+               helper={formData.dcMatchResponseEnabled ? 'Share of eligible employees below the match ceiling who increase deferrals (0–100%).' : 'Inactive while first-year participant response is off. Saved value is retained.'}
                min={0}
                max={100}
              />
@@ -544,6 +537,7 @@ export function DCPlanSection() {
                    type="checkbox"
                    name="dcMatchResponseDownwardEnabled"
                    checked={formData.dcMatchResponseDownwardEnabled}
+                   disabled={!formData.dcMatchResponseEnabled}
                    onChange={handleChange}
                    className="h-4 w-4 text-fidelity-green rounded"
                  />
@@ -555,7 +549,8 @@ export function DCPlanSection() {
                  type="number"
                  step="1"
                  suffix="%"
-                 helper="Share of eligible employees above the match ceiling who decrease deferrals (default: 5%)."
+                 disabled={!formData.dcMatchResponseEnabled || !formData.dcMatchResponseDownwardEnabled}
+                 helper={formData.dcMatchResponseEnabled && formData.dcMatchResponseDownwardEnabled ? 'Share of eligible employees above the match ceiling who decrease deferrals.' : 'Inactive while first-year response or deferral decreases are off. Saved value is retained.'}
                  min={0}
                  max={100}
                />
@@ -563,7 +558,9 @@ export function DCPlanSection() {
            </div>
          </div>
 
-         <div className="col-span-6 h-px bg-surface-disabled my-2"></div>
+  </>;
+
+  const matchFields = <>
          <div className="sm:col-span-6 flex items-center justify-between mb-2">
            <h4 className="text-sm font-semibold text-ink">Employer Match Formula</h4>
            <label htmlFor="dcplan-match-enabled" className="flex items-center">
@@ -578,7 +575,7 @@ export function DCPlanSection() {
              <span className="ml-2 text-sm text-ink-muted">Enabled</span>
            </label>
          </div>
-         <p className="col-span-6 text-xs text-ink-muted -mt-4 mb-2">Configure employer matching contributions on employee deferrals</p>
+         <p className="sm:col-span-6 text-xs text-ink-muted -mt-4 mb-2">Configure employer matching contributions on employee deferrals</p>
 
          {formData.dcMatchEnabled && (<>
          {/* E046: Match Mode Selector */}
@@ -594,6 +591,7 @@ export function DCPlanSection() {
              <option value="graded_by_service">Graded by Service (existing service tiers)</option>
              <option value="tenure_graded">Tenure-Graded (multi-tier schedule by years of service)</option>
              <option value="points_based">Points-Based (match varies by age + tenure points)</option>
+             {!['deferral_based', 'graded_by_service', 'tenure_graded', 'points_based'].includes(formData.dcMatchMode) && <option value={formData.dcMatchMode}>Saved custom mode: {formData.dcMatchMode}</option>}
            </select>
            <p className="mt-1 text-xs text-ink-muted">
              {formData.dcMatchMode === 'tenure_graded' && 'Each tenure band has its own multi-tier deferral schedule (e.g. 100% on first 2%, 50% on next 6%)'}
@@ -618,9 +616,9 @@ export function DCPlanSection() {
              <p className="text-xs text-ink-muted mb-3">Points = FLOOR(age) + FLOOR(years of service). Uses [min, max) intervals.</p>
              <div className="space-y-2">
                {formData.dcPointsMatchTiers.map((tier, idx) => (
-                 <div key={idx} className="flex items-center gap-2 bg-surface-raised p-2 rounded border border-border">
+                 <div key={idx} className="flex flex-wrap items-center gap-2 bg-surface-raised p-2 rounded border border-border">
                    <span className="text-xs text-ink-muted w-4">{idx + 1}.</span>
-                   <input type="number" min={0} value={tier.minPoints}
+                   <NumericInput integer type="number" min={0} value={tier.minPoints}
                      onChange={(e) => {
                        const newTiers = [...formData.dcPointsMatchTiers];
                        newTiers[idx] = { ...newTiers[idx], minPoints: parseInt(e.target.value) || 0 };
@@ -629,7 +627,7 @@ export function DCPlanSection() {
                      className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
                    />
                    <span className="text-sm text-ink-muted">to</span>
-                   <input type="number" min={0} value={tier.maxPoints ?? ''}
+                   <NumericInput integer allowEmpty type="number" min={0} value={tier.maxPoints ?? ''}
                      placeholder="&#8734;"
                      onChange={(e) => {
                        const newTiers = [...formData.dcPointsMatchTiers];
@@ -639,7 +637,7 @@ export function DCPlanSection() {
                      className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
                    />
                    <span className="text-sm text-ink-muted">pts | 0% to</span>
-                   <input type="number" step="1" min={0} max={100} value={tier.maxDeferralPct}
+                   <NumericInput type="number" step="1" min={0} max={100} value={tier.maxDeferralPct}
                      onChange={(e) => {
                        const newTiers = [...formData.dcPointsMatchTiers];
                        newTiers[idx] = { ...newTiers[idx], maxDeferralPct: parseFloat(e.target.value) || 0 };
@@ -648,7 +646,7 @@ export function DCPlanSection() {
                      className="w-14 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
                    />
                    <span className="text-sm text-ink-muted">% deferrals &#8594;</span>
-                   <input type="number" step="5" min={0} max={200} value={tier.matchRate}
+                   <NumericInput type="number" step="5" min={0} max={200} value={tier.matchRate}
                      onChange={(e) => {
                        const newTiers = [...formData.dcPointsMatchTiers];
                        newTiers[idx] = { ...newTiers[idx], matchRate: parseFloat(e.target.value) || 0 };
@@ -731,7 +729,7 @@ export function DCPlanSection() {
                <option key={key} value={key}>{t.name}</option>
              ))}
            </select>
-           <p className="mt-1 text-xs text-ink-muted">Select a template, then customize tiers below</p>
+           <p className="mt-1 text-xs text-ink-muted">Select a formula template, then customize tiers below. Names describe starting formulas; other plan requirements are configured separately.</p>
          </div>
          )}
 
@@ -745,21 +743,26 @@ export function DCPlanSection() {
              <span className="text-sm text-ink-muted ml-1">of compensation</span>
            </div>
            <p className="mt-1 text-xs text-ink-muted">Auto-calculated from tiers below</p>
+           <p className="mt-2 text-sm text-ink">Employee contribution rate needed for full match: <strong>{Math.max(0, ...formData.dcMatchTiers.filter(tier => tier.matchRate > 0).map(tier => tier.deferralMax))}%</strong></p>
          </div>
 
          {/* Editable Match Tiers */}
          <div className="sm:col-span-6 bg-surface-subtle p-4 rounded-lg border border-border">
            <span className="block text-sm font-medium text-ink-muted mb-3">Match Tiers (editable)</span>
+           <p className="text-xs text-ink-muted mb-3">For “100% on the first 4%”, set the first tier from 0% to 4% with a 100% match rate. Additional tiers use cumulative boundaries: “50% on the next 2%” runs from 4% to 6%.</p>
+           <p className="text-xs text-ink-muted mb-3">{tierSummary(formData.dcMatchTiers)} Formula examples assume eligible compensation and employees meeting match eligibility; IRS limits and any configured employer cap apply.</p>
            <div className="space-y-2">
              {formData.dcMatchTiers.map((tier, idx) => (
-               <div key={idx} className="flex items-center gap-2 bg-surface-raised p-2 rounded border border-border">
+               <div key={idx} className="flex flex-wrap items-center gap-2 bg-surface-raised p-2 rounded border border-border">
                  <span className="text-xs text-ink-muted w-4">{idx + 1}.</span>
-                 <input
+                 <span className="text-sm text-ink-muted">Employee contributions</span>
+                 <NumericInput
                    type="number"
                    step="0.5"
                    min={0}
                    max={100}
                    value={tier.deferralMin}
+                   aria-label={`Tier ${idx + 1} employee contribution start percent`}
                    onChange={(e) => {
                      const newTiers = [...formData.dcMatchTiers];
                      newTiers[idx] = { ...newTiers[idx], deferralMin: parseFloat(e.target.value) || 0 };
@@ -768,12 +771,13 @@ export function DCPlanSection() {
                    className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
                  />
                  <span className="text-sm text-ink-muted">% to</span>
-                 <input
+                 <NumericInput
                    type="number"
                    step="0.5"
                    min={0}
                    max={100}
                    value={tier.deferralMax}
+                   aria-label={`Tier ${idx + 1} employee contribution end percent`}
                    onChange={(e) => {
                      const newTiers = [...formData.dcMatchTiers];
                      newTiers[idx] = { ...newTiers[idx], deferralMax: parseFloat(e.target.value) || 0 };
@@ -781,13 +785,14 @@ export function DCPlanSection() {
                    }}
                    className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
                  />
-                 <span className="text-sm text-ink-muted">% deferrals &#8594;</span>
-                 <input
+                 <span className="text-sm text-ink-muted">%, matched at</span>
+                 <NumericInput
                    type="number"
                    step="5"
                    min={0}
                    max={200}
                    value={tier.matchRate}
+                   aria-label={`Tier ${idx + 1} employer match rate percent`}
                    onChange={(e) => {
                      const newTiers = [...formData.dcMatchTiers];
                      newTiers[idx] = { ...newTiers[idx], matchRate: parseFloat(e.target.value) || 0 };
@@ -826,57 +831,25 @@ export function DCPlanSection() {
 
          {/* Safe Harbor Notice */}
          {(formData.dcMatchTemplate === 'safe_harbor' || formData.dcMatchTemplate === 'qaca') && (
-           <div className="col-span-6 bg-info-surface border border-info-border p-3 rounded-lg flex items-start gap-2">
+           <div className="sm:col-span-6 bg-info-surface border border-info-border p-3 rounded-lg flex items-start gap-2">
              <Info size={16} className="text-info-ink mt-0.5 flex-shrink-0" />
              <div>
-               <p className="text-sm text-info-ink font-medium">Safe Harbor Plan Selected</p>
+               <p className="text-sm text-info-ink font-medium">Formula template selected</p>
                <p className="text-xs text-info-ink mt-1">
-                 {formData.dcMatchTemplate === 'safe_harbor'
-                   ? 'Safe Harbor Basic: 100% match on first 3% + 50% match on next 2%. Satisfies ADP/ACP nondiscrimination tests.'
-                   : 'QACA Safe Harbor: 100% match on first 1% + 50% match on next 5%. Includes automatic enrollment requirements.'}
+                 The saved template name does not verify safe-harbor status or nondiscrimination results. Current matching uses the editable tiers shown above; notice, vesting, eligibility and automatic-enrollment provisions require separate review.
                </p>
              </div>
            </div>
          )}
          </>)}
 
-         {/* E084: Match Eligibility Section */}
-         <div className="col-span-6 h-px bg-surface-disabled my-2"></div>
-         <h4 className="col-span-6 text-sm font-semibold text-ink">Match Eligibility Requirements</h4>
-         <p className="col-span-6 text-xs text-ink-muted -mt-4 mb-2">Configure who qualifies for employer match contributions</p>
-
-         <InputField label="Min. Tenure" {...inputProps('dcMatchMinTenureYears')} type="number" suffix="Years" helper="Years of service required" min={0} />
-         <InputField label="Min. Annual Hours" {...inputProps('dcMatchMinHoursAnnual')} type="number" suffix="Hours" helper="Hours worked per year" min={0} />
-
-         <div className="sm:col-span-6 flex items-center">
-           <input
-             type="checkbox"
-             id="dcMatchRequireYearEndActive"
-             checked={formData.dcMatchRequireYearEndActive}
-             onChange={(e) => {
-               const checked = e.target.checked;
-               setFormData(prev => ({
-                 ...prev,
-                 dcMatchRequireYearEndActive: checked,
-                 dcMatchAllowTerminatedNewHires: !checked,
-                 dcMatchAllowExperiencedTerminations: !checked,
-               }));
-             }}
-             className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-border-strong rounded"
-           />
-           <div className="ml-2">
-             <label htmlFor="dcMatchRequireYearEndActive" className="block text-sm text-ink-muted">Last Day Working Rule</label>
-             <p className="text-xs text-ink-muted">
-               {formData.dcMatchRequireYearEndActive
-                 ? 'Enabled — only employees active at year-end receive match contributions'
-                 : 'Disabled — terminated employees may still receive match contributions'}
-             </p>
-           </div>
-         </div>
+         <EmployerEligibilityEditor kind="Match" config={displayConfig} />
          </>)}
 
+  </>;
+
+  const coreFields = <>
          {/* E084: Core Contribution Section */}
-         <div className="col-span-6 h-px bg-surface-disabled my-2"></div>
          <div className="sm:col-span-6 flex items-center justify-between mb-2">
            <h4 className="text-sm font-semibold text-ink">Employer Core (Non-Elective) Contribution</h4>
            <label htmlFor="dcplan-core-enabled" className="flex items-center">
@@ -891,7 +864,7 @@ export function DCPlanSection() {
              <span className="ml-2 text-sm text-ink-muted">Enabled</span>
            </label>
          </div>
-         <p className="col-span-6 text-xs text-ink-muted -mt-4 mb-2">Automatic employer contribution regardless of employee deferral</p>
+         <p className="sm:col-span-6 text-xs text-ink-muted -mt-4 mb-2">Automatic employer contribution regardless of employee deferral</p>
 
          {formData.dcCoreEnabled && (
            <>
@@ -909,6 +882,7 @@ export function DCPlanSection() {
                  <option value="graded_by_service">Graded by Service (increases with tenure)</option>
                  <option value="points_based">Points-Based (varies by age + tenure points)</option>
                  <option value="age_banded">Age-Banded (varies by annual age)</option>
+                 {!['flat', 'graded_by_service', 'points_based', 'age_banded'].includes(formData.dcCoreStatus) && <option value={formData.dcCoreStatus}>Saved custom mode: {formData.dcCoreStatus}</option>}
                </select>
              </div>
 
@@ -923,21 +897,21 @@ export function DCPlanSection() {
                  <p className="text-xs text-ink-muted mb-3">Annual age tiers use [min, max) intervals; the final maximum may be blank.</p>
                  <div className="space-y-2">
                    {formData.dcCoreAgeSchedule.map((tier, idx) => (
-                     <div key={idx} className="flex items-center gap-3 text-sm">
+                     <div key={idx} className="flex flex-wrap items-center gap-3 text-sm">
                        <span className="text-ink-muted w-8">{idx + 1}.</span>
-                       <input type="number" min={0} value={tier.minAge} onChange={(e) => {
+                       <NumericInput type="number" min={0} value={tier.minAge} onChange={(e) => {
                          const schedule = [...formData.dcCoreAgeSchedule];
                          schedule[idx] = { ...tier, minAge: Number(e.target.value) };
                          setFormData((prev: any) => ({ ...prev, dcCoreAgeSchedule: schedule }));
                        }} className="w-16 px-2 py-1 border border-border-strong rounded text-center" />
                        <span className="text-ink-muted">to</span>
-                       <input type="number" min={0} value={tier.maxAge ?? ''} placeholder="∞" onChange={(e) => {
+                       <NumericInput allowEmpty type="number" min={0} value={tier.maxAge ?? ''} placeholder="∞" onChange={(e) => {
                          const schedule = [...formData.dcCoreAgeSchedule];
                          schedule[idx] = { ...tier, maxAge: e.target.value ? Number(e.target.value) : null };
                          setFormData((prev: any) => ({ ...prev, dcCoreAgeSchedule: schedule }));
                        }} className="w-16 px-2 py-1 border border-border-strong rounded text-center" />
                        <span className="text-ink-muted">age →</span>
-                       <input type="number" min={0} step="0.5" value={tier.rate} onChange={(e) => {
+                       <NumericInput type="number" min={0} step="0.5" value={tier.rate} onChange={(e) => {
                          const schedule = [...formData.dcCoreAgeSchedule];
                          schedule[idx] = { ...tier, rate: Number(e.target.value) };
                          setFormData((prev: any) => ({ ...prev, dcCoreAgeSchedule: schedule }));
@@ -968,9 +942,9 @@ export function DCPlanSection() {
                  <span className="block text-sm font-medium text-ink-muted mb-3">Graded Core Schedule</span>
                  <div className="space-y-2">
                    {formData.dcCoreGradedSchedule.map((tier: any, idx: number) => (
-                     <div key={idx} className="flex items-center gap-3 text-sm">
+                     <div key={idx} className="flex flex-wrap items-center gap-3 text-sm">
                        <span className="text-ink-muted w-8">{idx + 1}.</span>
-                       <input
+                       <NumericInput allowEmpty
                          type="number"
                          value={tier.serviceYearsMin}
                          onChange={(e) => {
@@ -982,7 +956,7 @@ export function DCPlanSection() {
                          min={0}
                        />
                        <span className="text-ink-muted">to</span>
-                       <input
+                       <NumericInput
                          type="number"
                          value={tier.serviceYearsMax ?? ''}
                          placeholder="&#8734;"
@@ -995,7 +969,7 @@ export function DCPlanSection() {
                          min={0}
                        />
                        <span className="text-ink-muted">years &#8594;</span>
-                       <input
+                       <NumericInput
                          type="number"
                          value={tier.rate}
                          onChange={(e) => {
@@ -1070,9 +1044,9 @@ export function DCPlanSection() {
                 <p className="text-xs text-ink-muted mb-3">Points = FLOOR(age) + FLOOR(years of service). Uses [min, max) intervals.</p>
                 <div className="space-y-2">
                   {formData.dcCorePointsSchedule.map((tier, idx) => (
-                    <div key={idx} className="flex items-center gap-3 text-sm">
+                    <div key={idx} className="flex flex-wrap items-center gap-3 text-sm">
                       <span className="text-ink-muted w-8">{idx + 1}.</span>
-                      <input
+                      <NumericInput allowEmpty
                         type="number"
                         value={tier.minPoints}
                         onChange={(e) => {
@@ -1084,7 +1058,7 @@ export function DCPlanSection() {
                         min={0}
                       />
                       <span className="text-ink-muted">to</span>
-                      <input
+                      <NumericInput
                         type="number"
                         value={tier.maxPoints ?? ''}
                         placeholder="&#8734;"
@@ -1097,7 +1071,7 @@ export function DCPlanSection() {
                         min={0}
                       />
                       <span className="text-ink-muted">pts &#8594;</span>
-                      <input
+                      <NumericInput
                         type="number"
                         value={tier.rate}
                         onChange={(e) => {
@@ -1252,57 +1226,24 @@ export function DCPlanSection() {
                )}
              </div>
 
-             <InputField label="Min. Tenure" {...inputProps('dcCoreMinTenureYears')} type="number" suffix="Years" helper="Years of service required" min={0} />
-             <InputField label="Min. Annual Hours" {...inputProps('dcCoreMinHoursAnnual')} type="number" suffix="Hours" helper="Hours worked per year" min={0} />
-
-             <div className="sm:col-span-6 flex items-center">
-               <input
-                 type="checkbox"
-                 id="dcCoreRequireYearEndActive"
-                 checked={formData.dcCoreRequireYearEndActive}
-                 onChange={(e) => {
-                   const checked = e.target.checked;
-                   setFormData(prev => ({
-                     ...prev,
-                     dcCoreRequireYearEndActive: checked,
-                     dcCoreAllowTerminatedNewHires: !checked,
-                     dcCoreAllowExperiencedTerminations: !checked,
-                   }));
-                 }}
-                 className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-border-strong rounded"
-               />
-               <div className="ml-2">
-                 <label htmlFor="dcCoreRequireYearEndActive" className="block text-sm text-ink-muted">Last Day Working Rule</label>
-                 <p className="text-xs text-ink-muted">
-                   {formData.dcCoreRequireYearEndActive
-                     ? 'Enabled — only employees active at year-end receive core contributions'
-                     : 'Disabled — terminated employees may still receive core contributions'}
-                 </p>
-               </div>
-             </div>
+             <EmployerEligibilityEditor kind="Core" config={displayConfig} />
            </>
          )}
 
-         <div className="col-span-6 h-px bg-surface-disabled my-2"></div>
+  </>;
+
+  const escalationFields = <>
          <div className="sm:col-span-6 flex items-center justify-between mb-2">
              <h4 className="text-sm font-semibold text-ink">Auto-Escalation</h4>
              <label htmlFor="dcplan-auto-escalation" className="flex items-center">
-                 <input id="dcplan-auto-escalation" type="checkbox" name="dcAutoEscalation" checked={formData.dcAutoEscalation} onChange={(e) => {
-                  const checked = e.target.checked;
-                  setFormData(prev => ({
-                    ...prev,
-                    dcAutoEscalation: checked,
-                    // Auto-populate hire date cutoff with 1/1 of the simulation start year
-                    ...(checked && !prev.dcEscalationHireDateCutoff ? { dcEscalationHireDateCutoff: `${prev.startYear}-01-01` } : {}),
-                  }));
-                }} className="h-4 w-4 text-fidelity-green rounded" />
+                 <input id="dcplan-auto-escalation" type="checkbox" name="dcAutoEscalation" checked={formData.dcAutoEscalation} onChange={handleChange} className="h-4 w-4 text-fidelity-green rounded" />
                  <span className="ml-2 text-sm text-ink-muted">Enabled</span>
              </label>
          </div>
+         <InputField label="Escalation Cap" {...inputProps('dcEscalationCap')} type="number" suffix="%" disabled={!formData.dcAutoEscalation && !formData.dcMatchResponseEnabled} helper={formData.dcAutoEscalation || formData.dcMatchResponseEnabled ? 'Shared cap for annual escalation and first-year match-responsive deferral increases; remains active when either feature is enabled.' : 'Inactive while auto-escalation and match-responsive adjustment are off. Saved value is retained.'} />
          {formData.dcAutoEscalation && (
            <>
-             <InputField label="Annual Increase" {...inputProps('dcEscalationRate')} type="number" step="0.5" suffix="%" helper="Yearly step-up" />
-             <InputField label="Escalation Cap" {...inputProps('dcEscalationCap')} type="number" suffix="%" helper="Max deferral rate" />
+             <InputField label="Annual Increase" {...inputProps('dcEscalationRate')} type="number" step="0.5" suffix="pp" helper="Percentage points added to the employee contribution rate each year." />
              <div className="sm:col-span-3">
                <label htmlFor="dcplan-escalation-effective-date" className="block text-sm font-medium text-ink-muted">Effective Date (MM-DD)</label>
                <input
@@ -1317,7 +1258,7 @@ export function DCPlanSection() {
                />
                <p className="mt-1 text-xs text-ink-muted">Annual escalation date (e.g., 01-01 for Jan 1)</p>
              </div>
-             <InputField label="First Escalation Delay" {...inputProps('dcEscalationDelayYears')} type="number" suffix="Years" helper="Wait after enrollment" min={0} />
+             <InputField label="First Escalation Delay" {...inputProps('dcEscalationDelayYears')} type="number" suffix="Years" helper="Delay measured in enrollment years: simulation year minus enrollment year, rather than elapsed anniversaries." min={0} />
              <div className="sm:col-span-3">
                <label htmlFor="dcplan-escalation-hire-cutoff" className="block text-sm font-medium text-ink-muted">Hire Date Cutoff</label>
                <input
@@ -1332,7 +1273,27 @@ export function DCPlanSection() {
              </div>
            </>
          )}
+  </>;
+
+  return (
+    <div className="space-y-6 animate-fadeIn">
+      <div className="border-b border-border pb-4">
+        <h2 className="text-lg font-bold text-ink">401(k) / DC Plan Config</h2>
+        <p className="text-sm text-ink-muted">Configure plan provisions and the employee behavior assumptions used in the simulation.</p>
       </div>
+      <section aria-labelledby="dcplan-provisions" className="space-y-4">
+        <h3 id="dcplan-provisions" className="font-bold text-ink">Plan provisions</h3>
+        <DCPlanPanel id="dcplan-eligibility-panel" title="Eligibility and automatic enrollment" summary={`${formData.dcEligibilityMonths} modeled months (${waitingPeriodDays} days); automatic enrollment ${formData.dcAutoEnroll ? 'on' : 'off'}; ${formData.dcAutoEnrollScope === 'new_hires_only' ? 'first year uses hire cutoff, later years use current-year hires' : 'all eligible employees, subject to hire cutoff every year'}; hire cutoff ${formData.dcAutoEnrollHireDateCutoff || 'inherited'}; hire-year delay ${formData.dcAutoEnrollWindowDays} days.`}>{eligibilityFields}</DCPlanPanel>
+        <DCPlanPanel id="dcplan-match-panel" title="Employer match" summary={matchSummary(formData, displayConfig)}>{matchFields}</DCPlanPanel>
+        <DCPlanPanel id="dcplan-core-panel" title="Employer core contribution" summary={coreSummary(formData, displayConfig)}>{coreFields}</DCPlanPanel>
+        <DCPlanPanel id="dcplan-escalation-panel" title="Automatic contribution increases" summary={`${formData.dcAutoEscalation ? `${formData.dcEscalationRate} percentage points annually on ${formData.dcEscalationEffectiveDay}; delay ${formData.dcEscalationDelayYears} enrollment years; hire cutoff ${formData.dcEscalationHireDateCutoff || 'none configured'}` : 'Annual escalation off'}; shared cap ${formData.dcEscalationCap}%${formData.dcMatchResponseEnabled ? ', also used by first-year match response' : ''}.`}>{escalationFields}</DCPlanPanel>
+      </section>
+      <section aria-labelledby="dcplan-behavior" className="space-y-4">
+        <h3 id="dcplan-behavior" className="font-bold text-ink">Employee behavior assumptions</h3>
+        <DCPlanPanel id="dcplan-enrollment-panel" title="Enrollment and opt-outs" summary={`New-hire voluntary enrollment: ${rateSource(voluntaryMode, formData.dcVoluntaryEnrollmentRate)}; ${formData.dcAutoEnroll ? `new-hire opt-out: ${rateSource(optOutMode, formData.dcNewHireOptOutRate)}; continuing opt-out target ${formData.dcOptOutRateTarget}%` : 'auto-enrollment off; opt-out assumptions inactive'}.`}>{enrollmentFields}</DCPlanPanel>
+        <DCPlanPanel id="dcplan-starting-rates-panel" title="Starting employee contribution rates" summary={`Segment rates ${Math.min(...Object.values(formData.dcVoluntaryDeferralBaseRates))}–${Math.max(...Object.values(formData.dcVoluntaryDeferralBaseRates))}%; upward spread ${formData.dcDeferralSpreadMaxLift} percentage points; voluntary cap ${formData.dcMaxVoluntaryDeferral}%.${deferralSpreadClipping ? ` Warning: spread ceiling ${deferralSpreadClipping.spreadCeiling}% exceeds the cap; rates will be clipped.` : ''}`}>{startingRateFields}</DCPlanPanel>
+        <DCPlanPanel id="dcplan-response-panel" title="Response to the employer match" summary={`New enrollees seeking full match: ${formData.dcMatchMagnetEnabled ? `${formData.dcMatchMagnetProbability}% of below-ceiling voluntary enrollees` : 'off'}; first-year existing-participant response: ${formData.dcMatchResponseEnabled ? `upward ${formData.dcMatchResponseUpwardParticipation}%, downward ${formData.dcMatchResponseDownwardEnabled ? `${formData.dcMatchResponseDownwardParticipation}%` : 'off'}; ${responseMaximizers}% of upward responders seek full match, others close ${responsePartialGap}% of the gap` : 'off'}.`}>{responseFields}</DCPlanPanel>
+      </section>
     </div>
   );
 }
