@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any, Iterator, Literal
 
 import duckdb
+import yaml
 
 from ..storage.workspace_storage import WorkspaceStorage
 from .database_path_resolver import (
@@ -76,7 +77,6 @@ class ComparisonExportService:
         self, workspace_id: str, scenario_ids: list[str], names: dict[str, str]
     ) -> list[ExportScenario]:
         """Pin each scenario to its selected run database and census input."""
-        workspace = self.storage.get_workspace(workspace_id)
         scenarios = []
         for scenario_id in scenario_ids:
             resolved = self.db_resolver.resolve(workspace_id, scenario_id)
@@ -84,17 +84,16 @@ class ComparisonExportService:
                 raise ComparisonExportError(
                     f"No results found for {names[scenario_id]}"
                 )
-            config = (
-                self.storage.get_merged_config_for(workspace, scenario_id)
-                if workspace
-                else None
-            )
             scenarios.append(
                 ExportScenario(
                     scenario_id=scenario_id,
                     name=names[scenario_id],
                     database_path=resolved.path,
-                    census_path=_nested_str(config, _CENSUS_PATH_KEYS),
+                    census_path=(
+                        _archived_census_path(resolved.path.parent)
+                        if resolved.source == "run"
+                        else None
+                    ),
                     run_id=resolved.run_id,
                 )
             )
@@ -113,9 +112,9 @@ class ComparisonExportService:
         with _attached(scenarios) as conn:
             _create_metadata_table(conn, scenarios, workspace_name)
             if export_format == "hyper":
-                _write_hyper(conn, _hyper_tables(scenarios), path)
+                _write_hyper(conn, _hyper_tables(conn, scenarios), path)
             elif export_format == "parquet":
-                _write_parquet_archive(conn, _hyper_tables(scenarios), path)
+                _write_parquet_archive(conn, _hyper_tables(conn, scenarios), path)
             else:
                 _write_xlsx(conn, _excel_sheets(conn, scenarios), path)
         return path
@@ -206,15 +205,36 @@ def _snapshot_query(indices: list[int], where: str = "") -> str:
     return _labelled_union(indices, _SNAPSHOT, "simulation_year, employee_id", where)
 
 
-def _census_query(scenarios: list[ExportScenario]) -> str:
-    """One unlabelled census when every scenario read the same input file."""
-    census_paths = {scenario.census_path for scenario in scenarios}
-    shared_census = len(census_paths) == 1 and None not in census_paths
-    if shared_census:
-        return (
-            f"SELECT * EXCLUDE (scenario_name, scenario_id, _scenario_order) "
-            f"FROM {_view(0, _CENSUS)} ORDER BY employee_id"
-        )
+def _census_rows(index: int) -> str:
+    return (
+        "SELECT * EXCLUDE (scenario_name, scenario_id, _scenario_order) "
+        f"FROM {_view(index, _CENSUS)}"
+    )
+
+
+def _same_census(conn: duckdb.DuckDBPyConnection, count: int) -> bool:
+    """Prove equality of archived census tables, including duplicate rows."""
+    first = _census_rows(0)
+    schema = conn.execute(f"DESCRIBE ({first})").fetchall()
+    for index in range(1, count):
+        other = _census_rows(index)
+        if conn.execute(f"DESCRIBE ({other})").fetchall() != schema:
+            return False
+        different = conn.execute(
+            f"SELECT EXISTS (({first} EXCEPT ALL {other}) "
+            f"UNION ALL ({other} EXCEPT ALL {first}))"
+        ).fetchone()
+        if different and different[0]:
+            return False
+    return True
+
+
+def _census_query(
+    conn: duckdb.DuckDBPyConnection, scenarios: list[ExportScenario]
+) -> str:
+    """Collapse only identical stored data, never matching configured filenames."""
+    if _same_census(conn, len(scenarios)):
+        return f"{_census_rows(0)} ORDER BY employee_id"
     return _labelled_union(list(range(len(scenarios))), _CENSUS, "employee_id")
 
 
@@ -266,7 +286,7 @@ def _excel_sheets(
             for sheet in _scenario_sheets(conn, index, scenario, counts[index])
         ]
     sheets = snapshot + [
-        ExportTable("Census", _census_query(scenarios)),
+        ExportTable("Census", _census_query(conn, scenarios)),
         ExportTable("Metadata", _METADATA_QUERY),
     ]
     names = unique_sheet_names([sheet.name for sheet in sheets])
@@ -373,10 +393,12 @@ def _excel_value(value: Any) -> Any:
 # ---------------------------------------------------------------------------
 
 
-def _hyper_tables(scenarios: list[ExportScenario]) -> list[ExportTable]:
+def _hyper_tables(
+    conn: duckdb.DuckDBPyConnection, scenarios: list[ExportScenario]
+) -> list[ExportTable]:
     return [
         ExportTable("workforce_snapshot", _snapshot_query(list(range(len(scenarios))))),
-        ExportTable("census", _census_query(scenarios)),
+        ExportTable("census", _census_query(conn, scenarios)),
         ExportTable("metadata", _METADATA_QUERY),
     ]
 
@@ -430,6 +452,15 @@ def _write_parquet_archive(
                     f"COPY ({table.query}) TO {_literal(str(parquet))} (FORMAT PARQUET)"
                 )
                 archive.write(parquet, arcname=parquet.name)
+
+
+def _archived_census_path(run_dir: Path) -> str | None:
+    """A current scenario config cannot describe a historical run's input."""
+    try:
+        config = yaml.safe_load((run_dir / "config.yaml").read_text())
+    except (OSError, ValueError, yaml.YAMLError):
+        return None
+    return _nested_str(config, _CENSUS_PATH_KEYS)
 
 
 def _nested_str(config: dict[str, Any] | None, keys: tuple[str, ...]) -> str | None:

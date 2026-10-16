@@ -34,6 +34,8 @@ models:
     description: >
       Authoritative workforce-only state derived from the prior accumulator year
       and current immutable workforce events. Benefit-domain state is excluded.
+      The active scenario/year is atomically replaced after schema synchronization;
+      prior years and other scenarios are preserved even when column types change.
     config:
       tags: ["STATE_ACCUMULATION", "DOMAIN_STATE", "contract"]
     data_tests:

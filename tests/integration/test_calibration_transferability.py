@@ -112,17 +112,33 @@ def _run_full(config: dict, database: Path, monkeypatch: pytest.MonkeyPatch) -> 
     orchestrator.execute_multi_year_simulation(start_year=2025, end_year=2026)
 
 
+@pytest.mark.parametrize(
+    "legacy_schema",
+    ["current", "events", "workforce"],
+    ids=["current", "events", "workforce"],
+)
 def test_applied_candidate_reproduces_calibration_in_full_simulation(
     tmp_path: Path,
     invariant_run_db: Path,
     invariant_census_parquet: Path,
     monkeypatch: pytest.MonkeyPatch,
+    legacy_schema: str,
 ) -> None:
     config = _config(invariant_census_parquet)
     config_path = tmp_path / "target.yaml"
     config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
     calibration_db = tmp_path / "calibration.duckdb"
     shutil.copy2(invariant_run_db, calibration_db)
+    if legacy_schema != "current":
+        # Older archives can have narrower column types than the rebuilt candidates.
+        # Only change the disposable copy, never the source run or its provenance.
+        with duckdb.connect(str(calibration_db)) as connection:
+            migration = (
+                "ALTER TABLE fct_yearly_events ALTER COLUMN compensation_amount TYPE DECIMAL(18,2)"
+                if legacy_schema == "events"
+                else "ALTER TABLE int_workforce_state_accumulator ALTER COLUMN current_age TYPE INTEGER"
+            )
+            connection.execute(migration)
 
     baseline = _full_metrics(invariant_run_db)
     target_pct = baseline[2026][3]

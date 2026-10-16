@@ -11,6 +11,55 @@ from planalign_api.services.census_analysis_service import CensusAnalysisService
 AS_OF = date(2024, 12, 31)
 
 
+@pytest.mark.fast
+@pytest.mark.parametrize("as_of", [None, date(2023, 12, 31)])
+def test_pre_coverage_hce_is_unknown(service, workspace_dir, as_of):
+    rows = [_employee(hire_date="2023-01-01", compensation=200000, department="Eng")]
+    result = _analyze(service, workspace_dir, rows, as_of=as_of)
+
+    assert result.as_of_date == date(2023, 12, 31)
+    assert result.as_of_date_source == ("inferred" if as_of is None else "provided")
+    assert result.hce_compensation_threshold is None
+    assert result.overall.hce_count is None
+    assert all(segment.hce_count is None for segment in result.segments)
+    assert "hce_status" not in result.available_segment_dimensions
+    assert result.model_dump(mode="json")["overall"]["hce_count"] is None
+    assert result.overall.enrolled_count == 1
+
+
+@pytest.mark.fast
+def test_missing_irs_seed_preserves_unknown_hce(
+    service, workspace_dir, monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        "planalign_api.services.census_analysis_service.IRS_LIMITS_SEED",
+        tmp_path / "missing.csv",
+    )
+    result = _analyze(service, workspace_dir, [_employee(compensation=200000)])
+
+    assert result.as_of_date == AS_OF
+    assert result.hce_compensation_threshold is None
+    assert result.overall.hce_count is None
+    assert "hce_status" not in result.available_segment_dimensions
+    assert result.overall.participation_rate == 1.0
+
+
+@pytest.mark.fast
+def test_explicit_covered_date_restores_hce_without_changing_other_metrics(
+    service, workspace_dir
+):
+    rows = [_employee(hire_date="2023-01-01", compensation=200000)]
+    inferred = _analyze(service, workspace_dir, rows, as_of=None)
+    covered = _analyze(service, workspace_dir, rows, as_of=AS_OF)
+
+    assert covered.as_of_date_source == "provided"
+    assert covered.hce_compensation_threshold == 155000
+    assert covered.overall.hce_count == 1
+    assert covered.overall.model_dump(
+        exclude={"hce_count"}
+    ) == inferred.overall.model_dump(exclude={"hce_count"})
+
+
 def _write_csv(path: Path, rows: list[dict]) -> None:
     fieldnames = list(rows[0].keys())
     with open(path, "w", newline="") as f:
