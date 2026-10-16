@@ -100,6 +100,7 @@ jobs:
 
       - name: Run linting
         run: |
+          python scripts/check_worktree_gitlinks.py
           black --check .
           ruff check .
           mypy planalign_orchestrator/ planalign_cli/ planalign_core/ planalign_api/ planalign_fit/ planalign_ensemble/ planalign_optimizer/ planalign_evidence/ planalign_backtest/ --ignore-missing-imports

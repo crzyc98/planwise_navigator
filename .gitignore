@@ -4,6 +4,9 @@ venv/
 env/
 ENV/
 
+# Nested development checkouts belong to their own repositories.
+.worktrees/
+
 # ── Environment variables ───────────────────────────────────────────
 .env
 .env.*
