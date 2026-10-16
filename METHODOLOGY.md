@@ -1,8 +1,8 @@
 # Fidelity PlanAlign Engine — Methodology Documentation
 
 **Prepared for**: Legal and Compliance Review (FINRA e-Review Submission)
-**System Version**: 2.2.0 ("Calibration")
-**Document Date**: July 2026
+**System Version**: 3.0.0 ("Plan Design & Evidence")
+**Document Date**: October 16, 2026
 **Classification**: Methodology Reference — Confidential
 
 ---
@@ -14,6 +14,7 @@
 | 1.0     | March 2026 | [Author Name] | Initial methodology document for FINRA e-review submission                                                                                                    |
 | 1.1     | July 2026  | [Author Name] | Updated for system version 2.2.0: tenure-graded employer match formulas, configurable new-hire eligibility and demographics, and compensation calibration tooling (Section 9.5) |
 | 1.2     | August 2026 | [Author Name] | Updated to document the shipped NDT analytical preview suite and its scope boundaries |
+| 1.3     | October 2026 | PlanAlign maintainers | Reviewed 3.0.0 scope: new-hire enrollment and deferral assumptions, grandfathered designs, seed ensembles, parameter fitting/backtesting, optimizer, and run provenance |
 
 ---
 
@@ -119,6 +120,11 @@ Core parameters that define the projection scope:
 
 ### 3.4 Defined Contribution Plan Design Inputs
 
+The tables below describe the checked-in `config/simulation_config.yaml`
+example and available modeling options. They are not universal plan terms:
+typed configuration defaults, workspace overrides, fitted parameter packs, and
+per-design settings may differ. Review the resolved configuration for each run.
+
 #### Eligibility
 
 | Parameter      | Default                 | Description                            |
@@ -142,6 +148,32 @@ Core parameters that define the projection scope:
 
 - Age-based base rates range from 3% (age 56+) to 10% (age 18–30).
 - Income-based multipliers adjust the base rate: low income 1.20x, moderate 1.00x, high 0.70x, executive 0.50x.
+
+**New-hire overrides (3.0.0):** Under `enrollment.auto_enrollment`, an explicit
+`voluntary_enrollment_rate` is a flat target fraction of eligible hire-year
+new hires, not a multiplier on demographic probabilities. The engine ranks
+deterministic draws and selects a rounded target count within the decision
+cohort. `0.0` selects none and `1.0` selects all; omitted/null retains the
+demographic decision model. Eligibility, event timing, and termination filters
+can make the final reported population differ from the decision cohort.
+`new_hire_opt_out_rate` similarly overrides opt-out selection for hire-year
+auto-enrolled new hires. Continuing employees retain demographic enrollment
+and opt-out decisions. Neither override sets the employee's deferral percentage.
+
+**Deferral selection:** `deferral_spread_max_lift` defaults to **4 whole
+percentage points**, with modeled lifts of +0/+1/+2/+3/+4 points weighted
+40%/30%/15%/10%/5%. A smaller positive setting caps the lift; zero disables it.
+The demographic rate is the floor before match-magnet snapping and the final
+voluntary deferral cap (`enrollment.match_magnet.max_deferral_rate`, default
+15%). The spread affects new demographic voluntary elections, including
+year-over-year conversions, and does not overwrite existing census elections.
+These weights are assumptions, not a client-specific behavioral fit.
+
+Earlier releases treated `voluntary_enrollment_rate` as a multiplier. Review
+explicit saved values when migrating. Setting spread to zero and the voluntary
+cap to 10% restores prior deferral settings, but does not restore the old
+enrollment-rate meaning or guarantee parity across engine versions. See
+[new-hire enrollment rates and deferral spread](docs/guides/new_hire_enrollment_rates.md).
 
 #### Employer Match Formulas
 
@@ -178,7 +210,31 @@ Match tier rates, boundaries, and caps are fully configurable per plan design.
 | Flat              | Fixed percentage (default: 1% of compensation)                 |
 | Graded by Service | Increases with tenure: 1% (0–2 yrs), 2% (3–5 yrs), 3% (6+ yrs) |
 
-#### Deferral Rate Escalation
+Core contribution formula families also include age-banded and age-plus-service
+points schedules. Use configured half-open bands (`[min, max)`) and verify rate
+units: flat/service core rates are fractions; age/points schedule rates are
+percentage values. These are configurable allocation models, not determinations
+that a formula satisfies nondiscrimination requirements.
+
+#### Grandfathered and Per-Design Terms
+
+`plan_design_assignment` evaluates ordered hire-date-cutoff rules when an
+employee first enters the simulation, with the first matching rule winning
+and `default_plan_design_id` as the fallback. That assignment persists across
+years; crossing a later calendar year does not automatically switch a legacy
+employee to the current design. Omitting the assignment block retains the
+single scalar `plan_design_id` behavior.
+
+`plan_design_parameters` supplies design-specific match/core formula families
+and numeric terms, auto-enrollment rate/window/scope, eligibility waiting
+period, and escalation increment/cap. Designs can therefore coexist within
+one scenario. Assignment alone does not create different benefits: the
+corresponding parameter definitions must be supplied. Employee facts retain
+the assigned design ID; scenario-wide totals can conceal cohort differences.
+Review cohort-level contributions as well as aggregate cost. See
+[plan-design assignment and parameters](docs/plan_design_assignment.md).
+
+#### Deferral Rate Escalation Settings
 
 | Parameter              | Default   | Description                        |
 | ---------------------- | --------- | ---------------------------------- |
@@ -269,8 +325,8 @@ The following seed files define demographic segmentation and hazard probabilitie
 | Assumption                     | Description                                                                                                                                                                                                     |
 | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Auto-Enrollment Assumption** | The model assumes the plan sponsor has adopted auto-enrollment. The auto-enrollment parameters are configurable and are not intended to represent or certify compliance with any specific SECURE Act provision. |
-| **Opt-Out Behavior**           | Opt-out rates vary by age (3–10%) and income level (0.50x–1.20x multiplier), based on industry participation data.                                                                                              |
-| **Proactive Enrollment**       | A portion of eligible employees (25–75%, varying by age) will voluntarily enroll before the auto-enrollment deadline.                                                                                           |
+| **Opt-Out Behavior** | Configured demographic assumptions govern opt-outs unless a hire-year `new_hire_opt_out_rate` override applies. These assumptions require review against the employer's experience; they are not validated forecasts. |
+| **Proactive Enrollment** | Demographic probabilities govern voluntary enrollment unless an explicit hire-year `voluntary_enrollment_rate` supplies a flat target. See Section 3.4 for scope, rounding, and migration semantics. |
 | **Year-over-Year Conversion**  | Non-participants have a 3–8% annual probability of voluntarily enrolling in subsequent years, varying by age, income, and tenure.                                                                               |
 | **Census Deferral Rates**      | When census data includes existing deferral rates, those rates are used as starting elections. A fallback rate of 3% is applied for pre-enrolled employees without census data.                                 |
 
@@ -375,6 +431,74 @@ Current implementation and UI references:
 - [ACP NDT methodology and UI quickstart](specs/050-ndt-acp-testing/quickstart.md)
 - [401(a)(4) and 415 methodology and UI quickstart](specs/051-ndt-401a4-415-tests/quickstart.md)
 - [ADP methodology and UI quickstart](specs/052-ndt-adp-test/quickstart.md)
+
+### 5.6 Seed Ensembles and Simulation Variation
+
+An ensemble runs one isolated simulation per seed with the same configured
+assumptions, retaining per-seed metric values and a separate aggregate
+database. P10/P25/P50/P75/P90 use linear quantiles; mean and sample standard
+deviation are also reported. Below the configured minimum sample (default ten
+seeds), band statistics are withheld as null, with insufficient-sample status.
+Unavailable metrics are not replaced with zero. Threshold risk is the observed
+strict-exceedance fraction among evaluable seed worlds.
+
+These distributions describe variation induced by the model's stochastic
+draws, conditional on the census, parameters, and engine. They do not quantify
+all parameter uncertainty, model error, or future economic change and are not
+confidence intervals for actual employer outcomes. Optional subsystem variance
+attribution averages frozen-seed comparisons across anchors; interaction
+effects are not a full decomposition and shares need not sum to one. See
+[seed ensembles](docs/guides/seed_ensembles.md).
+
+### 5.7 Parameter Fitting and Backtesting
+
+`planalign fit` links employees across two to five consecutive annual census
+snapshots. It estimates supported hazard, compensation, enrollment, and
+deferral parameters, retaining priors for unavailable or unidentifiable inputs.
+Credibility blending uses `Z = exposure / (exposure + k)` (default `k = 200`);
+cells below the default minimum exposure of 50 are flagged as thin. Reports
+distinguish observed, blended, pooled, and prior values. Promotion rates use
+observed level moves when sufficiently complete; otherwise a raise-mixture
+estimate is published only when separation criteria are satisfied. Opt-out
+estimates from census participation are proxies, not observed opt-out events.
+Policy inputs such as COLA and unsupported match-response effects remain
+assumptions. Packs record input and parameter fingerprints and diagnostics.
+
+`planalign backtest` holds out the latest one or two years, fits only earlier
+history, and simulates the holdout in isolated seed databases. It compares
+observable metrics using the lower-median prediction and configured warn/fail
+bounds; missing observations are reported without inventing actual values.
+Employer-match cost is not observable from census deferrals alone. By-level
+headcount uses compensation-derived bands on both sides, and termination flows
+use the experienced cohort. A passing scorecard is a short-horizon diagnostic,
+not a long-term forecast guarantee; seed min–max is descriptive variation.
+See [parameter fitting](docs/guides/parameter_fitting.md) and
+[backtesting](docs/guides/backtesting.md) for populations, exclusions, thresholds,
+and provenance. Compensation-only calibration (Section 9.5) is a separate
+workflow and does not estimate these behaviors from census history.
+
+### 5.8 Bounded Plan-Design Optimization
+
+`planalign optimize` searches declared continuous/discrete levers subject to
+explicit objectives, constraints, and a mandatory scenario-evaluation budget.
+Undeclared fields remain fixed to the baseline. Each distinct candidate uses
+an isolated simulation; failures consume budget, while exact duplicate
+candidates reuse evidence. A search seed controls the candidate sequence;
+candidate simulations retain the baseline simulation seed.
+
+One objective produces a ranked feasible list; two produce a Pareto frontier.
+Results retain failed, non-evaluable, and infeasible candidates. Default metrics
+are point estimates from the latest simulated year, not horizon-total costs.
+Explicit percentile constraints can read a supplied ensemble database; absent
+percentile evidence falls back visibly to point-estimate evaluation. This does
+not automatically simulate a new ensemble for every candidate. Review that
+the external evidence is appropriate before interpreting a percentile result.
+
+The best evaluated design is conditional on the declared search space, budget,
+metrics, and assumptions; it is not proof of a global optimum, a fiduciary
+recommendation, or a compliance determination. Experimental first-year
+screening benchmarks are separate from production optimization. See the
+[plan-design optimizer guide](docs/guides/plan_design_optimizer.md).
 
 ## 6. Outputs
 
@@ -602,6 +726,17 @@ These are internal consistency checks on modeled data. They do not validate the 
 The system provides a calibration mode that rebuilds only the compensation and workforce portion of the model (skipping the defined contribution plan calculations) to allow rapid tuning of compensation assumptions (COLA, merit, growth targets). Calibration mode reuses the identical compensation calculations as a full simulation; for a given configuration and seed, per-year average compensation and year-over-year growth produced in calibration mode are identical to those of a full simulation run. Calibration runs write to isolated databases and do not modify prior simulation outputs.
 
 ---
+
+### 9.6 Archived Run Provenance
+
+Archived Studio run reports bind available execution-time source, input,
+configuration, seed, and validation evidence to a deterministic digest. Report
+generation reads the selected archive without rerunning the simulation or
+filling missing evidence from today's checkout. Completed evidence can be
+fully verified, incomplete, or unverifiable; failed and legacy runs may lack
+required evidence. Verification concerns the captured run's integrity, not
+the accuracy of its assumptions or legal compliance. See the
+[run provenance report guide](docs/guides/run_provenance_report.md).
 
 ## 10. Limitations and Exclusions
 

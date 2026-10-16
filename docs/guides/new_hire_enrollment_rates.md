@@ -26,7 +26,7 @@ Measured on a 2026–2030 run at `P=0.6, Q=0.1`: 60.2 / 59.9 / 59.9 / 61.4 / 57.
 
 ### Unset means something
 
-Leaving a key out is not the same as setting it to zero. **Unset** keeps the previous demographic model for that decision, so scenarios that never set the key reproduce their old results exactly. **Any explicit value**, including `0.0` and `1.0`, applies the flat meaning.
+Leaving a key out is not the same as setting it to zero. **Unset** keeps the demographic model for that enrollment or opt-out decision. It does not restore earlier deferral defaults. **Any explicit value**, including `0.0` and `1.0`, applies the flat meaning.
 
 This matters because `voluntary_enrollment_rate` changed meaning. It used to be a multiplier on demographic probabilities, where `1.0` meant "demographics unchanged". It is now an exact fraction, where `1.0` means "everybody". A scenario that stored an explicit value will behave differently.
 
@@ -47,7 +47,7 @@ Without it, every member of a demographic cell receives the identical rate — 4
 ```yaml
 enrollment:
   auto_enrollment:
-    deferral_spread_max_lift: 4   # whole percentage points; 0 (default) = off
+    deferral_spread_max_lift: 4   # whole percentage points; default 4; 0 = off
 ```
 
 The table value becomes a **floor**. Employees move up from it, never down:
@@ -69,13 +69,19 @@ That same cell, before and after:
 
 ### It raises costs, on purpose
 
-Enabling the spread raises the average deferral rate by about 0.3 percentage points, and therefore projected employer match cost. This is intended. The previous averages were artificially low precisely because everyone sat on the floor; the table values were never meant to be what everybody elects.
+Before caps and match-magnet snapping, the default weights imply an average lift of 1.1 percentage points within a demographic cell. The realized aggregate change depends on the population, caps, and snapping, and may increase projected employer match cost. This is a behavioral assumption, not an empirical estimate fitted for every employer.
 
-If you need comparability with earlier runs, leave the spread off.
+For prior deferral settings, explicitly set the spread to `0` and
+`enrollment.match_magnet.max_deferral_rate` to `0.10`. This does not undo the
+changed meaning of an explicitly stored `voluntary_enrollment_rate`.
 
 ### What it does not touch
 
-Census employees. They carry their actual deferral rates from the input file, and no demographic setting reaches them. If you see a large cluster at one rate among existing participants, that is your census data, not the model — adjusting the demographic table or the spread will not move it.
+Existing census elections are preserved; the spread does not rewrite them.
+The spread applies when the model selects a demographic rate for a new
+voluntary election, including a continuing non-participant's year-over-year
+conversion. Other configured mechanisms, such as escalation, can change an
+existing participant's rate later.
 
 ### Interaction with the match magnet
 
