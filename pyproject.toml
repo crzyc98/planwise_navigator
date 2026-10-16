@@ -68,7 +68,7 @@ dev = [
     "pytest-split==0.11.0",
     "hypothesis>=6.0.0",
     "factory-boy==3.3.3",
-    "Faker==40.40.0",
+    "Faker==40.43.0",
 
     # Code Quality
     "ruff==0.4.3",
@@ -78,7 +78,7 @@ dev = [
     "mypy==1.19.1",
     # Type stubs for the CI mypy lint job (see requirements-dev.txt / #333)
     "types-PyYAML==6.0.12.20260906",
-    "pylint==4.1.1",
+    "pylint==4.1.2",
     "flake8==6.1.0",
     "pre-commit==4.6.2",
     # Dependency vulnerability scanning (#705)
@@ -90,7 +90,7 @@ dev = [
     # its own fix version to clear PYSEC-2026-3609/PYSEC-2026-3654 (#705).
     "mkdocs==1.6.1",
     "mkdocs-material==9.7.7",
-    "pymdown-extensions==12.1",
+    "pymdown-extensions==12.2",
     "mkdocstrings-python==2.0.9",
     "jupyter==1.1.1",
     "ipython==9.17.1",
