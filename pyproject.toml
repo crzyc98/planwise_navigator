@@ -35,7 +35,7 @@ dependencies = [
     "lxml>=5.0.0",
     # Tableau .hyper export (Cost Comparison page). Pinned: releases after
     # 0.0.26479 dropped macOS wheels; no Linux aarch64 wheels exist at all.
-    "tableauhyperapi==0.0.26784; platform_machine != 'aarch64'",
+    "tableauhyperapi==0.0.26700; platform_machine != 'aarch64'",
     # Corporate network and HTTP client dependencies
     "requests>=2.28.0",
     "urllib3>=1.26.0",
