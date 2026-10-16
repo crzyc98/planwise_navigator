@@ -17,8 +17,7 @@
 {% set downward_reduce_max = var('deferral_match_response_downward_reduce_to_max_rate', 0.70) %}
 {% set downward_partial_factor = var('deferral_match_response_downward_partial_factor', 0.50) %}
 
-{# Existing deferral config for caps #}
-{% set esc_cap = var('deferral_escalation_cap', 0.10) %}
+{# Match response is independent of the annual automatic-escalation ceiling. #}
 {% set irs_402g_limit = var('irs_402g_limit', 23500) %}
 
 {# Match configuration #}
@@ -148,11 +147,6 @@ eligible_employees AS (
         w.employment_status,
         w.is_enrolled_flag,
         assignment.plan_design_id,
-        {% if plan_design_parameters_config %}
-        parameters.deferral_escalation_cap AS escalation_cap,
-        {% else %}
-        {{ esc_cap }}::DECIMAL(5,4) AS escalation_cap,
-        {% endif %}
         {% if (simulation_year | int) == (start_year | int) %}
         -- Year 1: Use enrollment events for current rate
         COALESCE(ier.initial_deferral_rate, 0.0)::DECIMAL(5,4) AS current_deferral_rate,
@@ -256,13 +250,13 @@ upward_events AS (
         'deferral_match_response'::VARCHAR AS event_type,
         {{ simulation_year }} AS simulation_year,
         DATE '{{ simulation_year }}-01-01' AS effective_date,
-        -- Cap at escalation cap and IRS 402(g) rate-equivalent
+        -- Stop at the full-match target and retain the IRS rate-equivalent limit.
         LEAST(
             raw_new_rate,
-            escalation_cap,
+            match_max_rate,
             CASE WHEN employee_compensation > 0
                  THEN ({{ irs_402g_limit }}::DECIMAL / employee_compensation)
-                 ELSE escalation_cap
+                 ELSE match_max_rate
             END
         )::DECIMAL(5,4) AS employee_deferral_rate,
         current_deferral_rate AS prev_employee_deferral_rate,

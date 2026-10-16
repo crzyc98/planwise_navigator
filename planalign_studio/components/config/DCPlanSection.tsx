@@ -197,8 +197,7 @@ export function DCPlanSection() {
     }
   }, [lookbackYears]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const eligibilityFields = <>
-         <div className="sm:col-span-6 bg-success-surface p-4 rounded-lg border border-success-border mb-2 flex items-start">
+  const autoEnrollmentControl = <div className="bg-success-surface p-4 rounded-lg border border-success-border flex items-start">
             <input
                  type="checkbox"
                  name="dcAutoEnroll"
@@ -211,15 +210,23 @@ export function DCPlanSection() {
                <label htmlFor="dcAutoEnroll" className="block text-sm font-medium text-success-ink">Enable Auto-Enrollment</label>
                <p className="text-xs text-success-ink mt-0.5">Automatically enroll eligible employees within the scope and timing rules below.</p>
             </div>
-         </div>
+         </div>;
 
-         <InputField label="Eligibility waiting period" {...inputProps('dcEligibilityMonths')} type="number" suffix="Months" helper={waitingPeriodHelper} />
+  const renderEligibilityFields = () => <>
+      <DCPlanPanel id="dcplan-auto-enrollment-settings" title="Automatic enrollment" summary={formData.dcAutoEnroll ? 'Enabled; plan rules and opt-out assumptions.' : 'Off; default deferral and opt-out assumptions retained.'} enabled={formData.dcAutoEnroll} control={autoEnrollmentControl}>
+         <p className="sm:col-span-6 text-xs font-medium text-ink-muted">Plan rules</p>
          <InputField label="Default Deferral Rate" {...inputProps('dcDefaultDeferral')} type="number" step="0.5" suffix="%" disabled={!formData.dcAutoEnroll} helper={formData.dcAutoEnroll ? 'Initial contribution for auto-enrolled employees.' : 'Inactive while auto-enrollment is off. Saved value is retained.'} />
+         <InputField label="Modeled opt-out delay" {...inputProps('dcAutoEnrollOptOutGracePeriod')} type="number" suffix="Days" disabled={!formData.dcAutoEnroll} helper={formData.dcAutoEnroll ? 'Hire-year opt-out date: eligibility + enrollment delay + this delay. Continuing-employee branch: June 15.' : 'Inactive while auto-enrollment is off. Saved value is retained.'} min={0} />
+         {optOutFields}
+      </DCPlanPanel>
 
-         {/* E084: Auto-Enrollment Advanced Settings */}
-           <>
+      <DCPlanPanel id="dcplan-shared-enrollment-settings" title="Shared enrollment rules" summary="Eligibility, timing, scope, and voluntary enrollment remain active when automatic enrollment is off.">
+             <div className="sm:col-span-6">
+               <p className="mt-1 text-sm text-ink-muted">These rules also apply to voluntary enrollment. Turning automatic enrollment off does not turn them off.</p>
+               <p className="mt-3 text-xs font-medium text-ink-muted">Plan rules</p>
+             </div>
+             <InputField label="Eligibility waiting period" {...inputProps('dcEligibilityMonths')} type="number" suffix="Months" helper={`Applies to plan eligibility for voluntary and automatic enrollment. ${waitingPeriodHelper}`} />
              <InputField label="New-hire enrollment delay after eligibility" {...inputProps('dcAutoEnrollWindowDays')} type="number" suffix="Days" helper="Hire-year enrollment branch: eligibility date + this delay. Continuing-employee branch: January 15. This timing also applies to voluntary enrollment when auto-enrollment is off." min={30} />
-             <InputField label="Modeled opt-out delay" {...inputProps('dcAutoEnrollOptOutGracePeriod')} type="number" suffix="Days" disabled={!formData.dcAutoEnroll} helper={formData.dcAutoEnroll ? 'Hire-year opt-out date: eligibility + enrollment delay + this delay. Continuing-employee branch: June 15.' : 'Inactive while auto-enrollment is off. Saved value is retained.'} min={0} />
              <div className="sm:col-span-3">
                <label htmlFor="dcplan-enrollment-scope" className="block text-sm font-medium text-ink-muted">Enrollment Scope</label>
                <select
@@ -253,15 +260,16 @@ export function DCPlanSection() {
                  : `All plan-eligible employees hired on or after ${formData.dcAutoEnrollHireDateCutoff || 'the configured engine cutoff'}; the cutoff still applies.`}</p>
                {!formData.dcAutoEnroll && <p className="mt-1">Auto-enrollment is off. Default deferral and opt-out settings are inactive; draft values are retained for re-enabling. Voluntary enrollment and plan eligibility remain available.</p>}
              </div>
+             {voluntaryEnrollmentFields}
 
-           </>
+      </DCPlanPanel>
   </>;
 
-  const enrollmentFields = <>
+  const optOutFields = <>
              {/* Opt-Out Assumptions Section */}
              <fieldset disabled={!formData.dcAutoEnroll} className="sm:col-span-6 mt-4 disabled:opacity-60">
                <div className="flex items-center justify-between mb-3">
-                 <h4 className="text-sm font-semibold text-ink">Opt-Out Assumptions</h4>
+                 <h5 className="text-sm font-semibold text-ink">Employee behavior assumptions — opt-outs</h5>
                  <div className="flex items-center gap-2">
                    <button
                      type="button"
@@ -370,7 +378,7 @@ export function DCPlanSection() {
                </div>
 
                {/* Derived rates preview */}
-               <details className="text-xs text-ink-muted">
+               <details open={formData.dcAutoEnroll} className="text-xs text-ink-muted">
                  <summary className="cursor-pointer hover:text-ink-muted font-medium">View derived demographic rates</summary>
                  <div className="mt-2 grid grid-cols-2 gap-x-8 gap-y-1 pl-2">
                    <p className="font-medium text-ink-muted col-span-2 mt-1">By Age</p>
@@ -386,19 +394,22 @@ export function DCPlanSection() {
                  </div>
                </details>
              </fieldset>
+             <EnrollmentRateInput kind="optOut" />
+  </>;
 
+  const voluntaryEnrollmentFields = <>
          {/* New Hire Enrollment Rates (issue #652) */}
          <div className="sm:col-span-6 mt-4">
-           <h4 className="text-sm font-semibold text-ink mb-1">New Hire Enrollment Rates</h4>
+           <h5 className="text-sm font-semibold text-ink mb-1">Voluntary enrollment assumptions</h5>
+           <p className="text-xs font-medium text-ink-muted mb-2">Employee behavior assumptions</p>
            <p className="text-xs text-ink-muted mb-3">
              Exact percentages applied to eligible new hires in their hire year. {formData.dcAutoEnroll
                ? 'Remaining new hires in the enrollment scope may auto-enroll, subject to opt-outs.'
                : 'Auto-enrollment is off; remaining new hires are not automatically enrolled.'}{' '}
-             Choose a rate source for each decision. Enrollment also depends on the scope and timing rules above.
+             Choose the voluntary enrollment rate source. Enrollment also depends on the shared scope and timing rules above.
            </p>
            <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-6">
              <EnrollmentRateInput kind="voluntary" />
-             <EnrollmentRateInput kind="optOut" />
            </div>
            {formData.dcAutoEnroll && voluntaryMode === 'specified' && optOutMode === 'specified' && formData.dcVoluntaryEnrollmentRate !== '' && formData.dcNewHireOptOutRate !== ''
              && Number(formData.dcVoluntaryEnrollmentRate) >= 0
@@ -493,9 +504,14 @@ export function DCPlanSection() {
                <span className="ml-2 text-sm text-ink-muted">Enabled</span>
              </label>
            </div>
+           <details id="dcplan-match-magnet-settings" open={formData.dcMatchMagnetEnabled}>
+           <summary className="cursor-pointer text-sm font-medium mb-3">New-enrollee response assumptions</summary>
            <p className="text-xs text-ink-muted mb-3">Models new voluntary enrollees who increase their contributions to the rate needed for the full employer match. The selected share applies only to those starting below that rate.</p>
            <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-6">
              <InputField label="Share seeking the full match" {...inputProps('dcMatchMagnetProbability')} type="number" step="1" suffix="%" disabled={!formData.dcMatchMagnetEnabled} helper={formData.dcMatchMagnetEnabled ? 'Share of below-ceiling voluntary enrollees who increase to the full-match rate (0–100%).' : 'Inactive while new-enrollee match seeking is off. Saved value is retained.'} min={0} max={100} />
+           </div>
+           </details>
+           <div className="grid grid-cols-1 gap-4 sm:grid-cols-6 mt-4">
              <InputField label="Max Voluntary Deferral" {...inputProps('dcMaxVoluntaryDeferral')} type="number" step="1" suffix="%" helper="Shared upper bound on voluntary deferral selection and spread, including when match seeking is off." min={1} max={100} />
            </div>
          </div>
@@ -516,6 +532,8 @@ export function DCPlanSection() {
                <span className="ml-2 text-sm text-ink-muted">Enabled</span>
              </label>
            </div>
+           <details id="dcplan-match-response-settings" open={formData.dcMatchResponseEnabled}>
+           <summary className="cursor-pointer text-sm font-medium mb-3">Existing-participant response assumptions</summary>
            <p className="text-xs text-ink-muted mb-3">In the first projection year, models active enrolled employees changing contributions in response to the employer-match ceiling. Current-year new hires are excluded. Some upward responders seek the full match; others close part of the gap according to the inherited response assumptions.</p>
            <p className="text-xs text-ink-muted mb-3">Upward responders seeking the full match: {responseMaximizers}%. Partial responders close {responsePartialGap}% of the gap. Shared escalation and IRS limits still apply.</p>
            <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-6">
@@ -543,6 +561,8 @@ export function DCPlanSection() {
                  />
                  <span className="ml-2 text-sm text-ink-muted">Allow Deferral Decreases</span>
                </label>
+               <details id="dcplan-match-decreases-settings" open={formData.dcMatchResponseEnabled && formData.dcMatchResponseDownwardEnabled}>
+               <summary className="cursor-pointer text-sm font-medium mt-3">Deferral decrease assumptions</summary>
                <InputField
                  label="Decrease Deferral Response"
                  {...inputProps('dcMatchResponseDownwardParticipation')}
@@ -554,14 +574,15 @@ export function DCPlanSection() {
                  min={0}
                  max={100}
                />
+               </details>
              </div>
            </div>
+           </details>
          </div>
 
   </>;
 
-  const matchFields = <>
-         <div className="sm:col-span-6 flex items-center justify-between mb-2">
+  const matchControl = <div className="flex items-center justify-between mb-2">
            <h4 className="text-sm font-semibold text-ink">Employer Match Formula</h4>
            <label htmlFor="dcplan-match-enabled" className="flex items-center">
              <input
@@ -574,7 +595,8 @@ export function DCPlanSection() {
              />
              <span className="ml-2 text-sm text-ink-muted">Enabled</span>
            </label>
-         </div>
+         </div>;
+  const matchFields = <>
          <p className="sm:col-span-6 text-xs text-ink-muted -mt-4 mb-2">Configure employer matching contributions on employee deferrals</p>
 
          {formData.dcMatchEnabled && (<>
@@ -848,9 +870,7 @@ export function DCPlanSection() {
 
   </>;
 
-  const coreFields = <>
-         {/* E084: Core Contribution Section */}
-         <div className="sm:col-span-6 flex items-center justify-between mb-2">
+  const coreControl = <div className="flex items-center justify-between mb-2">
            <h4 className="text-sm font-semibold text-ink">Employer Core (Non-Elective) Contribution</h4>
            <label htmlFor="dcplan-core-enabled" className="flex items-center">
              <input
@@ -863,7 +883,8 @@ export function DCPlanSection() {
              />
              <span className="ml-2 text-sm text-ink-muted">Enabled</span>
            </label>
-         </div>
+         </div>;
+  const coreFields = <>
          <p className="sm:col-span-6 text-xs text-ink-muted -mt-4 mb-2">Automatic employer contribution regardless of employee deferral</p>
 
          {formData.dcCoreEnabled && (
@@ -1232,15 +1253,15 @@ export function DCPlanSection() {
 
   </>;
 
-  const escalationFields = <>
-         <div className="sm:col-span-6 flex items-center justify-between mb-2">
+  const escalationControl = <div className="flex items-center justify-between mb-2">
              <h4 className="text-sm font-semibold text-ink">Auto-Escalation</h4>
              <label htmlFor="dcplan-auto-escalation" className="flex items-center">
                  <input id="dcplan-auto-escalation" type="checkbox" name="dcAutoEscalation" checked={formData.dcAutoEscalation} onChange={handleChange} className="h-4 w-4 text-fidelity-green rounded" />
                  <span className="ml-2 text-sm text-ink-muted">Enabled</span>
              </label>
-         </div>
-         <InputField label="Escalation Cap" {...inputProps('dcEscalationCap')} type="number" suffix="%" disabled={!formData.dcAutoEscalation && !formData.dcMatchResponseEnabled} helper={formData.dcAutoEscalation || formData.dcMatchResponseEnabled ? 'Shared cap for annual escalation and first-year match-responsive deferral increases; remains active when either feature is enabled.' : 'Inactive while auto-escalation and match-responsive adjustment are off. Saved value is retained.'} />
+         </div>;
+  const escalationFields = <>
+         <InputField label="Escalation Cap" {...inputProps('dcEscalationCap')} type="number" suffix="%" disabled={!formData.dcAutoEscalation} helper="Ceiling for automatic annual increases only. Employees can contribute above this rate, including to receive the full employer match." />
          {formData.dcAutoEscalation && (
            <>
              <InputField label="Annual Increase" {...inputProps('dcEscalationRate')} type="number" step="0.5" suffix="pp" helper="Percentage points added to the employee contribution rate each year." />
@@ -1283,14 +1304,13 @@ export function DCPlanSection() {
       </div>
       <section aria-labelledby="dcplan-provisions" className="space-y-4">
         <h3 id="dcplan-provisions" className="font-bold text-ink">Plan provisions</h3>
-        <DCPlanPanel id="dcplan-eligibility-panel" title="Eligibility and automatic enrollment" summary={`${formData.dcEligibilityMonths} modeled months (${waitingPeriodDays} days); automatic enrollment ${formData.dcAutoEnroll ? 'on' : 'off'}; ${formData.dcAutoEnrollScope === 'new_hires_only' ? 'first year uses hire cutoff, later years use current-year hires' : 'all eligible employees, subject to hire cutoff every year'}; hire cutoff ${formData.dcAutoEnrollHireDateCutoff || 'inherited'}; hire-year delay ${formData.dcAutoEnrollWindowDays} days.`}>{eligibilityFields}</DCPlanPanel>
-        <DCPlanPanel id="dcplan-match-panel" title="Employer match" summary={matchSummary(formData, displayConfig)}>{matchFields}</DCPlanPanel>
-        <DCPlanPanel id="dcplan-core-panel" title="Employer core contribution" summary={coreSummary(formData, displayConfig)}>{coreFields}</DCPlanPanel>
-        <DCPlanPanel id="dcplan-escalation-panel" title="Automatic contribution increases" summary={`${formData.dcAutoEscalation ? `${formData.dcEscalationRate} percentage points annually on ${formData.dcEscalationEffectiveDay}; delay ${formData.dcEscalationDelayYears} enrollment years; hire cutoff ${formData.dcEscalationHireDateCutoff || 'none configured'}` : 'Annual escalation off'}; shared cap ${formData.dcEscalationCap}%${formData.dcMatchResponseEnabled ? ', also used by first-year match response' : ''}.`}>{escalationFields}</DCPlanPanel>
+        <DCPlanPanel id="dcplan-eligibility-panel" title="Eligibility and enrollment" summary={`Shared waiting period: ${formData.dcEligibilityMonths} modeled months (${waitingPeriodDays} days); automatic enrollment ${formData.dcAutoEnroll ? 'on' : 'off'}; ${formData.dcAutoEnrollScope === 'new_hires_only' ? 'first year uses hire cutoff, later years use current-year hires' : 'all eligible employees, subject to hire cutoff every year'}; hire cutoff ${formData.dcAutoEnrollHireDateCutoff || 'inherited'}; shared hire-year delay ${formData.dcAutoEnrollWindowDays} days. New-hire voluntary enrollment: ${rateSource(voluntaryMode, formData.dcVoluntaryEnrollmentRate)}; ${formData.dcAutoEnroll ? `new-hire opt-out: ${rateSource(optOutMode, formData.dcNewHireOptOutRate)}; continuing opt-out target ${formData.dcOptOutRateTarget}%` : 'opt-out assumptions inactive'}.`}>{renderEligibilityFields()}</DCPlanPanel>
+        <DCPlanPanel id="dcplan-match-panel" title="Employer match" summary={matchSummary(formData, displayConfig)} enabled={formData.dcMatchEnabled} control={matchControl}>{matchFields}</DCPlanPanel>
+        <DCPlanPanel id="dcplan-core-panel" title="Employer core contribution" summary={coreSummary(formData, displayConfig)} enabled={formData.dcCoreEnabled} control={coreControl}>{coreFields}</DCPlanPanel>
+        <DCPlanPanel id="dcplan-escalation-panel" title="Automatic contribution increases" enabled={formData.dcAutoEscalation} control={escalationControl} summary={formData.dcAutoEscalation ? `${formData.dcEscalationRate} percentage points annually up to ${formData.dcEscalationCap}% on ${formData.dcEscalationEffectiveDay}; delay ${formData.dcEscalationDelayYears} enrollment years; hire cutoff ${formData.dcEscalationHireDateCutoff || 'none configured'}.` : 'Annual escalation off; saved settings retained.'}>{escalationFields}</DCPlanPanel>
       </section>
       <section aria-labelledby="dcplan-behavior" className="space-y-4">
         <h3 id="dcplan-behavior" className="font-bold text-ink">Employee behavior assumptions</h3>
-        <DCPlanPanel id="dcplan-enrollment-panel" title="Enrollment and opt-outs" summary={`New-hire voluntary enrollment: ${rateSource(voluntaryMode, formData.dcVoluntaryEnrollmentRate)}; ${formData.dcAutoEnroll ? `new-hire opt-out: ${rateSource(optOutMode, formData.dcNewHireOptOutRate)}; continuing opt-out target ${formData.dcOptOutRateTarget}%` : 'auto-enrollment off; opt-out assumptions inactive'}.`}>{enrollmentFields}</DCPlanPanel>
         <DCPlanPanel id="dcplan-starting-rates-panel" title="Starting employee contribution rates" summary={`Segment rates ${Math.min(...Object.values(formData.dcVoluntaryDeferralBaseRates))}–${Math.max(...Object.values(formData.dcVoluntaryDeferralBaseRates))}%; upward spread ${formData.dcDeferralSpreadMaxLift} percentage points; voluntary cap ${formData.dcMaxVoluntaryDeferral}%.${deferralSpreadClipping ? ` Warning: spread ceiling ${deferralSpreadClipping.spreadCeiling}% exceeds the cap; rates will be clipped.` : ''}`}>{startingRateFields}</DCPlanPanel>
         <DCPlanPanel id="dcplan-response-panel" title="Response to the employer match" summary={`New enrollees seeking full match: ${formData.dcMatchMagnetEnabled ? `${formData.dcMatchMagnetProbability}% of below-ceiling voluntary enrollees` : 'off'}; first-year existing-participant response: ${formData.dcMatchResponseEnabled ? `upward ${formData.dcMatchResponseUpwardParticipation}%, downward ${formData.dcMatchResponseDownwardEnabled ? `${formData.dcMatchResponseDownwardParticipation}%` : 'off'}; ${responseMaximizers}% of upward responders seek full match, others close ${responsePartialGap}% of the gap` : 'off'}.`}>{responseFields}</DCPlanPanel>
       </section>

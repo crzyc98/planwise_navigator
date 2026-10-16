@@ -127,6 +127,8 @@ models:
       Match-responsive deferral adjustment events (Epic E058).
       Generates events when employees adjust deferrals in response to the
       match formula gap. Fires in the first simulation year only.
+      Upward responses can reach the full-match contribution rate independently
+      of the annual auto-escalation cap, subject to the IRS rate-equivalent limit.
     config:
       tags: ["EVENT_GENERATION", "E058_MATCH_RESPONSE"]
     data_tests:
