@@ -132,6 +132,14 @@ py-modules = ["_version"]
 [tool.setuptools.package-data]
 planalign_orchestrator = ["py.typed"]
 
+[tool.black]
+# Also applies to explicitly supplied files (e.g. pre-commit).
+force-exclude = '/\.worktrees/'
+
+[tool.ruff]
+extend-exclude = [".worktrees"]
+force-exclude = true
+
 [tool.pytest.ini_options]
 # Exclude third-party packages and non-test directories
 testpaths = ["tests"]

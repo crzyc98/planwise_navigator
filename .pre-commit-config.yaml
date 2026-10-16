@@ -1,3 +1,5 @@
+exclude: '(^|/)\.worktrees/'
+
 repos:
   # Basic syntax and formatting checks that don't require full environment
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -31,6 +33,12 @@ repos:
   # Local validation reminder (non-blocking)
   - repo: local
     hooks:
+      - id: no-worktree-gitlinks
+        name: prevent nested worktree gitlinks
+        entry: python3 scripts/check_worktree_gitlinks.py
+        language: system
+        pass_filenames: false
+        always_run: true
       - id: staged-whitespace-check
         name: staged whitespace check
         entry: git diff --cached --check
