@@ -120,6 +120,58 @@ Reload the same destination and reopen review. Confirm that edited values and in
 
 ## Acceptance record — analyst signoff received
 
+### Final acceptance reconciliation, 2026-10-16
+
+The configuration experience is accepted with Nick's explicit signoff and the
+functional follow-up below. PRs #885 and #886 are merged. Final checks used
+`695a7560` with the same disposable synthetic workspace/scenario, through Studio
+on port 5182 and its isolated workspace API on port 8012.
+
+These are **agent-operated functional checks**, not additional analyst timings
+or independent comprehension observations:
+
+- Scenario growth 3.125%, COLA 2.25%, and merit 3.75% survived review/save/reload
+  and exported as 0.03125, 0.0225, and 0.0375. The workspace base configuration
+  remained exactly unchanged.
+- Tiered match entry of 100% on the first 4% plus 50% on the next 2% survived
+  save/reload, with a 6% full-match employee threshold and 5% employer maximum.
+  Switching to a single tier and entering 100% on the first 4% saved and exported
+  a 4% employee threshold and 4% employer maximum. No custom-row save blocker
+  recurred. The custom audit note and terminated-hire-year eligibility exception
+  remained intact.
+- Scenario automatic enrollment was enabled, scope set to all eligible employees,
+  and voluntary enrollment set to 35%. Values survived save/reload. Turning auto
+  enrollment off then survived save/reload and exported false while retaining
+  scope and the 35% voluntary setting. Its section collapsed, default-deferral
+  and opt-out controls were disabled, and the automatic split disappeared;
+  shared eligibility and voluntary controls remained usable.
+- A no-change review reported no changes; saving preserved the exact scenario
+  override object. API export checks confirmed the persisted inputs above.
+- At 1280×800 and an actual measured 768×900 viewport, navigation, editing, and
+  review/save remained usable. The narrow review occupied the viewport without
+  page-level horizontal overflow. The demographic contribution grid uses its
+  own horizontal scroll container for the rightmost income column.
+- Keyboard input and Tab moved between numeric fields; Space toggled automatic
+  enrollment and Enter reopened a collapsed section. Review Tab/Shift-Tab
+  wrapped between the first visible disclosure and Save, skipping hidden
+  content. Escape closed review and returned focus to its trigger; Enter
+  reopened it. Manual section collapse survived an unrelated form change.
+  Disabling escalation hid and disabled its cap, and enabling reopened it.
+
+The synthetic scenario was restored to its pre-check overrides afterward;
+workspace defaults and run archives were not changed. Local evidence snapshots
+are under `var/epic862-acceptance/final-checks` and are not committed.
+
+**Disposition:** all three tasks have functional coverage, the observed analyst
+errors are fixed, and the analyst has approved the result. The historical
+pending notes below are superseded by this reconciliation. Independent pay-event
+comprehension, a separate analyst keyboard/narrow-layout session, and before/after
+timing comparisons were not measured and are not claimed. Those study limits
+do not reopen the signed-off configuration experience. This is targeted
+functional acceptance, not a comprehensive accessibility or simulation audit.
+Separate engine investigations #840 and #856 and roadmap work #646 and #844
+remain outside this epic.
+
 ### Guided analyst walkthrough, 2026-10-16 — signed off; coverage gaps retained
 
 Nick, Lead Developer / VP of Analytics, explicitly signed off with “i signoff”
@@ -221,9 +273,9 @@ automated checks; no before/after timing improvement is claimed.
   Frontend validation passed 329 tests, type checking, lint, and the production
   build (existing bundle-size and mixed-import warnings remain).
 
-Scenario-override repetition, keyboard/navigation observations, narrow-layout
-feedback, and remaining task-level effective-export verification remain pending.
-Final analyst signoff has been received; these coverage gaps remain explicit.
+At signoff, scenario repetition, keyboard/narrow-layout checks, and remaining
+task-level exports had not yet been verified. The final reconciliation above
+records their functional completion and preserves the limits of the analyst study.
 
 Automated validation of the walkthrough fixes: 321 frontend tests, TypeScript,
 ESLint, production build, and 149 targeted Python tests passed. The build retains
@@ -247,7 +299,7 @@ The combined validation passed 232 frontend tests and 169 targeted Python tests,
 
 Reproduce the automated checks with `npm test`, `npm run typecheck`, `npm run lint`, and `npm run build` from `planalign_studio/`. From the repository root with the virtual environment active, run `pytest tests/api/test_configuration_preview.py tests/api/test_openapi_contract.py tests/api/test_route_auth_coverage.py tests/unit/orchestrator/test_config_export.py tests/test_config_export_match_magnet.py tests/unit/test_issue_669_studio_contract.py tests/test_studio_mapping_audit.py -m 'not integration' -q`. The inventory gives the separate opt-in isolated integration command.
 
-This guide provides a repeatable task script. **Final analyst signoff has been received; the coverage gaps above remain open.** Automated component/API/browser checks do not establish analyst understanding. No before/after usability timing or baseline improvement is claimed here.
+This guide provides a repeatable task script. **Final analyst signoff and functional follow-up are complete, with study limitations documented above.** Automated component/API/browser checks do not establish analyst understanding. No before/after usability timing or baseline improvement is claimed here.
 
 For each task, record participant role, build/SHA, workspace/scenario, initial custom settings, completion, errors, help requests, elapsed time, and explanation accuracy. Use synthetic data and repeat at 1280×800 and a narrower viewport, including keyboard-only navigation.
 
