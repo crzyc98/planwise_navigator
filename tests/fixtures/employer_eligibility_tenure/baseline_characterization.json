@@ -1,4 +1,9 @@
 {
+  "provenance": {
+    "source_revision": "8e4723a66911b09fd3851cbcd3d0f9889333cc8b",
+    "irs_seed_sha256": "5ae9b81eaf9223384dc8fdf32e381f9187b531aefdf900185af2a93163acdd45",
+    "explanation": "docs/guides/employer_eligibility_characterization.md"
+  },
   "opening_year": {
     "1": {
       "core_cost": 725613.0,
@@ -27,27 +32,27 @@
       "match_paid": 116
     },
     "2026": {
-      "core_cost": 841538.87,
+      "core_cost": 850386.54,
       "core_paid": 155,
-      "match_cost": 939991.42,
+      "match_cost": 950147.42,
       "match_paid": 128
     },
     "2027": {
-      "core_cost": 891388.55,
+      "core_cost": 900459.08,
       "core_paid": 158,
-      "match_cost": 1028852.5,
+      "match_cost": 1039606.14,
       "match_paid": 137
     },
     "2028": {
-      "core_cost": 932602.87,
+      "core_cost": 941650.99,
       "core_paid": 161,
-      "match_cost": 1126622.0,
+      "match_cost": 1136987.7,
       "match_paid": 147
     },
     "2029": {
-      "core_cost": 979668.07,
+      "core_cost": 988279.14,
       "core_paid": 164,
-      "match_cost": 1194434.01,
+      "match_cost": 1205015.43,
       "match_paid": 151
     }
   }

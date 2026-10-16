@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Iterator
@@ -82,31 +83,29 @@ def test_opening_year_and_zero_wait_match_characterization(
     service_wait_databases: dict[int, Path],
 ) -> None:
     baseline = json.loads(BASELINE_CHARACTERIZATION.read_text())
+    seed = Path(__file__).resolve().parents[2] / "dbt/seeds/config_irs_limits.csv"
+    assert (
+        hashlib.sha256(seed.read_bytes()).hexdigest()
+        == baseline["provenance"]["irs_seed_sha256"]
+    ), "IRS seed changed; reconcile characterization using its documented provenance"
     for wait in (1, 2, 3):
         actual = _annual_aggregates(service_wait_databases[wait])[2025]
         expected = baseline["opening_year"][str(wait)]
-        assert actual == pytest.approx(
-            (
-                expected["core_cost"],
-                expected["core_paid"],
-                expected["match_cost"],
-                expected["match_paid"],
-            ),
-            abs=0.01,
-        )
+        _assert_characterization(actual, expected)
 
     actual_zero = _annual_aggregates(service_wait_databases[0])
     for year in YEARS:
         expected = baseline["zero_wait_all_years"][str(year)]
-        assert actual_zero[year] == pytest.approx(
-            (
-                expected["core_cost"],
-                expected["core_paid"],
-                expected["match_cost"],
-                expected["match_paid"],
-            ),
-            abs=0.01,
-        )
+        _assert_characterization(actual_zero[year], expected)
+
+
+def _assert_characterization(
+    actual: tuple[float, int, float, int], expected: dict[str, float | int]
+) -> None:
+    assert (actual[1], actual[3]) == (expected["core_paid"], expected["match_paid"])
+    assert (actual[0], actual[2]) == pytest.approx(
+        (expected["core_cost"], expected["match_cost"]), rel=0, abs=0.01
+    )
 
 
 def test_core_waits_separate_costs_and_populations_each_year(

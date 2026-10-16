@@ -101,6 +101,20 @@ def test_workflow_gate_observes_every_job() -> None:
     assert jobs["test"]["if"] == "needs.ci-scope.outputs.full == 'true'"
 
 
+def test_runner_context_is_step_scoped_and_dbt_stays_isolated() -> None:
+    workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
+    for job in workflow["jobs"].values():
+        assert "runner." not in json.dumps(job.get("env", {}))
+    validation = next(
+        step
+        for step in workflow["jobs"]["validate-models"]["steps"]
+        if step.get("name") == "Validate dbt project"
+    )
+    assert validation["env"]["DATABASE_PATH"] == (
+        "${{ runner.temp }}/planalign_ci_model_validation.duckdb"
+    )
+
+
 def test_renamed_backend_file_cannot_hide_in_docs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
