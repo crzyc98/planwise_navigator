@@ -14,7 +14,6 @@ pytestmark = pytest.mark.integration
 SCENARIO_PARTITIONS = (
     "int_workforce_state_accumulator",
     "int_plan_design_assignment_accumulator",
-    "int_deferral_escalation_state_accumulator",
     "int_enrollment_events",
     "int_employer_core_contributions",
     "int_employee_match_calculations",

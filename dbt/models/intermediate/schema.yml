@@ -678,7 +678,7 @@ models:
   - name: int_deferral_rate_state_accumulator
     description: >
       Enhanced temporal state accumulator (v2) for employee deferral rates across years.
-      Replaces legacy int_deferral_escalation_state_accumulator and is the canonical source for contributions.
+      Canonical source of deferral rates for contributions, including enrollment and escalation changes.
     config:
       tags: ["state_accumulator", "critical", "e036", "v2"]
     data_tests:
@@ -1298,28 +1298,12 @@ models:
 
   - name: int_workforce_active_for_events
     description: >
-      Dependency-free model that calculates active employees for event generation.
-
-      **Purpose:**
-      Provides active employee data for event generation without circular dependencies.
-      Provides the canonical active-workforce input for all event models.
-
-      **Approach:**
-      Calculates the current active workforce by:
-      1. Starting with baseline workforce from int_baseline_workforce
-      2. Applying all historical events (hires, terminations, promotions, raises) up to simulation_year-1
-      3. Determining who is active at the start of simulation_year
-
-      **Circular Dependency Resolution:**
-      This model only reads from:
-      - int_baseline_workforce (independent)
-      - fct_yearly_events (but only for years < simulation_year)
-      This prevents circular dependencies with fact tables.
-
-      **Data Integrity:**
-      Ensures terminated employees don't receive events in subsequent years.
+      Opt-in active-workforce input for test_compensation_compounding_validation.
+      Uses baseline workforce in the first year and the prior workforce projection
+      in later years. Not scheduled by the production pipeline; build with the
+      analysis consumer using --select +test_compensation_compounding_validation.
     config:
-      tags: ["foundation", "critical", "event_generation"]
+      tags: ["analysis", "compensation", "validation"]
     columns:
       - name: simulation_year
         description: Current simulation year
@@ -1474,159 +1458,6 @@ models:
           - not_null
           - accepted_values:
               values: [true]
-
-  - name: int_eligibility_determination
-    description: >
-      DC Plan eligibility determination for all active employees across simulation years (Epic E022: Story S022-01) - SCALABLE VERSION.
-
-      This model determines employee eligibility for DC plan participation based on days of service
-      since hire date. Implements the most common eligibility pattern: waiting period after hire.
-
-      **Business Logic:**
-      - Employees become eligible after configurable waiting period (days since hire)
-      - Only active employees are evaluated for eligibility
-      - Eligibility determined as of January 1st of each simulation year
-      - Supports immediate eligibility (0 days) and various waiting periods
-
-      **Configuration:**
-      - eligibility_waiting_days: dbt variable (default: 365 days)
-      - simulation_start_year: dbt variable (default: 2025)
-      - simulation_end_year: dbt variable (default: 2029)
-
-      **Scalability:**
-      - Uses dynamic macro to generate eligibility for any year range without hardcoding
-      - Can handle 1 year to 100+ years of simulation without code changes
-      - No more hardcoded UNION ALL statements for specific years
-
-      **Performance:**
-      - SQL-based calculation for 100K+ employees in <30 seconds
-      - Materialized as table for optimal query performance
-      - Dynamic year generation maintains same performance as static approach
-    config:
-      tags: ["eligibility", "dc_plan", "epic_e022"]
-    columns:
-      - name: employee_id
-        description: Unique identifier for each employee
-        data_tests:
-          - not_null
-      - name: employee_ssn
-        description: Employee social security number
-        data_tests:
-          - not_null
-      - name: employee_hire_date
-        description: Original employee hire date
-        data_tests:
-          - not_null
-      - name: employment_status
-        description: Current employment status (always 'active' for this model)
-        data_tests:
-          - not_null
-          - accepted_values:
-              values: ['active']
-      - name: simulation_year
-        description: Simulation year for eligibility determination
-        data_tests:
-          - not_null
-          - dbt_utils.accepted_range:
-              min_value: "{{ var('simulation_start_year', 2025) }}"
-              max_value: "{{ var('simulation_end_year', 2029) }}"
-      - name: days_since_hire
-        description: Number of days from hire date to start of simulation year
-        data_tests:
-          - not_null
-          - dbt_utils.accepted_range:
-              min_value: 0
-      - name: is_eligible
-        description: Boolean flag indicating eligibility for plan participation
-        data_tests:
-          - not_null
-          - accepted_values:
-              values: [true, false]
-      - name: eligibility_reason
-        description: Reason for eligibility status
-        data_tests:
-          - not_null
-          - accepted_values:
-              values: ['eligible_service_met', 'pending_service_requirement']
-      - name: waiting_period_days
-        description: Configured waiting period in days
-        data_tests:
-          - not_null
-          - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 1095  # Max 3 years
-      - name: eligibility_evaluation_date
-        description: Date eligibility was evaluated (January 1st of simulation year)
-        data_tests:
-          - not_null
-
-  - name: int_workforce_pre_enrollment
-    description: >
-      Pre-Enrollment Workforce Model (Circular Dependency Resolution)
-
-      This helper model provides workforce state data WITHOUT enrollment events,
-      breaking the circular dependency chain that was preventing E023 enrollment
-      engine from functioning.
-
-      **Purpose:**
-      - Serves as clean workforce data source for eligibility determination
-      - Excludes enrollment events to prevent circular dependencies
-      - Maintains all other workforce event processing
-      - Enables enrollment processing in separate phase
-    config:
-      tags: ["foundation", "critical", "helper", "circular_dependency_resolution"]
-    columns:
-      - name: employee_id
-        description: Unique identifier for each employee
-        data_tests:
-          - not_null
-      - name: employee_ssn
-        description: Employee social security number
-        data_tests:
-          - not_null
-      - name: employee_birth_date
-        description: Employee birth date
-        data_tests:
-          - not_null
-      - name: employee_hire_date
-        description: Employee hire date
-        data_tests:
-          - not_null
-      - name: current_compensation
-        description: Current employee compensation
-        data_tests:
-          - not_null
-          - dbt_utils.accepted_range:
-              min_value: 0
-              inclusive: false
-      - name: current_age
-        description: Employee age in the simulation year
-        data_tests:
-          - not_null
-          - dbt_utils.accepted_range:
-              min_value: 16
-              max_value: 100
-      - name: current_tenure
-        description: Employee tenure in years
-        data_tests:
-          - not_null
-          - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 60
-      - name: level_id
-        description: Job level ID
-        data_tests:
-          - not_null
-      - name: employment_status
-        description: Employment status (always 'active' for this model)
-        data_tests:
-          - not_null
-          - accepted_values:
-              values: ['active']
-      - name: simulation_year
-        description: Current simulation year
-        data_tests:
-          - not_null
 
   - name: int_enrollment_events
     description: >

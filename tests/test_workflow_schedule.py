@@ -72,7 +72,7 @@ def test_no_model_built_twice_per_year() -> None:
     assert duplicates == set()
 
 
-def test_full_refresh_set_unchanged() -> None:
+def test_full_refresh_set_contains_only_active_inputs() -> None:
     workflow = WorkflowBuilder.build_year_workflow(START_YEAR, START_YEAR)
     foundation = next(
         stage for stage in workflow if stage.name is WorkflowStage.FOUNDATION
@@ -95,8 +95,6 @@ def test_full_refresh_set_unchanged() -> None:
         "int_employee_compensation_by_year",
         "int_workforce_needs",
         "int_workforce_needs_by_level",
-        "int_workforce_active_for_events",
-        "int_workforce_pre_enrollment",
     }
 
 

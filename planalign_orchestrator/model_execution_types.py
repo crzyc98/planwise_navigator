@@ -79,7 +79,6 @@ class ModelClassifier:
         sequential_models = {
             MODEL_INT_ENROLLMENT_STATE_ACCUMULATOR: "Temporal state tracking across years",
             MODEL_INT_DEFERRAL_RATE_STATE_ACCUMULATOR: "Deferral rate state accumulation",
-            "int_deferral_escalation_state_accumulator": "Escalation state tracking",
             "int_active_employees_prev_year_snapshot": "Previous year employee snapshot",
             MODEL_FCT_YEARLY_EVENTS: "Event sequencing and ordering critical",
             MODEL_FCT_WORKFORCE_SNAPSHOT: "Depends on all events and state accumulators",

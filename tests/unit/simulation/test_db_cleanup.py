@@ -102,3 +102,18 @@ class TestCleanupYearsOutsideRange:
         """Sanity check that the table list is defined."""
         assert len(TABLES_WITH_YEAR) > 0
         assert "fct_workforce_snapshot" in TABLES_WITH_YEAR
+
+    def test_prunes_retired_escalation_relation_in_old_database(self, tmp_path):
+        database = tmp_path / "legacy.duckdb"
+        with duckdb.connect(str(database)) as connection:
+            connection.execute(
+                "CREATE TABLE int_deferral_escalation_state_accumulator "
+                "(simulation_year INTEGER)"
+            )
+            connection.execute(
+                "INSERT INTO int_deferral_escalation_state_accumulator "
+                "VALUES (2024), (2025), (2028)"
+            )
+        assert cleanup_years_outside_range(database, 2025, 2027) == {
+            "int_deferral_escalation_state_accumulator": 2
+        }

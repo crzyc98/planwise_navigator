@@ -140,9 +140,6 @@ class WorkflowBuilder:
                 "int_effective_parameters",
                 MODEL_INT_WORKFORCE_NEEDS,
                 "int_workforce_needs_by_level",
-                # Feature 086 pre-enrollment helpers remain foundation inputs.
-                "int_workforce_active_for_events",
-                "int_workforce_pre_enrollment",
             ]
         else:
             # Year 2+: Skip baseline workforce (use incremental data preservation)
@@ -207,7 +204,6 @@ class WorkflowBuilder:
                     "int_hazard_merit",
                     MODEL_INT_PROMOTION_EVENTS,
                     MODEL_INT_MERIT_EVENTS,
-                    "int_eligibility_determination",
                     "int_eligibility_events",
                     "int_voluntary_enrollment_decision",
                     "int_proactive_voluntary_enrollment",
@@ -227,7 +223,6 @@ class WorkflowBuilder:
                     "int_employer_eligibility",
                     MODEL_INT_ENROLLMENT_STATE_ACCUMULATOR,
                     "int_deferral_rate_state_accumulator",
-                    "int_deferral_escalation_state_accumulator",
                     # Build employer contributions after contributions are computed to ensure proration
                     "int_employee_contributions",
                     "int_employer_core_contributions",
