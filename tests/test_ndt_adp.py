@@ -113,7 +113,6 @@ def adp_service_with_db():
     mock_resolver = MagicMock(spec=DatabasePathResolver)
 
     service = NDTService(storage, db_resolver=mock_resolver)
-    service._ensure_seed_current = MagicMock()
     return service, conn, mock_resolver
 
 

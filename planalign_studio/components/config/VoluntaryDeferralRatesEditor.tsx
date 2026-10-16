@@ -1,3 +1,4 @@
+import { NumericInput } from './NumericInput';
 import { useState } from 'react';
 import { AlertTriangle, RotateCcw, Sparkles } from 'lucide-react';
 import { DEFAULT_VOLUNTARY_DEFERRAL_BASE_RATES } from './constants';
@@ -225,7 +226,7 @@ export function VoluntaryDeferralRatesEditor({
                   return (
                     <td key={income.key} className="py-2 px-3">
                       <div className="flex items-center">
-                        <input
+                        <NumericInput
                           type="number"
                           aria-label={`${age.label} ${income.label} deferral rate`}
                           value={rate}

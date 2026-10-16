@@ -821,6 +821,24 @@ class WorkspaceStorage:
         )
         return self._merge_config(workspace, draft)
 
+    def preview_base_config(
+        self, workspace_id: str, base_config: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """Resolve a draft workspace with the normal scenario merge, without writes."""
+        workspace = self.get_workspace(workspace_id)
+        if workspace is None:
+            return None
+        draft = Scenario(
+            id="preview",
+            workspace_id=workspace_id,
+            name="preview",
+            config_overrides={},
+            created_at=datetime.now(timezone.utc),
+        )
+        return self._merge_config(
+            workspace.model_copy(update={"base_config": base_config}, deep=True), draft
+        )
+
     def _merge_config(self, workspace: Workspace, scenario: Scenario) -> Dict[str, Any]:
         """Pure merge of a loaded workspace + scenario (no I/O)."""
         # E091: Debug logging for year range tracking

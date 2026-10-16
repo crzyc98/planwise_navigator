@@ -368,6 +368,22 @@ export async function getScenarioConfig(
   return handleResponse<Record<string, any>>(response);
 }
 
+export interface ConfigPreview {
+  configuration: Record<string, any>;
+  engine_variables: Record<string, any>;
+  scope: string;
+}
+
+export async function previewConfiguration(
+  workspaceId: string, config: Record<string, any>, target: 'scenario' | 'workspace',
+): Promise<ConfigPreview> {
+  const response = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/config-preview`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ config, target }),
+  });
+  return handleResponse<ConfigPreview>(response);
+}
+
 export async function createScenario(
   workspaceId: string,
   data: ScenarioCreate
@@ -692,9 +708,14 @@ export function saveBrowserDownload(blob: Blob, filename: string): void {
   anchor.href = url;
   anchor.download = filename;
   document.body.appendChild(anchor);
-  anchor.click();
-  window.URL.revokeObjectURL(url);
-  document.body.removeChild(anchor);
+  try {
+    anchor.click();
+  } finally {
+    document.body.removeChild(anchor);
+    // Browsers may start consuming the blob after click() returns. Keep the
+    // URL alive during that handoff, especially for large Excel downloads.
+    window.setTimeout(() => window.URL.revokeObjectURL(url), 60_000);
+  }
 }
 
 export async function downloadRunProvenanceBundle(runId: string): Promise<void> {
@@ -1924,16 +1945,40 @@ export type CalibrationStartResponse = Schemas['CalibrationStartResponse'];
 export type CalibrationJob = Schemas['CalibrationJob'];
 
 export async function getCalibrationRun(runId: string): Promise<CalibrationJob> {
-  const response = await fetchWithAuth(`${API_BASE}/api/calibration/runs/${runId}`);
+  const response = await fetchWithAuth(`${API_BASE}/api/calibration/runs/${runId}`, {
+    cache: 'no-store',
+    signal: AbortSignal.timeout(30000),
+  });
   return handleResponse<CalibrationJob>(response);
 }
 
 const CALIBRATION_POLL_MS = 2000;
 
+export class CalibrationStatusUnavailable extends Error {
+  constructor(public runId: string, cause: unknown) {
+    super(`Unable to retrieve calibration ${runId}. The server may still be running it. `
+      + `Use “Retrieve result” to check the same run. ${cause instanceof Error ? cause.message : String(cause)}`);
+    this.name = 'CalibrationStatusUnavailable';
+  }
+}
+
 /** Poll a calibration job until it reaches a terminal state. */
 async function awaitCalibrationJob(runId: string): Promise<CalibrationJob> {
+  let failures = 0;
   for (;;) {
-    const job = await getCalibrationRun(runId);
+    let job: CalibrationJob;
+    try {
+      job = await getCalibrationRun(runId);
+      failures = 0;
+    } catch (error) {
+      const retryable = !(error instanceof ApiError)
+        || error.status >= 500 || error.status === 429;
+      if (!retryable || ++failures >= 5) {
+        throw new CalibrationStatusUnavailable(runId, error);
+      }
+      await new Promise(resolve => setTimeout(resolve, CALIBRATION_POLL_MS));
+      continue;
+    }
     if (job.status === 'completed') return job;
     if (job.status === 'failed') {
       throw new ApiError(
@@ -1979,12 +2024,20 @@ export async function optimizeCalibration(
     body: JSON.stringify(request),
   });
   const started = await handleResponse<CalibrationStartResponse>(response);
-  const job = await awaitCalibrationJob(started.run_id);
+  return retrieveCalibrationResult(started.run_id);
+}
+
+/** Retrieve an existing optimization without submitting another simulation. */
+export async function retrieveCalibrationResult(runId: string): Promise<AutoCalibrationResponse> {
+  const job = await awaitCalibrationJob(runId);
   if (!job.outcome) {
     throw new ApiError(500, 'Calibration failed', 'Job completed without an outcome');
   }
   if (!job.context) {
     throw new ApiError(500, 'Calibration failed', 'Job completed without target context');
+  }
+  if (!job.outcome.results?.length) {
+    throw new ApiError(500, 'Calibration failed', 'Calibration completed without annual results to apply.');
   }
   return { run_id: job.run_id, outcome: job.outcome, context: job.context };
 }

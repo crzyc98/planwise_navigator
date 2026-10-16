@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import duckdb
@@ -31,7 +32,10 @@ ENDPOINT = "/api/workspaces/{workspace_id}/analytics/compare/export"
 
 
 def _build_db(
-    path: Path, employees: int, years: tuple[int, ...] = (2025, 2026)
+    path: Path,
+    employees: int,
+    years: tuple[int, ...] = (2025, 2026),
+    census_employees: int | None = None,
 ) -> Path:
     conn = duckdb.connect(str(path))
     try:
@@ -59,7 +63,7 @@ def _build_db(
         conn.execute(
             "INSERT INTO stg_census_data SELECT 'e' || i, DATE '2020-01-01' "
             "FROM range(?) t(i)",
-            [employees],
+            [employees if census_employees is None else census_employees],
         )
     finally:
         conn.close()
@@ -67,12 +71,20 @@ def _build_db(
 
 
 def _scenario(
-    tmp_path: Path, name: str, employees: int, census: str = "census.parquet"
+    tmp_path: Path,
+    name: str,
+    employees: int,
+    census: str | None = "census.parquet",
+    census_employees: int | None = None,
 ) -> ExportScenario:
     return ExportScenario(
         scenario_id=f"id-{name}",
         name=name,
-        database_path=_build_db(tmp_path / f"{abs(hash(name))}.duckdb", employees),
+        database_path=_build_db(
+            tmp_path / f"{abs(hash(name))}.duckdb",
+            employees,
+            census_employees=census_employees,
+        ),
         census_path=census,
         run_id=None,
     )
@@ -90,7 +102,10 @@ def _sheet_rows(path: Path, sheet: str) -> list[tuple]:
 
 
 def test_xlsx_stacks_scenarios_on_one_tab_with_shared_census(tmp_path):
-    scenarios = [_scenario(tmp_path, "Baseline", 3), _scenario(tmp_path, "Rich", 2)]
+    scenarios = [
+        _scenario(tmp_path, "Baseline", 3),
+        _scenario(tmp_path, "Rich", 2, census_employees=3),
+    ]
 
     path = _export(tmp_path, scenarios, "xlsx")
 
@@ -120,6 +135,86 @@ def test_xlsx_labels_census_when_scenarios_read_different_files(tmp_path):
 
     assert census[0][:2] == ("scenario_name", "scenario_id")
     assert [row[0] for row in census[1:]] == ["A", "A", "B"]
+
+
+@pytest.mark.parametrize("fmt", ["xlsx", "parquet"])
+def test_same_path_never_discards_different_run_census(
+    tmp_path: Path, fmt: str
+) -> None:
+    scenarios = [_scenario(tmp_path, "A", 3), _scenario(tmp_path, "B", 2)]
+    path = _export(tmp_path, scenarios, fmt)
+    if fmt == "xlsx":
+        rows = _sheet_rows(path, "Census")
+        assert rows[0][:2] == ("scenario_name", "scenario_id")
+        assert [row[0] for row in rows[1:]] == ["A"] * 3 + ["B"] * 2
+    else:
+        with zipfile.ZipFile(path) as archive:
+            archive.extractall(tmp_path / "extracted")
+        with duckdb.connect() as conn:
+            rows = conn.read_parquet(str(tmp_path / "extracted/census.parquet"))
+            assert (
+                rows.project("scenario_name").fetchall() == [("A",)] * 3 + [("B",)] * 2
+            )
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "UPDATE stg_census_data SET employee_hire_date = DATE '2021-01-01'",
+        "UPDATE stg_census_data SET employee_hire_date = NULL",
+        "INSERT INTO stg_census_data SELECT * FROM stg_census_data",
+        "ALTER TABLE stg_census_data ADD COLUMN department VARCHAR",
+    ],
+)
+def test_census_equality_checks_values_duplicates_and_schema(
+    tmp_path: Path, change: str
+) -> None:
+    scenarios = [_scenario(tmp_path, "A", 1), _scenario(tmp_path, "B", 1)]
+    with duckdb.connect(str(scenarios[1].database_path)) as conn:
+        conn.execute(change)
+    with export_module._attached(scenarios) as conn:
+        result = conn.execute(export_module._census_query(conn, scenarios))
+        assert result.description[0][0] == "scenario_name"
+        assert {row[0] for row in result.fetchall()} == {"A", "B"}
+
+
+def test_identical_stored_census_can_share_despite_different_or_unknown_paths(
+    tmp_path: Path,
+) -> None:
+    scenarios = [
+        _scenario(tmp_path, "A", 1, census="old.parquet"),
+        _scenario(tmp_path, "B", 1, census=None),
+    ]
+    with export_module._attached(scenarios) as conn:
+        result = conn.execute(export_module._census_query(conn, scenarios))
+        assert result.description[0][0] == "employee_id"
+        assert len(result.fetchall()) == 1
+
+
+@pytest.mark.parametrize("source", ["run", "scenario"])
+def test_export_metadata_uses_only_selected_run_config(
+    tmp_path: Path, source: str
+) -> None:
+    database = _build_db(tmp_path / "simulation.duckdb", 1)
+    (tmp_path / "config.yaml").write_text(
+        "setup:\n  census_parquet_path: archived.parquet\n"
+    )
+    resolver = SimpleNamespace(
+        resolve=lambda *_: ResolvedDatabasePath(
+            path=database,
+            source=source,
+            run_id="run-1" if source == "run" else None,
+        )
+    )
+    # No mutable workspace/scenario configuration is consulted for historical input.
+    service = ComparisonExportService(SimpleNamespace(), resolver)
+    scenarios = service.resolve_scenarios("ws", ["s1"], {"s1": "Scenario"})
+    assert scenarios[0].census_path == ("archived.parquet" if source == "run" else None)
+    (tmp_path / "config.yaml").unlink()
+    assert (
+        service.resolve_scenarios("ws", ["s1"], {"s1": "Scenario"})[0].census_path
+        is None
+    )
 
 
 def test_xlsx_uses_one_tab_per_scenario_over_row_limit(tmp_path, monkeypatch):
@@ -183,7 +278,10 @@ def test_unique_sheet_names_sanitize_truncate_and_dedupe():
 
 def test_hyper_has_all_scenarios_census_and_native_types(tmp_path):
     hyperapi = pytest.importorskip("tableauhyperapi")
-    scenarios = [_scenario(tmp_path, "Baseline", 3), _scenario(tmp_path, "Rich", 2)]
+    scenarios = [
+        _scenario(tmp_path, "Baseline", 3),
+        _scenario(tmp_path, "Rich", 2, census_employees=3),
+    ]
 
     path = _export(tmp_path, scenarios, "hyper")
 
@@ -210,7 +308,10 @@ def test_hyper_has_all_scenarios_census_and_native_types(tmp_path):
 
 
 def test_parquet_has_all_datasets_and_native_types(tmp_path):
-    scenarios = [_scenario(tmp_path, "Baseline", 3), _scenario(tmp_path, "Rich", 2)]
+    scenarios = [
+        _scenario(tmp_path, "Baseline", 3),
+        _scenario(tmp_path, "Rich", 2, census_employees=3),
+    ]
     path = _export(tmp_path, scenarios, "parquet")
 
     with zipfile.ZipFile(path) as archive:
@@ -243,6 +344,9 @@ def test_parquet_preserves_schema_gaps_and_labels_distinct_census(tmp_path):
     with duckdb.connect(str(older.database_path)) as conn:
         conn.execute(
             "ALTER TABLE fct_workforce_snapshot DROP COLUMN current_compensation"
+        )
+        conn.execute(
+            "UPDATE stg_census_data SET employee_hire_date = DATE '2019-01-01'"
         )
     scenarios = [_scenario(tmp_path, "Newer", 1), older]
 

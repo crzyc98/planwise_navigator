@@ -1,3 +1,4 @@
+import { NumericInput } from './NumericInput';
 import { X } from 'lucide-react';
 import type { TenureGradedBand, MatchTier } from './types';
 import { calculateTenureGradedBandCap } from './constants';
@@ -88,14 +89,14 @@ export function TenureGradedMatchEditor({ bands, onChange }: TenureGradedMatchEd
 
           return (
             <div key={bandIdx} className="bg-surface-raised p-3 rounded border border-border-strong">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex flex-wrap items-center gap-2 mb-2">
                 <span className="text-xs text-ink-muted">Band {bandIdx + 1}:</span>
-                <input type="number" min={0} value={band.minYears}
+                <NumericInput integer type="number" min={0} value={band.minYears}
                   onChange={(e) => updateBand(bandIdx, { minYears: parseInt(e.target.value) || 0 })}
                   className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
                 />
                 <span className="text-sm text-ink-muted">to</span>
-                <input type="number" min={0} value={band.maxYears ?? ''}
+                <NumericInput integer allowEmpty type="number" min={0} value={band.maxYears ?? ''}
                   placeholder="&#8734;"
                   onChange={(e) => updateBand(bandIdx, { maxYears: e.target.value === '' ? null : parseInt(e.target.value) || 0 })}
                   className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
@@ -111,19 +112,19 @@ export function TenureGradedMatchEditor({ bands, onChange }: TenureGradedMatchEd
 
               <div className="space-y-1 ml-4">
                 {band.tiers.map((tier, tierIdx) => (
-                  <div key={tierIdx} className="flex items-center gap-2 bg-surface-subtle p-1.5 rounded border border-border">
+                  <div key={tierIdx} className="flex flex-wrap items-center gap-2 bg-surface-subtle p-1.5 rounded border border-border">
                     <span className="text-xs text-ink-muted w-4">{tierIdx + 1}.</span>
-                    <input type="number" step="1" min={0} max={100} value={tier.deferralMin}
+                    <NumericInput type="number" step="1" min={0} max={100} value={tier.deferralMin}
                       onChange={(e) => updateTier(bandIdx, tierIdx, { deferralMin: parseFloat(e.target.value) || 0 })}
                       className="w-14 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
                     />
                     <span className="text-sm text-ink-muted">% to</span>
-                    <input type="number" step="1" min={0} max={100} value={tier.deferralMax}
+                    <NumericInput type="number" step="1" min={0} max={100} value={tier.deferralMax}
                       onChange={(e) => updateTier(bandIdx, tierIdx, { deferralMax: parseFloat(e.target.value) || 0 })}
                       className="w-14 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
                     />
                     <span className="text-sm text-ink-muted">% deferral &#8594;</span>
-                    <input type="number" step="5" min={0} max={200} value={tier.matchRate}
+                    <NumericInput type="number" step="5" min={0} max={200} value={tier.matchRate}
                       onChange={(e) => updateTier(bandIdx, tierIdx, { matchRate: parseFloat(e.target.value) || 0 })}
                       className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
                     />

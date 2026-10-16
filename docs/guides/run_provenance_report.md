@@ -26,6 +26,8 @@ Studio uses its existing API authentication headers for every report request and
 ## Dispositions
 
 - `fully_verified`: the completed run has bound execution-time identity, source, configuration, input, yearly aggregate, reconciliation, and validation evidence.
+
+Source capture preserves independently available commit and clean/dirty facts. Dirty trees require a content fingerprint for verification. Unsupported untracked nested repositories/worktrees, gitlinks, and non-regular entries produce a capture finding and leave the fingerprint unavailable; use a clean execution checkout or move unsupported entries outside its source tree. Such runs remain `unverifiable`. Existing archives are never recaptured or rewritten by report generation.
 - `incomplete`: identity is sound, but execution did not complete or has non-integrity gaps.
 - `unverifiable`: required evidence is absent, malformed, unbound, or fails integrity checks.
 

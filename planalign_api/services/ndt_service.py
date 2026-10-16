@@ -2,9 +2,8 @@
 
 import logging
 import statistics
-import threading
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import List, Optional
 
 import yaml
 from .compliance_metrics import (
@@ -207,129 +206,18 @@ class ADPTestResponse(APIModel):
 
 
 class NDTService:
-    """Service for Non-Discrimination Testing analytics."""
+    """Read-only NDT analytics using limits materialized during initialization."""
 
     # Path to dbt seeds directory
     _SEEDS_DIR = Path(__file__).resolve().parents[2] / "dbt" / "seeds"
-
-    # Per-path lock to serialize seed checks and avoid racing with readers
-    _seed_lock_guard: threading.Lock = threading.Lock()
-    _seed_locks: Dict[str, threading.Lock] = {}
-    _seed_verified: Set[str] = set()
 
     def __init__(
         self,
         storage: WorkspaceStorage,
         db_resolver: Optional[DatabasePathResolver] = None,
-        *,
-        refresh_seeds: bool = False,
-    ):
+    ) -> None:
         self.storage = storage
         self.db_resolver = db_resolver or create_api_database_path_resolver(storage)
-        self.refresh_seeds = refresh_seeds
-
-    def _prepare_seed(self, db_path: Path) -> None:
-        """Archived analytics preserve the run's limits; refresh is opt-in."""
-        if self.refresh_seeds:
-            self._ensure_seed_current(db_path)
-
-    @staticmethod
-    def _get_seed_lock(db_path: Path) -> threading.Lock:
-        """Get or create a per-path lock for seed operations."""
-        key = str(db_path)
-        with NDTService._seed_lock_guard:
-            if key not in NDTService._seed_locks:
-                NDTService._seed_locks[key] = threading.Lock()
-            return NDTService._seed_locks[key]
-
-    @staticmethod
-    def _ensure_seed_current(db_path: Path) -> None:
-        """Ensure config_irs_limits seed table has required columns.
-
-        Thread-safe: uses a per-path lock so concurrent requests don't
-        race on DROP/CREATE, and caches verification so the check runs
-        at most once per database path per process lifetime.
-        """
-        import duckdb
-
-        key = str(db_path)
-
-        # Fast path: already verified this database, no lock needed
-        if key in NDTService._seed_verified:
-            return
-
-        csv_path = NDTService._SEEDS_DIR / "config_irs_limits.csv"
-        if not csv_path.exists():
-            logger.warning(f"Seed CSV not found: {csv_path}")
-            return
-
-        lock = NDTService._get_seed_lock(db_path)
-        with lock:
-            # Re-check after acquiring lock (another thread may have finished)
-            if key in NDTService._seed_verified:
-                return
-
-            required_columns = (
-                "hce_compensation_threshold",
-                "super_catch_up_limit",
-                "annual_additions_limit",
-                "social_security_wage_base",
-            )
-            placeholders = ", ".join("?" for _ in required_columns)
-            conn = duckdb.connect(str(db_path))
-            try:
-                # Check if all required columns exist
-                column_count_row = conn.execute(
-                    """
-                    SELECT COUNT(*) FROM information_schema.columns
-                    WHERE table_schema = 'main'
-                      AND table_name = 'config_irs_limits'
-                      AND column_name IN ({placeholders})
-                    """.format(
-                        placeholders=placeholders
-                    ),
-                    list(required_columns),
-                ).fetchone()
-                assert column_count_row is not None
-                column_count = column_count_row[0]
-
-                if column_count == len(required_columns):
-                    NDTService._seed_verified.add(key)
-                    return  # Already up to date
-
-                # Column(s) missing — reload the seed table from CSV
-                missing = []
-                for col in required_columns:
-                    has = conn.execute(
-                        """
-                        SELECT 1 FROM information_schema.columns
-                        WHERE table_schema = 'main'
-                          AND table_name = 'config_irs_limits'
-                          AND column_name = ?
-                        LIMIT 1
-                        """,
-                        [col],
-                    ).fetchone()
-                    if not has:
-                        missing.append(col)
-
-                logger.info(
-                    f"config_irs_limits missing column(s): {missing}, "
-                    "reloading seed from CSV"
-                )
-                conn.execute("DROP TABLE IF EXISTS config_irs_limits")
-                conn.execute(
-                    f"""
-                    CREATE TABLE config_irs_limits AS
-                    SELECT * FROM read_csv_auto('{csv_path}')
-                    """
-                )
-                logger.info("config_irs_limits seed reloaded successfully")
-                NDTService._seed_verified.add(key)
-            except Exception as e:
-                logger.error(f"Failed to ensure seed current: {e}")
-            finally:
-                conn.close()
 
     def get_available_years(
         self, workspace_id: str, scenario_id: str
@@ -342,11 +230,10 @@ class NDTService:
             return AvailableYearsResponse(years=[], default_year=None)
 
         try:
-            conn = duckdb.connect(str(resolved.path), read_only=True)
-            result = conn.execute(
-                "SELECT DISTINCT simulation_year FROM fct_workforce_snapshot ORDER BY simulation_year"
-            ).fetchall()
-            conn.close()
+            with duckdb.connect(str(resolved.path), read_only=True) as conn:
+                result = conn.execute(
+                    "SELECT DISTINCT simulation_year FROM fct_workforce_snapshot ORDER BY simulation_year"
+                ).fetchall()
 
             years = [row[0] for row in result]
             default_year = years[-1] if years else None
@@ -379,54 +266,49 @@ class NDTService:
         assert resolved.path is not None  # guaranteed by resolved.exists check above
 
         try:
-            # Ensure seed table has the hce_compensation_threshold column
-            self._prepare_seed(resolved.path)
-
-            conn = duckdb.connect(str(resolved.path), read_only=True)
-
-            # Get HCE threshold for the prior year (used for HCE determination)
-            hce_threshold_row = conn.execute(
-                "SELECT hce_compensation_threshold FROM config_irs_limits WHERE limit_year = ?",
-                [year - 1],
-            ).fetchone()
-
-            if not hce_threshold_row or hce_threshold_row[0] is None:
-                # Fallback: try current year threshold
+            with duckdb.connect(str(resolved.path), read_only=True) as conn:
+                # Get HCE threshold for the prior year (used for HCE determination)
                 hce_threshold_row = conn.execute(
                     "SELECT hce_compensation_threshold FROM config_irs_limits WHERE limit_year = ?",
-                    [year],
+                    [year - 1],
                 ).fetchone()
+
                 if not hce_threshold_row or hce_threshold_row[0] is None:
-                    conn.close()
-                    return ACPScenarioResult(
-                        scenario_id=scenario_id,
-                        scenario_name=scenario_name,
-                        simulation_year=year,
-                        test_result="error",
-                        test_message=f"HCE compensation threshold not found in config_irs_limits for year {year - 1} or {year}.",
-                    )
+                    # Fallback: try current year threshold
+                    hce_threshold_row = conn.execute(
+                        "SELECT hce_compensation_threshold FROM config_irs_limits WHERE limit_year = ?",
+                        [year],
+                    ).fetchone()
+                    if not hce_threshold_row or hce_threshold_row[0] is None:
+                        return ACPScenarioResult(
+                            scenario_id=scenario_id,
+                            scenario_name=scenario_name,
+                            simulation_year=year,
+                            test_result="error",
+                            test_message=f"HCE compensation threshold not found in config_irs_limits for year {year - 1} or {year}.",
+                        )
 
-            hce_threshold = int(hce_threshold_row[0])
+                hce_threshold = int(hce_threshold_row[0])
 
-            # Check if prior year data exists
-            prior_year_count_row = conn.execute(
-                "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
-                [year - 1],
-            ).fetchone()
-            prior_year_exists = (
-                prior_year_count_row is not None and prior_year_count_row[0] > 0
-            )
+                # Check if prior year data exists
+                prior_year_count_row = conn.execute(
+                    "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
+                    [year - 1],
+                ).fetchone()
+                prior_year_exists = (
+                    prior_year_count_row is not None and prior_year_count_row[0] > 0
+                )
 
-            after_tax_expression = "0.0"
-            after_tax_columns = (
-                "employee_after_tax_contributions",
-                "employee_after_tax_contribution",
-                "after_tax_contributions",
-                "after_tax_contribution",
-            )
-            for column_name in after_tax_columns:
-                has_column = conn.execute(
-                    """
+                after_tax_expression = "0.0"
+                after_tax_columns = (
+                    "employee_after_tax_contributions",
+                    "employee_after_tax_contribution",
+                    "after_tax_contributions",
+                    "after_tax_contribution",
+                )
+                for column_name in after_tax_columns:
+                    has_column = conn.execute(
+                        """
                     SELECT 1
                     FROM information_schema.columns
                     WHERE table_schema = 'main'
@@ -434,17 +316,17 @@ class NDTService:
                       AND column_name = ?
                     LIMIT 1
                     """,
-                    [column_name],
-                ).fetchone()
-                if has_column:
-                    after_tax_expression = f"COALESCE(s.{column_name}, 0)"
-                    break
+                        [column_name],
+                    ).fetchone()
+                    if has_column:
+                        after_tax_expression = f"COALESCE(s.{column_name}, 0)"
+                        break
 
-            # Main ACP query with HCE determination. prorated_annual_compensation
-            # is the project's uncapped 414(s) testing compensation proxy; cap it
-            # at query time for ACP. After-tax defaults explicitly to zero until
-            # that contribution type is propagated to fct_workforce_snapshot.
-            query = """
+                # Main ACP query with HCE determination. prorated_annual_compensation
+                # is the project's uncapped 414(s) testing compensation proxy; cap it
+                # at query time for ACP. After-tax defaults explicitly to zero until
+                # that contribution type is propagated to fct_workforce_snapshot.
+                query = """
             WITH prior_year AS (
                 SELECT employee_id, current_compensation AS prior_year_comp
                 FROM fct_workforce_snapshot
@@ -496,14 +378,13 @@ class NDTService:
             FROM per_employee
             ORDER BY is_hce DESC, individual_acp DESC
             """.format(
-                after_tax_expression=after_tax_expression
-            )
+                    after_tax_expression=after_tax_expression
+                )
 
-            prior_year_param = year - 1 if prior_year_exists else year
-            rows = conn.execute(
-                query, [prior_year_param, year, hce_threshold, year]
-            ).fetchall()
-            conn.close()
+                prior_year_param = year - 1 if prior_year_exists else year
+                rows = conn.execute(
+                    query, [prior_year_param, year, hce_threshold, year]
+                ).fetchall()
 
             if not rows:
                 return ACPScenarioResult(
@@ -686,44 +567,41 @@ class NDTService:
         assert resolved.path is not None  # guaranteed by resolved.exists check above
 
         try:
-            self._prepare_seed(resolved.path)
-            conn = duckdb.connect(str(resolved.path), read_only=True)
-
-            # Get HCE threshold for the prior year
-            hce_threshold_row = conn.execute(
-                "SELECT hce_compensation_threshold FROM config_irs_limits WHERE limit_year = ?",
-                [year - 1],
-            ).fetchone()
-            if not hce_threshold_row or hce_threshold_row[0] is None:
+            with duckdb.connect(str(resolved.path), read_only=True) as conn:
+                # Get HCE threshold for the prior year
                 hce_threshold_row = conn.execute(
                     "SELECT hce_compensation_threshold FROM config_irs_limits WHERE limit_year = ?",
-                    [year],
+                    [year - 1],
                 ).fetchone()
                 if not hce_threshold_row or hce_threshold_row[0] is None:
-                    conn.close()
-                    return Section401a4ScenarioResult(
-                        scenario_id=scenario_id,
-                        scenario_name=scenario_name,
-                        simulation_year=year,
-                        test_result="error",
-                        test_message=f"HCE compensation threshold not found for year {year - 1} or {year}.",
-                    )
+                    hce_threshold_row = conn.execute(
+                        "SELECT hce_compensation_threshold FROM config_irs_limits WHERE limit_year = ?",
+                        [year],
+                    ).fetchone()
+                    if not hce_threshold_row or hce_threshold_row[0] is None:
+                        return Section401a4ScenarioResult(
+                            scenario_id=scenario_id,
+                            scenario_name=scenario_name,
+                            simulation_year=year,
+                            test_result="error",
+                            test_message=f"HCE compensation threshold not found for year {year - 1} or {year}.",
+                        )
 
-            hce_threshold = int(hce_threshold_row[0])
+                hce_threshold = int(hce_threshold_row[0])
 
-            # Check prior year data
-            prior_year_exists_row = conn.execute(
-                "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
-                [year - 1],
-            ).fetchone()
-            assert prior_year_exists_row is not None
-            prior_year_exists = prior_year_exists_row[0] > 0
+                # Check prior year data
+                prior_year_exists_row = conn.execute(
+                    "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
+                    [year - 1],
+                ).fetchone()
+                assert prior_year_exists_row is not None
+                prior_year_exists = prior_year_exists_row[0] > 0
 
-            prior_year_param = year - 1 if prior_year_exists else year
+                prior_year_param = year - 1 if prior_year_exists else year
 
-            # Main query for 401(a)(4) test. prorated_annual_compensation is the
-            # uncapped 414(s) testing compensation proxy; cap it at query time.
-            query = """
+                # Main query for 401(a)(4) test. prorated_annual_compensation is the
+                # uncapped 414(s) testing compensation proxy; cap it at query time.
+                query = """
             WITH prior_year AS (
                 SELECT employee_id, current_compensation AS prior_year_comp
                 FROM fct_workforce_snapshot
@@ -768,10 +646,9 @@ class NDTService:
             ORDER BY is_hce DESC
             """
 
-            rows = conn.execute(
-                query, [prior_year_param, year, hce_threshold, year]
-            ).fetchall()
-            conn.close()
+                rows = conn.execute(
+                    query, [prior_year_param, year, hce_threshold, year]
+                ).fetchall()
 
             if not rows:
                 return Section401a4ScenarioResult(
@@ -1058,36 +935,35 @@ class NDTService:
 
         assert resolved.path is not None  # guaranteed by resolved.exists check above
         try:
-            self._prepare_seed(resolved.path)
-            conn = duckdb.connect(str(resolved.path), read_only=True)
+            with duckdb.connect(str(resolved.path), read_only=True) as conn:
+                # Get IRS limits for the test year
+                limits_row = conn.execute(
+                    "SELECT annual_additions_limit, base_limit, catch_up_age_threshold, catch_up_limit, super_catch_up_limit, super_catch_up_age_min, super_catch_up_age_max FROM config_irs_limits WHERE limit_year = ?",
+                    [year],
+                ).fetchone()
 
-            # Get IRS limits for the test year
-            limits_row = conn.execute(
-                "SELECT annual_additions_limit, base_limit, catch_up_age_threshold, catch_up_limit, super_catch_up_limit, super_catch_up_age_min, super_catch_up_age_max FROM config_irs_limits WHERE limit_year = ?",
-                [year],
-            ).fetchone()
+                if not limits_row or any(value is None for value in limits_row):
+                    return Section415ScenarioResult(
+                        scenario_id=scenario_id,
+                        scenario_name=scenario_name,
+                        simulation_year=year,
+                        test_result="error",
+                        test_message=f"IRS limits not found in config_irs_limits for year {year}",
+                    )
 
-            if not limits_row or any(value is None for value in limits_row):
-                conn.close()
-                return Section415ScenarioResult(
-                    scenario_id=scenario_id,
-                    scenario_name=scenario_name,
-                    simulation_year=year,
-                    test_result="error",
-                    test_message=f"IRS limits not found in config_irs_limits for year {year}",
-                )
+                annual_additions_limit = int(limits_row[0])
+                base_limit = int(limits_row[1])
+                catch_up_age = int(limits_row[2])
+                columns = {
+                    row[0]
+                    for row in conn.execute(
+                        "DESCRIBE fct_workforce_snapshot"
+                    ).fetchall()
+                }
+                age_expression = "current_age" if "current_age" in columns else "NULL"
 
-            annual_additions_limit = int(limits_row[0])
-            base_limit = int(limits_row[1])
-            catch_up_age = int(limits_row[2])
-            columns = {
-                row[0]
-                for row in conn.execute("DESCRIBE fct_workforce_snapshot").fetchall()
-            }
-            age_expression = "current_age" if "current_age" in columns else "NULL"
-
-            # Query eligible participants
-            query = """
+                # Query eligible participants
+                query = """
             SELECT
                 employee_id,
                 current_compensation,
@@ -1101,10 +977,9 @@ class NDTService:
               AND (current_eligibility_status = 'eligible' OR current_eligibility_status IS NULL)
             """
 
-            rows = conn.execute(
-                query.format(age_expression=age_expression), [year]
-            ).fetchall()
-            conn.close()
+                rows = conn.execute(
+                    query.format(age_expression=age_expression), [year]
+                ).fetchall()
 
             # Process participants
             employees: List[Section415EmployeeDetail] = []
@@ -1268,48 +1143,45 @@ class NDTService:
 
         assert resolved.path is not None  # guaranteed by resolved.exists check above
         try:
-            self._prepare_seed(resolved.path)
-            conn = duckdb.connect(str(resolved.path), read_only=True)
-
-            # Get HCE threshold for the prior year
-            hce_threshold_row = conn.execute(
-                "SELECT hce_compensation_threshold FROM config_irs_limits WHERE limit_year = ?",
-                [year - 1],
-            ).fetchone()
-
-            if not hce_threshold_row or hce_threshold_row[0] is None:
+            with duckdb.connect(str(resolved.path), read_only=True) as conn:
+                # Get HCE threshold for the prior year
                 hce_threshold_row = conn.execute(
                     "SELECT hce_compensation_threshold FROM config_irs_limits WHERE limit_year = ?",
-                    [year],
+                    [year - 1],
                 ).fetchone()
+
                 if not hce_threshold_row or hce_threshold_row[0] is None:
-                    conn.close()
-                    return ADPScenarioResult(
-                        scenario_id=scenario_id,
-                        scenario_name=scenario_name,
-                        simulation_year=year,
-                        test_result="error",
-                        test_message=f"HCE compensation threshold not found in config_irs_limits for year {year - 1} or {year}.",
-                        testing_method=testing_method,
-                    )
+                    hce_threshold_row = conn.execute(
+                        "SELECT hce_compensation_threshold FROM config_irs_limits WHERE limit_year = ?",
+                        [year],
+                    ).fetchone()
+                    if not hce_threshold_row or hce_threshold_row[0] is None:
+                        return ADPScenarioResult(
+                            scenario_id=scenario_id,
+                            scenario_name=scenario_name,
+                            simulation_year=year,
+                            test_result="error",
+                            test_message=f"HCE compensation threshold not found in config_irs_limits for year {year - 1} or {year}.",
+                            testing_method=testing_method,
+                        )
 
-            hce_threshold = int(hce_threshold_row[0])
+                hce_threshold = int(hce_threshold_row[0])
 
-            # Check if prior year data exists
-            prior_year_count_row = conn.execute(
-                "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
-                [year - 1],
-            ).fetchone()
-            prior_year_exists = (
-                prior_year_count_row is not None and prior_year_count_row[0] > 0
-            )
+                # Check if prior year data exists
+                prior_year_count_row = conn.execute(
+                    "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
+                    [year - 1],
+                ).fetchone()
+                prior_year_exists = (
+                    prior_year_count_row is not None and prior_year_count_row[0] > 0
+                )
 
-            # Prior year testing method: get NHCE ADP from prior year
-            prior_year_nhce_adp = None
-            actual_testing_method = testing_method
-            if testing_method == "prior":
-                if prior_year_exists:
-                    prior_nhce_query = """
+                # Prior year testing method: get NHCE ADP from prior year
+                prior_year_nhce_adp = None
+                actual_testing_method = testing_method
+                if testing_method == "prior":
+                    if prior_year_exists:
+                        prior_nhce_query = """
                     WITH prior_hce AS (
                         SELECT employee_id, current_compensation AS comp
                         FROM fct_workforce_snapshot
@@ -1346,35 +1218,35 @@ class NDTService:
                     WHERE is_hce = FALSE
                       AND comp > 0
                     """
-                    # For prior year NHCE baseline, use year-2 for HCE determination of year-1
-                    year_minus_2_count_row = conn.execute(
-                        "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
-                        [year - 2],
-                    ).fetchone()
-                    year_minus_2_exists = (
-                        year_minus_2_count_row is not None
-                        and year_minus_2_count_row[0] > 0
-                    )
-                    prior_hce_year = year - 2 if year_minus_2_exists else year - 1
-
-                    prior_nhce_rows = conn.execute(
-                        prior_nhce_query,
-                        [prior_hce_year, year - 1, hce_threshold, year - 1],
-                    ).fetchall()
-
-                    if prior_nhce_rows:
-                        prior_year_nhce_adp = sum(r[0] for r in prior_nhce_rows) / len(
-                            prior_nhce_rows
+                        # For prior year NHCE baseline, use year-2 for HCE determination of year-1
+                        year_minus_2_count_row = conn.execute(
+                            "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ?",
+                            [year - 2],
+                        ).fetchone()
+                        year_minus_2_exists = (
+                            year_minus_2_count_row is not None
+                            and year_minus_2_count_row[0] > 0
                         )
+                        prior_hce_year = year - 2 if year_minus_2_exists else year - 1
+
+                        prior_nhce_rows = conn.execute(
+                            prior_nhce_query,
+                            [prior_hce_year, year - 1, hce_threshold, year - 1],
+                        ).fetchall()
+
+                        if prior_nhce_rows:
+                            prior_year_nhce_adp = sum(
+                                r[0] for r in prior_nhce_rows
+                            ) / len(prior_nhce_rows)
+                        else:
+                            actual_testing_method = "current"
                     else:
                         actual_testing_method = "current"
-                else:
-                    actual_testing_method = "current"
 
-            # Main ADP query with HCE determination. ADP uses capped 414(s)
-            # testing compensation as denominator and 402(g) base-limit-capped
-            # deferrals as numerator, excluding catch-up.
-            query = """
+                # Main ADP query with HCE determination. ADP uses capped 414(s)
+                # testing compensation as denominator and 402(g) base-limit-capped
+                # deferrals as numerator, excluding catch-up.
+                query = """
             WITH prior_year AS (
                 SELECT employee_id, current_compensation AS prior_year_comp
                 FROM fct_workforce_snapshot
@@ -1426,11 +1298,10 @@ class NDTService:
             ORDER BY is_hce DESC, individual_adp DESC
             """
 
-            prior_year_param = year - 1 if prior_year_exists else year
-            rows = conn.execute(
-                query, [prior_year_param, year, hce_threshold, year]
-            ).fetchall()
-            conn.close()
+                prior_year_param = year - 1 if prior_year_exists else year
+                rows = conn.execute(
+                    query, [prior_year_param, year, hce_threshold, year]
+                ).fetchall()
 
             if not rows:
                 return ADPScenarioResult(

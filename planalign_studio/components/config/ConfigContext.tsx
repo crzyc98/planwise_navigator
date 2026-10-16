@@ -1,13 +1,20 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { flushSync } from 'react-dom';
 import type { FormData, DeferralSegmentKey, VoluntaryDeferralBaseRates } from './types';
 import { DEFERRAL_AGE_SEGMENTS, DEFERRAL_INCOME_SEGMENTS } from './types';
 import { DEFAULT_FORM_DATA } from './constants';
 import { buildConfigPayload } from './buildConfigPayload';
+import { applyConfigEdits, synchronizeCompensationAliases } from './configEdits';
+import { applyResolvedFormData } from './resolvedFormData';
+import { validateNumericInputs } from './NumericInput';
+import { extractCensusPath, resolveCensusFields } from './censusConfig';
+export { extractCensusPath } from './censusConfig';
 import {
   updateWorkspace as apiUpdateWorkspace,
   getWorkspace,
   getScenario,
   getScenarioConfig,
+  previewConfiguration,
   updateScenario,
   Scenario,
   Workspace,
@@ -22,7 +29,14 @@ import {
 
 // --- Context Type ---
 
+function enrollmentRateMode(config: Record<string, any>, key: string): 'inherit' | 'demographic' | 'specified' {
+  if (!Object.prototype.hasOwnProperty.call(config.dc_plan ?? {}, key)) return 'inherit';
+  return config.dc_plan[key] === null ? 'demographic' : 'specified';
+}
+
 export interface ConfigContextType {
+  resolutionWarning: string;
+  resolvedEngineVariables: Record<string, any>;
   // Form state
   formData: FormData;
   setFormData: React.Dispatch<React.SetStateAction<FormData>>;
@@ -41,7 +55,7 @@ export interface ConfigContextType {
   isDirty: boolean;
 
   // Save
-  handleSaveConfig: () => Promise<void>;
+  handleSaveConfig: () => Promise<boolean>;
   saveStatus: 'idle' | 'saving' | 'success' | 'error';
   saveMessage: string;
 
@@ -54,6 +68,9 @@ export interface ConfigContextType {
   currentScenario: Scenario | null;
   scenarioId: string | undefined;
   scenarioLoading: boolean;
+  originalConfig: Record<string, any>;
+  workspaceConfig: Record<string, any>;
+  buildDraftConfig: () => Record<string, any>;
 }
 
 const ConfigContext = createContext<ConfigContextType | null>(null);
@@ -66,16 +83,6 @@ export function useConfigContext(): ConfigContextType {
 
 // --- Config-to-FormData mapping helpers ---
 // Extracted to reduce cognitive complexity in useEffect hooks.
-
-// Old builds shipped this placeholder as the form default and persisted it into
-// scenario overrides; treat it as "no census configured" when reading back.
-const LEGACY_CENSUS_PLACEHOLDER = 'data/census_preprocessed.parquet';
-
-/** Extract the census path from a config, ignoring the legacy placeholder. */
-export function extractCensusPath(cfg: any): string | undefined {
-  const path = cfg?.setup?.census_parquet_path || cfg?.data_sources?.census_parquet_path;
-  return path && path !== LEGACY_CENSUS_PLACEHOLDER ? path : undefined;
-}
 
 /** Map simulation, workforce, and data-source config fields to FormData. */
 function mapSimulationFields(cfg: any, prev: FormData): Partial<FormData> {
@@ -105,13 +112,15 @@ function mapSimulationFields(cfg: any, prev: FormData): Partial<FormData> {
 
 /** Map compensation config fields to FormData. */
 function mapCompensationFields(cfg: any, prev: FormData): Partial<FormData> {
+  const percent = (key: string, fallback: number) => cfg.compensation?.[key] != null
+    ? Number((cfg.compensation[key] * 100).toFixed(10)) : cfg.compensation?.[`${key}_percent`] ?? fallback;
   return {
     targetCompensationGrowth: cfg.compensation?.target_compensation_growth_percent ?? prev.targetCompensationGrowth,
-    meritBudget: cfg.compensation?.merit_budget_percent ?? prev.meritBudget,
-    colaRate: cfg.compensation?.cola_rate_percent ?? prev.colaRate,
-    promoIncrease: cfg.compensation?.promotion_increase_percent ?? prev.promoIncrease,
-    promoDistributionRange: cfg.compensation?.promotion_distribution_range_percent ?? prev.promoDistributionRange,
-    promoBudget: cfg.compensation?.promotion_budget_percent ?? prev.promoBudget,
+    meritBudget: percent('merit_budget', prev.meritBudget),
+    colaRate: percent('cola_rate', prev.colaRate),
+    promoIncrease: percent('promotion_increase', prev.promoIncrease),
+    promoDistributionRange: percent('promotion_distribution_range', prev.promoDistributionRange),
+    promoBudget: percent('promotion_budget', prev.promoBudget),
     promoRateMultiplier: cfg.compensation?.promotion_rate_multiplier ?? prev.promoRateMultiplier,
   };
 }
@@ -417,6 +426,7 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
   // Current scenario
   const [currentScenario, setCurrentScenario] = useState<Scenario | null>(null);
   const [scenarioLoading, setScenarioLoading] = useState(!!scenarioId);
+  const [configLoadError, setConfigLoadError] = useState(false);
 
   // Seed config state
   const [promotionHazardConfig, setPromotionHazardConfig] = useState<PromotionHazardConfig | null>(null);
@@ -427,16 +437,24 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
   // Save status
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState('');
+  const savePending = useRef(false);
+  const saveResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestConfig = useRef({ formData, promotionHazardConfig, bandConfig });
+  latestConfig.current = { formData, promotionHazardConfig, bandConfig };
 
   // Fresh workspace base_config fetched from the API. The activeWorkspace prop is
   // cached in Layout state from app startup, so changes made after the workspace
   // loaded (e.g. importing a census file) would otherwise be invisible here — and a
   // subsequent Save would clobber them with stale values.
   const [freshBaseConfig, setFreshBaseConfig] = useState<Record<string, any> | null>(null);
+  const originalConfig = useRef<Record<string, any>>(scenarioId ? {} : structuredClone(activeWorkspace.base_config ?? {}));
+  const [resolutionWarning, setResolutionWarning] = useState('');
+  const [resolvedEngineVariables, setResolvedEngineVariables] = useState<Record<string, any>>({});
 
   // --- useEffect 0: Refetch workspace base_config so the form reflects current state ---
   useEffect(() => {
     if (!activeWorkspace?.id) return;
+    setFreshBaseConfig(null);
     let cancelled = false;
     getWorkspace(activeWorkspace.id)
       .then((ws) => {
@@ -454,65 +472,52 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
 
   // --- useEffect 1: Load scenario config overlay ---
   useEffect(() => {
+    if (freshBaseConfig === null || !activeWorkspace?.id) return;
+    let cancelled = false;
     const loadScenario = async () => {
-      // Wait until the fresh base config has been applied (useEffect 2) so the
-      // scenario overlay lands on top of current workspace values, not under them.
-      if (freshBaseConfig === null) return;
-      if (!scenarioId || !activeWorkspace?.id) {
-        setCurrentScenario(null);
-        setScenarioLoading(false);
-        return;
-      }
-
       setScenarioLoading(true);
+      setConfigLoadError(false);
+      setResolutionWarning('');
+      setResolvedEngineVariables({});
       try {
-        const scenario = await getScenario(activeWorkspace.id, scenarioId);
+        const scenario = scenarioId ? await getScenario(activeWorkspace.id, scenarioId) : null;
+        let loaded = applyConfigToFormData(scenario?.config_overrides ?? {}, applyConfigToFormData(freshBaseConfig, DEFAULT_FORM_DATA));
+        try {
+          const resolved = await previewConfiguration(activeWorkspace.id,
+            scenario?.config_overrides ?? freshBaseConfig, scenarioId ? 'scenario' : 'workspace');
+          loaded = applyResolvedFormData(resolved.engine_variables, loaded);
+          if (!cancelled) setResolvedEngineVariables(resolved.engine_variables);
+        } catch {
+          if (!cancelled) setResolutionWarning('Engine settings could not be resolved. Stored editor values are shown; correct the configuration and review it before saving.');
+        }
+        const censusFields = await resolveCensusFields(
+          scenario?.config_overrides, freshBaseConfig,
+          path => validateFilePath(activeWorkspace.id, path),
+        );
+        if (cancelled) return;
         setCurrentScenario(scenario);
-
-        if (scenario.config_overrides) {
-          setFormData(prev => applyConfigToFormData(scenario.config_overrides, prev));
-        }
-
-        // E089: Validate the effective census — the scenario override if present,
-        // otherwise the workspace base config. Validating the base_config census is
-        // what flips censusDataStatus to 'loaded' so the New Hire "Match Census"
-        // controls light up immediately after a fresh import (issue #325), not just
-        // when the census has been baked into the scenario overrides.
-        const censusPath = extractCensusPath(scenario.config_overrides) || extractCensusPath(freshBaseConfig);
-        if (censusPath && activeWorkspace?.id) {
-          try {
-            const validation = await validateFilePath(activeWorkspace.id, censusPath);
-            if (validation.valid && validation.row_count) {
-              setFormData(prev => ({
-                ...prev,
-                censusDataPath: prev.censusDataPath || censusPath,
-                censusDataStatus: 'loaded',
-                censusRowCount: validation.row_count || prev.censusRowCount,
-                censusLastModified: validation.last_modified?.split('T')[0] || prev.censusLastModified,
-              }));
-            } else {
-              setFormData(prev => ({ ...prev, censusDataStatus: 'error' }));
-            }
-          } catch (validationError) {
-            console.error('E089: Census file validation failed:', validationError);
-            setFormData(prev => ({ ...prev, censusDataStatus: 'error' }));
-          }
-        }
+        originalConfig.current = structuredClone(scenario?.config_overrides ?? freshBaseConfig);
+        const loadedForm = {
+          ...loaded,
+          ...censusFields,
+          dcVoluntaryEnrollmentMode: enrollmentRateMode(originalConfig.current, 'voluntary_enrollment_rate'),
+          dcNewHireOptOutMode: enrollmentRateMode(originalConfig.current, 'new_hire_opt_out_rate'),
+        };
+        setFormData(loadedForm);
+        setSavedFormData({ ...loadedForm });
       } catch (err) {
         console.error('Failed to load scenario:', err);
-        setCurrentScenario(null);
+        if (!cancelled) {
+          setConfigLoadError(true);
+          setFormData(prev => ({ ...prev, censusDataStatus: 'error' }));
+        }
       } finally {
-        setScenarioLoading(false);
+        if (!cancelled) setScenarioLoading(false);
       }
     };
     loadScenario();
+    return () => { cancelled = true; };
   }, [scenarioId, activeWorkspace?.id, freshBaseConfig]);
-
-  // --- useEffect 2: Load config from freshly fetched workspace base_config ---
-  useEffect(() => {
-    if (!freshBaseConfig) return;
-    setFormData(prev => applyConfigToFormData(freshBaseConfig, prev));
-  }, [freshBaseConfig]);
 
   // --- useEffect 3: Load seed configs (bands + promotion hazard) ---
   useEffect(() => {
@@ -552,17 +557,6 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
     };
     loadSeedConfigs();
   }, [activeWorkspace?.id, scenarioId]);
-
-  // --- useEffect 4: savedFormData snapshot ---
-  // Gate on !scenarioLoading: Effect 2 applies base_config (synchronously) then Effect 1
-  // applies scenario overrides (async). Without the gate, the snapshot fires after
-  // Effect 2 but before Effect 1 completes, capturing base_config-only values and
-  // permanently marking all scenario-specific fields as dirty.
-  useEffect(() => {
-    if (savedFormData === null && !scenarioLoading && (freshBaseConfig || currentScenario?.config_overrides)) {
-      setSavedFormData({ ...formData });
-    }
-  }, [formData, freshBaseConfig, currentScenario?.config_overrides, savedFormData, scenarioLoading]);
 
   // --- useEffect 5: beforeunload warning ---
   const isDirty = useMemo(() => {
@@ -665,17 +659,57 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
     onChange: handleChange,
   }), [formData, handleChange]);
 
-  const handleSaveConfig = useCallback(async () => {
-    // Flush pending edits
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
+  const buildDraftConfig = useCallback(() => {
+    const target = { isScenario: !!scenarioId, workspacePath: extractCensusPath(freshBaseConfig) };
+    const before = buildConfigPayload(savedFormData ?? formData, savedPromotionHazardConfig, savedBandConfig, target);
+    const current = latestConfig.current;
+    const after = buildConfigPayload(current.formData, current.promotionHazardConfig, current.bandConfig, target);
+    const edited = applyConfigEdits(originalConfig.current, before, after) as Record<string, any>;
+    return synchronizeCompensationAliases(edited, before, after);
+  }, [scenarioId, freshBaseConfig, savedFormData, formData, savedPromotionHazardConfig, savedBandConfig]);
 
+  const handleSaveConfig = useCallback(async () => {
+    if (!validateNumericInputs()) return false;
+    if (scenarioLoading || configLoadError || freshBaseConfig === null || savedFormData === null) {
+      setSaveStatus('error');
+      setSaveMessage('Wait for configuration to load, or reload the page if loading failed.');
+      return false;
+    }
+    if (savePending.current) return false;
+    savePending.current = true;
+    if (saveResetTimer.current) clearTimeout(saveResetTimer.current);
     setSaveStatus('saving');
     setSaveMessage('Saving configuration...');
 
     try {
-      const configPayload = buildConfigPayload(formData, promotionHazardConfig, bandConfig);
+      // Commit inputs that buffer edits until blur before reading the payload.
+      flushSync(() => {
+        if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      });
+      const { formData, promotionHazardConfig, bandConfig } = latestConfig.current;
+      const savedSnapshot = JSON.stringify(latestConfig.current);
+      const startYear = Number(formData.startYear);
+      const endYear = Number(formData.endYear);
+      if (!String(formData.startYear).trim() || !String(formData.endYear).trim()
+        || !Number.isInteger(startYear) || !Number.isInteger(endYear)) {
+        throw new Error('Start year and end year must be whole years.');
+      }
+      if (endYear < startYear) {
+        throw new Error('End year must be greater than or equal to start year.');
+      }
+      if (Number(formData.dcEligibilityMonths) !== Number(savedFormData.dcEligibilityMonths)
+        && (!Number.isInteger(Number(formData.dcEligibilityMonths)) || Number(formData.dcEligibilityMonths) < 0)) {
+        throw new Error('Enter a nonnegative whole number of modeled eligibility months. Each month equals 30 days.');
+      }
+      for (const [mode, rate] of [
+        [formData.dcVoluntaryEnrollmentMode, formData.dcVoluntaryEnrollmentRate],
+        [formData.dcNewHireOptOutMode, formData.dcNewHireOptOutRate],
+      ]) {
+        if (mode === 'specified' && (rate === '' || !Number.isFinite(Number(rate)) || Number(rate) < 0 || Number(rate) > 100)) {
+          throw new Error('Specified enrollment rates must be percentages from 0 to 100.');
+        }
+      }
+      const configPayload = buildDraftConfig();
 
       // Validate seed configs before save
       if (promotionHazardConfig) {
@@ -683,7 +717,7 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
         if (hazardErrors.length > 0) {
           setSaveStatus('error');
           setSaveMessage(hazardErrors.join('; '));
-          return;
+          return false;
         }
       }
       if (bandConfig) {
@@ -693,21 +727,17 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
         if (allBandErrors.length > 0) {
           setSaveStatus('error');
           setSaveMessage(allBandErrors.map(e => e.message).join('; '));
-          return;
+          return false;
         }
       }
 
       if (currentScenario && scenarioId) {
         await updateScenario(activeWorkspace.id, scenarioId, { config_overrides: configPayload });
-        console.log('Config saved to scenario:', scenarioId, configPayload);
       } else {
         await apiUpdateWorkspace(activeWorkspace.id, { base_config: configPayload });
-        console.log('Config saved to workspace:', activeWorkspace.id, configPayload);
       }
 
-      setSaveStatus('success');
-      setSaveMessage('Configuration saved successfully!');
-
+      originalConfig.current = structuredClone(configPayload);
       setSavedFormData({ ...formData });
       if (promotionHazardConfig) {
         setSavedPromotionHazardConfig(JSON.parse(JSON.stringify(promotionHazardConfig)));
@@ -716,14 +746,26 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
         setSavedBandConfig(JSON.parse(JSON.stringify(bandConfig)));
       }
 
-      setTimeout(() => { setSaveStatus('idle'); setSaveMessage(''); }, 3000);
+      if (JSON.stringify(latestConfig.current) !== savedSnapshot) {
+        setSaveStatus('error');
+        setSaveMessage('Configuration changed while saving. Save the latest changes before running.');
+        return false;
+      }
+      setSaveStatus('success');
+      setSaveMessage('Configuration saved successfully!');
+      saveResetTimer.current = setTimeout(() => { setSaveStatus('idle'); setSaveMessage(''); }, 3000);
+      return true;
     } catch (error) {
       setSaveStatus('error');
       setSaveMessage(error instanceof Error ? error.message : 'Failed to save configuration');
+      return false;
+    } finally {
+      savePending.current = false;
     }
-  }, [formData, promotionHazardConfig, bandConfig, currentScenario, scenarioId, activeWorkspace]);
+  }, [currentScenario, scenarioId, activeWorkspace, freshBaseConfig, scenarioLoading, configLoadError, savedFormData, buildDraftConfig]);
 
   const value = useMemo<ConfigContextType>(() => ({
+    resolutionWarning, resolvedEngineVariables,
     formData, setFormData, savedFormData,
     promotionHazardConfig, setPromotionHazardConfig, savedPromotionHazardConfig,
     bandConfig, setBandConfig, savedBandConfig,
@@ -731,7 +773,9 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
     handleSaveConfig, saveStatus, saveMessage,
     handleChange, inputProps,
     activeWorkspace, currentScenario, scenarioId, scenarioLoading,
+    originalConfig: originalConfig.current, workspaceConfig: freshBaseConfig ?? {}, buildDraftConfig,
   }), [
+    resolutionWarning, resolvedEngineVariables,
     formData, savedFormData,
     promotionHazardConfig, savedPromotionHazardConfig,
     bandConfig, savedBandConfig,
@@ -739,6 +783,7 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
     handleSaveConfig, saveStatus, saveMessage,
     handleChange, inputProps,
     activeWorkspace, currentScenario, scenarioId, scenarioLoading,
+    freshBaseConfig, buildDraftConfig,
   ]);
 
   return <ConfigContext.Provider value={value}>{children}</ConfigContext.Provider>;

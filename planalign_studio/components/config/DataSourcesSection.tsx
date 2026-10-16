@@ -1,71 +1,26 @@
-import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Database, Check, AlertTriangle, Loader2, FileUp } from 'lucide-react';
 import { useConfigContext } from './ConfigContext';
-import { getWorkspace, validateFilePath } from '../../services/api';
 import { useWorkspacePath } from '../../hooks/useWorkspaceNavigation';
-
-interface CensusInfo {
-  path: string;
-  filename: string;
-  rowCount: number;
-  lastModified: string | null;
-}
 
 export function DataSourcesSection() {
   const importPath = useWorkspacePath('/import');
-  const { activeWorkspace } = useConfigContext();
-  const [censusInfo, setCensusInfo] = useState<CensusInfo | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!activeWorkspace?.id) {
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    getWorkspace(activeWorkspace.id)
-      .then(async (ws) => {
-        const path = (ws.base_config as any)?.setup?.census_parquet_path as string | undefined;
-        if (!path) {
-          setCensusInfo(null);
-          setLoading(false);
-          return;
-        }
-
-        try {
-          const v = await validateFilePath(activeWorkspace.id!, path);
-          if (v.valid) {
-            const filename = path.split('/').pop() ?? path;
-            setCensusInfo({
-              path,
-              filename,
-              rowCount: v.row_count ?? 0,
-              lastModified: v.last_modified ? v.last_modified.split('T')[0] : null,
-            });
-          } else {
-            setError(v.error_message ?? 'Census file could not be read');
-          }
-        } catch {
-          setError('Could not validate census file');
-        }
-        setLoading(false);
-      })
-      .catch(() => {
-        setError('Could not load workspace');
-        setLoading(false);
-      });
-  }, [activeWorkspace?.id]);
+  const { formData, scenarioLoading } = useConfigContext();
+  const loading = scenarioLoading || formData.censusDataStatus === 'validating';
+  const error = formData.censusDataStatus === 'error' ? 'Census file could not be read' : null;
+  const censusInfo = formData.censusDataPath && formData.censusDataStatus === 'loaded' ? {
+    filename: formData.censusDataPath.split(/[\\/]/).pop() ?? formData.censusDataPath,
+    rowCount: formData.censusRowCount,
+    lastModified: formData.censusLastModified || null,
+  } : null;
 
   return (
     <div className="space-y-8 animate-fadeIn">
       <div className="border-b border-border pb-4">
         <h2 className="text-lg font-bold text-ink">Data Sources</h2>
-        <p className="text-sm text-ink-muted">Active census data for this workspace.</p>
+        <p className="text-sm text-ink-muted">
+          {formData.censusDataSource === 'scenario' ? 'This scenario uses its own census file.' : 'Census data inherited from this workspace.'}
+        </p>
       </div>
 
       <div className="bg-surface-subtle rounded-xl p-6 border border-border">

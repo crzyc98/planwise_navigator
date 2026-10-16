@@ -5,6 +5,55 @@ All notable changes to Fidelity PlanAlign Engine will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Studio Workforce Parameters and DC Plan now separate plan provisions from behavioral assumptions, preserve custom settings, preview suggestions, and review effective configuration before saving. Numeric fields support direct decimal entry and report unfinished or invalid edits without converting blanks to zero.
+- Explicit `null` for `dc_plan.voluntary_enrollment_rate` or `dc_plan.new_hire_opt_out_rate` now selects demographic behavior even when a legacy enrollment block supplies a flat rate. An omitted key continues to inherit; an explicit zero remains zero. Review configurations containing both forms before rerunning a projection.
+
+## [3.0.0] - 2026-10-14 "Plan Design & Evidence"
+
+Consolidates development since the last tagged release, v2.2.0. Versions
+2.3.0 and 2.4.0 were development milestones, not separate tagged releases.
+
+### Upgrade notes and breaking changes
+
+- **Enrollment configuration changed meaning.** An explicit
+  `voluntary_enrollment_rate: 0.30` now targets 30% of eligible new hires;
+  it previously multiplied demographic probabilities by 0.3. Review saved
+  Studio scenarios, including those that stored the former default of 30%.
+  Clear the field (or omit the YAML key) to use demographic probabilities,
+  or set an intentional target fraction. Neither choice automatically
+  reproduces the former multiplier behavior; recalibrate affected scenarios.
+- **Deferral defaults affect projected costs.** The upward spread now defaults
+  to 4 percentage points and the voluntary deferral cap to 15%. To retain the
+  former spread and cap settings, set `deferral_spread_max_lift: 0` under
+  `enrollment.auto_enrollment` and `max_deferral_rate: 0.10` under
+  `enrollment.match_magnet`. These settings do not undo other simulation fixes
+  or the enrollment-rate semantic change.
+- **Python 3.12 or newer is required.** Refresh the environment using the
+  checked-in dependency lock before upgrading an older installation.
+- Preserve existing run archives and effective configurations as historical
+  evidence. Validate upgrades in fresh, isolated scenario databases and review
+  enrollment, deferral, and employer-cost differences before adopting new
+  baselines. Identical seeds do not guarantee identical results across versions.
+
+### Release highlights
+
+- Plan-design optimization with Studio controls and candidate promotion;
+  grandfathered designs, per-design parameters and formula families, age-banded
+  and Social Security integrated core contributions.
+- Census-history parameter fitting, backtest scorecards, seed ensembles, and
+  Studio workflows for reviewing and applying fitted parameters.
+- Evidence packs, cross-scenario explanations, event audit exploration, run
+  provenance, retained successful results, and read-only compliance reporting.
+- Net employer-cost comparisons, contribution breakdowns, DC plan trends,
+  census analysis, dark mode, and Excel, Parquet, and Tableau comparison exports.
+- Simulation and API reliability fixes covering scenario grain, eligibility,
+  termination boundaries, contribution calculations, census input validation,
+  dbt failure reporting, and database connection cleanup.
+
 
 ### Cost Comparison export to Excel and Tableau
 
@@ -58,25 +107,7 @@ same bands and priors the fit did. Runs without `--seeds-dir` are unchanged.
 **Behaviour change for existing Studio scenarios.** The Studio form previously shipped a default of `30` in the voluntary field, so scenarios created with untouched defaults stored an explicit `0.30`. Under the old meaning that was a 0.3x multiplier (~17% enrolment); under the new meaning it is a flat 30%. Those scenarios will produce different results. The field default is now empty, matching the engine's own default of demographic behaviour. YAML- and CLI-driven scenarios that never set the key are unaffected.
 
 
-## Release Process
-
-This changelog is **generated at release time, not hand-curated per PR**. Commit messages follow conventional commits (`feat:`/`fix:`/`chore:` with PR numbers), so a release section is drafted from git history and then lightly grouped/condensed:
-
-```bash
-# Draft the next release section from commits since the last release tag
-git log --no-merges --format='- %s' v2.1.0..HEAD
-
-# Then: bump _version.py + pyproject.toml, fold the draft into a new
-# ## [X.Y.Z] section below, commit, and tag:
-git tag -a vX.Y.Z -m "Release X.Y.Z"
-git push origin vX.Y.Z
-```
-
-Versioning semantics (SemVer) and the full bump procedure live in [docs/VERSIONING_GUIDE.md](docs/VERSIONING_GUIDE.md).
-
-## Unreleased
-
-### Added
+### Ensembles and backtesting
 
 - **Feature 133 — seed ensembles:** `planalign simulate --seeds N` now runs
   isolated seed worlds and writes auditable linear percentile bands with
@@ -85,13 +116,12 @@ Versioning semantics (SemVer) and the full bump procedure live in [docs/VERSIONI
   example `active_headcount`, solved by the E077 growth solver) render as
   `deterministic` rather than as identical percentile columns.
 
-  `--attribution` is included as **experimental and diagnostic-only**: it
-  measures conditional variance at a single arbitrary anchor seed, which is not
-  a variance decomposition and can legitimately report higher variance when a
-  subsystem is pinned. It is unranked, discloses its anchor and raw variances,
-  and is withheld from client-facing workbooks (evidence remains in
-  `fct_variance_attribution`). A defensible estimator is tracked in #543.
-  Enrollment and merit are labelled structurally not stochastic rather than 0%.
+  `--attribution` now averages across deterministic anchor seeds and reports
+  paired-bootstrap confidence intervals, rankings, and workbook exports (#550).
+  These are main-effect estimates, not a full variance decomposition; shares
+  need not sum to one. See [the ensemble guide](docs/guides/seed_ensembles.md)
+  for methodology and limitations. Enrollment and merit are labelled
+  structurally not stochastic rather than 0%.
 
 - **Feature 131 — backtest scorecards:** `planalign backtest` fits parameter
   packs on early census snapshots only, simulates held-out years across
@@ -104,7 +134,7 @@ Versioning semantics (SemVer) and the full bump procedure live in [docs/VERSIONI
   history the simulator itself produced, so a residual error is attributable
   to the harness rather than to configuration divergence.
 
-### Changed
+### Simulation state and retained results
 
 - **Feature 122 — state pipeline redesign:** managed API/Studio attempts now use
   immutable run-specific databases and atomically retain the latest successful result
@@ -418,6 +448,7 @@ _Consolidates all work since 2.1.0 (March–July 2026, ~258 commits), reconstruc
 
 ## Version History
 
+- **3.0.0** (2026-10-14): Plan Design & Evidence - Plan optimization, multi-design modeling, fitting and backtesting, ensembles, evidence and compliance reporting; enrollment semantics and deferral default changes
 - **2.2.0** (2026-07-11): Calibration - Fast compensation calibration, new-hire eligibility modeling, tenure-graded match, census import wizard, API security hardening
 - **2.1.0** (2026-03-03): Studio & Compliance - PlanAlign Studio, NDT testing, DC plan modeling, SQL-only mode, 60+ features/fixes
 - **2.0.0** (2025-11-24): PlanAlign Engine - Project rename from PlanWise Navigator

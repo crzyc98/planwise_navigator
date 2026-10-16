@@ -1,46 +1,69 @@
-"""NDT seed-currency behavior for updated statutory-limit schemas."""
+"""NDT reads preserve archived IRS limits, including incomplete legacy schemas."""
 
-from __future__ import annotations
+import hashlib
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import duckdb
+import pytest
 
+from planalign_api.routers.ndt import get_ndt_service
+from planalign_api.services.database_path_resolver import ResolvedDatabasePath
 from planalign_api.services.ndt_service import NDTService
 
+pytestmark = pytest.mark.fast
 
-def test_ensure_seed_current_refreshes_missing_social_security_wage_base(
-    tmp_path,
+NDT_TESTS = ("run_acp_test", "run_adp_test", "run_401a4_test", "run_415_test")
+
+
+def _create_archive(database: Path, has_legacy_seed: bool) -> None:
+    with duckdb.connect(str(database)) as conn:
+        conn.execute("CREATE TABLE fct_workforce_snapshot (simulation_year INTEGER)")
+        if has_legacy_seed:
+            conn.execute("CREATE TABLE config_irs_limits (limit_year INTEGER)")
+            conn.execute("INSERT INTO config_irs_limits VALUES (2026)")
+
+
+@pytest.mark.parametrize("method", NDT_TESTS)
+@pytest.mark.parametrize("has_legacy_seed", [False, True])
+def test_ndt_preserves_missing_or_legacy_seed(
+    tmp_path: Path, method: str, has_legacy_seed: bool
 ) -> None:
-    """A database materialized before the new statutory field self-heals."""
-    database = tmp_path / "stale.duckdb"
-    with duckdb.connect(str(database)) as connection:
-        connection.execute(
-            """
-            CREATE TABLE config_irs_limits (
-                limit_year INTEGER,
-                hce_compensation_threshold INTEGER,
-                super_catch_up_limit INTEGER,
-                annual_additions_limit INTEGER
+    database = tmp_path / "owner's-archive.duckdb"
+    _create_archive(database, has_legacy_seed)
+    before = hashlib.sha256(database.read_bytes()).digest()
+    service = get_ndt_service(MagicMock())
+    service.db_resolver = MagicMock()
+    service.db_resolver.resolve.return_value = ResolvedDatabasePath(
+        path=database, source="run", run_id="archived"
+    )
+    # An existing reader also prevents a hidden read-write connection.
+    with duckdb.connect(str(database), read_only=True) as reader:
+        with patch("duckdb.connect", wraps=duckdb.connect) as connect:
+            result = getattr(service, method)("ws", "sc", "Scenario", 2026)
+        connect.assert_called_once_with(str(database), read_only=True)
+        assert result.test_result == "error"
+        assert result.test_message is not None
+        assert any(
+            name in result.test_message
+            for name in (
+                "config_irs_limits",
+                "hce_compensation_threshold",
+                "annual_additions_limit",
             )
-            """
         )
+        if has_legacy_seed:
+            assert reader.execute("SELECT * FROM config_irs_limits").fetchall() == [
+                (2026,)
+            ]
+        else:
+            assert reader.execute(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'config_irs_limits'"
+            ).fetchone() == (0,)
+    assert hashlib.sha256(database.read_bytes()).digest() == before
 
-    NDTService._seed_verified.discard(str(database))
-    NDTService._ensure_seed_current(database)
 
-    with duckdb.connect(str(database), read_only=True) as connection:
-        columns = {
-            row[0]
-            for row in connection.execute(
-                """
-                SELECT column_name
-                FROM information_schema.columns
-                WHERE table_name = 'config_irs_limits'
-                """
-            ).fetchall()
-        }
-        assert "social_security_wage_base" in columns
-        value = connection.execute(
-            "SELECT social_security_wage_base FROM config_irs_limits WHERE limit_year = 2026"
-        ).fetchone()
-
-    assert value == (184500,)
+def test_ndt_rejects_seed_refresh_mode() -> None:
+    """Analytics cannot opt into replacing a run's statutory limits."""
+    with pytest.raises(TypeError, match="refresh_seeds"):
+        NDTService(MagicMock(), refresh_seeds=True)

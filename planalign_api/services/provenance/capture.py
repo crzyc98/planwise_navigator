@@ -113,21 +113,14 @@ def config_fingerprint(config: dict[str, Any]) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def capture_source_state(project_root: Path) -> SoftwareEvidence:
+def capture_source_state(
+    project_root: Path, *, findings: list[EvidenceFinding] | None = None
+) -> SoftwareEvidence:
     """Capture commit and clean/dirty state without recording filenames or diffs."""
+    evidence = SoftwareEvidence(planalign_version=__version__)
+    capture_findings = findings if findings is not None else []
+    _capture_commit(project_root, evidence, capture_findings)
     try:
-        sha = (
-            subprocess.run(
-                ["git", "rev-parse", "HEAD"],
-                cwd=project_root,
-                check=True,
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            .stdout.strip()
-            .lower()
-        )
         status = subprocess.run(
             ["git", "status", "--porcelain=v1", "--untracked-files=all"],
             cwd=project_root,
@@ -135,26 +128,90 @@ def capture_source_state(project_root: Path) -> SoftwareEvidence:
             capture_output=True,
             timeout=10,
         ).stdout
-        if status:
-            fingerprint = _dirty_tree_fingerprint(project_root, status)
-            return SoftwareEvidence(
-                planalign_version=__version__,
-                git_commit_sha=sha,
-                working_tree_state="dirty",
-                working_tree_fingerprint=fingerprint,
+    except (OSError, subprocess.SubprocessError):
+        capture_findings.append(
+            _finding(
+                "evidence.software.working_tree_state",
+                "unavailable",
+                "Git status could not be read; check repository access and Git availability",
             )
-        return SoftwareEvidence(
-            planalign_version=__version__,
-            git_commit_sha=sha,
-            working_tree_state="clean",
-            working_tree_fingerprint=None,
         )
-    except (OSError, subprocess.SubprocessError, ValueError, CaptureError):
-        return SoftwareEvidence(planalign_version=__version__)
+        return evidence
+    evidence.working_tree_state = "dirty" if status else "clean"
+    if status:
+        _capture_dirty_fingerprint(project_root, status, evidence, capture_findings)
+    return evidence
+
+
+def _capture_commit(
+    project_root: Path, evidence: SoftwareEvidence, findings: list[EvidenceFinding]
+) -> None:
+    try:
+        evidence.git_commit_sha = SoftwareEvidence(
+            git_commit_sha=(
+                subprocess.run(
+                    ["git", "rev-parse", "HEAD"],
+                    cwd=project_root,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                .stdout.strip()
+                .lower()
+            )
+        ).git_commit_sha
+    except (OSError, subprocess.SubprocessError, ValueError):
+        findings.append(
+            _finding(
+                "evidence.software.git_commit_sha",
+                "unavailable",
+                "Git HEAD could not be read; ensure Git and a committed repository are available",
+            )
+        )
+
+
+def _capture_dirty_fingerprint(
+    project_root: Path,
+    status: bytes,
+    evidence: SoftwareEvidence,
+    findings: list[EvidenceFinding],
+) -> None:
+    try:
+        evidence.working_tree_fingerprint = _dirty_tree_fingerprint(
+            project_root, status
+        )
+    except (OSError, subprocess.SubprocessError, ValueError, CaptureError) as exc:
+        reason = (
+            str(exc)
+            if isinstance(exc, CaptureError)
+            else (
+                "Git diff or source file capture failed; check repository access and retry"
+            )
+        )
+        findings.append(
+            _finding(
+                "evidence.software.working_tree_fingerprint",
+                "unavailable",
+                reason,
+            )
+        )
 
 
 def _dirty_tree_fingerprint(project_root: Path, status: bytes) -> str:
     """Bind tracked diffs and untracked file bytes without retaining either."""
+    index = subprocess.run(
+        ["git", "ls-files", "--stage", "-z"],
+        cwd=project_root,
+        check=True,
+        capture_output=True,
+        timeout=10,
+    ).stdout
+    if any(entry.startswith(b"160000 ") for entry in index.split(b"\0")):
+        raise CaptureError(
+            "working tree contains a nested repository gitlink; use a clean checkout "
+            "or remove the nested repository from the execution source tree"
+        )
     digest = hashlib.sha256(status)
     diff = subprocess.run(
         ["git", "diff", "--binary", "--no-ext-diff", "HEAD"],
@@ -175,6 +232,16 @@ def _dirty_tree_fingerprint(project_root: Path, status: bytes) -> str:
     for raw_name in sorted(name for name in untracked if name):
         relative = raw_name.decode("utf-8", errors="strict")
         path = project_root / relative
+        if path.is_dir() and not path.is_symlink():
+            raise CaptureError(
+                "untracked directory or nested repository/worktree cannot be bound; "
+                "use a clean checkout or move it outside the execution source tree"
+            )
+        if path.is_symlink() or not path.is_file():
+            raise CaptureError(
+                "untracked non-regular entry cannot be bound; replace it with a "
+                "regular source file or move it outside the execution source tree"
+            )
         file_hash, size = sha256_file(path)
         total += size
         if total > MAX_HASH_BYTES:
@@ -291,7 +358,7 @@ def initialize_manifest(
             intended_end_year=simulation.get("end_year"),
         ),
         execution_timing=ExecutionTimingEvidence(started_at=started),
-        software=capture_source_state(project_root),
+        software=capture_source_state(project_root, findings=findings),
         configuration=ConfigurationEvidence(
             effective=effective,
             fingerprint=config_fingerprint(config),

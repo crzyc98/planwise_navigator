@@ -8,6 +8,13 @@ from .base import APIModel
 from .studio_config import StudioConfigDict
 
 
+class ConfigPreviewRequest(APIModel):
+    """Unsaved configuration to resolve without persisting it."""
+
+    config: Dict[str, Any]
+    target: Literal["scenario", "workspace"] = "scenario"
+
+
 class ScenarioCreate(APIModel):
     """Request model for creating a scenario."""
 

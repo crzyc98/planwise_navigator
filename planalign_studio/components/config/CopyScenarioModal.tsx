@@ -1,5 +1,6 @@
-import { useConfigContext, extractCensusPath, applyConfigToFormData } from './ConfigContext';
-import { getScenario, validateFilePath, Scenario } from '../../services/api';
+import { useConfigContext, applyConfigToFormData } from './ConfigContext';
+import { resolveCensusFields } from './censusConfig';
+import { getScenario, getWorkspace, validateFilePath, Scenario } from '../../services/api';
 
 interface CopyScenarioModalProps {
   readonly availableScenarios: Scenario[];
@@ -25,34 +26,20 @@ export function CopyScenarioModal({ availableScenarios, onClose }: CopyScenarioM
                 key={scenario.id}
                 onClick={async () => {
                   try {
-                    const fullScenario = await getScenario(activeWorkspace.id, scenario.id);
+                    const [fullScenario, workspace] = await Promise.all([
+                      getScenario(activeWorkspace.id, scenario.id),
+                      getWorkspace(activeWorkspace.id),
+                    ]);
                     const cfg = fullScenario.config_overrides || {};
 
                     // Reuse the canonical config→FormData mapper (same logic used on
                     // normal scenario load) so the copy path can never drift from it and
                     // silently drop fields (e.g. issue #326: dcVoluntaryEnrollmentRate).
-                    setFormData(prev => applyConfigToFormData(cfg, prev));
-
-                    // E100: Validate census file
-                    const censusPath = extractCensusPath(cfg);
-                    if (censusPath && activeWorkspace?.id) {
-                      try {
-                        const validation = await validateFilePath(activeWorkspace.id, censusPath);
-                        if (validation.valid && validation.row_count) {
-                          setFormData(prev => ({
-                            ...prev,
-                            censusDataStatus: 'loaded',
-                            censusRowCount: validation.row_count || prev.censusRowCount,
-                            censusLastModified: validation.last_modified?.split('T')[0] || prev.censusLastModified,
-                          }));
-                        } else {
-                          setFormData(prev => ({ ...prev, censusDataStatus: 'error' }));
-                        }
-                      } catch (validationError) {
-                        console.error('E100: Census file validation failed:', validationError);
-                        setFormData(prev => ({ ...prev, censusDataStatus: 'error' }));
-                      }
-                    }
+                    const censusFields = await resolveCensusFields(
+                      cfg, workspace.base_config,
+                      path => validateFilePath(activeWorkspace.id, path),
+                    );
+                    setFormData(prev => ({ ...applyConfigToFormData(cfg, prev), ...censusFields }));
 
                     // 313: Copy seed configs
                     if (cfg.promotion_hazard) {
