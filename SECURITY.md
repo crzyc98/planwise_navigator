@@ -6,7 +6,8 @@ Fidelity PlanAlign Engine is an **on-premises** workforce and DC-plan simulation
 
 | Version | Supported |
 |---------|-----------|
-| 2.2.x   | ✅ Active |
+| 3.0.x   | ✅ Active |
+| 2.2.x   | ⚠️ Critical fixes only |
 | 2.1.x   | ⚠️ Critical fixes only |
 | < 2.1   | ❌ Unsupported |
 
@@ -80,12 +81,15 @@ Security-relevant properties of the simulation engine itself:
 ## Dependencies & Supply Chain
 
 - Runtime dependencies are pinned or floored in `pyproject.toml` and mirrored in `requirements.txt`; the resolved graph is locked in `uv.lock`.
-- Core storage/transform versions are intentionally pinned (DuckDB 1.0.0, dbt-core 1.8.8, dbt-duckdb 1.8.1, Pydantic 2.7.4) — upgrade deliberately, not opportunistically.
+- Current core runtime pins are DuckDB 1.5.6, dbt-core 1.9.11, dbt-duckdb 1.9.6, and Pydantic 2.13.5. `pyproject.toml` is the dependency declaration; verify its pins against `requirements.txt` and `uv.lock` using the [release checklist](docs/VERSIONING_GUIDE.md#release-checklist). Upgrade deliberately, not opportunistically.
 - The Studio frontend bundles **all** assets locally via Vite. Never add CDN `<script>`/`<link>` tags or import maps to `index.html` — this is both a security and a corporate-firewall requirement.
 - Report vulnerable-dependency findings through the same private channel as code vulnerabilities.
 - A `pip-audit` CI gate (`python-dependency-audit` job, `.github/workflows/ci.yml`) runs on every PR/push against `requirements.txt` and `requirements-dev.txt`. It fails the build on any advisory not explicitly listed below — new findings must be remediated or added here with justification, never silently ignored in CI.
 
 ### Approved Python Dependency Exceptions
+
+The dated upgrade records below describe validation of the versions used at
+that time; they are historical evidence, not the current dependency inventory.
 
 Temporary `pip-audit` exceptions, tracked in [#705](https://github.com/crzyc98/planwise_navigator/issues/705). Owner: crzyc98. Review by: 2026-12-01.
 
