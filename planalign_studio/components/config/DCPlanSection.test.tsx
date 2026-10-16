@@ -132,6 +132,27 @@ describe('independent employer eligibility policies', () => {
     expect(html).toContain('Editing detailed eligibility settings enables the detailed policy');
   });
 
+  it('summarizes the active legacy rule even when inactive detailed settings allow exceptions', () => {
+    state.formData.dcMatchMinTenureYears = 3;
+    state.formData.dcMatchMinHoursAnnual = 500;
+    state.formData.dcMatchRequireYearEndActive = false;
+    state.formData.dcMatchAllowTerminatedNewHires = true;
+    state.formData.dcMatchAllowExperiencedTerminations = true;
+    const config = { employer_match: { apply_eligibility: false, eligibility: { allow_new_hires: true } } };
+    const summary = eligibilitySummary(state.formData, 'Match', config);
+    expect(summary).toContain('0 years service; 1000 annual hours; year-end employment requirement on');
+    expect(summary).toContain('terminated hire-year exception excluded');
+    expect(summary).toContain('terminated experienced-employee exception excluded');
+    expect(summary).toContain('saved detailed settings are inactive');
+    expect(matchSummary(state.formData, config)).toContain(summary);
+    expect(eligibilitySummary(state.formData, 'Core', config)).not.toContain('Legacy');
+
+    // A Studio override activates detailed matching in the existing exporter.
+    const draft = { ...config, dc_plan: { match_min_hours_annual: 500 } };
+    expect(eligibilitySummary(state.formData, 'Match', draft)).toContain('3 years service; 500 annual hours');
+    expect(eligibilitySummary(state.formData, 'Match', draft)).toContain('terminated hire-year exception allowed');
+  });
+
   it('uses resolved core waiver metadata when the raw configuration omits eligibility', () => {
     state.formData.dcCoreEnabled = true;
     state.formData.dcCoreMinTenureYears = 0;

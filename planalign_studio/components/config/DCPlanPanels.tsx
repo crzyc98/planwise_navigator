@@ -56,7 +56,17 @@ function waiverSummary(form: FormData, kind: Contribution, config: Config): stri
   return `${waiver ? 'allowed' : 'not allowed'} by ${explicitWaiver != null ? 'the saved Studio setting' : hasUITenure ? 'the Studio service requirement' : 'inherited configuration'}`;
 }
 
+function usesLegacyMatchPolicy(kind: Contribution, config: Config): boolean {
+  return kind === 'Match' && config.employer_match?.apply_eligibility === false &&
+    !Object.keys(config.dc_plan ?? {}).some(key => /^match_(min_|require_|allow_)/.test(key));
+}
+
 export function eligibilitySummary(form: FormData, kind: Contribution, config: Config = {}): string {
+  if (usesLegacyMatchPolicy(kind, config)) {
+    return '0 years service; 1000 annual hours; year-end employment requirement on; ' +
+      'terminated hire-year exception excluded; terminated experienced-employee exception excluded; ' +
+      'new-hire service waiver not applicable (no service requirement). Legacy match policy is active; saved detailed settings are inactive.';
+  }
   const prefix = `dc${kind}` as const;
   return `${form[`${prefix}MinTenureYears`]} years service; ${form[`${prefix}MinHoursAnnual`]} annual hours; ` +
     `year-end employment requirement ${form[`${prefix}RequireYearEndActive`] ? 'on, subject to exceptions' : 'off'}; ` +
@@ -72,8 +82,7 @@ export function EmployerEligibilityEditor({ kind, config }: { kind: Contribution
   const allowHireYear = formData[`${prefix}AllowTerminatedNewHires`];
   const allowExperienced = formData[`${prefix}AllowExperiencedTerminations`];
   const custom = requireActive ? allowHireYear || allowExperienced : !allowHireYear || !allowExperienced;
-  const legacySimpleMatch = kind === 'Match' && config.employer_match?.apply_eligibility === false &&
-    !Object.keys(config.dc_plan ?? {}).some(key => /^match_(min_|require_|allow_)/.test(key));
+  const legacySimpleMatch = usesLegacyMatchPolicy(kind, config);
   const flags = [
     ['RequireYearEndActive', 'Require active employment at year-end'],
     ['AllowTerminatedNewHires', 'Allow terminated hire-year employees'],
@@ -83,7 +92,7 @@ export function EmployerEligibilityEditor({ kind, config }: { kind: Contribution
     <div className="sm:col-span-6 text-xs text-ink-muted space-y-1">
       <h4 className="text-sm font-semibold text-ink">{kind} eligibility</h4>
       <p>{eligibilitySummary(formData, kind, config)}</p>
-      {custom && <p>Custom policy combination. Each setting is preserved independently.</p>}
+      {custom && <p>Custom {legacySimpleMatch ? 'saved detailed ' : ''}policy combination. Each setting is preserved independently.</p>}
       {legacySimpleMatch && <p>The inherited match configuration uses the legacy active-at-year-end and 1,000-hour rule. Editing detailed eligibility settings enables the detailed policy shown here.</p>}
       <p>Global Studio settings shown. {config.plan_design_parameters
         ? 'Per-design overrides are configured; each assigned design may resolve different eligibility rules.'

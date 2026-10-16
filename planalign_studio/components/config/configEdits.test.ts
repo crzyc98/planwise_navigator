@@ -2,8 +2,52 @@ import { describe, expect, it } from 'vitest';
 import { applyConfigEdits, synchronizeCompensationAliases } from './configEdits';
 import { buildConfigPayload } from './buildConfigPayload';
 import { DEFAULT_FORM_DATA } from './constants';
+import { applyResolvedFormData } from './resolvedFormData';
 
 describe('lossless configuration edits', () => {
+  const policies = [false, true].flatMap(require_active_at_year_end =>
+    [false, true].flatMap(allow_terminated_new_hires =>
+      [false, true].map(allow_experienced_terminations => ({
+        require_active_at_year_end, allow_terminated_new_hires, allow_experienced_terminations,
+      })),
+    ),
+  );
+
+  it.each(policies.flatMap(match => policies.map(core => ({ match, core }))))(
+    'round trips independent match/core policies without materializing inherited overrides %j',
+    ({ match, core }) => {
+      const inherited = {
+        employer_match: { apply_eligibility: true, eligibility: { ...match, minimum_tenure_years: 2, allow_new_hires: true } },
+        employer_core_contribution: { eligibility: { ...core, minimum_tenure_years: 3, allow_new_hires: false } },
+      };
+      const original = { custom: { retain: true }, plan_design_parameters: { design_a: { eligibility: { waiting_period_days: 90 } } } };
+      const loaded = applyResolvedFormData(inherited, DEFAULT_FORM_DATA);
+      const payload = buildConfigPayload(loaded, null, null);
+      const saved = applyConfigEdits(original, payload, payload);
+      expect(saved).toEqual(original);
+      const reloaded = JSON.parse(JSON.stringify(saved));
+      expect(applyResolvedFormData({ ...inherited, ...reloaded }, DEFAULT_FORM_DATA)).toEqual(loaded);
+
+      // Editing one flag adds exactly one override, preserving the other family
+      // and the inherited service waivers, including explicit non-default values.
+      for (const kind of ['Match', 'Core'] as const) {
+        for (const [suffix, key] of [
+          ['RequireYearEndActive', 'require_year_end_active'],
+          ['AllowTerminatedNewHires', 'allow_terminated_new_hires'],
+          ['AllowExperiencedTerminations', 'allow_experienced_terminations'],
+        ] as const) {
+          const field = `dc${kind}${suffix}` as const;
+          const edited = buildConfigPayload({ ...loaded, [field]: !loaded[field] }, null, null);
+          expect(applyConfigEdits(original, payload, edited)).toEqual({
+            ...original, dc_plan: { [`${kind.toLowerCase()}_${key}`]: !loaded[field] },
+          });
+        }
+      }
+      const workspace = { ...original, ...inherited };
+      expect(applyConfigEdits(workspace, payload, payload)).toEqual(workspace);
+    },
+  );
+
   it('keeps custom metadata attached during insertion, deletion and reordering', () => {
     const before = [{ rate: 1 }, { rate: 2 }];
     const original = [{ rate: 1, note: 'first' }, { rate: 2, note: 'second' }];
