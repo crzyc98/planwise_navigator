@@ -348,17 +348,23 @@ describe('DC Plan enrollment presentation', () => {
     expect(html).toContain('64.4%');
   });
 
-  it.each(['new_hires_only', 'all_eligible'])(
-    'explains first-year and later-year scope for %s with either hire cutoff', scope => {
-      for (const cutoff of ['2020-01-01', '2027-07-01']) {
-        state.formData = { ...state.formData, dcAutoEnrollScope: scope, dcAutoEnrollHireDateCutoff: cutoff };
+  it.each(['new_hires_only', 'all_eligible'].flatMap(scope => [false, true].map(autoEnroll => ({ scope, autoEnroll }))))(
+    'explains first-year and later-year scope and preserves drafts for %j', ({ scope, autoEnroll }) => {
+      for (const cutoff of ['', '2020-01-01', '2027-07-01']) {
+        state.formData = { ...state.formData, dcAutoEnroll: autoEnroll, dcAutoEnrollScope: scope, dcAutoEnrollHireDateCutoff: cutoff };
+        const original = structuredClone(state.formData);
         const html = render();
         expect(html).toContain(`First year (${state.formData.startYear}):`);
-        expect(html).toContain(`hired on or after ${cutoff}`);
+        expect(html).toContain(`hired on or after ${cutoff || 'the configured engine cutoff'}`);
         expect(html).toContain('Later years:');
         expect(html).toContain(scope === 'new_hires_only' ? 'the hire cutoff is not reapplied' : 'the cutoff still applies');
         expect(html).toContain('value="new_hires_only"');
         expect(html).toContain('value="all_eligible"');
+        expect(html.includes('Resulting split')).toBe(autoEnroll);
+        toggle('dcAutoEnroll', !autoEnroll);
+        expect(state.formData).toEqual({ ...original, dcAutoEnroll: !autoEnroll });
+        toggle('dcAutoEnroll', autoEnroll);
+        expect(state.formData).toEqual(original);
       }
     },
   );
