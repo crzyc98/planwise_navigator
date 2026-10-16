@@ -528,8 +528,6 @@ jobs:
 
   validate-models:
     runs-on: ubuntu-latest
-    env:
-      DATABASE_PATH: ${{ runner.temp }}/planalign-ci-model-validation.duckdb
     steps:
       - uses: actions/checkout@v4
 
@@ -552,6 +550,8 @@ jobs:
           python -c "import planalign_orchestrator"
 
       - name: Validate dbt project
+        env:
+          DATABASE_PATH: ${{ runner.temp }}/planalign-ci-model-validation.duckdb
         run: |
           cd dbt
           dbt deps
