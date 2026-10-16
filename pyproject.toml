@@ -209,7 +209,18 @@ markers = [
 
 # Coverage options (when using pytest-cov)
 [tool.coverage.run]
-source = ["planalign_orchestrator", "planalign_cli", "planalign_api", "planalign_core", "planalign_optimizer"]
+# Authoritative coverage inventory; CI uses bare --cov to preserve this list.
+source = [
+    "planalign_orchestrator",
+    "planalign_cli",
+    "planalign_api",
+    "planalign_core",
+    "planalign_optimizer",
+    "planalign_fit",
+    "planalign_backtest",
+    "planalign_ensemble",
+    "planalign_evidence",
+]
 omit = [
     "*/tests/*",
     "*/venv/*",

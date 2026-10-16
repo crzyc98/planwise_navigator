@@ -233,15 +233,9 @@ jobs:
     if: >-
       github.event_name != 'pull_request' ||
       contains(github.event.pull_request.labels.*.name, 'full-ci')
-    # Sharded across 4 runners: this job was ~96 of the pipeline's ~102 minutes,
-    # and it is dominated by integration tests that drive real dbt runs. Wall
-    # time is max(shard), not the sum, so 4 shards cut it to roughly a quarter.
-    #
-    # NOTE (2026-08-04): measured shard times on PR #545 were 49/65/49/63 min,
-    # far above the ~25 min this split was sized for, and `.test_durations`
-    # records only 59.9 min total across 2,738 tests -- roughly 4x stale, which
-    # is why the shards are imbalanced. Refresh it (see below) before trusting
-    # the balance.
+    # Four independent runners, balanced using measured test durations.
+    # Historical measurements above are not a current performance baseline.
+    # Refresh and compare complete runs per docs/guides/ci_measurements.md.
     #
     # Sharding rather than pytest-xdist (`-n auto`) is deliberate. The execution
     # lock is a single file in the working directory (utils.py: `.{name}.lock`),
@@ -312,9 +306,9 @@ jobs:
           # runtime), so an even split by count still put ~40 minutes of work in
           # one shard while the others finished in under 5.
           #
-          # Refresh .test_durations with:
-          #   pytest tests/ -m "not multi_year_invariants" --store-durations
-          # Stale entries are harmless -- unknown tests fall back to an average.
+          # Read the committed timings for assignment, then replace them with
+          # this shard's observations only. Never merge inherited stale entries.
+          # Download all four timing artifacts to refresh (see CI guide).
           #
           # No --cov-fail-under here: a single shard only ever sees a quarter of
           # the suite and would fail the gate spuriously. The threshold is
@@ -322,9 +316,17 @@ jobs:
           pytest tests/ -v -m "not multi_year_invariants" \
             --splits 4 --group ${{ matrix.shard }} \
             --splitting-algorithm least_duration \
-            --cov=planalign_orchestrator --cov=planalign_cli \
-            --cov=planalign_api --cov=planalign_core \
+            --store-durations --clean-durations \
+            --cov --cov-config=pyproject.toml \
             --cov-report=
+
+      - name: Upload shard timings
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-durations-${{ matrix.shard }}
+          path: .test_durations
+          include-hidden-files: true
+          if-no-files-found: error
 
       - name: Assert default database sentinel remains unused (shard ${{ matrix.shard }}/4)
         if: always()
@@ -385,15 +387,21 @@ jobs:
         run: |
           coverage combine .coverage.*
           coverage xml
-          # Coverage gate: actual coverage is ~63% (2026-07); ratchet the
-          # threshold up as coverage improves, never down.
+          coverage json
+          python scripts/check_coverage_inventory.py
+          # Preserve the 60% gate as the denominator expands (#874). The JSON
+          # inventory prints each package's measured numerator/denominator;
+          # a lower result must be investigated, not hidden by lowering this.
           coverage report --fail-under=60
 
       - name: Archive coverage report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage-xml
-          path: coverage.xml
+          path: |
+            coverage.xml
+            coverage.json
 
   multi-year-invariants:
     runs-on: ubuntu-latest
@@ -538,8 +546,8 @@ jobs:
       - name: Install dbt
         run: |
           export PATH="$HOME/.local/bin:$PATH"
-          uv pip install --system dbt-core==1.8.8 dbt-duckdb==1.8.1
           uv pip install --system -e .
+          python scripts/check_dbt_versions.py
           # Trigger the sqlparse MAX_GROUPING_TOKENS auto-patch (see
           # planalign_orchestrator.sqlparse_config) so dbt subprocesses in
           # this job don't hit sqlparse's 10,000-token DoS-protection limit.
