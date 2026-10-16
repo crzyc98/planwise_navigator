@@ -1,5 +1,50 @@
 # Coverage and shard measurements
 
+## PR feedback and merge policy
+
+Every PR keeps lint, Studio validation, dependency audits, the complete fast
+suite, and dbt validation. Fast tests and model validation start independently
+of lint. New PR runs cancel obsolete runs for the same PR; post-merge, scheduled,
+and manually dispatched runs remain independent so their evidence is retained.
+
+`scripts/ci_policy.py` compares the PR base/head merge-base diff (including
+deletions and both sides of renames). Only frontend files and an explicit set of
+Markdown documentation paths may omit simulation checks. Backend, SQL, config,
+dependency, test, CI, and unknown paths require multi-year invariants and the
+edge-config matrix before `CI Gate` passes. Empty diffs select simulations;
+missing Git history fails selection. This deliberately makes engine changes
+slower than presentation changes while preserving the full fast suite for both.
+
+The four integration shards and combined coverage still run on main/develop,
+nightly, manual dispatch, and PRs carrying `full-ci`. Adding or removing a label
+now triggers selection immediately. Use `full-ci` for integration-sensitive
+changes beyond the simulation suites. No coverage threshold or test is removed.
+
+`CI Gate` rejects failed/cancelled jobs, missing baseline checks, skipped selected
+suites, and invalid selection outputs. After deploying this workflow and seeing
+the check report successfully, add **CI Gate** to the existing required-check
+ruleset, retaining the five existing checks. Enable **Require branches to be up
+to date before merging** to test against current main. Repository settings are
+not changed by this patch. Until the gate is required, reviewers must check its
+result explicitly; merely adding a workflow job does not enforce merge safety.
+
+The inspected PR run 38967045844 took about 7m48s, including 59s of lint before
+the fast job could start and 6m24s in its pytest step. Removing that dependency
+can save roughly a minute absent runner queueing; this is an estimate, not a
+measured result of the new workflow. Measure the next hosted runs before further
+splitting or pruning tests. The 450s fast-suite budget remains enforced.
+
+Local policy validation (no simulation database is touched):
+
+```bash
+source .venv/bin/activate
+DATABASE_PATH=/tmp/planalign-ci-policy-sentinel.duckdb pytest tests/unit/test_ci_policy.py -q
+ruff check scripts/ci_policy.py tests/unit/test_ci_policy.py
+black --check scripts/ci_policy.py tests/unit/test_ci_policy.py
+```
+
+## Coverage inventory
+
 `pyproject.toml`'s `[tool.coverage.run].source` is the authoritative coverage
 package list. Use bare `pytest --cov` locally and in CI; `--cov=package` overrides
 that inventory. The combined CI report checks every shipped `.py` file, including
