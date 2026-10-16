@@ -1,10 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { applyConfigEdits, synchronizeCompensationAliases } from './configEdits';
+import { applyConfigEdits, preserveDisplayedMatchEligibility, synchronizeCompensationAliases } from './configEdits';
 import { buildConfigPayload } from './buildConfigPayload';
 import { DEFAULT_FORM_DATA } from './constants';
 import { applyResolvedFormData } from './resolvedFormData';
 
 describe('lossless configuration edits', () => {
+  it.each([false, true])('saves the complete visible legacy policy for scenario=%s', scenario => {
+    const variables = { employer_match: { apply_eligibility: false, eligibility: {
+      minimum_tenure_years: 3, minimum_hours_annual: 500, require_active_at_year_end: false,
+      allow_terminated_new_hires: true, allow_experienced_terminations: true, allow_new_hires: false,
+    } } };
+    const original = scenario ? { custom: 'retain' } : { ...variables, custom: 'retain' };
+    const loaded = applyResolvedFormData(variables, DEFAULT_FORM_DATA);
+    const before = buildConfigPayload(loaded, null, null);
+    const after = buildConfigPayload({ ...loaded, dcMatchMinHoursAnnual: 750 }, null, null);
+    const edited = applyConfigEdits(original, before, after) as Record<string, unknown>;
+    expect(preserveDisplayedMatchEligibility(edited, before, after, variables)).toEqual({
+      ...original, dc_plan: { match_min_tenure_years: 0, match_min_hours_annual: 750,
+        match_require_year_end_active: true, match_allow_terminated_new_hires: false,
+        match_allow_experienced_terminations: false, match_allow_new_hires: true },
+    });
+    expect(preserveDisplayedMatchEligibility(original, before, before, variables)).toEqual(original);
+    expect(preserveDisplayedMatchEligibility(edited, before, after,
+      { employer_match: { apply_eligibility: true } })).toEqual(edited);
+  });
   const policies = [false, true].flatMap(require_active_at_year_end =>
     [false, true].flatMap(allow_terminated_new_hires =>
       [false, true].map(allow_experienced_terminations => ({
@@ -68,6 +87,28 @@ describe('lossless configuration edits', () => {
   it('rejects ambiguous simultaneous edits and insertion of custom rows', () => {
     expect(() => applyConfigEdits([{ rate: 1, note: 'keep attached' }],
       [{ rate: 1 }], [{ rate: 2 }, { rate: 3 }])).toThrow('custom row settings');
+  });
+
+  it('allows replacing YAML-ordered match tiers with a single edited tier', () => {
+    const original = { dc_plan: { match_tiers: [
+      { employee_max: 0.03, employee_min: 0, match_rate: 1 },
+      { employee_max: 0.05, employee_min: 0.03, match_rate: 0.5 },
+    ] } };
+    const loaded = applyResolvedFormData(original, DEFAULT_FORM_DATA);
+    const before = buildConfigPayload(loaded, null, null);
+    const after = buildConfigPayload({ ...loaded, dcMatchTiers: [
+      { deferralMin: 0, deferralMax: 4, matchRate: 100 },
+    ] }, null, null);
+    expect(applyConfigEdits(original, before, after)).toEqual({ dc_plan: {
+      match_tiers: [{ employee_min: 0, employee_max: 0.04, match_rate: 1 }],
+    } });
+  });
+
+  it('matches reordered object keys without moving nested custom metadata', () => {
+    const original = [{ rate: 1, range: { min: 0, max: 3 }, note: 'keep' }];
+    const before = [{ range: { max: 3, min: 0 }, rate: 1 }];
+    const after = [{ rate: 1, range: { min: 0, max: 3 } }, { rate: 2 }];
+    expect(applyConfigEdits(original, before, after)).toEqual([...original, { rate: 2 }]);
   });
 
   it('keeps demographic null, explicit zero and removed inheritance distinct', () => {

@@ -39,7 +39,7 @@ Finish by explaining the projection years, each turnover population, the pay ass
 
 ## Task 2: enter and explain an employer match
 
-In **DC Plan**, **Plan provisions** contains **Eligibility and automatic enrollment**, **Employer match**, **Employer core contribution**, and **Automatic contribution increases**. **Employee behavior assumptions** separately contains **Enrollment and opt-outs**, **Starting employee contribution rates**, and **Response to the employer match**.
+In **DC Plan**, **Plan provisions** contains **Eligibility and enrollment**, **Employer match**, **Employer core contribution**, and **Automatic contribution increases**. Enrollment behavior assumptions sit beside the relevant enrollment rules and are labeled separately. The remaining **Employee behavior assumptions** panels contain **Starting employee contribution rates** and **Response to the employer match**.
 
 Open **Employer match**, enable **Employer Match Formula**, and select **Deferral-Based (match varies by deferral %)** under **Match Calculation Mode**. In **Match Tiers (editable)**, enter one tier from 0% to 4% with a 100% match rate. This represents “100% on the first 4%”: an employee contributing 4% reaches a formula maximum employer match of 4% of eligible compensation.
 
@@ -56,17 +56,39 @@ These examples assume eligible compensation and an employee meeting match eligib
 
 **Custom policy combination** identifies a retained combination of those flags. Review the displayed new-hire service waiver and any per-design scope notice. Global summaries are not universal rules for every assigned plan design. Other match modes, core schedules, integration settings, and inactive schedules remain saved when another mode is selected.
 
+Match service, hours, and employment requirements apply directly; there is no
+separate eligibility switch. Zero service or hours means no minimum for that
+requirement. For older configurations, the editor shows the effective rule
+(zero service, 1,000 hours, active at year-end, no termination exceptions),
+rather than inactive detailed values. Editing a requirement saves the complete
+displayed policy, so other inactive requirements cannot become active silently.
+Opening or saving an unchanged configuration preserves its existing policy.
+Previously saved detailed values remain in the underlying configuration for
+inspection; review describes the effective requirements.
+
 Finish by explaining the employee threshold, employer formula maximum, and the separate match/core eligibility rules.
 
 ## Task 3: change automatic enrollment, then disable it
 
-In **Eligibility and automatic enrollment**:
+In **Eligibility and enrollment**, **Automatic enrollment** groups the switch,
+default deferral, opt-out delay, and employee opt-out assumptions. **Shared
+enrollment rules** groups the waiting period, enrollment delay, scope, hire
+cutoff, and **Voluntary enrollment assumptions**. Plan rules and employee behavior
+assumptions are labeled within each group. Shared rules and voluntary assumptions
+remain editable when automatic enrollment is off.
+
+Enabled feature settings open by default. Collapse them manually if desired;
+unrelated edits do not reopen them. Turning a feature off collapses its settings,
+and turning it back on opens them. Enable checkboxes stay outside the collapsed
+settings. Shared rules and contribution limits remain accessible because they
+can affect other enabled features.
 
 1. Set **Eligibility waiting period**. Each modeled month is 30 days: 3 months resolves to 90 days. An existing day-based setting can display a fractional month count, such as 1.5 months for 45 days; leaving it unchanged preserves the existing duration. Edits use whole modeled months.
 2. Review **New-hire enrollment delay after eligibility**. The hire-year enrollment branch schedules from eligibility plus that delay; the continuing-employee branch uses January 15. Hire-year opt-outs add **Modeled opt-out delay**; the continuing-employee opt-out branch uses June 15. Voluntary enrollment before the automatic-enrollment deadline follows its separate decision timing.
 3. Compare **Enrollment Scope** choices. **New Hires Only** uses **Hire Date Cutoff** in the first projection year, then current-year hires in later years. **All Eligible Employees** still respects the inclusive hire cutoff every year. Already enrolled employees are excluded from new enrollment decisions; plan eligibility still applies.
 
-In **Enrollment and opt-outs**, each new-hire decision has its own **Rate source**:
+Each new-hire decision has its own **Rate source**: voluntary enrollment under
+**Shared enrollment rules**, and opt-outs under **Automatic enrollment**:
 
 | Choice | Meaning |
 |---|---|
@@ -98,6 +120,114 @@ Reload the same destination and reopen review. Confirm that edited values and in
 
 ## Acceptance record — analyst signoff pending
 
+### Guided analyst walkthrough, 2026-10-16 — in progress
+
+Participant: Nick, Lead Developer / VP of Analytics. Starting build: `fa4ca503`.
+The session uses a copy of the synthetic fixture under
+`var/epic862-acceptance/workspaces`, with the initial files retained separately.
+Workspace: `23ee7591-735a-44d4-953e-6144539b3980`; available scenario:
+`cd9f0164-2976-44fa-b0f4-d0ef3a2a0c31`. The fixture includes a scenario growth
+override, a custom audit note, and an independent terminated-new-hire match
+eligibility exception. These observations are participant reports, separate from
+automated checks; no before/after timing improvement is claimed.
+
+- **Task 1:** Nick reported 20 seconds and confirmed all seven requested values
+  survived review/save/reload, with nothing confusing. He identified 2027, 2028,
+  and 2029 as the projection years and described growth in terms of year-end
+  active headcount CAGR. He had not examined pay-event output, so compensation
+  behavior remains unverified. The facilitator explained the understanding
+  questions before these responses; this is guided feedback, not an independent
+  comprehension result. Role and timing are self-reported.
+- **Task 2:** Nick reported 30 seconds before save was blocked by “This schedule
+  contains custom row settings.” Completion and explanation acceptance remain
+  pending. A regression reproduced the blocker when editing a two-tier match
+  into one tier after YAML reordered object keys. The local fix compares object
+  values independently of key order while retaining array order and protection
+  for genuinely ambiguous custom metadata. Nick confirmed the fix helped and
+  reached review, then reported that raw JSON tiers and internal template names
+  were confusing. The local review now labels the employer match formula and
+  template and describes tier percentages in plain language. Save/reload and
+  acceptance of the revised review remain pending; no retry time was reported.
+  Nick subsequently questioned the eligibility activation language and stated
+  that service/hours requirements and the year-end employment checkbox should
+  apply directly. The local editor now projects effective legacy requirements
+  and saves the complete displayed policy when one of them is edited. Review
+  describes actual requirements rather than presenting eligibility as off.
+  This change still requires analyst acceptance.
+  On entering a one-year match service requirement, Nick reported review rows
+  showing six newly stored values and an eligibility Off → On transition. The
+  local review now compares effective match requirements: unchanged inherited
+  hours/employment rules are omitted, and the new-hire service exemption is
+  described under indirect effects. Raw storage details remain in the complete
+  configuration. Acceptance of this revised comparison is pending.
+- **Task 3:** Nick reported 60 seconds. His pasted review showed automatic
+  enrollment changing On → Off, scope changing All eligible employees → New
+  hires only, and voluntary enrollment changing 65% → 30%. The preexisting
+  opt-out rate was 8%. Visual confirmation of the enrollment split and inactive
+  controls remains pending. A simulation attempt failed because the walkthrough
+  fixture pointed to `invariant_census.csv` where staging requires Parquet. This
+  was a facilitator setup error, not evidence of an enrollment-control defect.
+  The 150-row synthetic census was converted to workspace-local Parquet and the
+  base census path corrected; the failed run archive was preserved.
+  Replacement API run `7e2ae66f-b542-4b62-a167-80d4284ec0e6` completed successfully
+  for 2027–2029. The scenario retains its explicit automatic-enrollment On
+  override, so this run validates the census repair, not the workspace's Off
+  setting or analyst understanding of inheritance.
+  Nick then ran scenario `3c1d49fb-871b-43fd-8375-6378d0201f7e` with the scenario
+  override also Off and reported a 20% Auto Enrolled chart slice. Read-only
+  inspection confirmed the exported flag was false and the enrollment
+  accumulator contained no automatic enrollments. Analytics incorrectly counted
+  38 `not_participating - not auto enrolled` rows by matching the word `auto`.
+  Method counts now require enrollment and exclude nonparticipating statuses.
+  All 77 analytics/API tests passed, including three regressions. After restarting
+  the isolated API, the same saved run returned 0 automatic, 110 voluntary, and
+  46 census participants (71% voluntary / 29% census in the pie). No simulation
+  data was changed or rerun for this reporting fix. Nick confirmed the refreshed
+  chart looked good and showed Voluntary 71% / Census 29%, with no automatic slice.
+  Nick then found it confusing that waiting period and enrollment delay remained
+  editable with automatic enrollment off. The panel now separates automatic-only
+  controls from shared enrollment rules and explicitly explains their voluntary
+  enrollment use. This presentation change does not change engine mappings.
+  At Nick's request, opt-out assumptions were then moved into Automatic
+  enrollment and voluntary assumptions into Shared enrollment rules. The
+  separate Enrollment and opt-outs panel was removed; behavior assumptions
+  remain labeled distinctly from plan rules within the combined panel.
+  Nick also requested enabled sections open by default, manual collapse, and
+  automatic collapse when disabled. This behavior now applies to enrollment,
+  match, core, escalation, and match-response settings; enabling checkboxes and
+  shared voluntary enrollment limits remain accessible. Nick challenged the
+  coupling between annual escalation and match response: an employee should be
+  able to reach an 8% full-match threshold with a 6% annual escalation cap.
+  Match response now uses the full-match threshold independently of that cap,
+  retaining the existing IRS rate-equivalent limit. When both events occur,
+  annual escalation cannot reduce the match-response rate. The escalation cap
+  now collapses with annual escalation and is inactive when escalation is off.
+
+  Three isolated two-year integration cases verified the 8% match / 6% escalation
+  combination with escalation on, off, and explicit per-design parameters.
+  Full-match responders reached 8% and retained it in year two; simultaneous
+  escalation did not reduce their rates, and annual escalation events stayed
+  within 6%. The existing first-year-only match-response regression also passed.
+  Reproduce the focused behavioral checks with:
+  `source .venv/bin/activate && pytest tests/test_studio_mapping_audit.py tests/integration/test_match_response_fact_integration.py -k match_response -q`.
+  Frontend validation passed 329 tests, type checking, lint, and the production
+  build (existing bundle-size and mixed-import warnings remain).
+
+Scenario-override repetition, keyboard/navigation observations, narrow-layout
+feedback, effective-export verification, and final analyst signoff remain pending.
+
+Automated validation of the walkthrough fixes: 321 frontend tests, TypeScript,
+ESLint, production build, and 149 targeted Python tests passed. The build retains
+the existing bundle-size and mixed-import warnings. The opt-in
+`test_production_displayed_match_eligibility` also passed three isolated
+2025–2026 simulations: legacy and explicit displayed requirements produced the
+same annual headcounts and match totals; a 10,000-hour requirement produced zero
+match in both years. Workspace/scenario preview tests confirmed dormant legacy
+values stay stored while the displayed policy governs export. Reproduce with
+`PLANALIGN_MAPPING_AUDIT=1 pytest tests/test_studio_mapping_audit.py::test_production_displayed_match_eligibility -q`
+from the repository root with the virtual environment active. This automated
+evidence does not replace the remaining analyst tasks.
+
 ### Automated evidence, 2026-10-15
 
 The browser walkthrough used a disposable synthetic workspace under `var/epic862-browser`, separate from user workspaces. It exercised scenario headcount edits, tiered-match edits (3.5% and 4% maximum formula match at a 5% employee threshold), automatic enrollment off/on, explicit review/save, and reload. Saved YAML retained a custom unknown setting and an independent terminated-new-hire eligibility exception. A separate workspace-default edit from 2% to 2.5% growth survived review/save/reload without replacing the scenario's 3% override.
@@ -108,15 +238,15 @@ The combined validation passed 232 frontend tests and 169 targeted Python tests,
 
 Reproduce the automated checks with `npm test`, `npm run typecheck`, `npm run lint`, and `npm run build` from `planalign_studio/`. From the repository root with the virtual environment active, run `pytest tests/api/test_configuration_preview.py tests/api/test_openapi_contract.py tests/api/test_route_auth_coverage.py tests/unit/orchestrator/test_config_export.py tests/test_config_export_match_magnet.py tests/unit/test_issue_669_studio_contract.py tests/test_studio_mapping_audit.py -m 'not integration' -q`. The inventory gives the separate opt-in isolated integration command.
 
-This guide provides a repeatable task script. **Real analyst feedback and signoff are pending.** Automated component/API/browser checks do not establish analyst understanding. No before/after usability timing or baseline improvement is claimed here.
+This guide provides a repeatable task script. **The guided analyst session above is in progress; final signoff remains pending.** Automated component/API/browser checks do not establish analyst understanding. No before/after usability timing or baseline improvement is claimed here.
 
 For each task, record participant role, build/SHA, workspace/scenario, initial custom settings, completion, errors, help requests, elapsed time, and explanation accuracy. Use synthetic data and repeat at 1280×800 and a narrower viewport, including keyboard-only navigation.
 
 | Task | Real analyst completion | Errors / help / elapsed time | Explanation accuracy and feedback |
 |---|---|---|---|
-| 1. Projection, workforce, and pay assumptions | Pending | Not measured | Pending |
-| 2. Simple and tiered match, thresholds, eligibility | Pending | Not measured | Pending |
-| 3. Scope/rate changes and automatic enrollment off | Pending | Not measured | Pending |
+| 1. Projection, workforce, and pay assumptions | Workspace review/save/reload confirmed | 20 seconds; no reported errors or confusing controls; understanding questions explained by facilitator | Years and growth explained; pay behavior not independently assessed |
+| 2. Simple and tiered match, thresholds, eligibility | Match and eligibility review accepted; full task coverage pending | Initial attempt blocked at 30 seconds; custom-row detection and review/eligibility presentation corrected; retry time not measured | Nick accepted readable formulas and requirements; tiered-entry repetition and final signoff pending |
+| 3. Scope/rate changes and automatic enrollment off | Workspace edits and scenario Off run verified; corrected result chart accepted | 60 seconds; facilitator census setup repaired; false auto-enrollment chart slice corrected | Nick confirmed Voluntary 71% / Census 29%; editor inactive-control observations and scope explanation pending |
 
 - [ ] Repeat all tasks for workspace defaults and scenario overrides, including preexisting custom/inactive settings.
 - [ ] Record final automated browser/API/component evidence separately from analyst observations.

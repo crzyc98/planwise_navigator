@@ -4,7 +4,7 @@ import type { FormData, DeferralSegmentKey, VoluntaryDeferralBaseRates } from '.
 import { DEFERRAL_AGE_SEGMENTS, DEFERRAL_INCOME_SEGMENTS } from './types';
 import { DEFAULT_FORM_DATA } from './constants';
 import { buildConfigPayload } from './buildConfigPayload';
-import { applyConfigEdits, synchronizeCompensationAliases } from './configEdits';
+import { applyConfigEdits, preserveDisplayedMatchEligibility, synchronizeCompensationAliases } from './configEdits';
 import { applyResolvedFormData } from './resolvedFormData';
 import { validateNumericInputs } from './NumericInput';
 import { extractCensusPath, resolveCensusFields } from './censusConfig';
@@ -661,8 +661,9 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
     const current = latestConfig.current;
     const after = buildConfigPayload(current.formData, current.promotionHazardConfig, current.bandConfig, target);
     const edited = applyConfigEdits(originalConfig.current, before, after) as Record<string, any>;
-    return synchronizeCompensationAliases(edited, before, after);
-  }, [scenarioId, freshBaseConfig, savedFormData, formData, savedPromotionHazardConfig, savedBandConfig]);
+    const withEligibility = preserveDisplayedMatchEligibility(edited, before, after, resolvedEngineVariables);
+    return synchronizeCompensationAliases(withEligibility, before, after);
+  }, [scenarioId, freshBaseConfig, savedFormData, formData, savedPromotionHazardConfig, savedBandConfig, resolvedEngineVariables]);
 
   const handleSaveConfig = useCallback(async () => {
     if (!validateNumericInputs()) return false;

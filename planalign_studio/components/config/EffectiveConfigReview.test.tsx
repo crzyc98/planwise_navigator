@@ -1,7 +1,7 @@
 import type { ReactElement, ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { EffectiveConfigReview, formatDraftValue, matchRuleSummary, redactReviewValue, reviewChanges, type ConfigurationReviewDraft } from './EffectiveConfigReview';
+import { EffectiveConfigReview, eligibilityReviewChanges, formatDraftValue, matchEligibilityReview, matchRuleSummary, redactReviewValue, reviewChanges, type ConfigurationReviewDraft } from './EffectiveConfigReview';
 import { previewConfiguration, type ConfigPreview } from '../../services/api';
 
 const hooks = vi.hoisted(() => ({ slot: 0, cells: [] as unknown[], cleanups: [] as (() => void)[] }));
@@ -97,6 +97,21 @@ describe('Effective configuration review', () => {
     button(tree, 'Back to editing')!.props.onClick!(); expect(onClose).toHaveBeenCalledOnce();
   });
 
+  it('describes the analyst match edit in plain language in the Changes table', () => {
+    review.saved = { dc_plan: { match_template: 'tiered', match_tiers: resolved.engine_variables.match_tiers } };
+    review.draft = { dc_plan: { match_template: 'simple', match_tiers: [
+      { employee_min: 0, employee_max: 0.04, match_rate: 1 },
+    ] } };
+    const html = renderToStaticMarkup(render()).split('Inactive saved settings')[0];
+    expect(html).toContain('Employer match template');
+    expect(html).toContain('Tiered Match');
+    expect(html).toContain('Simple Match');
+    expect(html).toContain('Employer match formula');
+    expect(html).toContain('100% on the first 3%; then 50% on the next 2%');
+    expect(html).toContain('100% on the first 4%');
+    expect(html).not.toContain('employee_max');
+  });
+
   it('permits a verified corrected draft when the saved configuration is invalid', async () => {
     vi.mocked(previewConfiguration).mockReset().mockRejectedValueOnce(new Error('Saved start year invalid')).mockResolvedValueOnce(resolved);
     render(); await settle();
@@ -164,6 +179,58 @@ it('does not present one global match calculation when plan designs override it'
   expect(matchRuleSummary({ active_match_formula: 'simple', match_formulas: { simple: { match_rate: 0.5, max_match_percentage: 0.06 } } })).toContain('legacy formula label alone does not verify');
 });
 
+it('describes actual match requirements without calling eligibility off', () => {
+  const eligibility = { minimum_tenure_years: 2, minimum_hours_annual: 750,
+    require_active_at_year_end: false, allow_terminated_new_hires: true, allow_new_hires: true };
+  const legacy = matchEligibilityReview({ apply_eligibility: false, eligibility });
+  expect(legacy).toContain('Minimum service: 0 years; minimum annual hours: 1000');
+  expect(legacy).toContain('active employment at year-end: required');
+  expect(legacy).toContain('terminated hire-year employees: excluded');
+  const edited = matchEligibilityReview({ apply_eligibility: true, eligibility });
+  expect(edited).toContain('Minimum service: 2 years; minimum annual hours: 750');
+  expect(edited).toContain('active employment at year-end: not required');
+  expect(edited).toContain('terminated hire-year employees: allowed');
+});
+
+it('reviews a one-year requirement without phantom inherited or activation changes', () => {
+  const saved = {};
+  const draft = { dc_plan: { match_min_tenure_years: 1, match_min_hours_annual: 1000,
+    match_require_year_end_active: true, match_allow_terminated_new_hires: false,
+    match_allow_experienced_terminations: false, match_allow_new_hires: false } };
+  const before = { employer_match: { apply_eligibility: false, eligibility: {
+    minimum_tenure_years: 0, minimum_hours_annual: 1000, require_active_at_year_end: true,
+    allow_terminated_new_hires: false, allow_experienced_terminations: false, allow_new_hires: true,
+  } } };
+  const after = { employer_match: { apply_eligibility: true, eligibility: {
+    ...before.employer_match.eligibility, minimum_tenure_years: 1, allow_new_hires: false,
+  } } };
+  expect(eligibilityReviewChanges(saved, draft, before, after)).toEqual([
+    { key: 'dc_plan.match_min_tenure_years', before: 0, after: 1 },
+  ]);
+  expect(eligibilityReviewChanges(before, after, before, after, true)).toEqual([
+    { key: 'employer_match.eligibility.minimum_tenure_years', before: 0, after: 1 },
+    { key: 'employer_match.eligibility.allow_new_hires', before: true, after: false },
+  ]);
+  expect(formatDraftValue('dc_plan.match_min_tenure_years', 1)).toBe('1 year');
+  expect(formatDraftValue('dc_plan.match_require_year_end_active', true)).toBe('Required');
+});
+
+it('compares dormant legacy requirements against effective rules and retains unrelated changes', () => {
+  const before = { employer_match: { apply_eligibility: false, eligibility: {
+    minimum_hours_annual: 500, allow_terminated_new_hires: true,
+  } }, random_seed: 1 };
+  const after = { employer_match: { apply_eligibility: true, eligibility: {
+    minimum_hours_annual: 1000, allow_terminated_new_hires: false,
+  } }, random_seed: 2 };
+  expect(eligibilityReviewChanges(before, after, before, after, true)).toEqual([
+    { key: 'random_seed', before: 1, after: 2 },
+  ]);
+  expect(eligibilityReviewChanges({ dc_plan: { match_min_hours_annual: 1000 } },
+    { dc_plan: { match_min_hours_annual: 750 } }, {}, {})).toEqual([
+    { key: 'dc_plan.match_min_hours_annual', before: 1000, after: 750 },
+  ]);
+});
+
 it.each([
   ['dc_plan.match_cap_percent', 0.034999999999999996, '3.5%'],
   ['dc_plan.default_deferral_percent', 6, '6%'],
@@ -171,4 +238,13 @@ it.each([
   ['dc_plan.max_voluntary_deferral_percent', 0.1, '10%'],
 ])('formats %s using its explicit storage units', (key, value, expected) => {
   expect(formatDraftValue(key, value)).toBe(expected);
+});
+
+it('retains gaps, custom details and inherited values in match review', () => {
+  expect(formatDraftValue('dc_plan.match_tiers', undefined)).toBe('Inherited / default');
+  expect(formatDraftValue('dc_plan.match_tiers', [])).toBe('No explicit match tiers');
+  expect(formatDraftValue('dc_plan.match_tiers', [
+    { employee_min: 0.02, employee_max: 0.04, match_rate: 0.5, note: 'retain', file: '/private/x' },
+  ])).toBe('50% on employee contributions from 2% to 4% (additional row settings: {"note":"retain","file":"[hidden]"})');
+  expect(formatDraftValue('dc_plan.match_tiers', [{ unsupported: true }])).toContain('unsupported');
 });

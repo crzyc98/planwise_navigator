@@ -80,3 +80,44 @@ def test_unknown_workspace_is_not_found(workspace):
     with pytest.raises(HTTPException) as failure:
         preview_configuration("missing", ConfigPreviewRequest(config={}), storage)
     assert failure.value.status_code == 404
+
+
+@pytest.mark.parametrize("target", ["workspace", "scenario"])
+def test_displayed_match_policy_overrides_dormant_legacy_values(workspace, target):
+    storage, saved = workspace
+    base = dict(saved.base_config)
+    base["employer_match"] = {
+        "apply_eligibility": False,
+        "eligibility": {
+            "minimum_tenure_years": 3,
+            "minimum_hours_annual": 500,
+            "require_active_at_year_end": False,
+            "allow_new_hires": False,
+            "allow_terminated_new_hires": True,
+            "allow_experienced_terminations": True,
+        },
+    }
+    storage.update_workspace(saved.id, base_config=base)
+    policy = {
+        "match_min_tenure_years": 0,
+        "match_min_hours_annual": 750,
+        "match_require_year_end_active": True,
+        "match_allow_new_hires": True,
+        "match_allow_terminated_new_hires": False,
+        "match_allow_experienced_terminations": False,
+    }
+    draft = {**(base if target == "workspace" else {}), "dc_plan": policy}
+    preview = preview_configuration(
+        saved.id, ConfigPreviewRequest(config=draft, target=target), storage
+    )
+    assert preview["configuration"]["employer_match"] == base["employer_match"]
+    match = preview["engine_variables"]["employer_match"]
+    assert match["apply_eligibility"] is True
+    assert match["eligibility"] == {
+        "minimum_tenure_years": 0,
+        "minimum_hours_annual": 750,
+        "require_active_at_year_end": True,
+        "allow_new_hires": True,
+        "allow_terminated_new_hires": False,
+        "allow_experienced_terminations": False,
+    }
