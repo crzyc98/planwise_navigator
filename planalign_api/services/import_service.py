@@ -297,7 +297,7 @@ class ImportService:
             workspace_id=workspace_id,
             import_id=import_id,
             filename=filename,
-            storage_path=str(output_path),
+            storage_path=str(output_path.resolve()),
             original_filename=session.original_filename,
             row_count=len(transformed),
             file_size_bytes=output_path.stat().st_size,

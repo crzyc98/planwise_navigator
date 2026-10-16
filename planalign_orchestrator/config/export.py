@@ -432,20 +432,12 @@ def _apply_dc_plan_enrollment_overrides(
 
     _apply_escalation_overrides(dc_plan_dict, dbt_vars)
 
-    # Voluntary enrollment rate: UI sends decimal (0.0-1.0), pass through directly
-    _set_if_not_none(
-        dbt_vars,
-        "voluntary_enrollment_rate",
-        dc_plan_dict.get("voluntary_enrollment_rate"),
-        float,
-    )
-    # Issue #652: flat new-hire opt-out rate, same decimal convention
-    _set_if_not_none(
-        dbt_vars,
-        "new_hire_opt_out_rate",
-        dc_plan_dict.get("new_hire_opt_out_rate"),
-        float,
-    )
+    # Missing inherits; explicit null selects demographic behavior, including
+    # when the legacy enrollment block supplies a flat rate. Zero stays zero.
+    for key in ("voluntary_enrollment_rate", "new_hire_opt_out_rate"):
+        if key in dc_plan_dict:
+            value = dc_plan_dict[key]
+            dbt_vars[key] = _REMOVE_KEY if value is None else float(value)
     _set_if_not_none(
         dbt_vars,
         "deferral_spread_max_lift",

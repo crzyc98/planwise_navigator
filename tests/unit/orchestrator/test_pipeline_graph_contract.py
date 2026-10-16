@@ -178,10 +178,8 @@ def test_legacy_escalation_accumulator_preserves_scenario_and_plan_grain():
         "unique_key=['scenario_id', 'plan_design_id', 'employee_id', 'simulation_year']"
         in sql
     )
-    assert (
-        "DELETE FROM {{ this }} WHERE scenario_id = '{{ var('scenario_id', 'default') }}'"
-        in sql
-    )
+    assert "incremental_strategy='replace_simulation_year'" in sql
+    assert "year_partition_scope='year'" not in sql
 
 
 def test_workforce_accumulator_is_shadow_scheduled_for_normal_and_calibration():
@@ -192,6 +190,15 @@ def test_workforce_accumulator_is_shadow_scheduled_for_normal_and_calibration():
         assert MODEL_INT_WORKFORCE_STATE_ACCUMULATOR in _state_models(
             builder(2025, 2025)
         )
+
+
+def test_incremental_models_do_not_modify_rows_before_schema_synchronization():
+    for name, node in model_nodes(load_production_manifest()).items():
+        config = node["config"]
+        if config["materialized"] != "incremental":
+            continue
+        for hook in config.get("pre-hook", []):
+            assert not re.search(r"\b(DELETE|UPDATE|INSERT)\b", hook["sql"], re.I), name
 
 
 def test_prior_workforce_helpers_use_only_declared_projection_source():

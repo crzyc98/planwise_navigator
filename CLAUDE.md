@@ -356,7 +356,7 @@ planalign health  # Trigger sqlparse auto-fix
 
 ## **Versioning**
 
-Current version: **2.4.0** (unreleased; v2.2.0 "Calibration" is last tagged release).
+Current version: **3.0.0** ("Plan Design & Evidence").
 
 Managed in `_version.py` and `pyproject.toml`. See `/docs/VERSIONING_GUIDE.md` for the full process and `/CHANGELOG.md` for history.
 

@@ -220,7 +220,12 @@ def test_unknown_workspace_returns_404(client, monkeypatch) -> None:
         client.app.dependency_overrides.clear()
 
 
-def test_workspace_config_flows_to_runner(client, monkeypatch, tmp_path) -> None:
+@pytest.mark.parametrize(
+    "stale_scenario,stale_source", [(False, False), (True, False), (True, True)]
+)
+def test_workspace_config_flows_to_runner(
+    client, monkeypatch, tmp_path, stale_scenario, stale_source
+) -> None:
     # A workspace target materializes its config and copies only a completed
     # run whose config/census/seed/horizon provenance matches.
     import json
@@ -269,12 +274,24 @@ def test_workspace_config_flows_to_runner(client, monkeypatch, tmp_path) -> None
         )
     )
 
+    if stale_source:
+        census.write_bytes(b"replacement-census-after-source-run")
+
     class _Storage:
         def get_workspace(self, workspace_id):
             return _Workspace()
 
         def _workspace_path(self, workspace_id):
             return tmp_path
+
+        def get_merged_config(self, workspace_id, scenario_id):
+            return {
+                **_Workspace.base_config,
+                "setup": {"census_parquet_path": str(tmp_path / "old-import.parquet")},
+            }
+
+        def get_scenario(self, workspace_id, scenario_id):
+            return SimpleNamespace(id="scenario-1")
 
         def list_scenarios(self, workspace_id):
             return [SimpleNamespace(id="scenario-1")]
@@ -305,8 +322,18 @@ def test_workspace_config_flows_to_runner(client, monkeypatch, tmp_path) -> None
     try:
         resp = client.post(
             "/api/calibration/run",
-            json={"start_year": 2025, "end_year": 2026, "workspace_id": "ws1"},
+            json={
+                "start_year": 2025,
+                "end_year": 2026,
+                "workspace_id": "ws1",
+                "scenario_id": "scenario-1" if stale_scenario else None,
+            },
         )
+        if stale_source:
+            assert resp.status_code == 409
+            assert "No completed simulation matches" in resp.json()["detail"]
+            assert not captured
+            return
         assert resp.status_code == 202
         assert _await_job(client, resp.json()["run_id"])["status"] == "completed"
         assert captured["config_path"] is not None

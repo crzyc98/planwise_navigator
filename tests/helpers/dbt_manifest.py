@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import subprocess
 import tempfile
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
+
+from planalign_orchestrator.dbt_executable import find_dbt_executable
 
 ROOT = Path(__file__).parents[2]
 
@@ -17,7 +18,7 @@ ROOT = Path(__file__).parents[2]
 @lru_cache(maxsize=1)
 def load_production_manifest() -> dict[str, Any]:
     """Return a freshly parsed manifest so tests never trust stale target state."""
-    dbt = shutil.which("dbt")
+    dbt = find_dbt_executable()
     if dbt is None:
         raise AssertionError("dbt executable is required for graph-contract tests")
 

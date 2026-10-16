@@ -9,9 +9,16 @@ pandas, or another Parquet reader. Decimal, date, and timestamp types are preser
 and the export has no Excel sheet row limit.
 
 Workforce rows include Studio `scenario_name` and `scenario_id` labels across all
-simulation years. When selected scenarios use the same census path, the census is
-included once; otherwise census rows include scenario labels. Metadata records
-the workspace, export time, selected run IDs, and census paths.
+simulation years. The census is included once only when the selected runs contain
+identical census tables (schema, values, and duplicate counts). Otherwise census
+rows include scenario labels, even when the runs used the same file path before
+and after an upload was replaced. The comparison reads the archived database
+tables; it does not reopen the current workspace census.
+
+Metadata records the workspace, export time, selected run IDs, and census paths
+from each selected run's archived configuration. Census paths are blank when that
+historical configuration is unavailable; current scenario settings are not used
+as a substitute.
 
 The API accepts `format=parquet` at
 `GET /api/workspaces/{workspace_id}/analytics/compare/export?scenarios=<ids>`

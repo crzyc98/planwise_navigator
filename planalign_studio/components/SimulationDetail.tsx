@@ -18,7 +18,6 @@ import {
   ChevronDown,
   ChevronRight,
   Copy,
-  ExternalLink,
   History,
   Play,
   FolderOpen,
@@ -117,6 +116,7 @@ export default function SimulationDetail() {
   const [copiedConfig, setCopiedConfig] = useState(false);
   const [provenanceDownloadRun, setProvenanceDownloadRun] = useState<string | null>(null);
   const [provenanceError, setProvenanceError] = useState<string | null>(null);
+  const [downloadingArtifact, setDownloadingArtifact] = useState<string | null>(null);
 
   useEffect(() => {
     const loadDetails = async () => {
@@ -192,6 +192,19 @@ export default function SimulationDetail() {
       setProvenanceError(err instanceof Error ? err.message : 'Failed to download audit report');
     } finally {
       setProvenanceDownloadRun(null);
+    }
+  };
+
+  const handleArtifactDownload = async (artifact: Artifact) => {
+    if (!details || downloadingArtifact !== null) return;
+    setDownloadingArtifact(artifact.path);
+    setProvenanceError(null);
+    try {
+      await downloadArtifact(details.scenario_id, artifact.path, artifact.name);
+    } catch (err) {
+      setProvenanceError(err instanceof Error ? err.message : 'Failed to download artifact');
+    } finally {
+      setDownloadingArtifact(null);
     }
   };
 
@@ -506,12 +519,10 @@ export default function SimulationDetail() {
                                   <button
                                     key={artifact.path}
                                     type="button"
-                                    onClick={() => {
-                                      downloadArtifact(details.scenario_id, artifact.path, artifact.name).catch((err) => {
-                                        setProvenanceError(err instanceof Error ? err.message : 'Failed to download artifact');
-                                      });
-                                    }}
-                                    className="flex items-center p-3 bg-surface-raised hover:bg-surface-subtle rounded-lg border border-border transition-colors group text-left"
+                                    onClick={() => void handleArtifactDownload(artifact)}
+                                    disabled={downloadingArtifact !== null}
+                                    aria-busy={downloadingArtifact === artifact.path}
+                                    className="flex items-center p-3 bg-surface-raised hover:bg-surface-subtle rounded-lg border border-border transition-colors group text-left disabled:opacity-60"
                                   >
                                     {getArtifactIcon(artifact.type)}
                                     <div className="ml-3 flex-1 min-w-0">
@@ -519,10 +530,15 @@ export default function SimulationDetail() {
                                         {artifact.name}
                                       </p>
                                       <p className="text-xs text-ink-muted">
+                                        {downloadingArtifact === artifact.path ? 'Downloading… ' : ''}
                                         {formatBytes(artifact.size_bytes)}
                                       </p>
                                     </div>
-                                    <ExternalLink size={14} className="text-ink-subtle group-hover:text-fidelity-green ml-2" />
+                                    {downloadingArtifact === artifact.path ? (
+                                      <Loader2 size={14} className="text-fidelity-green ml-2 animate-spin" />
+                                    ) : (
+                                      <Download size={14} className="text-ink-subtle group-hover:text-fidelity-green ml-2" />
+                                    )}
                                   </button>
                                 ))}
                               </div>

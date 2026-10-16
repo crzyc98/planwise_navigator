@@ -45,7 +45,11 @@ models:
               max_value: 0.5
 
   - name: fct_yearly_events
-    description: "Consolidated fact table of all workforce events by simulation year"
+    description: >-
+      Consolidated workforce events by simulation year. Publication atomically
+      replaces the active scenario/year after schema synchronization, preserving
+      other scenarios and years. Native DuckDB type changes avoid ALTER/DML
+      transaction conflicts when rebuilding a copied calibration database.
     config:
       tags: ["critical", "locked", "event_sourcing", "contract"]
     data_tests:

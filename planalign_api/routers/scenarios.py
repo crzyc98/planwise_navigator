@@ -5,10 +5,14 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
+from pydantic import ValidationError
+from planalign_orchestrator.config.loader import SimulationConfig
+from planalign_orchestrator.config.export import to_dbt_vars
 
 from ..config import APISettings, get_settings
 from ..models.scenario import (
     Scenario,
+    ConfigPreviewRequest,
     ScenarioCreate,
     ScenarioUpdate,
     WorkforceParamsApplyRequest,
@@ -142,6 +146,44 @@ def get_scenario_config(
             detail=f"Scenario {scenario_id} not found in workspace {workspace_id}",
         )
     return config
+
+
+@router.post("/{workspace_id}/config-preview", response_model=Dict[str, Any])
+def preview_configuration(
+    workspace_id: str,
+    data: ConfigPreviewRequest,
+    storage: WorkspaceStorage = Depends(get_storage),
+) -> Dict[str, Any]:
+    """Resolve an unsaved draft using production merge and export, without running."""
+    try:
+        config = (
+            storage.merge_overrides(workspace_id, data.config)
+            if data.target == "scenario"
+            else storage.preview_base_config(workspace_id, data.config)
+        )
+        if config is None:
+            raise HTTPException(status_code=404, detail="Workspace not found")
+        errors = validate_seed_configs(config)
+        if errors:
+            raise HTTPException(
+                status_code=422,
+                detail={"message": "Invalid seed configuration", "errors": errors},
+            )
+        resolved = SimulationConfig(**config)
+        variables = to_dbt_vars(resolved)
+    except ValidationError as exc:
+        details = "; ".join(
+            f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}"
+            for error in exc.errors(include_input=False, include_url=False)
+        )
+        raise HTTPException(status_code=422, detail=details) from exc
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "configuration": config,
+        "engine_variables": variables,
+        "scope": "Configuration merge and engine export; runtime environment overrides and census validation are not evaluated.",
+    }
 
 
 @router.put("/{workspace_id}/scenarios/{scenario_id}", response_model=Scenario)

@@ -59,9 +59,12 @@ class CensusMetrics(APIModel):
     total_employer_cost: float = Field(
         ..., description="total_employer_match + total_employer_core"
     )
-    hce_count: int = Field(
+    hce_count: Optional[int] = Field(
         ...,
-        description="Employees in this slice classified as HCE by current-year compensation",
+        description=(
+            "Employees in this slice classified as HCE by current-year compensation; "
+            "null when the HCE threshold or compensation column is unavailable"
+        ),
     )
     average_employer_contribution_rate: Optional[float] = Field(
         None,

@@ -7,6 +7,8 @@ import {
 import { SlidersHorizontal, Loader2, Database, Sparkles, Plus, X, Check } from 'lucide-react';
 import {
   optimizeCalibration,
+  retrieveCalibrationResult,
+  CalibrationStatusUnavailable,
   applyCalibrationCandidate,
   AutoCalibrationOutcome,
   CalibrationContext,
@@ -24,6 +26,7 @@ import {
 } from '../services/api';
 import { extractCensusPath } from './config/ConfigContext';
 import { useChartTheme } from '../hooks/useChartTheme';
+import { baselineScenarioId } from './calibrationScenario';
 
 interface CalibrationOutletContext {
   activeWorkspace: Workspace | null;
@@ -242,6 +245,7 @@ export default function CalibrationPanel() {
   // the two targets (workforce growth is set exactly; comp growth is searched).
   const [autoLoading, setAutoLoading] = useState(false);
   const [autoError, setAutoError] = useState<string | null>(null);
+  const [recoverableRunId, setRecoverableRunId] = useState<string | null>(null);
   const [autoOutcome, setAutoOutcome] = useState<AutoCalibrationOutcome | null>(null);
   const [autoContext, setAutoContext] = useState<CalibrationContext | null>(null);
   const [tolerancePct, setTolerancePct] = useState(0.05);
@@ -251,12 +255,20 @@ export default function CalibrationPanel() {
   const [searchMode, setSearchMode] = useState<SolveMode>('new_hire_scale');
   const solvingNewHireRanges = searchMode === 'new_hire_scale';
 
-  // Calibration always belongs to the active workspace and can target either
-  // its baseline config or one scenario's exact merged config.
+  // Use an actual scenario from the active workspace; prefer Baseline.
   const { activeWorkspace } = useOutletContext<CalibrationOutletContext>();
   const [censusPath, setCensusPath] = useState('');
-  const [scenarios, setScenarios] = useState<Scenario[]>([]);
-  const [selectedScenarioId, setSelectedScenarioId] = useState('');
+  const [scenarioList, setScenarioList] = useState<{ workspaceId: string; items: Scenario[] } | null>(null);
+  const [scenarioListError, setScenarioListError] = useState<string | null>(null);
+  const [selection, setSelection] = useState<{ workspaceId: string; id: string } | null>(null);
+  const [loadedTarget, setLoadedTarget] = useState<string | null>(null);
+  const [targetError, setTargetError] = useState<string | null>(null);
+  const scenariosLoaded = scenarioList?.workspaceId === activeWorkspace?.id && !!activeWorkspace;
+  const scenarios = scenariosLoaded && scenarioList ? scenarioList.items : [];
+  const selectedScenarioId = selection?.workspaceId === activeWorkspace?.id
+    && scenarios.some(scenario => scenario.id === selection?.id) ? selection!.id : '';
+  const targetKey = selectedScenarioId ? `${activeWorkspace?.id}/${selectedScenarioId}/${searchMode}` : '';
+  const targetReady = !!targetKey && loadedTarget === targetKey;
 
   // Job Level Compensation Ranges via "Match Census" x scale (Feature 105) --
   // identical to the Workforce Parameters page, so the scale transfers to the
@@ -290,23 +302,39 @@ export default function CalibrationPanel() {
   const setValue = (key: string, v: number) =>
     setValues((prev) => ({ ...prev, [key]: v }));
 
-  // Hydrate every visible held-fixed lever and the horizon from the exact
-  // baseline/scenario target. The census always belongs to the workspace.
+  // Fetch only scenarios belonging to the active workspace.
   useEffect(() => {
+    let cancelled = false;
+    setSelection(null);
+    setScenarioList(null);
+    setScenarioListError(null);
     if (!activeWorkspace?.id) {
       setCensusPath('');
-      setScenarios([]);
-      setSelectedScenarioId('');
       return;
     }
-    listScenarios(activeWorkspace.id).then(setScenarios).catch(() => setScenarios([]));
+    const workspaceId = activeWorkspace.id;
+    listScenarios(workspaceId)
+      .then(items => {
+        if (cancelled) return;
+        setScenarioList({ workspaceId, items });
+        const baselineId = baselineScenarioId(items);
+        setSelection(baselineId ? { workspaceId, id: baselineId } : null);
+      })
+      .catch(error => { if (!cancelled) setScenarioListError(errorText(error)); });
+    return () => { cancelled = true; };
   }, [activeWorkspace?.id]);
 
   useEffect(() => {
-    if (!activeWorkspace?.id) return;
+    let cancelled = false;
+    setLoadedTarget(null);
+    setTargetError(null);
+    setCensusPath('');
     setAutoOutcome(null);
     setAutoContext(null);
     setResults([]);
+    setRecoverableRunId(null);
+    setAutoError(null);
+    if (!activeWorkspace?.id || !selectedScenarioId) return;
     const seedFromConfig = (cfg: any, workspaceCfg: any) => {
       setCensusPath(extractCensusPath(workspaceCfg) ?? '');
       const simulation = (cfg?.simulation ?? {}) as Record<string, number>;
@@ -350,15 +378,18 @@ export default function CalibrationPanel() {
         setBaseRanges([]);
       }
     };
-    getWorkspace(activeWorkspace.id)
-      .then(async (ws) => {
-        const targetConfig = selectedScenarioId
-          ? await getScenarioConfig(activeWorkspace.id, selectedScenarioId)
-          : ws.base_config;
+    Promise.all([
+      getWorkspace(activeWorkspace.id),
+      getScenarioConfig(activeWorkspace.id, selectedScenarioId),
+    ])
+      .then(([ws, targetConfig]) => {
+        if (cancelled) return;
         seedFromConfig(targetConfig, ws.base_config);
+        setLoadedTarget(targetKey);
       })
-      .catch(() => seedFromConfig(activeWorkspace.base_config, activeWorkspace.base_config));
-  }, [activeWorkspace?.id, selectedScenarioId, solvingNewHireRanges]);
+      .catch(error => { if (!cancelled) setTargetError(errorText(error)); });
+    return () => { cancelled = true; };
+  }, [activeWorkspace?.id, selectedScenarioId, solvingNewHireRanges, targetKey]);
 
   // Derive UNSCALED per-level ranges from the workspace census; the
   // displayed/sent ranges apply the Scale (×) input, exactly like the
@@ -452,25 +483,30 @@ export default function CalibrationPanel() {
     }
   };
 
-  const runAutoCalibrate = async () => {
+  const runAutoCalibrate = async (resumeRunId?: string) => {
+    if (!targetReady || !activeWorkspace || !selectedScenarioId) {
+      setAutoError('Select a scenario and wait for its settings to load before calibrating.');
+      return;
+    }
     setAutoLoading(true);
     setAutoError(null);
     setAutoOutcome(null);
     setAutoContext(null);
+    setResults([]);
     setApplyStatus('idle');
     try {
       // Scale mode NEVER silently falls back: derive the census ranges
       // automatically if Match Census hasn't been run, or fail clearly.
       let scaleBases = baseRanges;
-      if (searchMode === 'new_hire_scale' && scaleBases.length === 0) {
+      if (!resumeRunId && searchMode === 'new_hire_scale' && scaleBases.length === 0) {
         scaleBases = await fetchBaseRanges();
       }
-      const response = await optimizeCalibration({
+      const response = resumeRunId ? await retrieveCalibrationResult(resumeRunId) : await optimizeCalibration({
         start_year: startYear,
         end_year: endYear,
         database_path: null,
-        workspace_id: activeWorkspace?.id ?? null,
-        scenario_id: selectedScenarioId || null,
+        workspace_id: activeWorkspace.id,
+        scenario_id: selectedScenarioId,
         settings: {
           target_workforce_growth: values.workforce_growth_rate,
           target_comp_growth: values.target_growth_pct,
@@ -498,6 +534,7 @@ export default function CalibrationPanel() {
         },
       });
       const outcome = response.outcome;
+      setRecoverableRunId(null);
       setAutoContext(response.context);
       setAutoOutcome(outcome);
       setResults(outcome.results);
@@ -512,7 +549,8 @@ export default function CalibrationPanel() {
         setScaleFactor(outcome.best_scale);
       }
     } catch (e) {
-      setAutoError(errorText(e));
+      setRecoverableRunId(e instanceof CalibrationStatusUnavailable ? e.runId : null);
+      setAutoError(errorText(e) || 'Calibration stopped without a result. Please try again.');
     } finally {
       setAutoLoading(false);
     }
@@ -595,18 +633,34 @@ export default function CalibrationPanel() {
           </div>
 
           <label className="block">
-            <span className="text-sm font-medium text-ink-muted">Target configuration</span>
+            <span className="text-sm font-medium text-ink-muted">Scenario to calibrate</span>
             <select
               value={selectedScenarioId}
-              onChange={(event) => setSelectedScenarioId(event.target.value)}
+              onChange={(event) => setSelection({ workspaceId: activeWorkspace!.id, id: event.target.value })}
+              disabled={!scenariosLoaded || scenarios.length === 0 || autoLoading}
               className="mt-1 w-full rounded-md border border-border-strong bg-surface-raised p-2 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
             >
-              <option value="">Workspace baseline</option>
+              <option value="" disabled>Select a scenario</option>
               {scenarios.map((scenario) => (
                 <option key={scenario.id} value={scenario.id}>{scenario.name}</option>
               ))}
             </select>
           </label>
+          {scenarioListError ? (
+            <p role="alert" className="text-sm text-danger-ink">Could not load scenarios: {scenarioListError}</p>
+          ) : !activeWorkspace ? (
+            <p className="text-sm text-ink-muted">Select a workspace to calibrate a scenario.</p>
+          ) : !scenariosLoaded ? (
+            <p className="text-sm text-ink-muted">Loading scenarios…</p>
+          ) : scenarios.length === 0 ? (
+            <p className="text-sm text-ink-muted">Create and run a scenario in this workspace before calibrating.</p>
+          ) : targetError ? (
+            <p role="alert" className="text-sm text-danger-ink">Could not load scenario settings: {targetError}</p>
+          ) : (
+            <p className="text-sm text-ink-muted">
+              {selectedScenarioId && !targetReady ? 'Loading scenario settings…' : 'Choose a scenario with a completed simulation to calibrate.'}
+            </p>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <label className="block">
@@ -630,7 +684,7 @@ export default function CalibrationPanel() {
           </div>
           <p className="text-xs text-ink-muted">
             {endYear >= startYear ? `${endYear - startYear + 1} years inclusive. ` : ''}
-            Defaults come from the target configuration. Calibration uses an isolated copy
+            Settings come from the selected scenario. Calibration uses an isolated copy
             only when a completed run matches its census, config, seed, and horizon; the
             shared development database is never read.
           </p>
@@ -669,6 +723,7 @@ export default function CalibrationPanel() {
                   key={m.key}
                   type="button"
                   onClick={() => setSearchMode(m.key)}
+                  disabled={autoLoading}
                   className={`text-left rounded-lg border p-4 transition ${
                     selected
                       ? 'border-fidelity-green ring-2 ring-fidelity-green/30 bg-success-surface'
@@ -1064,9 +1119,9 @@ export default function CalibrationPanel() {
             )}
             <div className="flex flex-wrap items-end gap-4">
               <button
-                onClick={runAutoCalibrate}
-                disabled={autoLoading || endYear <= startYear}
-                title={endYear <= startYear ? 'Needs a multi-year range to measure YoY growth' : undefined}
+                onClick={() => void runAutoCalibrate()}
+                disabled={autoLoading || !targetReady || endYear <= startYear}
+                title={!targetReady ? 'Select a scenario and wait for its settings to load' : endYear <= startYear ? 'Needs a multi-year range to measure YoY growth' : undefined}
                 className="inline-flex items-center gap-2 rounded-md bg-info-solid px-4 py-2 text-ink-inverse text-sm font-medium hover:bg-info-solid-hover disabled:opacity-50"
               >
                 {autoLoading ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
@@ -1090,7 +1145,18 @@ export default function CalibrationPanel() {
               </label>
             </div>
           </div>
-          {autoError && <p className="mt-2 text-xs text-danger-ink">{autoError}</p>}
+          {autoError && (
+            <div role="alert" className="mt-3 rounded-md border border-danger-border bg-danger-surface p-3 text-sm text-danger-ink">
+              <p className="font-semibold">No calibration result is available to apply</p>
+              <p>{autoError}</p>
+              {recoverableRunId && (
+                <button type="button" disabled={autoLoading} onClick={() => void runAutoCalibrate(recoverableRunId)}
+                  className="mt-2 underline font-medium disabled:opacity-50">
+                  Retrieve result
+                </button>
+              )}
+            </div>
+          )}
           {autoOutcome && (
             <div className="mt-3">
               <p className={`text-xs font-medium ${autoOutcome.converged ? 'text-success-ink' : 'text-warning-ink'}`}>
@@ -1143,7 +1209,7 @@ export default function CalibrationPanel() {
             <div className="flex flex-wrap items-center gap-3">
               <button
                 onClick={handleApplyToWorkspace}
-                disabled={applyStatus === 'applying' || !activeWorkspace?.id || results.length === 0}
+                disabled={autoLoading || applyStatus === 'applying' || !activeWorkspace?.id || !autoOutcome || !autoContext || results.length === 0}
                 title={results.length === 0 ? 'Auto-calibrate first' : 'Write these levers to the workspace base config and all its scenarios'}
                 className="inline-flex items-center gap-2 rounded bg-fidelity-green px-4 py-2 text-ink-inverse font-medium hover:bg-fidelity-dark disabled:opacity-50"
               >

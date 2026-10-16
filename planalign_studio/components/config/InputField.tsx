@@ -1,4 +1,5 @@
 import React, { useId } from 'react';
+import { NumericInput } from './NumericInput';
 
 export interface InputFieldProps {
   readonly label: string;
@@ -13,6 +14,7 @@ export interface InputFieldProps {
   readonly min?: number;
   readonly max?: number;
   readonly placeholder?: string;
+  readonly disabled?: boolean;
 }
 
 export const InputField: React.FC<InputFieldProps> = ({
@@ -27,15 +29,20 @@ export const InputField: React.FC<InputFieldProps> = ({
   step = "1",
   min,
   max,
-  placeholder
+  placeholder,
+  disabled = false,
 }) => {
   const generatedId = useId();
   const inputId = `input-${name}-${generatedId}`;
+  const numeric = type === 'number';
+  const duration = /^(Days|Months|Years|Hours)$/i.test(suffix);
+  const Input = numeric ? NumericInput : 'input';
   return (
   <div className={`sm:${width}`}>
     <label htmlFor={inputId} className="block text-sm font-medium text-ink-muted">{label}</label>
-    <div className="mt-1 relative rounded-md shadow-sm">
-      <input
+    <div className="mt-1 flex items-start gap-2">
+      <div className="min-w-0 flex-1">
+      <Input
         id={inputId}
         type={type}
         name={name}
@@ -45,15 +52,17 @@ export const InputField: React.FC<InputFieldProps> = ({
         min={min}
         max={max}
         placeholder={placeholder}
-        className="shadow-sm focus:ring-fidelity-green focus:border-fidelity-green block w-full sm:text-sm border-border-strong rounded-md p-2 border"
+        disabled={disabled}
+        {...(numeric ? { showStepper: duration, integer: duration || ['seed', 'startYear', 'endYear'].includes(name) } : {})}
+        aria-describedby={[suffix ? `${inputId}-unit` : '', helper ? `${inputId}-help` : ''].filter(Boolean).join(' ') || undefined}
+        className="shadow-sm focus:ring-fidelity-green focus:border-fidelity-green block w-full sm:text-sm border-border-strong rounded-md p-2 border disabled:bg-surface-disabled disabled:text-ink-muted disabled:cursor-not-allowed"
       />
+      </div>
       {suffix && (
-        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-          <span className="text-ink-muted sm:text-sm">{suffix}</span>
-        </div>
+        <span id={`${inputId}-unit`} className="shrink-0 pt-2 text-ink-muted text-sm whitespace-nowrap">{suffix}</span>
       )}
     </div>
-    {helper && <p className="mt-1 text-xs text-ink-muted">{helper}</p>}
+    {helper && <p id={`${inputId}-help`} className="mt-1 text-xs text-ink-muted">{helper}</p>}
   </div>
   );
 };

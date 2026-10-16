@@ -3,47 +3,31 @@ import { HelpCircle, BarChart3, AlertTriangle, CheckCircle } from 'lucide-react'
 import { useConfigContext } from './ConfigContext';
 import { InputField } from './InputField';
 import { analyzeTurnoverRates, TurnoverAnalysisResult } from '../../services/api';
+import { useSuggestionPreview } from './useSuggestionPreview';
 
 export function TurnoverSection({ variant = 'full' }: { variant?: 'full' | 'essentials' }) {
-  const { formData, setFormData, inputProps, activeWorkspace } = useConfigContext();
+  const { formData, setFormData, inputProps, activeWorkspace, scenarioId, scenarioLoading } = useConfigContext();
   const essentials = variant === 'essentials';
 
-  const [analyzing, setAnalyzing] = useState(false);
-  const [analysis, setAnalysis] = useState<TurnoverAnalysisResult | null>(null);
-  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [asOfYear, setAsOfYear] = useState('');
+  const preview = useSuggestionPreview<TurnoverAnalysisResult>(JSON.stringify([formData, asOfYear, scenarioLoading]), JSON.stringify([activeWorkspace?.id, scenarioId]));
+  const { value: analysis, pending: analyzing, error: analysisError } = preview;
 
   const handleMatchCensus = async () => {
-    if (!activeWorkspace?.id || !formData.censusDataPath) {
-      setAnalysisError('Please upload a census file first');
-      return;
-    }
-    setAnalyzing(true);
-    setAnalysis(null);
-    setAnalysisError(null);
-    try {
-      const result = await analyzeTurnoverRates(
+    if (!activeWorkspace?.id || !formData.censusDataPath) return;
+    await preview.calculate(() => analyzeTurnoverRates(
         activeWorkspace.id,
         formData.censusDataPath,
         asOfYear ? `${asOfYear}-12-31` : undefined,
-      );
-      setAnalysis(result);
-      setAsOfYear(result.as_of_date.slice(0, 4));
-    } catch (error) {
-      setAnalysisError(error instanceof Error ? error.message : 'Failed to analyze census for turnover rates');
-    } finally {
-      setAnalyzing(false);
-    }
+      ));
   };
 
   const handleApplySuggestions = () => {
-    if (!analysis) return;
-    setFormData(prev => ({
+    preview.apply(analysis => setFormData(prev => ({
       ...prev,
       ...(analysis.experienced_rate ? { totalTerminationRate: parseFloat((analysis.experienced_rate.rate * 100).toFixed(1)) } : {}),
       ...(analysis.new_hire_rate ? { newHireTerminationRate: parseFloat((analysis.new_hire_rate.rate * 100).toFixed(1)) } : {}),
-    }));
-    setAnalysis(null);
+    })));
   };
 
   const confidenceBadge = (confidence: string) => {
@@ -64,26 +48,26 @@ export function TurnoverSection({ variant = 'full' }: { variant?: 'full' | 'esse
   return (
     <div className="space-y-8 animate-fadeIn">
       <div className="border-b border-border pb-4">
-        <h2 className="text-lg font-bold text-ink">Workforce & Turnover</h2>
-        <p className="text-sm text-ink-muted">Model employee attrition rates and retention risks.</p>
+        <h2 className="text-lg font-bold text-ink">Headcount and turnover</h2>
+        <p className="text-sm text-ink-muted">Headcount growth sets the annual net target. Hiring also replaces employee exits, so total hiring can exceed the growth target.</p>
       </div>
 
       {/* Core Workforce Parameters */}
-      <div className="bg-warning-surface rounded-lg p-4 border border-warning-border">
-        <div className="flex items-center justify-between mb-3">
-          <h4 className="text-sm font-semibold text-warning-ink uppercase tracking-wider">Core Termination Rates</h4>
-          <div className="flex items-center gap-2">
+      <div className="bg-surface-subtle rounded-lg p-4 border border-border">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <h4 className="text-sm font-semibold text-ink">Annual assumptions</h4>
+          <div className="flex flex-wrap items-center gap-2">
             <label className="text-xs text-warning-ink">Census year
               <input value={asOfYear} onChange={(event) => setAsOfYear(event.target.value)} placeholder="Inferred" inputMode="numeric" className="ml-1 w-20 rounded border border-warning-border bg-surface-raised px-2 py-1 text-sm" />
             </label>
             <button
               onClick={handleMatchCensus}
-              disabled={analyzing || !formData.censusDataPath}
+              disabled={analyzing || !formData.censusDataPath || scenarioLoading}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-warning-solid text-ink-inverse rounded-lg hover:bg-warning-solid-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               title={!formData.censusDataPath ? 'Upload a census file first' : 'Analyze census to suggest termination rates'}
             >
               <BarChart3 size={14} />
-              {analyzing ? 'Analyzing...' : 'Match Census'}
+              {analyzing ? 'Analyzing...' : 'Suggest from census'}
             </button>
           </div>
         </div>
@@ -92,7 +76,7 @@ export function TurnoverSection({ variant = 'full' }: { variant?: 'full' | 'esse
         {analysisError && (
           <div className="mb-3 p-3 bg-danger-surface border border-danger-border rounded-lg">
             <p className="text-sm text-danger-ink">{analysisError}</p>
-            <button onClick={() => setAnalysisError(null)} className="mt-1 text-xs text-danger-ink hover:text-danger-ink underline">
+            <button onClick={preview.cancel} className="mt-1 text-xs text-danger-ink hover:text-danger-ink underline">
               Dismiss
             </button>
           </div>
@@ -101,7 +85,9 @@ export function TurnoverSection({ variant = 'full' }: { variant?: 'full' | 'esse
         {/* Suggestion panel */}
         {analysis && (
           <div className="mb-4 bg-info-surface border border-info-border rounded-lg p-4">
-            <div className="flex items-start justify-between">
+            {preview.stale && <p role="status" className="text-warning-ink text-sm mb-2">Needs recalculation: inputs have changed.</p>}
+            <p className="text-xs text-info-ink mb-2">Source: {formData.censusDataPath}. Rates use the census analysis exposure window; review sample counts and confidence before applying.</p>
+            <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="flex-1">
                 <h4 className="text-info-ink font-medium">Suggested Termination Rates</h4>
                 <p className="text-sm text-info-ink mt-1">
@@ -110,14 +96,14 @@ export function TurnoverSection({ variant = 'full' }: { variant?: 'full' | 'esse
                 </p>
               </div>
               <div className="flex gap-2 ml-4">
-                <button onClick={() => setAnalysis(null)}
+                <button onClick={preview.cancel}
                   className="px-3 py-1.5 text-sm text-ink-muted bg-surface-raised border border-border-strong rounded-lg hover:bg-surface-subtle">
                   Cancel
                 </button>
                 {(analysis.experienced_rate || analysis.new_hire_rate) && (
-                  <button onClick={handleApplySuggestions}
+                  <button onClick={handleApplySuggestions} disabled={preview.stale}
                     className="px-3 py-1.5 text-sm bg-info-solid text-ink-inverse rounded-lg hover:bg-info-solid-hover">
-                    Apply Suggestions
+                    Apply suggested rates
                   </button>
                 )}
               </div>
@@ -201,8 +187,9 @@ export function TurnoverSection({ variant = 'full' }: { variant?: 'full' | 'esse
         )}
 
         <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+          {essentials && <InputField label="Annual headcount growth" {...inputProps('targetGrowthRate')} type="number" step="0.1" suffix="%" helper="Net workforce growth target, in addition to replacement hiring." />}
           <InputField
-            label="Total Termination Rate"
+            label="Experienced-employee turnover"
             {...inputProps('totalTerminationRate')}
             type="number"
             step="0.1"
@@ -210,12 +197,12 @@ export function TurnoverSection({ variant = 'full' }: { variant?: 'full' | 'esse
             helper="Overall annual termination rate for experienced employees"
           />
           <InputField
-            label="New Hire Termination Rate"
+            label="New-hire turnover assumption"
             {...inputProps('newHireTerminationRate')}
             type="number"
             step="0.1"
             suffix="%"
-            helper="First-year termination rate (typically higher than overall)"
+            helper="Also affects prior-year surviving hires in later-year workforce planning."
           />
         </div>
       </div>

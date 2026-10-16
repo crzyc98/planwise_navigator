@@ -4,11 +4,6 @@
       "count": 3
     }
   },
-  "components/CalibrationPanel.tsx": {
-    "react-hooks/exhaustive-deps": {
-      "count": 1
-    }
-  },
   "components/CensusAnalysis.tsx": {
     "react-hooks/exhaustive-deps": {
       "count": 1

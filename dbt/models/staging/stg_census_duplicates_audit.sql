@@ -3,7 +3,19 @@
 -- Audit table to track duplicate employee_ids in raw census data
 -- This helps identify data quality issues in source systems
 
-WITH duplicates AS (
+-- Match staging's optional-column scaffold without deduplicating the raw input.
+WITH schema_scaffold AS (
+  SELECT
+      NULL::VARCHAR AS employee_ssn,
+      NULL::DATE AS employee_termination_date
+  WHERE FALSE
+),
+parquet_with_schema AS (
+  SELECT * FROM read_parquet('{{ var("census_parquet_path") }}')
+  UNION ALL BY NAME
+  SELECT * FROM schema_scaffold
+),
+duplicates AS (
   SELECT
       employee_id,
       employee_ssn,
@@ -17,7 +29,7 @@ WITH duplicates AS (
           PARTITION BY employee_id
           ORDER BY employee_hire_date DESC, employee_gross_compensation DESC
       ) AS occurrence_rank
-  FROM read_parquet('{{ var("census_parquet_path") }}')
+  FROM parquet_with_schema
 )
 
 SELECT

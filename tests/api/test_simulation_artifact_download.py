@@ -3,7 +3,8 @@
 from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
+from fastapi.testclient import TestClient
 
 from planalign_api.routers import simulations
 
@@ -52,3 +53,39 @@ def test_download_artifact_returns_file_within_scenario(artifact_storage):
     assert response.path == artifact_path.resolve()
     assert response.media_type == "text/csv"
     assert response.filename == "summary.csv"
+
+
+@pytest.mark.parametrize(
+    "filename,size_mib,media_type",
+    [
+        (
+            "results.xlsx",
+            12,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ),
+        ("simulation.duckdb", 150, "application/octet-stream"),
+    ],
+)
+def test_download_large_archived_artifact(
+    artifact_storage, filename, size_mib, media_type
+):
+    """The HTTP response preserves every byte of an artifact above 10 MiB."""
+    storage, scenario_path = artifact_storage
+    artifact_path = scenario_path / "runs" / "run-1" / filename
+    artifact_path.parent.mkdir(parents=True)
+    payload = bytes(range(256)) * (size_mib * 1024 * 1024 // 256)
+    artifact_path.write_bytes(payload)
+    app = FastAPI()
+    app.include_router(simulations.router, prefix="/api/scenarios")
+    app.dependency_overrides[simulations.get_storage] = lambda: storage
+
+    with TestClient(app) as client:
+        response = client.get(
+            f"/api/scenarios/scenario-1/artifacts/runs/run-1/{filename}"
+        )
+
+    assert response.status_code == 200
+    assert response.content == payload
+    assert int(response.headers["content-length"]) == len(payload)
+    assert response.headers["content-type"] == media_type
+    assert f'filename="{filename}"' in response.headers["content-disposition"]

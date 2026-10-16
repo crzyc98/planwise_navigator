@@ -30,6 +30,8 @@ from typing import (
     Tuple,
 )
 
+from .dbt_executable import find_dbt_executable
+
 if TYPE_CHECKING:
     from .construction.signature import WorkSchedule
 
@@ -371,7 +373,15 @@ class DbtRunner:
         dbt_vars: Optional[Dict[str, Any]] = None,
         threads: Optional[int] = None,
     ) -> List[str]:
-        cmd: List[str] = [self.executable, *command_args]
+        executable = self.executable
+        if executable == "dbt":
+            resolved = find_dbt_executable()
+            if resolved is None:
+                raise DbtExecutionError(
+                    "dbt executable was not found on PATH or beside the running Python"
+                )
+            executable = resolved
+        cmd: List[str] = [executable, *command_args]
         # dbt 1.8's CLI only accepts --project-dir after the subcommand.
         if self.project_dir is not None:
             cmd.extend(["--project-dir", str(self.project_dir)])
