@@ -238,7 +238,7 @@ function mapDCPlanEnrollmentFields(cfg: any, prev: FormData): Partial<FormData> 
     dcAutoEnrollWindowDays: cfg.dc_plan?.auto_enroll_window_days ?? prev.dcAutoEnrollWindowDays,
     dcAutoEnrollOptOutGracePeriod: cfg.dc_plan?.auto_enroll_opt_out_grace_period ?? prev.dcAutoEnrollOptOutGracePeriod,
     dcAutoEnrollScope: cfg.dc_plan?.auto_enroll_scope || prev.dcAutoEnrollScope,
-    dcAutoEnrollHireDateCutoff: cfg.dc_plan?.auto_enroll_hire_date_cutoff || prev.dcAutoEnrollHireDateCutoff,
+    dcAutoEnrollHireDateCutoff: cfg.dc_plan?.auto_enroll_hire_date_cutoff ?? prev.dcAutoEnrollHireDateCutoff,
     dcOptOutRateTarget: cfg.dc_plan?.opt_out_rate_target != null
       ? cfg.dc_plan.opt_out_rate_target * 100 : prev.dcOptOutRateTarget,
     dcVoluntaryEnrollmentRate: cfg.dc_plan?.voluntary_enrollment_rate != null
@@ -317,19 +317,15 @@ function mapDCPlanCoreFields(cfg: any, prev: FormData): Partial<FormData> {
 
 /** Map DC plan escalation config fields to FormData. */
 function mapDCPlanEscalationFields(cfg: any, prev: FormData): Partial<FormData> {
-  const cutoff = cfg.dc_plan?.escalation_hire_date_cutoff || prev.dcEscalationHireDateCutoff;
-  let resolvedCutoff = cutoff;
-  if (!resolvedCutoff) {
-    const escalationOn = cfg.dc_plan?.auto_escalation ?? prev.dcAutoEscalation;
-    resolvedCutoff = escalationOn ? `${cfg.simulation?.start_year || prev.startYear}-01-01` : '';
-  }
   return {
     dcAutoEscalation: cfg.dc_plan?.auto_escalation ?? prev.dcAutoEscalation,
     dcEscalationRate: cfg.dc_plan?.escalation_rate_percent ?? prev.dcEscalationRate,
     dcEscalationCap: cfg.dc_plan?.escalation_cap_percent ?? prev.dcEscalationCap,
     dcEscalationEffectiveDay: cfg.dc_plan?.escalation_effective_day || prev.dcEscalationEffectiveDay,
     dcEscalationDelayYears: cfg.dc_plan?.escalation_delay_years ?? prev.dcEscalationDelayYears,
-    dcEscalationHireDateCutoff: resolvedCutoff,
+    // Empty/null explicitly clears a cutoff; only an omitted field inherits it.
+    dcEscalationHireDateCutoff: cfg.dc_plan?.escalation_hire_date_cutoff === undefined
+      ? prev.dcEscalationHireDateCutoff : cfg.dc_plan.escalation_hire_date_cutoff ?? '',
   };
 }
 

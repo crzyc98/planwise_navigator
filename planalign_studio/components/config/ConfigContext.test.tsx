@@ -1,8 +1,9 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ConfigContextType, ConfigProvider, useConfigContext } from './ConfigContext';
+import { applyConfigToFormData, ConfigContextType, ConfigProvider, useConfigContext } from './ConfigContext';
 import { DEFAULT_FORM_DATA } from './constants';
+import { buildConfigPayload } from './buildConfigPayload';
 import { updateWorkspace, Workspace } from '../../services/api';
 
 const hydration = vi.hoisted(() => ({ slot: 0, loaded: true, failed: false }));
@@ -39,6 +40,51 @@ function saveFromProvider() {
   );
   return context.handleSaveConfig;
 }
+
+describe('Enrollment and escalation cutoff hydration', () => {
+  it.each([false, true])('does not invent a cutoff with escalation enabled=%s', enabled => {
+    const form = applyConfigToFormData({
+      simulation: { start_year: 2028 },
+      dc_plan: { auto_escalation: enabled },
+    }, { ...DEFAULT_FORM_DATA, dcEscalationHireDateCutoff: '' });
+    expect(form.dcEscalationHireDateCutoff).toBe('');
+    expect(buildConfigPayload(form, null, null).dc_plan.escalation_hire_date_cutoff).toBe('');
+  });
+
+  it.each([false, true])('honors cleared scenario cutoffs with enrollment/escalation enabled=%s', enabled => {
+    const inherited = applyConfigToFormData({ dc_plan: {
+      auto_enroll_hire_date_cutoff: '2019-04-03',
+      escalation_hire_date_cutoff: '2018-06-01',
+    } }, DEFAULT_FORM_DATA);
+    const form = applyConfigToFormData({ dc_plan: {
+      auto_enroll: enabled,
+      auto_escalation: enabled,
+      auto_enroll_hire_date_cutoff: '',
+      escalation_hire_date_cutoff: '',
+    } }, inherited);
+    expect(form.dcAutoEnrollHireDateCutoff).toBe('');
+    expect(form.dcEscalationHireDateCutoff).toBe('');
+    const payload = buildConfigPayload(form, null, null);
+    expect(payload.dc_plan.auto_enroll_hire_date_cutoff).toBe('');
+    expect(payload.dc_plan.escalation_hire_date_cutoff).toBe('');
+  });
+
+  it('honors an explicit null escalation cutoff instead of restoring an inherited date', () => {
+    const form = applyConfigToFormData({ dc_plan: { escalation_hire_date_cutoff: null } }, {
+      ...DEFAULT_FORM_DATA, dcEscalationHireDateCutoff: '2018-06-01',
+    });
+    expect(form.dcEscalationHireDateCutoff).toBe('');
+  });
+
+  it.each([false, true])('retains inherited cutoffs when only enrollment/escalation enabled=%s changes', enabled => {
+    const previous = { ...DEFAULT_FORM_DATA,
+      dcAutoEnrollHireDateCutoff: '2019-04-03', dcEscalationHireDateCutoff: '2018-06-01',
+    };
+    const form = applyConfigToFormData({ dc_plan: { auto_enroll: enabled, auto_escalation: enabled } }, previous);
+    expect(form.dcAutoEnrollHireDateCutoff).toBe(previous.dcAutoEnrollHireDateCutoff);
+    expect(form.dcEscalationHireDateCutoff).toBe(previous.dcEscalationHireDateCutoff);
+  });
+});
 
 describe('Configuration save year validation', () => {
   beforeEach(() => {
