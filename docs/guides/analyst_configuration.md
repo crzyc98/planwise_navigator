@@ -118,9 +118,17 @@ Choose **Review changes** after editing, or **Review configuration** to inspect 
 
 Reload the same destination and reopen review. Confirm that edited values and intentional inheritance survived, while custom exception flags, inactive schedules, and unrelated settings were retained. Resolved configuration/export evidence verifies the inputs prepared for the engine; simulated outcomes require separate run evidence.
 
-## Acceptance record — analyst signoff pending
+## Acceptance record — analyst signoff received
 
-### Guided analyst walkthrough, 2026-10-16 — in progress
+### Guided analyst walkthrough, 2026-10-16 — signed off; coverage gaps retained
+
+Nick, Lead Developer / VP of Analytics, explicitly signed off with “i signoff”
+after the walkthrough fixes in PR #885 were merged. This approves the revised
+configuration experience and the separately discussed match-response behavior.
+Earlier pending-acceptance notes below describe the progression of the session;
+this signoff supersedes requests for final analyst approval. It does not claim
+that unobserved scenario repetitions, keyboard navigation, narrower layouts, or
+independent compensation explanations were tested.
 
 Participant: Nick, Lead Developer / VP of Analytics. Starting build: `fa4ca503`.
 The session uses a copy of the synthetic fixture under
@@ -214,7 +222,8 @@ automated checks; no before/after timing improvement is claimed.
   build (existing bundle-size and mixed-import warnings remain).
 
 Scenario-override repetition, keyboard/navigation observations, narrow-layout
-feedback, effective-export verification, and final analyst signoff remain pending.
+feedback, and remaining task-level effective-export verification remain pending.
+Final analyst signoff has been received; these coverage gaps remain explicit.
 
 Automated validation of the walkthrough fixes: 321 frontend tests, TypeScript,
 ESLint, production build, and 149 targeted Python tests passed. The build retains
@@ -238,14 +247,14 @@ The combined validation passed 232 frontend tests and 169 targeted Python tests,
 
 Reproduce the automated checks with `npm test`, `npm run typecheck`, `npm run lint`, and `npm run build` from `planalign_studio/`. From the repository root with the virtual environment active, run `pytest tests/api/test_configuration_preview.py tests/api/test_openapi_contract.py tests/api/test_route_auth_coverage.py tests/unit/orchestrator/test_config_export.py tests/test_config_export_match_magnet.py tests/unit/test_issue_669_studio_contract.py tests/test_studio_mapping_audit.py -m 'not integration' -q`. The inventory gives the separate opt-in isolated integration command.
 
-This guide provides a repeatable task script. **The guided analyst session above is in progress; final signoff remains pending.** Automated component/API/browser checks do not establish analyst understanding. No before/after usability timing or baseline improvement is claimed here.
+This guide provides a repeatable task script. **Final analyst signoff has been received; the coverage gaps above remain open.** Automated component/API/browser checks do not establish analyst understanding. No before/after usability timing or baseline improvement is claimed here.
 
 For each task, record participant role, build/SHA, workspace/scenario, initial custom settings, completion, errors, help requests, elapsed time, and explanation accuracy. Use synthetic data and repeat at 1280×800 and a narrower viewport, including keyboard-only navigation.
 
 | Task | Real analyst completion | Errors / help / elapsed time | Explanation accuracy and feedback |
 |---|---|---|---|
 | 1. Projection, workforce, and pay assumptions | Workspace review/save/reload confirmed | 20 seconds; no reported errors or confusing controls; understanding questions explained by facilitator | Years and growth explained; pay behavior not independently assessed |
-| 2. Simple and tiered match, thresholds, eligibility | Match and eligibility review accepted; full task coverage pending | Initial attempt blocked at 30 seconds; custom-row detection and review/eligibility presentation corrected; retry time not measured | Nick accepted readable formulas and requirements; tiered-entry repetition and final signoff pending |
+| 2. Simple and tiered match, thresholds, eligibility | Match and eligibility review accepted; full task coverage pending | Initial attempt blocked at 30 seconds; custom-row detection and review/eligibility presentation corrected; retry time not measured | Nick accepted readable formulas and requirements and gave final signoff; tiered-entry repetition pending |
 | 3. Scope/rate changes and automatic enrollment off | Workspace edits and scenario Off run verified; corrected result chart accepted | 60 seconds; facilitator census setup repaired; false auto-enrollment chart slice corrected | Nick confirmed Voluntary 71% / Census 29%; editor inactive-control observations and scope explanation pending |
 
 - [ ] Repeat all tasks for workspace defaults and scenario overrides, including preexisting custom/inactive settings.
