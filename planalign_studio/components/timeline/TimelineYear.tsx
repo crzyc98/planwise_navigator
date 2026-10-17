@@ -49,6 +49,22 @@ export default function TimelineYear({ year }: Readonly<{ year: TimelineYearData
             <dt>Deferral</dt><dd>{percent(state.current_deferral_rate)}</dd>
             <dt>Escalations</dt><dd>{state.total_deferral_escalations ?? '—'}</dd>
             <dt>Employee</dt><dd>{money(state.ytd_contributions)}</dd>
+            <dt>Estimated pre-tax</dt><dd>{money(state.pre_tax_contributions)}</dd>
+            <dt>Estimated Roth</dt><dd>{money(state.roth_contributions)}</dd>
+            <dt>Source policy</dt><dd>{state.contribution_source_policy.replaceAll('_', ' ')}</dd>
+            <dt>Assumed Roth share</dt><dd>{percent(state.assumed_roth_fraction)}</dd>
+            <dt>Roth catch-up model</dt><dd>{state.mandatory_roth_status.replaceAll('_', ' ')}</dd>
+            <dt>Required Roth catch-up</dt><dd>{money(state.mandatory_roth_required)}</dd>
+            <dt>Reallocated to Roth</dt><dd>{money(state.mandatory_roth_reallocated)}</dd>
+            <dd className="col-span-2 mt-2 text-ink-muted">{state.contribution_source_assumptions}</dd>
+            {state.prior_year_wage_basis && <>
+              <dt>Prior-year employer wages</dt><dd>{money(state.prior_year_employer_fica_wages)} ({state.prior_year_wage_basis})</dd>
+              <dt>Wage evidence</dt><dd className="break-words">{state.source_employer_id}, {state.source_wage_year}: {state.prior_year_wage_provenance}</dd>
+            </>}
+            {state.mandatory_roth_threshold != null && <>
+              <dt>Wage threshold</dt><dd>{money(state.mandatory_roth_threshold)} ({state.mandatory_roth_threshold_basis})</dd>
+              <dt>Rule version</dt><dd className="break-words">{state.mandatory_roth_rule_version}</dd>
+            </>}
             <dt>Match</dt><dd>{money(state.employer_match_amount)}</dd>
             <dt>Core</dt><dd>{money(state.employer_core_amount)}</dd>
             <dt>IRS limit</dt><dd>{state.irs_limit_reached == null ? '—' : state.irs_limit_reached ? 'Reached' : 'Not reached'}</dd>

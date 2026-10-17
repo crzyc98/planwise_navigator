@@ -10663,6 +10663,20 @@ export interface components {
         };
         /** YearState */
         YearState: {
+            /** Assumed Roth Fraction */
+            assumed_roth_fraction: number | null;
+            /**
+             * Contribution Source Assumptions
+             * @default Archive has no source-allocation evidence. Historical engine outputs used an estimated 85% pre-tax / 15% Roth split; stored amounts are unchanged.
+             */
+            contribution_source_assumptions: string;
+            /**
+             * Contribution Source Policy
+             * @default legacy_unverified
+             */
+            contribution_source_policy: string;
+            /** Contribution Source Version */
+            contribution_source_version: string | null;
             /** Current Age */
             current_age: number | null;
             /** Current Compensation */
@@ -10689,16 +10703,45 @@ export interface components {
             is_enrolled: boolean | null;
             /** Level Id */
             level_id: number | null;
+            /** Mandatory Roth Reallocated */
+            mandatory_roth_reallocated: number | null;
+            /** Mandatory Roth Required */
+            mandatory_roth_required: number | null;
+            /** Mandatory Roth Rule Version */
+            mandatory_roth_rule_version: string | null;
+            /**
+             * Mandatory Roth Status
+             * @default not_evaluated
+             */
+            mandatory_roth_status: string;
+            /** Mandatory Roth Threshold */
+            mandatory_roth_threshold: number | null;
+            /** Mandatory Roth Threshold Basis */
+            mandatory_roth_threshold_basis: string | null;
+            /** Mandatory Roth Threshold Provenance */
+            mandatory_roth_threshold_provenance: string | null;
             /** Participation Status */
             participation_status: string | null;
             /** Pre Tax Contributions */
             pre_tax_contributions: number | null;
+            /** Prior Year Employer Fica Wages */
+            prior_year_employer_fica_wages: number | null;
+            /** Prior Year Wage Basis */
+            prior_year_wage_basis: string | null;
+            /** Prior Year Wage Provenance */
+            prior_year_wage_provenance: string | null;
             /** Prorated Annual Compensation */
             prorated_annual_compensation: number | null;
             /** Roth Contributions */
             roth_contributions: number | null;
             /** Simulation Year */
             simulation_year: number;
+            /** Source Employer Id */
+            source_employer_id: string | null;
+            /** Source Wage Year */
+            source_wage_year: number | null;
+            /** Source Year End Age */
+            source_year_end_age: number | null;
             /** Total Deferral Escalations */
             total_deferral_escalations: number | null;
             /** Total Employer Contributions */

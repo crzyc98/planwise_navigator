@@ -961,6 +961,11 @@ class NDTService:
                     ).fetchall()
                 }
                 age_expression = "current_age" if "current_age" in columns else "NULL"
+                if "source_year_end_age" in columns:
+                    legacy_age = age_expression
+                    age_expression = "source_year_end_age"
+                    if "contribution_source_version" in columns:
+                        age_expression = f"CASE WHEN contribution_source_version IS NULL THEN {legacy_age} ELSE source_year_end_age END"
 
                 # Query eligible participants
                 query = """

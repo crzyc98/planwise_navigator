@@ -86,6 +86,28 @@ def test_age_boundaries_and_catch_up_reconciliation(report):
         assert sum(e.modeled_catch_up_used for e in page.employees) == rollup.used
 
 
+def test_new_results_use_recorded_year_end_age_and_disclose_roth_status(report):
+    service, path, resolver = report
+    with duckdb.connect(str(path)) as conn:
+        conn.execute(
+            "ALTER TABLE fct_workforce_snapshot ADD COLUMN source_year_end_age INTEGER"
+        )
+        conn.execute(
+            "ALTER TABLE fct_workforce_snapshot ADD COLUMN mandatory_roth_status VARCHAR"
+        )
+        conn.execute(
+            "UPDATE fct_workforce_snapshot SET source_year_end_age = 50, mandatory_roth_status = 'unresolved_wages'"
+        )
+    summary = service.summary("w", "s", "Scenario", 2026)
+    assert summary.catch_up.eligible_count == 6
+    assert summary.super_catch_up.eligible_count == 0
+    assert any("unresolved_wages" in note for note in summary.notes)
+    expected = NDTService(service.storage, resolver).run_415_test(
+        "w", "s", "Scenario", 2026, True
+    )
+    assert summary.annual_additions.over_limit == expected.breach_count
+
+
 @pytest.mark.parametrize(
     "amount,expected",
     [

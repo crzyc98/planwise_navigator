@@ -1636,6 +1636,7 @@ def to_dbt_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     dbt_vars.update(_export_core_contribution_vars(cfg))
     dbt_vars.update(_export_deferral_match_response_vars(cfg))
     dbt_vars.update(_export_ensemble_freeze_vars(cfg))
+    dbt_vars["contribution_sources"] = cfg.contribution_sources.model_dump(mode="json")
 
     # Remove any keys marked with the _REMOVE_KEY sentinel
     # This allows UI to explicitly clear values set by legacy YAML

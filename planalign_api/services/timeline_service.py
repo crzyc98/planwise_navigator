@@ -6,6 +6,7 @@ from typing import Iterator
 import duckdb
 
 from ..models.timeline import (
+    ContributionSourceAudit,
     EmployeeIdentity,
     EmployeeSearchResponse,
     EmployeeSearchResult,
@@ -275,8 +276,16 @@ class TimelineService:
     ) -> dict[int, YearState]:
         if not years:
             return {}
+        columns = {
+            row[0]
+            for row in connection.execute("DESCRIBE fct_workforce_snapshot").fetchall()
+        }
+        source_fields = tuple(
+            name for name in ContributionSourceAudit.model_fields if name in columns
+        )
+        source_select = "".join(f", {name}" for name in source_fields)
         rows = connection.execute(
-            """
+            f"""
             SELECT simulation_year, employment_status, detailed_status_code,
               current_compensation, prorated_annual_compensation, level_id,
               current_age, current_tenure, current_eligibility_status,
@@ -284,6 +293,7 @@ class TimelineService:
               participation_status, total_deferral_escalations, ytd_contributions,
               pre_tax_contributions, roth_contributions, employer_match_amount,
               employer_core_amount, total_employer_contributions, irs_limit_reached
+              {source_select}
             FROM fct_workforce_snapshot
             WHERE UPPER(employee_id) = UPPER(?) AND simulation_year >= ? AND simulation_year < ?
             ORDER BY simulation_year
@@ -313,7 +323,16 @@ class TimelineService:
             "total_employer_contributions",
             "irs_limit_reached",
         )
-        states = [YearState(**dict(zip(fields, row))) for row in rows]
+        states = [
+            YearState(
+                **{
+                    name: value
+                    for name, value in zip(fields + source_fields, row)
+                    if name not in source_fields or value is not None
+                }
+            )
+            for row in rows
+        ]
         return {state.simulation_year: state for state in states}
 
     @staticmethod
