@@ -568,7 +568,9 @@ models:
     description: >
       Employee contribution calculation model using sophisticated period-based methodology.
       Calculates time-weighted contributions with deferral rate changes, IRS limit enforcement,
-      and comprehensive data quality validation.
+      and comprehensive data quality validation. Catch-up caps use age attained
+      at calendar-year end from birth year; missing birth dates retain the existing
+      current_age fallback and source reporting marks age evidence unresolved.
     config:
       tags: ["contribution", "critical", "core_calculation"]
     data_tests:

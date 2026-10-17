@@ -416,15 +416,32 @@ SELECT
   original_deferral_rate,
   CAST(total_escalation_amount AS DECIMAL(5,4)) AS total_escalation_amount,
   annual_contribution_amount AS prorated_annual_contributions,
-  annual_contribution_amount * 0.85 AS pre_tax_contributions,
-  annual_contribution_amount * 0.15 AS roth_contributions,
+  source_allocation.pre_tax_contributions,
+  source_allocation.roth_contributions,
+  source_allocation.contribution_source_policy,
+  source_allocation.assumed_roth_fraction,
+  source_allocation.contribution_source_version,
+  source_allocation.mandatory_roth_status,
+  source_allocation.mandatory_roth_required,
+  source_allocation.mandatory_roth_reallocated,
+  source_allocation.prior_year_employer_fica_wages,
+  source_allocation.prior_year_wage_basis,
+  source_allocation.prior_year_wage_provenance,
+  source_allocation.source_employer_id,
+  source_allocation.source_wage_year,
+  source_allocation.source_year_end_age,
+  source_allocation.mandatory_roth_threshold,
+  source_allocation.mandatory_roth_threshold_basis,
+  source_allocation.mandatory_roth_threshold_provenance,
+  source_allocation.mandatory_roth_rule_version,
+  source_allocation.contribution_source_assumptions,
   annual_contribution_amount AS ytd_contributions,
   CASE
     WHEN annual_contribution_amount >= CASE
-      WHEN current_age BETWEEN irs_limits.super_catch_up_age_min
+      WHEN COALESCE({{ simulation_year }} - YEAR(employee_birth_date), current_age) BETWEEN irs_limits.super_catch_up_age_min
         AND irs_limits.super_catch_up_age_max
         THEN irs_limits.super_catch_up_limit
-      WHEN current_age >= irs_limits.catch_up_age_threshold
+      WHEN COALESCE({{ simulation_year }} - YEAR(employee_birth_date), current_age) >= irs_limits.catch_up_age_threshold
         THEN irs_limits.catch_up_limit
       ELSE irs_limits.base_limit
     END THEN TRUE
@@ -470,3 +487,4 @@ SELECT
   CAST(last_escalation_date AS TIMESTAMP) AS last_escalation_date
 FROM composed
 CROSS JOIN irs_limits
+CROSS JOIN LATERAL ({{ contribution_source_allocation() }}) source_allocation

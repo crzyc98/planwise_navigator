@@ -344,16 +344,56 @@ models:
           - dbt_utils.accepted_range:
               min_value: 0
               max_value: 50000
+      - name: contribution_source_policy
+        description: "Explicit legacy_estimate (85/15) or analyst assumed_split; neither is an observed election."
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['legacy_estimate', 'assumed_split']
+      - name: assumed_roth_fraction
+        description: "Ordinary assumed Roth fraction before mandatory catch-up allocation."
+      - name: contribution_source_version
+        description: "Version of the source allocation algorithm."
+      - name: mandatory_roth_status
+        description: "Scoped base-limit catch-up assessment; unresolved/unsupported/blocked results are not compliance assertions."
+        data_tests:
+          - not_null
+      - name: mandatory_roth_required
+        description: "Required modeled Roth catch-up dollars; NULL when unresolved or not evaluated."
+      - name: mandatory_roth_reallocated
+        description: "Additional dollars moved from the preferred pre-tax allocation to Roth; existing Roth credited."
+      - name: prior_year_employer_fica_wages
+        description: "Matched prior-calendar-year sponsoring-employer section 3121(a) wages; NULL is unavailable, zero is known zero."
+      - name: prior_year_wage_basis
+        description: "confirmed or forecast, as supplied; no salary substitution."
+      - name: prior_year_wage_provenance
+        description: "Analyst-supplied evidence provenance for the matched wage record."
+      - name: source_employer_id
+        description: "Employer identifier used for the wage evidence lookup."
+      - name: source_wage_year
+        description: "Prior calendar year used for the wage evidence lookup."
+      - name: source_year_end_age
+        description: "Calendar-year-end age from birth year, not a start-year age proxy."
+      - name: mandatory_roth_threshold
+        description: "Applicable wage threshold; comparison is strictly greater than."
+      - name: mandatory_roth_threshold_basis
+        description: "published, projected, or unavailable."
+      - name: mandatory_roth_threshold_provenance
+        description: "Published authority or analyst projection provenance."
+      - name: mandatory_roth_rule_version
+        description: "Version of the modeled mandatory Roth rules and applicability assumptions."
+      - name: contribution_source_assumptions
+        description: "Disclosure of estimated elections and unsupported plan-limit/ADP catch-up triggers."
       - name: pre_tax_contributions
-        description: "Pre-tax contribution portion (85% of total by default)"
-        data_type: double
+        description: "Estimated pre-tax allocation in cents; NULL when allocation is blocked. See contribution_source_policy and mandatory_roth_status."
+        data_type: decimal(18,2)
         data_tests:
           - dbt_utils.accepted_range:
               min_value: 0
               max_value: 50000
       - name: roth_contributions
-        description: "Roth contribution portion (15% of total by default)"
-        data_type: double
+        description: "Estimated Roth allocation in cents, inclusive of modeled required catch-up; NULL when blocked. Not payroll evidence."
+        data_type: decimal(18,2)
         data_tests:
           - dbt_utils.accepted_range:
               min_value: 0

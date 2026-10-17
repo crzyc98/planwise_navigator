@@ -34,6 +34,7 @@ from .performance import (
     E068CThreadingSettings,
 )
 from .ensemble import EnsembleSettings
+from .contribution_sources import ContributionSourceSettings
 from .plan_design import PlanDesignAssignmentSettings, PlanDesignParametersMap
 
 
@@ -130,6 +131,9 @@ class SimulationConfig(BaseModel):
     # Feature 133: validated after-run risk thresholds. Other ensemble options
     # remain invocation concerns so ordinary simulation configs stay unchanged.
     ensemble: EnsembleSettings = Field(default_factory=EnsembleSettings)
+    contribution_sources: ContributionSourceSettings = Field(
+        default_factory=ContributionSourceSettings
+    )
 
     @model_validator(mode="after")
     def validate_core_schedules_and_integration(self) -> "SimulationConfig":

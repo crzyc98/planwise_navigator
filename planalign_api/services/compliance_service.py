@@ -281,7 +281,7 @@ class ComplianceService:
             columns = {
                 r[0] for r in conn.execute("DESCRIBE fct_workforce_snapshot").fetchall()
             }
-            optional = ["plan_design_id", "current_age"]
+            optional = ["plan_design_id", "current_age", "mandatory_roth_status"]
             fields = [
                 "employee_id",
                 "current_compensation",
@@ -293,6 +293,14 @@ class ComplianceService:
             expressions = fields + [
                 name if name in columns else f"NULL AS {name}" for name in optional
             ]
+            if "source_year_end_age" in columns:
+                age = "source_year_end_age"
+                if "contribution_source_version" in columns:
+                    legacy_age = "current_age" if "current_age" in columns else "NULL"
+                    age = f"CASE WHEN contribution_source_version IS NULL THEN {legacy_age} ELSE source_year_end_age END"
+                expressions[
+                    len(fields) + optional.index("current_age")
+                ] = f"{age} AS current_age"
             rows = conn.execute(
                 f"SELECT {', '.join(expressions)} FROM fct_workforce_snapshot WHERE simulation_year = ? "
                 "AND (current_eligibility_status = 'eligible' OR current_eligibility_status IS NULL) "
@@ -340,6 +348,15 @@ class ComplianceService:
         )
         employees = [_employee(row, limits, threshold) for row in rows]
         notes = self._notes(limits, employees, resolved)
+        source_statuses = sorted(
+            {row.get("mandatory_roth_status") or "not_evaluated" for row in rows}
+        )
+        notes.append(
+            "Contribution sources are estimated elections, not payroll evidence. "
+            "Scoped Roth catch-up statuses: "
+            + ", ".join(source_statuses)
+            + ". See employee timelines for wage evidence and allocation assumptions."
+        )
         ndt = _ndt_coverage(
             self._ndt(resolved, workspace_id, scenario_id, name, year, threshold),
             rows,
@@ -415,7 +432,7 @@ class ComplianceService:
         resolved: ResolvedDatabasePath,
     ) -> list[str]:
         notes = [
-            "Catch-up usage is modeled from deferrals above the base limit using simulation age; other catch-up triggers are not modeled.",
+            "Catch-up usage is modeled from deferrals above the base limit using recorded year-end age (legacy archives retain simulation age); other catch-up triggers are not modeled.",
             "415 uses the existing annualized compensation proxy; forfeitures and employee after-tax additions are excluded.",
             "401(a)(17) reports compensation-cap impact, not a compliance violation. A mid-year hire does not prorate the annual dollar cap.",
             "ADP uses current-year testing without a safe-harbor election; open ADP for alternate assumptions.",
