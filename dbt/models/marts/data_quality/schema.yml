@@ -1,6 +1,33 @@
 version: 2
 
 models:
+  - name: dq_compliance_monitoring
+    description: >
+      Yearly 402(g) contribution-limit and deferral-source quality summary.
+      Capped requests and pay above the 401(a)(17) compensation limit are not violations.
+      This model does not audit whether employer match used compensation above that limit.
+    columns:
+      - name: simulation_year
+        description: Year summarized by this run.
+        data_tests:
+          - not_null
+      - name: compliance_category
+        description: The 402(g) limit or deferral-source administration category.
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['IRS_402G_COMPLIANCE', 'PLAN_ADMINISTRATION_COMPLIANCE']
+      - name: violation_count
+        description: Count of actual above-limit contributions or invalid deferral-source states.
+        data_tests:
+          - not_null
+      - name: compliance_status
+        description: Compliance result for this category.
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['COMPLIANT', 'VIOLATIONS_DETECTED', 'ADMINISTRATIVE_ISSUES']
+
   - name: dq_deferral_escalation_validation
     description: >
       Comprehensive data quality validation for Epic E035 automatic deferral rate escalation system.
