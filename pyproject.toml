@@ -35,7 +35,7 @@ dependencies = [
     "lxml>=5.0.0",
     # Tableau .hyper export (Cost Comparison page). Pinned: releases after
     # 0.0.26479 dropped macOS wheels; no Linux aarch64 wheels exist at all.
-    "tableauhyperapi==0.0.26700; platform_machine != 'aarch64'",
+    "tableauhyperapi==0.0.26784; platform_machine != 'aarch64'",
     # Corporate network and HTTP client dependencies
     "requests>=2.28.0",
     "urllib3>=1.26.0",
@@ -78,9 +78,9 @@ dev = [
     "mypy==1.19.1",
     # Type stubs for the CI mypy lint job (see requirements-dev.txt / #333)
     "types-PyYAML==6.0.12.20260906",
-    "pylint==4.1.2",
+    "pylint==4.1.3",
     "flake8==6.1.0",
-    "pre-commit==4.6.2",
+    "pre-commit==4.7.0",
     # Dependency vulnerability scanning (#705)
     "pip-audit==2.10.1",
 
@@ -90,7 +90,7 @@ dev = [
     # its own fix version to clear PYSEC-2026-3609/PYSEC-2026-3654 (#705).
     "mkdocs==1.6.1",
     "mkdocs-material==9.7.7",
-    "pymdown-extensions==12.2",
+    "pymdown-extensions==12.3",
     "mkdocstrings-python==2.0.9",
     "jupyter==1.1.1",
     "ipython==9.17.1",
