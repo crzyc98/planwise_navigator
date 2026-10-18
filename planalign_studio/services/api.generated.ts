@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/api/artifact-download/{ticket}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Redeem Artifact Ticket */
+        get: operations["redeem_artifact_ticket_api_artifact_download__ticket__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/batches/{batch_id}/status": {
         parameters: {
             query?: never;
@@ -388,6 +405,26 @@ export interface paths {
         get: operations["get_active_simulations_api_scenarios_active_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scenarios/{scenario_id}/artifact-download-url/{artifact_path}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Artifact Download Url
+         * @description Authorize an artifact and issue a short-lived browser download URL.
+         */
+        post: operations["create_artifact_download_url_api_scenarios__scenario_id__artifact_download_url__artifact_path__post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -10763,6 +10800,37 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    redeem_artifact_ticket_api_artifact_download__ticket__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticket: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_batch_status_api_batches__batch_id__status_get: {
         parameters: {
             query?: never;
@@ -11316,6 +11384,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActiveSimulationsResponse"];
+                };
+            };
+        };
+    };
+    create_artifact_download_url_api_scenarios__scenario_id__artifact_download_url__artifact_path__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scenario_id: string;
+                artifact_path: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
