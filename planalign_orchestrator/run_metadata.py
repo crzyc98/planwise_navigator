@@ -122,6 +122,11 @@ def compute_config_fingerprint(config: "SimulationConfig") -> str:
     """
     dbt_vars = dict(to_dbt_vars(config))
     dbt_vars.pop("random_seed", None)
+    dbt_vars.pop("contribution_wage_evidence_path", None)
+    # Preserve the pre-parquet fingerprint and include every evidence value.
+    dbt_vars["contribution_sources"] = config.contribution_sources.model_dump(
+        mode="json"
+    )
     canonical = json.dumps(dbt_vars, sort_keys=True, default=str)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 

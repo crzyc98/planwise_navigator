@@ -49,6 +49,14 @@ substitutes for evidence. Supply subsequent-year records explicitly; forecasts
 remain assumptions. Treat these YAML records and compiled dbt artifacts as
 sensitive employee data and keep them out of version control.
 
+At run time, the orchestrator writes the validated wage records to a typed
+`*.wage_evidence.parquet` file beside the run database. dbt receives the file
+path and small policy settings; the records do not enter `--vars` or compiled
+SQL. An empty evidence list produces an empty parquet file with the same schema.
+The effective-config fingerprint still includes the full evidence content, so
+changing a wage, basis or provenance is detected as configuration drift. Keep
+the parquet file with the run's other sensitive database artifacts.
+
 The snapshot stores the effective policy, fraction, version, matched wage amount,
 employer, wage year, evidence basis/provenance, year-end age, threshold and its
 basis/provenance, rule version, required catch-up and additional Roth reallocation.

@@ -14,6 +14,8 @@ ENV/
 
 # ── DuckDB databases (PII-bearing; never commit) ────────────────────
 *.duckdb
+*.wage_evidence.parquet
+*.wage_evidence.tmp.parquet
 *.duckdb.wal
 simulation.duckdb.zip
 

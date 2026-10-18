@@ -106,7 +106,7 @@ class PipelineOrchestrator:
         self._initialization_callback = initialization_callback
         self.construction_signature: Optional["ConstructionSignature"] = None
         self.work_schedule: Optional["WorkSchedule"] = None
-        self._dbt_vars = to_dbt_vars(config)
+        self._dbt_vars = to_dbt_vars(config, database_path=db_manager.db_path)
 
         # E068C: Extract threading configuration from new structured config
         e068c_config = config.get_e068c_threading_config()
@@ -1068,7 +1068,9 @@ class PipelineOrchestrator:
         """Rebuild parameter models after dynamic updates"""
         try:
             # Update dbt vars with new parameters
-            self._dbt_vars = to_dbt_vars(self.config)
+            self._dbt_vars = to_dbt_vars(
+                self.config, database_path=self.db_manager.db_path
+            )
 
             # Rebuild int_effective_parameters
             result = self.dbt_runner.execute_command(

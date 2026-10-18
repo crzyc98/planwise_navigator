@@ -2,7 +2,9 @@
 
 from datetime import date
 from decimal import Decimal
+import json
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import duckdb
 import pytest
@@ -12,6 +14,10 @@ from pydantic import ValidationError
 from planalign_orchestrator.config.contribution_sources import (
     ContributionSourceSettings,
 )
+from planalign_orchestrator.config import load_simulation_config, to_dbt_vars
+from planalign_orchestrator.config.wage_evidence import write_wage_evidence
+from planalign_orchestrator.dbt_runner import DbtRunner
+from planalign_orchestrator.run_metadata import compute_config_fingerprint
 
 pytestmark = pytest.mark.fast
 ROOT = Path(__file__).resolve().parents[3]
@@ -27,6 +33,7 @@ def allocate(
     hire_year=None,
     current_age=None,
     seed_threshold=None,
+    no_file=False,
     **overrides,
 ):
     evidence = (
@@ -54,36 +61,46 @@ def allocate(
             **overrides,
         }
     )
-    variables = {
-        "simulation_year": year,
-        "contribution_sources": config.model_dump(mode="json"),
-    }
-    template = Environment(undefined=StrictUndefined).from_string(
-        (ROOT / "dbt/macros/contribution_source_allocation.sql").read_text()
-        + "{{ contribution_source_allocation() }}"
-    )
-    sql = template.render(var=lambda name, default=None: variables.get(name, default))
-    with duckdb.connect() as connection:
-        connection.execute(
-            "CREATE TABLE composed(employee_id VARCHAR, employee_birth_date DATE, employee_hire_date DATE, current_age INTEGER, annual_contribution_amount DECIMAL(18,2))"
+    with TemporaryDirectory() as directory:
+        variables = {
+            "simulation_year": year,
+            "contribution_sources": config.model_dump(
+                mode="json", exclude={"wage_evidence"}
+            ),
+            "contribution_wage_evidence_path": (
+                ""
+                if no_file
+                else str(write_wage_evidence(config, Path(directory) / "unit.duckdb"))
+            ),
+        }
+        template = Environment(undefined=StrictUndefined).from_string(
+            (ROOT / "dbt/macros/contribution_source_allocation.sql").read_text()
+            + "{{ contribution_source_allocation() }}"
         )
-        birth = None if age is None else date(year - age, 12, 31)
-        connection.execute(
-            "INSERT INTO composed VALUES ('EMP', ?, ?, ?, ?)",
-            [birth, date(hire_year or year - 1, 1, 1), current_age, total],
+        sql = template.render(
+            var=lambda name, default=None: variables.get(name, default)
         )
-        connection.execute(
-            f"CREATE TABLE irs_limits AS SELECT * FROM read_csv_auto('{ROOT / 'dbt/seeds/config_irs_limits.csv'}') ORDER BY CASE WHEN limit_year = {year} THEN 0 ELSE 1 END, ABS(limit_year - {year}) LIMIT 1"
-        )
-        if seed_threshold is not None:
+        with duckdb.connect() as connection:
             connection.execute(
-                "UPDATE irs_limits SET roth_catch_up_wage_threshold = ?",
-                [seed_threshold],
+                "CREATE TABLE composed(employee_id VARCHAR, employee_birth_date DATE, employee_hire_date DATE, current_age INTEGER, annual_contribution_amount DECIMAL(18,2))"
             )
-        result = connection.execute(
-            f"SELECT allocation.* FROM composed CROSS JOIN irs_limits CROSS JOIN LATERAL ({sql}) allocation"
-        )
-        return dict(zip([c[0] for c in result.description], result.fetchone()))
+            birth = None if age is None else date(year - age, 12, 31)
+            connection.execute(
+                "INSERT INTO composed VALUES ('EMP', ?, ?, ?, ?)",
+                [birth, date(hire_year or year - 1, 1, 1), current_age, total],
+            )
+            connection.execute(
+                f"CREATE TABLE irs_limits AS SELECT * FROM read_csv_auto('{ROOT / 'dbt/seeds/config_irs_limits.csv'}') ORDER BY CASE WHEN limit_year = {year} THEN 0 ELSE 1 END, ABS(limit_year - {year}) LIMIT 1"
+            )
+            if seed_threshold is not None:
+                connection.execute(
+                    "UPDATE irs_limits SET roth_catch_up_wage_threshold = ?",
+                    [seed_threshold],
+                )
+            result = connection.execute(
+                f"SELECT allocation.* FROM composed CROSS JOIN irs_limits CROSS JOIN LATERAL ({sql}) allocation"
+            )
+            return dict(zip([c[0] for c in result.description], result.fetchone()))
 
 
 @pytest.mark.parametrize(
@@ -102,6 +119,11 @@ def test_strict_threshold_and_missing_evidence(wages, status, roth):
     assert result["roth_contributions"] == roth
     assert result["pre_tax_contributions"] + result["roth_contributions"] == 30000
     assert result["prior_year_employer_fica_wages"] == wages
+
+
+def test_missing_evidence_file_uses_empty_schema():
+    result = allocate(wages=None, no_file=True)
+    assert result["mandatory_roth_status"] == "unresolved_wages"
 
 
 def test_threshold_comes_from_selected_irs_seed_row():
@@ -301,3 +323,48 @@ def test_duplicate_wage_and_threshold_evidence_rejected():
     ]:
         with pytest.raises(ValidationError, match="Duplicate"):
             ContributionSourceSettings.model_validate(settings)
+
+
+def test_dbt_vars_do_not_grow_with_wage_evidence(tmp_path: Path) -> None:
+    fixture = ROOT / "tests/fixtures/edge_config/auto_escalation_low_cap.yaml"
+    config = load_simulation_config(fixture, env_overrides=False)
+    record = {
+        "employee_id": "EMP_0",
+        "employer_id": "sponsor",
+        "wage_year": 2025,
+        "wages": 150001,
+        "basis": "confirmed",
+        "provenance": "payroll",
+    }
+    runner = DbtRunner(threads=1)
+    lengths = []
+    fingerprints = []
+    for count in (1, 1000):
+        config.contribution_sources = ContributionSourceSettings.model_validate(
+            {
+                "wage_evidence": [
+                    {**record, "employee_id": f"EMP_{i}"} for i in range(count)
+                ]
+            }
+        )
+        fingerprints.append(compute_config_fingerprint(config))
+        variables = to_dbt_vars(config, database_path=tmp_path / "source.duckdb")
+        command = runner._build_command(["run"], dbt_vars=variables)
+        payload = command[command.index("--vars") + 1]
+        lengths.append(len(payload.encode()))
+        assert "EMP_0" not in payload
+        assert "wage_evidence" not in json.dumps(variables["contribution_sources"])
+        with duckdb.connect() as connection:
+            assert (
+                connection.execute(
+                    "SELECT COUNT(*) FROM read_parquet(?)",
+                    [variables["contribution_wage_evidence_path"]],
+                ).fetchone()[0]
+                == count
+            )
+    assert lengths[0] == lengths[1]
+    assert fingerprints[0] != fingerprints[1]
+    changed = config.contribution_sources.model_dump(mode="json")
+    changed["wage_evidence"][0]["wages"] = "200000.00"
+    config.contribution_sources = ContributionSourceSettings.model_validate(changed)
+    assert compute_config_fingerprint(config) != fingerprints[1]
