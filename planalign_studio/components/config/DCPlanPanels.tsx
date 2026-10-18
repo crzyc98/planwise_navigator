@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react';
 import { useConfigContext } from './ConfigContext';
 import { InputField } from './InputField';
-import { calculateMatchCap } from './constants';
+import { calculateMatchCap, ELIGIBILITY_DEFAULTS } from './constants';
 import type { FormData, MatchTier } from './types';
 
-type Config = Record<string, any>;
+type Config = Record<string, unknown>;
+const asConfig = (value: unknown): Config => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Config : {};
 type Contribution = 'Match' | 'Core';
 
 /** Overlay saved metadata for copy only; backend reconciliation remains authoritative. */
@@ -12,7 +13,7 @@ export function resolveDisplayConfig(base: Config = {}, overrides: Config = {}):
   const result = { ...base };
   for (const [key, value] of Object.entries(overrides)) {
     result[key] = value && typeof value === 'object' && !Array.isArray(value)
-      ? resolveDisplayConfig(base[key] ?? {}, value)
+      ? resolveDisplayConfig(asConfig(base[key]), asConfig(value))
       : value;
   }
   return result;
@@ -54,22 +55,23 @@ export function DCPlanPanel({ id, title, summary, children, enabled = true, cont
 }
 
 function waiverSummary(form: FormData, kind: Contribution, config: Config): string {
-  const eligibility = config[kind === 'Match' ? 'employer_match' : 'employer_core_contribution']?.eligibility ?? {};
-  const explicitWaiver = config.dc_plan?.[`${kind.toLowerCase()}_allow_new_hires`];
-  const hasUITenure = config.dc_plan?.[`${kind.toLowerCase()}_min_tenure_years`] != null;
+  const eligibility = asConfig(asConfig(config[kind === 'Match' ? 'employer_match' : 'employer_core_contribution']).eligibility);
+  const dcPlan = asConfig(config.dc_plan);
+  const explicitWaiver = dcPlan[`${kind.toLowerCase()}_allow_new_hires`];
+  const hasUITenure = dcPlan[`${kind.toLowerCase()}_min_tenure_years`] != null;
   const waiver = explicitWaiver ?? (hasUITenure ? Number(form[`dc${kind}MinTenureYears`]) === 0 : eligibility.allow_new_hires);
   if (waiver == null) return `derived from service requirement (${Number(form[`dc${kind}MinTenureYears`]) === 0 ? 'allowed' : 'not allowed'})`;
   return `${waiver ? 'allowed' : 'not allowed'} by ${explicitWaiver != null ? 'an explicit saved override' : hasUITenure ? 'the Studio service requirement' : 'inherited configuration'}`;
 }
 
 function usesLegacyMatchPolicy(kind: Contribution, config: Config): boolean {
-  return kind === 'Match' && config.employer_match?.apply_eligibility === false &&
-    !Object.keys(config.dc_plan ?? {}).some(key => /^match_(min_|require_|allow_)/.test(key));
+  return kind === 'Match' && asConfig(config.employer_match).apply_eligibility === false &&
+    !Object.keys(asConfig(config.dc_plan)).some(key => /^match_(min_|require_|allow_)/.test(key));
 }
 
 export function eligibilitySummary(form: FormData, kind: Contribution, config: Config = {}): string {
   if (usesLegacyMatchPolicy(kind, config)) {
-    return '0 years service; 1000 annual hours; year-end employment requirement on; ' +
+    return `${ELIGIBILITY_DEFAULTS.Match.minimum_tenure_years} years service; ${ELIGIBILITY_DEFAULTS.Match.minimum_hours_annual} annual hours; year-end employment requirement on; ` +
       'terminated hire-year exception excluded; terminated experienced-employee exception excluded; ' +
       'new-hire service waiver not applicable (no service requirement).';
   }
@@ -137,7 +139,7 @@ export function matchSummary(form: FormData, config: Config): string {
     case 'deferral_based': schedule = tierSummary(form.dcMatchTiers); break;
     case 'tenure_graded': schedule = form.dcTenureGradedBands.map(band => `${band.minYears}–${band.maxYears ?? '∞'} service years: ${tierSummary(band.tiers)}`).join(' '); break;
     case 'points_based': schedule = form.dcPointsMatchTiers.map(tier => `${tier.minPoints}–${tier.maxPoints ?? '∞'} points: employee ${tier.maxDeferralPct}% for full match; employer maximum ${percent(tier.maxDeferralPct * tier.matchRate / 100)}% (${tier.matchRate}% match rate)`).join('; '); break;
-    default: schedule = `${form.dcMatchMode}; saved service schedule: ${JSON.stringify(config.dc_plan?.match_graded_schedule ?? config.employer_match?.graded_schedule ?? config.employer_match?.service_tiers ?? 'inherited at run time')}`;
+    default: schedule = `${form.dcMatchMode}; saved service schedule: ${JSON.stringify(asConfig(config.dc_plan).match_graded_schedule ?? asConfig(config.employer_match).graded_schedule ?? asConfig(config.employer_match).service_tiers ?? 'inherited at run time')}`;
   }
   return `${schedule} Global eligibility: ${eligibilitySummary(form, 'Match', config)}${config.plan_design_parameters ? ' Per-design overrides apply; these global rules are not universal.' : ''}`;
 }

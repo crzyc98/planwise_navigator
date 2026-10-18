@@ -4755,6 +4755,22 @@ export interface components {
             value_b: string | null;
         };
         /**
+         * ConfigPreview
+         * @description Resolved configuration and exported engine variables for a Studio draft.
+         */
+        ConfigPreview: {
+            /** Configuration */
+            configuration: {
+                [key: string]: unknown;
+            };
+            /** Engine Variables */
+            engine_variables: {
+                [key: string]: unknown;
+            };
+            /** Scope */
+            scope: string;
+        };
+        /**
          * ConfigPreviewRequest
          * @description Unsaved configuration to resolve without persisting it.
          */
@@ -13698,9 +13714,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ConfigPreview"];
                 };
             };
             /** @description Validation Error */

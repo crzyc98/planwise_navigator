@@ -37,7 +37,7 @@ export function buildConfigPayload(
       formData.censusDataSource === 'workspace' || formData.censusDataPath === censusTarget.workspacePath
     )
   );
-  const configPayload: any = {
+  const configPayload = {
     simulation: {
       name: formData.name,
       start_year: Number(formData.startYear),
@@ -169,17 +169,17 @@ export function buildConfigPayload(
       core_enabled: Boolean(formData.dcCoreEnabled),
       core_status: formData.dcCoreStatus,
       core_contribution_rate_percent: Number(formData.dcCoreContributionRate),
-      core_graded_schedule: formData.dcCoreGradedSchedule.map((tier: any) => ({
+      core_graded_schedule: formData.dcCoreGradedSchedule.map(tier => ({
         service_years_min: tier.serviceYearsMin,
         service_years_max: tier.serviceYearsMax,
         contribution_rate: tier.rate / 100,
       })),
-      core_points_schedule: formData.dcCorePointsSchedule.map((tier: any) => ({
+      core_points_schedule: formData.dcCorePointsSchedule.map(tier => ({
         min_points: tier.minPoints,
         max_points: tier.maxPoints,
         contribution_rate: tier.rate / 100,
       })),
-      core_age_schedule: formData.dcCoreAgeSchedule.map((tier: any) => ({
+      core_age_schedule: formData.dcCoreAgeSchedule.map(tier => ({
         min_age: tier.minAge,
         max_age: tier.maxAge,
         contribution_rate: tier.rate / 100,
@@ -216,38 +216,38 @@ export function buildConfigPayload(
     },
   };
 
-  // Include seed configs in the unified payload
-  if (promotionHazardConfig) {
-    configPayload.promotion_hazard = {
-      base_rate: promotionHazardConfig.base.base_rate,
-      level_dampener_factor: promotionHazardConfig.base.level_dampener_factor,
-      age_multipliers: promotionHazardConfig.age_multipliers.map(m => ({
-        age_band: m.age_band,
-        multiplier: m.multiplier,
+  return {
+    ...configPayload,
+    // Include seed configs in the unified payload.
+    ...(promotionHazardConfig ? {
+      promotion_hazard: {
+        base_rate: promotionHazardConfig.base.base_rate,
+        level_dampener_factor: promotionHazardConfig.base.level_dampener_factor,
+        age_multipliers: promotionHazardConfig.age_multipliers.map(m => ({
+          age_band: m.age_band,
+          multiplier: m.multiplier,
+        })),
+        tenure_multipliers: promotionHazardConfig.tenure_multipliers.map(m => ({
+          tenure_band: m.tenure_band,
+          multiplier: m.multiplier,
+        })),
+      },
+    } : {}),
+    ...(bandConfig ? {
+      age_bands: bandConfig.age_bands.map(b => ({
+        band_id: b.band_id,
+        band_label: b.band_label,
+        min_value: b.min_value,
+        max_value: b.max_value,
+        display_order: b.display_order,
       })),
-      tenure_multipliers: promotionHazardConfig.tenure_multipliers.map(m => ({
-        tenure_band: m.tenure_band,
-        multiplier: m.multiplier,
+      tenure_bands: bandConfig.tenure_bands.map(b => ({
+        band_id: b.band_id,
+        band_label: b.band_label,
+        min_value: b.min_value,
+        max_value: b.max_value,
+        display_order: b.display_order,
       })),
-    };
-  }
-
-  if (bandConfig) {
-    configPayload.age_bands = bandConfig.age_bands.map(b => ({
-      band_id: b.band_id,
-      band_label: b.band_label,
-      min_value: b.min_value,
-      max_value: b.max_value,
-      display_order: b.display_order,
-    }));
-    configPayload.tenure_bands = bandConfig.tenure_bands.map(b => ({
-      band_id: b.band_id,
-      band_label: b.band_label,
-      min_value: b.min_value,
-      max_value: b.max_value,
-      display_order: b.display_order,
-    }));
-  }
-
-  return configPayload;
+    } : {}),
+  };
 }

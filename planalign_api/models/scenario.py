@@ -15,6 +15,14 @@ class ConfigPreviewRequest(APIModel):
     target: Literal["scenario", "workspace"] = "scenario"
 
 
+class ConfigPreview(APIModel):
+    """Resolved configuration and exported engine variables for a Studio draft."""
+
+    configuration: Dict[str, Any]
+    engine_variables: Dict[str, Any]
+    scope: str
+
+
 class ScenarioCreate(APIModel):
     """Request model for creating a scenario."""
 

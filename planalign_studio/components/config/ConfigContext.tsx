@@ -25,6 +25,7 @@ import {
   Band,
   getPromotionHazardConfig,
   PromotionHazardConfig,
+  type ConfigPreview,
 } from '../../services/api';
 
 // --- Context Type ---
@@ -36,7 +37,7 @@ function enrollmentRateMode(config: Record<string, any>, key: string): 'inherit'
 
 export interface ConfigContextType {
   resolutionWarning: string;
-  resolvedEngineVariables: Record<string, any>;
+  resolvedEngineVariables: ConfigPreview['engine_variables'];
   // Form state
   formData: FormData;
   setFormData: React.Dispatch<React.SetStateAction<FormData>>;
@@ -71,6 +72,13 @@ export interface ConfigContextType {
   originalConfig: Record<string, any>;
   workspaceConfig: Record<string, any>;
   buildDraftConfig: () => Record<string, any>;
+}
+
+/** Every DC control belongs to the same unsaved section marker. */
+export function hasDcPlanChanges(current: FormData, saved: FormData): boolean {
+  return (Object.keys(current) as (keyof FormData)[])
+    .filter(key => key.startsWith('dc'))
+    .some(key => JSON.stringify(current[key]) !== JSON.stringify(saved[key]));
 }
 
 const ConfigContext = createContext<ConfigContextType | null>(null);
@@ -450,7 +458,7 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
   const [freshBaseConfig, setFreshBaseConfig] = useState<Record<string, any> | null>(null);
   const originalConfig = useRef<Record<string, any>>(scenarioId ? {} : structuredClone(activeWorkspace.base_config ?? {}));
   const [resolutionWarning, setResolutionWarning] = useState('');
-  const [resolvedEngineVariables, setResolvedEngineVariables] = useState<Record<string, any>>({});
+  const [resolvedEngineVariables, setResolvedEngineVariables] = useState<ConfigPreview['engine_variables']>({});
 
   // --- useEffect 0: Refetch workspace base_config so the form reflects current state ---
   useEffect(() => {
@@ -617,15 +625,7 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
         formData.newHireTerminationRate !== savedFormData.newHireTerminationRate) {
       dirty.add('turnover');
     }
-    if (formData.dcEligibilityMonths !== savedFormData.dcEligibilityMonths ||
-        formData.dcAutoEnroll !== savedFormData.dcAutoEnroll ||
-        formData.dcDefaultDeferral !== savedFormData.dcDefaultDeferral ||
-        formData.dcMatchEnabled !== savedFormData.dcMatchEnabled ||
-        formData.dcMatchTemplate !== savedFormData.dcMatchTemplate ||
-        JSON.stringify(formData.dcMatchTiers) !== JSON.stringify(savedFormData.dcMatchTiers) ||
-        formData.dcAutoEscalation !== savedFormData.dcAutoEscalation ||
-        formData.dcEscalationRate !== savedFormData.dcEscalationRate ||
-        formData.dcEscalationCap !== savedFormData.dcEscalationCap) {
+    if (hasDcPlanChanges(formData, savedFormData)) {
       dirty.add('dcplan');
     }
     if (formData.engine !== savedFormData.engine ||
@@ -737,6 +737,15 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
         await updateScenario(activeWorkspace.id, scenarioId, { config_overrides: configPayload });
       } else {
         await apiUpdateWorkspace(activeWorkspace.id, { base_config: configPayload });
+      }
+
+      try {
+        const resolved = await previewConfiguration(activeWorkspace.id, configPayload, scenarioId ? 'scenario' : 'workspace');
+        setResolvedEngineVariables(resolved.engine_variables);
+        setResolutionWarning('');
+      } catch {
+        setResolvedEngineVariables({});
+        setResolutionWarning('Saved configuration could not be resolved. Reload to refresh the engine settings.');
       }
 
       originalConfig.current = structuredClone(configPayload);
