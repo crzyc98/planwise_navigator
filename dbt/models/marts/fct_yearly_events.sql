@@ -2,7 +2,7 @@
 
 {{ config(
   materialized='incremental',
-  incremental_strategy='replace_event_year',
+  incremental_strategy='replace_simulation_year',
   on_schema_change='sync_all_columns',
   tags=['EVENT_GENERATION']
 ) }}

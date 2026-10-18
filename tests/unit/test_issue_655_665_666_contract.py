@@ -35,7 +35,7 @@ def test_enrollment_events_are_scenario_scoped() -> None:
         "FROM {{ ref('int_enrollment_events') }}", maxsplit=1
     )[0].rsplit("SELECT", maxsplit=1)[1]
 
-    assert "unique_key=['scenario_id'," in enrollment
+    assert "unique_key=" not in enrollment
     assert "incremental_strategy='replace_simulation_year'" in enrollment
     assert "year_partition_scope='year'" not in enrollment
     assert "AS scenario_id" in enrollment

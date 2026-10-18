@@ -293,6 +293,7 @@ def _effective_workspace_config(
     scenario_id: Optional[str],
     storage: WorkspaceStorage,
 ) -> Dict[str, Any]:
+    """Resolve a scenario or the API-only workspace baseline when no scenario is set."""
     workspace = storage.get_workspace(workspace_id)
     if workspace is None:
         raise HTTPException(

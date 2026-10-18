@@ -2,7 +2,7 @@
   materialized='incremental',
   incremental_strategy='replace_simulation_year',
   year_partition_scope='year',
-  unique_key=['employee_id', 'simulation_year'],
+  on_schema_change='sync_all_columns',
   tags=['EVENT_GENERATION']
 ) }}
 

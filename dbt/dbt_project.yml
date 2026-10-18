@@ -77,7 +77,7 @@ models:
       # events-per-year; this strategy deletes the scenario/year directly.
       fct_yearly_events:
         +materialized: incremental
-        +incremental_strategy: 'replace_event_year'
+        +incremental_strategy: 'replace_simulation_year'
         +tags: ["events", "critical", "EVENT_PUBLICATION"]
 
       fct_workforce_snapshot:

@@ -21,7 +21,7 @@ SELECT
   'event' AS event_id,
   '{{ var('scenario_id') }}' AS scenario_id,
   'default' AS plan_design_id,
-  'employee' AS employee_id,
+  'employee_{{ var('scenario_id') }}' AS employee_id,
   'synthetic' AS employee_ssn,
   'raise' AS event_type,
   {{ var('simulation_year') }} AS simulation_year,
@@ -80,7 +80,7 @@ def _project(path: Path) -> Path:
             "{{ config(post_hook=\"SELECT error('injected publication failure')\") }}"
             "{% endif %}\n"
         )
-    macro = ROOT / "dbt/macros/utils/event_publication.sql"
+    macro = ROOT / "dbt/macros/utils/incremental_year_replace.sql"
     shutil.copy2(macro, path / "macros")
     (path / "models/int_current_year_events.sql").write_text(SOURCE)
     return database
