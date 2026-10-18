@@ -20,6 +20,7 @@ describe('Compliance overview', () => {
   it('renders provenance, estimated limits, cap impact and catch-up coverage', () => {
     const html = renderToStaticMarkup(<ComplianceOverview workspaceId="w" summary={summary} onOpenTest={() => {}} />);
     expect(html).toContain('Estimated IRS limits');
+    expect(html).toContain('Projected catch-up capacity stays at the 2026 amounts');
     expect(html).toContain('Recorded limits differ from current seed');
     expect(html).toContain('successful');
     expect(html).toContain('Compensation above cap');

@@ -56,6 +56,7 @@ export default function ComplianceOverview({ workspaceId, summary, onOpenTest }:
           {summary.limits?.differs_from_current_seed && ' · Recorded limits differ from current seed'}
         </p>
         {summary.limits && <p className="text-sm text-ink-muted">Base deferral limit {money(summary.limits.base_limit)} · Total with catch-up {money(summary.limits.catch_up_limit)} · Total with super catch-up {money(summary.limits.super_catch_up_limit)} · Annual additions {money(summary.limits.annual_additions_limit)} · Compensation cap {money(summary.limits.compensation_limit)}</p>}
+        {summary.limits?.is_estimated === true && summary.year >= 2027 && summary.year <= 2035 && <p className="text-sm text-ink-muted">Projected catch-up capacity stays at the 2026 amounts: $8,000 ordinary and $11,250 super above the projected base limit. Published future limits may be higher.</p>}
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {measures.map(({ metric, title, values }) => <div key={metric} className="bg-surface-raised border border-border rounded-xl p-4 space-y-2">
