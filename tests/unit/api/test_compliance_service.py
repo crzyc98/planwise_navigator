@@ -108,6 +108,26 @@ def test_new_results_use_recorded_year_end_age_and_disclose_roth_status(report):
     assert summary.annual_additions.over_limit == expected.breach_count
 
 
+def test_new_results_fall_back_to_birth_year_when_source_age_is_missing(report):
+    service, path, resolver = report
+    with duckdb.connect(str(path)) as conn:
+        conn.execute(
+            "ALTER TABLE fct_workforce_snapshot ADD COLUMN source_year_end_age INTEGER"
+        )
+        conn.execute(
+            "ALTER TABLE fct_workforce_snapshot ADD COLUMN employee_birth_date DATE"
+        )
+        conn.execute(
+            "UPDATE fct_workforce_snapshot SET employee_birth_date = DATE '1966-01-01' WHERE employee_id = 'EMP0'"
+        )
+    summary = service.summary("w", "s", "Scenario", 2026)
+    assert summary.super_catch_up.eligible_count == 3
+    ndt = NDTService(service.storage, resolver).run_415_test(
+        "w", "s", "Scenario", 2026, True
+    )
+    assert summary.annual_additions.over_limit == ndt.breach_count
+
+
 @pytest.mark.parametrize(
     "amount,expected",
     [

@@ -961,11 +961,13 @@ class NDTService:
                     ).fetchall()
                 }
                 age_expression = "current_age" if "current_age" in columns else "NULL"
+                if "employee_birth_date" in columns:
+                    age_expression = f"COALESCE({year} - YEAR(employee_birth_date), {age_expression})"
                 if "source_year_end_age" in columns:
                     legacy_age = age_expression
-                    age_expression = "source_year_end_age"
+                    age_expression = f"COALESCE(source_year_end_age, {legacy_age})"
                     if "contribution_source_version" in columns:
-                        age_expression = f"CASE WHEN contribution_source_version IS NULL THEN {legacy_age} ELSE source_year_end_age END"
+                        age_expression = f"CASE WHEN contribution_source_version IS NULL THEN {legacy_age} ELSE {age_expression} END"
 
                 # Query eligible participants
                 query = """

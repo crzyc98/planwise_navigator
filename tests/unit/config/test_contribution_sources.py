@@ -18,7 +18,16 @@ ROOT = Path(__file__).resolve().parents[3]
 
 
 def allocate(
-    *, year=2026, age=50, total=30000, wages=150001, fraction="0.15", **overrides
+    *,
+    year=2026,
+    age=50,
+    total=30000,
+    wages=150001,
+    fraction="0.15",
+    hire_year=None,
+    current_age=None,
+    seed_threshold=None,
+    **overrides,
 ):
     evidence = (
         []
@@ -56,13 +65,21 @@ def allocate(
     sql = template.render(var=lambda name, default=None: variables.get(name, default))
     with duckdb.connect() as connection:
         connection.execute(
-            "CREATE TABLE composed(employee_id VARCHAR, employee_birth_date DATE, annual_contribution_amount DECIMAL(18,2))"
+            "CREATE TABLE composed(employee_id VARCHAR, employee_birth_date DATE, employee_hire_date DATE, current_age INTEGER, annual_contribution_amount DECIMAL(18,2))"
         )
         birth = None if age is None else date(year - age, 12, 31)
-        connection.execute("INSERT INTO composed VALUES ('EMP', ?, ?)", [birth, total])
         connection.execute(
-            f"CREATE TABLE irs_limits AS SELECT * FROM read_csv_auto('{ROOT / 'dbt/seeds/config_irs_limits.csv'}') WHERE limit_year = {year}"
+            "INSERT INTO composed VALUES ('EMP', ?, ?, ?, ?)",
+            [birth, date(hire_year or year - 1, 1, 1), current_age, total],
         )
+        connection.execute(
+            f"CREATE TABLE irs_limits AS SELECT * FROM read_csv_auto('{ROOT / 'dbt/seeds/config_irs_limits.csv'}') ORDER BY CASE WHEN limit_year = {year} THEN 0 ELSE 1 END, ABS(limit_year - {year}) LIMIT 1"
+        )
+        if seed_threshold is not None:
+            connection.execute(
+                "UPDATE irs_limits SET roth_catch_up_wage_threshold = ?",
+                [seed_threshold],
+            )
         result = connection.execute(
             f"SELECT allocation.* FROM composed CROSS JOIN irs_limits CROSS JOIN LATERAL ({sql}) allocation"
         )
@@ -87,6 +104,13 @@ def test_strict_threshold_and_missing_evidence(wages, status, roth):
     assert result["prior_year_employer_fica_wages"] == wages
 
 
+def test_threshold_comes_from_selected_irs_seed_row():
+    result = allocate(wages=150001, seed_threshold=160000)
+    assert result["mandatory_roth_status"] == "below_or_equal_threshold"
+    assert result["mandatory_roth_threshold"] == 160000
+    assert allocate(year=2036)["mandatory_roth_rule_version"] == "sec603_2035_v1"
+
+
 @pytest.mark.parametrize(
     "age,total,status",
     [
@@ -104,6 +128,30 @@ def test_year_end_age_and_ordinary_super_limits(age, total, status):
     assert allocate(age=age, total=total)["mandatory_roth_status"] == status
 
 
+def test_missing_birth_date_uses_current_age():
+    result = allocate(age=None, current_age=60, total=35750)
+    assert result["source_year_end_age"] == 60
+    assert result["mandatory_roth_status"] == "required"
+
+
+@pytest.mark.parametrize(
+    "age,total,expected_disallowed,fraction",
+    [(49, 30000, 5500, "0.15"), (64, 35750, 3250, "0.15"), (64, 35750, 3250, "1")],
+)
+def test_invalid_catch_up_keeps_allowed_sources(
+    age, total, expected_disallowed, fraction
+):
+    result = allocate(age=age, total=total, fraction=fraction)
+    assert result["disallowed_catch_up_contributions"] == expected_disallowed
+    assert result["pre_tax_contributions"] >= 24500
+    assert (
+        result["pre_tax_contributions"]
+        + result["roth_contributions"]
+        + result["disallowed_catch_up_contributions"]
+        == total
+    )
+
+
 def test_existing_roth_is_credited_not_double_counted():
     result = allocate(fraction="0.5")
     assert result["roth_contributions"] == 15000
@@ -115,8 +163,9 @@ def test_no_roth_blocks_allocation_without_changing_totals():
     result = allocate(roth_available=False, fraction="0")
     assert result["mandatory_roth_status"] == "blocked_no_roth"
     assert result["mandatory_roth_required"] == 5500
-    assert result["roth_contributions"] is None
-    assert result["pre_tax_contributions"] is None
+    assert result["roth_contributions"] == 0
+    assert result["pre_tax_contributions"] == 24500
+    assert result["disallowed_catch_up_contributions"] == 5500
 
 
 @pytest.mark.parametrize("fraction", ["0", "0.15", "0.33333333", "1"])
@@ -129,8 +178,11 @@ def test_cent_reconciliation(fraction):
 
 
 def test_pre_2026_and_unknown_future_threshold():
-    assert allocate(year=2025)["mandatory_roth_status"] == "not_applicable_before_2026"
-    assert allocate(year=2027)["mandatory_roth_status"] == "unresolved_threshold"
+    prior = allocate(year=2025)
+    assert prior["mandatory_roth_status"] == "not_applicable_before_2026"
+    assert prior["mandatory_roth_rule_version"] == "not_applicable_before_2026"
+    assert allocate(year=2027)["mandatory_roth_status"] == "required_under_assumptions"
+    assert allocate(year=2028)["mandatory_roth_rule_version"] == "sec603_2028_v1"
     result = allocate(
         year=2027,
         projected_thresholds=[
@@ -146,7 +198,7 @@ def test_pre_2026_and_unknown_future_threshold():
     assert result["mandatory_roth_threshold_basis"] == "projected"
 
 
-def test_employer_and_year_lookup_never_infers_new_hire_wages():
+def test_employer_year_and_new_hire_structural_wages():
     evidence = [
         {
             "employee_id": "EMP",
@@ -161,6 +213,15 @@ def test_employer_and_year_lookup_never_infers_new_hire_wages():
     assert (
         allocate(wage_evidence=evidence)["mandatory_roth_status"] == "unresolved_wages"
     )
+    hired = allocate(wage_evidence=evidence, hire_year=2026)
+    assert hired["mandatory_roth_status"] == "below_or_equal_threshold"
+    assert hired["prior_year_employer_fica_wages"] == 0
+    assert hired["prior_year_wage_basis"] == "structural"
+    rehire = allocate(
+        wage_evidence=[{**evidence[0], "employer_id": "sponsor"}], hire_year=2026
+    )
+    assert rehire["mandatory_roth_status"] == "required"
+    assert rehire["prior_year_wage_basis"] == "confirmed"
     assert (
         allocate(wage_evidence=evidence, year=2025)["prior_year_employer_fica_wages"]
         == 200000
@@ -221,6 +282,7 @@ def test_legacy_policy_is_explicit_and_reconciles():
     assert result["mandatory_roth_status"] == "not_evaluated"
     assert result["pre_tax_contributions"] == Decimal("85.01")
     assert result["roth_contributions"] == Decimal("15.00")
+    assert result["disallowed_catch_up_contributions"] == 0
 
 
 def test_duplicate_wage_and_threshold_evidence_rejected():
