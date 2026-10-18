@@ -1,5 +1,3 @@
-{{config(enabled=false)}}
-
 {{ config(
     materialized='table',
     tags=['compliance', 'regulatory', 'irs_monitoring', 'critical']
@@ -13,7 +11,7 @@
 
   Compliance Areas Monitored:
   - IRS 402(g) Employee Deferral Limits (Zero Tolerance)
-  - IRS 401(a)(17) Compensation Limits
+  - Deferral source quality (invalid employee IDs and rates)
   - Age-based Catch-up Contribution Rules
   - Plan Document Compliance Requirements
   - Anti-Discrimination Testing Preparation
@@ -40,7 +38,6 @@ WITH irs_contribution_limits AS (
         catch_up_age_threshold,
         base_limit,
         catch_up_limit,
-        compensation_limit,
         -- For reporting, treat total_limit as catch_up_limit for eligible employees
         catch_up_limit AS total_limit
     FROM {{ ref('config_irs_limits') }}
@@ -55,15 +52,13 @@ contribution_data AS (
         -- Map to expected names
         annual_contribution_amount AS prorated_annual_contributions,
         annual_contribution_amount AS irs_limited_annual_contributions,
-        GREATEST(0, requested_contribution_amount - annual_contribution_amount) AS excess_contributions,
+        GREATEST(0, annual_contribution_amount - applicable_irs_limit) AS excess_contributions,
         effective_annual_deferral_rate AS effective_deferral_rate,
         current_age AS age_as_of_december_31,
         applicable_irs_limit,
         irs_limit_applied AS irs_limit_reached,
         is_enrolled_flag AS is_enrolled,
-        prorated_annual_compensation,
-        employment_status,
-        data_quality_flag
+        deferral_rate_source_quality
     FROM {{ ref('int_employee_contributions') }}
     WHERE simulation_year = {{ simulation_year }}
 ),
@@ -120,41 +115,6 @@ irs_402g_compliance AS (
     GROUP BY il.base_limit, il.catch_up_limit, il.total_limit
 ),
 
--- Compensation Limit Compliance (IRS 401(a)(17))
-compensation_limit_compliance AS (
-    SELECT
-        'COMPENSATION_LIMIT_COMPLIANCE' AS compliance_category,
-        'IRS Section 401(a)(17) Compensation Limits' AS compliance_description,
-
-        COUNT(*) AS total_employees,
-        SUM(CASE WHEN cd.is_enrolled THEN 1 ELSE 0 END) AS enrolled_employees,
-        0 AS employees_at_limit,
-        0 AS employees_with_excess,
-
-        -- Compliance indicators
-        SUM(CASE WHEN cd.prorated_annual_compensation > il.compensation_limit THEN 1 ELSE 0 END) AS limit_violations,
-        0 AS total_excess_contributions,  -- Placeholder
-
-        0 AS catch_up_eligible_count,  -- Not applicable
-        0 AS catch_up_at_limit,  -- Not applicable
-        0 AS max_individual_excess,  -- Not applicable
-        NULL AS avg_deferral_rate,  -- Not applicable for compensation limits
-
-        'REQUIRES_MANUAL_REVIEW' AS compliance_status,
-        'MEDIUM' AS risk_level,
-
-        MAKE_DATE({{ simulation_year }}, 4, 15) AS primary_correction_deadline,
-        MAKE_DATE({{ simulation_year }}, 12, 31) AS plan_year_end_deadline,
-
-        il.compensation_limit AS base_limit,
-        0 AS catch_up_limit,
-        il.compensation_limit AS total_limit
-
-    FROM contribution_data cd
-    CROSS JOIN irs_contribution_limits il
-    GROUP BY il.compensation_limit
-),
-
 -- Plan Administration Compliance
 plan_administration_compliance AS (
     SELECT
@@ -167,7 +127,7 @@ plan_administration_compliance AS (
         0 AS employees_with_excess,
 
         -- Administrative compliance metrics
-        SUM(CASE WHEN cd.data_quality_flag != 'VALID' THEN 1 ELSE 0 END) AS limit_violations,
+        SUM(CASE WHEN cd.deferral_rate_source_quality IN ('INVALID_EMPLOYEE_ID', 'INVALID_RATE') THEN 1 ELSE 0 END) AS limit_violations,
         0 AS total_excess_contributions,  -- Not applicable
 
         0 AS catch_up_eligible_count,  -- Not applicable here
@@ -176,15 +136,15 @@ plan_administration_compliance AS (
         AVG(CASE WHEN cd.is_enrolled THEN cd.effective_deferral_rate ELSE NULL END) AS avg_deferral_rate,
 
         CASE
-            WHEN SUM(CASE WHEN cd.data_quality_flag != 'VALID' THEN 1 ELSE 0 END) = 0
+            WHEN SUM(CASE WHEN cd.deferral_rate_source_quality IN ('INVALID_EMPLOYEE_ID', 'INVALID_RATE') THEN 1 ELSE 0 END) = 0
             THEN 'COMPLIANT'
             ELSE 'ADMINISTRATIVE_ISSUES'
         END AS compliance_status,
 
         CASE
-            WHEN SUM(CASE WHEN cd.data_quality_flag != 'VALID' THEN 1 ELSE 0 END) = 0
+            WHEN SUM(CASE WHEN cd.deferral_rate_source_quality IN ('INVALID_EMPLOYEE_ID', 'INVALID_RATE') THEN 1 ELSE 0 END) = 0
             THEN 'LOW'
-            WHEN SUM(CASE WHEN cd.data_quality_flag != 'VALID' THEN 1 ELSE 0 END) > 10
+            WHEN SUM(CASE WHEN cd.deferral_rate_source_quality IN ('INVALID_EMPLOYEE_ID', 'INVALID_RATE') THEN 1 ELSE 0 END) > 10
             THEN 'HIGH'
             ELSE 'MEDIUM'
         END AS risk_level,
@@ -202,8 +162,6 @@ plan_administration_compliance AS (
 -- Combined compliance monitoring results
 combined_compliance AS (
     SELECT * FROM irs_402g_compliance
-    UNION ALL
-    SELECT * FROM compensation_limit_compliance
     UNION ALL
     SELECT * FROM plan_administration_compliance
 )
