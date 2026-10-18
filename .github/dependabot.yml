@@ -42,7 +42,3 @@ updates:
         update-types:
           - minor
           - patch
-    ignore:
-      # ruff 0.4 -> 0.16 surfaces ~4.8k new lint errors (#718); upgrade it
-      # deliberately alongside the cleanup rather than via Dependabot.
-      - dependency-name: "ruff"
