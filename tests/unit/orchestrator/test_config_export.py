@@ -1071,28 +1071,43 @@ class TestExportCompensationVars:
         result = _export_compensation_vars(cfg)
         assert result["promotion_distribution_range"] == 0.10
 
-    @pytest.mark.parametrize(
-        "flat",
-        [
-            {
-                "promotion_increase_percent": 12.5,
-                "promotion_distribution_range_percent": 5,
-            },
-            {"promotion_increase": 0.125, "promotion_distribution_range": 0.05},
-        ],
-    )
-    def test_promotion_flat_values_equal_to_defaults_are_honored(self, flat):
-        """#906: explicitly saved 12.5% / 5% must not fall back to nested values."""
+    def test_studio_promotion_nested_values_equal_to_legacy_defaults_are_honored(self):
+        """#906: the Studio payload targets nested fields, even at 12.5% / 5%."""
         from planalign_orchestrator.config.simulation import CompensationSettings
 
-        nested = {"base_increase_pct": 0.20, "distribution_range": 0.03}
         cfg = _make_config()
         cfg.compensation = CompensationSettings.model_validate(
-            {**flat, "promotion_compensation": nested}
+            {
+                "promotion_compensation": {
+                    "base_increase_pct": 0.125,
+                    "distribution_range": 0.05,
+                }
+            }
         )
-        result = _export_compensation_vars(cfg)
+        result = to_dbt_vars(cfg)
         assert result["promotion_base_increase_pct"] == pytest.approx(0.125)
         assert result["promotion_distribution_range"] == pytest.approx(0.05)
+
+    @pytest.mark.parametrize(
+        "flat", [{"promotion_increase": 0.125}, {"promotion_increase_percent": 12.5}]
+    )
+    def test_legacy_flat_sentinel_keeps_nested_default(self, flat):
+        from planalign_orchestrator.config.simulation import CompensationSettings
+
+        cfg = _make_config()
+        cfg.compensation = CompensationSettings.model_validate(flat)
+        result = to_dbt_vars(cfg)
+        assert result["promotion_base_increase_pct"] == pytest.approx(0.20)
+
+    def test_legacy_flat_nondefault_is_honored(self):
+        from planalign_orchestrator.config.simulation import CompensationSettings
+
+        cfg = _make_config()
+        cfg.compensation = CompensationSettings.model_validate(
+            {"promotion_increase": 0.15}
+        )
+        result = to_dbt_vars(cfg)
+        assert result["promotion_base_increase_pct"] == pytest.approx(0.15)
 
     def test_promotion_flat_values_unset_use_nested(self):
         from planalign_orchestrator.config.simulation import CompensationSettings

@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Editing a legacy match eligibility rule in Studio no longer stores a new-hire service waiver. A later minimum-service edit now requires hire-year employees to meet service instead of keeping them match-eligible.
 - Clearing the auto-enrollment hire-date cutoff in Studio no longer fails the run with an invalid `''::DATE`. A blank cutoff now uses the engine default (2020-01-01), the same way the escalation cutoff works.
-- A promotion increase of exactly 12.5% or a distribution range of exactly 5% is no longer discarded in favor of the nested promotion values. Any explicitly saved flat value now applies. Workspaces that saved `promotion_increase_percent: 12.5` as a side effect of an earlier full-form save now get 12.5% instead of the nested 20% midpoint.
+- Studio saves promotion increases and ranges in the nested promotion settings, including 12.5% and 5%, and removes stale flat aliases when either is edited. Legacy flat defaults still defer to nested values.
 - DC Plan participation charts no longer classify nonparticipants labeled "not auto enrolled" as automatically enrolled. Enrollment-method counts exclude unenrolled and nonparticipating rows; existing run results display correctly without rerunning simulations.
 
 ### Changed

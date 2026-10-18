@@ -196,4 +196,20 @@ describe('lossless configuration edits', () => {
     expect(synchronizeCompensationAliases(original, before, after))
       .toEqual({ compensation: { cola_rate: 0.08, merit_budget: 0.09 } });
   });
+
+  it('saves promotion edits in nested fields and removes stale flat aliases', () => {
+    const original = { compensation: {
+      promotion_increase: 0.125, promotion_increase_percent: 12.5,
+      promotion_distribution_range: 0.05, promotion_distribution_range_percent: 5,
+      promotion_compensation: { base_increase_pct: 0.20, distribution_range: 0.03, max_cap_pct: 0.30 },
+    } };
+    const loaded = { ...DEFAULT_FORM_DATA, promoIncrease: 20, promoDistributionRange: 3 };
+    const before = buildConfigPayload(loaded, null, null);
+    const after = buildConfigPayload({ ...loaded, promoIncrease: 12.5, promoDistributionRange: 5 }, null, null);
+    const edited = applyConfigEdits(original, before, after) as Record<string, unknown>;
+    expect(synchronizeCompensationAliases(edited, before, after)).toEqual({ compensation: {
+      promotion_compensation: { base_increase_pct: 0.125, distribution_range: 0.05, max_cap_pct: 0.30 },
+    } });
+    expect(synchronizeCompensationAliases(original, before, before)).toEqual(original);
+  });
 });

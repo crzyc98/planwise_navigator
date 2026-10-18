@@ -1096,15 +1096,13 @@ def _export_compensation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
 
     # Epic E059: Promotion compensation configuration
     promotion = cfg.compensation.promotion_compensation
-    # Use flat config values from UI if explicitly set (including values equal
-    # to the flat default), else fall back to nested config
-    flat_fields_set = cfg.compensation.model_fields_set
-    if "promotion_increase" in flat_fields_set:
+    # Flat promotion fields are legacy; their default values defer to nested settings.
+    if cfg.compensation.promotion_increase != 0.125:
         dbt_vars["promotion_base_increase_pct"] = cfg.compensation.promotion_increase
     else:
         dbt_vars["promotion_base_increase_pct"] = promotion.base_increase_pct
 
-    if "promotion_distribution_range" in flat_fields_set:
+    if cfg.compensation.promotion_distribution_range != 0.05:
         dbt_vars[
             "promotion_distribution_range"
         ] = cfg.compensation.promotion_distribution_range

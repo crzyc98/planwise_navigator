@@ -114,12 +114,18 @@ function mapSimulationFields(cfg: any, prev: FormData): Partial<FormData> {
 function mapCompensationFields(cfg: any, prev: FormData): Partial<FormData> {
   const percent = (key: string, fallback: number) => cfg.compensation?.[key] != null
     ? Number((cfg.compensation[key] * 100).toFixed(10)) : cfg.compensation?.[`${key}_percent`] ?? fallback;
+  const promotionPercent = (key: string, nestedKey: string, sentinel: number, fallback: number) => {
+    const flat = percent(key, sentinel * 100);
+    return flat !== sentinel * 100 ? flat
+      : cfg.compensation?.promotion_compensation?.[nestedKey] != null
+        ? Number((cfg.compensation.promotion_compensation[nestedKey] * 100).toFixed(10)) : fallback;
+  };
   return {
     targetCompensationGrowth: cfg.compensation?.target_compensation_growth_percent ?? prev.targetCompensationGrowth,
     meritBudget: percent('merit_budget', prev.meritBudget),
     colaRate: percent('cola_rate', prev.colaRate),
-    promoIncrease: percent('promotion_increase', prev.promoIncrease),
-    promoDistributionRange: percent('promotion_distribution_range', prev.promoDistributionRange),
+    promoIncrease: promotionPercent('promotion_increase', 'base_increase_pct', 0.125, prev.promoIncrease),
+    promoDistributionRange: promotionPercent('promotion_distribution_range', 'distribution_range', 0.05, prev.promoDistributionRange),
     promoBudget: percent('promotion_budget', prev.promoBudget),
     promoRateMultiplier: cfg.compensation?.promotion_rate_multiplier ?? prev.promoRateMultiplier,
   };

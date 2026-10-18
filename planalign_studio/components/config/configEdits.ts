@@ -91,9 +91,21 @@ export function synchronizeCompensationAliases(
   const oldComp = isObject(before.compensation) ? before.compensation : {};
   const newComp = isObject(after.compensation) ? after.compensation : {};
   const comp = isObject(result.compensation) ? result.compensation : {};
-  for (const key of ['cola_rate', 'merit_budget', 'promotion_increase', 'promotion_budget', 'promotion_distribution_range']) {
+  for (const key of ['cola_rate', 'merit_budget', 'promotion_budget']) {
     const alias = `${key}_percent`;
     if (!equal(oldComp[alias], newComp[alias])) comp[key] = Number(newComp[alias]) / 100;
+  }
+  const oldPromotion = isObject(oldComp.promotion_compensation) ? oldComp.promotion_compensation : {};
+  const newPromotion = isObject(newComp.promotion_compensation) ? newComp.promotion_compensation : {};
+  if (['base_increase_pct', 'distribution_range'].some(key => !equal(oldPromotion[key], newPromotion[key]))) {
+    // Move both displayed values together so removing legacy flat keys preserves the other value.
+    comp.promotion_compensation = {
+      ...(isObject(comp.promotion_compensation) ? comp.promotion_compensation : {}),
+      base_increase_pct: newPromotion.base_increase_pct,
+      distribution_range: newPromotion.distribution_range,
+    };
+    for (const key of ['promotion_increase', 'promotion_increase_percent',
+      'promotion_distribution_range', 'promotion_distribution_range_percent']) delete comp[key];
   }
   if (isObject(result.compensation)) result.compensation = comp;
   return result;
