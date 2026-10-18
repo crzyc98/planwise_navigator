@@ -179,6 +179,12 @@ it('does not present one global match calculation when plan designs override it'
   expect(matchRuleSummary({ active_match_formula: 'simple', match_formulas: { simple: { match_rate: 0.5, max_match_percentage: 0.06 } } })).toContain('legacy formula label alone does not verify');
 });
 
+it('applies the engine default four-percent match cap when it is not exported', () => {
+  const tiers = [{ employee_min: 0, employee_max: 0.1, match_rate: 1 }];
+  expect(matchRuleSummary({ match_tiers: tiers })).toContain('Maximum formula match: 4%');
+  expect(matchRuleSummary({ match_tiers: tiers, match_cap_percent: 0.03 })).toContain('Maximum formula match: 3%');
+});
+
 it('describes actual match requirements without calling eligibility off', () => {
   const eligibility = { minimum_tenure_years: 2, minimum_hours_annual: 750,
     require_active_at_year_end: false, allow_terminated_new_hires: true, allow_new_hires: true };

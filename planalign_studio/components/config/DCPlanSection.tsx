@@ -125,11 +125,12 @@ export function getDeferralSpreadClipping(
 export function DCPlanSection() {
   const { formData, savedFormData, setFormData, handleChange, inputProps, activeWorkspace, workspaceConfig, originalConfig, buildDraftConfig, resolvedEngineVariables } = useConfigContext();
   const displayConfig = dcDisplayConfig(workspaceConfig, originalConfig, buildDraftConfig, resolvedEngineVariables);
+  const responseConfig = displayConfig.deferral_match_response as Record<string, unknown> | undefined;
   const voluntaryMode = formData.dcVoluntaryEnrollmentMode ?? (formData.dcVoluntaryEnrollmentRate === '' ? 'demographic' : 'specified');
   const optOutMode = formData.dcNewHireOptOutMode ?? (formData.dcNewHireOptOutRate === '' ? 'demographic' : 'specified');
   const rateSource = (mode: string, value: string) => mode === 'specified' ? `${value}% specified` : mode === 'demographic' ? 'demographic model' : 'inherited setting';
-  const responseMaximizers = Number(displayConfig.deferral_match_response?.upward_maximize_rate ?? 0.6) * 100;
-  const responsePartialGap = Number(displayConfig.deferral_match_response?.upward_partial_increase_factor ?? 0.5) * 100;
+  const responseMaximizers = Number(responseConfig?.upward_maximize_rate ?? 0.6) * 100;
+  const responsePartialGap = Number(responseConfig?.upward_partial_increase_factor ?? 0.5) * 100;
   const waitingMonths = Number(formData.dcEligibilityMonths);
   const waitingPeriodUnchanged = savedFormData != null && Number(savedFormData.dcEligibilityMonths) === waitingMonths;
   const waitingPeriodDays = Number(((waitingPeriodUnchanged ? waitingMonths : Math.trunc(waitingMonths)) * 30).toFixed(6));

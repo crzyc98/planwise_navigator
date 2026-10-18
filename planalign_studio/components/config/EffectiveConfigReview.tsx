@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { previewConfiguration, type ConfigPreview } from '../../services/api';
-import { MATCH_TEMPLATES } from './constants';
+import { ELIGIBILITY_DEFAULTS, MATCH_TEMPLATES } from './constants';
 
-type Config = Record<string, any>;
+type Config = Record<string, unknown>;
+const asConfig = (value: unknown): Config => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Config : {};
 export interface ConfigurationReviewDraft {
   draft: Config;
   saved: Config;
@@ -26,7 +27,7 @@ function flatten(config: Config, prefix = ''): Config {
   return Object.fromEntries(Object.entries(config).flatMap(([key, value]) => {
     const path = prefix ? `${prefix}.${key}` : key;
     return value && typeof value === 'object' && !Array.isArray(value)
-      ? Object.entries(flatten(value, path)) : [[path, value]];
+      ? Object.entries(flatten(asConfig(value), path)) : [[path, value]];
   }));
 }
 
@@ -56,11 +57,9 @@ function eligibilityField(key: string): [string, string] | undefined {
 }
 
 function effectiveMatchRules(match: Config): Config {
-  const rules = match.apply_eligibility === false ? {} : match.eligibility ?? {};
-  return { minimum_tenure_years: 0, minimum_hours_annual: 1000,
-    require_active_at_year_end: true, allow_terminated_new_hires: false,
-    allow_experienced_terminations: false, ...rules,
-    allow_new_hires: rules.allow_new_hires ?? (rules.minimum_tenure_years ?? 0) === 0 };
+  const rules = match.apply_eligibility === false ? {} : asConfig(match.eligibility);
+  return { ...ELIGIBILITY_DEFAULTS.Match, ...rules,
+    allow_new_hires: rules.allow_new_hires ?? (rules.minimum_tenure_years ?? ELIGIBILITY_DEFAULTS.Match.minimum_tenure_years) === 0 };
 }
 
 /** Compare effective rules, leaving storage/compatibility details in the full config. */
@@ -69,8 +68,8 @@ export function eligibilityReviewChanges(
 ) {
   const changes = reviewChanges(saved, draft);
   if (!before.employer_match || !after.employer_match) return changes;
-  const oldRules = effectiveMatchRules(before.employer_match);
-  const newRules = effectiveMatchRules(after.employer_match);
+  const oldRules = effectiveMatchRules(asConfig(before.employer_match));
+  const newRules = effectiveMatchRules(asConfig(after.employer_match));
   const otherChanges = changes.filter(change => engine
     ? change.key !== 'employer_match.apply_eligibility' && !eligibilityField(change.key)
     : !eligibilityField(change.key));
@@ -164,13 +163,13 @@ function describeSettings(value: unknown): string {
 
 export function matchEligibilityReview(value: Config): string {
   const legacy = value.apply_eligibility === false;
-  const rules = legacy ? {} : value.eligibility ?? {};
-  return `Minimum service: ${rules.minimum_tenure_years ?? 0} years; minimum annual hours: ${rules.minimum_hours_annual ?? 1000}; ` +
-    `active employment at year-end: ${(rules.require_active_at_year_end ?? true) ? 'required' : 'not required'}; ` +
+  const rules: Config = { ...ELIGIBILITY_DEFAULTS.Match, ...(legacy ? {} : asConfig(value.eligibility)) };
+  return `Minimum service: ${rules.minimum_tenure_years} years; minimum annual hours: ${rules.minimum_hours_annual}; ` +
+    `active employment at year-end: ${rules.require_active_at_year_end ? 'required' : 'not required'}; ` +
     `terminated hire-year employees: ${rules.allow_terminated_new_hires ? 'allowed' : 'excluded'}; ` +
     `terminated experienced employees: ${rules.allow_experienced_terminations ? 'allowed' : 'excluded'}. ` +
     (legacy ? 'No new-hire service waiver is needed with zero minimum service.'
-      : `New-hire service waiver: ${(rules.allow_new_hires ?? (rules.minimum_tenure_years ?? 0) === 0) ? 'allowed' : 'not allowed'}.`);
+      : `New-hire service waiver: ${(rules.allow_new_hires ?? rules.minimum_tenure_years === 0) ? 'allowed' : 'not allowed'}.`);
 }
 
 function formatActiveSetting(key: string, value: unknown): string {
@@ -181,15 +180,16 @@ function formatActiveSetting(key: string, value: unknown): string {
 
 export function matchRuleSummary(variables: Config): string | null {
   if (variables.employer_match_enabled === false) return 'Employer match is off; the saved formula and schedules are retained.';
-  if (variables.employer_match_status && variables.employer_match_status !== 'deferral_based') return `Match varies by ${labelFor(variables.employer_match_status)}. Review the resolved schedule below.`;
-  if (variables.plan_design_parameters && Object.keys(variables.plan_design_parameters).length) return 'Match rules vary by assigned plan design. Review the resolved plan-design parameters below.';
+  if (typeof variables.employer_match_status === 'string' && variables.employer_match_status !== 'deferral_based') return `Match varies by ${labelFor(variables.employer_match_status)}. Review the resolved schedule below.`;
+  if (Object.keys(asConfig(variables.plan_design_parameters)).length) return 'Match rules vary by assigned plan design. Review the resolved plan-design parameters below.';
   const tiers = variables.match_tiers;
   if (!Array.isArray(tiers) || !tiers.length) return 'No explicit matching tiers were exported. The match calculation uses its engine default tier schedule; a legacy formula label alone does not verify the applied schedule. Mapping unverified.';
   if (tiers.some(tier => !['employee_min', 'employee_max', 'match_rate'].every(key => Number.isFinite(tier[key])))) return 'The exported matching tiers could not be summarized. Inspect the complete engine variables. Mapping unverified.';
   const positiveTiers = tiers.filter(tier => tier.match_rate > 0);
   const threshold = Math.max(0, ...positiveTiers.map(tier => tier.employee_max));
   const total = tiers.reduce((sum, tier) => sum + Math.max(0, tier.employee_max - tier.employee_min) * tier.match_rate, 0);
-  const maximum = Number.isFinite(variables.match_cap_percent) ? Math.min(total, variables.match_cap_percent) : total;
+  const maximum = Math.min(total, typeof variables.match_cap_percent === 'number' && Number.isFinite(variables.match_cap_percent)
+    ? variables.match_cap_percent : 0.04);
   const pct = (value: number) => `${Number((value * 100).toFixed(3))}%`;
   return `${tiers.map(tier => `${pct(tier.match_rate)} match on employee contributions from ${pct(tier.employee_min)} to ${pct(tier.employee_max)}`).join('; ')}. Employee contribution at the top matching tier: ${pct(threshold)} of compensation. Maximum formula match: ${pct(maximum)} of compensation, before eligibility and IRS limits.`;
 }
@@ -248,7 +248,7 @@ export function EffectiveConfigReview({ review, stale, saving, onClose, onSave, 
     finally { savePending.current = false; setSavingLocally(false); }
   };
   const variables = resolved?.after.engine_variables ?? {};
-  const effectiveNewHire = resolved?.after.configuration.new_hire ?? review.draft.new_hire ?? {};
+  const effectiveNewHire = asConfig(resolved?.after.configuration.new_hire ?? review.draft.new_hire);
   const inactive = ['strategy', 'target_percentile', 'compensation_variance_percent', 'level_distribution_mode', 'level_distribution', 'level_market_adjustments']
     .filter(key => key in effectiveNewHire);
   const engineChanges = resolved?.before ? eligibilityReviewChanges(resolved.before.engine_variables, variables, resolved.before.engine_variables, variables, true) : [];
@@ -288,7 +288,7 @@ export function EffectiveConfigReview({ review, stale, saving, onClose, onSave, 
         </>}
         <section><h3 className="font-semibold mb-2">Inactive saved settings</h3>
           {inactive.length ? <><p className="text-sm text-ink-muted">These retained new-hire settings, including inherited values, have no active engine mapping or consumer:</p><ul className="list-disc pl-5 text-sm">{inactive.map(key => <li key={key}>{labelFor(key)}: {showValue(redactReviewValue(effectiveNewHire[key], key))} <span className="text-xs">Inactive</span></li>)}</ul><button type="button" disabled={busy} onClick={() => onEdit('newhire')} className="text-sm text-info-ink underline mt-2">Review new-hire assumptions</button></> : <p className="text-sm text-ink-muted">No retained unsupported new-hire settings in this draft.</p>}
-          {review.draft.compensation?.promotion_budget !== undefined || review.draft.compensation?.promotion_budget_percent !== undefined ? <p className="mt-2 text-sm text-ink-muted">Promotion budget is saved for reference and is not enforced by the engine.</p> : null}
+          {asConfig(review.draft.compensation).promotion_budget !== undefined || asConfig(review.draft.compensation).promotion_budget_percent !== undefined ? <p className="mt-2 text-sm text-ink-muted">Promotion budget is saved for reference and is not enforced by the engine.</p> : null}
         </section>
         <details className="border border-border rounded p-3"><summary className="cursor-pointer font-medium">Additional configured settings — mapping unverified</summary><p className="text-xs text-ink-muted my-2">All preserved draft settings, including legacy and unknown keys. Unsupported and unmapped settings do not imply an effect on outputs. Paths and sensitive fields are hidden.</p><pre className="text-xs whitespace-pre-wrap break-all">{JSON.stringify(redactReviewValue(review.draft), null, 2)}</pre></details>
         <section><h3 className="font-semibold mb-2">Items requiring attention</h3><p className="text-sm text-ink-muted">Suggestions require explicit application in their editor. Review does not calculate or apply suggestions. A changed-input suggestion must be recalculated before applying.</p>

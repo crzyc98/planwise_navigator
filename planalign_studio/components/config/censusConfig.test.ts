@@ -52,14 +52,14 @@ describe('effective census for loading and copying scenarios', () => {
     const payload = buildConfigPayload({ ...DEFAULT_FORM_DATA, ...fields }, null, null, {
       isScenario: true, workspacePath: 'workspace.parquet',
     });
-    expect(payload.setup.census_parquet_path).toBe('custom.parquet');
-    expect(payload.data_sources.census_parquet_path).toBe('custom.parquet');
+    expect(payload.setup?.census_parquet_path).toBe('custom.parquet');
+    expect(payload.data_sources?.census_parquet_path).toBe('custom.parquet');
   });
 
   it('validates inherited census and preserves it when saving workspace defaults', async () => {
     const fields = await resolveCensusFields({}, config('workspace.parquet'), async () => valid);
     const payload = buildConfigPayload({ ...DEFAULT_FORM_DATA, ...fields }, null, null, { isScenario: false });
-    expect(payload.setup.census_parquet_path).toBe('workspace.parquet');
+    expect(payload.setup?.census_parquet_path).toBe('workspace.parquet');
   });
 
   it('keeps inheritance when a copied scenario uses a newly uploaded workspace census', async () => {

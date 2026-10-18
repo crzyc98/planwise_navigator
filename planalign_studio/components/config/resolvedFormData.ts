@@ -1,6 +1,10 @@
 import type { FormData, MatchTier } from './types';
+import { ELIGIBILITY_DEFAULTS } from './constants';
 
-type Variables = Record<string, any>;
+type Variables = Record<string, unknown>;
+const asVariables = (value: unknown): Variables => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Variables : {};
+const rows = <T,>(value: unknown): T[] | null => Array.isArray(value) ? value as T[] : null;
+const percent = (value: unknown): number => scaled(value as number);
 type Mapping = readonly [keyof FormData, string, number?];
 
 // Avoid binary floating-point artifacts in controls and dirty comparisons.
@@ -66,7 +70,7 @@ function applyScalars(variables: Variables, form: FormData): FormData {
     const value = variables[key];
     if (value == null || typeof value !== typeof form[field]) continue;
     if (typeof value === 'number' && !Number.isFinite(value)) continue;
-    changes[field] = scale === undefined ? value : scaled(value, scale);
+    changes[field] = scale === undefined ? value : scaled(value as number, scale);
   }
   return { ...form, ...changes };
 }
@@ -83,10 +87,10 @@ function applyEnrollment(variables: Variables, form: FormData): FormData {
     ...form,
     ...(typeof waitingDays === 'number' ? { dcEligibilityMonths: scaled(waitingDays, 1 / 30) } : {}),
     ...(typeof scope === 'string' ? { dcAutoEnrollScope: scope === 'all_eligible_employees' ? 'all_eligible' : scope } : {}),
-    dcVoluntaryEnrollmentRate: variables.voluntary_enrollment_rate == null ? '' : String(scaled(variables.voluntary_enrollment_rate)),
-    dcNewHireOptOutRate: variables.new_hire_opt_out_rate == null ? '' : String(scaled(variables.new_hire_opt_out_rate)),
+    dcVoluntaryEnrollmentRate: variables.voluntary_enrollment_rate == null ? '' : String(percent(variables.voluntary_enrollment_rate)),
+    dcNewHireOptOutRate: variables.new_hire_opt_out_rate == null ? '' : String(percent(variables.new_hire_opt_out_rate)),
     dcDeferralSpreadMaxLift: variables.deferral_spread_max_lift == null ? form.dcDeferralSpreadMaxLift : String(variables.deferral_spread_max_lift),
-    dcEscalationHireDateCutoff: variables.deferral_escalation_hire_date_cutoff ?? '',
+    dcEscalationHireDateCutoff: (variables.deferral_escalation_hire_date_cutoff ?? '') as string,
     dcVoluntaryDeferralBaseRates: rates,
   };
 }
@@ -102,15 +106,12 @@ function applyEligibility(variables: Variables, form: FormData): FormData {
     const settings = variables[family === 'Match' ? 'employer_match' : 'employer_core_contribution'];
     // Legacy matching ignores stored detailed rules. Show the rules actually
     // consumed by int_employer_eligibility, not dormant saved values.
-    const eligibility = family === 'Match' && settings?.apply_eligibility === false
-      ? {} : settings?.eligibility ?? {};
+    const nested = asVariables(settings);
+    const eligibility = family === 'Match' && nested.apply_eligibility === false
+      ? {} : asVariables(nested.eligibility);
     // int_employer_eligibility consumes nested values only; flat core aliases
     // do not override this model's defaults.
-    const defaults: Record<string, number | boolean> = {
-      minimum_tenure_years: family === 'Core' ? 1 : 0,
-      minimum_hours_annual: 1000, require_active_at_year_end: true,
-      allow_terminated_new_hires: false, allow_experienced_terminations: false,
-    };
+    const defaults: Record<string, number | boolean> = ELIGIBILITY_DEFAULTS[family];
     for (const [suffix, key] of Object.entries(fields)) {
       changes[`dc${family}${suffix}`] = eligibility[key] ?? defaults[key];
     }
@@ -120,8 +121,8 @@ function applyEligibility(variables: Variables, form: FormData): FormData {
 
 function matchTiers(tiers: Variables[]): MatchTier[] {
   return tiers.map(tier => ({
-    deferralMin: scaled(tier.employee_min), deferralMax: scaled(tier.employee_max),
-    matchRate: scaled(tier.match_rate),
+    deferralMin: percent(tier.employee_min), deferralMax: percent(tier.employee_max),
+    matchRate: percent(tier.match_rate),
   }));
 }
 
@@ -131,45 +132,45 @@ function applyMatch(variables: Variables, form: FormData): FormData {
   const tiers = variables.match_tiers;
   return {
     ...form,
-    ...(variables.match_template ? { dcMatchTemplate: variables.match_template } : {}),
-    ...(Array.isArray(tiers) ? { dcMatchTiers: matchTiers(tiers) } : {}),
-    ...(Array.isArray(variables.tenure_match_tiers) ? { dcTenureMatchTiers: variables.tenure_match_tiers.map((tier: Variables) => ({
+    ...(typeof variables.match_template === 'string' ? { dcMatchTemplate: variables.match_template } : {}),
+    ...(rows<Variables>(tiers) ? { dcMatchTiers: matchTiers(rows<Variables>(tiers)!) } : {}),
+    ...(rows<Variables>(variables.tenure_match_tiers) ? { dcTenureMatchTiers: rows<Variables>(variables.tenure_match_tiers)!.map(tier => ({
       minYears: tier.min_years, maxYears: tier.max_years, matchRate: tier.rate, maxDeferralPct: tier.max_deferral_pct,
-    })) } : {}),
-    ...(Array.isArray(variables.points_match_tiers) ? { dcPointsMatchTiers: variables.points_match_tiers.map((tier: Variables) => ({
+    })) as FormData['dcTenureMatchTiers'] } : {}),
+    ...(rows<Variables>(variables.points_match_tiers) ? { dcPointsMatchTiers: rows<Variables>(variables.points_match_tiers)!.map(tier => ({
       minPoints: tier.min_points, maxPoints: tier.max_points, matchRate: tier.rate, maxDeferralPct: tier.max_deferral_pct,
-    })) } : {}),
-    ...(Array.isArray(variables.tenure_graded_bands) ? { dcTenureGradedBands: variables.tenure_graded_bands.map((band: Variables) => ({
-      minYears: band.min_years, maxYears: band.max_years, tiers: matchTiers(band.tiers),
-    })) } : {}),
+    })) as FormData['dcPointsMatchTiers'] } : {}),
+    ...(rows<Variables>(variables.tenure_graded_bands) ? { dcTenureGradedBands: rows<Variables>(variables.tenure_graded_bands)!.map(band => ({
+      minYears: band.min_years, maxYears: band.max_years, tiers: matchTiers(rows<Variables>(band.tiers) ?? []),
+    })) as FormData['dcTenureGradedBands'] } : {}),
   };
 }
 
 function applyCoreSchedules(variables: Variables, form: FormData): FormData {
   return {
     ...form,
-    ...('employer_core_integration_level_value' in variables ? { dcCoreIntegrationLevelValue: variables.employer_core_integration_level_value } : {}),
-    ...(Array.isArray(variables.employer_core_graded_schedule) ? { dcCoreGradedSchedule: variables.employer_core_graded_schedule.map((tier: Variables) => ({
+    ...('employer_core_integration_level_value' in variables ? { dcCoreIntegrationLevelValue: variables.employer_core_integration_level_value as number | null } : {}),
+    ...(rows<Variables>(variables.employer_core_graded_schedule) ? { dcCoreGradedSchedule: rows<Variables>(variables.employer_core_graded_schedule)!.map(tier => ({
       serviceYearsMin: tier.min_years, serviceYearsMax: tier.max_years, rate: tier.rate,
-    })) } : {}),
-    ...(Array.isArray(variables.employer_core_points_schedule) ? { dcCorePointsSchedule: variables.employer_core_points_schedule.map((tier: Variables) => ({
+    })) as FormData['dcCoreGradedSchedule'] } : {}),
+    ...(rows<Variables>(variables.employer_core_points_schedule) ? { dcCorePointsSchedule: rows<Variables>(variables.employer_core_points_schedule)!.map(tier => ({
       minPoints: tier.min_points, maxPoints: tier.max_points, rate: tier.rate,
-    })) } : {}),
-    ...(Array.isArray(variables.employer_core_age_schedule) ? { dcCoreAgeSchedule: variables.employer_core_age_schedule.map((tier: Variables) => ({
+    })) as FormData['dcCorePointsSchedule'] } : {}),
+    ...(rows<Variables>(variables.employer_core_age_schedule) ? { dcCoreAgeSchedule: rows<Variables>(variables.employer_core_age_schedule)!.map(tier => ({
       minAge: tier.min_age, maxAge: tier.max_age, rate: tier.rate,
-    })) } : {}),
+    })) as FormData['dcCoreAgeSchedule'] } : {}),
   };
 }
 
 function applyNewHire(variables: Variables, form: FormData): FormData {
   return {
     ...form,
-    ...(Array.isArray(variables.new_hire_age_distribution) ? { newHireAgeDistribution: variables.new_hire_age_distribution.map((row: Variables) => ({
+    ...(rows<Variables>(variables.new_hire_age_distribution) ? { newHireAgeDistribution: rows<Variables>(variables.new_hire_age_distribution)!.map(row => ({
       age: row.age, weight: row.weight, description: form.newHireAgeDistribution.find(age => age.age === row.age)?.description ?? '',
-    })) } : {}),
-    ...(Array.isArray(variables.job_level_compensation) ? { jobLevelCompensation: variables.job_level_compensation.map((row: Variables) => ({
+    })) as FormData['newHireAgeDistribution'] } : {}),
+    ...(rows<Variables>(variables.job_level_compensation) ? { jobLevelCompensation: rows<Variables>(variables.job_level_compensation)!.map(row => ({
       level: row.level, name: row.name ?? `Level ${row.level}`, minComp: row.min_compensation, maxComp: row.max_compensation,
-    })) } : {}),
+    })) as FormData['jobLevelCompensation'] } : {}),
   };
 }
 

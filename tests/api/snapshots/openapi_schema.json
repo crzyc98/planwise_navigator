@@ -4509,6 +4509,32 @@
         "title": "ConfigDifference",
         "type": "object"
       },
+      "ConfigPreview": {
+        "description": "Resolved configuration and exported engine variables for a Studio draft.",
+        "properties": {
+          "configuration": {
+            "additionalProperties": true,
+            "title": "Configuration",
+            "type": "object"
+          },
+          "engine_variables": {
+            "additionalProperties": true,
+            "title": "Engine Variables",
+            "type": "object"
+          },
+          "scope": {
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "configuration",
+          "engine_variables",
+          "scope"
+        ],
+        "title": "ConfigPreview",
+        "type": "object"
+      },
       "ConfigPreviewRequest": {
         "description": "Unsaved configuration to resolve without persisting it.",
         "properties": {
@@ -23136,9 +23162,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Preview Configuration Api Workspaces  Workspace Id  Config Preview Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ConfigPreview"
                 }
               }
             },

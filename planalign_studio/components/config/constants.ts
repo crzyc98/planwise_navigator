@@ -9,6 +9,20 @@ import type {
   VoluntaryDeferralBaseRates,
 } from './types';
 
+/** Engine contribution eligibility defaults used when nested rules are absent. */
+export const ELIGIBILITY_DEFAULTS = {
+  Match: {
+    minimum_tenure_years: 0, minimum_hours_annual: 1000,
+    require_active_at_year_end: true, allow_terminated_new_hires: false,
+    allow_experienced_terminations: false,
+  },
+  Core: {
+    minimum_tenure_years: 1, minimum_hours_annual: 1000,
+    require_active_at_year_end: true, allow_terminated_new_hires: false,
+    allow_experienced_terminations: false,
+  },
+} as const;
+
 // Helper to calculate match cap from tiers: sum of (tier_width * match_rate)
 export const calculateMatchCap = (tiers: MatchTier[]): number => {
   return tiers.reduce((sum, tier) => {

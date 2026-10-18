@@ -13,6 +13,7 @@ from ..config import APISettings, get_settings
 from ..models.scenario import (
     Scenario,
     ConfigPreviewRequest,
+    ConfigPreview,
     ScenarioCreate,
     ScenarioUpdate,
     WorkforceParamsApplyRequest,
@@ -148,7 +149,7 @@ def get_scenario_config(
     return config
 
 
-@router.post("/{workspace_id}/config-preview", response_model=Dict[str, Any])
+@router.post("/{workspace_id}/config-preview", response_model=ConfigPreview)
 def preview_configuration(
     workspace_id: str,
     data: ConfigPreviewRequest,

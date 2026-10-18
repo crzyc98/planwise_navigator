@@ -1,12 +1,12 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { applyConfigToFormData, ConfigContextType, ConfigProvider, useConfigContext } from './ConfigContext';
+import { applyConfigToFormData, ConfigContextType, ConfigProvider, hasDcPlanChanges, useConfigContext } from './ConfigContext';
 import { DEFAULT_FORM_DATA } from './constants';
 import { buildConfigPayload } from './buildConfigPayload';
-import { updateWorkspace, Workspace } from '../../services/api';
+import { previewConfiguration, updateWorkspace, Workspace } from '../../services/api';
 
-const hydration = vi.hoisted(() => ({ slot: 0, loaded: true, failed: false }));
+const hydration = vi.hoisted(() => ({ slot: 0, loaded: true, failed: false, resolved: null as unknown }));
 vi.mock('react', async importOriginal => {
   const actual = await importOriginal<typeof import('react')>();
   return {
@@ -18,6 +18,10 @@ vi.mock('react', async importOriginal => {
       if (slot === 1) return actual.useState(hydration.loaded ? { ...DEFAULT_FORM_DATA, startYear: 2025, endYear: 2029, dcEligibilityMonths: 3 } : null);
       if (slot === 4) return actual.useState(hydration.failed);
       if (slot === 11) return actual.useState(hydration.loaded ? {} : null);
+      if (slot === 13) {
+        const [value, setValue] = actual.useState(initial);
+        return [value, (next: unknown) => { hydration.resolved = next; setValue(next); }];
+      }
       return actual.useState(initial);
     },
   };
@@ -27,7 +31,18 @@ vi.mock('./constants', async importOriginal => {
   const actual = await importOriginal<typeof import('./constants')>();
   return { ...actual, DEFAULT_FORM_DATA: { ...actual.DEFAULT_FORM_DATA } };
 });
-vi.mock('../../services/api', () => ({ updateWorkspace: vi.fn() }));
+vi.mock('../../services/api', () => ({ updateWorkspace: vi.fn(), previewConfiguration: vi.fn() }));
+
+describe('DC section unsaved marker', () => {
+  it.each(['dcMatchResponseUpwardParticipation', 'dcCoreContributionRate', 'dcAutoEnrollHireDateCutoff', 'dcVoluntaryEnrollmentRate', 'dcMatchMinHoursAnnual'] as const)(
+    'tracks edits to %s', key => {
+      const saved = { ...DEFAULT_FORM_DATA };
+      const changed = { ...saved, [key]: typeof saved[key] === 'string' ? 'changed' : saved[key] + 1 };
+      expect(hasDcPlanChanges(changed, saved)).toBe(true);
+      expect(hasDcPlanChanges(saved, saved)).toBe(false);
+    },
+  );
+});
 
 function saveFromProvider() {
   hydration.slot = 0;
@@ -99,6 +114,7 @@ describe('Configuration save year validation', () => {
     DEFAULT_FORM_DATA.dcVoluntaryEnrollmentRate = '65';
     hydration.loaded = true;
     hydration.failed = false;
+    hydration.resolved = null;
   });
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
@@ -127,6 +143,19 @@ describe('Configuration save year validation', () => {
     expect(updateWorkspace).toHaveBeenCalledWith('synthetic', {
       base_config: expect.objectContaining({ simulation: expect.objectContaining({ start_year: 2025, end_year: 2025 }) }),
     });
+  });
+
+  it('refreshes resolved engine variables after a successful save', async () => {
+    vi.mocked(previewConfiguration).mockResolvedValueOnce({ configuration: {}, engine_variables: { employer_match: { apply_eligibility: true } }, scope: 'workspace' });
+    expect(await saveFromProvider()()).toBe(true);
+    expect(previewConfiguration).toHaveBeenCalledWith('synthetic', expect.objectContaining({ simulation: expect.any(Object) }), 'workspace');
+    expect(hydration.resolved).toEqual({ employer_match: { apply_eligibility: true } });
+  });
+
+  it('clears the old engine view if the saved configuration cannot be previewed', async () => {
+    vi.mocked(previewConfiguration).mockRejectedValueOnce(new Error('Preview unavailable'));
+    expect(await saveFromProvider()()).toBe(true);
+    expect(hydration.resolved).toEqual({});
   });
 
   it('returns explicit failure when persistence rejects', async () => {
