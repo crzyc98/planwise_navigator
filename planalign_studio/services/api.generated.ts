@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/api/artifact-download/{ticket}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Redeem Artifact Ticket */
+        get: operations["redeem_artifact_ticket_api_artifact_download__ticket__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/batches/{batch_id}/status": {
         parameters: {
             query?: never;
@@ -388,6 +405,26 @@ export interface paths {
         get: operations["get_active_simulations_api_scenarios_active_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scenarios/{scenario_id}/artifact-download-url/{artifact_path}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Artifact Download Url
+         * @description Authorize an artifact and issue a short-lived browser download URL.
+         */
+        post: operations["create_artifact_download_url_api_scenarios__scenario_id__artifact_download_url__artifact_path__post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3529,6 +3566,11 @@ export interface components {
         };
         /** Body_upload_census_file_api_workspaces__workspace_id__upload_post */
         Body_upload_census_file_api_workspaces__workspace_id__upload_post: {
+            /**
+             * Date Formats
+             * @default {}
+             */
+            date_formats?: string;
             /**
              * File
              * @description Census file (.parquet or .csv)
@@ -10663,6 +10705,20 @@ export interface components {
         };
         /** YearState */
         YearState: {
+            /** Assumed Roth Fraction */
+            assumed_roth_fraction: number | null;
+            /**
+             * Contribution Source Assumptions
+             * @default Archive has no source-allocation evidence. Historical engine outputs used an estimated 85% pre-tax / 15% Roth split; stored amounts are unchanged.
+             */
+            contribution_source_assumptions: string;
+            /**
+             * Contribution Source Policy
+             * @default legacy_unverified
+             */
+            contribution_source_policy: string;
+            /** Contribution Source Version */
+            contribution_source_version: string | null;
             /** Current Age */
             current_age: number | null;
             /** Current Compensation */
@@ -10689,16 +10745,45 @@ export interface components {
             is_enrolled: boolean | null;
             /** Level Id */
             level_id: number | null;
+            /** Mandatory Roth Reallocated */
+            mandatory_roth_reallocated: number | null;
+            /** Mandatory Roth Required */
+            mandatory_roth_required: number | null;
+            /** Mandatory Roth Rule Version */
+            mandatory_roth_rule_version: string | null;
+            /**
+             * Mandatory Roth Status
+             * @default not_evaluated
+             */
+            mandatory_roth_status: string;
+            /** Mandatory Roth Threshold */
+            mandatory_roth_threshold: number | null;
+            /** Mandatory Roth Threshold Basis */
+            mandatory_roth_threshold_basis: string | null;
+            /** Mandatory Roth Threshold Provenance */
+            mandatory_roth_threshold_provenance: string | null;
             /** Participation Status */
             participation_status: string | null;
             /** Pre Tax Contributions */
             pre_tax_contributions: number | null;
+            /** Prior Year Employer Fica Wages */
+            prior_year_employer_fica_wages: number | null;
+            /** Prior Year Wage Basis */
+            prior_year_wage_basis: string | null;
+            /** Prior Year Wage Provenance */
+            prior_year_wage_provenance: string | null;
             /** Prorated Annual Compensation */
             prorated_annual_compensation: number | null;
             /** Roth Contributions */
             roth_contributions: number | null;
             /** Simulation Year */
             simulation_year: number;
+            /** Source Employer Id */
+            source_employer_id: string | null;
+            /** Source Wage Year */
+            source_wage_year: number | null;
+            /** Source Year End Age */
+            source_year_end_age: number | null;
             /** Total Deferral Escalations */
             total_deferral_escalations: number | null;
             /** Total Employer Contributions */
@@ -10715,6 +10800,37 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    redeem_artifact_ticket_api_artifact_download__ticket__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticket: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_batch_status_api_batches__batch_id__status_get: {
         parameters: {
             query?: never;
@@ -11268,6 +11384,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActiveSimulationsResponse"];
+                };
+            };
+        };
+    };
+    create_artifact_download_url_api_scenarios__scenario_id__artifact_download_url__artifact_path__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scenario_id: string;
+                artifact_path: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

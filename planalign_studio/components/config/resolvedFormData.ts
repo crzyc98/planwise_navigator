@@ -99,7 +99,11 @@ function applyEligibility(variables: Variables, form: FormData): FormData {
     AllowExperiencedTerminations: 'allow_experienced_terminations',
   };
   for (const family of ['Match', 'Core'] as const) {
-    const eligibility = variables[family === 'Match' ? 'employer_match' : 'employer_core_contribution']?.eligibility ?? {};
+    const settings = variables[family === 'Match' ? 'employer_match' : 'employer_core_contribution'];
+    // Legacy matching ignores stored detailed rules. Show the rules actually
+    // consumed by int_employer_eligibility, not dormant saved values.
+    const eligibility = family === 'Match' && settings?.apply_eligibility === false
+      ? {} : settings?.eligibility ?? {};
     // int_employer_eligibility consumes nested values only; flat core aliases
     // do not override this model's defaults.
     const defaults: Record<string, number | boolean> = {

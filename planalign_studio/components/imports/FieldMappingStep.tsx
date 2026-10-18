@@ -33,10 +33,12 @@ function ConfidenceBadge({ confidence }: { confidence: 'high' | 'medium' | 'low'
   return <span className="text-xs px-1.5 py-0.5 rounded bg-success-surface text-success-ink">High</span>;
 }
 
-function FormatPanel({ detection }: { detection: FormatDetectionResult }) {
-  const [chosenFormat, setChosenFormat] = useState<string | null>(
-    detection.is_ambiguous ? null : detection.detected_format
-  );
+function FormatPanel({ detection, column, chosenFormat, onChoose }: {
+  detection: FormatDetectionResult;
+  column: string;
+  chosenFormat: string | null;
+  onChoose: (format: string) => void;
+}) {
 
   if (detection.detected_format === 'boolean_alias') {
     return (
@@ -52,7 +54,7 @@ function FormatPanel({ detection }: { detection: FormatDetectionResult }) {
       <div className="mt-1 text-xs text-ink-muted bg-surface-subtle rounded px-2 py-1.5 flex items-center gap-1.5">
         <Info size={12} className="shrink-0 text-info-ink" />
         <span>
-          Currency symbols and commas will be stripped automatically.
+          Currency symbols and valid thousands separators will be normalized.
           Samples: {detection.parsed_sample_values.join(', ')}
         </span>
       </div>
@@ -64,20 +66,20 @@ function FormatPanel({ detection }: { detection: FormatDetectionResult }) {
       <div className="mt-1 text-xs bg-warning-surface border border-warning-border rounded px-2 py-1.5 space-y-1">
         <div className="flex items-center gap-1 text-warning-ink font-medium">
           <AlertCircle size={12} />
-          <span>Ambiguous date format — please confirm:</span>
+          <span>Choose the date order for this whole column:</span>
         </div>
         <div className="flex gap-3">
           {detection.format_options.map((fmt) => (
             <label key={fmt} className="flex items-center gap-1 cursor-pointer">
               <input
                 type="radio"
-                name={`fmt-${fmt}`}
+                name={`fmt-${column}`}
                 value={fmt}
                 checked={chosenFormat === fmt}
-                onChange={() => setChosenFormat(fmt)}
+                onChange={() => onChoose(fmt)}
                 className="accent-fidelity-green"
               />
-              <span className="font-mono">{fmt}</span>
+              <span>{fmt.startsWith('%m/') || fmt.startsWith('%m-') ? 'Month first' : 'Day first'} <span className="font-mono">({fmt})</span></span>
             </label>
           ))}
         </div>
@@ -245,6 +247,28 @@ export default function FieldMappingStep({ workspaceId, session, onSaved }: Prop
     setMappings((prev) => prev.map((m, i) => i === idx ? { ...m, ...patch } : m));
   };
 
+  const selectOutput = (idx: number, outputColumn: string) => {
+    const dataType = canonicalSchema.find((field) => field.field_name === outputColumn)?.data_type;
+    updateMapping(idx, {
+      output_column: outputColumn,
+      output_type: (dataType as OutputType | undefined) ?? mappings[idx].output_type,
+    });
+  };
+
+  const chooseDateFormat = (idx: number, format: string) => {
+    const transforms = mappings[idx].transformations.filter((t) => t.transform_type !== 'date_parse');
+    updateMapping(idx, {
+      transformations: [...transforms, { transform_type: 'date_parse', params: { format } }],
+    });
+  };
+
+  const needsDateChoice = mappings.some((mapping) => {
+    const detection = suggestionMap.get(mapping.input_column)?.format_detection;
+    return !mapping.is_excluded && Boolean(mapping.output_column) && mapping.output_type === 'date'
+      && detection?.is_ambiguous
+      && !mapping.transformations.some((t) => t.transform_type === 'date_parse' && t.params.format);
+  });
+
   const toggleExpand = (col: string) => {
     setExpandedRows((prev) => {
       const next = new Set(prev);
@@ -271,6 +295,7 @@ export default function FieldMappingStep({ workspaceId, session, onSaved }: Prop
   };
 
   const handleSave = async () => {
+    if (needsDateChoice) return;
     // Client-side required field check
     const mappedOutputs = new Set(
       mappings.filter((m) => !m.is_excluded && m.output_column).map((m) => m.output_column)
@@ -370,7 +395,7 @@ export default function FieldMappingStep({ workspaceId, session, onSaved }: Prop
                       <div>
                         <select
                           value={m.output_column}
-                          onChange={(e) => updateMapping(idx, { output_column: e.target.value })}
+                          onChange={(e) => selectOutput(idx, e.target.value)}
                           disabled={m.is_excluded}
                           className="text-xs border border-border rounded px-2 py-1 w-52"
                         >
@@ -382,7 +407,16 @@ export default function FieldMappingStep({ workspaceId, session, onSaved }: Prop
                           ))}
                         </select>
                         {formatDetection && !m.is_excluded && (
-                          <FormatPanel detection={formatDetection} />
+                          m.output_type === 'date'
+                          || formatDetection.detected_format === 'currency_string'
+                          || formatDetection.detected_format === 'boolean_alias'
+                        ) && (
+                          <FormatPanel
+                            detection={formatDetection}
+                            column={m.input_column}
+                            chosenFormat={(m.transformations.find((t) => t.transform_type === 'date_parse')?.params.format as string) ?? null}
+                            onChoose={(format) => chooseDateFormat(idx, format)}
+                          />
                         )}
                       </div>
                     </td>
@@ -455,7 +489,7 @@ export default function FieldMappingStep({ workspaceId, session, onSaved }: Prop
       <div className="flex justify-end">
         <button
           onClick={handleSave}
-          disabled={isSaving}
+          disabled={isSaving || needsDateChoice}
           className="flex items-center gap-2 px-4 py-2 bg-fidelity-green text-ink-inverse text-sm rounded-lg hover:bg-fidelity-dark disabled:opacity-50"
         >
           {isSaving ? <Loader2 size={16} className="animate-spin" /> : null}

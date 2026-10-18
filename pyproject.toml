@@ -15,7 +15,7 @@ dependencies = [
     "duckdb==1.5.6",
     "dbt-core==1.9.11",
     "dbt-duckdb==1.9.6",
-    "pydantic==2.13.5",
+    "pydantic==2.14.0",
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0.0",
     "pandas>=2.0.0",
@@ -45,7 +45,7 @@ dependencies = [
     "inquirer>=3.1.0",
     # API dependencies for PlanAlign Studio backend
     # fastapi Pinned so each bump gets its own PR: minor releases have changed routing internals (0.141 stopped flattening included routers into app.routes; walk routes with fastapi.routing.iter_route_contexts).
-    "fastapi==0.142.2",
+    "fastapi==0.143.0",
     "uvicorn[standard]>=0.27.0",
     "pydantic-settings>=2.1.0",
     "python-multipart>=0.0.6",
@@ -105,32 +105,23 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = [
-    "planalign_orchestrator",
-    "planalign_orchestrator.pipeline",
-    "planalign_cli",
-    "planalign_cli.commands",
-    "planalign_cli.integration",
-    "planalign_cli.ui",
-    "planalign_cli.utils",
-    "planalign_api",
-    "planalign_api.models",
-    "planalign_api.routers",
-    "planalign_api.services",
-    "planalign_api.storage",
-    "planalign_api.websocket",
-    "planalign_core",
-    "planalign_core.events",
-    "planalign_fit",
-    "planalign_backtest",
-    "planalign_ensemble",
-    "planalign_evidence",
-    "planalign_optimizer",
-]
 py-modules = ["_version"]
+
+# Discover subpackages automatically; an explicit list silently drops new ones.
+[tool.setuptools.packages.find]
+include = ["planalign_*"]
+exclude = ["planalign_studio*"]
 
 [tool.setuptools.package-data]
 planalign_orchestrator = ["py.typed"]
+
+[tool.black]
+# Also applies to explicitly supplied files (e.g. pre-commit).
+force-exclude = '/\.worktrees/'
+
+[tool.ruff]
+extend-exclude = [".worktrees"]
+force-exclude = true
 
 [tool.pytest.ini_options]
 # Exclude third-party packages and non-test directories
@@ -201,7 +192,18 @@ markers = [
 
 # Coverage options (when using pytest-cov)
 [tool.coverage.run]
-source = ["planalign_orchestrator", "planalign_cli", "planalign_api", "planalign_core", "planalign_optimizer"]
+# Authoritative coverage inventory; CI uses bare --cov to preserve this list.
+source = [
+    "planalign_orchestrator",
+    "planalign_cli",
+    "planalign_api",
+    "planalign_core",
+    "planalign_optimizer",
+    "planalign_fit",
+    "planalign_backtest",
+    "planalign_ensemble",
+    "planalign_evidence",
+]
 omit = [
     "*/tests/*",
     "*/venv/*",

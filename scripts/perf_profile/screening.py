@@ -8,7 +8,7 @@ from collections.abc import Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .models import Candidate, ObjectiveConstraintSpec
+from planalign_optimizer.models import Candidate, ObjectiveConstraintSpec
 
 
 class ScreeningPolicy(BaseModel):

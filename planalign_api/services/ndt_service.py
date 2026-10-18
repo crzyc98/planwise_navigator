@@ -2,7 +2,6 @@
 
 import logging
 import statistics
-from pathlib import Path
 from typing import List, Optional
 
 import yaml
@@ -207,9 +206,6 @@ class ADPTestResponse(APIModel):
 
 class NDTService:
     """Read-only NDT analytics using limits materialized during initialization."""
-
-    # Path to dbt seeds directory
-    _SEEDS_DIR = Path(__file__).resolve().parents[2] / "dbt" / "seeds"
 
     def __init__(
         self,
@@ -961,6 +957,13 @@ class NDTService:
                     ).fetchall()
                 }
                 age_expression = "current_age" if "current_age" in columns else "NULL"
+                if "employee_birth_date" in columns:
+                    age_expression = f"COALESCE({year} - YEAR(employee_birth_date), {age_expression})"
+                if "source_year_end_age" in columns:
+                    legacy_age = age_expression
+                    age_expression = f"COALESCE(source_year_end_age, {legacy_age})"
+                    if "contribution_source_version" in columns:
+                        age_expression = f"CASE WHEN contribution_source_version IS NULL THEN {legacy_age} ELSE {age_expression} END"
 
                 # Query eligible participants
                 query = """

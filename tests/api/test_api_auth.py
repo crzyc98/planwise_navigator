@@ -47,6 +47,18 @@ def test_protected_router_allows_requests_without_configured_token(
     assert response.status_code == 200
 
 
+def test_artifact_ticket_issuance_requires_authentication(client_factory) -> None:
+    client = client_factory("shared-secret")
+    url = "/api/scenarios/missing/artifact-download-url/results.xlsx"
+
+    assert client.post(url).status_code == 401
+    assert (
+        client.post(url, headers={"Authorization": "Bearer shared-secret"}).status_code
+        == 404
+    )
+    assert client.get("/api/artifact-download/invalid").status_code == 403
+
+
 @pytest.mark.parametrize("path", ["/ws/simulation/run-1", "/ws/batch/batch-1"])
 def test_websocket_requires_configured_token(client_factory, path: str) -> None:
     client = client_factory("shared-secret")

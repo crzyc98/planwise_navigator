@@ -22,6 +22,8 @@ from typing import List, Optional, Tuple
 
 import duckdb
 
+from .census_schema import active_filter_sql
+
 logger = logging.getLogger(__name__)
 
 
@@ -183,14 +185,7 @@ class CompensationSolver:
 
         # Filter to active employees with robust boolean handling
         if "active" in columns:
-            conn.execute(
-                """
-                DELETE FROM census
-                WHERE
-                    active IS NULL
-                    OR LOWER(TRIM(CAST(active AS VARCHAR))) NOT IN ('true', 't', '1', '1.0', 'yes', 'y')
-                """
-            )
+            conn.execute(f"DELETE FROM census WHERE NOT {active_filter_sql(columns)}")
         elif "employee_termination_date" in columns:
             conn.execute(
                 "DELETE FROM census WHERE employee_termination_date IS NOT NULL"

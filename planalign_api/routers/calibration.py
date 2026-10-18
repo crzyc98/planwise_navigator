@@ -38,7 +38,9 @@ from planalign_orchestrator.calibration_runner import (
     PerYearCompensationResult,
 )
 from planalign_orchestrator.exceptions import ConfigurationError
+from planalign_api.services.calibration_temp import calibration_database_prefix
 from planalign_api.services.provenance.capture import config_fingerprint, sha256_file
+from planalign_api.services.simulation.run_execution import resolve_census_with_fallback
 
 from ..config import APISettings, get_settings
 from ..errors import sanitize_job_error
@@ -291,6 +293,7 @@ def _effective_workspace_config(
     scenario_id: Optional[str],
     storage: WorkspaceStorage,
 ) -> Dict[str, Any]:
+    """Resolve a scenario or the API-only workspace baseline when no scenario is set."""
     workspace = storage.get_workspace(workspace_id)
     if workspace is None:
         raise HTTPException(
@@ -307,29 +310,6 @@ def _effective_workspace_config(
     return dict(workspace.base_config or {})
 
 
-def _workspace_census_path(configured: str, workspace_root: Path) -> Path:
-    """Resolve a census reference without allowing workspace escapes."""
-    census = Path(configured)
-    if not census.is_absolute():
-        workspace_relative = workspace_root / census
-        # Older mapped imports persisted paths relative to the server cwd,
-        # already including the workspace root. Accept only contained paths.
-        legacy = census.resolve()
-        census = workspace_relative
-        if not census.is_file() and (
-            legacy.is_relative_to(workspace_root)
-            or Path(configured).absolute().is_relative_to(workspace_root)
-        ):
-            census = legacy
-    resolved = census.resolve()
-    if resolved != workspace_root and workspace_root not in resolved.parents:
-        raise HTTPException(
-            status_code=409,
-            detail="The configured census is not an uploaded artifact in the active workspace.",
-        )
-    return resolved
-
-
 def _canonical_census(
     config: Dict[str, Any], workspace_id: str, storage: WorkspaceStorage
 ) -> Path:
@@ -339,23 +319,18 @@ def _canonical_census(
             status_code=409,
             detail="The target workspace has no uploaded census. Upload one before calibration.",
         )
-    workspace_root = storage._workspace_path(workspace_id).resolve()
-    census = _workspace_census_path(str(configured), workspace_root)
-    if not census.is_file():
-        # Match simulation's fallback for obsolete scenario census overrides.
-        # Resolve before fingerprinting so provenance describes the actual input.
-        workspace = storage.get_workspace(workspace_id)
-        fallback = (
-            (workspace.base_config.get("setup") or {}).get("census_parquet_path")
-            if workspace
-            else None
-        )
-        if fallback:
-            census = _workspace_census_path(str(fallback), workspace_root)
-    if not census.is_file():
+    resolved = resolve_census_with_fallback(storage, str(configured), workspace_id)
+    if resolved is None or not resolved.is_file():
         raise HTTPException(
             status_code=409,
             detail="The target workspace census is missing. Upload it again before calibration.",
+        )
+    census = resolved.resolve()
+    workspace_root = storage._workspace_path(workspace_id).resolve()
+    if not census.is_relative_to(workspace_root):
+        raise HTTPException(
+            status_code=409,
+            detail="The configured census is not an uploaded artifact in the active workspace.",
         )
     config["setup"] = {
         **(config.get("setup") or {}),
@@ -528,7 +503,7 @@ def _write_temp_config(config: Dict[str, Any]) -> Path:
 
 def _copy_calibration_database(source: Path) -> Path:
     tmp = tempfile.NamedTemporaryFile(
-        suffix=".duckdb", prefix="planalign_calibration_", delete=False
+        suffix=".duckdb", prefix=calibration_database_prefix(), delete=False
     )
     target = Path(tmp.name)
     tmp.close()

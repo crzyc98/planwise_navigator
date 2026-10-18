@@ -67,7 +67,7 @@ export function CompensationSection({ variant = 'full' }: { variant?: 'full' | '
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-6">
           <InputField label="COLA / Inflation" {...inputProps('colaRate')} type="number" step="0.1" suffix="%" />
           <InputField label="Merit Budget" {...inputProps('meritBudget')} type="number" step="0.1" suffix="%" />
-          <InputField label="Avg. Promotion Increase" {...inputProps('promoIncrease')} type="number" step="0.5" suffix="%" helper="Base promotion input; nested overrides may take precedence." />
+          <InputField label="Avg. Promotion Increase" {...inputProps('promoIncrease')} type="number" step="0.5" suffix="%" helper="Base promotion pay increase." />
           <InputField label="Promotion increase spread" {...inputProps('promoDistributionRange')} type="number" step="0.5" suffix="± %" />
           <InputField label="Promotion Budget" {...inputProps('promoBudget')} type="number" step="0.1" suffix="% of payroll" helper="Saved for reference; not enforced by the engine." />
           {variant === 'full' && <InputField label="Promotion Rate Multiplier" {...inputProps('promoRateMultiplier')} type="number" step="0.1" suffix="×" helper="Multiplier applied to promotion rates; 1 means no adjustment." />}

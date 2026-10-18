@@ -24,6 +24,7 @@ from ..models.census_analysis import (
 )
 from .band_service import BandService
 from .census_as_of import resolve_as_of_date
+from .census_schema import active_filter_sql
 from .sql_security import (
     CENSUS_BIRTH_DATE_COLUMNS,
     CENSUS_COMPENSATION_COLUMNS,
@@ -265,12 +266,7 @@ class CensusAnalysisService:
         return validate_column_name_from_set(column, set(allowed), "census column")
 
     def _active_filter(self, columns: set[str]) -> str:
-        if "active" not in columns:
-            return "1=1"
-        return (
-            "(active IS NULL "
-            "OR UPPER(CAST(active AS VARCHAR)) IN ('ACTIVE', 'Y', '1', 'TRUE', 'YES'))"
-        )
+        return active_filter_sql(columns)
 
     def _age_bands(self):
         try:
@@ -345,7 +341,8 @@ class CensusAnalysisService:
             f"CAST({job_level_col} AS VARCHAR)" if job_level_col else "NULL"
         )
         hce_expr = (
-            f"CASE WHEN {comp_expr} >= {hce_threshold} THEN 'HCE' ELSE 'NHCE' END"
+            f"CASE WHEN {comp_expr} IS NULL THEN NULL "
+            f"WHEN {comp_expr} >= {hce_threshold} THEN 'HCE' ELSE 'NHCE' END"
             if (hce_threshold is not None and comp_col)
             else "NULL::VARCHAR"
         )

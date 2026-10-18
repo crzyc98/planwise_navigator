@@ -1,7 +1,6 @@
 {{ config(
   materialized='incremental',
   incremental_strategy='replace_simulation_year',
-  unique_key=['scenario_id', 'employee_id', 'simulation_year', 'event_type', 'effective_date'],
   on_schema_change='sync_all_columns',
   tags=['EVENT_GENERATION']
 ) }}

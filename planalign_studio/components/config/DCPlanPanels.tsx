@@ -33,17 +33,23 @@ export function dcDisplayConfig(workspace: Config, original: Config, buildDraft:
   return resolveDisplayConfig(resolveDisplayConfig(baseline, workspace), draft);
 }
 
-export function DCPlanPanel({ id, title, summary, children }: {
+export function DCPlanPanel({ id, title, summary, children, enabled = true, control }: {
   id: string; title: string; summary: string; children: ReactNode;
+  enabled?: boolean; control?: ReactNode;
 }) {
+  // Native disclosure handles manual collapse. React updates `open` only when
+  // enabled changes, so unrelated form edits preserve the user's choice.
   return (
-    <details id={id} open={id === 'dcplan-eligibility-panel' || id === 'dcplan-match-panel'} className="rounded-lg border border-border bg-surface-raised">
+    <div className="rounded-lg border border-border bg-surface-raised sm:col-span-6">
+      {control && <div className="p-4 pb-0">{control}</div>}
+    <details id={id} open={enabled}>
       <summary className="cursor-pointer rounded-lg p-4 focus-visible:outline-2 focus-visible:outline-fidelity-green">
         <span className="font-semibold text-ink">{title}</span>
         <span className="mt-1 block text-xs font-normal text-ink-muted break-words">{summary}</span>
       </summary>
       <div className="grid grid-cols-1 gap-y-6 gap-x-4 p-4 pt-0 sm:grid-cols-6 min-w-0">{children}</div>
     </details>
+    </div>
   );
 }
 
@@ -53,10 +59,20 @@ function waiverSummary(form: FormData, kind: Contribution, config: Config): stri
   const hasUITenure = config.dc_plan?.[`${kind.toLowerCase()}_min_tenure_years`] != null;
   const waiver = explicitWaiver ?? (hasUITenure ? Number(form[`dc${kind}MinTenureYears`]) === 0 : eligibility.allow_new_hires);
   if (waiver == null) return `derived from service requirement (${Number(form[`dc${kind}MinTenureYears`]) === 0 ? 'allowed' : 'not allowed'})`;
-  return `${waiver ? 'allowed' : 'not allowed'} by ${explicitWaiver != null ? 'the saved Studio setting' : hasUITenure ? 'the Studio service requirement' : 'inherited configuration'}`;
+  return `${waiver ? 'allowed' : 'not allowed'} by ${explicitWaiver != null ? 'an explicit saved override' : hasUITenure ? 'the Studio service requirement' : 'inherited configuration'}`;
+}
+
+function usesLegacyMatchPolicy(kind: Contribution, config: Config): boolean {
+  return kind === 'Match' && config.employer_match?.apply_eligibility === false &&
+    !Object.keys(config.dc_plan ?? {}).some(key => /^match_(min_|require_|allow_)/.test(key));
 }
 
 export function eligibilitySummary(form: FormData, kind: Contribution, config: Config = {}): string {
+  if (usesLegacyMatchPolicy(kind, config)) {
+    return '0 years service; 1000 annual hours; year-end employment requirement on; ' +
+      'terminated hire-year exception excluded; terminated experienced-employee exception excluded; ' +
+      'new-hire service waiver not applicable (no service requirement).';
+  }
   const prefix = `dc${kind}` as const;
   return `${form[`${prefix}MinTenureYears`]} years service; ${form[`${prefix}MinHoursAnnual`]} annual hours; ` +
     `year-end employment requirement ${form[`${prefix}RequireYearEndActive`] ? 'on, subject to exceptions' : 'off'}; ` +
@@ -72,8 +88,7 @@ export function EmployerEligibilityEditor({ kind, config }: { kind: Contribution
   const allowHireYear = formData[`${prefix}AllowTerminatedNewHires`];
   const allowExperienced = formData[`${prefix}AllowExperiencedTerminations`];
   const custom = requireActive ? allowHireYear || allowExperienced : !allowHireYear || !allowExperienced;
-  const legacySimpleMatch = kind === 'Match' && config.employer_match?.apply_eligibility === false &&
-    !Object.keys(config.dc_plan ?? {}).some(key => /^match_(min_|require_|allow_)/.test(key));
+  const legacySimpleMatch = usesLegacyMatchPolicy(kind, config);
   const flags = [
     ['RequireYearEndActive', 'Require active employment at year-end'],
     ['AllowTerminatedNewHires', 'Allow terminated hire-year employees'],
@@ -83,8 +98,9 @@ export function EmployerEligibilityEditor({ kind, config }: { kind: Contribution
     <div className="sm:col-span-6 text-xs text-ink-muted space-y-1">
       <h4 className="text-sm font-semibold text-ink">{kind} eligibility</h4>
       <p>{eligibilitySummary(formData, kind, config)}</p>
-      {custom && <p>Custom policy combination. Each setting is preserved independently.</p>}
-      {legacySimpleMatch && <p>The inherited match configuration uses the legacy active-at-year-end and 1,000-hour rule. Editing detailed eligibility settings enables the detailed policy shown here.</p>}
+      {custom && <p>Custom {legacySimpleMatch ? 'saved detailed ' : ''}policy combination. Each setting is preserved independently.</p>}
+      <p>These requirements apply to the employer {kind.toLowerCase()} contribution. No separate eligibility switch is needed. Zero service or hours means no minimum for that requirement.</p>
+      {legacySimpleMatch && <details><summary className="cursor-pointer">Previously saved eligibility settings</summary><p>Older detailed settings are retained in the configuration but are not in effect. The controls show the current requirements; editing them saves the complete displayed policy.</p></details>}
       <p>Global Studio settings shown. {config.plan_design_parameters
         ? 'Per-design overrides are configured; each assigned design may resolve different eligibility rules.'
         : 'Inherited eligibility is shown from the loaded configuration; backend reconciliation remains authoritative.'}</p>

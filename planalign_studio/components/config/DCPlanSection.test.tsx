@@ -42,12 +42,12 @@ vi.mock('react', async importOriginal => {
   };
 });
 
-type ControlProps = { name?: string; id?: string; checked?: boolean; children?: ReactNode; onChange?: (event: React.ChangeEvent<HTMLInputElement>) => void };
+type ControlProps = { name?: string; id?: string; checked?: boolean; children?: ReactNode; control?: ReactNode; onChange?: (event: React.ChangeEvent<HTMLInputElement>) => void };
 
 function elements(node: ReactNode): ReactElement<ControlProps>[] {
   return Children.toArray(node).flatMap(child => {
     if (!isValidElement<ControlProps>(child)) return [];
-    return [child, ...elements(child.props.children)];
+    return [child, ...elements(child.props.children), ...elements(child.props.control)];
   });
 }
 
@@ -128,8 +128,29 @@ describe('independent employer eligibility policies', () => {
 
   it('identifies the legacy simple match policy instead of presenting detailed controls as universal', () => {
     const html = renderToStaticMarkup(<EmployerEligibilityEditor kind="Match" config={{ employer_match: { apply_eligibility: false } }} />);
-    expect(html).toContain('legacy active-at-year-end and 1,000-hour rule');
-    expect(html).toContain('Editing detailed eligibility settings enables the detailed policy');
+    expect(html).toContain('No separate eligibility switch is needed');
+    expect(html).toContain('editing them saves the complete displayed policy');
+  });
+
+  it('summarizes the active legacy rule even when inactive detailed settings allow exceptions', () => {
+    state.formData.dcMatchMinTenureYears = 3;
+    state.formData.dcMatchMinHoursAnnual = 500;
+    state.formData.dcMatchRequireYearEndActive = false;
+    state.formData.dcMatchAllowTerminatedNewHires = true;
+    state.formData.dcMatchAllowExperiencedTerminations = true;
+    const config = { employer_match: { apply_eligibility: false, eligibility: { allow_new_hires: true } } };
+    const summary = eligibilitySummary(state.formData, 'Match', config);
+    expect(summary).toContain('0 years service; 1000 annual hours; year-end employment requirement on');
+    expect(summary).toContain('terminated hire-year exception excluded');
+    expect(summary).toContain('terminated experienced-employee exception excluded');
+    expect(summary).not.toContain('inactive');
+    expect(matchSummary(state.formData, config)).toContain(summary);
+    expect(eligibilitySummary(state.formData, 'Core', config)).not.toContain('Legacy');
+
+    // A Studio override activates detailed matching in the existing exporter.
+    const draft = { ...config, dc_plan: { match_min_hours_annual: 500 } };
+    expect(eligibilitySummary(state.formData, 'Match', draft)).toContain('3 years service; 500 annual hours');
+    expect(eligibilitySummary(state.formData, 'Match', draft)).toContain('terminated hire-year exception allowed');
   });
 
   it('uses resolved core waiver metadata when the raw configuration omits eligibility', () => {
@@ -152,9 +173,28 @@ describe('independent employer eligibility policies', () => {
 });
 
 describe('DC Plan provisions and employee assumptions', () => {
+  it.each([
+    ['dcAutoEnroll', 'dcplan-auto-enrollment-settings'],
+    ['dcMatchEnabled', 'dcplan-match-panel'],
+    ['dcCoreEnabled', 'dcplan-core-panel'],
+    ['dcAutoEscalation', 'dcplan-escalation-panel'],
+    ['dcMatchMagnetEnabled', 'dcplan-match-magnet-settings'],
+    ['dcMatchResponseEnabled', 'dcplan-match-response-settings'],
+  ] as const)('expands enabled %s settings and collapses them when disabled', (field, id) => {
+    for (const enabled of [true, false]) {
+      state.formData[field] = enabled;
+      const html = render();
+      const tag = html.match(new RegExp(`<details id="${id}"[^>]*>`))?.[0];
+      expect(tag).toBeDefined();
+      expect(tag!.includes('open=""')).toBe(enabled);
+      // The enabling checkbox stays before the collapsible settings.
+      expect(html.indexOf(`name="${field}"`)).toBeLessThan(html.indexOf(tag!));
+    }
+  });
+
   it('places plan provisions before employee behavior in stable native disclosure panels', () => {
     const html = render();
-    const ids = ['eligibility', 'match', 'core', 'escalation', 'enrollment', 'starting-rates', 'response'];
+    const ids = ['eligibility', 'match', 'core', 'escalation', 'starting-rates', 'response'];
     let previous = -1;
     for (const id of ids) {
       const index = html.indexOf(`<details id="dcplan-${id}-panel"`);
@@ -163,6 +203,12 @@ describe('DC Plan provisions and employee assumptions', () => {
     }
     expect(html).toContain('id="dcplan-provisions"');
     expect(html).toContain('id="dcplan-behavior"');
+    expect(html).not.toContain('dcplan-enrollment-panel');
+    const enrollmentPanel = html.slice(html.indexOf('id="dcplan-eligibility-panel"'), html.indexOf('id="dcplan-match-panel"'));
+    const sharedRules = enrollmentPanel.indexOf('Shared enrollment rules');
+    expect(enrollmentPanel.indexOf('Employee behavior assumptions — opt-outs')).toBeLessThan(sharedRules);
+    expect(enrollmentPanel.indexOf('New-hire opt-out')).toBeLessThan(sharedRules);
+    expect(enrollmentPanel.indexOf('Voluntary enrollment assumptions')).toBeGreaterThan(sharedRules);
     expect(html).toContain('New enrollees seeking the full match');
     expect(html).toContain('First-year response by existing participants');
     expect(html).toContain('focus-visible:outline');
@@ -241,7 +287,7 @@ describe('explicit enrollment rate sources', () => {
     state.formData.dcVoluntaryEnrollmentMode = mode;
     const html = render();
     expect(html).not.toContain('Resulting split');
-    const enrollmentSummary = html.match(/<details id="dcplan-enrollment-panel"[^>]*><summary[^>]*>(.*?)<\/summary>/)?.[1] ?? '';
+    const enrollmentSummary = html.match(/<details id="dcplan-eligibility-panel"[^>]*><summary[^>]*>(.*?)<\/summary>/)?.[1] ?? '';
     expect(enrollmentSummary).toContain(mode === 'inherit' ? 'inherited setting' : 'demographic model');
     expect(enrollmentSummary).not.toContain('65%');
   });
@@ -348,17 +394,23 @@ describe('DC Plan enrollment presentation', () => {
     expect(html).toContain('64.4%');
   });
 
-  it.each(['new_hires_only', 'all_eligible'])(
-    'explains first-year and later-year scope for %s with either hire cutoff', scope => {
-      for (const cutoff of ['2020-01-01', '2027-07-01']) {
-        state.formData = { ...state.formData, dcAutoEnrollScope: scope, dcAutoEnrollHireDateCutoff: cutoff };
+  it.each(['new_hires_only', 'all_eligible'].flatMap(scope => [false, true].map(autoEnroll => ({ scope, autoEnroll }))))(
+    'explains first-year and later-year scope and preserves drafts for %j', ({ scope, autoEnroll }) => {
+      for (const cutoff of ['', '2020-01-01', '2027-07-01']) {
+        state.formData = { ...state.formData, dcAutoEnroll: autoEnroll, dcAutoEnrollScope: scope, dcAutoEnrollHireDateCutoff: cutoff };
+        const original = structuredClone(state.formData);
         const html = render();
         expect(html).toContain(`First year (${state.formData.startYear}):`);
-        expect(html).toContain(`hired on or after ${cutoff}`);
+        expect(html).toContain(`hired on or after ${cutoff || '2020-01-01 (engine default)'}`);
         expect(html).toContain('Later years:');
         expect(html).toContain(scope === 'new_hires_only' ? 'the hire cutoff is not reapplied' : 'the cutoff still applies');
         expect(html).toContain('value="new_hires_only"');
         expect(html).toContain('value="all_eligible"');
+        expect(html.includes('Resulting split')).toBe(autoEnroll);
+        toggle('dcAutoEnroll', !autoEnroll);
+        expect(state.formData).toEqual({ ...original, dcAutoEnroll: !autoEnroll });
+        toggle('dcAutoEnroll', autoEnroll);
+        expect(state.formData).toEqual(original);
       }
     },
   );
@@ -404,7 +456,7 @@ describe('DC Plan enrollment presentation', () => {
     expect(state.formData).toEqual(original);
   });
 
-  it('retains shared caps when their related optional features are disabled', () => {
+  it('keeps voluntary limits independent and collapses the annual escalation cap', () => {
     state.formData.dcMatchMagnetEnabled = false;
     state.formData.dcAutoEscalation = false;
     state.formData.dcMatchResponseEnabled = true;
@@ -413,8 +465,9 @@ describe('DC Plan enrollment presentation', () => {
     expect(input(html, 'dcMaxVoluntaryDeferral')).not.toBe('');
     expect(input(html, 'dcMaxVoluntaryDeferral')).not.toContain('disabled=""');
     expect(input(html, 'dcEscalationCap')).not.toBe('');
-    expect(input(html, 'dcEscalationCap')).not.toContain('disabled=""');
-    expect(html).toContain('first-year match-responsive deferral increases');
+    expect(input(html, 'dcEscalationCap')).toContain('disabled=""');
+    expect(html).toMatch(/<details id="dcplan-escalation-panel">[\s\S]*?name="dcEscalationCap"[\s\S]*?<\/details>/);
+    expect(html).toContain('Employees can contribute above this rate');
     state.formData.dcMatchResponseEnabled = false;
     expect(input(render(), 'dcEscalationCap')).toContain('disabled=""');
   });

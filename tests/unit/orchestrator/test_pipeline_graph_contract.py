@@ -163,25 +163,6 @@ def test_incremental_state_models_output_every_declared_scope_key():
         assert output_expression in sql
 
 
-def test_legacy_escalation_accumulator_preserves_scenario_and_plan_grain():
-    path = (
-        ROOT / "dbt/models/intermediate/int_deferral_escalation_state_accumulator.sql"
-    )
-    sql = path.read_text()
-
-    assert "var('scenario_id', 'default')" in sql
-    assert "int_plan_design_assignment_accumulator" in sql
-    assert "'{{ scenario_id }}'::VARCHAR as scenario_id" in sql
-    assert "assignment.plan_design_id" in sql
-    assert "'default' as scenario_id" not in sql
-    assert (
-        "unique_key=['scenario_id', 'plan_design_id', 'employee_id', 'simulation_year']"
-        in sql
-    )
-    assert "incremental_strategy='replace_simulation_year'" in sql
-    assert "year_partition_scope='year'" not in sql
-
-
 def test_workforce_accumulator_is_shadow_scheduled_for_normal_and_calibration():
     for builder in (
         WorkflowBuilder.build_year_workflow,
@@ -317,6 +298,9 @@ def test_removed_legacy_state_models_are_absent_from_sql_and_workflows():
     removed = {
         "int_employee_state_by_year",
         "int_workforce_snapshot_optimized",
+        "int_workforce_pre_enrollment",
+        "int_eligibility_determination",
+        "int_deferral_escalation_state_accumulator",
     }
     sql_models = {path.stem for path in (ROOT / "dbt/models").rglob("*.sql")}
     assert removed.isdisjoint(sql_models)
@@ -325,8 +309,11 @@ def test_removed_legacy_state_models_are_absent_from_sql_and_workflows():
         WorkflowBuilder.build_year_workflow,
         WorkflowBuilder.build_calibration_year_workflow,
     ):
-        selected = {model for stage in builder(2025, 2025) for model in stage.models}
-        assert removed.isdisjoint(selected)
+        for year in (2025, 2026):
+            selected = {
+                model for stage in builder(year, 2025) for model in stage.models
+            }
+            assert removed.isdisjoint(selected)
 
 
 def test_manifest_has_exact_candidate_ownership_and_complete_assembly():

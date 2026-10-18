@@ -40,6 +40,7 @@ WITH irs_contribution_limits AS (
         catch_up_age_threshold,
         base_limit,
         catch_up_limit,
+        compensation_limit,
         -- For reporting, treat total_limit as catch_up_limit for eligible employees
         catch_up_limit AS total_limit
     FROM {{ ref('config_irs_limits') }}
@@ -125,14 +126,14 @@ compensation_limit_compliance AS (
         'COMPENSATION_LIMIT_COMPLIANCE' AS compliance_category,
         'IRS Section 401(a)(17) Compensation Limits' AS compliance_description,
 
-        -- Metrics (placeholder - would need IRS 401(a)(17) limits)
+        -- Compensation threshold from the simulation year's IRS limits
         COUNT(*) AS total_employees,
-        SUM(CASE WHEN cd.prorated_annual_compensation > 350000 THEN 1 ELSE 0 END) AS high_compensation_count,
+        SUM(CASE WHEN cd.prorated_annual_compensation > il.compensation_limit THEN 1 ELSE 0 END) AS high_compensation_count,
         MAX(cd.prorated_annual_compensation) AS max_compensation,
         AVG(cd.prorated_annual_compensation) AS avg_compensation,
 
         -- Compliance indicators
-        SUM(CASE WHEN cd.prorated_annual_compensation > 350000 THEN 1 ELSE 0 END) AS potential_violations,
+        SUM(CASE WHEN cd.prorated_annual_compensation > il.compensation_limit THEN 1 ELSE 0 END) AS potential_violations,
         0 AS total_excess_contributions,  -- Placeholder
 
         0 AS catch_up_eligible_count,  -- Not applicable
@@ -146,12 +147,13 @@ compensation_limit_compliance AS (
         MAKE_DATE({{ simulation_year }}, 4, 15) AS primary_correction_deadline,
         MAKE_DATE({{ simulation_year }}, 12, 31) AS plan_year_end_deadline,
 
-        -- Placeholder limits
-        350000 AS base_limit,
+        il.compensation_limit AS base_limit,
         0 AS catch_up_limit,
-        350000 AS total_limit
+        il.compensation_limit AS total_limit
 
     FROM contribution_data cd
+    CROSS JOIN irs_contribution_limits il
+    GROUP BY il.compensation_limit
 ),
 
 -- Plan Administration Compliance

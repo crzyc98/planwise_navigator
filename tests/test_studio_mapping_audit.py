@@ -40,6 +40,13 @@ BASE_NEW_HIRE = {
     "level_distribution": [{"level": 1, "percentage": 1.0}],
     "level_market_adjustments": [{"level": 1, "adjustment_percent": 0}],
 }
+DISPLAYED_MATCH_POLICY = {
+    "match_min_tenure_years": 0,
+    "match_min_hours_annual": 1000,
+    "match_require_year_end_active": True,
+    "match_allow_terminated_new_hires": False,
+    "match_allow_experienced_terminations": False,
+}
 CASES = [
     ("new_hire", "strategy", "fixed"),
     ("new_hire", "target_percentile", 90),
@@ -312,3 +319,55 @@ def _assert_enrollment_modes(evidence: dict[str, Any], key: str) -> None:
         assert evidence["missing"]["voluntary_probabilities"] == [1.0]
         # The decision relation retains only will_enroll=true rows.
         assert evidence["zero"]["voluntary_probabilities"] == []
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    os.environ.get("PLANALIGN_MAPPING_AUDIT") != "1",
+    reason="Opt-in full production runs",
+)
+def test_production_displayed_match_eligibility(tmp_path: Path) -> None:
+    """Legacy controls preserve outcomes; edited requirements govern matches."""
+    storage, workspace_id, scenario_id = _storage(tmp_path)
+    base = _attach_synthetic_census(
+        storage, workspace_id, tmp_path / "synthetic.parquet"
+    )
+    base["simulation"]["end_year"] = 2026
+    base["employer_match"].update(
+        apply_eligibility=False,
+        eligibility={
+            "minimum_tenure_years": 3,
+            "minimum_hours_annual": 500,
+            "require_active_at_year_end": False,
+            "allow_new_hires": False,
+            "allow_terminated_new_hires": True,
+            "allow_experienced_terminations": True,
+        },
+    )
+    storage.update_workspace(workspace_id, base_config=base)
+    evidence = {}
+    for mode, payload in [
+        ("legacy", {}),
+        ("displayed", DISPLAYED_MATCH_POLICY),
+        ("edited", {**DISPLAYED_MATCH_POLICY, "match_min_hours_annual": 10000}),
+    ]:
+        storage.update_scenario(
+            workspace_id, scenario_id, config_overrides={"dc_plan": payload}
+        )
+        run_dir = tmp_path / mode
+        variables, _ = _prepare(storage, workspace_id, scenario_id, run_dir)
+        if payload:
+            match = variables["employer_match"]
+            assert match["apply_eligibility"] is True
+            assert match["eligibility"]["minimum_tenure_years"] == 0
+            assert match["eligibility"]["allow_terminated_new_hires"] is False
+        database = _run_production(run_dir, end_year=2026)
+        with duckdb.connect(str(database), read_only=True) as connection:
+            evidence[mode] = connection.execute(
+                "SELECT simulation_year, COUNT(*), SUM(employer_match_amount) "
+                "FROM fct_workforce_snapshot GROUP BY simulation_year ORDER BY simulation_year"
+            ).fetchall()
+    assert evidence["displayed"] == evidence["legacy"]
+    assert [row[0] for row in evidence["edited"]] == [2025, 2026]
+    assert all(row[2] > 0 for row in evidence["legacy"])
+    assert all(row[2] == 0 for row in evidence["edited"])

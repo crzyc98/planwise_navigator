@@ -38,6 +38,7 @@ from ..models.workspace import Workspace
 from ..services.run_health import build_run_health
 from ..services.simulation_service import SimulationService
 from ..services.simulation.result_handlers import find_results_export
+from ..services.artifact_tickets import create_artifact_ticket
 from ..constants import ARTIFACT_TYPE_MAP, MEDIA_TYPE_MAP
 
 router = APIRouter()
@@ -1098,6 +1099,18 @@ def get_run_details(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=sanitize_error(logger, "Internal server error"),
         ) from e
+
+
+@router.post("/{scenario_id}/artifact-download-url/{artifact_path:path}")
+def create_artifact_download_url(
+    scenario_id: str,
+    artifact_path: str,
+    storage: WorkspaceStorage = Depends(get_storage),
+) -> dict[str, str]:
+    """Authorize an artifact and issue a short-lived browser download URL."""
+    download_artifact(scenario_id, artifact_path, storage)
+    ticket = create_artifact_ticket(scenario_id, artifact_path)
+    return {"url": f"/api/artifact-download/{ticket}"}
 
 
 @router.get("/{scenario_id}/artifacts/{artifact_path:path}")

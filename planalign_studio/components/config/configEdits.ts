@@ -4,7 +4,19 @@ function isObject(value: unknown): value is ConfigObject {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-const equal = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
+// YAML/API serialization can reorder object keys without changing a setting.
+// Schedule row order, however, remains significant.
+function equal(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if (Array.isArray(left) && Array.isArray(right)) {
+    return left.length === right.length && left.every((value, index) => equal(value, right[index]));
+  }
+  if (!isObject(left) || !isObject(right)) return false;
+  const keys = Object.keys(left);
+  return keys.length === Object.keys(right).length && keys.every(key =>
+    Object.prototype.hasOwnProperty.call(right, key) && equal(left[key], right[key]),
+  );
+}
 
 function editRows(original: unknown, before: unknown[], after: unknown[]): unknown[] {
   const originalRows = Array.isArray(original) ? original : [];
@@ -52,6 +64,25 @@ export function applyConfigEdits(original: unknown, before: unknown, after: unkn
   return result;
 }
 
+/** Editing a legacy match rule saves the full displayed policy. */
+export function preserveDisplayedMatchEligibility(
+  config: ConfigObject, before: ConfigObject, after: ConfigObject, variables: ConfigObject,
+): ConfigObject {
+  const match = isObject(variables.employer_match) ? variables.employer_match : {};
+  if (match.apply_eligibility !== false) return config;
+  const oldPlan = isObject(before.dc_plan) ? before.dc_plan : {};
+  const newPlan = isObject(after.dc_plan) ? after.dc_plan : {};
+  const fields = ['match_min_tenure_years', 'match_min_hours_annual', 'match_require_year_end_active',
+    'match_allow_terminated_new_hires', 'match_allow_experienced_terminations'];
+  if (!fields.some(key => !equal(oldPlan[key], newPlan[key]))) return config;
+  // Enabling detailed matching must not resurrect dormant rules absent from
+  // the displayed policy. Keep the legacy source intact for auditability.
+  return { ...config, dc_plan: {
+    ...(isObject(config.dc_plan) ? config.dc_plan : {}),
+    ...Object.fromEntries(fields.map(key => [key, newPlan[key]])),
+  } };
+}
+
 /** Canonical decimal fields take precedence over Studio percentage aliases. */
 export function synchronizeCompensationAliases(
   config: ConfigObject, before: ConfigObject, after: ConfigObject,
@@ -60,9 +91,21 @@ export function synchronizeCompensationAliases(
   const oldComp = isObject(before.compensation) ? before.compensation : {};
   const newComp = isObject(after.compensation) ? after.compensation : {};
   const comp = isObject(result.compensation) ? result.compensation : {};
-  for (const key of ['cola_rate', 'merit_budget', 'promotion_increase', 'promotion_budget', 'promotion_distribution_range']) {
+  for (const key of ['cola_rate', 'merit_budget', 'promotion_budget']) {
     const alias = `${key}_percent`;
     if (!equal(oldComp[alias], newComp[alias])) comp[key] = Number(newComp[alias]) / 100;
+  }
+  const oldPromotion = isObject(oldComp.promotion_compensation) ? oldComp.promotion_compensation : {};
+  const newPromotion = isObject(newComp.promotion_compensation) ? newComp.promotion_compensation : {};
+  if (['base_increase_pct', 'distribution_range'].some(key => !equal(oldPromotion[key], newPromotion[key]))) {
+    // Move both displayed values together so removing legacy flat keys preserves the other value.
+    comp.promotion_compensation = {
+      ...(isObject(comp.promotion_compensation) ? comp.promotion_compensation : {}),
+      base_increase_pct: newPromotion.base_increase_pct,
+      distribution_range: newPromotion.distribution_range,
+    };
+    for (const key of ['promotion_increase', 'promotion_increase_percent',
+      'promotion_distribution_range', 'promotion_distribution_range_percent']) delete comp[key];
   }
   if (isObject(result.compensation)) result.compensation = comp;
   return result;

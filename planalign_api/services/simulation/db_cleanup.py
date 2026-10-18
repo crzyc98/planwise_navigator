@@ -13,7 +13,6 @@ TABLES_WITH_YEAR = [
     "fct_yearly_events",
     "int_enrollment_state_accumulator",
     "int_deferral_rate_state_accumulator",
-    "int_deferral_escalation_state_accumulator",
     "int_baseline_workforce",
     "int_employee_compensation_by_year",
     "int_employee_state_by_year",
@@ -38,38 +37,9 @@ def cleanup_years_outside_range(
     Returns:
         Dict mapping table name to number of deleted rows (only tables with deletions).
     """
-    deleted_counts: dict[str, int] = {}
-
     try:
-        conn = duckdb.connect(str(db_path))
-
-        existing_tables = {row[0] for row in conn.execute("SHOW TABLES").fetchall()}
-
-        for table in TABLES_WITH_YEAR:
-            if table not in existing_tables:
-                continue
-
-            try:
-                cols = conn.execute(f"DESCRIBE {table}").fetchall()
-                col_names = {col[0] for col in cols}
-                if "simulation_year" not in col_names:
-                    continue
-            except Exception:
-                continue
-
-            result = conn.execute(
-                f"""
-                DELETE FROM {table}
-                WHERE simulation_year < ? OR simulation_year > ?
-            """,
-                [start_year, end_year],
-            )
-
-            deleted = result.fetchone()
-            if deleted and deleted[0] > 0:
-                deleted_counts[table] = deleted[0]
-
-        conn.close()
+        with duckdb.connect(str(db_path)) as conn:
+            deleted_counts = _delete_outside_range(conn, start_year, end_year)
 
         if deleted_counts:
             logger.info(
@@ -81,7 +51,40 @@ def cleanup_years_outside_range(
                 f"No stale data found outside year range {start_year}-{end_year}"
             )
 
-    except Exception as e:
-        logger.warning(f"Failed to cleanup years outside range: {e}")
+    except (duckdb.Error, OSError):
+        logger.exception("Failed to cleanup years outside range")
+        return {}
 
+    return deleted_counts
+
+
+def _delete_outside_range(
+    conn: duckdb.DuckDBPyConnection, start_year: int, end_year: int
+) -> dict[str, int]:
+    deleted_counts: dict[str, int] = {}
+    conn.execute("BEGIN TRANSACTION")
+    try:
+        existing_tables = {row[0] for row in conn.execute("SHOW TABLES").fetchall()}
+        for table in TABLES_WITH_YEAR:
+            if table not in existing_tables:
+                continue
+            try:
+                columns = {
+                    row[0] for row in conn.execute(f"DESCRIBE {table}").fetchall()
+                }
+            except duckdb.CatalogException:
+                logger.debug("Cleanup table %s disappeared", table)
+                continue
+            if "simulation_year" not in columns:
+                continue
+            deleted = conn.execute(
+                f"DELETE FROM {table} WHERE simulation_year < ? OR simulation_year > ?",
+                [start_year, end_year],
+            ).fetchone()
+            if deleted and deleted[0] > 0:
+                deleted_counts[table] = deleted[0]
+        conn.execute("COMMIT")
+    except duckdb.Error:
+        conn.execute("ROLLBACK")
+        raise
     return deleted_counts

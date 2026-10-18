@@ -632,9 +632,20 @@ export async function downloadArtifact(
   artifactPath: string,
   filename: string,
 ): Promise<void> {
-  const response = await fetchWithAuth(`${API_BASE}/api/scenarios/${scenarioId}/artifacts/${artifactPath}`);
-  if (!response.ok) await handleResponse<never>(response);
-  saveBrowserDownload(await response.blob(), filename);
+  const response = await fetchWithAuth(
+    `${API_BASE}/api/scenarios/${scenarioId}/artifact-download-url/${artifactPath}`,
+    { method: 'POST' },
+  );
+  const { url } = await handleResponse<{ url: string }>(response);
+  const anchor = document.createElement('a');
+  anchor.href = `${API_BASE}${url}`;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  try {
+    anchor.click();
+  } finally {
+    document.body.removeChild(anchor);
+  }
 }
 
 // ============================================================================
@@ -837,10 +848,12 @@ export type FileValidationResponse = Schemas['FileValidationResponse'];
 
 export async function uploadCensusFile(
   workspaceId: string,
-  file: File
+  file: File,
+  dateFormats: Record<string, string> = {},
 ): Promise<FileUploadResponse> {
   const formData = new FormData();
   formData.append('file', file);
+  formData.append('date_formats', JSON.stringify(dateFormats));
 
   const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/upload`,
@@ -1973,7 +1986,14 @@ async function awaitCalibrationJob(runId: string): Promise<CalibrationJob> {
     } catch (error) {
       const retryable = !(error instanceof ApiError)
         || error.status >= 500 || error.status === 429;
-      if (!retryable || ++failures >= 5) {
+      if (!retryable) {
+        if (error instanceof ApiError && error.status === 404) {
+          throw new ApiError(404, 'Calibration run no longer available',
+            'Calibration run no longer available; start again.');
+        }
+        throw error;
+      }
+      if (++failures >= 5) {
         throw new CalibrationStatusUnavailable(runId, error);
       }
       await new Promise(resolve => setTimeout(resolve, CALIBRATION_POLL_MS));

@@ -1910,6 +1910,11 @@
       },
       "Body_upload_census_file_api_workspaces__workspace_id__upload_post": {
         "properties": {
+          "date_formats": {
+            "default": "{}",
+            "title": "Date Formats",
+            "type": "string"
+          },
           "file": {
             "contentMediaType": "application/octet-stream",
             "description": "Census file (.parquet or .csv)",
@@ -17198,6 +17203,38 @@
       },
       "YearState": {
         "properties": {
+          "assumed_roth_fraction": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assumed Roth Fraction"
+          },
+          "contribution_source_assumptions": {
+            "default": "Archive has no source-allocation evidence. Historical engine outputs used an estimated 85% pre-tax / 15% Roth split; stored amounts are unchanged.",
+            "title": "Contribution Source Assumptions",
+            "type": "string"
+          },
+          "contribution_source_policy": {
+            "default": "legacy_unverified",
+            "title": "Contribution Source Policy",
+            "type": "string"
+          },
+          "contribution_source_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contribution Source Version"
+          },
           "current_age": {
             "anyOf": [
               {
@@ -17342,6 +17379,77 @@
             ],
             "title": "Level Id"
           },
+          "mandatory_roth_reallocated": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mandatory Roth Reallocated"
+          },
+          "mandatory_roth_required": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mandatory Roth Required"
+          },
+          "mandatory_roth_rule_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mandatory Roth Rule Version"
+          },
+          "mandatory_roth_status": {
+            "default": "not_evaluated",
+            "title": "Mandatory Roth Status",
+            "type": "string"
+          },
+          "mandatory_roth_threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mandatory Roth Threshold"
+          },
+          "mandatory_roth_threshold_basis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mandatory Roth Threshold Basis"
+          },
+          "mandatory_roth_threshold_provenance": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mandatory Roth Threshold Provenance"
+          },
           "participation_status": {
             "anyOf": [
               {
@@ -17363,6 +17471,39 @@
               }
             ],
             "title": "Pre Tax Contributions"
+          },
+          "prior_year_employer_fica_wages": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prior Year Employer Fica Wages"
+          },
+          "prior_year_wage_basis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prior Year Wage Basis"
+          },
+          "prior_year_wage_provenance": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prior Year Wage Provenance"
           },
           "prorated_annual_compensation": {
             "anyOf": [
@@ -17389,6 +17530,39 @@
           "simulation_year": {
             "title": "Simulation Year",
             "type": "integer"
+          },
+          "source_employer_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Employer Id"
+          },
+          "source_wage_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Wage Year"
+          },
+          "source_year_end_age": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Year End Age"
           },
           "total_deferral_escalations": {
             "anyOf": [
@@ -17425,6 +17599,23 @@
           }
         },
         "required": [
+          "contribution_source_policy",
+          "assumed_roth_fraction",
+          "contribution_source_version",
+          "mandatory_roth_status",
+          "mandatory_roth_required",
+          "mandatory_roth_reallocated",
+          "prior_year_employer_fica_wages",
+          "prior_year_wage_basis",
+          "prior_year_wage_provenance",
+          "source_employer_id",
+          "source_wage_year",
+          "source_year_end_age",
+          "mandatory_roth_threshold",
+          "mandatory_roth_threshold_basis",
+          "mandatory_roth_threshold_provenance",
+          "mandatory_roth_rule_version",
+          "contribution_source_assumptions",
           "simulation_year",
           "employment_status",
           "detailed_status_code",
@@ -17459,6 +17650,46 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/artifact-download/{ticket}": {
+      "get": {
+        "operationId": "redeem_artifact_ticket_api_artifact_download__ticket__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ticket",
+            "required": true,
+            "schema": {
+              "title": "Ticket",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Redeem Artifact Ticket",
+        "tags": [
+          "Simulations"
+        ]
+      }
+    },
     "/api/batches/{batch_id}/status": {
       "get": {
         "description": "Get the status of a batch job.\n\nExpired terminal jobs are treated as not found (404); active jobs are\nnever evicted by in-memory retention.",
@@ -18309,6 +18540,62 @@
           }
         },
         "summary": "Get active simulation runs",
+        "tags": [
+          "Simulations"
+        ]
+      }
+    },
+    "/api/scenarios/{scenario_id}/artifact-download-url/{artifact_path}": {
+      "post": {
+        "description": "Authorize an artifact and issue a short-lived browser download URL.",
+        "operationId": "create_artifact_download_url_api_scenarios__scenario_id__artifact_download_url__artifact_path__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenario_id",
+            "required": true,
+            "schema": {
+              "title": "Scenario Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "artifact_path",
+            "required": true,
+            "schema": {
+              "title": "Artifact Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Create Artifact Download Url Api Scenarios  Scenario Id  Artifact Download Url  Artifact Path  Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Artifact Download Url",
         "tags": [
           "Simulations"
         ]

@@ -28,9 +28,9 @@ Plan sponsors and their advisors use it to estimate the multi-year financial imp
 
 | Layer | Technology | Version | Purpose |
 |-------|------------|---------|---------|
-| **Storage** | DuckDB | 1.5.5 | Immutable event store; in-process OLAP engine |
-| **Transformation** | dbt-core | 1.8.8 | SQL-based data modeling and testing |
-| **Adapter** | dbt-duckdb | 1.8.1 | Stable DuckDB integration |
+| **Storage** | DuckDB | 1.5.6 | Immutable event store; in-process OLAP engine |
+| **Transformation** | dbt-core | 1.9.11 | SQL-based data modeling and testing |
+| **Adapter** | dbt-duckdb | 1.9.6 | Stable DuckDB integration |
 | **Orchestration** | planalign_orchestrator | 3.0.0 | Staged multi-year pipeline execution |
 | **CLI** | planalign (Rich + Typer) | 3.0.0 | Terminal interface with progress tracking |
 | **Web Studio** | FastAPI + React/Vite | 3.0.0 | Web-based scenario management |
@@ -38,6 +38,10 @@ Plan sponsors and their advisors use it to estimate the multi-year financial imp
 | **Configuration** | Pydantic | 2.13.5 | Type-safe parameter management |
 | **Git Sync** | GitPython | 3.1.0+ | Workspace cloud synchronization |
 | **Python** | CPython | 3.12 | Version CI tests against |
+
+Runtime pins come from [pyproject.toml](pyproject.toml), mirrored in
+[requirements.txt](requirements.txt) and resolved in [uv.lock](uv.lock).
+See the [release checklist](docs/VERSIONING_GUIDE.md#release-checklist) when updating them.
 
 ## Architecture
 
@@ -176,14 +180,27 @@ cd planalign_studio && npm install && cd ..
 1. **dbt profile** — `~/.dbt/profiles.yml` (Windows: `%USERPROFILE%\.dbt\profiles.yml`):
 
 ```yaml
-planalign_engine:
+fidelity_planalign_engine:
   target: dev
   outputs:
     dev:
       type: duckdb
-      path: /absolute/path/to/fidelity_planalign/dbt/simulation.duckdb
+      path: "{{ env_var('DATABASE_PATH') }}"
       threads: 1
 ```
+
+The profile name must match `profile` in `dbt/dbt_project.yml`. This example
+requires an explicit `DATABASE_PATH`, so direct dbt commands use the database
+you select. To verify this user profile from `dbt/`, run:
+
+```bash
+DATABASE_PATH=/absolute/path/to/isolated/setup-check.duckdb \
+  dbt debug --profiles-dir "$HOME/.dbt"
+```
+
+Create the database's parent directory first. Use a fresh path for validation.
+The repository also ships `dbt/profiles.yml`: `dbt debug --profiles-dir .` from `dbt/` explicitly selects that separate profile path. It
+honors `DATABASE_PATH` but defaults to the shared dev database when unset.
 
 2. **Simulation parameters** — `config/simulation_config.yaml`:
 
@@ -202,7 +219,9 @@ random_seed: 42
 planalign --version
 planalign health          # system readiness check
 planalign validate        # configuration validation
-cd dbt && dbt debug       # database connection check
+cd dbt
+DATABASE_PATH=/absolute/path/to/isolated/setup-check.duckdb \
+  dbt debug --profiles-dir "$HOME/.dbt"  # user-profile connection check
 ```
 
 ## Running the Platform

@@ -38,6 +38,7 @@ from .auth import (
     require_websocket_api_token,
     require_websocket_origin,
 )
+from .routers.artifact_downloads import router as artifact_downloads_router
 from .routers import (
     system_router,
     workspaces_router,
@@ -318,6 +319,7 @@ def create_app() -> FastAPI:
     # Include routers. The system router keeps /health public; its non-health
     # endpoints declare require_api_token directly because they expose system data.
     app.include_router(system_router, prefix="/api", tags=["System"])
+    app.include_router(artifact_downloads_router, prefix="/api", tags=["Simulations"])
     protected_dependencies = [Depends(require_api_token)]
     app.include_router(
         workspaces_router,

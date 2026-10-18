@@ -33,7 +33,7 @@ class EnrollmentEventGenerator(EventGenerator):
     Generate enrollment events for DC plan participation.
 
     This wrapper delegates to existing dbt models:
-    - int_eligibility_determination: Plan eligibility checks
+    - int_plan_eligibility_determination: Plan eligibility checks
     - int_voluntary_enrollment_decision: Employee enrollment decisions
     - int_proactive_voluntary_enrollment: Proactive enrollment handling
     - int_enrollment_events: Final enrollment event generation
@@ -51,7 +51,7 @@ class EnrollmentEventGenerator(EventGenerator):
 
     # dbt model references
     dbt_models = [
-        "int_eligibility_determination",
+        "int_plan_eligibility_determination",
         "int_voluntary_enrollment_decision",
         "int_proactive_voluntary_enrollment",
         "int_enrollment_events",

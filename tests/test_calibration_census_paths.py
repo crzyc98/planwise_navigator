@@ -34,7 +34,7 @@ def _workspace(storage: WorkspaceStorage) -> Workspace:
     )
 
 
-@pytest.mark.parametrize("path_kind", ["absolute", "workspace-relative", "legacy"])
+@pytest.mark.parametrize("path_kind", ["absolute", "workspace-relative"])
 def test_existing_census_paths_resolve(
     storage: WorkspaceStorage, path_kind: str
 ) -> None:
@@ -45,7 +45,6 @@ def test_existing_census_paths_resolve(
     paths = {
         "absolute": str(census.resolve()),
         "workspace-relative": "data/imports/census.parquet",
-        "legacy": str(census),
     }
     config = {"setup": {"census_parquet_path": paths[path_kind]}}
 
@@ -55,9 +54,7 @@ def test_existing_census_paths_resolve(
     assert config["setup"]["census_parquet_path"] == str(census.resolve())
 
 
-@pytest.mark.parametrize(
-    "path_kind", ["absolute", "traversal", "symlink", "legacy-symlink"]
-)
+@pytest.mark.parametrize("path_kind", ["absolute", "traversal", "symlink"])
 def test_census_outside_active_workspace_is_rejected(
     storage: WorkspaceStorage, path_kind: str
 ) -> None:
@@ -77,7 +74,6 @@ def test_census_outside_active_workspace_is_rejected(
         "absolute": str(outside.resolve()),
         "traversal": "../other-workspace/census.parquet",
         "symlink": "census.parquet",
-        "legacy-symlink": str(link),
     }
     config = {"setup": {"census_parquet_path": paths[path_kind]}}
 
@@ -149,21 +145,62 @@ def test_valid_override_keeps_its_own_census(
     assert calibration._canonical_census(config, wid, storage) == own_census
 
 
-@pytest.mark.parametrize("missing", [False, True])
-def test_unsafe_override_cannot_be_masked_by_workspace_fallback(
+def test_existing_outside_override_cannot_be_masked_by_workspace_fallback(
     storage: WorkspaceStorage,
     stale_target: tuple[str, str, Path],
     tmp_path: Path,
-    missing: bool,
 ) -> None:
     wid, sid, _ = stale_target
     config = storage.get_merged_config(wid, sid)
     outside = tmp_path / "outside.parquet"
-    if not missing:
-        outside.write_bytes(b"outside-workspace")
+    outside.write_bytes(b"outside-workspace")
     config["setup"]["census_parquet_path"] = str(outside)
     with pytest.raises(HTTPException, match="not an uploaded artifact"):
         calibration._canonical_census(config, wid, storage)
+
+
+def test_stale_absolute_outside_override_uses_simulation_fallback(
+    storage: WorkspaceStorage,
+    stale_target: tuple[str, str, Path],
+    tmp_path: Path,
+) -> None:
+    wid, sid, census = stale_target
+    config = storage.get_merged_config(wid, sid)
+    config["setup"]["census_parquet_path"] = str(tmp_path / "old-workspace.parquet")
+    simulation_config = deepcopy(config)
+
+    validate_census(storage, simulation_config, sid, wid)
+
+    assert calibration._canonical_census(config, wid, storage) == census
+    assert config == simulation_config
+
+
+@pytest.mark.parametrize("legacy_kind", ["file", "symlink"])
+def test_old_server_relative_path_uses_simulation_fallback(
+    storage: WorkspaceStorage,
+    stale_target: tuple[str, str, Path],
+    legacy_kind: str,
+) -> None:
+    wid, sid, census = stale_target
+    config = storage.get_merged_config(wid, sid)
+    legacy = storage._workspace_path(wid) / "data/imports/old.parquet"
+    legacy.parent.mkdir(parents=True)
+    if legacy_kind == "symlink":
+        outside = storage.workspaces_root / "other-workspace/census.parquet"
+        outside.parent.mkdir()
+        outside.write_bytes(b"outside-workspace")
+        legacy.symlink_to(outside.resolve())
+    else:
+        legacy.write_bytes(b"different-census")
+    config["setup"]["census_parquet_path"] = str(
+        legacy.absolute().relative_to(Path.cwd())
+    )
+    simulation_config = deepcopy(config)
+
+    validate_census(storage, simulation_config, sid, wid)
+
+    assert calibration._canonical_census(config, wid, storage) == census
+    assert config == simulation_config
 
 
 def test_fallback_rejects_workspace_census_symlink_escape(

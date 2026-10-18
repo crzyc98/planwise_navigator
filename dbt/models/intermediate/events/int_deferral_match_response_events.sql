@@ -17,10 +17,6 @@
 {% set downward_reduce_max = var('deferral_match_response_downward_reduce_to_max_rate', 0.70) %}
 {% set downward_partial_factor = var('deferral_match_response_downward_partial_factor', 0.50) %}
 
-{# Existing deferral config for caps #}
-{% set esc_cap = var('deferral_escalation_cap', 0.10) %}
-{% set irs_402g_limit = var('irs_402g_limit', 23500) %}
-
 {# Match configuration #}
 {% set employer_match_status = var('employer_match_status', 'deferral_based') %}
 {# Pre-computed match-maximizing rate from Python export (avoids Jinja scoping issues).
@@ -51,6 +47,19 @@
 
 -- Calculate match-maximizing rate based on match mode
 WITH
+irs_limits AS (
+  SELECT
+    base_limit,
+    catch_up_limit,
+    catch_up_age_threshold,
+    super_catch_up_limit,
+    super_catch_up_age_min,
+    super_catch_up_age_max
+  FROM {{ ref('config_irs_limits') }}
+  ORDER BY CASE WHEN limit_year = {{ simulation_year }} THEN 0 ELSE 1 END,
+    ABS(limit_year - {{ simulation_year }})
+  LIMIT 1
+),
 {% if plan_design_parameters_config %}
 parameter_rows AS (
     {{ get_plan_design_parameters(plan_design_parameters_config) }}
@@ -143,16 +152,12 @@ eligible_employees AS (
         w.employee_ssn,
         w.employee_compensation,
         w.current_age,
+        {{ irs_402g_limit_for_age('COALESCE(' ~ simulation_year ~ ' - YEAR(w.employee_birth_date), w.current_age)', 'il') }} AS applicable_irs_limit,
         w.current_tenure,
         w.level_id,
         w.employment_status,
         w.is_enrolled_flag,
         assignment.plan_design_id,
-        {% if plan_design_parameters_config %}
-        parameters.deferral_escalation_cap AS escalation_cap,
-        {% else %}
-        {{ esc_cap }}::DECIMAL(5,4) AS escalation_cap,
-        {% endif %}
         {% if (simulation_year | int) == (start_year | int) %}
         -- Year 1: Use enrollment events for current rate
         COALESCE(ier.initial_deferral_rate, 0.0)::DECIMAL(5,4) AS current_deferral_rate,
@@ -205,6 +210,7 @@ eligible_employees AS (
         (ABS(PLANALIGN_HASH(w.employee_id || '-match-response-down-' || CAST({{ simulation_year }} AS VARCHAR))) % 1000) / 1000.0 AS hash_value_down
 
     FROM {{ ref('int_employee_compensation_by_year') }} w
+    CROSS JOIN irs_limits il
     INNER JOIN {{ ref('int_plan_design_assignment_accumulator') }} assignment
         ON w.employee_id = assignment.employee_id
        AND w.simulation_year = assignment.simulation_year
@@ -256,13 +262,13 @@ upward_events AS (
         'deferral_match_response'::VARCHAR AS event_type,
         {{ simulation_year }} AS simulation_year,
         DATE '{{ simulation_year }}-01-01' AS effective_date,
-        -- Cap at escalation cap and IRS 402(g) rate-equivalent
+        -- Stop at the full-match target and retain the IRS rate-equivalent limit.
         LEAST(
             raw_new_rate,
-            escalation_cap,
+            match_max_rate,
             CASE WHEN employee_compensation > 0
-                 THEN ({{ irs_402g_limit }}::DECIMAL / employee_compensation)
-                 ELSE escalation_cap
+                 THEN FLOOR(applicable_irs_limit::DECIMAL / employee_compensation * 10000) / 10000
+                 ELSE match_max_rate
             END
         )::DECIMAL(5,4) AS employee_deferral_rate,
         current_deferral_rate AS prev_employee_deferral_rate,

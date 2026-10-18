@@ -586,10 +586,19 @@ class AnalyticsService:
                 SELECT
                     COUNT(*) as total_eligible,
                     SUM(CASE WHEN is_enrolled_flag THEN 1 ELSE 0 END) as total_enrolled,
-                    SUM(CASE WHEN participation_status_detail ILIKE '%auto%' THEN 1 ELSE 0 END) as auto_enrolled,
-                    SUM(CASE WHEN participation_status_detail ILIKE '%voluntary%' THEN 1 ELSE 0 END) as voluntary_enrolled,
-                    SUM(CASE WHEN participation_status_detail ILIKE '%census%'
-                              OR participation_status_detail ILIKE '%baseline%' THEN 1 ELSE 0 END) as census_enrolled
+                    SUM(CASE WHEN is_enrolled_flag
+                              AND participation_status_detail NOT ILIKE 'not_participating%'
+                              AND participation_status_detail ILIKE '%auto%'
+                             THEN 1 ELSE 0 END) as auto_enrolled,
+                    SUM(CASE WHEN is_enrolled_flag
+                              AND participation_status_detail NOT ILIKE 'not_participating%'
+                              AND participation_status_detail ILIKE '%voluntary%'
+                             THEN 1 ELSE 0 END) as voluntary_enrolled,
+                    SUM(CASE WHEN is_enrolled_flag
+                              AND participation_status_detail NOT ILIKE 'not_participating%'
+                              AND (participation_status_detail ILIKE '%census%'
+                                   OR participation_status_detail ILIKE '%baseline%')
+                             THEN 1 ELSE 0 END) as census_enrolled
                 FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}, final_year
                 {where_clause}
             """

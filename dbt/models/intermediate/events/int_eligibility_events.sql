@@ -2,7 +2,7 @@
   materialized='incremental',
   incremental_strategy='replace_simulation_year',
   year_partition_scope='year',
-  unique_key=['employee_id', 'simulation_year'],
+  on_schema_change='sync_all_columns',
   tags=['EVENT_GENERATION']
 ) }}
 
@@ -18,7 +18,7 @@
 
   Covers both populations:
     1. Census employees (EMP_*): sourced from int_plan_eligibility_determination,
-       which reads int_workforce_pre_enrollment (baseline workforce)
+       which reads current-year compensation and hiring candidates
     2. New hires (NH_*): sourced from int_hiring_events, applying the same
        waiting period and age gates relative to their hire date
 

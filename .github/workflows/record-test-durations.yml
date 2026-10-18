@@ -53,7 +53,7 @@ jobs:
       - name: Record durations
         # Same selection as the sharded test job, so every test it will later
         # schedule has a recorded weight. No coverage: it perturbs timings.
-        run: pytest tests/ -m "not multi_year_invariants" --store-durations -q
+        run: pytest tests/ -m "not multi_year_invariants and not edge_config_matrix" --store-durations -q
 
       - name: Upload durations
         # Always upload: a partial recording is still better than laptop

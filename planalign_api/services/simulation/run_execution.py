@@ -150,6 +150,18 @@ def workspace_census_fallback(
     return resolve_census_path(storage, str(configured), workspace_id)
 
 
+def resolve_census_with_fallback(
+    storage: WorkspaceStorage, census_path: str, workspace_id: str
+) -> Optional[Path]:
+    """Use the configured census when present, otherwise the workspace base."""
+    resolved = resolve_census_path(storage, census_path, workspace_id)
+    return (
+        resolved
+        if resolved is not None
+        else workspace_census_fallback(storage, workspace_id)
+    )
+
+
 def validate_census(
     storage: WorkspaceStorage,
     config: Dict[str, Any],
@@ -175,9 +187,7 @@ def validate_census(
             ),
             severity=ErrorSeverity.ERROR,
         )
-    resolved = resolve_census_path(storage, str(configured), workspace_id)
-    if resolved is None:
-        resolved = workspace_census_fallback(storage, workspace_id)
+    resolved = resolve_census_with_fallback(storage, str(configured), workspace_id)
     if resolved is None or not resolved.exists():
         raise ConfigurationError(
             f"Census file not found at '{configured}'. Upload a valid census parquet file and retry.",

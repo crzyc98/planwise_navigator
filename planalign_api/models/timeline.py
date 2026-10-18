@@ -21,7 +21,32 @@ class TimelineEvent(APIModel):
     level_id: int | None = None
 
 
-class YearState(APIModel):
+class ContributionSourceAudit(APIModel):
+    """Stored run evidence; absent columns in old archives remain unverified."""
+
+    contribution_source_policy: str = "legacy_unverified"
+    assumed_roth_fraction: float | None = None
+    contribution_source_version: str | None = None
+    mandatory_roth_status: str = "not_evaluated"
+    mandatory_roth_required: float | None = None
+    mandatory_roth_reallocated: float | None = None
+    prior_year_employer_fica_wages: float | None = None
+    prior_year_wage_basis: str | None = None
+    prior_year_wage_provenance: str | None = None
+    source_employer_id: str | None = None
+    source_wage_year: int | None = None
+    source_year_end_age: int | None = None
+    mandatory_roth_threshold: float | None = None
+    mandatory_roth_threshold_basis: str | None = None
+    mandatory_roth_threshold_provenance: str | None = None
+    mandatory_roth_rule_version: str | None = None
+    contribution_source_assumptions: str = (
+        "Archive has no source-allocation evidence. Historical engine outputs used "
+        "an estimated 85% pre-tax / 15% Roth split; stored amounts are unchanged."
+    )
+
+
+class YearState(ContributionSourceAudit):
     simulation_year: int
     employment_status: str | None = None
     detailed_status_code: str | None = None

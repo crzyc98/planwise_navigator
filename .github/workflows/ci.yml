@@ -1,38 +1,44 @@
 # filename: .github/workflows/ci.yml
 name: CI Pipeline
 
-# Gating policy (measured 2026-08-04):
-#
-#   Pull requests run lint + validate-models + the fast suite: about 8 minutes.
-#   Everything heavier -- the four integration shards, multi-year invariants, the
-#   edge-config matrix, and the coverage gate -- runs on push to main/develop, on
-#   the nightly schedule, and on demand.
-#
-# The full pipeline measured ~66 minutes of wall time on PR #545 (shards at
-# 49/65/49/63 min, edge-config-matrix 14m, multi-year-invariants 16-20m). Paying that
-# on every push made the feedback loop unusable, and it is dominated by
-# integration tests driving real dbt runs rather than by anything a typical PR
-# touches.
-#
-# To run the full pipeline against a PR before merging, add the `full-ci` label.
-# There is no branch protection on main, so skipped jobs cannot deadlock a merge;
-# if required status checks are ever enabled, revisit this -- required checks that
-# never run will block merges.
+# All PRs retain the existing required checks. Backend/unknown changes also run
+# multi-year and edge-config simulations; prose/frontend-only changes omit them.
+# Full integration + coverage runs on main/develop, nightly, dispatch, or full-ci.
+# Require `CI Gate` in repository rulesets to enforce this conditional policy.
 on:
   push:
     branches: [main, develop]
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   schedule:
     # Nightly full run at 07:00 UTC so integration regressions merged during the
     # day are caught before the next morning.
     - cron: '0 7 * * *'
   workflow_dispatch:
 
+# Cancel obsolete PR commits, but retain every post-merge/nightly evidence run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   PYTHON_VERSION: '3.12'
 
 jobs:
+  ci-scope:
+    runs-on: ubuntu-latest
+    outputs:
+      simulation: ${{ steps.scope.outputs.simulation }}
+      full: ${{ steps.scope.outputs.full }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Select required suites
+        id: scope
+        run: python3 scripts/ci_policy.py select
+
   studio:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -100,6 +106,7 @@ jobs:
 
       - name: Run linting
         run: |
+          python scripts/check_worktree_gitlinks.py
           black --check .
           ruff check .
           mypy planalign_orchestrator/ planalign_cli/ planalign_core/ planalign_api/ planalign_fit/ planalign_ensemble/ planalign_optimizer/ planalign_evidence/ planalign_backtest/ --ignore-missing-imports
@@ -143,14 +150,13 @@ jobs:
             --ignore-vuln PYSEC-2026-2120 \
             --ignore-vuln PYSEC-2026-2121
 
-  # The PR gate. Unit-only, no dbt runs, no database: ~330s for ~2,800 tests
-  # on 4 xdist workers as of 2026-09-28 (budget enforced below per
-  # constitution.md III, #648).
+  # The PR gate. About 3,250 tests run on 4 xdist workers; recent hosted
+  # timings vary from 368-463s (see #928). Budget is enforced below per
+  # constitution.md III.
   # This is the check developers wait on, so keep it fast -- anything
   # needing a real dbt invocation belongs in `test` below, not here.
   fast-tests:
     runs-on: ubuntu-latest
-    needs: lint
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -191,12 +197,12 @@ jobs:
           DATABASE_PATH: ${{ runner.temp }}/planalign-ci-fast.duckdb
         run: |
           # Constitution III caps the fast suite's wall-clock time (see #648).
-          # Budget is ~1.25x the worst observed time on GitHub-hosted runners:
-          # 322-356s with -n 4 (one worker per vCPU) vs 615-915s serial, as of
-          # 2026-09-28. Re-measure here, not on a laptop, when re-baselining.
+          # Warn above 450s to track drift; fail above 540s to allow for runner
+          # variance observed on GitHub-hosted runners (see #928).
           # --dist load: tests must not depend on sharing a worker with their
           # file-mates; keep collection deterministic (no uuid4() in IDs).
-          FAST_SUITE_BUDGET_SECONDS=450
+          FAST_SUITE_BUDGET_SECONDS=540
+          FAST_SUITE_WARNING_SECONDS=450
           start=$(date +%s)
           pytest -m fast -q -n 4 --dist load
           status=$?
@@ -204,6 +210,9 @@ jobs:
           echo "Fast suite took ${elapsed}s (budget: ${FAST_SUITE_BUDGET_SECONDS}s)"
           if [ "$status" -ne 0 ]; then
             exit "$status"
+          fi
+          if [ "$elapsed" -gt "$FAST_SUITE_WARNING_SECONDS" ]; then
+            echo "::warning::Fast suite took ${elapsed}s, above the ${FAST_SUITE_WARNING_SECONDS}s warning threshold and drifting toward the ${FAST_SUITE_BUDGET_SECONDS}s budget."
           fi
           if [ "$elapsed" -gt "$FAST_SUITE_BUDGET_SECONDS" ]; then
             echo "::error::Fast suite took ${elapsed}s, exceeding the ${FAST_SUITE_BUDGET_SECONDS}s budget in constitution.md III. Re-profile with 'pytest -m fast --durations=50' and either fix the regression or re-baseline the budget."
@@ -225,22 +234,14 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    needs: lint
+    needs: ci-scope
     # Skipped on pull requests unless the `full-ci` label is present -- see the
     # gating policy comment at the top of this file. Runs in full on push to
     # main/develop, nightly, and via workflow_dispatch.
-    if: >-
-      github.event_name != 'pull_request' ||
-      contains(github.event.pull_request.labels.*.name, 'full-ci')
-    # Sharded across 4 runners: this job was ~96 of the pipeline's ~102 minutes,
-    # and it is dominated by integration tests that drive real dbt runs. Wall
-    # time is max(shard), not the sum, so 4 shards cut it to roughly a quarter.
-    #
-    # NOTE (2026-08-04): measured shard times on PR #545 were 49/65/49/63 min,
-    # far above the ~25 min this split was sized for, and `.test_durations`
-    # records only 59.9 min total across 2,738 tests -- roughly 4x stale, which
-    # is why the shards are imbalanced. Refresh it (see below) before trusting
-    # the balance.
+    if: needs.ci-scope.outputs.full == 'true'
+    # Four independent runners, balanced using measured test durations.
+    # Historical measurements above are not a current performance baseline.
+    # Refresh and compare complete runs per docs/guides/ci_measurements.md.
     #
     # Sharding rather than pytest-xdist (`-n auto`) is deliberate. The execution
     # lock is a single file in the working directory (utils.py: `.{name}.lock`),
@@ -311,19 +312,27 @@ jobs:
           # runtime), so an even split by count still put ~40 minutes of work in
           # one shard while the others finished in under 5.
           #
-          # Refresh .test_durations with:
-          #   pytest tests/ -m "not multi_year_invariants" --store-durations
-          # Stale entries are harmless -- unknown tests fall back to an average.
+          # Read the committed timings for assignment, then replace them with
+          # this shard's observations only. Never merge inherited stale entries.
+          # Download all four timing artifacts to refresh (see CI guide).
           #
           # No --cov-fail-under here: a single shard only ever sees a quarter of
           # the suite and would fail the gate spuriously. The threshold is
           # enforced once, on the combined data, in the `coverage` job.
-          pytest tests/ -v -m "not multi_year_invariants" \
+          pytest tests/ -v -m "not multi_year_invariants and not edge_config_matrix" \
             --splits 4 --group ${{ matrix.shard }} \
             --splitting-algorithm least_duration \
-            --cov=planalign_orchestrator --cov=planalign_cli \
-            --cov=planalign_api --cov=planalign_core \
+            --store-durations --clean-durations \
+            --cov --cov-config=pyproject.toml \
             --cov-report=
+
+      - name: Upload shard timings
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-durations-${{ matrix.shard }}
+          path: .test_durations
+          include-hidden-files: true
+          if-no-files-found: error
 
       - name: Assert default database sentinel remains unused (shard ${{ matrix.shard }}/4)
         if: always()
@@ -384,23 +393,26 @@ jobs:
         run: |
           coverage combine .coverage.*
           coverage xml
-          # Coverage gate: actual coverage is ~63% (2026-07); ratchet the
-          # threshold up as coverage improves, never down.
+          coverage json
+          python scripts/check_coverage_inventory.py
+          # Preserve the 60% gate as the denominator expands (#874). The JSON
+          # inventory prints each package's measured numerator/denominator;
+          # a lower result must be investigated, not hidden by lowering this.
           coverage report --fail-under=60
 
       - name: Archive coverage report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage-xml
-          path: coverage.xml
+          path: |
+            coverage.xml
+            coverage.json
 
   multi-year-invariants:
     runs-on: ubuntu-latest
-    needs: lint
-    # Skipped on PRs without the `full-ci` label -- see gating policy at top.
-    if: >-
-      github.event_name != 'pull_request' ||
-      contains(github.event.pull_request.labels.*.name, 'full-ci')
+    needs: ci-scope
+    if: needs.ci-scope.outputs.simulation == 'true'
     # Recent successful runs take 16-20 minutes; leave enough headroom for
     # normal hosted-runner variance without masking a genuinely stuck suite.
     timeout-minutes: 30
@@ -469,11 +481,8 @@ jobs:
 
   edge-config-matrix:
     runs-on: ubuntu-latest
-    needs: lint
-    # Skipped on PRs without the `full-ci` label -- see gating policy at top.
-    if: >-
-      github.event_name != 'pull_request' ||
-      contains(github.event.pull_request.labels.*.name, 'full-ci')
+    needs: ci-scope
+    if: needs.ci-scope.outputs.simulation == 'true'
     # Four sequential two-year simulations. Each costs ~105s on a GitHub runner
     # (~2x a dev laptop), so the suite needs ~8min wall including setup.
     # Matches multi-year-invariants, the sibling job that also runs real sims.
@@ -522,7 +531,6 @@ jobs:
 
   validate-models:
     runs-on: ubuntu-latest
-    needs: lint
     steps:
       - uses: actions/checkout@v4
 
@@ -537,19 +545,46 @@ jobs:
       - name: Install dbt
         run: |
           export PATH="$HOME/.local/bin:$PATH"
-          uv pip install --system dbt-core==1.8.8 dbt-duckdb==1.8.1
           uv pip install --system -e .
+          python scripts/check_dbt_versions.py
           # Trigger the sqlparse MAX_GROUPING_TOKENS auto-patch (see
           # planalign_orchestrator.sqlparse_config) so dbt subprocesses in
           # this job don't hit sqlparse's 10,000-token DoS-protection limit.
           python -c "import planalign_orchestrator"
 
+      # Editable installs hide packaging gaps; install the built wheel into a
+      # clean venv and import every shipped package from outside the checkout.
+      - name: Verify non-editable wheel install
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          uv build --wheel --out-dir "$RUNNER_TEMP/dist"
+          uv venv "$RUNNER_TEMP/wheel-venv" --python "$PYTHON_VERSION"
+          uv pip install --python "$RUNNER_TEMP/wheel-venv/bin/python" "$RUNNER_TEMP"/dist/*.whl
+          cd "$RUNNER_TEMP"
+          wheel-venv/bin/python "$GITHUB_WORKSPACE/scripts/check_wheel_imports.py"
+          wheel-venv/bin/planalign --help > /dev/null
+
       - name: Validate dbt project
+        env:
+          # Seed relations use an unquoted catalog name derived from this stem.
+          DATABASE_PATH: ${{ runner.temp }}/planalign_ci_model_validation.duckdb
         run: |
           cd dbt
           dbt deps
           # Band macros read seed tables at compile time (run_query), so
           # seeds must be loaded before parse/compile.
           dbt seed --profiles-dir . --threads 1
-          dbt parse --profiles-dir .
-          dbt compile --profiles-dir .
+          dbt parse --profiles-dir . --threads 1
+          dbt compile --profiles-dir . --threads 1
+
+  ci-gate:
+    name: CI Gate
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [ci-scope, lint, studio, fast-tests, python-dependency-audit, validate-models, test, coverage, multi-year-invariants, edge-config-matrix]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require every selected check to succeed
+        env:
+          CI_NEEDS: ${{ toJSON(needs) }}
+        run: python3 scripts/ci_policy.py gate

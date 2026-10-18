@@ -4,6 +4,16 @@ import { applyResolvedFormData } from './resolvedFormData';
 import exportedFixture from './fixtures/resolvedEngineInputs.json';
 
 describe('resolved engine inputs in configuration controls', () => {
+  it('shows active legacy requirements instead of dormant detailed values', () => {
+    const resolved = applyResolvedFormData({ employer_match: { apply_eligibility: false,
+      eligibility: { minimum_tenure_years: 3, minimum_hours_annual: 500,
+        require_active_at_year_end: false, allow_terminated_new_hires: true,
+        allow_experienced_terminations: true },
+    } }, DEFAULT_FORM_DATA);
+    expect(resolved).toMatchObject({ dcMatchMinTenureYears: 0, dcMatchMinHoursAnnual: 1000,
+      dcMatchRequireYearEndActive: true, dcMatchAllowTerminatedNewHires: false,
+      dcMatchAllowExperiencedTerminations: false });
+  });
   it('renders the real Python export fixture with exact schedule units and bounds', () => {
     const resolved = applyResolvedFormData(exportedFixture.variables, DEFAULT_FORM_DATA);
     expect(resolved).toMatchObject({ seed: 0, meritBudget: 3.5, dcEligibilityMonths: 0, dcMatchMode: 'tenure_graded' });

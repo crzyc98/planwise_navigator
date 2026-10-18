@@ -975,6 +975,70 @@ class TestGetParticipationSummary:
     """Test _get_participation_summary including active_only and error fallback."""
 
     @pytest.mark.fast
+    @pytest.mark.parametrize("active_only", [False, True])
+    def test_method_counts_exclude_nonparticipants(
+        self,
+        in_memory_conn: duckdb.DuckDBPyConnection,
+        active_only: bool,
+    ) -> None:
+        rows = []
+        for status in ("active", "terminated"):
+            for index, (enrolled, detail) in enumerate(
+                [
+                    (True, "participating - auto enrollment"),
+                    (True, "participating - voluntary enrollment"),
+                    (True, "participating - census enrollment"),
+                    (False, "not_participating - not auto enrolled"),
+                    (True, "not_participating - not auto enrolled"),
+                    (False, "participating - voluntary enrollment"),
+                    (False, "participating - census enrollment"),
+                ]
+            ):
+                rows.append(
+                    {
+                        "employee_id": f"{status}_{index}",
+                        "year": 2029,
+                        "status": status,
+                        "enrolled": enrolled,
+                        "participation_detail": detail,
+                    }
+                )
+        _seed_employees(in_memory_conn, rows)
+        summary = AnalyticsService(MagicMock())._get_participation_summary(
+            in_memory_conn,
+            active_only=active_only,
+        )
+        expected = 1 if active_only else 2
+        assert summary["by_method"].model_dump() == {
+            "auto_enrolled": expected,
+            "voluntary_enrolled": expected,
+            "census_enrolled": expected,
+        }
+
+    @pytest.mark.fast
+    def test_auto_disabled_run_has_no_auto_slice(
+        self,
+        in_memory_conn: duckdb.DuckDBPyConnection,
+    ) -> None:
+        _seed_employees(
+            in_memory_conn,
+            [
+                {
+                    "employee_id": "nonparticipant",
+                    "year": 2029,
+                    "status": "active",
+                    "enrolled": False,
+                    "participation_detail": "not_participating - not auto enrolled",
+                }
+            ],
+        )
+        summary = AnalyticsService(MagicMock())._get_participation_summary(
+            in_memory_conn
+        )
+        assert summary["total_enrolled"] == 0
+        assert summary["by_method"].auto_enrolled == 0
+
+    @pytest.mark.fast
     def test_participation_summary_default_all(self, in_memory_conn):
         """Default includes all employees (active + terminated)."""
         _seed_employees(

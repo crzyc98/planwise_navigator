@@ -7,8 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Editing a legacy match eligibility rule in Studio no longer stores a new-hire service waiver. A later minimum-service edit now requires hire-year employees to meet service instead of keeping them match-eligible.
+- Clearing the auto-enrollment hire-date cutoff in Studio no longer fails the run with an invalid `''::DATE`. A blank cutoff now uses the engine default (2020-01-01), the same way the escalation cutoff works.
+- Studio saves promotion increases and ranges in the nested promotion settings, including 12.5% and 5%, and removes stale flat aliases when either is edited. Legacy flat defaults still defer to nested values.
+- DC Plan participation charts no longer classify nonparticipants labeled "not auto enrolled" as automatically enrolled. Enrollment-method counts exclude unenrolled and nonparticipating rows; existing run results display correctly without rerunning simulations.
+
 ### Changed
 
+- First-year match-responsive deferral increases can reach the full employer-match threshold even above the annual auto-escalation cap. Simultaneous escalation no longer clips that response; the existing IRS rate-equivalent limit remains. Reruns can produce higher employee contributions and employer matches. Studio now keeps the escalation cap inside the collapsible annual escalation settings.
+- Studio match eligibility controls now show the requirements actually in effect for legacy configurations. Editing one requirement saves the complete displayed policy instead of silently activating other dormant eligibility settings; unchanged configurations retain their existing behavior. Configuration review describes the effective requirements directly.
 - Studio Workforce Parameters and DC Plan now separate plan provisions from behavioral assumptions, preserve custom settings, preview suggestions, and review effective configuration before saving. Numeric fields support direct decimal entry and report unfinished or invalid edits without converting blanks to zero.
 - Explicit `null` for `dc_plan.voluntary_enrollment_rate` or `dc_plan.new_hire_opt_out_rate` now selects demographic behavior even when a legacy enrollment block supplies a flat rate. An omitted key continues to inherit; an explicit zero remains zero. Review configurations containing both forms before rerunning a projection.
 

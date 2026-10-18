@@ -1,7 +1,6 @@
 """Real dbt materializations using every affected model's production config."""
 
 from pathlib import Path
-from decimal import Decimal
 import re
 
 import duckdb
@@ -14,7 +13,6 @@ pytestmark = pytest.mark.integration
 SCENARIO_PARTITIONS = (
     "int_workforce_state_accumulator",
     "int_plan_design_assignment_accumulator",
-    "int_deferral_escalation_state_accumulator",
     "int_enrollment_events",
     "int_employer_core_contributions",
     "int_employee_match_calculations",
@@ -24,13 +22,20 @@ YEAR_PARTITIONS = ("int_plan_eligibility_override", "int_eligibility_events")
 KEYED_MODELS = (
     "int_enrollment_state_accumulator",
     "int_deferral_rate_state_accumulator",
+    "fct_workforce_snapshot",
+    "fct_employer_match_events",
+    "int_employee_contributions",
+    "int_employee_compensation_by_year",
 )
+ALL_MODELS = (*SCENARIO_PARTITIONS, *YEAR_PARTITIONS, *KEYED_MODELS)
 
 
 def _model_configs(project: Path) -> None:
-    for name in (*SCENARIO_PARTITIONS, *YEAR_PARTITIONS, *KEYED_MODELS):
+    for name in ALL_MODELS:
         source = next((ROOT / "dbt/models").rglob(f"{name}.sql")).read_text()
-        config = re.search(r"^\{\{ config\([\s\S]*?^\) \}\}", source, re.MULTILINE)
+        config = re.search(
+            r"^\{\{\s*config\([\s\S]*?^\s*\)\s*\}\}", source, re.MULTILINE
+        )
         assert config is not None, name
         # Isolate schema evolution from model input generation. Full model SQL
         # is exercised separately by calibration transferability/invariant tests.
@@ -47,6 +52,17 @@ def _rows(database: Path, model: str) -> list[tuple]:
         return connection.execute(
             f'SELECT scenario_id, simulation_year, compensation_amount FROM "{model}" ORDER BY 1, 2'
         ).fetchall()
+
+
+def _columns(database: Path, model: str) -> set[str]:
+    with duckdb.connect(str(database), read_only=True) as connection:
+        return {
+            row[0]
+            for row in connection.execute(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = ?",
+                [model],
+            ).fetchall()
+        }
 
 
 def test_all_incremental_configs_allow_schema_changes_and_preserve_scope(
@@ -74,14 +90,12 @@ def test_all_incremental_configs_allow_schema_changes_and_preserve_scope(
                 ("beta", 2026, 10.0),
             ], model
         for model in YEAR_PARTITIONS:
-            # These models retain the adapter's default 'ignore' schema policy.
             assert _rows(database, model) == [
                 ("alpha", 2025, 10.0),
-                ("alpha", 2026, Decimal("20.12")),
+                ("alpha", 2026, 20.123456),
             ], model
 
-    models = (*SCENARIO_PARTITIONS, *YEAR_PARTITIONS, *KEYED_MODELS)
-    before_failure = {model: _rows(database, model) for model in models}
+    before_failure = {model: _rows(database, model) for model in ALL_MODELS}
     result = _run(
         tmp_path,
         scenario_id="alpha",
@@ -92,9 +106,31 @@ def test_all_incremental_configs_allow_schema_changes_and_preserve_scope(
     )
     assert result.returncode != 0
     assert "injected publication failure" in result.stdout
-    for model in models:
+    for model in ALL_MODELS:
         assert _rows(database, model) == before_failure[model], model
 
+    source = tmp_path / "models/int_current_year_events.sql"
+    original_source = source.read_text()
+    source.write_text(
+        original_source.replace(
+            "  'valid' AS data_quality_flag\n",
+            "  'valid' AS data_quality_flag,\n"
+            "  CAST(1 AS INTEGER) AS migration_marker\n",
+        )
+    )
+    result = _run(
+        tmp_path,
+        scenario_id="alpha",
+        simulation_year=2026,
+        amount_type="DOUBLE",
+        amount=20.123456,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    for model in ALL_MODELS:
+        assert "migration_marker" in _columns(database, model), model
+        assert _rows(database, model) == before_failure[model], model
+
+    source.write_text(original_source)
     result = _run(
         tmp_path,
         scenario_id="alpha",
@@ -103,10 +139,32 @@ def test_all_incremental_configs_allow_schema_changes_and_preserve_scope(
         empty=True,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+    for model in ALL_MODELS:
+        assert "migration_marker" not in _columns(database, model), model
     for model in SCENARIO_PARTITIONS:
         assert _rows(database, model) == [
             ("alpha", 2025, 10.0),
             ("beta", 2026, 10.0),
         ], model
+    for model in KEYED_MODELS:
+        assert _rows(database, model) == before_failure[model], model
     for model in YEAR_PARTITIONS:
         assert _rows(database, model) == [("alpha", 2025, 10.0)], model
+
+
+def test_year_replacement_requires_explicit_simulation_year(tmp_path: Path) -> None:
+    database = _project(tmp_path)
+    source = tmp_path / "models/int_current_year_events.sql"
+    source.write_text(
+        source.read_text().replace(
+            "{{ var('simulation_year') }}", "{{ var('simulation_year', 2025) }}"
+        )
+    )
+    result = _run(tmp_path, scenario_id="alpha", simulation_year=2025)
+    assert result.returncode == 0, result.stdout + result.stderr
+    before = _rows(database, "fct_yearly_events")
+
+    result = _run(tmp_path, scenario_id="alpha")
+    assert result.returncode != 0
+    assert "simulation_year" in result.stdout
+    assert _rows(database, "fct_yearly_events") == before

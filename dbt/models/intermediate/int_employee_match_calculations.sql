@@ -1,7 +1,6 @@
 {{ config(
     materialized='incremental',
     incremental_strategy='replace_simulation_year',
-    unique_key=['employee_id', 'plan_design_id', 'simulation_year'],
     on_schema_change='sync_all_columns',
     tags=['match_engine', 'critical', 'core_calculation', 'BENEFIT_CALCULATION']
 ) }}

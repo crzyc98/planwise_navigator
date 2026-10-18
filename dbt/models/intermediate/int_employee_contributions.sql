@@ -235,6 +235,9 @@ workforce_windowed AS (
 contribution_inputs AS (
     SELECT
         *,
+        -- Catch-up eligibility is based on age attained by calendar-year end.
+        COALESCE({{ simulation_year }} - YEAR(employee_birth_date), current_age)
+          AS contribution_limit_age,
         -- Effective rate: window rate for enroll→opt-out, else the (carried) rate
         CASE WHEN is_same_year_enroll_optout
              THEN enrollment_window_deferral_rate
@@ -276,9 +279,9 @@ employee_contributions AS (
 
         -- Determine applicable IRS limit based on age (SECURE 2.0: super catch-up for ages 60-63)
         CASE
-            WHEN ci.current_age >= il.super_catch_up_age_min AND ci.current_age <= il.super_catch_up_age_max
+            WHEN ci.contribution_limit_age >= il.super_catch_up_age_min AND ci.contribution_limit_age <= il.super_catch_up_age_max
                 THEN il.super_catch_up_limit
-            WHEN ci.current_age >= il.catch_up_age_threshold
+            WHEN ci.contribution_limit_age >= il.catch_up_age_threshold
                 THEN il.catch_up_limit
             ELSE il.base_limit
         END AS applicable_irs_limit,
@@ -287,9 +290,9 @@ employee_contributions AS (
         LEAST(
             (ci.contribution_base_compensation * ci.effective_deferral_rate),
             CASE
-                WHEN ci.current_age >= il.super_catch_up_age_min AND ci.current_age <= il.super_catch_up_age_max
+                WHEN ci.contribution_limit_age >= il.super_catch_up_age_min AND ci.contribution_limit_age <= il.super_catch_up_age_max
                     THEN il.super_catch_up_limit
-                WHEN ci.current_age >= il.catch_up_age_threshold
+                WHEN ci.contribution_limit_age >= il.catch_up_age_threshold
                     THEN il.catch_up_limit
                 ELSE il.base_limit
             END
@@ -299,9 +302,9 @@ employee_contributions AS (
         CASE
             WHEN (ci.contribution_base_compensation * ci.effective_deferral_rate) >
                  CASE
-                     WHEN ci.current_age >= il.super_catch_up_age_min AND ci.current_age <= il.super_catch_up_age_max
+                     WHEN ci.contribution_limit_age >= il.super_catch_up_age_min AND ci.contribution_limit_age <= il.super_catch_up_age_max
                          THEN il.super_catch_up_limit
-                     WHEN ci.current_age >= il.catch_up_age_threshold
+                     WHEN ci.contribution_limit_age >= il.catch_up_age_threshold
                          THEN il.catch_up_limit
                      ELSE il.base_limit
                  END
@@ -312,9 +315,9 @@ employee_contributions AS (
         GREATEST(0,
             (ci.contribution_base_compensation * ci.effective_deferral_rate) -
             CASE
-                WHEN ci.current_age >= il.super_catch_up_age_min AND ci.current_age <= il.super_catch_up_age_max
+                WHEN ci.contribution_limit_age >= il.super_catch_up_age_min AND ci.contribution_limit_age <= il.super_catch_up_age_max
                     THEN il.super_catch_up_limit
-                WHEN ci.current_age >= il.catch_up_age_threshold
+                WHEN ci.contribution_limit_age >= il.catch_up_age_threshold
                     THEN il.catch_up_limit
                 ELSE il.base_limit
             END
@@ -322,9 +325,9 @@ employee_contributions AS (
 
         -- Age-based limit type for reporting (SECURE 2.0: super catch-up for ages 60-63)
         CASE
-            WHEN ci.current_age >= il.super_catch_up_age_min AND ci.current_age <= il.super_catch_up_age_max
+            WHEN ci.contribution_limit_age >= il.super_catch_up_age_min AND ci.contribution_limit_age <= il.super_catch_up_age_max
                 THEN 'SUPER_CATCH_UP'
-            WHEN ci.current_age >= il.catch_up_age_threshold
+            WHEN ci.contribution_limit_age >= il.catch_up_age_threshold
                 THEN 'CATCH_UP'
             ELSE 'BASE'
         END AS limit_type,
@@ -354,9 +357,9 @@ employee_contributions AS (
         CASE
             WHEN (ci.contribution_base_compensation * ci.effective_deferral_rate) >
                  CASE
-                     WHEN ci.current_age >= il.super_catch_up_age_min AND ci.current_age <= il.super_catch_up_age_max
+                     WHEN ci.contribution_limit_age >= il.super_catch_up_age_min AND ci.contribution_limit_age <= il.super_catch_up_age_max
                          THEN il.super_catch_up_limit
-                     WHEN ci.current_age >= il.catch_up_age_threshold
+                     WHEN ci.contribution_limit_age >= il.catch_up_age_threshold
                          THEN il.catch_up_limit
                      ELSE il.base_limit
                  END

@@ -86,3 +86,48 @@ def test_search_composes_filters_and_paginates(service: TimelineService) -> None
     assert filtered.total == 1
     assert filtered.results[0].employee_id == "EMP_B"
     assert filtered.page_size == 1
+
+
+@pytest.mark.fast
+def test_legacy_archive_sources_remain_unverified(service: TimelineService) -> None:
+    state = service.get_timeline("ws", "scenario", "EMP_A").years[0].state
+    assert state.contribution_source_policy == "legacy_unverified"
+    assert state.mandatory_roth_status == "not_evaluated"
+    assert state.prior_year_employer_fica_wages is None
+    assert "stored amounts are unchanged" in state.contribution_source_assumptions
+
+
+@pytest.mark.fast
+def test_timeline_reads_stored_source_evidence(
+    service: TimelineService, timeline_db: Path
+) -> None:
+    import duckdb
+
+    with duckdb.connect(str(timeline_db)) as connection:
+        connection.execute(
+            "ALTER TABLE fct_workforce_snapshot ADD COLUMN contribution_source_policy VARCHAR DEFAULT 'assumed_split'"
+        )
+        connection.execute(
+            "ALTER TABLE fct_workforce_snapshot ADD COLUMN mandatory_roth_status VARCHAR DEFAULT 'unresolved_wages'"
+        )
+    state = service.get_timeline("ws", "scenario", "EMP_A").years[0].state
+    assert state.contribution_source_policy == "assumed_split"
+    assert state.mandatory_roth_status == "unresolved_wages"
+
+
+@pytest.mark.fast
+def test_null_audit_columns_in_older_rows_remain_unverified(
+    service: TimelineService, timeline_db: Path
+) -> None:
+    import duckdb
+
+    with duckdb.connect(str(timeline_db)) as connection:
+        connection.execute(
+            "ALTER TABLE fct_workforce_snapshot ADD COLUMN contribution_source_policy VARCHAR"
+        )
+        connection.execute(
+            "ALTER TABLE fct_workforce_snapshot ADD COLUMN mandatory_roth_status VARCHAR"
+        )
+    state = service.get_timeline("ws", "scenario", "EMP_A").years[0].state
+    assert state.contribution_source_policy == "legacy_unverified"
+    assert state.mandatory_roth_status == "not_evaluated"

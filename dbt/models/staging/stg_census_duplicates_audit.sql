@@ -5,10 +5,7 @@
 
 -- Match staging's optional-column scaffold without deduplicating the raw input.
 WITH schema_scaffold AS (
-  SELECT
-      NULL::VARCHAR AS employee_ssn,
-      NULL::DATE AS employee_termination_date
-  WHERE FALSE
+  {{ census_schema_scaffold() }}
 ),
 parquet_with_schema AS (
   SELECT * FROM read_parquet('{{ var("census_parquet_path") }}')

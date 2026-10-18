@@ -84,7 +84,7 @@ Analysts control simulation via seed files:
 
 Year N reads Year N-1 state plus Year N events. Two mechanisms:
 
-- **Temporal accumulators** (`int_workforce_state_accumulator`, `int_enrollment_state_accumulator`, `int_deferral_rate_state_accumulator`, `int_deferral_escalation_state_accumulator`): incremental models that read their own prior-year rows via `{{ this }}` — **never `--full-refresh` these mid-simulation or prior-year state is destroyed**.
+- **Temporal accumulators** (`int_workforce_state_accumulator`, `int_enrollment_state_accumulator`, `int_deferral_rate_state_accumulator`): incremental models that read their own prior-year rows via `{{ this }}` — **never `--full-refresh` these mid-simulation or prior-year state is destroyed**.
 - **Prior-year workforce reads** (e.g., `int_active_employees_prev_year_snapshot`): read the disposable, orchestrator-built `workforce_state_projection`, which contains only years before the active simulation year.
 
 **Layering rule and its one sanctioned exception:** `int_*` models must not read from `fct_*` tables, **except `fct_yearly_events`**. The orchestrator publishes `fct_yearly_events` during EVENT_GENERATION, at the end of that stage's event graph, and 20+ downstream `int_*` state models legitimately `ref()` it during STATE_ACCUMULATION. Reading any other `fct_*` table from an `int_*` model (other than prior-year `fct_workforce_snapshot` reads) is a circular-dependency bug.

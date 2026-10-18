@@ -340,6 +340,14 @@ class TestExportEnrollmentVars:
         result = _export_enrollment_vars(cfg)
         assert result["deferral_escalation_hire_date_cutoff"] is _REMOVE_KEY
 
+    @pytest.mark.parametrize("cutoff", ["", "   ", None])
+    def test_dc_plan_auto_enroll_hire_date_cutoff_blank_sets_remove_key(self, cutoff):
+        """A cleared cutoff must not export '' (dbt would render ''::DATE)."""
+        cfg = _make_config()
+        cfg.dc_plan = {"auto_enroll_hire_date_cutoff": cutoff}
+        result = _export_enrollment_vars(cfg)
+        assert result["auto_enrollment_hire_date_cutoff"] is _REMOVE_KEY
+
     def test_dc_plan_eligibility_months_conversion(self):
         cfg = _make_config()
         cfg.dc_plan = {"eligibility_months": 6}
@@ -996,6 +1004,28 @@ class TestExportEmployerMatchVars:
         elig = result["employer_match"]["eligibility"]
         assert elig["allow_new_hires"] is False
 
+    def test_service_edit_after_legacy_studio_edit_requires_new_hire_service(self):
+        """#894: legacy edit -> reload -> service edit must not keep a waiver.
+
+        dc_plan is the Studio save from configEdits.test.ts ("leaves the
+        new-hire waiver to service after a legacy edit, reload and service edit").
+        """
+        from planalign_orchestrator.config.workforce import EmployerMatchSettings
+
+        cfg = _make_config()
+        cfg.employer_match = EmployerMatchSettings(apply_eligibility=False)
+        cfg.dc_plan = {
+            "match_min_tenure_years": 1,
+            "match_min_hours_annual": 500,
+            "match_require_year_end_active": True,
+            "match_allow_terminated_new_hires": False,
+            "match_allow_experienced_terminations": False,
+        }
+        em = _export_employer_match_vars(cfg)["employer_match"]
+        assert em["apply_eligibility"] is True
+        assert em["eligibility"]["minimum_tenure_years"] == 1
+        assert em["eligibility"]["allow_new_hires"] is False
+
     def test_dc_plan_match_tenure_zero_rederives_allow_new_hires_true(self):
         cfg = _make_config()
         cfg.dc_plan = {
@@ -1040,6 +1070,60 @@ class TestExportCompensationVars:
         cfg.compensation.promotion_distribution_range = 0.10  # Not default 0.05
         result = _export_compensation_vars(cfg)
         assert result["promotion_distribution_range"] == 0.10
+
+    def test_studio_promotion_nested_values_equal_to_legacy_defaults_are_honored(self):
+        """#906: the Studio payload targets nested fields, even at 12.5% / 5%."""
+        from planalign_orchestrator.config.simulation import CompensationSettings
+
+        cfg = _make_config()
+        cfg.compensation = CompensationSettings.model_validate(
+            {
+                "promotion_compensation": {
+                    "base_increase_pct": 0.125,
+                    "distribution_range": 0.05,
+                }
+            }
+        )
+        result = to_dbt_vars(cfg)
+        assert result["promotion_base_increase_pct"] == pytest.approx(0.125)
+        assert result["promotion_distribution_range"] == pytest.approx(0.05)
+
+    @pytest.mark.parametrize(
+        "flat", [{"promotion_increase": 0.125}, {"promotion_increase_percent": 12.5}]
+    )
+    def test_legacy_flat_sentinel_keeps_nested_default(self, flat):
+        from planalign_orchestrator.config.simulation import CompensationSettings
+
+        cfg = _make_config()
+        cfg.compensation = CompensationSettings.model_validate(flat)
+        result = to_dbt_vars(cfg)
+        assert result["promotion_base_increase_pct"] == pytest.approx(0.20)
+
+    def test_legacy_flat_nondefault_is_honored(self):
+        from planalign_orchestrator.config.simulation import CompensationSettings
+
+        cfg = _make_config()
+        cfg.compensation = CompensationSettings.model_validate(
+            {"promotion_increase": 0.15}
+        )
+        result = to_dbt_vars(cfg)
+        assert result["promotion_base_increase_pct"] == pytest.approx(0.15)
+
+    def test_promotion_flat_values_unset_use_nested(self):
+        from planalign_orchestrator.config.simulation import CompensationSettings
+
+        cfg = _make_config()
+        cfg.compensation = CompensationSettings.model_validate(
+            {
+                "promotion_compensation": {
+                    "base_increase_pct": 0.20,
+                    "distribution_range": 0.03,
+                }
+            }
+        )
+        result = _export_compensation_vars(cfg)
+        assert result["promotion_base_increase_pct"] == pytest.approx(0.20)
+        assert result["promotion_distribution_range"] == pytest.approx(0.03)
 
     def test_promotion_level_overrides_empty(self):
         cfg = _make_config()
@@ -1480,6 +1564,14 @@ class TestToDbtVars:
         }
         result = to_dbt_vars(cfg)
         assert "deferral_escalation_hire_date_cutoff" not in result
+
+    def test_blank_auto_enroll_cutoff_removes_legacy_value(self):
+        """#895: a cleared Studio cutoff falls back to the dbt default."""
+        cfg = _make_config()
+        cfg.enrollment.auto_enrollment.hire_date_cutoff = "2023-01-01"
+        cfg.dc_plan = {"auto_enroll_hire_date_cutoff": ""}
+        result = to_dbt_vars(cfg)
+        assert "auto_enrollment_hire_date_cutoff" not in result
 
     def test_dc_plan_overrides_legacy(self):
         """dc_plan (UI) settings override legacy YAML settings."""

@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from planalign_api.services.census_analysis_service import CensusAnalysisService
+from planalign_api.services.compensation_solver import CompensationSolver
 
 AS_OF = date(2024, 12, 31)
 
@@ -66,6 +67,25 @@ def _write_csv(path: Path, rows: list[dict]) -> None:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
+
+
+@pytest.mark.fast
+def test_compensation_solver_uses_shared_active_filter(tmp_path):
+    path = tmp_path / "census.csv"
+    _write_csv(
+        path,
+        [
+            {"active": active, "employee_gross_compensation": 100000}
+            for active in (None, " employed ", "1.0", " Y ", "t", "no")
+        ],
+    )
+
+    _, average_compensation, headcount = CompensationSolver(
+        tmp_path
+    ).analyze_workforce_for_solver("unused", str(path))
+
+    assert headcount == 5
+    assert average_compensation == 100000
 
 
 def _birth_date_for_age(age: int) -> str:
@@ -300,6 +320,23 @@ class TestSegments:
         }
         assert hce_segments["HCE"].employee_count == 1
         assert hce_segments["NHCE"].employee_count == 1
+
+    @pytest.mark.parametrize("compensation", ["", "unparseable"])
+    def test_missing_or_invalid_compensation_has_unknown_hce_status(
+        self, service, workspace_dir, compensation
+    ):
+        rows = [_employee(compensation=200000), _employee(compensation=compensation)]
+        result = _analyze(service, workspace_dir, rows)
+
+        hce_segments = [s for s in result.segments if s.dimension == "hce_status"]
+        assert result.active_employees == 2
+        assert result.overall.hce_count == 1
+        assert [(s.value, s.employee_count) for s in hce_segments] == [("HCE", 1)]
+
+    @pytest.mark.parametrize("active", [None, " employed ", "1.0", " Y "])
+    def test_shared_active_aliases_are_included(self, service, workspace_dir, active):
+        result = _analyze(service, workspace_dir, [_employee(active=active)])
+        assert result.active_employees == 1
 
     def test_age_and_tenure_bands_present(self, service, workspace_dir):
         rows = [_employee(age=25), _employee(age=55)]

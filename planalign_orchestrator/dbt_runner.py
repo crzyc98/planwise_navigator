@@ -73,6 +73,10 @@ class DbtExecutionError(DbtError):
     """Error during dbt execution phase."""
 
 
+class DbtTransientError(DbtExecutionError):
+    """Retryable database lock or transaction conflict."""
+
+
 class DbtDataQualityError(DbtError):
     """Error due to data quality test failures."""
 
@@ -89,6 +93,14 @@ _DBT_ERROR_STOPS = (
     "done. pass=",
     "finished running ",
     "completed with ",
+)
+_TRANSIENT_DB_ERROR_MARKERS = (
+    "could not set lock",
+    "conflicting lock is held",
+    "lock conflict",
+    "transaction conflict",
+    "transactioncontext error: conflict",
+    "conflict on update",
 )
 
 
@@ -181,6 +193,13 @@ def classify_dbt_error(
     if "compilation error" in combined_lower:
         return DbtCompilationError(f"Model compilation failed.{detail}".rstrip())
     if any(
+        marker in f"{combined_lower}\n{failure_detail.lower()}"
+        for marker in _TRANSIENT_DB_ERROR_MARKERS
+    ):
+        if not detail:
+            detail = f" Detail: {combined_lower.strip()[-400:]}"
+        return DbtTransientError(f"Database execution failed.{detail}".rstrip())
+    if any(
         marker in combined_lower
         for marker in ("database error", "runtime error in model", "operationalerror")
     ):
@@ -207,7 +226,7 @@ def retry_with_backoff(
     base_delay: float = 1.0,
     max_delay: float = 60.0,
     backoff_factor: float = 2.0,
-    retry_on: Tuple[type[Exception], ...] = (DbtExecutionError,),
+    retry_on: Tuple[type[Exception], ...] = (DbtTransientError,),
 ) -> DbtResult:
     """Execute function with exponential backoff retry logic."""
     attempt = 0
@@ -244,6 +263,7 @@ class DbtRunner:
         self.working_dir = working_dir
         self.threads = threads
         self.executable = executable
+        self._resolved_executable: Optional[str] = None
         self.verbose = verbose
         self.database_path = database_path
         self.project_dir = project_dir
@@ -375,12 +395,14 @@ class DbtRunner:
     ) -> List[str]:
         executable = self.executable
         if executable == "dbt":
-            resolved = find_dbt_executable()
-            if resolved is None:
-                raise DbtExecutionError(
-                    "dbt executable was not found on PATH or beside the running Python"
-                )
-            executable = resolved
+            if self._resolved_executable is None:
+                resolved = find_dbt_executable()
+                if resolved is None:
+                    raise DbtExecutionError(
+                        "dbt executable was not found on PATH or beside the running Python"
+                    )
+                self._resolved_executable = resolved
+            executable = self._resolved_executable
         cmd: List[str] = [executable, *command_args]
         # dbt 1.8's CLI only accepts --project-dir after the subcommand.
         if self.project_dir is not None:
