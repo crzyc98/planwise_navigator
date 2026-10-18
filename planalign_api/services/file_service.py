@@ -351,7 +351,7 @@ class FileService:
                 continue
             invalid_rows = conn.execute(
                 f'SELECT LOWER(TRIM(CAST("{column}" AS VARCHAR))) AS value, COUNT(*) '
-                f'FROM census WHERE "{column}" IS NOT NULL '
+                f"FROM census WHERE NULLIF(TRIM(CAST(\"{column}\" AS VARCHAR)), '') IS NOT NULL "
                 f'AND LOWER(TRIM(CAST("{column}" AS VARCHAR))) NOT IN ({placeholders}) '
                 "GROUP BY value ORDER BY COUNT(*) DESC, value LIMIT 5",
                 accepted,
@@ -365,19 +365,17 @@ class FileService:
                     "yes/no, y/n, or active/inactive."
                 )
 
-            temporary = f"__normalized_{column}"
             truthy_placeholders = ", ".join("?" for _ in truthy)
-            conn.execute(f'ALTER TABLE census ADD COLUMN "{temporary}" BOOLEAN')
-            conn.execute(
-                f'UPDATE census SET "{temporary}" = CASE '
-                f'WHEN "{column}" IS NULL THEN NULL '
-                f'WHEN LOWER(TRIM(CAST("{column}" AS VARCHAR))) '
-                f"IN ({truthy_placeholders}) THEN TRUE ELSE FALSE END",
-                truthy,
-            )
-            conn.execute(f'ALTER TABLE census DROP COLUMN "{column}"')
-            conn.execute(
-                f'ALTER TABLE census RENAME COLUMN "{temporary}" TO "{column}"'
+            self._replace_column(
+                conn,
+                column=column,
+                sql_type="BOOLEAN",
+                value_expression=(
+                    f"CASE WHEN NULLIF(TRIM(CAST(\"{column}\" AS VARCHAR)), '') IS NULL "
+                    f'THEN NULL WHEN LOWER(TRIM(CAST("{column}" AS VARCHAR))) '
+                    f"IN ({truthy_placeholders}) THEN TRUE ELSE FALSE END"
+                ),
+                params=truthy,
             )
 
     def _normalize_employee_ids(

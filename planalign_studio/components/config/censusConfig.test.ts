@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { resolveCensusFields } from './censusConfig';
+import { extractCensusPath, resolveCensusFields } from './censusConfig';
 import { buildConfigPayload } from './buildConfigPayload';
 import { DEFAULT_FORM_DATA } from './constants';
 
@@ -8,6 +8,27 @@ const valid = { valid: true, exists: true, row_count: 12, last_modified: '2026-1
 const missing = { valid: false, exists: false, row_count: null, last_modified: null };
 
 describe('effective census for loading and copying scenarios', () => {
+  it('uses backend setup precedence for legacy data_sources scenarios', async () => {
+    const scenario = { data_sources: { census_parquet_path: 'legacy.parquet' } };
+    const validate = vi.fn().mockResolvedValue(valid);
+    expect(extractCensusPath(scenario)).toBeUndefined();
+    const fields = await resolveCensusFields(scenario, config('workspace.parquet'), validate);
+    expect(validate).toHaveBeenCalledWith('workspace.parquet');
+    expect(fields.censusDataSource).toBe('workspace');
+    expect(fields.censusDataPath).toBe('workspace.parquet');
+  });
+
+  it('checks an explicit setup default before the workspace fallback', async () => {
+    const scenario = {
+      setup: { census_parquet_path: 'data/census_preprocessed.parquet' },
+      data_sources: { census_parquet_path: 'legacy.parquet' },
+    };
+    const validate = vi.fn().mockResolvedValue(valid);
+    const fields = await resolveCensusFields(scenario, config('workspace.parquet'), validate);
+    expect(validate).toHaveBeenCalledWith('data/census_preprocessed.parquet');
+    expect(fields.censusDataSource).toBe('scenario');
+  });
+
   it('falls back from a deleted import and saves workspace inheritance', async () => {
     const validate = vi.fn().mockResolvedValueOnce(missing).mockResolvedValueOnce(valid);
     const fields = await resolveCensusFields(config('old.parquet'), config('current.parquet'), validate);

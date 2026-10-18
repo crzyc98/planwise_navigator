@@ -3,6 +3,7 @@
 import pytest
 
 from planalign_api.services.census_schema import (
+    active_filter_sql,
     CANONICAL_NAMES,
     FIELDS,
     get_field,
@@ -23,6 +24,24 @@ REQUIRED_FIELD_NAMES = {
 
 def test_field_count():
     assert len(FIELDS) == 16
+
+
+def test_active_filter_uses_shared_aliases_and_null_policy():
+    import duckdb
+
+    conn = duckdb.connect(":memory:")
+    try:
+        conn.execute("CREATE TABLE census(active VARCHAR)")
+        conn.executemany(
+            "INSERT INTO census VALUES (?)",
+            [(None,), (" employed ",), ("1.0",), (" Y ",), ("t",), ("no",)],
+        )
+        assert conn.execute(
+            f"SELECT COUNT(*) FROM census WHERE {active_filter_sql({'active'})}"
+        ).fetchone() == (5,)
+        assert active_filter_sql(set()) == "1=1"
+    finally:
+        conn.close()
 
 
 def test_exactly_five_required_fields():

@@ -147,20 +147,18 @@ def _capture_commit(
     project_root: Path, evidence: SoftwareEvidence, findings: list[EvidenceFinding]
 ) -> None:
     try:
-        evidence.git_commit_sha = SoftwareEvidence(
-            git_commit_sha=(
-                subprocess.run(
-                    ["git", "rev-parse", "HEAD"],
-                    cwd=project_root,
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                    timeout=5,
-                )
-                .stdout.strip()
-                .lower()
+        evidence.git_commit_sha = (
+            subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=project_root,
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
-        ).git_commit_sha
+            .stdout.strip()
+            .lower()
+        )
     except (OSError, subprocess.SubprocessError, ValueError):
         findings.append(
             _finding(
