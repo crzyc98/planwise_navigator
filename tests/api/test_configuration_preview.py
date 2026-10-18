@@ -75,6 +75,36 @@ def test_invalid_preview_fails_without_writing(workspace):
     assert storage.get_workspace(saved.id).base_config == saved.base_config
 
 
+def test_invalid_exported_date_is_a_field_level_422(workspace):
+    storage, saved = workspace
+    with pytest.raises(HTTPException) as failure:
+        preview_configuration(
+            saved.id,
+            ConfigPreviewRequest(
+                config={"setup": {"plan_year_start_date": "2025-02-30"}}
+            ),
+            storage,
+        )
+    assert failure.value.status_code == 422
+    assert failure.value.detail["errors"][0]["field"] == "plan_year_start_date"
+
+
+def test_stale_match_boolean_is_a_field_level_422(workspace):
+    storage, saved = workspace
+    with pytest.raises(HTTPException) as failure:
+        preview_configuration(
+            saved.id,
+            ConfigPreviewRequest(
+                config={"dc_plan": {"match_allow_new_hires": "false"}}
+            ),
+            storage,
+        )
+    assert failure.value.status_code == 422
+    assert failure.value.detail["errors"][0]["field"] == (
+        "employer_match.eligibility.allow_new_hires"
+    )
+
+
 def test_unknown_workspace_is_not_found(workspace):
     storage, _ = workspace
     with pytest.raises(HTTPException) as failure:

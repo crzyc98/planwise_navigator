@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from pydantic import ValidationError
 from planalign_orchestrator.config.loader import SimulationConfig
 from planalign_orchestrator.config.export import to_dbt_vars
+from planalign_orchestrator.config.dbt_var_validation import validate_dbt_vars
 
 from ..config import APISettings, get_settings
 from ..models.scenario import (
@@ -172,6 +173,12 @@ def preview_configuration(
             )
         resolved = SimulationConfig(**config)
         variables = to_dbt_vars(resolved)
+        var_errors = validate_dbt_vars(variables)
+        if var_errors:
+            raise HTTPException(
+                status_code=422,
+                detail={"message": "Invalid engine variables", "errors": var_errors},
+            )
     except ValidationError as exc:
         details = "; ".join(
             f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}"

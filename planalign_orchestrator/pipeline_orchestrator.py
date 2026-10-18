@@ -24,6 +24,8 @@ if TYPE_CHECKING:
     from .construction.signature import ConstructionSignature, WorkSchedule
 
 from .config import PlanDesignAssignmentSettings, SimulationConfig, to_dbt_vars
+from .config.dbt_var_validation import validate_dbt_vars
+from .exceptions import ConfigurationError
 from .orchestrator_setup import (
     setup_memory_manager,
     setup_parallelization,
@@ -107,6 +109,12 @@ class PipelineOrchestrator:
         self.construction_signature: Optional["ConstructionSignature"] = None
         self.work_schedule: Optional["WorkSchedule"] = None
         self._dbt_vars = to_dbt_vars(config, database_path=db_manager.db_path)
+        var_errors = validate_dbt_vars(self._dbt_vars)
+        if var_errors:
+            details = "; ".join(
+                f"{error['field']}: {error['message']}" for error in var_errors
+            )
+            raise ConfigurationError(f"Invalid exported dbt variables: {details}")
 
         # E068C: Extract threading configuration from new structured config
         e068c_config = config.get_e068c_threading_config()

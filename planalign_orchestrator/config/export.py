@@ -1023,26 +1023,26 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                     dc_plan_dict["match_min_tenure_years"]
                 )
             if dc_plan_dict.get("match_require_year_end_active") is not None:
-                match_eligibility_overrides["require_active_at_year_end"] = bool(
-                    dc_plan_dict["match_require_year_end_active"]
-                )
+                match_eligibility_overrides[
+                    "require_active_at_year_end"
+                ] = dc_plan_dict["match_require_year_end_active"]
             if dc_plan_dict.get("match_min_hours_annual") is not None:
                 match_eligibility_overrides["minimum_hours_annual"] = int(
                     dc_plan_dict["match_min_hours_annual"]
                 )
             if dc_plan_dict.get("match_allow_terminated_new_hires") is not None:
-                match_eligibility_overrides["allow_terminated_new_hires"] = bool(
-                    dc_plan_dict["match_allow_terminated_new_hires"]
-                )
+                match_eligibility_overrides[
+                    "allow_terminated_new_hires"
+                ] = dc_plan_dict["match_allow_terminated_new_hires"]
             if dc_plan_dict.get("match_allow_experienced_terminations") is not None:
-                match_eligibility_overrides["allow_experienced_terminations"] = bool(
-                    dc_plan_dict["match_allow_experienced_terminations"]
-                )
+                match_eligibility_overrides[
+                    "allow_experienced_terminations"
+                ] = dc_plan_dict["match_allow_experienced_terminations"]
             # E047: Export match_allow_new_hires from dc_plan (UI path)
             if dc_plan_dict.get("match_allow_new_hires") is not None:
-                match_eligibility_overrides["allow_new_hires"] = bool(
-                    dc_plan_dict["match_allow_new_hires"]
-                )
+                match_eligibility_overrides["allow_new_hires"] = dc_plan_dict[
+                    "match_allow_new_hires"
+                ]
 
             # Merge dc_plan eligibility overrides into employer_match
             if match_eligibility_overrides:
