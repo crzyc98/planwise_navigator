@@ -21,6 +21,7 @@ from ..models.imports import FieldMapping, TransformationWarning
 from .census_schema import (
     BOOLEAN_FALSE_ALIASES,
     BOOLEAN_TRUE_ALIASES,
+    CENSUS_DATE_FORMATS,
     census_date_order_is_ambiguous,
     clean_census_number,
     matching_census_date_formats,
@@ -186,6 +187,9 @@ def _coerce_boolean(series: pd.Series, *, input_column: str) -> pd.Series:
             normalized.append(pd.NA)
             continue
         token = str(value).strip().lower()
+        if not token:
+            normalized.append(pd.NA)
+            continue
         if token in BOOLEAN_TRUE_ALIASES:
             normalized.append(True)
         elif token in BOOLEAN_FALSE_ALIASES:
@@ -235,7 +239,9 @@ def _coerce_date(
                 rows_affected=len(values),
             )
         converted = pd.to_datetime(
-            series, format=formats[0] if formats else "%Y-%m-%d", errors="coerce"
+            series,
+            format=formats[0] if formats else CENSUS_DATE_FORMATS[0],
+            errors="coerce",
         )
     invalid_mask = _nonempty_mask(original) & converted.isna()
     if invalid_mask.any():

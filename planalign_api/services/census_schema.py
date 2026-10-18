@@ -7,6 +7,7 @@ a matching update to dbt/models/staging/stg_census_data.sql.
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
@@ -18,6 +19,7 @@ BOOLEAN_TRUE_ALIASES = frozenset(
         "y",
         "yes",
         "true",
+        "t",
         "1",
         "1.0",
         "active",
@@ -39,6 +41,15 @@ BOOLEAN_FALSE_ALIASES = frozenset(
         "ineligible",
     }
 )
+
+
+def active_filter_sql(columns: Collection[str]) -> str:
+    """Include missing/NULL active values and the shared true aliases."""
+    if "active" not in columns:
+        return "1=1"
+    aliases = ", ".join(f"'{alias}'" for alias in sorted(BOOLEAN_TRUE_ALIASES))
+    return f"(active IS NULL OR LOWER(TRIM(CAST(active AS VARCHAR))) IN ({aliases}))"
+
 
 CENSUS_DATE_FORMATS = (
     "%Y-%m-%d",

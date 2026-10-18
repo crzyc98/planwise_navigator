@@ -8,9 +8,7 @@ function sectionPath(section: unknown): string | undefined {
 
 export function extractCensusPath(config: unknown): string | undefined {
   if (!config || typeof config !== 'object') return undefined;
-  const path = sectionPath('setup' in config ? config.setup : undefined)
-    || sectionPath('data_sources' in config ? config.data_sources : undefined);
-  return path && path !== 'data/census_preprocessed.parquet' ? path : undefined;
+  return sectionPath('setup' in config ? config.setup : undefined) || undefined;
 }
 
 type CensusFields = Pick<FormData,

@@ -10,6 +10,7 @@ from pathlib import Path
 import duckdb
 
 from ..models.opt_out import OptOutRateAnalysisResult
+from .census_schema import active_filter_sql
 from .sql_security import (
     CENSUS_DEFERRAL_COLUMNS,
     CENSUS_HIRE_DATE_COLUMNS,
@@ -257,12 +258,7 @@ class OptOutAnalysisService:
                 "SELECT column_name FROM information_schema.columns WHERE table_name = 'census'"
             ).fetchall()
         }
-        if "active" not in columns:
-            return "1=1"
-        return (
-            "(active IS NULL "
-            "OR UPPER(CAST(active AS VARCHAR)) IN ('ACTIVE', 'Y', '1', 'TRUE', 'YES'))"
-        )
+        return active_filter_sql(columns)
 
     def _empty_result(
         self,
