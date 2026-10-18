@@ -1,5 +1,11 @@
 # Error Troubleshooting
 
+## Calibration target selection
+
+Studio calibrates a selected scenario. The calibration API also accepts a
+workspace target without `scenario_id`; that API-only path uses the workspace
+base configuration and its matching completed simulation as the source.
+
 ## Calibration reports a missing census
 
 An older scenario can retain a census path after the workspace census is

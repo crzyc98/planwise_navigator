@@ -48,15 +48,18 @@ transaction has altered this table` even with one dbt thread and one connection.
 An existing event column changing type triggers dbt's add/update/drop/rename
 schema migration, which conflicts with row changes in the same transaction.
 
-Event publication uses the `replace_event_year` strategy: synchronize the schema
+Event publication uses the `replace_simulation_year` strategy: synchronize the schema
 with native `ALTER COLUMN TYPE`, then delete and insert only the requested
 scenario/year in the same transaction. Empty replacements clear that partition;
 failed replacements roll back both schema and row changes. All incremental models
 use native type changes. Models that previously deleted a year in a pre-hook now
 use `replace_simulation_year`, so deletion follows schema synchronization. The
 default scope is scenario/year; the two eligibility models without scenario
-columns explicitly retain their existing year-only scope. Keyed incremental
-models without pre-hook deletion keep their existing replacement strategy.
+columns explicitly retain their existing year-only scope and synchronize all
+columns, so copied databases cannot silently retain stale types. The strategy
+requires `simulation_year` and ignores `unique_key`; its partition predicate
+replaces every row in scope. Keyed incremental models without pre-hook deletion
+keep their existing replacement strategy.
 
 This also covers `int_workforce_state_accumulator`, which can raise the same
 commit error when calibrating a copied run with different column types. No archive
