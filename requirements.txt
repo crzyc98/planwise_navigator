@@ -6,7 +6,7 @@
 # sqlparse stays capped <0.6.0 by dbt-core in every checked line -- durable
 # upstream exception, unaffected by this bump.
 duckdb==1.5.6
-dbt-core==1.9.11
+dbt-core==1.12.6
 dbt-duckdb==1.9.6
 pydantic==2.14.1
 python-dotenv>=1.0.0
