@@ -32,7 +32,8 @@ The inspected PR run 38967045844 took about 7m48s, including 59s of lint before
 the fast job could start and 6m24s in its pytest step. Removing that dependency
 can save roughly a minute absent runner queueing; this is an estimate, not a
 measured result of the new workflow. Measure the next hosted runs before further
-splitting or pruning tests. The 450s fast-suite budget remains enforced.
+splitting or pruning tests. The fast suite warns above 450s and fails above its
+540s wall-clock budget; see #928 for the runner-variance re-baseline.
 
 Local policy validation (no simulation database is touched):
 

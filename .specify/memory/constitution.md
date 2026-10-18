@@ -56,6 +56,17 @@ Rationale: Profiling on a runner (#648) found no slow tail to cut -- the 100 slo
 Templates Requiring Updates: None
 Follow-up TODOs: Optional tail trim (test_irs_402g_limits.py Hypothesis examples,
   test_parameter_fitting.py fixture scope).
+
+--------------------------------------------------------------------------------
+
+Version Change: 1.0.3 → 1.0.4 (PATCH: re-baseline, no principle redefinition)
+Modified Principles: III. Test-First Development (fast-suite hard budget 450s → 540s)
+Modified Sections: Development Workflow > Testing Requirements (same re-baseline)
+Rationale: #928 observed 368-463s for the passing fast suite across GitHub-hosted
+  runners. The 450s limit failed healthy runs; a warning above 450s tracks drift
+  while a 540s hard limit retains a meaningful regression gate.
+Templates Requiring Updates: None
+Follow-up TODOs: Review warning frequency and re-profile if timings keep rising.
 -->
 
 # Fidelity PlanAlign Engine Constitution
@@ -76,7 +87,7 @@ Each component MUST have a single, well-defined responsibility. The codebase fol
 
 ### III. Test-First Development
 
-All significant features MUST include tests written before implementation (Red-Green-Refactor). The fast suite (`pytest -m fast`) MUST complete within a CI-enforced wall-clock budget (450s as of 2026-09-28, ~2,800 tests run with `pytest-xdist -n 4`, measured on GitHub-hosted runners); the budget MUST be re-measured in CI and updated as the suite grows rather than left to drift. Test coverage targets: 90%+ for core modules, 95% line coverage for Python code. Integration tests validate end-to-end workflows.
+All significant features MUST include tests written before implementation (Red-Green-Refactor). The fast suite (`pytest -m fast`) MUST complete within a CI-enforced wall-clock budget (540s as of 2026-10-18, run with `pytest-xdist -n 4` on GitHub-hosted runners); CI warns when the suite exceeds 450s, and the budget MUST be re-measured in CI and updated as the suite grows rather than left to drift. Test coverage targets: 90%+ for core modules, 95% line coverage for Python code. Integration tests validate end-to-end workflows.
 
 **Rationale**: The E075 testing infrastructure (256 tests, 87 fast tests in 4.7s) proves that comprehensive testing catches regressions early and enables confident refactoring. The original <10s target was calibrated for that 87-test baseline and was never revised as the suite grew ~32x; per #648, it had become a decorative, unenforced claim (actual: ~288s). A measured, CI-enforced budget is honest and catches regressions; a stale unenforced one does not.
 
@@ -102,7 +113,7 @@ Systems MUST handle 100K+ employee records without memory errors. Dashboard quer
 
 ### Testing Requirements
 
-- Fast tests (`pytest -m fast`): MUST complete within the CI-enforced budget defined in Principle III (450s baseline as of 2026-09-28, run with `-n 4`; enforced by the `fast-tests` job in `.github/workflows/ci.yml`)
+- Fast tests (`pytest -m fast`): MUST complete within the CI-enforced budget defined in Principle III (540s hard limit and a warning above 450s as of 2026-10-18, run with `-n 4`; enforced by the `fast-tests` job in `.github/workflows/ci.yml`)
 - Integration tests: MUST validate complete year simulations
 - dbt tests: 90% coverage with schema and custom tests
 - All tests MUST use fixtures from `tests/fixtures/` for consistency
@@ -146,4 +157,4 @@ For day-to-day development guidance, refer to:
 - `tests/TEST_INFRASTRUCTURE.md` - Testing guide
 - `docs/guides/error_troubleshooting.md` - Error resolution
 
-**Version**: 1.0.3 | **Ratified**: 2025-12-12 | **Last Amended**: 2026-09-28
+**Version**: 1.0.4 | **Ratified**: 2025-12-12 | **Last Amended**: 2026-10-18
