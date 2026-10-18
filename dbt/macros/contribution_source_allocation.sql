@@ -21,17 +21,17 @@
   {{ exceptions.raise_compiler_error('A plan without Roth requires a zero Roth fraction') }}
 {% endif %}
 WITH wage_evidence AS (
+  {% set evidence_path = var('contribution_wage_evidence_path', '') %}
+  {% if evidence_path %}
+  SELECT employee_id, wages, basis, provenance
+  FROM read_parquet('{{ evidence_path | replace("'", "''") }}')
+  WHERE employer_id = '{{ (source.get('employer_id') or '') | replace("'", "''") }}'
+    AND wage_year = {{ year - 1 }}
+  {% else %}
   SELECT NULL::VARCHAR AS employee_id, NULL::DECIMAL(18,2) AS wages,
     NULL::VARCHAR AS basis, NULL::VARCHAR AS provenance
   WHERE FALSE
-  {% for wage in source.get('wage_evidence', [])
-      if wage.wage_year == year - 1 and wage.employer_id == source.get('employer_id') %}
-  UNION ALL
-  SELECT '{{ wage.employee_id | replace("'", "''") }}',
-    {{ wage.wages | float }}::DECIMAL(18,2),
-    '{{ wage.basis | replace("'", "''") }}',
-    '{{ wage.provenance | replace("'", "''") }}'
-  {% endfor %}
+  {% endif %}
 ), inputs AS (
   SELECT
     ROUND(composed.annual_contribution_amount, 2)::DECIMAL(18,2) AS total,
@@ -41,18 +41,15 @@ WITH wage_evidence AS (
       AS year_end_age,
     GREATEST(0, ROUND(composed.annual_contribution_amount - irs_limits.base_limit, 2))
       AS catch_up_used,
-    CASE WHEN wages IS NULL AND composed.employee_hire_date >= DATE '{{ year }}-01-01'
-      THEN 0::DECIMAL(18,2) ELSE wages END AS wages,
-    CASE WHEN wages IS NULL AND composed.employee_hire_date >= DATE '{{ year }}-01-01'
-      THEN 'structural' ELSE basis END AS basis,
-    CASE WHEN wages IS NULL AND composed.employee_hire_date >= DATE '{{ year }}-01-01'
+    CASE WHEN evidence.wages IS NULL AND composed.employee_hire_date >= DATE '{{ year }}-01-01'
+      THEN 0::DECIMAL(18,2) ELSE evidence.wages END AS wages,
+    CASE WHEN evidence.wages IS NULL AND composed.employee_hire_date >= DATE '{{ year }}-01-01'
+      THEN 'structural' ELSE evidence.basis END AS basis,
+    CASE WHEN evidence.wages IS NULL AND composed.employee_hire_date >= DATE '{{ year }}-01-01'
       THEN 'No prior-year wages from this employer for a current-year hire'
-      ELSE provenance END AS provenance
-  FROM (
-    SELECT MAX(wages) AS wages, MAX(basis) AS basis, MAX(provenance) AS provenance
-    FROM wage_evidence
-    WHERE wage_evidence.employee_id = composed.employee_id
-  ) evidence
+      ELSE evidence.provenance END AS provenance
+  FROM (SELECT composed.employee_id AS employee_id) employee
+  LEFT JOIN wage_evidence evidence ON evidence.employee_id = employee.employee_id
 ), assessed AS (
   SELECT total, preferred_roth, year_end_age, catch_up_used, wages, basis, provenance,
     CASE

@@ -1635,7 +1635,9 @@ def _export_ensemble_freeze_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     }
 
 
-def to_dbt_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
+def to_dbt_vars(
+    cfg: "SimulationConfig", *, database_path: Path | None = None
+) -> Dict[str, Any]:
     """Map typed config to dbt vars compatible with existing models.
 
     Mirrors the existing `extract_dbt_vars_from_config` behavior in a typed way.
@@ -1660,7 +1662,15 @@ def to_dbt_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     dbt_vars.update(_export_core_contribution_vars(cfg))
     dbt_vars.update(_export_deferral_match_response_vars(cfg))
     dbt_vars.update(_export_ensemble_freeze_vars(cfg))
-    dbt_vars["contribution_sources"] = cfg.contribution_sources.model_dump(mode="json")
+    source = cfg.contribution_sources.model_dump(mode="json", exclude={"wage_evidence"})
+    dbt_vars["contribution_sources"] = source
+    dbt_vars["contribution_wage_evidence_path"] = ""
+    if database_path is not None:
+        from .wage_evidence import write_wage_evidence
+
+        dbt_vars["contribution_wage_evidence_path"] = str(
+            write_wage_evidence(cfg.contribution_sources, database_path)
+        )
 
     # Remove any keys marked with the _REMOVE_KEY sentinel
     # This allows UI to explicitly clear values set by legacy YAML

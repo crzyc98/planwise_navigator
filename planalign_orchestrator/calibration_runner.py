@@ -447,7 +447,7 @@ class CalibrationRunner:
             )
 
     def _build_year(self, year: int) -> None:
-        dbt_vars = to_dbt_vars(self._config)
+        dbt_vars = to_dbt_vars(self._config, database_path=self.database_path)
         # Override the per-level new-hire comp ranges with the Match-Census x
         # scale ranges the analyst chose, using the same dbt var the full sim
         # consumes (so the calibrated scale is directly transferable).
