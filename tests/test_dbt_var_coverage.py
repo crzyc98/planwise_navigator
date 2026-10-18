@@ -59,10 +59,6 @@ _KNOWN_STALE_VARS = {
         "audit-trail placeholder in data-quality models; no config field exists "
         "to source it from"
     ),
-    "irs_402g_limit": (
-        "IRS elective-deferral limit constant; currently hardcoded rather than "
-        "config-driven, pending a future feature"
-    ),
 }
 
 
