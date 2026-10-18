@@ -267,7 +267,7 @@ pytest -m integration
 pytest --cov=planalign_orchestrator --cov=planalign_cli --cov-report=html
 ```
 
-**CI on pull requests:** don't add the `full-ci` label by default. `scripts/ci_policy.py` already runs the multi-year invariants and edge-config matrix for any non-frontend, non-docs change. `full-ci` only adds the four integration shards and coverage, which run anyway on every push to `main` and nightly. Use it only when a PR needs that evidence before merge (e.g. it changes integration tests, the coverage inventory, or CI itself). If you do, apply it at creation (`gh pr create --label full-ci`): adding it afterwards starts a second run that cancels the first and reports a spurious `CI Gate` failure.
+**CI on pull requests:** don't add the `full-ci` label by default. `scripts/ci_policy.py` already runs the multi-year invariants and edge-config matrix for any non-frontend, non-docs change. `full-ci` only adds the four integration shards and coverage, which run anyway on every push to `main` and nightly. Use it only when a PR needs that evidence before merge (e.g. it changes integration tests, the coverage inventory, or CI itself). Adding the label (even via `gh pr create --label`) fires a separate `labeled` event, so a second run starts and cancels the first; that cancelled run's `CI Gate` failure is spurious, and the newer run decides the check.
 
 **Using Fixtures:**
 ```python
