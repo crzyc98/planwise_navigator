@@ -3530,6 +3530,11 @@ export interface components {
         /** Body_upload_census_file_api_workspaces__workspace_id__upload_post */
         Body_upload_census_file_api_workspaces__workspace_id__upload_post: {
             /**
+             * Date Formats
+             * @default {}
+             */
+            date_formats?: string;
+            /**
              * File
              * @description Census file (.parquet or .csv)
              */

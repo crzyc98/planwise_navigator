@@ -5,12 +5,16 @@ alias detection, and backward compatibility of flat validation_warnings.
 """
 
 import csv
+from datetime import date
 from pathlib import Path
 
 import duckdb
+import pandas as pd
 import pytest
 
+from planalign_api.models.imports import FieldMapping
 from planalign_api.services.file_service import FileService
+from planalign_api.services.mapping_engine import MappingEngine
 
 
 @pytest.fixture
@@ -159,6 +163,134 @@ class TestCanonicalTypeNormalization:
 
         assert "'employee_gross_compensation'" in str(exc_info.value)
         assert "'competitive'" in str(exc_info.value)
+
+    @pytest.mark.parametrize("sql_type", ["DATE", "TIMESTAMP", "TIMESTAMPTZ"])
+    def test_native_parquet_dates_are_accepted(
+        self, file_service, tmp_workspace, sql_type
+    ):
+        _, workspace_id = tmp_workspace
+        with duckdb.connect(":memory:") as conn:
+            content_path = tmp_workspace[0] / workspace_id / "data" / "native.parquet"
+            conn.execute(
+                f"COPY (SELECT 'E1' AS employee_id, "
+                f"CAST('1980-01-02' AS {sql_type}) AS employee_birth_date) "
+                f"TO '{content_path}' (FORMAT PARQUET)"
+            )
+        _, _, output = file_service.save_uploaded_file(
+            workspace_id, content_path.read_bytes(), "native.parquet"
+        )
+        with duckdb.connect(":memory:") as conn:
+            assert (
+                conn.execute(
+                    "SELECT employee_birth_date FROM read_parquet(?)", [output]
+                )
+                .fetchone()[0]
+                .isoformat()
+                == "1980-01-02"
+            )
+
+    @pytest.mark.parametrize(
+        "raw,expected",
+        [("1,234.56", 1234.56), ("$12,345", 12345.0), ("(1,250.25)", -1250.25)],
+    )
+    def test_valid_grouped_numbers(self, file_service, tmp_workspace, raw, expected):
+        root, workspace_id = tmp_workspace
+        content = _create_csv(
+            root,
+            workspace_id,
+            "number.csv",
+            ["employee_id", "employee_gross_compensation"],
+            [["E1", raw]],
+        )
+        _, _, output = file_service.save_uploaded_file(
+            workspace_id, content, "number.csv"
+        )
+        with duckdb.connect(":memory:") as conn:
+            assert (
+                conn.execute(
+                    "SELECT employee_gross_compensation FROM read_parquet(?)", [output]
+                ).fetchone()[0]
+                == expected
+            )
+        mapped = MappingEngine().apply(
+            pd.DataFrame({"salary": [raw]}),
+            [
+                FieldMapping(
+                    input_column="salary",
+                    output_column="employee_gross_compensation",
+                    output_type="decimal",
+                )
+            ],
+        )
+        assert mapped["employee_gross_compensation"].iloc[0] == expected
+
+    @pytest.mark.parametrize("raw", ["1.234,56", "12,5", "12,345,67"])
+    def test_invalid_grouped_numbers(self, file_service, tmp_workspace, raw):
+        root, workspace_id = tmp_workspace
+        content = _create_csv(
+            root,
+            workspace_id,
+            "number.csv",
+            ["employee_id", "employee_gross_compensation"],
+            [["E1", raw]],
+        )
+        with pytest.raises(ValueError, match="cannot be parsed as a number"):
+            file_service.save_uploaded_file(workspace_id, content, "number.csv")
+        with pytest.raises(ValueError, match="cannot be parsed as a number"):
+            MappingEngine().apply(
+                pd.DataFrame({"salary": [raw]}),
+                [
+                    FieldMapping(
+                        input_column="salary",
+                        output_column="employee_gross_compensation",
+                        output_type="decimal",
+                    )
+                ],
+            )
+
+    def test_one_date_order_per_column(self, file_service, tmp_workspace):
+        root, workspace_id = tmp_workspace
+        content = _create_csv(
+            root,
+            workspace_id,
+            "dates.csv",
+            ["employee_id", "employee_hire_date"],
+            [["E1", "03/04/2020"], ["E2", "25/04/2020"]],
+        )
+        _, _, output = file_service.save_uploaded_file(
+            workspace_id, content, "dates.csv"
+        )
+        with duckdb.connect(":memory:") as conn:
+            assert conn.execute(
+                "SELECT employee_hire_date FROM read_parquet(?) ORDER BY employee_id",
+                [output],
+            ).fetchall() == [(date(2020, 4, 3),), (date(2020, 4, 25),)]
+
+    def test_ambiguous_date_waits_for_one_selected_order(
+        self, file_service, tmp_workspace
+    ):
+        root, workspace_id = tmp_workspace
+        content = _create_csv(
+            root,
+            workspace_id,
+            "ambiguous.csv",
+            ["employee_id", "employee_hire_date"],
+            [["E1", "03/04/2020"], ["E2", "05/06/2020"]],
+        )
+        with pytest.raises(ValueError, match="ambiguous dates"):
+            file_service.save_uploaded_file(workspace_id, content, "ambiguous.csv")
+
+        _, _, output = file_service.save_uploaded_file(
+            workspace_id,
+            content,
+            "ambiguous.csv",
+            date_formats={"employee_hire_date": "%d/%m/%Y"},
+        )
+        with duckdb.connect(":memory:") as conn:
+            assert conn.execute(
+                "SELECT employee_hire_date FROM read_parquet(?) ORDER BY employee_id",
+                [output],
+            ).fetchall() == [(date(2020, 4, 3),), (date(2020, 6, 5),)]
 
 
 # =============================================================================

@@ -8,7 +8,9 @@ a matching update to dbt/models/staging/stg_census_data.sql.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Optional
+import re
 
 
 BOOLEAN_TRUE_ALIASES = frozenset(
@@ -47,6 +49,49 @@ CENSUS_DATE_FORMATS = (
     "%d-%m-%Y",
     "%Y%m%d",
 )
+
+# Both DuckDB uploads and mapped pandas imports use these same validation rules.
+GROUPED_NUMBER_PATTERN = r"-?(?:\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)"
+GROUPED_NUMBER_RE = re.compile(rf"^{GROUPED_NUMBER_PATTERN}$")
+
+
+def clean_census_number(value: str) -> str | None:
+    """Remove supported currency decoration only after validating comma groups."""
+    token = value.strip().replace("$", "").replace("€", "").replace("£", "")
+    token = "".join(token.split())
+    if token.startswith("(") and token.endswith(")"):
+        token = f"-{token[1:-1]}"
+    if not GROUPED_NUMBER_RE.fullmatch(token):
+        return None
+    return token.replace(",", "")
+
+
+def matching_census_date_formats(values: list[str]) -> tuple[str, ...]:
+    """Find formats that parse every nonblank value in one column."""
+    nonblank = [value.strip() for value in values if value and value.strip()]
+    return tuple(
+        fmt
+        for fmt in CENSUS_DATE_FORMATS
+        if all(_parse_census_date(value, fmt) is not None for value in nonblank)
+    )
+
+
+def _parse_census_date(value: str, fmt: str) -> datetime | None:
+    try:
+        return datetime.strptime(value, fmt)
+    except ValueError:
+        return None
+
+
+def census_date_order_is_ambiguous(values: list[str], formats: tuple[str, ...]) -> bool:
+    """Distinguish different spellings of one date from conflicting date orders."""
+    return any(
+        _parse_census_date(value.strip(), formats[0])
+        != _parse_census_date(value.strip(), fmt)
+        for value in values
+        if value and value.strip()
+        for fmt in formats[1:]
+    )
 
 
 @dataclass(frozen=True)

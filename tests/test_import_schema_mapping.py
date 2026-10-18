@@ -122,6 +122,41 @@ def test_suggestions_includes_format_detection_for_date_column(client: TestClien
         assert fmt is not None
 
 
+def test_suggestions_check_entire_date_column_before_asking_for_order(
+    client: TestClient,
+):
+    csv = (
+        "EmpID,Hire Date\n"
+        + "".join(f"E{index},03/04/2020\n" for index in range(5))
+        + "E5,25/04/2020\n"
+    )
+    session = _upload_csv(client, csv)
+    response = client.get(
+        f"/api/workspaces/ws-test/imports/{session['import_id']}/suggestions"
+    )
+    assert response.status_code == 200
+    suggestion = next(
+        item
+        for item in response.json()["suggestions"]
+        if item["input_column"] == "Hire Date"
+    )
+    assert suggestion["format_detection"]["detected_format"] == "%d/%m/%Y"
+    assert suggestion["format_detection"]["is_ambiguous"] is False
+
+
+def test_suggestions_offer_order_for_manually_mapped_date(client: TestClient):
+    session = _upload_csv(client, "EmpID,Source X\nE1,03/04/2020\nE2,05/06/2020\n")
+    response = client.get(
+        f"/api/workspaces/ws-test/imports/{session['import_id']}/suggestions"
+    )
+    suggestion = next(
+        item
+        for item in response.json()["suggestions"]
+        if item["input_column"] == "Source X"
+    )
+    assert suggestion["format_detection"]["is_ambiguous"] is True
+
+
 def test_suggestions_data_quality_has_expected_keys(client: TestClient):
     csv = "EmpID,Hire Date,DOB,Salary,Active\nE001,2020-01-01,1980-01-01,95000,Y\n"
     session = _upload_csv(client, csv)

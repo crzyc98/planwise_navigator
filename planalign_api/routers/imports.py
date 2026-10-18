@@ -474,20 +474,36 @@ def get_suggestions(
     engine = SuggestionEngine()
     suggestions = engine.suggest(session.detected_columns)
 
-    # Attach format detection for each suggestion with a known canonical field
+    # Detect date order for all columns, including fields mapped manually.
     for suggestion in suggestions:
-        if suggestion.suggested_canonical_field is None:
-            continue
-        field_def = get_field(suggestion.suggested_canonical_field)
-        if field_def is None:
-            continue
         input_col = next(
             (c for c in session.detected_columns if c.name == suggestion.input_column),
             None,
         )
         if input_col is None:
             continue
-        suggestion.format_detection = engine.detect_format(input_col, field_def)
+        field_def = (
+            get_field(suggestion.suggested_canonical_field)
+            if suggestion.suggested_canonical_field
+            else None
+        )
+        sample_date = engine.detect_date_format(input_col.sample_values)
+        if field_def is None and sample_date is None:
+            continue
+        if field_def is None or field_def.data_type == "date" or sample_date:
+            input_col = input_col.model_copy(
+                update={
+                    "sample_values": service.get_source_column_values(
+                        workspace_id, import_id, input_col.name
+                    )
+                }
+            )
+        if field_def is None or (field_def.data_type != "date" and sample_date):
+            suggestion.format_detection = engine.detect_date_format(
+                input_col.sample_values
+            )
+        else:
+            suggestion.format_detection = engine.detect_format(input_col, field_def)
 
     # Check for auto-fingerprint from prior successful imports
     fingerprint = SuggestionEngine.get_auto_fingerprint(
