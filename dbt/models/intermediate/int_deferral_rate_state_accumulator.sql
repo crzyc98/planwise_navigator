@@ -46,6 +46,19 @@
 {% endset %}
 
 WITH
+irs_limits AS (
+    SELECT
+        base_limit,
+        catch_up_limit,
+        catch_up_age_threshold,
+        super_catch_up_limit,
+        super_catch_up_age_min,
+        super_catch_up_age_max
+    FROM {{ ref('config_irs_limits') }}
+    ORDER BY CASE WHEN limit_year = {{ simulation_year }} THEN 0 ELSE 1 END,
+        ABS(limit_year - {{ simulation_year }})
+    LIMIT 1
+),
 -- Get current year's new enrollment events from fct_yearly_events
 -- (supports both SQL and Polars event generation modes)
 current_year_new_enrollments AS (
@@ -242,6 +255,7 @@ current_year_workforce AS (
     SELECT DISTINCT
         employee_id::VARCHAR as employee_id,
         employee_ssn::VARCHAR as employee_ssn,
+        employee_birth_date::TIMESTAMP as employee_birth_date,
         employee_compensation::DECIMAL(12,2) as employee_compensation,
         current_age::SMALLINT as current_age,
         level_id::SMALLINT as level_id
@@ -257,6 +271,7 @@ current_year_workforce AS (
     SELECT DISTINCT
         employee_id::VARCHAR as employee_id,
         employee_ssn::VARCHAR as employee_ssn,
+        NULL::TIMESTAMP as employee_birth_date,
         COALESCE(compensation_amount, 50000.00)::DECIMAL(12,2) as employee_compensation,
         COALESCE(employee_age, 35)::SMALLINT as current_age,
         COALESCE(level_id, 2)::SMALLINT as level_id
@@ -313,7 +328,8 @@ first_year_state AS (
                     mr.match_responsive_rate + ce.escalation_rate,
                     GREATEST(mr.match_responsive_rate,
                         COALESCE(ce.max_escalation_rate, {{ var('deferral_escalation_cap', 0.10) }})),
-                    ({{ var('irs_402g_limit', 23500) }}::DECIMAL / cyw.employee_compensation)
+                    FLOOR({{ irs_402g_limit_for_age('COALESCE(' ~ simulation_year ~ ' - YEAR(cyw.employee_birth_date), cyw.current_age)', 'il') }}::DECIMAL
+                        / cyw.employee_compensation * 10000) / 10000
                 )::DECIMAL(5,4)
             -- Only escalation
             WHEN ce.new_deferral_rate IS NOT NULL THEN ce.new_deferral_rate
@@ -404,6 +420,7 @@ first_year_state AS (
     LEFT JOIN baseline_deferral_rates br ON COALESCE(w.employee_id, he.employee_id) = br.employee_id
     -- E058: Join workforce for compensation (needed for IRS limit calculation in additive case)
     LEFT JOIN current_year_workforce cyw ON COALESCE(w.employee_id, he.employee_id) = cyw.employee_id
+    CROSS JOIN irs_limits il
     -- E096 FIX: Include ALL workforce employees, not just those with enrollment events
     -- Non-enrolled employees get deferral_rate = 0 and is_enrolled_flag = false
     -- This ensures census employees without explicit enrollment data still appear
@@ -429,7 +446,8 @@ subsequent_year_state AS (
                     mr.match_responsive_rate + ce.escalation_rate,
                     GREATEST(mr.match_responsive_rate,
                         COALESCE(ce.max_escalation_rate, {{ var('deferral_escalation_cap', 0.10) }})),
-                    ({{ var('irs_402g_limit', 23500) }}::DECIMAL / cyw.employee_compensation)
+                    FLOOR({{ irs_402g_limit_for_age('COALESCE(' ~ simulation_year ~ ' - YEAR(cyw.employee_birth_date), cyw.current_age)', 'il') }}::DECIMAL
+                        / cyw.employee_compensation * 10000) / 10000
                 )::DECIMAL(5,4)
             ELSE COALESCE(
                 ce.new_deferral_rate,                    -- Current year escalation overwrites all
@@ -533,6 +551,7 @@ subsequent_year_state AS (
     LEFT JOIN baseline_deferral_rates br ON COALESCE(w.employee_id, ps.employee_id) = br.employee_id
     -- E058: Join workforce for compensation (needed for IRS limit calculation in additive case)
     LEFT JOIN current_year_workforce cyw ON COALESCE(w.employee_id, ps.employee_id) = cyw.employee_id
+    CROSS JOIN irs_limits il
     -- Include employees who are enrolled (new enrollments, carry-forward, have escalations, or match-response)
     -- Feature 095 fix: retain a current-year enrollment (ne) even when prior-year
     -- state is unenrolled (false). Mirrors the is_enrolled_flag precedence above.
