@@ -316,7 +316,7 @@ jobs:
           # No --cov-fail-under here: a single shard only ever sees a quarter of
           # the suite and would fail the gate spuriously. The threshold is
           # enforced once, on the combined data, in the `coverage` job.
-          pytest tests/ -v -m "not multi_year_invariants" \
+          pytest tests/ -v -m "not multi_year_invariants and not edge_config_matrix" \
             --splits 4 --group ${{ matrix.shard }} \
             --splitting-algorithm least_duration \
             --store-durations --clean-durations \

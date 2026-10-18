@@ -119,33 +119,6 @@ When adding or changing dbt models: add/adjust `schema.yml` tests, keep types an
 ---
 
 ## Active Technologies
-- Python >=3.11 + dbt Core/dbt DuckDB execution via the existing orchestrator, Pydantic configuration models, DuckDB-backed simulation state, pytest for tests (106-fail-dbt-stage)
-- No schema or persisted data-model changes; existing DuckDB run outputs may be partially present for failed runs and must remain clearly associated with failed status (106-fail-dbt-stage)
-- Python >=3.11; dbt SQL/Jinja compatible with dbt Core 1.8.8 + Existing PlanAlign orchestrator, Pydantic v2 configuration, dbt Core 1.8.8, dbt DuckDB 1.8.1, DuckDB 1.0.0 (107-preserve-census-enrollment)
-- Existing scenario-isolated DuckDB tables; no schema or persisted contract changes; incremental yearly rows must be retained (107-preserve-census-enrollment)
-- Python >=3.11; dbt SQL/Jinja compatible with dbt Core 1.8.8 + PlanAlign orchestrator, Pydantic v2 configuration, dbt Core 1.8.8, dbt DuckDB 1.8.1, DuckDB 1.0.0, pytest 7.4, psutil (107-preserve-census-enrollment)
-- Existing scenario-isolated DuckDB outputs plus one disposable internal `enrollment_decision_projection` table rebuilt from census and immutable fact events; no public mart, API, or configuration schema change (107-preserve-census-enrollment)
-- Python >=3.11; TypeScript 5.8; SQL compatible with DuckDB 1.0.0 + FastAPI, Pydantic v2, DuckDB; React 19, React Router 7, Recharts 3.5, Tailwind CSS 4, Lucide React (110-scenario-diff-view)
-- Existing workspace `base_config.yaml` and scenario overrides plus existing scenario-isolated DuckDB outputs and append-only `run_metadata`; no new tables or persisted fields (110-scenario-diff-view)
-- Python >=3.11 + Existing FastAPI, Pydantic v2, Typer, Rich, DuckDB 1.0.0, PyYAML, and Python standard-library `hashlib`/`json`/`zipfile`/`subprocess`; no new dependency (111-run-provenance-report)
-- Existing `workspaces/<workspace>/scenarios/<scenario>/runs/<run_id>/` archives plus one versioned `provenance.json` sidecar created during execution; existing append-only DuckDB `run_metadata` reuses its schema with the authoritative run ID; no public mart or new database table (111-run-provenance-report)
-- Python >=3.11; SQL/Jinja compatible with dbt Core 1.8.8 + Existing PlanAlign orchestrator, dbt Core 1.8.8, dbt DuckDB 1.8.1, DuckDB 1.0.0, Pydantic v2 provenance models, and pytest 7.4; no new dependency (112-post-termination-integrity)
-- Existing scenario-isolated DuckDB event tables plus one ephemeral intermediate termination-boundary relation; no new persisted table, public mart, archive format, or configuration field (112-post-termination-integrity)
-- Python >=3.11; SQL/Jinja compatible with dbt Core 1.8.8; TypeScript 5.8 for the existing Studio warning surface + Existing PlanAlign orchestrator and CLI, FastAPI, Pydantic v2, dbt Core 1.8.8, dbt DuckDB 1.8.1, DuckDB 1.0.0, PyYAML, pytest 7.4, psutil; no new dependency (122-state-pipeline-redesign)
-- Fresh DuckDB at `workspaces/<workspace>/scenarios/<scenario>/runs/<run_id>/simulation.duckdb` for each Studio/API attempt; atomic scenario-local `current_result.json`; existing run metadata/provenance files; new internal dbt workforce accumulator and disposable prior-year projection; no public mart schema change (122-state-pipeline-redesign)
-- Python 3.11; SQL/Jinja executed by dbt Core 1.8.8 with dbt-duckdb 1.8.1 + pytest, DuckDB 1.0.0, pandas/pyarrow, existing `planalign_orchestrator` config loader and multi-year executor (124-edge-config-regression-matrix)
-- Per-case DuckDB files under pytest `tmp_path`; checked-in CSV fixture/config inputs; never `dbt/simulation.duckdb` (124-edge-config-regression-matrix)
-- Python 3.11; SQL/Jinja compatible with dbt Core 1.8.8 and dbt-duckdb 1.8.1; TypeScript 5.8 + Pydantic v2, FastAPI, DuckDB 1.0.0, React 19, Tailwind CSS 4, pytest 7.4 (125-age-banded-core)
-- Scenario-isolated DuckDB simulation outputs; YAML workspace and scenario configuration; no new persisted table or public mart schema (125-age-banded-core)
-- Python 3.11; SQL/Jinja compatible with dbt Core 1.8.8 and dbt-duckdb 1.8.1 + Existing PlanAlign orchestrator, Pydantic v2 configuration, dbt Core 1.8.8, dbt-duckdb 1.8.1, DuckDB 1.0.0, pytest 7.4; no new dependency (136-eligibility-tenure-offset)
-- Existing scenario-isolated DuckDB workforce, eligibility, contribution, event, and snapshot relations; no new table, persisted field, public mart schema, or result migration (136-eligibility-tenure-offset)
-- Python 3.11 + Pydantic 2.7.4; Hypothesis 6.155.1 currently resolved from `hypothesis>=6.0.0` (development only after implementation) (437-property-based-event-factories)
-- Python 3.11; TypeScript 5.8 + Existing DuckDB 1.0.0, Pydantic 2.7.4, FastAPI, Typer/Rich, React 19, React Router 7, Tailwind CSS 4, and the existing `planalign_ensemble` canonical metric registry; no new dependency (138-evidence-pack)
-- Existing scenario result `simulation.duckdb`, `current_result.json`, archived `run_metadata.json`/`provenance.json`, and append-only in-database `run_metadata`; all access is read-only and no new table or file is persisted in a run archive (138-evidence-pack)
-- TypeScript 5.8; CSS/Tailwind CSS 4.2; HTML; Python 3.11 for dependency-free contract/palette tests + Existing React 19.2, React Router 7.9, Recharts 3.5, Tailwind CSS 4.2 through `@tailwindcss/vite`, Lucide React, Vite 6, pytest 7.4; no new runtime or test dependency (139-dark-mode-tokens)
-- Browser `localStorage` for one non-sensitive explicit theme value (`light` or `dark`); missing/invalid means `system`; no DuckDB, workspace, API, or server persistence change (139-dark-mode-tokens)
-- Python 3.11; SQL/Jinja compatible with dbt Core 1.8.8 and dbt DuckDB 1.8.1 + Existing Pydantic v2 configuration, PlanAlign orchestrator, dbt Core, DuckDB 1.0.0, pytest 7.4; no new dependency (632-per-design-plan-parameters)
-- Existing scenario-isolated DuckDB outputs; invocation-scoped inline parameter relations only, with no new persisted table or public mart schema (632-per-design-plan-parameters)
+- Authoritative versions live in `pyproject.toml` (Python >=3.12, DuckDB 1.5.6, dbt-core 1.9.11 / dbt-duckdb 1.9.6) and `planalign_studio/package.json`. Per-feature entries below are appended by speckit.
 
 ## Recent Changes
-- 106-fail-dbt-stage: Added Python >=3.11 + dbt Core/dbt DuckDB execution via the existing orchestrator, Pydantic configuration models, DuckDB-backed simulation state, pytest for tests
