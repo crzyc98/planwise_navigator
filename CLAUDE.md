@@ -34,7 +34,7 @@ duckdb dbt/simulation.duckdb "SELECT COUNT(*) FROM fct_yearly_events"
 | Layer | Technology | Why |
 |-------|-----------|-----|
 | Storage | DuckDB 1.5.6 | Immutable event store; column-store OLAP |
-| Transformation | dbt-core 1.9.11 / dbt-duckdb 1.9.6 | Declarative SQL, testable models |
+| Transformation | dbt-core 1.12.6 / dbt-duckdb 1.9.6 | Declarative SQL, testable models |
 | Orchestration | planalign_orchestrator | Modular pipeline with staged execution |
 | CLI | Typer + Rich | Beautiful terminal UI with progress |
 | Web | FastAPI + React/Vite + Tailwind | Modern web-based scenario management |
@@ -371,6 +371,6 @@ Managed in `_version.py` and `pyproject.toml`. See `/docs/VERSIONING_GUIDE.md` f
 - **Security:** `SECURITY.md` (API token auth, CORS policy, non-loopback deployments)
 
 ## Active Technologies
-- Authoritative versions live in `pyproject.toml` (Python >=3.12, DuckDB 1.5.6, dbt-core 1.9.11 / dbt-duckdb 1.9.6) and `planalign_studio/package.json`. Per-feature entries below are appended by speckit.
+- Authoritative versions live in `pyproject.toml` (Python >=3.12, DuckDB 1.5.6, dbt-core 1.12.6 / dbt-duckdb 1.9.6) and `planalign_studio/package.json`. Per-feature entries below are appended by speckit.
 
 ## Recent Changes

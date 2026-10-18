@@ -17,27 +17,29 @@ models:
     data_tests:
       - dbt_utils.expression_is_true:
           name: "termination_rate_positive"
-          expression: "termination_rate > 0"
+          arguments:
+            expression: "termination_rate > 0"
           config:
             severity: error
       - dbt_utils.expression_is_true:
           name: "higher_levels_lower_or_equal_rates"
-          expression: >
-            (SELECT COUNT(*) FROM (
-              SELECT
-                h.year,
-                h.tenure_band,
-                h.age_band,
-                h.termination_rate AS higher_level_rate,
-                l1.termination_rate AS level1_rate
-              FROM {{ ref('int_hazard_termination') }} h
-              JOIN {{ ref('int_hazard_termination') }} l1
-                ON h.year = l1.year
-                AND h.tenure_band = l1.tenure_band
-                AND h.age_band = l1.age_band
-                AND l1.level_id = 1
-              WHERE h.level_id > 1
-                AND h.termination_rate > l1.termination_rate
-            )) = 0
+          arguments:
+            expression: >
+              (SELECT COUNT(*) FROM (
+                SELECT
+                  h.year,
+                  h.tenure_band,
+                  h.age_band,
+                  h.termination_rate AS higher_level_rate,
+                  l1.termination_rate AS level1_rate
+                FROM {{ ref('int_hazard_termination') }} h
+                JOIN {{ ref('int_hazard_termination') }} l1
+                  ON h.year = l1.year
+                  AND h.tenure_band = l1.tenure_band
+                  AND h.age_band = l1.age_band
+                  AND l1.level_id = 1
+                WHERE h.level_id > 1
+                  AND h.termination_rate > l1.termination_rate
+              )) = 0
           config:
             severity: error

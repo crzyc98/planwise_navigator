@@ -1,4 +1,4 @@
-{% comment %}
+{#
 DuckDB-optimized macros for Story S031-02: Year Processing Optimization
 
 Implements columnar storage patterns, vectorized operations, and analytical
@@ -9,7 +9,7 @@ Key optimizations:
 - SIMD-accelerated aggregations for payroll summaries
 - Hash join optimization for employee-event associations
 - Columnar storage-friendly query patterns
-{% endcomment %}
+#}
 
 {% macro optimize_duckdb_workforce_query() %}
   {# Enable DuckDB optimizations for workforce analytics #}

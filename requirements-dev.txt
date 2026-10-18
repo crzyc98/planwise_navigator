@@ -17,7 +17,7 @@ Faker==40.43.0
 ruff==0.17.1
 black==23.9.1
 isort==9.0.2
-# Last mypy release compatible with dbt-core 1.9.11's pathspec<0.13.
+# Pinned mypy version validated with this project's dev toolchain.
 mypy==1.19.1
 # Type stubs for the CI `mypy` lint job. Without these, mypy reports
 # "Library stubs not installed for 'yaml'" (not suppressed by

@@ -12,9 +12,10 @@ models:
       tags: ["EVENT_GENERATION", "eligibility"]
     data_tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns:
-            - employee_id
-            - simulation_year
+          arguments:
+            combination_of_columns:
+              - employee_id
+              - simulation_year
           config:
             severity: error
             error_if: ">= 1"
@@ -28,7 +29,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['eligibility']
+              arguments:
+                values: ['eligibility']
       - name: simulation_year
         description: Simulation year in which eligibility was first achieved
         data_tests:
@@ -44,7 +46,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['eligibility']
+              arguments:
+                values: ['eligibility']
       - name: event_probability
         description: Always 1.0 — eligibility determination is deterministic
         data_tests:
@@ -59,9 +62,10 @@ models:
       tags: ["enrollment", "census_integration", "epic_e049", "event_sourcing"]
     data_tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns:
-            - employee_id
-            - simulation_year
+          arguments:
+            combination_of_columns:
+              - employee_id
+              - simulation_year
           config:
             severity: error
             error_if: ">= 1"
@@ -79,14 +83,16 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['enrollment']
+              arguments:
+                values: ['enrollment']
       - name: simulation_year
         description: Simulation year (should match start_year for baseline events)
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: "{{ var('simulation_start_year', 2025) }}"
-              max_value: "{{ var('simulation_end_year', 2029) }}"
+              arguments:
+                min_value: "{{ var('simulation_start_year', 2025) }}"
+                max_value: "{{ var('simulation_end_year', 2029) }}"
       - name: effective_date
         description: Historical enrollment date from census data
         data_tests:
@@ -96,9 +102,10 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0.0
-              max_value: 1.0
-              inclusive: true
+              arguments:
+                min_value: 0.0
+                max_value: 1.0
+                inclusive: true
       - name: event_details
         description: Human-readable event description with actual deferral rate
         data_tests:
@@ -108,19 +115,22 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['census_rate_preserved', 'capped_at_irs_limit', 'fallback_rate_applied']
+              arguments:
+                values: ['census_rate_preserved', 'capped_at_irs_limit', 'fallback_rate_applied']
       - name: has_valid_rate
         description: Boolean flag indicating valid deferral rate
         data_tests:
           - not_null
           - accepted_values:
-              values: [true, false]
+              arguments:
+                values: [true, false]
       - name: is_pre_simulation_enrollment
         description: Boolean flag confirming enrollment occurred before simulation start
         data_tests:
           - not_null
           - accepted_values:
-              values: [true, false]
+              arguments:
+                values: [true, false]
 
   - name: int_deferral_match_response_events
     description: >
@@ -133,9 +143,10 @@ models:
       tags: ["EVENT_GENERATION", "E058_MATCH_RESPONSE"]
     data_tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns:
-            - employee_id
-            - simulation_year
+          arguments:
+            combination_of_columns:
+              - employee_id
+              - simulation_year
           config:
             severity: error
             error_if: ">= 1"
@@ -149,12 +160,14 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['deferral_match_response']
+              arguments:
+                values: ['deferral_match_response']
       - name: employee_deferral_rate
         description: New deferral rate after match-responsive adjustment
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0.0
-              max_value: 1.0
-              inclusive: true
+              arguments:
+                min_value: 0.0
+                max_value: 1.0
+                inclusive: true

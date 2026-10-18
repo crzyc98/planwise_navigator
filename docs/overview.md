@@ -35,7 +35,7 @@ CLI commands: `simulate`, `calibrate`, `batch`, `analyze`, `validate`, `status`,
 | Layer | Technology | Notes |
 |-------|-----------|-------|
 | Storage / engine | DuckDB 1.5.6 | Column-store OLAP; one `.duckdb` file per scenario |
-| Transformation | dbt-core 1.9.11 + dbt-duckdb 1.9.6 | ~156 SQL models (38 staging, 108 intermediate, 10 marts) |
+| Transformation | dbt-core 1.12.6 + dbt-duckdb 1.9.6 | ~156 SQL models (38 staging, 108 intermediate, 10 marts) |
 | Orchestration | `planalign_orchestrator` (Python 3.12) | Staged multi-year pipeline |
 | Domain model | `planalign_core` (Pydantic v2) | Event payloads, config schema, constants |
 | API | FastAPI (`planalign_api`) | REST + WebSocket telemetry |

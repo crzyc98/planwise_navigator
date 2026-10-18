@@ -9,7 +9,8 @@ models:
       tags: ["EVENT_GENERATION", "event_sourcing", "contract"]
     data_tests:
       - dbt_utils.expression_is_true:
-          expression: "simulation_year = {{ var('simulation_year', 2025) }}"
+          arguments:
+            expression: "simulation_year = {{ var('simulation_year', 2025) }}"
     columns:
       - name: event_id
         data_type: varchar
@@ -40,7 +41,8 @@ models:
       tags: ["STATE_ACCUMULATION", "DOMAIN_STATE", "contract"]
     data_tests:
       - unique:
-          column_name: "scenario_id || '_' || plan_design_id || '_' || employee_id || '_' || simulation_year"
+          arguments:
+            column_name: "scenario_id || '_' || plan_design_id || '_' || employee_id || '_' || simulation_year"
           name: "unique_workforce_state_per_scope_employee_year"
     columns:
       - name: scenario_id
@@ -72,7 +74,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ["active", "terminated"]
+              arguments:
+                values: ["active", "terminated"]
       - name: detailed_status_code
         data_type: varchar
         data_tests: [not_null]
@@ -123,45 +126,52 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: "{{ var('simulation_start_year', 2025) }}"
-              max_value: "{{ var('simulation_end_year', 2029) }}"
+              arguments:
+                min_value: "{{ var('simulation_start_year', 2025) }}"
+                max_value: "{{ var('simulation_end_year', 2029) }}"
       - name: employment_status
         description: Current employment status
         data_tests:
           - not_null
           - accepted_values:
-              values: ['active', 'terminated']
+              arguments:
+                values: ['active', 'terminated']
       - name: annual_hours_worked
         description: Annual hours worked (2080 for active, 0 for terminated)
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 3000
+              arguments:
+                min_value: 0
+                max_value: 3000
       - name: eligible_for_contributions
         description: Combined eligibility flag for employer contributions
         data_tests:
           - not_null
           - accepted_values:
-              values: [true, false]
+              arguments:
+                values: [true, false]
       - name: eligible_for_match
         description: "Epic E058 Phase 1: Eligibility flag for employer match contributions with configurable rules"
         data_tests:
           - not_null
           - accepted_values:
-              values: [true, false]
+              arguments:
+                values: [true, false]
       - name: match_eligibility_reason
         description: "Epic E058 Phase 1: Reason code for match eligibility determination"
         data_tests:
           - not_null
           - accepted_values:
-              values: ['eligible', 'insufficient_hours', 'insufficient_tenure', 'inactive_eoy', 'backward_compatibility_simple_rule']
+              arguments:
+                values: ['eligible', 'insufficient_hours', 'insufficient_tenure', 'inactive_eoy', 'backward_compatibility_simple_rule']
       - name: eligible_for_core
         description: Eligibility flag for employer core contributions
         data_tests:
           - not_null
           - accepted_values:
-              values: [true, false]
+              arguments:
+                values: [true, false]
       - name: current_tenure
         description: >
           Authoritative completed years of service copied exactly from
@@ -170,100 +180,116 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 60
+              arguments:
+                min_value: 0
+                max_value: 60
       - name: eligibility_method
         description: "Epic E058 Phase 1: Method used for eligibility determination"
         data_tests:
           - not_null
           - accepted_values:
-              values: ['backward_compatibility', 'configured_rules', 'prorated_hours_with_tenure']
+              arguments:
+                values: ['backward_compatibility', 'configured_rules', 'prorated_hours_with_tenure']
       - name: match_apply_eligibility
         description: "Epic E058 Phase 1: Configuration flag indicating whether eligibility rules are applied"
         data_tests:
           - not_null
           - accepted_values:
-              values: [true, false]
+              arguments:
+                values: [true, false]
       - name: match_tenure_requirement
         description: "Epic E058 Phase 1: Minimum tenure requirement in years for match eligibility"
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 10
+              arguments:
+                min_value: 0
+                max_value: 10
       - name: match_hours_requirement
         description: "Epic E058 Phase 1: Minimum hours requirement for match eligibility"
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 2500
+              arguments:
+                min_value: 0
+                max_value: 2500
       - name: match_requires_active_eoy
         description: "Epic E058 Phase 1: Configuration flag requiring active employment at end of year"
         data_tests:
           - not_null
           - accepted_values:
-              values: [true, false]
+              arguments:
+                values: [true, false]
       - name: match_allow_new_hires
         description: "Epic E058 Phase 1: Configuration flag allowing new hires to be eligible"
         data_tests:
           - not_null
           - accepted_values:
-              values: [true, false]
+              arguments:
+                values: [true, false]
       - name: match_allow_terminated_new_hires
         description: "Epic E058 Phase 1: Configuration flag allowing terminated new hires to be eligible"
         data_tests:
           - not_null
           - accepted_values:
-              values: [true, false]
+              arguments:
+                values: [true, false]
       - name: match_allow_experienced_terminations
         description: "Epic E058 Phase 1: Configuration flag allowing experienced terminated employees to be eligible"
         data_tests:
           - not_null
           - accepted_values:
-              values: [true, false]
+              arguments:
+                values: [true, false]
     data_tests:
       - unique:
-          column_name: "employee_id || '_' || simulation_year"
+          arguments:
+            column_name: "employee_id || '_' || simulation_year"
       - dbt_utils.expression_is_true:
-          expression: "employment_status = 'active' OR (employment_status != 'active' AND NOT eligible_for_contributions)"
+          arguments:
+            expression: "employment_status = 'active' OR (employment_status != 'active' AND NOT eligible_for_contributions)"
           config:
             severity: error
       - dbt_utils.expression_is_true:
-          expression: "annual_hours_worked >= 1000 OR NOT eligible_for_contributions"
+          arguments:
+            expression: "annual_hours_worked >= 1000 OR NOT eligible_for_contributions"
           config:
             severity: error
       # Epic E058 Phase 4: Match eligibility reason consistency validated via
       # singular test: tests/data_quality/test_e058_match_eligibility_consistency.sql
       - dbt_utils.expression_is_true:
           name: "e058_backward_compatibility_logic"
-          expression: >
-            (match_apply_eligibility = false AND match_eligibility_reason = 'backward_compatibility_simple_rule') OR
-            (match_apply_eligibility = true AND match_eligibility_reason != 'backward_compatibility_simple_rule')
+          arguments:
+            expression: >
+              (match_apply_eligibility = false AND match_eligibility_reason = 'backward_compatibility_simple_rule') OR
+              (match_apply_eligibility = true AND match_eligibility_reason != 'backward_compatibility_simple_rule')
           config:
             severity: error
             error_if: ">= 1"
       - dbt_utils.expression_is_true:
           name: "e058_tenure_requirement_consistency"
-          expression: >
-            (match_eligibility_reason = 'insufficient_tenure' AND current_tenure < match_tenure_requirement) OR
-            (match_eligibility_reason != 'insufficient_tenure')
+          arguments:
+            expression: >
+              (match_eligibility_reason = 'insufficient_tenure' AND current_tenure < match_tenure_requirement) OR
+              (match_eligibility_reason != 'insufficient_tenure')
           config:
             severity: error
             error_if: ">= 1"
       - dbt_utils.expression_is_true:
           name: "e058_hours_requirement_consistency"
-          expression: >
-            (match_eligibility_reason = 'insufficient_hours' AND annual_hours_worked < match_hours_requirement) OR
-            (match_eligibility_reason != 'insufficient_hours')
+          arguments:
+            expression: >
+              (match_eligibility_reason = 'insufficient_hours' AND annual_hours_worked < match_hours_requirement) OR
+              (match_eligibility_reason != 'insufficient_hours')
           config:
             severity: error
             error_if: ">= 1"
       - dbt_utils.expression_is_true:
           name: "e058_active_eoy_requirement_consistency"
-          expression: >
-            (match_eligibility_reason = 'inactive_eoy' AND match_requires_active_eoy = true AND employment_status != 'active') OR
-            (match_eligibility_reason != 'inactive_eoy')
+          arguments:
+            expression: >
+              (match_eligibility_reason = 'inactive_eoy' AND match_requires_active_eoy = true AND employment_status != 'active') OR
+              (match_eligibility_reason != 'inactive_eoy')
           config:
             severity: error
             error_if: ">= 1"
@@ -291,8 +317,9 @@ models:
         data_tests:
           - not_null
           - relationships:
-              to: ref('int_employee_compensation_by_year')
-              field: employee_id
+              arguments:
+                to: ref('int_employee_compensation_by_year')
+                field: employee_id
               config:
                 severity: warn
       - name: simulation_year
@@ -300,8 +327,9 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: "{{ var('simulation_start_year', 2025) }}"
-              max_value: "{{ var('simulation_end_year', 2029) }}"
+              arguments:
+                min_value: "{{ var('simulation_start_year', 2025) }}"
+                max_value: "{{ var('simulation_end_year', 2029) }}"
       - name: plan_design_id
         description: Sticky assigned design used to resolve the core rate or schedule.
         data_tests: [not_null]
@@ -314,15 +342,17 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 20000000
+              arguments:
+                min_value: 0
+                max_value: 20000000
       - name: employer_core_amount
         description: Calculated employer core contribution amount
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 400000
+              arguments:
+                min_value: 0
+                max_value: 400000
       - name: contribution_method
         description: Configured or disabled core-contribution calculation method.
       - name: standard_core_rate
@@ -339,8 +369,9 @@ models:
         description: Recognized compensation above the integration level.
         data_tests:
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 20000000
+              arguments:
+                min_value: 0
+                max_value: 20000000
       - name: base_core_amount
         description: Separately rounded base-rate employer core contribution.
       - name: disparity_core_amount
@@ -352,8 +383,9 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0.00
-              max_value: 1.00
+              arguments:
+                min_value: 0.00
+                max_value: 1.00
       - name: applied_years_of_service
         description: >
           Exact integer service basis used for graded-by-service and points-based
@@ -362,14 +394,16 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 100
+              arguments:
+                min_value: 0
+                max_value: 100
       - name: eligible_for_core
         description: Core contribution eligibility flag
         data_tests:
           - not_null
           - accepted_values:
-              values: [true, false]
+              arguments:
+                values: [true, false]
       - name: created_at
         description: Nondeterministic model-build timestamp; excluded from canonical parity.
       - name: scenario_id
@@ -378,17 +412,21 @@ models:
         description: Scenario identifier associated with the exported parameter set.
     data_tests:
       - unique:
-          column_name: "employee_id || '_' || plan_design_id || '_' || simulation_year"
+          arguments:
+            column_name: "employee_id || '_' || plan_design_id || '_' || simulation_year"
       - dbt_utils.expression_is_true:
-          expression: "eligible_for_core = true OR (eligible_for_core = false AND employer_core_amount = 0)"
+          arguments:
+            expression: "eligible_for_core = true OR (eligible_for_core = false AND employer_core_amount = 0)"
           config:
             severity: error
       - dbt_utils.expression_is_true:
-          expression: "eligible_compensation > 0 OR employer_core_amount = 0"
+          arguments:
+            expression: "eligible_compensation > 0 OR employer_core_amount = 0"
           config:
             severity: error
       - dbt_utils.expression_is_true:
-          expression: "ABS(employer_core_amount - (eligible_compensation * core_contribution_rate)) < 0.01"
+          arguments:
+            expression: "ABS(employer_core_amount - (eligible_compensation * core_contribution_rate)) < 0.01"
           config:
             severity: warn
 
@@ -425,15 +463,17 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 50000
+              arguments:
+                min_value: 0
+                max_value: 50000
       - name: deferral_rate
         description: Employee deferral rate used for match calculation
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 1.0
+              arguments:
+                min_value: 0
+                max_value: 1.0
       - name: match_cap_applied
         description: Whether the match cap was applied (before eligibility filtering)
         data_tests:
@@ -445,7 +485,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ["simple", "tiered", "none", "graded_by_service", "points_based", "tenure_graded"]
+              arguments:
+                values: ["simple", "tiered", "none", "graded_by_service", "points_based", "tenure_graded"]
       - name: formula_id
         description: Stable identifier derived from the design's descriptive match template.
       - name: formula_name
@@ -460,33 +501,38 @@ models:
         description: Actual match rate after caps and eligibility
         data_tests:
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 1.5
+              arguments:
+                min_value: 0
+                max_value: 1.5
       - name: is_eligible_for_match
         description: "Epic E058 Phase 2: Match eligibility determination flag"
         data_tests:
           - not_null
           - accepted_values:
-              values: [true, false]
+              arguments:
+                values: [true, false]
       - name: match_eligibility_reason
         description: "Epic E058 Phase 2: Reason code for match eligibility determination"
         data_tests:
           - not_null
           - accepted_values:
-              values: ["backward_compatibility_simple_rule", "insufficient_hours", "insufficient_tenure", "inactive_eoy", "eligible"]
+              arguments:
+                values: ["backward_compatibility_simple_rule", "insufficient_hours", "insufficient_tenure", "inactive_eoy", "eligible"]
       - name: match_status
         description: "Epic E058 Phase 2: Match calculation status tracking"
         data_tests:
           - not_null
           - accepted_values:
-              values: ["ineligible", "no_deferrals", "calculated"]
+              arguments:
+                values: ["ineligible", "no_deferrals", "calculated"]
       - name: capped_match_amount
         description: "Epic E058 Phase 2: Match amount after formula caps (before eligibility filtering)"
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 50000
+              arguments:
+                min_value: 0
+                max_value: 50000
       - name: uncapped_match_amount
         description: Selected formula result before the deferral-based plan cap.
       - name: match_percentage_of_comp
@@ -496,7 +542,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: [true, false]
+              arguments:
+                values: [true, false]
       - name: applied_years_of_service
         description: >
           Exact integer service basis used by graded_by_service, tenure_graded,
@@ -511,55 +558,62 @@ models:
         description: Scenario identifier associated with the exported parameter set.
     data_tests:
       - unique:
-          column_name: "employee_id || '_' || plan_design_id || '_' || simulation_year"
-      # Epic E058 Phase 4: Business logic validation tests for match calculations
+          arguments:
+            column_name: "employee_id || '_' || plan_design_id || '_' || simulation_year"
+        # Epic E058 Phase 4: Business logic validation tests for match calculations
       - dbt_utils.expression_is_true:
           name: "e058_ineligible_employees_zero_match"
-          expression: >
-            (SELECT COUNT(*) FROM int_employee_match_calculations
-             WHERE is_eligible_for_match = false AND employer_match_amount > 0) = 0
+          arguments:
+            expression: >
+              (SELECT COUNT(*) FROM int_employee_match_calculations
+               WHERE is_eligible_for_match = false AND employer_match_amount > 0) = 0
           config:
             severity: error
             error_if: ">= 1"
       - dbt_utils.expression_is_true:
           name: "e058_eligible_with_deferrals_have_match_calculation"
-          expression: >
-            (SELECT COUNT(*) FROM int_employee_match_calculations
-             WHERE is_eligible_for_match = true AND annual_deferrals > 0 AND match_status = 'ineligible') = 0
+          arguments:
+            expression: >
+              (SELECT COUNT(*) FROM int_employee_match_calculations
+               WHERE is_eligible_for_match = true AND annual_deferrals > 0 AND match_status = 'ineligible') = 0
           config:
             severity: error
             error_if: ">= 1"
       - dbt_utils.expression_is_true:
           name: "e058_match_status_consistency_with_eligibility"
-          expression: >
-            (SELECT COUNT(*) FROM int_employee_match_calculations
-             WHERE (match_status = 'ineligible' AND is_eligible_for_match = true) OR
-                   (match_status != 'ineligible' AND is_eligible_for_match = false)) = 0
+          arguments:
+            expression: >
+              (SELECT COUNT(*) FROM int_employee_match_calculations
+               WHERE (match_status = 'ineligible' AND is_eligible_for_match = true) OR
+                     (match_status != 'ineligible' AND is_eligible_for_match = false)) = 0
           config:
             severity: error
             error_if: ">= 1"
       - dbt_utils.expression_is_true:
           name: "e058_match_eligibility_reason_alignment"
-          expression: >
-            (SELECT COUNT(*) FROM int_employee_match_calculations
-             WHERE match_eligibility_reason = 'eligible' AND is_eligible_for_match = false) = 0
+          arguments:
+            expression: >
+              (SELECT COUNT(*) FROM int_employee_match_calculations
+               WHERE match_eligibility_reason = 'eligible' AND is_eligible_for_match = false) = 0
           config:
             severity: error
             error_if: ">= 1"
       - dbt_utils.expression_is_true:
           name: "e058_capped_match_amount_consistency"
-          expression: >
-            (SELECT COUNT(*) FROM int_employee_match_calculations
-             WHERE capped_match_amount < 0 OR
-                   (is_eligible_for_match = true AND capped_match_amount < employer_match_amount)) = 0
+          arguments:
+            expression: >
+              (SELECT COUNT(*) FROM int_employee_match_calculations
+               WHERE capped_match_amount < 0 OR
+                     (is_eligible_for_match = true AND capped_match_amount < employer_match_amount)) = 0
           config:
             severity: error
             error_if: ">= 1"
       - dbt_utils.expression_is_true:
           name: "e058_no_deferrals_status_consistency"
-          expression: >
-            (SELECT COUNT(*) FROM int_employee_match_calculations
-             WHERE match_status = 'no_deferrals' AND annual_deferrals > 0) = 0
+          arguments:
+            expression: >
+              (SELECT COUNT(*) FROM int_employee_match_calculations
+               WHERE match_status = 'no_deferrals' AND annual_deferrals > 0) = 0
           config:
             severity: error
             error_if: ">= 1"
@@ -576,20 +630,23 @@ models:
     data_tests:
       # Feature 101: the windowed base can never exceed employment-prorated comp
       - dbt_utils.expression_is_true:
-          expression: "total_contribution_base_compensation <= prorated_annual_compensation + 0.01"
-      # The model caps contributions at the age-appropriate IRS 402(g) limit. Assert
-      # that invariant directly rather than a static numeric ceiling — the limit rises
-      # year over year (super-catch-up reaches $39,250 by 2035 in config_irs_limits),
-      # so any fixed max_value would false-fail in later simulation years.
+          arguments:
+            expression: "total_contribution_base_compensation <= prorated_annual_compensation + 0.01"
+        # The model caps contributions at the age-appropriate IRS 402(g) limit. Assert
+        # that invariant directly rather than a static numeric ceiling — the limit rises
+        # year over year (super-catch-up reaches $39,250 by 2035 in config_irs_limits),
+        # so any fixed max_value would false-fail in later simulation years.
       - dbt_utils.expression_is_true:
-          expression: "annual_contribution_amount <= applicable_irs_limit + 0.01"
+          arguments:
+            expression: "annual_contribution_amount <= applicable_irs_limit + 0.01"
           name: "annual_contribution_amount_within_irs_limit"
       # Uniqueness is on the (employee_id, simulation_year) grain — this is a
       # multi-year incremental table, so employee_id alone is NOT unique.
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns:
-            - employee_id
-            - simulation_year
+          arguments:
+            combination_of_columns:
+              - employee_id
+              - simulation_year
           name: "unique_employee_per_contribution_year"
     columns:
       - name: employee_id
@@ -607,8 +664,9 @@ models:
           # Executives legitimately exceed $500k; bound generously to catch gross
           # data errors without flagging real high earners.
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 2000000
+              arguments:
+                min_value: 0
+                max_value: 2000000
       - name: annual_contribution_amount
         description: IRS-limited contributions after applying 402(g) limits
         data_tests:
@@ -617,7 +675,8 @@ models:
           # via annual_contribution_amount_within_irs_limit (the limit is not constant
           # across years, so only the non-negativity floor is checked here).
           - dbt_utils.accepted_range:
-              min_value: 0
+              arguments:
+                min_value: 0
       - name: amount_capped_by_irs_limit
         description: Amount of contributions exceeding IRS limits that were capped
         data_tests:
@@ -625,16 +684,18 @@ models:
           # = requested contribution − IRS limit; high earners deferring large
           # percentages can exceed the old $50k bound.
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 200000
+              arguments:
+                min_value: 0
+                max_value: 200000
       - name: effective_annual_deferral_rate
         description: Time-weighted effective deferral rate for the year
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 1.0
-      # Feature 101: active-enrollment-window proration
+              arguments:
+                min_value: 0
+                max_value: 1.0
+        # Feature 101: active-enrollment-window proration
       - name: total_contribution_base_compensation
         description: >
           Compensation base the deferral rate is applied to. Equals prorated_annual_compensation
@@ -645,7 +706,8 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
+              arguments:
+                min_value: 0
       - name: active_enrollment_days
         description: >
           Days credited for the active-enrollment window (enrollment→opt-out, bounded by employment).
@@ -653,14 +715,16 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 366
+              arguments:
+                min_value: 0
+                max_value: 366
       - name: contribution_window_category
         description: "'enroll_optout_window' | 'full_year' | 'partial_year' (Feature 101)"
         data_tests:
           - not_null
           - accepted_values:
-              values: ['enroll_optout_window', 'full_year', 'partial_year']
+              arguments:
+                values: ['enroll_optout_window', 'full_year', 'partial_year']
       - name: contribution_periods_count
         description: Number of contribution periods calculated for this employee
 
@@ -686,58 +750,63 @@ models:
     data_tests:
       # Uniqueness at the scenario/plan/employee/year grain
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns:
-            - scenario_id
-            - plan_design_id
-            - employee_id
-            - simulation_year
+          arguments:
+            combination_of_columns:
+              - scenario_id
+              - plan_design_id
+              - employee_id
+              - simulation_year
           config:
             severity: warn
       # Temporal continuity - non-decreasing escalation count (known limitation in multi-year accumulation)
       - dbt_utils.expression_is_true:
-          expression: >
-            (SELECT COUNT(*) FROM (
-              SELECT
-                employee_id,
-                simulation_year,
-                escalations_received,
-                LAG(escalations_received) OVER (PARTITION BY scenario_id, plan_design_id, employee_id ORDER BY simulation_year) as prev_escalations
-              FROM int_deferral_rate_state_accumulator
-            ) t
-            WHERE escalations_received < COALESCE(prev_escalations, 0)) = 0
+          arguments:
+            expression: >
+              (SELECT COUNT(*) FROM (
+                SELECT
+                  employee_id,
+                  simulation_year,
+                  escalations_received,
+                  LAG(escalations_received) OVER (PARTITION BY scenario_id, plan_design_id, employee_id ORDER BY simulation_year) as prev_escalations
+                FROM int_deferral_rate_state_accumulator
+              ) t
+              WHERE escalations_received < COALESCE(prev_escalations, 0)) = 0
           config:
             severity: warn
       # Deferral rate progression - generally non-decreasing, allow minor negative due to opt-outs (warn only)
       - dbt_utils.expression_is_true:
-          expression: >
-            (SELECT COUNT(*) FROM (
-              SELECT
-                employee_id,
-                simulation_year,
-                current_deferral_rate,
-                LAG(current_deferral_rate) OVER (PARTITION BY scenario_id, plan_design_id, employee_id ORDER BY simulation_year) as prev_rate
-              FROM int_deferral_rate_state_accumulator
-            ) t
-            WHERE current_deferral_rate < COALESCE(prev_rate, 0) - 0.001) = 0
+          arguments:
+            expression: >
+              (SELECT COUNT(*) FROM (
+                SELECT
+                  employee_id,
+                  simulation_year,
+                  current_deferral_rate,
+                  LAG(current_deferral_rate) OVER (PARTITION BY scenario_id, plan_design_id, employee_id ORDER BY simulation_year) as prev_rate
+                FROM int_deferral_rate_state_accumulator
+              ) t
+              WHERE current_deferral_rate < COALESCE(prev_rate, 0) - 0.001) = 0
           config:
             severity: warn
             error_if: ">= 1"
       # No escalations recorded for terminated employees in the same year
       - dbt_utils.expression_is_true:
-          expression: >
-            (SELECT COUNT(*) FROM int_deferral_rate_state_accumulator acc
-             LEFT JOIN int_employee_compensation_by_year comp
-             ON acc.employee_id = comp.employee_id AND acc.simulation_year = comp.simulation_year
-             WHERE comp.employment_status = 'terminated'
-             AND acc.escalation_events_this_year > 0) = 0
+          arguments:
+            expression: >
+              (SELECT COUNT(*) FROM int_deferral_rate_state_accumulator acc
+               LEFT JOIN int_employee_compensation_by_year comp
+               ON acc.employee_id = comp.employee_id AND acc.simulation_year = comp.simulation_year
+               WHERE comp.employment_status = 'terminated'
+               AND acc.escalation_events_this_year > 0) = 0
           config:
             severity: error
             error_if: ">= 1"
       # Sanity: no rates above 50%
       - dbt_utils.expression_is_true:
-          expression: >
-            (SELECT COUNT(*) FROM int_deferral_rate_state_accumulator
-             WHERE current_deferral_rate > 0.5) = 0
+          arguments:
+            expression: >
+              (SELECT COUNT(*) FROM int_deferral_rate_state_accumulator
+               WHERE current_deferral_rate > 0.5) = 0
           config:
             severity: error
             error_if: ">= 1"
@@ -751,8 +820,9 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: "{{ var('simulation_start_year', 2025) }}"
-              max_value: "{{ var('simulation_end_year', 2029) }}"
+              arguments:
+                min_value: "{{ var('simulation_start_year', 2025) }}"
+                max_value: "{{ var('simulation_end_year', 2029) }}"
               config:
                 severity: error
       - name: current_deferral_rate
@@ -760,8 +830,9 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 0.5
+              arguments:
+                min_value: 0
+                max_value: 0.5
               config:
                 severity: error
       - name: escalations_received
@@ -769,8 +840,9 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 10
+              arguments:
+                min_value: 0
+                max_value: 10
               config:
                 severity: error
       - name: last_escalation_date
@@ -782,8 +854,9 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 0.5
+              arguments:
+                min_value: 0
+                max_value: 0.5
               config:
                 severity: error
       - name: escalation_events_this_year
@@ -791,8 +864,9 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 3
+              arguments:
+                min_value: 0
+                max_value: 3
               config:
                 severity: error
       - name: had_escalation_this_year
@@ -800,7 +874,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: [true, false]
+              arguments:
+                values: [true, false]
               config:
                 severity: error
       - name: has_escalations
@@ -808,7 +883,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: [true, false]
+              arguments:
+                values: [true, false]
               config:
                 severity: error
       - name: original_deferral_rate
@@ -816,32 +892,36 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 0.5
+              arguments:
+                min_value: 0
+                max_value: 0.5
               config:
                 severity: error
       - name: escalation_rate_change_pct
         description: Percentage change from original rate due to escalations
         data_tests:
           - dbt_utils.accepted_range:
-              min_value: -0.1
-              max_value: 10.0
+              arguments:
+                min_value: -0.1
+                max_value: 10.0
               config:
                 severity: warn
       - name: years_since_first_escalation
         description: Years since first escalation (NULL if no escalations)
         data_tests:
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 10
+              arguments:
+                min_value: 0
+                max_value: 10
               config:
                 severity: warn
       - name: days_since_last_escalation
         description: Days since last escalation (NULL if no escalations)
         data_tests:
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 3650
+              arguments:
+                min_value: 0
+                max_value: 3650
               config:
                 severity: warn
       - name: scenario_id
@@ -849,7 +929,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['default', 'scenario_1', 'scenario_2']
+              arguments:
+                values: ['default', 'scenario_1', 'scenario_2']
               config:
                 severity: warn
       - name: data_quality_flag
@@ -857,7 +938,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ["VALID", "INVALID_EMPLOYEE_ID", "INVALID_SIMULATION_YEAR", "INVALID_DEFERRAL_RATE", "INVALID_DEFERRAL_RATE_RANGE", "INVALID_ESCALATION_COUNT"]
+              arguments:
+                values: ["VALID", "INVALID_EMPLOYEE_ID", "INVALID_SIMULATION_YEAR", "INVALID_DEFERRAL_RATE", "INVALID_DEFERRAL_RATE_RANGE", "INVALID_ESCALATION_COUNT"]
               config:
                 severity: error
       - name: created_at
@@ -873,9 +955,10 @@ models:
       tags: ["workforce_planning", "core_calculations"]
     data_tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns:
-            - simulation_year
-            - scenario_id
+          arguments:
+            combination_of_columns:
+              - simulation_year
+              - scenario_id
     columns:
       - name: workforce_needs_id
         description: Unique identifier for this workforce needs calculation
@@ -895,7 +978,8 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
+              arguments:
+                min_value: 0
       - name: starting_new_hire_count
         description: Current-year hires at the start of planning; BIGINT in every simulation year
         data_type: bigint
@@ -904,32 +988,37 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: -0.5
-              max_value: 0.5
+              arguments:
+                min_value: -0.5
+                max_value: 0.5
       - name: expected_experienced_terminations
         description: Expected number of experienced employee terminations
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
+              arguments:
+                min_value: 0
       - name: expected_new_hire_terminations
         description: Expected number of new hire terminations
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
+              arguments:
+                min_value: 0
       - name: total_hires_needed
         description: Total number of hires needed to achieve growth target
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
+              arguments:
+                min_value: 0
       - name: balance_status
         description: Workforce balance validation status
         data_tests:
           - not_null
           - accepted_values:
-              values: ['EXACT_MATCH', 'MINOR_VARIANCE', 'MODERATE_VARIANCE', 'SIGNIFICANT_VARIANCE']
+              arguments:
+                values: ['EXACT_MATCH', 'MINOR_VARIANCE', 'MODERATE_VARIANCE', 'SIGNIFICANT_VARIANCE']
       - name: growth_variance
         description: Variance between calculated and target growth
         data_tests:
@@ -943,43 +1032,49 @@ models:
       tags: ["workforce_planning", "cost_modeling", "level_detail"]
     data_tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns:
-            - simulation_year
-            - scenario_id
-            - level_id
+          arguments:
+            combination_of_columns:
+              - simulation_year
+              - scenario_id
+              - level_id
     columns:
       - name: workforce_needs_id
         description: Reference to parent workforce needs calculation
         data_tests:
           - not_null
           - relationships:
-              to: ref('int_workforce_needs')
-              field: workforce_needs_id
+              arguments:
+                to: ref('int_workforce_needs')
+                field: workforce_needs_id
       - name: level_id
         description: Job level identifier
         data_tests:
           - not_null
           - relationships:
-              to: ref('stg_config_job_levels')
-              field: level_id
+              arguments:
+                to: ref('stg_config_job_levels')
+                field: level_id
       - name: current_headcount
         description: Current headcount for this level
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
+              arguments:
+                min_value: 0
       - name: hires_needed
         description: Number of hires needed for this level
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
+              arguments:
+                min_value: 0
       - name: expected_terminations
         description: Expected terminations for this level
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
+              arguments:
+                min_value: 0
       - name: net_headcount_change
         description: Net change in headcount for this level
         data_tests:
@@ -1029,27 +1124,31 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              inclusive: false
-          # **NEW BASELINE COMPENSATION VALIDATION TESTS**
-          # Critical bound: Baseline compensation should never exceed $1M (baseline should be reasonable)
+              arguments:
+                min_value: 0
+                inclusive: false
+            # **NEW BASELINE COMPENSATION VALIDATION TESTS**
+            # Critical bound: Baseline compensation should never exceed $1M (baseline should be reasonable)
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 1000000
+              arguments:
+                min_value: 0
+                max_value: 1000000
               config:
                 severity: error
               name: "baseline_compensation_critical_upper_bound"
           # Warning bound: Flag baseline compensation over $500K for review
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 500000
+              arguments:
+                min_value: 0
+                max_value: 500000
               config:
                 severity: warn
               name: "baseline_compensation_warning_upper_bound"
           # Lower bound: Baseline should have reasonable minimum compensation
           - dbt_utils.accepted_range:
-              min_value: 30000
-              max_value: 10000000
+              arguments:
+                min_value: 30000
+                max_value: 10000000
               config:
                 where: "employment_status = 'active'"
               name: "baseline_compensation_reasonable_lower_bound"
@@ -1059,45 +1158,51 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 16
-              max_value: 100
+              arguments:
+                min_value: 16
+                max_value: 100
 
       - name: current_tenure
         description: Employee tenure in years as of simulation_effective_date
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 60
+              arguments:
+                min_value: 0
+                max_value: 60
 
       - name: level_id
         description: Job level ID based on compensation bands
         data_tests:
           - not_null
           - relationships:
-              to: ref('stg_config_job_levels')
-              field: level_id
+              arguments:
+                to: ref('stg_config_job_levels')
+                field: level_id
 
       - name: age_band
         description: Age band for analysis (< 25, 25-34, 35-44, 45-54, 55-64, 65+)
         data_tests:
           - not_null
           - accepted_values:
-              values: ['< 25', '25-34', '35-44', '45-54', '55-64', '65+']
+              arguments:
+                values: ['< 25', '25-34', '35-44', '45-54', '55-64', '65+']
 
       - name: tenure_band
         description: Tenure band for analysis (< 2, 2-4, 5-9, 10-19, 20+)
         data_tests:
           - not_null
           - accepted_values:
-              values: ['< 2', '2-4', '5-9', '10-19', '20+']
+              arguments:
+                values: ['< 2', '2-4', '5-9', '10-19', '20+']
 
       - name: employment_status
         description: Employment status (always 'active' for baseline)
         data_tests:
           - not_null
           - accepted_values:
-              values: ['active']
+              arguments:
+                values: ['active']
 
       - name: termination_date
         description: Termination date (NULL for baseline workforce)
@@ -1140,15 +1245,17 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 365
+              arguments:
+                min_value: 0
+                max_value: 365
 
       - name: current_eligibility_status
         description: Current eligibility status based on census data (eligible/pending)
         data_tests:
           - not_null
           - accepted_values:
-              values: ['eligible', 'pending']
+              arguments:
+                values: ['eligible', 'pending']
 
       - name: employee_enrollment_date
         description: Date when employee enrolled in DC plan (from census)
@@ -1161,10 +1268,11 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: [true, false]
+              arguments:
+                values: [true, false]
 
-  # int_termination_events and int_hiring_events are ephemeral models (E068A optimization)
-  # and cannot be tested directly. Data quality validation occurs at fct_yearly_events level.
+    # int_termination_events and int_hiring_events are ephemeral models (E068A optimization)
+    # and cannot be tested directly. Data quality validation occurs at fct_yearly_events level.
 
   - name: int_effective_parameters
     description: >
@@ -1201,15 +1309,17 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 1
-              max_value: 5
+              arguments:
+                min_value: 1
+                max_value: 5
 
       - name: event_type
         description: Workforce event type for this parameter
         data_tests:
           - not_null
           - accepted_values:
-              values: ['RAISE', 'PROMOTION', 'TERMINATION', 'HIRE', 'DEFERRAL_ESCALATION']
+              arguments:
+                values: ['RAISE', 'PROMOTION', 'TERMINATION', 'HIRE', 'DEFERRAL_ESCALATION']
 
       - name: parameter_name
         description: Name of the parameter
@@ -1221,8 +1331,9 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 100  # Allow thresholds like age 25, tenure 2, etc.
+              arguments:
+                min_value: 0
+                max_value: 100  # Allow thresholds like age 25, tenure 2, etc.
 
       - name: is_locked
         description: Whether this parameter is locked from changes
@@ -1234,7 +1345,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['scenario', 'default', 'hardcoded']
+              arguments:
+                values: ['scenario', 'default', 'hardcoded']
 
       - name: resolved_at
         description: Timestamp when parameter was resolved
@@ -1251,7 +1363,8 @@ models:
       tags: ["EVENT_GENERATION", "event_sourcing"]
     data_tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [employee_id, simulation_year]
+          arguments:
+            combination_of_columns: [employee_id, simulation_year]
     columns:
       - name: employee_id
         description: Internal employee identifier used only within simulation processing
@@ -1267,10 +1380,11 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['experienced', 'new_hire']
+              arguments:
+                values: ['experienced', 'new_hire']
 
-  # int_merit_events and int_promotion_events are ephemeral models (E068A optimization)
-  # and cannot be tested directly. Data quality validation occurs at fct_yearly_events level.
+    # int_merit_events and int_promotion_events are ephemeral models (E068A optimization)
+    # and cannot be tested directly. Data quality validation occurs at fct_yearly_events level.
 
   - name: int_new_hire_termination_events
     description: >
@@ -1288,7 +1402,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['termination']
+              arguments:
+                values: ['termination']
       - name: simulation_year
         description: Year when termination occurs
         data_tests:
@@ -1328,8 +1443,9 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              inclusive: false
+              arguments:
+                min_value: 0
+                inclusive: false
       - name: current_age
         description: Employee age in the simulation year
         data_tests:
@@ -1401,35 +1517,40 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              inclusive: false
+              arguments:
+                min_value: 0
+                inclusive: false
       - name: current_age
         description: Employee age in the current simulation year
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 16
-              max_value: 100
+              arguments:
+                min_value: 16
+                max_value: 100
       - name: current_tenure
         description: Employee tenure in years
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 60
+              arguments:
+                min_value: 0
+                max_value: 60
       - name: level_id
         description: Job level ID
         data_tests:
           - not_null
           - relationships:
-              to: ref('stg_config_job_levels')
-              field: level_id
+              arguments:
+                to: ref('stg_config_job_levels')
+                field: level_id
       - name: employment_status
         description: Employment status (always 'active' for this model)
         data_tests:
           - not_null
           - accepted_values:
-              values: ['active']
+              arguments:
+                values: ['active']
       - name: termination_date
         description: Termination date (NULL for active employees)
       - name: age_band
@@ -1437,13 +1558,15 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['< 25', '25-34', '35-44', '45-54', '55-64', '65+']
+              arguments:
+                values: ['< 25', '25-34', '35-44', '45-54', '55-64', '65+']
       - name: tenure_band
         description: Tenure band for analysis
         data_tests:
           - not_null
           - accepted_values:
-              values: ['< 2', '2-4', '5-9', '10-19', '20+']
+              arguments:
+                values: ['< 2', '2-4', '5-9', '10-19', '20+']
       - name: simulation_year
         description: Current simulation year
         data_tests:
@@ -1453,13 +1576,15 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['previous_year_snapshot']
+              arguments:
+                values: ['previous_year_snapshot']
       - name: data_quality_valid
         description: Data quality validation flag
         data_tests:
           - not_null
           - accepted_values:
-              values: [true]
+              arguments:
+                values: [true]
 
   - name: int_enrollment_events
     description: >
@@ -1504,14 +1629,16 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['enrollment', 'enrollment_change']
+              arguments:
+                values: ['enrollment', 'enrollment_change']
       - name: simulation_year
         description: Simulation year when enrollment event occurs
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: "{{ var('simulation_start_year', 2025) }}"
-              max_value: "{{ var('simulation_end_year', 2029) }}"
+              arguments:
+                min_value: "{{ var('simulation_start_year', 2025) }}"
+                max_value: "{{ var('simulation_end_year', 2029) }}"
       - name: effective_date
         description: Date when enrollment event becomes effective
         data_tests:
@@ -1525,49 +1652,56 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              inclusive: false
+              arguments:
+                min_value: 0
+                inclusive: false
       - name: employee_age
         description: Employee age at time of enrollment
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 18
-              max_value: 70
+              arguments:
+                min_value: 18
+                max_value: 70
       - name: employee_tenure
         description: Employee tenure at time of enrollment
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 50
+              arguments:
+                min_value: 0
+                max_value: 50
       - name: level_id
         description: Employee job level at time of enrollment
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 1
-              max_value: 10
+              arguments:
+                min_value: 1
+                max_value: 10
       - name: event_probability
         description: Demographic-based probability for this enrollment event
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 2.0
-              inclusive: true
+              arguments:
+                min_value: 0
+                max_value: 2.0
+                inclusive: true
       - name: event_category
         description: Category of enrollment event for analysis
         data_tests:
           - not_null
           - accepted_values:
-              values: ['proactive_enrollment', 'auto_enrollment', 'voluntary_enrollment', 'enrollment_opt_out', 'year_over_year_voluntary', 'proactive_voluntary']
+              arguments:
+                values: ['proactive_enrollment', 'auto_enrollment', 'voluntary_enrollment', 'enrollment_opt_out', 'year_over_year_voluntary', 'proactive_voluntary']
       - name: data_quality_flag
         description: Data quality validation flag
         data_tests:
           - not_null
           - accepted_values:
-              values: ['VALID', 'INVALID_EMPLOYEE_ID', 'INVALID_SIMULATION_YEAR', 'INVALID_EFFECTIVE_DATE', 'INVALID_EVENT_TYPE', 'INVALID_COMPENSATION']
+              arguments:
+                values: ['VALID', 'INVALID_EMPLOYEE_ID', 'INVALID_SIMULATION_YEAR', 'INVALID_EFFECTIVE_DATE', 'INVALID_EVENT_TYPE', 'INVALID_COMPENSATION']
       - name: created_at
         description: Timestamp when event record was created
         data_tests:
@@ -1577,7 +1711,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['E023_enrollment_engine']
+              arguments:
+                values: ['E023_enrollment_engine']
 
   - name: int_plan_eligibility_determination
     description: >
@@ -1615,7 +1750,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['eligible', 'not_eligible_age', 'not_eligible_tenure', 'not_eligible_other']
+              arguments:
+                values: ['eligible', 'not_eligible_age', 'not_eligible_tenure', 'not_eligible_other']
 
   - name: int_plan_eligibility_override
     description: >
@@ -1647,12 +1783,14 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['census', 'new_hire_dial', 'census_match', 'eligible']
+              arguments:
+                values: ['census', 'new_hire_dial', 'census_match', 'eligible']
     data_tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns:
-            - employee_id
-            - simulation_year
+          arguments:
+            combination_of_columns:
+              - employee_id
+              - simulation_year
 
   - name: int_plan_design_assignment_accumulator
     description: >
@@ -1661,10 +1799,11 @@ models:
       employees or new hires that have never been assigned.
     data_tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns:
-            - scenario_id
-            - employee_id
-            - simulation_year
+          arguments:
+            combination_of_columns:
+              - scenario_id
+              - employee_id
+              - simulation_year
     columns:
       - name: scenario_id
         data_tests: [not_null]
@@ -1680,7 +1819,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['census', 'new_hire']
+              arguments:
+                values: ['census', 'new_hire']
 
   - name: int_enrollment_state_accumulator
     description: >
@@ -1709,11 +1849,12 @@ models:
       tags: ["enrollment", "temporal_accumulator", "phase1_fix", "critical"]
     data_tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns:
-            - scenario_id
-            - plan_design_id
-            - employee_id
-            - simulation_year
+          arguments:
+            combination_of_columns:
+              - scenario_id
+              - plan_design_id
+              - employee_id
+              - simulation_year
     columns:
       - name: employee_id
         description: Unique identifier for each employee
@@ -1724,8 +1865,9 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: "{{ var('simulation_start_year', 2025) }}"
-              max_value: "{{ var('simulation_end_year', 2029) }}"
+              arguments:
+                min_value: "{{ var('simulation_start_year', 2025) }}"
+                max_value: "{{ var('simulation_end_year', 2029) }}"
       - name: enrollment_date
         description: Date when employee first enrolled (NULL if never enrolled)
       - name: enrollment_status
@@ -1733,13 +1875,15 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: [true, false]
+              arguments:
+                values: [true, false]
       - name: years_since_first_enrollment
         description: Number of years since first enrollment (NULL if never enrolled)
         data_tests:
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 50
+              arguments:
+                min_value: 0
+                max_value: 50
       - name: enrollment_source
         description: Source of enrollment (baseline, event_YYYY, or none)
         data_tests:
@@ -1749,15 +1893,17 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 10
+              arguments:
+                min_value: 0
+                max_value: 10
       - name: enrollment_change_events_this_year
         description: Count of enrollment change events in current simulation year
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 10
+              arguments:
+                min_value: 0
+                max_value: 10
       - name: effective_enrollment_date
         description: Effective enrollment date (enrollment_date if enrolled, NULL otherwise)
       - name: is_enrolled
@@ -1765,7 +1911,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: [true, false]
+              arguments:
+                values: [true, false]
       - name: created_at
         description: Timestamp when this record was created
         data_tests:
@@ -1779,16 +1926,17 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['VALID', 'INVALID_EMPLOYEE_ID', 'INVALID_SIMULATION_YEAR', 'INVALID_ENROLLMENT_STATUS']
+              arguments:
+                values: ['VALID', 'INVALID_EMPLOYEE_ID', 'INVALID_SIMULATION_YEAR', 'INVALID_ENROLLMENT_STATUS']
 
-  # NOTE: int_deferral_rate_escalation_events is materialized as ephemeral.
-  # Ephemeral models are inlined as CTEs into downstream models and do not exist
-  # as standalone database objects, so dbt schema tests (not_null, accepted_values)
-  # cannot be applied directly. The data quality validations for escalation events
-  # are instead enforced via:
-  #   - dbt/models/marts/data_quality/dq_deferral_escalation_validation.sql (summary health check)
-  #   - dbt/tests/data_quality/test_deferral_escalation.sql (singular test on fct_yearly_events)
-  #   - tests/test_escalation_events.py (pytest integration test)
+    # NOTE: int_deferral_rate_escalation_events is materialized as ephemeral.
+    # Ephemeral models are inlined as CTEs into downstream models and do not exist
+    # as standalone database objects, so dbt schema tests (not_null, accepted_values)
+    # cannot be applied directly. The data quality validations for escalation events
+    # are instead enforced via:
+    #   - dbt/models/marts/data_quality/dq_deferral_escalation_validation.sql (summary health check)
+    #   - dbt/tests/data_quality/test_deferral_escalation.sql (singular test on fct_yearly_events)
+    #   - tests/test_escalation_events.py (pytest integration test)
   - name: int_deferral_rate_escalation_events
     description: >
       Generate annual deferral rate escalation events for eligible enrolled employees.
@@ -1837,33 +1985,38 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0.01
-              max_value: 1.0
+              arguments:
+                min_value: 0.01
+                max_value: 1.0
       - name: match_magnet_ceiling
         description: "Per-employee match ceiling the magnet snaps toward (0 when magnet inactive)."
         data_tests:
           - dbt_utils.accepted_range:
-              min_value: 0
+              arguments:
+                min_value: 0
       - name: spread_random
         description: "Issue #652: independent draw for the upward deferral spread. Deliberately seeded separately from deferral_random, which the match magnet consumes; sharing a seed would correlate spreading upward with snapping to the ceiling."
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 1
+              arguments:
+                min_value: 0
+                max_value: 1
       - name: spread_deferral_rate
         description: "Issue #652: table value after the upward spread, before match-magnet snapping. Equals selected_deferral_rate when deferral_spread_max_lift is 0."
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
+              arguments:
+                min_value: 0
       - name: final_enrollment_probability
         description: "Issue #652: the flat new-hire rate for hire-year new hires when voluntary_enrollment_rate is set; the demographic product otherwise."
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 1
+              arguments:
+                min_value: 0
+                max_value: 1
 
   - name: int_proactive_voluntary_enrollment
     description: "Proactive (within auto-enrollment window) voluntary enrollment with match-magnet snapping (Feature 102)."
@@ -1873,10 +2026,12 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0.01
-              max_value: 1.0
+              arguments:
+                min_value: 0.01
+                max_value: 1.0
       - name: match_magnet_ceiling
         description: "Per-employee match ceiling the magnet snaps toward (0 when magnet inactive)."
         data_tests:
           - dbt_utils.accepted_range:
-              min_value: 0
+              arguments:
+                min_value: 0

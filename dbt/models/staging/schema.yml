@@ -76,10 +76,12 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
+              arguments:
+                min_value: 0
               name: "plan_year_comp_non_negative"
           - dbt_utils.expression_is_true:
-              expression: "<= employee_gross_compensation * (366.0 / 365.0)"
+              arguments:
+                expression: "<= employee_gross_compensation * (366.0 / 365.0)"
               name: "plan_year_comp_not_exceeds_gross"
       - name: employee_annualized_compensation
         description: "Annualized compensation equals gross compensation (gross is already an annual rate per data contract)."
@@ -89,7 +91,8 @@ models:
         data_tests:
           - not_null
           - dbt_utils.expression_is_true:
-              expression: "= employee_gross_compensation"
+              arguments:
+                expression: "= employee_gross_compensation"
               name: "annualized_comp_equals_gross"
       - name: employee_capped_compensation
         description: "Capped compensation for benefit calculations."
@@ -126,9 +129,11 @@ models:
         data_type: decimal(5,2)
         data_tests:
           - dbt_utils.accepted_range:
-              min_value: 1
-              max_value: 40
-              where: "scheduled_hours_per_week IS NOT NULL"
+              arguments:
+                min_value: 1
+                max_value: 40
+              config:
+                where: "scheduled_hours_per_week IS NOT NULL"
       - name: employee_eligibility_date
         description: "Date when employee becomes eligible for DC plan participation (hire date + waiting period)."
         data_type: date
@@ -144,8 +149,9 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 365
+              arguments:
+                min_value: 0
+                max_value: 365
       - name: current_eligibility_status
         description: "Current eligibility status based on eligibility date vs census year end (eligible/pending)."
         data_type: varchar
@@ -154,7 +160,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['eligible', 'pending']
+              arguments:
+                values: ['eligible', 'pending']
       - name: employee_enrollment_date
         description: "Date when employee enrolled in DC plan. Set to census year end only if employee_deferral_rate > 0."
         data_type: date
@@ -169,7 +176,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: [true, false]
+              arguments:
+                values: [true, false]
       - name: eligibility_override
         description: >
           Per-employee plan eligibility override (Feature 103). TRUE = eligible,
@@ -181,7 +189,8 @@ models:
         data_type: boolean
         data_tests:
           - accepted_values:
-              values: [true, false]
+              arguments:
+                values: [true, false]
               config:
                 where: "eligibility_override is not null"
 
@@ -213,7 +222,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['KEPT', 'DROPPED']
+              arguments:
+                values: ['KEPT', 'DROPPED']
       - name: audit_timestamp
         description: Timestamp when this audit record was created
         data_tests:
@@ -244,15 +254,17 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 0.2
+              arguments:
+                min_value: 0
+                max_value: 0.2
       - name: promotion_probability
         description: Annual probability of promotion from this level
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 1
+              arguments:
+                min_value: 0
+                max_value: 1
 
   - name: stg_config_cola_by_year
     description: >
@@ -269,8 +281,9 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: -0.1
-              max_value: 0.1
+              arguments:
+                min_value: -0.1
+                max_value: 0.1
 
   - name: stg_config_termination_hazard_base
     description: >
@@ -286,8 +299,9 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 1
+              arguments:
+                min_value: 0
+                max_value: 1
 
   - name: stg_config_termination_hazard_age_multipliers
     description: >
@@ -307,8 +321,9 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 5
+              arguments:
+                min_value: 0
+                max_value: 5
 
   - name: stg_config_termination_hazard_tenure_multipliers
     description: >
@@ -328,8 +343,9 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 5
+              arguments:
+                min_value: 0
+                max_value: 5
 
   - name: stg_config_promotion_hazard_base
     description: Base promotion hazard rate configuration
@@ -339,8 +355,9 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 1
+              arguments:
+                min_value: 0
+                max_value: 1
       - name: level_dampener_factor
         description: Factor to reduce promotion probability at higher levels
         data_tests:
@@ -359,8 +376,9 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 5
+              arguments:
+                min_value: 0
+                max_value: 5
 
   - name: stg_config_promotion_hazard_tenure_multipliers
     description: Tenure-based multipliers for promotion hazard rates
@@ -375,8 +393,9 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 5
+              arguments:
+                min_value: 0
+                max_value: 5
 
   - name: stg_config_raises_hazard
     description: Merit raises hazard configuration
@@ -386,8 +405,9 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 0.2
+              arguments:
+                min_value: 0
+                max_value: 0.2
 
   - name: stg_comp_levers
     description: >
@@ -409,14 +429,16 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 1
-              max_value: 5
+              arguments:
+                min_value: 1
+                max_value: 5
       - name: event_type
         description: Type of workforce event (RAISE, PROMOTION, etc.)
         data_tests:
           - not_null
           - accepted_values:
-              values: ['RAISE', 'PROMOTION', 'TERMINATION', 'HIRE', 'DEFERRAL_ESCALATION']
+              arguments:
+                values: ['RAISE', 'PROMOTION', 'TERMINATION', 'HIRE', 'DEFERRAL_ESCALATION']
       - name: parameter_name
         description: Name of the parameter being configured
         data_tests:
@@ -426,8 +448,9 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 100  # Allow higher values for thresholds (e.g., age_threshold)
+              arguments:
+                min_value: 0
+                max_value: 100  # Allow higher values for thresholds (e.g., age_threshold)
       - name: is_locked
         description: Whether this parameter is locked from further changes
         data_tests:
@@ -459,14 +482,16 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 1
+              arguments:
+                min_value: 0
+                max_value: 1
       - name: priority
         description: Priority level for optimization (high, medium, low)
         data_tests:
           - not_null
           - accepted_values:
-              values: ['high', 'medium', 'low']
+              arguments:
+                values: ['high', 'medium', 'low']
 
   - name: stg_scenario_meta
     description: >
@@ -487,7 +512,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['draft', 'published', 'archived']
+              arguments:
+                values: ['draft', 'published', 'archived']
       - name: created_by
         description: User who created the scenario
         data_tests:
@@ -512,21 +538,24 @@ models:
           - unique
           - not_null
           - accepted_values:
-              values: ['< 25', '25-34', '35-44', '45-54', '55-64', '65+']
+              arguments:
+                values: ['< 25', '25-34', '35-44', '45-54', '55-64', '65+']
       - name: min_value
         description: Lower bound of the band (inclusive)
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 999
+              arguments:
+                min_value: 0
+                max_value: 999
       - name: max_value
         description: Upper bound of the band (exclusive)
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 1
-              max_value: 999
+              arguments:
+                min_value: 1
+                max_value: 999
       - name: display_order
         description: Sort order for reporting
         data_tests:
@@ -552,21 +581,24 @@ models:
           - unique
           - not_null
           - accepted_values:
-              values: ['< 2', '2-4', '5-9', '10-19', '20+']
+              arguments:
+                values: ['< 2', '2-4', '5-9', '10-19', '20+']
       - name: min_value
         description: Lower bound of the band in years (inclusive)
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 999
+              arguments:
+                min_value: 0
+                max_value: 999
       - name: max_value
         description: Upper bound of the band in years (exclusive)
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 1
-              max_value: 999
+              arguments:
+                min_value: 1
+                max_value: 999
       - name: display_order
         description: Sort order for reporting
         data_tests:
