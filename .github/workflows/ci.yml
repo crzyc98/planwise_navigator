@@ -549,6 +549,18 @@ jobs:
           # this job don't hit sqlparse's 10,000-token DoS-protection limit.
           python -c "import planalign_orchestrator"
 
+      # Editable installs hide packaging gaps; install the built wheel into a
+      # clean venv and import every shipped package from outside the checkout.
+      - name: Verify non-editable wheel install
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          uv build --wheel --out-dir "$RUNNER_TEMP/dist"
+          uv venv "$RUNNER_TEMP/wheel-venv" --python "$PYTHON_VERSION"
+          uv pip install --python "$RUNNER_TEMP/wheel-venv/bin/python" "$RUNNER_TEMP"/dist/*.whl
+          cd "$RUNNER_TEMP"
+          wheel-venv/bin/python "$GITHUB_WORKSPACE/scripts/check_wheel_imports.py"
+          wheel-venv/bin/planalign --help > /dev/null
+
       - name: Validate dbt project
         env:
           # Seed relations use an unquoted catalog name derived from this stem.
