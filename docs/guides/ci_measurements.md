@@ -17,8 +17,11 @@ slower than presentation changes while preserving the full fast suite for both.
 
 The four integration shards and combined coverage still run on main/develop,
 nightly, manual dispatch, and PRs carrying `full-ci`. Adding or removing a label
-now triggers selection immediately. Use `full-ci` for integration-sensitive
-changes beyond the simulation suites. No coverage threshold or test is removed.
+now triggers selection immediately. Use `full-ci` only for changes that need
+integration-shard or coverage evidence before merge (integration tests, coverage
+inventory, CI); otherwise rely on the post-merge `main` run. Apply it when
+creating the PR: labeling later cancels the first run and reports a spurious
+`CI Gate` failure. No coverage threshold or test is removed.
 
 `CI Gate` rejects failed/cancelled jobs, missing baseline checks, skipped selected
 suites, and invalid selection outputs. After deploying this workflow and seeing
