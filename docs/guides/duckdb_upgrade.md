@@ -1,6 +1,6 @@
 # DuckDB 1.5.5 migration
 
-PlanAlign pins DuckDB 1.5.5 with dbt-core 1.9.11 and dbt-duckdb 1.9.6. The upgrade preserves the 1.1.3 simulation contract rather than accepting new seeded decisions or rounding results.
+At the time of this DuckDB upgrade, PlanAlign pinned DuckDB 1.5.5 with dbt-core 1.9.11 and dbt-duckdb 1.9.6. The upgrade preserves the 1.1.3 simulation contract rather than accepting new seeded decisions or rounding results.
 
 ## Compatibility rules
 

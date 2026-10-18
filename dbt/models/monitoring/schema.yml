@@ -9,7 +9,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['RECORD_COUNT', 'COMPLETENESS', 'BUSINESS_RULE', 'OUTLIER_DETECTION', 'YOY_CONSISTENCY', 'FRESHNESS']
+              arguments:
+                values: ['RECORD_COUNT', 'COMPLETENESS', 'BUSINESS_RULE', 'OUTLIER_DETECTION', 'YOY_CONSISTENCY', 'FRESHNESS']
       - name: table_name
         description: "Name of the table being monitored"
         data_tests:
@@ -31,7 +32,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['PASS', 'WARN', 'FAIL']
+              arguments:
+                values: ['PASS', 'WARN', 'FAIL']
       - name: check_description
         description: "Human-readable description of what was checked"
         data_tests:
@@ -54,14 +56,16 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
+              arguments:
+                min_value: 0
       - name: run_duration_minutes
         description: "Total runtime in minutes"
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 1440
+              arguments:
+                min_value: 0
+                max_value: 1440
       - name: employees_per_minute
         description: "Processing throughput in employees per minute"
       - name: overall_performance_category
@@ -69,27 +73,31 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['FAST', 'MEDIUM', 'SLOW']
+              arguments:
+                values: ['FAST', 'MEDIUM', 'SLOW']
       - name: overall_quality_score
         description: "Overall data quality score percentage"
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 0
-              max_value: 100
-              inclusive: true
+              arguments:
+                min_value: 0
+                max_value: 100
+                inclusive: true
       - name: sla_status
         description: "SLA compliance status"
         data_tests:
           - not_null
           - accepted_values:
-              values: ['WITHIN_SLA', 'SLA_WARNING', 'SLA_BREACH']
+              arguments:
+                values: ['WITHIN_SLA', 'SLA_WARNING', 'SLA_BREACH']
       - name: performance_alert
         description: "Performance alert category"
         data_tests:
           - not_null
           - accepted_values:
-              values: ['OK', 'SLOW_EXECUTION', 'LOW_THROUGHPUT', 'HIGH_CPU_USAGE', 'HIGH_MEMORY_USAGE', 'QUALITY_ISSUE', 'PERFORMANCE_DEGRADATION']
+              arguments:
+                values: ['OK', 'SLOW_EXECUTION', 'LOW_THROUGHPUT', 'HIGH_CPU_USAGE', 'HIGH_MEMORY_USAGE', 'QUALITY_ISSUE', 'PERFORMANCE_DEGRADATION']
       - name: performance_check_timestamp
         description: "When the performance check was performed"
         data_tests:
@@ -129,7 +137,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['CRITICAL_VIOLATION', 'MAJOR_VIOLATION', 'MINOR_VIOLATION', 'WARNING', 'PASS']
+              arguments:
+                values: ['CRITICAL_VIOLATION', 'MAJOR_VIOLATION', 'MINOR_VIOLATION', 'WARNING', 'PASS']
       - name: compensation_gap
         description: Difference between promotion previous salary and actual previous year compensation
       - name: gap_percentage
@@ -138,7 +147,8 @@ models:
         description: Whether merit events properly propagated to promotion calculations
         data_tests:
           - accepted_values:
-              values: ['MERIT_NOT_PROPAGATED', 'MERIT_PROPERLY_PROPAGATED', 'NO_MERIT_EVENT']
+              arguments:
+                values: ['MERIT_NOT_PROPAGATED', 'MERIT_PROPERLY_PROPAGATED', 'NO_MERIT_EVENT']
       - name: estimated_underpayment_amount
         description: Estimated financial impact of compensation gap (if employee was underpaid)
         data_tests:
@@ -176,11 +186,13 @@ models:
         description: Enterprise compliance assessment
         data_tests:
           - accepted_values:
-              values: ['COMPLIANT', 'MINOR_ISSUES', 'MODERATE_ISSUES', 'CRITICAL_ISSUES']
+              arguments:
+                values: ['COMPLIANT', 'MINOR_ISSUES', 'MODERATE_ISSUES', 'CRITICAL_ISSUES']
       - name: financial_risk_level
         description: Financial risk assessment based on underpayment amounts
         data_tests:
           - accepted_values:
-              values: ['HIGH_RISK', 'MEDIUM_RISK', 'LOW_RISK', 'MINIMAL_RISK']
+              arguments:
+                values: ['HIGH_RISK', 'MEDIUM_RISK', 'LOW_RISK', 'MINIMAL_RISK']
       - name: total_estimated_underpayment
         description: Total estimated financial impact across all violations

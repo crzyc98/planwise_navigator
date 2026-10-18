@@ -51,7 +51,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: ['SUMMARY', 'CONFIG', 'HOURS_BUCKET', 'DETAIL']
+              arguments:
+                values: ['SUMMARY', 'CONFIG', 'HOURS_BUCKET', 'DETAIL']
 
       - name: employee_id
         description: |

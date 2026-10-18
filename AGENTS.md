@@ -121,6 +121,6 @@ When adding or changing dbt models: add/adjust `schema.yml` tests, keep types an
 ---
 
 ## Active Technologies
-- Authoritative versions live in `pyproject.toml` (Python >=3.12, DuckDB 1.5.6, dbt-core 1.9.11 / dbt-duckdb 1.9.6) and `planalign_studio/package.json`. Per-feature entries below are appended by speckit.
+- Authoritative versions live in `pyproject.toml` (Python >=3.12, DuckDB 1.5.6, dbt-core 1.12.6 / dbt-duckdb 1.9.6) and `planalign_studio/package.json`. Per-feature entries below are appended by speckit.
 
 ## Recent Changes
