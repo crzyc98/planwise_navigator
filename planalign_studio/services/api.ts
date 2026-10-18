@@ -1973,7 +1973,14 @@ async function awaitCalibrationJob(runId: string): Promise<CalibrationJob> {
     } catch (error) {
       const retryable = !(error instanceof ApiError)
         || error.status >= 500 || error.status === 429;
-      if (!retryable || ++failures >= 5) {
+      if (!retryable) {
+        if (error instanceof ApiError && error.status === 404) {
+          throw new ApiError(404, 'Calibration run no longer available',
+            'Calibration run no longer available; start again.');
+        }
+        throw error;
+      }
+      if (++failures >= 5) {
         throw new CalibrationStatusUnavailable(runId, error);
       }
       await new Promise(resolve => setTimeout(resolve, CALIBRATION_POLL_MS));

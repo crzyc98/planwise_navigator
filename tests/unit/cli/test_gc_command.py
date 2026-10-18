@@ -11,11 +11,20 @@ from typer.testing import CliRunner
 
 from planalign_cli.commands import gc
 from planalign_cli.main import app
+from planalign_api.services.calibration_temp import (
+    calibration_database_prefix,
+    find_orphaned_calibration_databases,
+)
 
 pytestmark = pytest.mark.fast
 runner = CliRunner()
 
 OLD = time.time() - 30 * 86400
+
+
+@pytest.fixture(autouse=True)
+def isolate_calibration_temp(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(gc, "find_orphaned_calibration_databases", lambda: [])
 
 
 def _touch(path: Path, size: int = 16, mtime: float = OLD) -> Path:
@@ -162,3 +171,45 @@ def test_param_fit_scratch_of_a_running_job_is_never_reclaimed(tmp_path: Path):
     (work.parent.parent / "job.json").write_text(json.dumps({"status": "running"}))
 
     assert gc.find_stale_param_fit_scratch(workspaces, 0) == []
+
+
+def test_calibration_temp_discovery_keeps_live_jobs_and_unrelated_files(
+    tmp_path: Path,
+) -> None:
+    live = _touch(tmp_path / f"{calibration_database_prefix()}live.duckdb")
+    orphan = _touch(tmp_path / "planalign_calibration_999999_0_orphan.duckdb")
+    legacy = _touch(tmp_path / "planalign_calibration_legacy.duckdb")
+    recent_legacy = _touch(
+        tmp_path / "planalign_calibration_recent.duckdb", mtime=time.time()
+    )
+    unrelated = _touch(tmp_path / "planalign_calibration_legacy.duckdb.wal")
+    nested = _touch(tmp_path / "nested/planalign_calibration_nested.duckdb")
+    link = tmp_path / "planalign_calibration_link.duckdb"
+    link.symlink_to(unrelated)
+
+    assert set(find_orphaned_calibration_databases(tmp_path)) == {legacy, orphan}
+    assert live.exists() and recent_legacy.exists()
+    assert nested.exists() and link.is_symlink()
+
+
+def test_gc_dry_run_and_delete_orphaned_calibration_copy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    orphan = _touch(tmp_path / "planalign_calibration_orphan.duckdb")
+    monkeypatch.setattr(
+        gc,
+        "find_orphaned_calibration_databases",
+        lambda: find_orphaned_calibration_databases(tmp_path),
+    )
+    monkeypatch.setattr(gc, "PROJECT_ROOT", tmp_path / "project")
+    args = ["gc", "--workspaces-root", str(tmp_path / "empty")]
+
+    dry = runner.invoke(app, args)
+    assert dry.exit_code == 0, dry.output
+    assert "Would remove 1 orphaned calibration database(s)" in dry.output
+    assert orphan.exists()
+
+    real = runner.invoke(app, [*args, "--yes"])
+    assert real.exit_code == 0, real.output
+    assert "Removed 1 orphaned calibration database(s)" in real.output
+    assert not orphan.exists()

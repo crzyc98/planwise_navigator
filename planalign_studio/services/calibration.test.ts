@@ -56,9 +56,15 @@ describe('calibration result retrieval', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('reports a missing server job with its run ID instead of starting another one', async () => {
+  it('tells the user to start again when the server job is gone', async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ detail: 'Run not found' }), { status: 404 }));
-    await expect(retrieveCalibrationResult('autocal-test')).rejects.toMatchObject({ runId: 'autocal-test' });
+    const error: unknown = await retrieveCalibrationResult('autocal-test').catch((cause: unknown) => cause);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).not.toBeInstanceOf(CalibrationStatusUnavailable);
+    expect(error).toMatchObject({
+      status: 404,
+      message: 'Calibration run no longer available; start again.',
+    });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
