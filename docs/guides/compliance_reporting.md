@@ -9,11 +9,22 @@ views; run the selected test to see its full details and options.
 Reports read the selected successful run without updating its IRS seed or other
 archived data. The overview identifies the run and recorded limits, marks
 estimated years, and warns when limit values differ from the current seed.
+The separate dbt `dq_compliance_monitoring` model remains disabled. Its UNION
+columns now align and it compiles and runs against an isolated 2025–2027 run,
+but its administrative branch still treats the source's `NORMAL` and
+`IRS_LIMITED` quality flags as violations because it expects `VALID`. Its
+compensation branch also calls above-cap pay a violation rather than a review
+population. Re-enable it only after those reporting semantics are corrected.
 Updated seed values apply to new simulations; rerun a scenario to adopt them.
 NDT tests also use read-only connections and never repair missing or outdated
 seed tables in an archive. Simulation initialization loads the required seeds;
 rerun a legacy scenario if its NDT test reports missing tables or columns.
 The 2026 seed uses the [published IRS limits](https://www.irs.gov/retirement-plans/cola-increases-for-dollar-limitations-on-benefits-and-contributions).
+For 2027–2035, the seed holds ordinary catch-up capacity at $8,000 and super
+catch-up capacity at $11,250 above each year's projected base limit. This is a
+conservative projection, not an indexed catch-up forecast. Actual future IRS
+limits may be higher; replace estimated seed rows when published limits become
+available and rerun scenarios to adopt them.
 Employee details reject changed result evidence with HTTP 409, requiring an
 overview refresh. Missing limits or required inputs are unavailable, not zero.
 

@@ -57,7 +57,13 @@ prorated compensation is not interchangeable for this reconciliation.
 Seed SHA-256 fingerprints:
 
 - Historical: `7040b164df66bdb924e4b8c080c192cbb4c49f7f543bd0382159cf90bc704980`.
-- Current: `5ae9b81eaf9223384dc8fdf32e381f9187b531aefdf900185af2a93163acdd45`.
+- Characterized seed: `5ae9b81eaf9223384dc8fdf32e381f9187b531aefdf900185af2a93163acdd45`.
+- Current: `ddd9c565a1c0c3793a29fd365d99fd6867730ac32154e4baccc8f790133f932c`.
+
+PR #935 added only the `roth_catch_up_wage_threshold` column (with $150,000 in
+each year) after the characterization. All previously characterized IRS limit
+columns and values are unchanged. The fixture fingerprint now tracks the full
+current seed so the fast guard catches the next seed edit.
 
 ## Regression contract
 

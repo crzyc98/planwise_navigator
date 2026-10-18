@@ -3,12 +3,27 @@
 from __future__ import annotations
 
 import csv
+import hashlib
+import json
 from pathlib import Path
 
 import pytest
 
 
 SEED_PATH = Path(__file__).resolve().parents[3] / "dbt/seeds/config_irs_limits.csv"
+CHARACTERIZATION_PATH = (
+    Path(__file__).resolve().parents[3]
+    / "tests/fixtures/employer_eligibility_tenure/baseline_characterization.json"
+)
+
+
+@pytest.mark.fast
+def test_characterization_irs_seed_hash() -> None:
+    baseline = json.loads(CHARACTERIZATION_PATH.read_text())
+    assert (
+        hashlib.sha256(SEED_PATH.read_bytes()).hexdigest()
+        == baseline["provenance"]["irs_seed_sha256"]
+    ), "IRS seed changed; reconcile characterization using its documented provenance"
 
 
 @pytest.mark.parametrize(

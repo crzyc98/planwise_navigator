@@ -126,14 +126,13 @@ compensation_limit_compliance AS (
         'COMPENSATION_LIMIT_COMPLIANCE' AS compliance_category,
         'IRS Section 401(a)(17) Compensation Limits' AS compliance_description,
 
-        -- Compensation threshold from the simulation year's IRS limits
         COUNT(*) AS total_employees,
-        SUM(CASE WHEN cd.prorated_annual_compensation > il.compensation_limit THEN 1 ELSE 0 END) AS high_compensation_count,
-        MAX(cd.prorated_annual_compensation) AS max_compensation,
-        AVG(cd.prorated_annual_compensation) AS avg_compensation,
+        SUM(CASE WHEN cd.is_enrolled THEN 1 ELSE 0 END) AS enrolled_employees,
+        0 AS employees_at_limit,
+        0 AS employees_with_excess,
 
         -- Compliance indicators
-        SUM(CASE WHEN cd.prorated_annual_compensation > il.compensation_limit THEN 1 ELSE 0 END) AS potential_violations,
+        SUM(CASE WHEN cd.prorated_annual_compensation > il.compensation_limit THEN 1 ELSE 0 END) AS limit_violations,
         0 AS total_excess_contributions,  -- Placeholder
 
         0 AS catch_up_eligible_count,  -- Not applicable
@@ -165,6 +164,7 @@ plan_administration_compliance AS (
         COUNT(*) AS total_employees,
         SUM(CASE WHEN cd.is_enrolled THEN 1 ELSE 0 END) AS enrolled_employees,
         0 AS employees_at_limit,  -- Calculated below
+        0 AS employees_with_excess,
 
         -- Administrative compliance metrics
         SUM(CASE WHEN cd.data_quality_flag != 'VALID' THEN 1 ELSE 0 END) AS limit_violations,
