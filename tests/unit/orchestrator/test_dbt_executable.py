@@ -44,7 +44,7 @@ def test_sibling_discovery_keeps_virtualenv_symlink_location(
     assert find_dbt_executable() == str(unactivated_environment)
 
 
-def test_path_takes_precedence(
+def test_sibling_takes_precedence_over_conflicting_path_dbt(
     unactivated_environment: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     path_bin = tmp_path / "path-bin"
@@ -53,7 +53,30 @@ def test_path_takes_precedence(
     dbt.write_text("#!/bin/sh\nexit 0\n")
     dbt.chmod(0o755)
     monkeypatch.setenv("PATH", str(path_bin))
-    assert find_dbt_executable() == "dbt"
+    assert find_dbt_executable() == str(unactivated_environment)
+    assert DbtRunner()._build_command(["run"])[0] == str(unactivated_environment)
+
+
+def test_path_fallback_when_sibling_is_missing(
+    unactivated_environment: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    unactivated_environment.unlink()
+    path_bin = tmp_path / "path-bin"
+    path_bin.mkdir()
+    dbt = path_bin / "dbt"
+    dbt.write_text("#!/bin/sh\nexit 0\n")
+    dbt.chmod(0o755)
+    monkeypatch.setenv("PATH", str(path_bin))
+    assert find_dbt_executable() == str(dbt)
+
+
+def test_runner_caches_resolved_executable(
+    unactivated_environment: Path,
+) -> None:
+    runner = DbtRunner()
+    assert runner._build_command(["run"])[0] == str(unactivated_environment)
+    unactivated_environment.unlink()
+    assert runner._build_command(["test"])[0] == str(unactivated_environment)
 
 
 @pytest.mark.parametrize("candidate", ["missing", "directory", "nonexecutable"])

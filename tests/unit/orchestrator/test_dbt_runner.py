@@ -24,6 +24,7 @@ from planalign_orchestrator.dbt_runner import (
     DbtDataQualityError,
     DbtError,
     DbtExecutionError,
+    DbtTransientError,
     DbtResult,
     DbtRunner,
     classify_dbt_error,
@@ -31,6 +32,7 @@ from planalign_orchestrator.dbt_runner import (
     extract_dbt_output_failure_detail,
     retry_with_backoff,
 )
+from planalign_orchestrator.dbt_executable import find_dbt_executable
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -172,6 +174,16 @@ Done. PASS=30 WARN=0 ERROR=1 SKIP=0 TOTAL=31
         assert "Out of Memory Error" in str(err)
         assert "Done. PASS" not in str(err)
 
+    @pytest.mark.fast
+    def test_lock_conflict_is_transient_with_detail(self):
+        err = classify_dbt_error(
+            "Runtime Error in model int_example\nCould not set lock on file",
+            "",
+            1,
+        )
+        assert isinstance(err, DbtTransientError)
+        assert "Could not set lock" in str(err)
+
 
 class TestExtractDbtOutputFailureDetail:
     @pytest.mark.fast
@@ -267,14 +279,14 @@ class TestRetryWithBackoff:
             nonlocal call_count
             call_count += 1
             if call_count < 3:
-                raise DbtExecutionError("transient")
+                raise DbtTransientError("transient")
             return _ok_result()
 
         result = retry_with_backoff(
             flaky,
             max_attempts=3,
             base_delay=0.001,
-            retry_on=(DbtExecutionError,),
+            retry_on=(DbtTransientError,),
         )
         assert result.success
         assert call_count == 3
@@ -282,9 +294,9 @@ class TestRetryWithBackoff:
     @pytest.mark.fast
     def test_raises_after_max_attempts(self):
         def always_fail():
-            raise DbtExecutionError("persistent")
+            raise DbtTransientError("persistent")
 
-        with pytest.raises(DbtExecutionError, match="persistent"):
+        with pytest.raises(DbtTransientError, match="persistent"):
             retry_with_backoff(
                 always_fail,
                 max_attempts=2,
@@ -313,7 +325,7 @@ class TestRetryWithBackoff:
             nonlocal call_count
             call_count += 1
             if call_count < 3:
-                raise DbtExecutionError("transient")
+                raise DbtTransientError("transient")
             return _ok_result()
 
         with patch("planalign_orchestrator.dbt_runner.time.sleep") as mock_sleep:
@@ -459,13 +471,18 @@ class TestBuildCommand:
 
         cmd = runner._build_command(["seed"])
 
-        assert cmd[:4] == ["dbt", "seed", "--project-dir", str(project_dir)]
+        assert cmd[:4] == [
+            find_dbt_executable(),
+            "seed",
+            "--project-dir",
+            str(project_dir),
+        ]
 
     @pytest.mark.fast
     def test_basic_run(self):
         runner = DbtRunner(threads=2)
         cmd = runner._build_command(["run", "--select", "my_model"])
-        assert cmd[:3] == ["dbt", "run", "--select"]
+        assert cmd[:3] == [find_dbt_executable(), "run", "--select"]
         assert "my_model" in cmd
         assert "--threads" in cmd
         idx = cmd.index("--threads")
@@ -651,9 +668,9 @@ class TestExecuteCommand:
     @pytest.mark.fast
     @patch.object(DbtRunner, "_execute_once")
     def test_execute_command_retry_on_failure(self, mock_exec):
-        """When retry=True (default) and result is a failure, classify + retry."""
+        """A transient lock failure is retried."""
         mock_exec.side_effect = [
-            _fail_result(stderr="Database error occurred"),
+            _fail_result(stdout="Runtime Error in model dim_x\nCould not set lock"),
             _ok_result(),
         ]
         runner = DbtRunner()
@@ -665,6 +682,22 @@ class TestExecuteCommand:
                 max_attempts=3,
             )
         assert result.success
+        assert mock_exec.call_count == 2
+
+    @pytest.mark.fast
+    @patch("planalign_orchestrator.dbt_runner.subprocess.Popen")
+    def test_streamed_runtime_error_is_attempted_once(self, mock_popen):
+        mock_popen.return_value = _mock_popen_process(
+            returncode=1,
+            output_lines=[
+                "Runtime Error in model dim_x\n",
+                "Binder Error: missing column\n",
+            ],
+        )
+        runner = DbtRunner(executable="custom-dbt")
+        with pytest.raises(DbtExecutionError, match="Binder Error: missing column"):
+            runner.execute_command(["run"], max_attempts=3)
+        mock_popen.assert_called_once()
 
     @pytest.mark.fast
     @patch.object(DbtRunner, "_execute_once")
