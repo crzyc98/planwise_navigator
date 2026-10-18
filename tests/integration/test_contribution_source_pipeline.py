@@ -52,7 +52,7 @@ def _run_source_pipeline(
                     "employee_id": employee_id,
                     "employer_id": "synthetic",
                     "wage_year": wage_year,
-                    "wages": 200000,
+                    "wages": 100000 if age == 64 else 200000,
                     "basis": "confirmed",
                     "provenance": "synthetic fixture",
                 }
@@ -93,7 +93,7 @@ def _run_source_pipeline(
         )
         assert (
             connection.execute(
-                "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE pre_tax_contributions + roth_contributions != ROUND(ytd_contributions, 2)"
+                "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE pre_tax_contributions IS NULL OR roth_contributions IS NULL OR disallowed_catch_up_contributions IS NULL OR pre_tax_contributions + roth_contributions + disallowed_catch_up_contributions != ROUND(ytd_contributions, 2)"
             ).fetchone()[0]
             == 0
         )
@@ -104,21 +104,35 @@ def _run_source_pipeline(
         )
         assert statuses["SOURCE_49"] == "no_base_limit_catch_up"
         assert statuses["SOURCE_50"] == "required"
+        assert statuses["SOURCE_59"] == "required"
         assert statuses["SOURCE_60"] == "required"
-        assert statuses["SOURCE_64"] == "required"
+        assert statuses["SOURCE_63"] == "required"
+        assert statuses["SOURCE_64"] == "below_or_equal_threshold"
+        wages = dict(
+            connection.execute(
+                "SELECT employee_id, prior_year_employer_fica_wages FROM fct_workforce_snapshot WHERE simulation_year = 2026"
+            ).fetchall()
+        )
+        assert wages["SOURCE_50"] == 200000
+        assert wages["SOURCE_64"] == 100000
         limits = dict(
             connection.execute(
                 "SELECT employee_id, ytd_contributions FROM fct_workforce_snapshot WHERE simulation_year = 2026"
             ).fetchall()
         )
         assert limits["SOURCE_50"] == 32500
+        seed_limits = connection.execute(
+            "SELECT catch_up_limit, super_catch_up_limit FROM config_irs_limits WHERE limit_year = 2026"
+        ).fetchone()
+        assert limits["SOURCE_59"] == seed_limits[0]
         assert limits["SOURCE_60"] == 35750
-        assert limits["SOURCE_64"] == 32500
+        assert limits["SOURCE_63"] == seed_limits[1]
+        assert limits["SOURCE_64"] == seed_limits[0]
         assert (
             connection.execute(
                 "SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = 2027 AND mandatory_roth_status = 'required_under_assumptions'"
             ).fetchone()[0]
-            == 6
+            == 5
         )
         assert (
             connection.execute(
@@ -128,7 +142,7 @@ def _run_source_pipeline(
         )
         return connection.execute(
             "SELECT employee_id, simulation_year, ytd_contributions, pre_tax_contributions, "
-            "roth_contributions, mandatory_roth_status, mandatory_roth_required, "
+            "roth_contributions, disallowed_catch_up_contributions, mandatory_roth_status, mandatory_roth_required, "
             "mandatory_roth_reallocated, prior_year_employer_fica_wages "
             "FROM fct_workforce_snapshot ORDER BY employee_id, simulation_year"
         ).fetchall()

@@ -293,14 +293,22 @@ class ComplianceService:
             expressions = fields + [
                 name if name in columns else f"NULL AS {name}" for name in optional
             ]
+            fallback_age = "current_age" if "current_age" in columns else "NULL"
+            if "employee_birth_date" in columns:
+                fallback_age = (
+                    f"COALESCE({year} - YEAR(employee_birth_date), {fallback_age})"
+                )
             if "source_year_end_age" in columns:
-                age = "source_year_end_age"
+                age = f"COALESCE(source_year_end_age, {fallback_age})"
                 if "contribution_source_version" in columns:
-                    legacy_age = "current_age" if "current_age" in columns else "NULL"
-                    age = f"CASE WHEN contribution_source_version IS NULL THEN {legacy_age} ELSE source_year_end_age END"
+                    age = f"CASE WHEN contribution_source_version IS NULL THEN {fallback_age} ELSE {age} END"
                 expressions[
                     len(fields) + optional.index("current_age")
                 ] = f"{age} AS current_age"
+            elif "employee_birth_date" in columns:
+                expressions[
+                    len(fields) + optional.index("current_age")
+                ] = f"{fallback_age} AS current_age"
             rows = conn.execute(
                 f"SELECT {', '.join(expressions)} FROM fct_workforce_snapshot WHERE simulation_year = ? "
                 "AND (current_eligibility_status = 'eligible' OR current_eligibility_status IS NULL) "

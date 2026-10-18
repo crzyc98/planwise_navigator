@@ -14,14 +14,18 @@
 -- workforce accumulator; this relation joins the authoritative domain outputs.
 WITH irs_limits AS (
   SELECT
+    limit_year,
     base_limit,
     catch_up_limit,
     catch_up_age_threshold,
     super_catch_up_limit,
     super_catch_up_age_min,
-    super_catch_up_age_max
+    super_catch_up_age_max,
+    roth_catch_up_wage_threshold,
+    is_estimated
   FROM {{ ref('config_irs_limits') }}
-  WHERE limit_year = {{ simulation_year }}
+  ORDER BY CASE WHEN limit_year = {{ simulation_year }} THEN 0 ELSE 1 END,
+    ABS(limit_year - {{ simulation_year }})
   LIMIT 1
 ),
 
@@ -418,6 +422,7 @@ SELECT
   annual_contribution_amount AS prorated_annual_contributions,
   source_allocation.pre_tax_contributions,
   source_allocation.roth_contributions,
+  source_allocation.disallowed_catch_up_contributions,
   source_allocation.contribution_source_policy,
   source_allocation.assumed_roth_fraction,
   source_allocation.contribution_source_version,

@@ -22,6 +22,7 @@ seeds:
         super_catch_up_age_max: integer
         is_estimated: boolean
         social_security_wage_base: integer
+        roth_catch_up_wage_threshold: integer
     columns:
       - name: catch_up_limit
         description: "Total elective deferral limit including the ordinary catch-up allowance."
@@ -29,6 +30,8 @@ seeds:
         description: "Total elective deferral limit including the catch-up allowance for ages 60-63."
       - name: is_estimated
         description: "True for projected values; false for published values."
+      - name: roth_catch_up_wage_threshold
+        description: "Prior-year employer FICA wage threshold for mandatory Roth catch-up (strictly greater than). The 2026 value is published; other seed years are modeling values and the rule applies from 2026."
 
   - name: comp_levers
     description: "Compensation parameters by scenario and year"

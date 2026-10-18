@@ -362,10 +362,12 @@ models:
         description: "Required modeled Roth catch-up dollars; NULL when unresolved or not evaluated."
       - name: mandatory_roth_reallocated
         description: "Additional dollars moved from the preferred pre-tax allocation to Roth; existing Roth credited."
+      - name: disallowed_catch_up_contributions
+        description: "Catch-up dollars excluded from the source allocation when the plan lacks Roth, the employee is ineligible, or the total exceeds the modeled age limit. Pre-tax plus Roth plus this amount reconciles to ytd_contributions."
       - name: prior_year_employer_fica_wages
         description: "Matched prior-calendar-year sponsoring-employer section 3121(a) wages; NULL is unavailable, zero is known zero."
       - name: prior_year_wage_basis
-        description: "confirmed or forecast, as supplied; no salary substitution."
+        description: "confirmed or forecast as supplied, or structural for a current-year hire without prior-year employer wage evidence; no salary substitution."
       - name: prior_year_wage_provenance
         description: "Analyst-supplied evidence provenance for the matched wage record."
       - name: source_employer_id
@@ -375,7 +377,7 @@ models:
       - name: source_year_end_age
         description: "Calendar-year-end age from birth year, not a start-year age proxy."
       - name: mandatory_roth_threshold
-        description: "Applicable wage threshold; comparison is strictly greater than."
+        description: "Nearest-year IRS seed wage threshold unless an explicit projected_thresholds assumption overrides it; comparison is strictly greater than."
       - name: mandatory_roth_threshold_basis
         description: "published, projected, or unavailable."
       - name: mandatory_roth_threshold_provenance
@@ -385,14 +387,14 @@ models:
       - name: contribution_source_assumptions
         description: "Disclosure of estimated elections and unsupported plan-limit/ADP catch-up triggers."
       - name: pre_tax_contributions
-        description: "Estimated pre-tax allocation in cents; NULL when allocation is blocked. See contribution_source_policy and mandatory_roth_status."
+        description: "Estimated allowed pre-tax allocation in cents. Excludes disallowed_catch_up_contributions."
         data_type: decimal(18,2)
         data_tests:
           - dbt_utils.accepted_range:
               min_value: 0
               max_value: 50000
       - name: roth_contributions
-        description: "Estimated Roth allocation in cents, inclusive of modeled required catch-up; NULL when blocked. Not payroll evidence."
+        description: "Estimated allowed Roth allocation in cents, inclusive of modeled required catch-up. Excludes disallowed_catch_up_contributions; not payroll evidence."
         data_type: decimal(18,2)
         data_tests:
           - dbt_utils.accepted_range:
