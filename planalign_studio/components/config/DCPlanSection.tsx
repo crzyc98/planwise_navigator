@@ -11,6 +11,10 @@ import { VoluntaryDeferralRatesEditor } from './VoluntaryDeferralRatesEditor';
 import { DCPlanPanel, EmployerEligibilityEditor, coreSummary, dcDisplayConfig, matchSummary, tierSummary } from './DCPlanPanels';
 import { EnrollmentRateInput } from './EnrollmentRateInput';
 
+// A blank cutoff is removed from the export, so dbt applies its default (dbt_project.yml).
+const ENGINE_DEFAULT_HIRE_CUTOFF = '2020-01-01';
+const hireCutoffLabel = (cutoff: string) => cutoff || `${ENGINE_DEFAULT_HIRE_CUTOFF} (engine default)`;
+
 /**
  * The lowest base core rate any employee could receive, as a percentage.
  *
@@ -251,13 +255,13 @@ export function DCPlanSection() {
                  onChange={handleChange}
                  className="mt-1 block w-full pl-3 pr-3 py-2 text-base border-border-strong focus:outline-none focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm rounded-md border shadow-sm"
                />
-               <p className="mt-1 text-xs text-ink-muted">Inclusive hire cutoff for the scope rules below. Changing enrollment settings does not reset this date.</p>
+               <p className="mt-1 text-xs text-ink-muted">Inclusive hire cutoff for the scope rules below. Leave blank to use the engine default ({ENGINE_DEFAULT_HIRE_CUTOFF}). Changing enrollment settings does not reset this date.</p>
              </div>
              <div className="sm:col-span-6 rounded-lg border border-border bg-surface-subtle p-3 text-xs text-ink-muted">
-               <p><strong>First year ({formData.startYear}):</strong> Plan-eligible employees hired on or after {formData.dcAutoEnrollHireDateCutoff || 'the configured engine cutoff'}.</p>
+               <p><strong>First year ({formData.startYear}):</strong> Plan-eligible employees hired on or after {hireCutoffLabel(formData.dcAutoEnrollHireDateCutoff)}.</p>
                <p className="mt-1"><strong>Later years:</strong> {formData.dcAutoEnrollScope === 'new_hires_only'
                  ? 'Only current-year hires who meet plan eligibility; the hire cutoff is not reapplied.'
-                 : `All plan-eligible employees hired on or after ${formData.dcAutoEnrollHireDateCutoff || 'the configured engine cutoff'}; the cutoff still applies.`}</p>
+                 : `All plan-eligible employees hired on or after ${hireCutoffLabel(formData.dcAutoEnrollHireDateCutoff)}; the cutoff still applies.`}</p>
                {!formData.dcAutoEnroll && <p className="mt-1">Auto-enrollment is off. Default deferral and opt-out settings are inactive; draft values are retained for re-enabling. Voluntary enrollment and plan eligibility remain available.</p>}
              </div>
              {voluntaryEnrollmentFields}

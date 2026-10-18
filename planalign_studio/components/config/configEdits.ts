@@ -80,7 +80,6 @@ export function preserveDisplayedMatchEligibility(
   return { ...config, dc_plan: {
     ...(isObject(config.dc_plan) ? config.dc_plan : {}),
     ...Object.fromEntries(fields.map(key => [key, newPlan[key]])),
-    match_allow_new_hires: newPlan.match_min_tenure_years === 0,
   } };
 }
 

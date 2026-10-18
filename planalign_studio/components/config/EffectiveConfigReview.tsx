@@ -45,12 +45,14 @@ const matchEligibilityFields: Record<string, [string, string]> = {
   match_require_year_end_active: ['require_active_at_year_end', 'Match year-end employment requirement'],
   match_allow_terminated_new_hires: ['allow_terminated_new_hires', 'Match eligibility for terminated hire-year employees'],
   match_allow_experienced_terminations: ['allow_experienced_terminations', 'Match eligibility for terminated experienced employees'],
-  match_allow_new_hires: ['allow_new_hires', 'New-hire exemption from match service requirement'],
 };
+// Studio has no waiver control; the engine derives it from service, so only engine reviews compare it.
+const engineMatchEligibilityFields: [string, string][] = [...Object.values(matchEligibilityFields),
+  ['allow_new_hires', 'New-hire exemption from match service requirement']];
 function eligibilityField(key: string): [string, string] | undefined {
   return key.startsWith('dc_plan.') ? matchEligibilityFields[key.slice(8)]
     : key.startsWith('employer_match.eligibility.')
-      ? Object.values(matchEligibilityFields).find(([field]) => key.endsWith(`.${field}`)) : undefined;
+      ? engineMatchEligibilityFields.find(([field]) => key.endsWith(`.${field}`)) : undefined;
 }
 
 function effectiveMatchRules(match: Config): Config {
@@ -72,12 +74,12 @@ export function eligibilityReviewChanges(
   const otherChanges = changes.filter(change => engine
     ? change.key !== 'employer_match.apply_eligibility' && !eligibilityField(change.key)
     : !eligibilityField(change.key));
-  const rules = Object.entries(matchEligibilityFields).flatMap(([alias, [field]]) => {
-    const key = engine ? `employer_match.eligibility.${field}` : `dc_plan.${alias}`;
-    // The generated new-hire waiver belongs in indirect effects, not direct edits.
-    if (!engine && (field === 'allow_new_hires' || !changes.some(change => change.key === key))) return [];
-    return oldRules[field] === newRules[field] ? [] : [{ key, before: oldRules[field], after: newRules[field] }];
-  });
+  const fields: [string, string][] = engine
+    ? engineMatchEligibilityFields.map(([field]) => [`employer_match.eligibility.${field}`, field])
+    : Object.entries(matchEligibilityFields).map(([alias, [field]]) => [`dc_plan.${alias}`, field]);
+  const rules = fields.flatMap(([key, field]) =>
+    (!engine && !changes.some(change => change.key === key)) || oldRules[field] === newRules[field]
+      ? [] : [{ key, before: oldRules[field], after: newRules[field] }]);
   return [...otherChanges, ...rules];
 }
 

@@ -46,7 +46,6 @@ DISPLAYED_MATCH_POLICY = {
     "match_require_year_end_active": True,
     "match_allow_terminated_new_hires": False,
     "match_allow_experienced_terminations": False,
-    "match_allow_new_hires": True,
 }
 CASES = [
     ("new_hire", "strategy", "fixed"),

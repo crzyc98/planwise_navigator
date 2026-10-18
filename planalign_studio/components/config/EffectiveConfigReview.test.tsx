@@ -196,7 +196,7 @@ it('reviews a one-year requirement without phantom inherited or activation chang
   const saved = {};
   const draft = { dc_plan: { match_min_tenure_years: 1, match_min_hours_annual: 1000,
     match_require_year_end_active: true, match_allow_terminated_new_hires: false,
-    match_allow_experienced_terminations: false, match_allow_new_hires: false } };
+    match_allow_experienced_terminations: false } };
   const before = { employer_match: { apply_eligibility: false, eligibility: {
     minimum_tenure_years: 0, minimum_hours_annual: 1000, require_active_at_year_end: true,
     allow_terminated_new_hires: false, allow_experienced_terminations: false, allow_new_hires: true,
