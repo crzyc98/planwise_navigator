@@ -19,9 +19,9 @@ The four integration shards and combined coverage still run on main/develop,
 nightly, manual dispatch, and PRs carrying `full-ci`. Adding or removing a label
 now triggers selection immediately. Use `full-ci` only for changes that need
 integration-shard or coverage evidence before merge (integration tests, coverage
-inventory, CI); otherwise rely on the post-merge `main` run. Apply it when
-creating the PR: labeling later cancels the first run and reports a spurious
-`CI Gate` failure. No coverage threshold or test is removed.
+inventory, CI); otherwise rely on the post-merge `main` run. Adding the label,
+even at creation, fires a `labeled` event that starts a second run and cancels
+the first; ignore that cancelled run's `CI Gate` failure. No coverage threshold or test is removed.
 
 `CI Gate` rejects failed/cancelled jobs, missing baseline checks, skipped selected
 suites, and invalid selection outputs. Since 2026-10-18 (#891) **CI Gate** is a
