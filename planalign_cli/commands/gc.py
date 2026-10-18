@@ -1,6 +1,6 @@
 """Reclaim local disk: prune archived Studio runs and aged var/ artifacts (#660).
 
-Two artifact classes grow without bound on a dev machine:
+Several artifact classes grow without bound on a dev machine:
 
 * Studio scenario runs beyond ``storage.max_runs_per_scenario`` (the product
   path prunes on completion; this reclaims any backlog).
@@ -9,6 +9,8 @@ Two artifact classes grow without bound on a dev machine:
   parquet, and ensemble aggregates are the durable output and are kept.
 * Backtest scratch (``workspaces/*/param_fits/*/work``) left by Studio fit &
   backtest jobs that were interrupted (#588). Their packs are kept.
+* Disposable calibration database copies in the system temp directory left by
+  interrupted jobs. Live jobs and unrelated temp files are kept.
 
 Dry run by default; ``--yes`` deletes.
 """
@@ -28,6 +30,7 @@ from rich.console import Console
 
 from planalign_api.config import get_settings
 from planalign_api.constants import DEFAULT_MAX_RUNS_PER_SCENARIO
+from planalign_api.services.calibration_temp import find_orphaned_calibration_databases
 from planalign_api.storage.workspace_storage import WorkspaceStorage
 
 console = Console()
@@ -201,6 +204,16 @@ def run_gc(
     console.print(
         f"{verb} {len(scratch)} fit/backtest scratch tree(s) older than {max_age} "
         f"days ({_gb(sum(item.size_bytes for item in scratch))})"
+    )
+    calibration_databases = [
+        Reclaimable(path, path.stat().st_size)
+        for path in find_orphaned_calibration_databases()
+    ]
+    if yes:
+        delete_artifacts(calibration_databases)
+    console.print(
+        f"{verb} {len(calibration_databases)} orphaned calibration database(s) "
+        f"({_gb(sum(item.size_bytes for item in calibration_databases))})"
     )
     if not yes:
         console.print("[yellow]Dry run.[/yellow] Re-run with --yes to delete.")
