@@ -20,8 +20,8 @@ from planalign_optimizer.models import (
     Candidate,
     LeverValue,
 )
-from planalign_optimizer.screening import ScreeningPolicy, select_for_validation
-from planalign_optimizer.screening_benchmark import (
+from scripts.perf_profile.screening import ScreeningPolicy, select_for_validation
+from scripts.perf_profile.screening_benchmark import (
     BenchmarkSettings,
     compare_quality,
     run_screening_benchmark,
@@ -213,7 +213,7 @@ def test_paired_benchmark_isolated_bounded_and_preserves_original_ids(
 ) -> None:
     calls: list[tuple[int, Path, int, int]] = []
     monkeypatch.setattr(
-        "planalign_optimizer.screening_benchmark.evaluate_candidate_values",
+        "scripts.perf_profile.screening_benchmark._evaluate_candidate_values",
         _fake_evaluator(calls),
     )
     baseline = load_simulation_config(
@@ -299,7 +299,7 @@ def test_single_fast_trial_cannot_authorize_rollout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "planalign_optimizer.screening_benchmark.evaluate_candidate_values",
+        "scripts.perf_profile.screening_benchmark._evaluate_candidate_values",
         _fake_evaluator([]),
     )
     baseline = load_simulation_config(
@@ -327,7 +327,7 @@ def test_no_go_savings_are_not_inferred_from_failed_runs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "planalign_optimizer.screening_benchmark.evaluate_candidate_values",
+        "scripts.perf_profile.screening_benchmark._evaluate_candidate_values",
         _fake_evaluator([]),
     )
     baseline = load_simulation_config(
@@ -362,7 +362,7 @@ def test_three_successful_trials_only_authorize_expanded_benchmark(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "planalign_optimizer.screening_benchmark.evaluate_candidate_values",
+        "scripts.perf_profile.screening_benchmark._evaluate_candidate_values",
         _fake_evaluator([]),
     )
     baseline = load_simulation_config(
@@ -405,7 +405,7 @@ def test_benchmark_script_writes_research_evidence_and_source_provenance(
         "scripts.benchmark_optimizer_screening.load_baseline", lambda _: baseline
     )
     monkeypatch.setattr(
-        "planalign_optimizer.screening_benchmark.evaluate_candidate_values",
+        "scripts.perf_profile.screening_benchmark._evaluate_candidate_values",
         _fake_evaluator([]),
     )
     output = tmp_path / "report"

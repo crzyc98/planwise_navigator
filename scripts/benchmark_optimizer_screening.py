@@ -14,7 +14,7 @@ from pathlib import Path
 import duckdb
 
 from planalign_optimizer.baseline import load_baseline
-from planalign_optimizer.screening_benchmark import (
+from scripts.perf_profile.screening_benchmark import (
     BenchmarkSettings,
     ScreeningBenchmark,
     run_screening_benchmark,
@@ -85,6 +85,7 @@ def main() -> None:
             for path in (
                 Path(__file__).resolve(),
                 *sorted(Path("planalign_optimizer").glob("*.py")),
+                *sorted(Path("scripts/perf_profile").glob("screening*.py")),
             )
         },
     }

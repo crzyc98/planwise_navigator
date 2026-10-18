@@ -7,6 +7,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from planalign_api.routers import simulations
+from planalign_api.routers import artifact_downloads
+from planalign_api.services import artifact_tickets
 
 
 @pytest.fixture
@@ -89,3 +91,37 @@ def test_download_large_archived_artifact(
     assert int(response.headers["content-length"]) == len(payload)
     assert response.headers["content-type"] == media_type
     assert f'filename="{filename}"' in response.headers["content-disposition"]
+
+
+def test_signed_download_url_streams_only_authorized_file(artifact_storage):
+    storage, scenario_path = artifact_storage
+    artifact = scenario_path / "runs" / "run-1" / "results.xlsx"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_bytes(b"download bytes")
+    app = FastAPI()
+    app.include_router(simulations.router, prefix="/api/scenarios")
+    app.include_router(artifact_downloads.router, prefix="/api")
+    app.dependency_overrides[simulations.get_storage] = lambda: storage
+
+    with TestClient(app) as client:
+        issued = client.post(
+            "/api/scenarios/scenario-1/artifact-download-url/runs/run-1/results.xlsx"
+        )
+        assert issued.status_code == 200
+        download = client.get(issued.json()["url"])
+        assert download.content == b"download bytes"
+        assert download.headers["content-disposition"].endswith(
+            'filename="results.xlsx"'
+        )
+        assert client.get(issued.json()["url"] + "tampered").status_code == 403
+
+
+def test_signed_download_ticket_expires(artifact_storage, monkeypatch):
+    storage, scenario_path = artifact_storage
+    (scenario_path / "results.xlsx").write_bytes(b"data")
+    monkeypatch.setattr(artifact_tickets.time, "time", lambda: 1000)
+    ticket = artifact_tickets.create_artifact_ticket("scenario-1", "results.xlsx")
+    monkeypatch.setattr(artifact_tickets.time, "time", lambda: 1061)
+    with pytest.raises(HTTPException) as exc_info:
+        artifact_tickets.verify_artifact_ticket(ticket)
+    assert exc_info.value.status_code == 403

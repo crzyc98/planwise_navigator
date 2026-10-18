@@ -632,9 +632,20 @@ export async function downloadArtifact(
   artifactPath: string,
   filename: string,
 ): Promise<void> {
-  const response = await fetchWithAuth(`${API_BASE}/api/scenarios/${scenarioId}/artifacts/${artifactPath}`);
-  if (!response.ok) await handleResponse<never>(response);
-  saveBrowserDownload(await response.blob(), filename);
+  const response = await fetchWithAuth(
+    `${API_BASE}/api/scenarios/${scenarioId}/artifact-download-url/${artifactPath}`,
+    { method: 'POST' },
+  );
+  const { url } = await handleResponse<{ url: string }>(response);
+  const anchor = document.createElement('a');
+  anchor.href = `${API_BASE}${url}`;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  try {
+    anchor.click();
+  } finally {
+    document.body.removeChild(anchor);
+  }
 }
 
 // ============================================================================

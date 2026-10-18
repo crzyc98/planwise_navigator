@@ -14,15 +14,15 @@ from pydantic import BaseModel, ConfigDict, Field
 from planalign_orchestrator.config import SimulationConfig
 from planalign_orchestrator.run_pool import PoolEvent, ScenarioRunPool, WorkerBudget
 
-from .baseline import fingerprint_baseline
-from .design_space import sample_candidates
-from .evaluate import validate_levers_against_baseline
-from .models import Candidate, LeverValue, OptimizerSpec
-from .pareto import pareto_frontier
+from planalign_optimizer.baseline import fingerprint_baseline
+from planalign_optimizer.design_space import sample_candidates
+from planalign_optimizer.evaluate import validate_levers_against_baseline
+from planalign_optimizer.models import Candidate, LeverValue, OptimizerSpec
+from planalign_optimizer.pareto import pareto_frontier
 from .screening import ScreeningPolicy, select_for_validation
-from .search import evaluate_candidate_values, rank_feasible
+from planalign_optimizer.search import _evaluate_candidate_values, rank_feasible
 from .screening_resources import ProcessResources
-from .spec_io import validate_spec
+from planalign_optimizer.spec_io import validate_spec
 
 
 class BenchmarkSettings(BaseModel):
@@ -259,7 +259,7 @@ def _measure_stage(
 ) -> EvaluationStage:
     started = time.perf_counter()
     with ProcessResources() as resources:
-        candidates = evaluate_candidate_values(
+        candidates = _evaluate_candidate_values(
             values, spec, config, directory, len(values), budget, pool_factory, on_event
         )
     return EvaluationStage(

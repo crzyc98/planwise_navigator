@@ -17650,6 +17650,46 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/artifact-download/{ticket}": {
+      "get": {
+        "operationId": "redeem_artifact_ticket_api_artifact_download__ticket__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ticket",
+            "required": true,
+            "schema": {
+              "title": "Ticket",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Redeem Artifact Ticket",
+        "tags": [
+          "Simulations"
+        ]
+      }
+    },
     "/api/batches/{batch_id}/status": {
       "get": {
         "description": "Get the status of a batch job.\n\nExpired terminal jobs are treated as not found (404); active jobs are\nnever evicted by in-memory retention.",
@@ -18500,6 +18540,62 @@
           }
         },
         "summary": "Get active simulation runs",
+        "tags": [
+          "Simulations"
+        ]
+      }
+    },
+    "/api/scenarios/{scenario_id}/artifact-download-url/{artifact_path}": {
+      "post": {
+        "description": "Authorize an artifact and issue a short-lived browser download URL.",
+        "operationId": "create_artifact_download_url_api_scenarios__scenario_id__artifact_download_url__artifact_path__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenario_id",
+            "required": true,
+            "schema": {
+              "title": "Scenario Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "artifact_path",
+            "required": true,
+            "schema": {
+              "title": "Artifact Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Create Artifact Download Url Api Scenarios  Scenario Id  Artifact Download Url  Artifact Path  Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Artifact Download Url",
         "tags": [
           "Simulations"
         ]

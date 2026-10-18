@@ -36,6 +36,7 @@ from .ndt_service import (
     ACPScenarioResult,
     Section415ScenarioResult,
 )
+from .seed_paths import DBT_SEEDS_DIR
 
 
 class ComplianceEvidenceChangedError(ValueError):
@@ -135,7 +136,7 @@ def _limits(conn: duckdb.DuckDBPyConnection, year: int) -> ComplianceLimits | No
     if row is None or any(value is None or value <= 0 for value in row[:-1]):
         return None
     values = dict(zip([*names, "is_estimated"], row))
-    with (NDTService._SEEDS_DIR / "config_irs_limits.csv").open(newline="") as source:
+    with (DBT_SEEDS_DIR / "config_irs_limits.csv").open(newline="") as source:
         current = next(
             (r for r in csv.DictReader(source) if int(r["limit_year"]) == year), None
         )

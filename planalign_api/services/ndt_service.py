@@ -2,7 +2,6 @@
 
 import logging
 import statistics
-from pathlib import Path
 from typing import List, Optional
 
 import yaml
@@ -207,9 +206,6 @@ class ADPTestResponse(APIModel):
 
 class NDTService:
     """Read-only NDT analytics using limits materialized during initialization."""
-
-    # Path to dbt seeds directory
-    _SEEDS_DIR = Path(__file__).resolve().parents[2] / "dbt" / "seeds"
 
     def __init__(
         self,
