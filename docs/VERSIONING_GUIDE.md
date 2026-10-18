@@ -44,6 +44,9 @@ reports the engine version via `planalign --version`.
    Run the targeted checks required by any behavioral changes separately in
    isolated databases; a profile connection check is not simulation validation.
 9. Commit, tag `v<MAJOR>.<MINOR>.<PATCH>`, and push the tag.
+10. Publish the GitHub release from that tag with the CHANGELOG entry as its
+    notes: `gh release create v<MAJOR>.<MINOR>.<PATCH> --title "v<MAJOR>.<MINOR>.<PATCH> — <name>" --notes-file <notes.md> --latest`.
+    Confirm `gh release list` shows it as Latest.
 
 ## History
 

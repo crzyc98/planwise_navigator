@@ -535,7 +535,7 @@ export function DCPlanSection() {
            <details id="dcplan-match-response-settings" open={formData.dcMatchResponseEnabled}>
            <summary className="cursor-pointer text-sm font-medium mb-3">Existing-participant response assumptions</summary>
            <p className="text-xs text-ink-muted mb-3">In the first projection year, models active enrolled employees changing contributions in response to the employer-match ceiling. Current-year new hires are excluded. Some upward responders seek the full match; others close part of the gap according to the inherited response assumptions.</p>
-           <p className="text-xs text-ink-muted mb-3">Upward responders seeking the full match: {responseMaximizers}%. Partial responders close {responsePartialGap}% of the gap. Shared escalation and IRS limits still apply.</p>
+           <p className="text-xs text-ink-muted mb-3">Upward responders seeking the full match: {responseMaximizers}%. Partial responders close {responsePartialGap}% of the gap. IRS limits still apply; the auto-escalation cap does not limit match response.</p>
            <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-6">
              <InputField
                label="Increase Deferral Response"
