@@ -213,6 +213,22 @@ function ChangesTable({ changes, engine = false }: { changes: ReturnType<typeof 
   </table></div> : <p className="text-sm text-ink-muted">No changes to saved values.</p>;
 }
 
+export function formatPreviewError(cause: unknown): string {
+  if (cause && typeof cause === 'object' && 'status' in cause && cause.status === 422 && 'detail' in cause && typeof cause.detail === 'string') {
+    try {
+      const detail: unknown = JSON.parse(cause.detail);
+      if (detail && typeof detail === 'object' && 'errors' in detail && Array.isArray(detail.errors)) {
+        const fields = detail.errors.map((error: unknown) => {
+          if (!error || typeof error !== 'object' || !('field' in error) || !('message' in error)) return null;
+          return `${String(error.field)}: ${String(error.message)}`;
+        }).filter(Boolean);
+        if (fields.length) return fields.join('\n');
+      }
+    } catch { /* Other API errors retain their original message. */ }
+  }
+  return cause instanceof Error ? cause.message : 'Unable to resolve configuration';
+}
+
 export function EffectiveConfigReview({ review, stale, saving, onClose, onSave, onEdit }: {
   review: ConfigurationReviewDraft; stale: boolean; saving: boolean;
   onClose: () => void; onSave: () => Promise<boolean>; onEdit: (section: string) => void;
@@ -234,7 +250,7 @@ export function EffectiveConfigReview({ review, stale, saving, onClose, onSave, 
       if (after.status === 'rejected') throw after.reason;
       if (current) setResolved({ before: before.status === 'fulfilled' ? before.value : null, after: after.value });
     })
-      .catch(cause => { if (current) setError(cause instanceof Error ? cause.message : 'Unable to resolve configuration'); });
+      .catch(cause => { if (current) setError(formatPreviewError(cause)); });
     return () => { current = false; };
   }, [review]);
   useEffect(() => {

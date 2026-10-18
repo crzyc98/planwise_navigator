@@ -1,7 +1,7 @@
 import type { ReactElement, ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { EffectiveConfigReview, eligibilityReviewChanges, formatDraftValue, matchEligibilityReview, matchRuleSummary, redactReviewValue, reviewChanges, type ConfigurationReviewDraft } from './EffectiveConfigReview';
+import { EffectiveConfigReview, eligibilityReviewChanges, formatDraftValue, formatPreviewError, matchEligibilityReview, matchRuleSummary, redactReviewValue, reviewChanges, type ConfigurationReviewDraft } from './EffectiveConfigReview';
 import { previewConfiguration, type ConfigPreview } from '../../services/api';
 
 const hooks = vi.hoisted(() => ({ slot: 0, cells: [] as unknown[], cleanups: [] as (() => void)[] }));
@@ -46,6 +46,11 @@ function render(overrides: Partial<Parameters<typeof EffectiveConfigReview>[0]> 
   return EffectiveConfigReview({ review, stale: false, saving: false, onSave, onClose, onEdit, ...overrides });
 }
 const settle = async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); };
+
+it('shows preview 422 field problems in readable text', () => {
+  const error = { status: 422, detail: JSON.stringify({ errors: [{ field: 'plan_year_start_date', message: 'must be a valid ISO date' }] }) };
+  expect(formatPreviewError(error)).toBe('plan_year_start_date: must be a valid ISO date');
+});
 
 describe('Effective configuration review', () => {
   beforeEach(() => {
