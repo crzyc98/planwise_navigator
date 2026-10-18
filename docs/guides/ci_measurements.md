@@ -24,12 +24,12 @@ creating the PR: labeling later cancels the first run and reports a spurious
 `CI Gate` failure. No coverage threshold or test is removed.
 
 `CI Gate` rejects failed/cancelled jobs, missing baseline checks, skipped selected
-suites, and invalid selection outputs. After deploying this workflow and seeing
-the check report successfully, add **CI Gate** to the existing required-check
-ruleset, retaining the five existing checks. Enable **Require branches to be up
-to date before merging** to test against current main. Repository settings are
-not changed by this patch. Until the gate is required, reviewers must check its
-result explicitly; merely adding a workflow job does not enforce merge safety.
+suites, and invalid selection outputs. Since 2026-10-18 (#891) **CI Gate** is a
+required check in the "required CI checks" ruleset, alongside the five baseline
+checks, so a PR cannot merge until its selected simulation suites pass. "Require
+branches to be up to date" stays off: many parallel PRs would each need a rebase
+and rerun, and the post-merge `main` run catches cross-PR interactions. Admins
+keep bypass for emergencies; don't use it on PRs that change CI workflows.
 
 The inspected PR run 38967045844 took about 7m48s, including 59s of lint before
 the fast job could start and 6m24s in its pytest step. Removing that dependency
