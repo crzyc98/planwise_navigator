@@ -401,7 +401,7 @@ describe('DC Plan enrollment presentation', () => {
         const original = structuredClone(state.formData);
         const html = render();
         expect(html).toContain(`First year (${state.formData.startYear}):`);
-        expect(html).toContain(`hired on or after ${cutoff || 'the configured engine cutoff'}`);
+        expect(html).toContain(`hired on or after ${cutoff || '2020-01-01 (engine default)'}`);
         expect(html).toContain('Later years:');
         expect(html).toContain(scope === 'new_hires_only' ? 'the hire cutoff is not reapplied' : 'the cutoff still applies');
         expect(html).toContain('value="new_hires_only"');

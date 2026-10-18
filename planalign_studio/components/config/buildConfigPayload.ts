@@ -62,8 +62,10 @@ export function buildConfigPayload(
       target_compensation_growth_percent: Number(formData.targetCompensationGrowth),
       merit_budget_percent: Number(formData.meritBudget),
       cola_rate_percent: Number(formData.colaRate),
-      promotion_increase_percent: Number(formData.promoIncrease),
-      promotion_distribution_range_percent: Number(formData.promoDistributionRange),
+      promotion_compensation: {
+        base_increase_pct: Number(formData.promoIncrease) / 100,
+        distribution_range: Number(formData.promoDistributionRange) / 100,
+      },
       promotion_budget_percent: Number(formData.promoBudget),
       promotion_rate_multiplier: Number(formData.promoRateMultiplier),
     },

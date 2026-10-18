@@ -45,12 +45,14 @@ const matchEligibilityFields: Record<string, [string, string]> = {
   match_require_year_end_active: ['require_active_at_year_end', 'Match year-end employment requirement'],
   match_allow_terminated_new_hires: ['allow_terminated_new_hires', 'Match eligibility for terminated hire-year employees'],
   match_allow_experienced_terminations: ['allow_experienced_terminations', 'Match eligibility for terminated experienced employees'],
-  match_allow_new_hires: ['allow_new_hires', 'New-hire exemption from match service requirement'],
 };
+// Studio has no waiver control; the engine derives it from service, so only engine reviews compare it.
+const engineMatchEligibilityFields: [string, string][] = [...Object.values(matchEligibilityFields),
+  ['allow_new_hires', 'New-hire exemption from match service requirement']];
 function eligibilityField(key: string): [string, string] | undefined {
   return key.startsWith('dc_plan.') ? matchEligibilityFields[key.slice(8)]
     : key.startsWith('employer_match.eligibility.')
-      ? Object.values(matchEligibilityFields).find(([field]) => key.endsWith(`.${field}`)) : undefined;
+      ? engineMatchEligibilityFields.find(([field]) => key.endsWith(`.${field}`)) : undefined;
 }
 
 function effectiveMatchRules(match: Config): Config {
@@ -72,12 +74,12 @@ export function eligibilityReviewChanges(
   const otherChanges = changes.filter(change => engine
     ? change.key !== 'employer_match.apply_eligibility' && !eligibilityField(change.key)
     : !eligibilityField(change.key));
-  const rules = Object.entries(matchEligibilityFields).flatMap(([alias, [field]]) => {
-    const key = engine ? `employer_match.eligibility.${field}` : `dc_plan.${alias}`;
-    // The generated new-hire waiver belongs in indirect effects, not direct edits.
-    if (!engine && (field === 'allow_new_hires' || !changes.some(change => change.key === key))) return [];
-    return oldRules[field] === newRules[field] ? [] : [{ key, before: oldRules[field], after: newRules[field] }];
-  });
+  const fields: [string, string][] = engine
+    ? engineMatchEligibilityFields.map(([field]) => [`employer_match.eligibility.${field}`, field])
+    : Object.entries(matchEligibilityFields).map(([alias, [field]]) => [`dc_plan.${alias}`, field]);
+  const rules = fields.flatMap(([key, field]) =>
+    (!engine && !changes.some(change => change.key === key)) || oldRules[field] === newRules[field]
+      ? [] : [{ key, before: oldRules[field], after: newRules[field] }]);
   return [...otherChanges, ...rules];
 }
 
@@ -91,7 +93,7 @@ function formatEligibilityValue(key: string, value: unknown): string | undefined
   if (field === 'allow_new_hires') return value ? 'Exempt from service requirement' : 'Must meet service requirement';
   return value ? 'Allowed' : 'Excluded';
 }
-const labelFor = (key: string) => ({ 'dc_plan.match_template': 'Employer match template', 'dc_plan.match_tiers': 'Employer match formula', match_tiers: 'Employer match formula', promotion_base_increase_pct: 'Promotion pay increase', deferral_escalation_cap: 'Annual auto-escalation cap', target_growth_rate: 'Annual headcount growth', simulation_start_year: 'First projection year', end_year: 'Last projection year' }[key] ?? key.replaceAll('_', ' ').replaceAll('.', ' → '));
+const labelFor = (key: string) => ({ 'dc_plan.match_template': 'Employer match template', 'dc_plan.match_tiers': 'Employer match formula', match_tiers: 'Employer match formula', 'compensation.promotion_compensation.base_increase_pct': 'Promotion pay increase', 'compensation.promotion_compensation.distribution_range': 'Promotion increase spread', promotion_base_increase_pct: 'Promotion pay increase', deferral_escalation_cap: 'Annual auto-escalation cap', target_growth_rate: 'Annual headcount growth', simulation_start_year: 'First projection year', end_year: 'Last projection year' }[key] ?? key.replaceAll('_', ' ').replaceAll('.', ' → '));
 const percentVariables = new Set(['target_growth_rate', 'total_termination_rate', 'new_hire_termination_rate', 'cola_rate', 'merit_budget', 'promotion_base_increase_pct', 'promotion_distribution_range', 'auto_enrollment_default_deferral_rate', 'voluntary_enrollment_rate', 'new_hire_opt_out_rate', 'deferral_escalation_increment', 'deferral_escalation_cap', 'match_cap_percent', 'employer_match_max_deferral_rate', 'employer_core_contribution_rate', 'new_hire_ineligible_pct']);
 const summaryVariables = ['simulation_start_year', 'end_year', 'random_seed', 'target_growth_rate', 'total_termination_rate', 'new_hire_termination_rate', 'cola_rate', 'merit_budget', 'promotion_base_increase_pct', 'promotion_distribution_range', 'promotion_rate_multiplier', 'auto_enrollment_enabled', 'auto_enrollment_scope', 'auto_enrollment_hire_date_cutoff', 'auto_enrollment_window_days', 'auto_enrollment_default_deferral_rate', 'voluntary_enrollment_rate', 'new_hire_opt_out_rate', 'deferral_escalation_enabled', 'deferral_escalation_increment', 'deferral_escalation_cap'];
 const formatVariable = (key: string, value: unknown) => {
@@ -112,6 +114,7 @@ const percentagePointPaths = new Set([
 const decimalRatePaths = new Set([
   'simulation.target_growth_rate', 'workforce.total_termination_rate', 'workforce.new_hire_termination_rate', 'workforce.part_time_new_hire_pct',
   ...['cola_rate', 'merit_budget', 'promotion_increase', 'promotion_distribution_range', 'promotion_budget'].map(key => `compensation.${key}`),
+  'compensation.promotion_compensation.base_increase_pct', 'compensation.promotion_compensation.distribution_range',
   ...['match_cap_percent', 'max_voluntary_deferral_percent', 'voluntary_enrollment_rate', 'new_hire_opt_out_rate', 'opt_out_rate_target',
     'match_magnet_probability', 'core_integration_disparity_rate', 'opt_out_rate_young', 'opt_out_rate_mid', 'opt_out_rate_mature', 'opt_out_rate_senior',
     'opt_out_rate_low_income', 'opt_out_rate_moderate', 'opt_out_rate_high', 'opt_out_rate_executive'].map(key => `dc_plan.${key}`),

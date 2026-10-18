@@ -59,7 +59,7 @@ function waiverSummary(form: FormData, kind: Contribution, config: Config): stri
   const hasUITenure = config.dc_plan?.[`${kind.toLowerCase()}_min_tenure_years`] != null;
   const waiver = explicitWaiver ?? (hasUITenure ? Number(form[`dc${kind}MinTenureYears`]) === 0 : eligibility.allow_new_hires);
   if (waiver == null) return `derived from service requirement (${Number(form[`dc${kind}MinTenureYears`]) === 0 ? 'allowed' : 'not allowed'})`;
-  return `${waiver ? 'allowed' : 'not allowed'} by ${explicitWaiver != null ? 'the saved Studio setting' : hasUITenure ? 'the Studio service requirement' : 'inherited configuration'}`;
+  return `${waiver ? 'allowed' : 'not allowed'} by ${explicitWaiver != null ? 'an explicit saved override' : hasUITenure ? 'the Studio service requirement' : 'inherited configuration'}`;
 }
 
 function usesLegacyMatchPolicy(kind: Contribution, config: Config): boolean {

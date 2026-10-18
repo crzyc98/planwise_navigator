@@ -290,7 +290,6 @@ def _export_proactive_enrollment(
 # Mapping: dc_plan source key -> (dbt_vars target key, cast function)
 _DC_PLAN_AUTO_ENROLL_FIELDS: Dict[str, tuple] = {
     "auto_enroll": ("auto_enrollment_enabled", bool),
-    "auto_enroll_hire_date_cutoff": ("auto_enrollment_hire_date_cutoff", str),
     "auto_enroll_window_days": ("auto_enrollment_window_days", int),
     "auto_enroll_opt_out_grace_period": ("auto_enrollment_opt_out_grace_period", int),
 }
@@ -321,6 +320,26 @@ _SCOPE_MAP = {
 }
 
 
+def _apply_hire_date_cutoff(
+    dc_plan_dict: Dict[str, Any],
+    dbt_vars: Dict[str, Any],
+    src_key: str,
+    tgt_key: str,
+) -> None:
+    """Apply a hire date cutoff; empty/None means "remove legacy value".
+
+    Removing the var lets dbt fall back to its default instead of rendering
+    an invalid ``''::DATE``.
+    """
+    if src_key not in dc_plan_dict:
+        return
+    cutoff_value = dc_plan_dict[src_key]
+    if cutoff_value and str(cutoff_value).strip():
+        dbt_vars[tgt_key] = str(cutoff_value)
+    else:
+        dbt_vars[tgt_key] = _REMOVE_KEY
+
+
 def _apply_escalation_overrides(
     dc_plan_dict: Dict[str, Any],
     dbt_vars: Dict[str, Any],
@@ -332,13 +351,12 @@ def _apply_escalation_overrides(
             converted = cast(val)
             dbt_vars[tgt_key] = converted / 100.0 if pct_divide else converted
 
-    # Escalation hire date cutoff: empty/None means "remove legacy value"
-    if "escalation_hire_date_cutoff" in dc_plan_dict:
-        cutoff_value = dc_plan_dict["escalation_hire_date_cutoff"]
-        if cutoff_value and str(cutoff_value).strip():
-            dbt_vars["deferral_escalation_hire_date_cutoff"] = str(cutoff_value)
-        else:
-            dbt_vars["deferral_escalation_hire_date_cutoff"] = _REMOVE_KEY
+    _apply_hire_date_cutoff(
+        dc_plan_dict,
+        dbt_vars,
+        "escalation_hire_date_cutoff",
+        "deferral_escalation_hire_date_cutoff",
+    )
 
 
 _VOLUNTARY_DEFERRAL_AGE_SEGMENTS = ("young", "mid_career", "mature", "senior")
@@ -413,6 +431,12 @@ def _apply_dc_plan_enrollment_overrides(
     # Simple field mappings
     for src_key, (tgt_key, cast) in _DC_PLAN_AUTO_ENROLL_FIELDS.items():
         _set_if_not_none(dbt_vars, tgt_key, dc_plan_dict.get(src_key), cast)
+    _apply_hire_date_cutoff(
+        dc_plan_dict,
+        dbt_vars,
+        "auto_enroll_hire_date_cutoff",
+        "auto_enrollment_hire_date_cutoff",
+    )
 
     # Deferral percent: UI sends percentage, convert to decimal
     if dc_plan_dict.get("default_deferral_percent") is not None:
@@ -1072,13 +1096,13 @@ def _export_compensation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
 
     # Epic E059: Promotion compensation configuration
     promotion = cfg.compensation.promotion_compensation
-    # Use flat config values from UI if set, else fall back to nested config
-    if cfg.compensation.promotion_increase != 0.125:  # Not default - user set it
+    # Flat promotion fields are legacy; their default values defer to nested settings.
+    if cfg.compensation.promotion_increase != 0.125:
         dbt_vars["promotion_base_increase_pct"] = cfg.compensation.promotion_increase
     else:
         dbt_vars["promotion_base_increase_pct"] = promotion.base_increase_pct
 
-    if cfg.compensation.promotion_distribution_range != 0.05:  # Not default
+    if cfg.compensation.promotion_distribution_range != 0.05:
         dbt_vars[
             "promotion_distribution_range"
         ] = cfg.compensation.promotion_distribution_range
