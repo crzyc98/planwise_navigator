@@ -25,7 +25,9 @@ from .census_schema import (
     CENSUS_DATE_FORMATS,
     FIELDS,
     CensusFieldDefinition,
+    census_date_order_is_ambiguous,
     get_required_fields,
+    matching_census_date_formats,
 )
 
 # Confidence thresholds (clarified in spec)
@@ -138,52 +140,32 @@ class SuggestionEngine:
         self, column: DetectedColumn, canonical_field: CensusFieldDefinition
     ) -> Optional[FormatDetectionResult]:
         """Detect date format, currency pattern, or boolean alias map from sample values."""
-        samples = [v for v in column.sample_values if v and v.strip()][:20]
+        samples = [v for v in column.sample_values if v and v.strip()]
         if not samples:
             return None
 
         if canonical_field.data_type == "date":
-            return self._detect_date_format(samples)
+            return self.detect_date_format(samples)
+        samples = samples[:20]
         if canonical_field.data_type == "decimal":
             return self._detect_currency(samples)
         if canonical_field.data_type == "boolean":
             return self._detect_boolean(samples)
         return None
 
-    def _detect_date_format(
-        self, samples: list[str]
-    ) -> Optional[FormatDetectionResult]:
-        # Try each format; count how many samples parse successfully
-        results: list[tuple[str, int, list[str]]] = []
-        for fmt in _DATE_FORMATS:
-            parsed = pd.to_datetime(samples, format=fmt, errors="coerce")
-            success_count = int(parsed.notna().sum())
-            if success_count == 0:
-                continue
-            iso_samples = [d.strftime("%Y-%m-%d") for d in parsed.dropna()[:3]]
-            results.append((fmt, success_count, iso_samples))
-
-        if not results:
+    def detect_date_format(self, samples: list[str]) -> Optional[FormatDetectionResult]:
+        formats = matching_census_date_formats(samples)
+        if not formats:
             return None
-
-        max_success = max(r[1] for r in results)
-        best = [r for r in results if r[1] == max_success]
-
-        if len(best) == 1:
-            return FormatDetectionResult(
-                detected_format=best[0][0],
-                parsed_sample_values=best[0][2],
-                is_ambiguous=False,
-                format_options=None,
-            )
-
-        # Ambiguous — return all tied formats
-        format_options = [r[0] for r in best]
+        ambiguous = len(formats) > 1 and census_date_order_is_ambiguous(
+            samples, formats
+        )
+        parsed = pd.to_datetime(samples, format=formats[0], errors="coerce")
         return FormatDetectionResult(
-            detected_format=None,
-            parsed_sample_values=best[0][2],
-            is_ambiguous=True,
-            format_options=format_options,
+            detected_format=None if ambiguous else formats[0],
+            parsed_sample_values=[d.strftime("%Y-%m-%d") for d in parsed[:3]],
+            is_ambiguous=ambiguous,
+            format_options=list(formats) if ambiguous else None,
         )
 
     def _detect_currency(self, samples: list[str]) -> Optional[FormatDetectionResult]:

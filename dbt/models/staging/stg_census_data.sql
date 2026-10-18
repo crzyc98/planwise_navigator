@@ -14,34 +14,7 @@
 -- Schema scaffold: ensures all optional DC plan columns exist with proper types
 -- The WHERE false clause adds columns to schema without adding rows
 WITH schema_scaffold AS (
-  SELECT
-      NULL::VARCHAR AS employee_id,
-      NULL::VARCHAR AS employee_ssn,
-      NULL::DATE AS employee_birth_date,
-      NULL::DATE AS employee_hire_date,
-      NULL::DATE AS employee_termination_date,
-      NULL::DECIMAL(12,2) AS employee_gross_compensation,
-      NULL::BOOLEAN AS active,
-      -- DC plan columns (optional in source parquet)
-      NULL::DECIMAL(12,2) AS employee_capped_compensation,
-      NULL::DECIMAL(7,5) AS employee_deferral_rate,
-      NULL::DECIMAL(12,2) AS employee_contribution,
-      NULL::DECIMAL(12,2) AS pre_tax_contribution,
-      NULL::DECIMAL(12,2) AS roth_contribution,
-      NULL::DECIMAL(12,2) AS after_tax_contribution,
-      NULL::DECIMAL(12,2) AS employer_core_contribution,
-      NULL::DECIMAL(12,2) AS employer_match_contribution,
-      NULL::DATE AS eligibility_entry_date,
-      NULL::DECIMAL(5,2) AS scheduled_hours_per_week,
-      -- Per-employee auto-escalation opt-out (issue #316). Optional in source
-      -- parquet; absent → NULL → defaulted to FALSE (not opted out) below.
-      NULL::BOOLEAN AS auto_escalation_opt_out,
-      -- Per-employee plan eligibility override (Feature 103). Optional in source
-      -- parquet; absent → NULL → eligible (unspecified). TRUE=eligible,
-      -- FALSE=ineligible. NULL is meaningful (kept, NOT coalesced) so the
-      -- override model can distinguish "unspecified" from explicit eligible.
-      NULL::BOOLEAN AS eligibility_override
-  WHERE false
+  {{ census_schema_scaffold() }}
 ),
 
 -- Combine actual parquet data with schema scaffold using UNION ALL BY NAME

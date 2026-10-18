@@ -34,6 +34,10 @@ export default function FileUploadStep({ workspaceId, onDone, onParquetDone }: P
   const [error, setError] = useState<string | null>(null);
   const [isParquetUploading, setIsParquetUploading] = useState(false);
   const [parquetError, setParquetError] = useState<string | null>(null);
+  const [pendingParquet, setPendingParquet] = useState<File | null>(null);
+  const [ambiguousColumn, setAmbiguousColumn] = useState<string | null>(null);
+  const [dateOptions, setDateOptions] = useState<string[]>([]);
+  const [dateFormats, setDateFormats] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const parquetInputRef = useRef<HTMLInputElement>(null);
 
@@ -53,14 +57,24 @@ export default function FileUploadStep({ workspaceId, onDone, onParquetDone }: P
     }
   };
 
-  const handleParquetFile = async (file: File) => {
+  const handleParquetFile = async (file: File, formats: Record<string, string> = {}) => {
     setParquetError(null);
     setIsParquetUploading(true);
     try {
-      const result = await uploadCensusFile(workspaceId, file);
+      const result = await uploadCensusFile(workspaceId, file, formats);
+      setPendingParquet(null);
+      setAmbiguousColumn(null);
       onParquetDone?.(result);
     } catch (err) {
-      setParquetError(err instanceof Error ? err.message : 'Upload failed');
+      const message = err instanceof Error ? err.message : 'Upload failed';
+      const ambiguous = message.match(/Column '([^']+)' has ambiguous dates/);
+      if (ambiguous) {
+        setPendingParquet(file);
+        setAmbiguousColumn(ambiguous[1]);
+        setDateOptions(message.match(/%[md][/-]%[md][/-]%Y/g) ?? []);
+      } else {
+        setParquetError(message);
+      }
     } finally {
       setIsParquetUploading(false);
       if (parquetInputRef.current) parquetInputRef.current.value = '';
@@ -239,6 +253,26 @@ export default function FileUploadStep({ workspaceId, onDone, onParquetDone }: P
             <div className="flex items-start gap-2 text-danger-ink text-sm bg-danger-surface border border-danger-border rounded-lg p-3">
               <AlertCircle size={16} className="shrink-0 mt-0.5" />
               <span>{parquetError}</span>
+            </div>
+          )}
+          {pendingParquet && ambiguousColumn && (
+            <div className="rounded-lg border border-warning-border bg-warning-surface p-3 text-sm space-y-2">
+              <p className="text-warning-ink">Choose the date order for the whole {ambiguousColumn} column.</p>
+              <div className="flex gap-2">
+                {dateOptions.map((format) => (
+                  <button
+                    key={format}
+                    type="button"
+                    disabled={isParquetUploading}
+                    className="px-3 py-1 rounded border border-border bg-surface text-ink"
+                    onClick={() => {
+                      const updated = { ...dateFormats, [ambiguousColumn]: format };
+                      setDateFormats(updated);
+                      void handleParquetFile(pendingParquet, updated);
+                    }}
+                  >{format.startsWith('%m') ? 'Month first' : 'Day first'} ({format})</button>
+                ))}
+              </div>
             </div>
           )}
         </>

@@ -837,10 +837,12 @@ export type FileValidationResponse = Schemas['FileValidationResponse'];
 
 export async function uploadCensusFile(
   workspaceId: string,
-  file: File
+  file: File,
+  dateFormats: Record<string, string> = {},
 ): Promise<FileUploadResponse> {
   const formData = new FormData();
   formData.append('file', file);
+  formData.append('date_formats', JSON.stringify(dateFormats));
 
   const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/upload`,

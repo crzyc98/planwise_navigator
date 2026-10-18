@@ -1,9 +1,10 @@
 """File upload and validation router."""
 
+import json
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 
 from ..config import get_settings
 from ..errors import sanitize_error
@@ -63,6 +64,7 @@ def get_file_service() -> FileService:
 async def upload_census_file(
     workspace_id: str,
     file: UploadFile = File(..., description="Census file (.parquet or .csv)"),
+    date_formats: str = Form("{}"),
 ) -> FileUploadResponse:
     """Upload a census file to a workspace."""
     service = get_file_service()
@@ -111,10 +113,17 @@ async def upload_census_file(
 
     # Save and validate file
     try:
+        selected_formats = json.loads(date_formats)
+        if not isinstance(selected_formats, dict) or not all(
+            isinstance(key, str) and isinstance(value, str)
+            for key, value in selected_formats.items()
+        ):
+            raise ValueError("Date formats must map column names to format strings")
         relative_path, metadata, absolute_path = service.save_uploaded_file(
             workspace_id=workspace_id,
             file_content=content,
             filename=file.filename,
+            date_formats=selected_formats,
         )
     except ValueError as e:
         raise HTTPException(

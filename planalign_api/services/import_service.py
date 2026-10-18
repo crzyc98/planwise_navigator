@@ -533,6 +533,21 @@ class ImportService:
             raise ValueError("No mapping saved")
         return self._engine.apply_preview(df.head(limit), mappings)
 
+    def get_source_column_values(
+        self, workspace_id: str, import_id: str, column: str
+    ) -> list[str]:
+        """Read distinct source values for column-wide date format detection."""
+        source_path = self._source_parquet_path(workspace_id, import_id)
+        identifier = column.replace('"', '""')
+        with duckdb.connect(":memory:") as conn:
+            rows = conn.execute(
+                f'SELECT DISTINCT CAST("{identifier}" AS VARCHAR) '
+                "FROM read_parquet(?) WHERE "
+                f'"{identifier}" IS NOT NULL',
+                [str(source_path)],
+            ).fetchall()
+        return [row[0] for row in rows]
+
 
 # ------------------------------------------------------------------
 # Internal helpers

@@ -1910,6 +1910,11 @@
       },
       "Body_upload_census_file_api_workspaces__workspace_id__upload_post": {
         "properties": {
+          "date_formats": {
+            "default": "{}",
+            "title": "Date Formats",
+            "type": "string"
+          },
           "file": {
             "contentMediaType": "application/octet-stream",
             "description": "Census file (.parquet or .csv)",

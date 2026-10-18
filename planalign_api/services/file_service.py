@@ -27,6 +27,9 @@ from .census_schema import (
     BOOLEAN_TRUE_ALIASES,
     CENSUS_DATE_FORMATS,
     FIELDS,
+    GROUPED_NUMBER_PATTERN,
+    census_date_order_is_ambiguous,
+    matching_census_date_formats,
 )
 
 logger = logging.getLogger(__name__)
@@ -161,6 +164,7 @@ class FileService:
         workspace_id: str,
         file_content: bytes,
         filename: str,
+        date_formats: Optional[Dict[str, str]] = None,
     ) -> Tuple[str, Dict, str]:
         """
         Save an uploaded file, normalizing column names and filename.
@@ -196,7 +200,7 @@ class FileService:
         # Normalize columns and save as canonical parquet
         data_dir = self._get_data_directory(workspace_id)
         canonical_path, column_renames = self._normalize_and_save_census(
-            data_dir, file_content, filename
+            data_dir, file_content, filename, date_formats=date_formats
         )
 
         try:
@@ -237,6 +241,7 @@ class FileService:
         data_dir: Path,
         file_content: bytes,
         filename: str,
+        date_formats: Optional[Dict[str, str]] = None,
     ) -> Tuple[Path, List[Dict[str, str]]]:
         """
         Normalize column names and save as canonical parquet.
@@ -278,7 +283,7 @@ class FileService:
                     )
                 elif suffix == ".csv":
                     conn.execute(
-                        f"CREATE TABLE census AS SELECT * FROM read_csv('{safe_temp_path}', header=true, auto_detect=true)"
+                        f"CREATE TABLE census AS SELECT * FROM read_csv('{safe_temp_path}', header=true, auto_detect=true, all_varchar=true)"
                     )
                 else:
                     raise ValueError(f"Unsupported file type: {suffix}")
@@ -311,7 +316,7 @@ class FileService:
 
                 self._normalize_employee_ids(conn, columns)
                 self._normalize_boolean_columns(conn, columns)
-                self._normalize_date_columns(conn, columns)
+                self._normalize_date_columns(conn, columns, date_formats or {})
                 self._normalize_decimal_columns(conn, columns)
 
                 # Export as canonical parquet
@@ -402,46 +407,93 @@ class FileService:
         )
 
     def _normalize_date_columns(
-        self, conn: duckdb.DuckDBPyConnection, columns: set[str]
+        self,
+        conn: duckdb.DuckDBPyConnection,
+        columns: set[str],
+        date_formats: Dict[str, str],
     ) -> None:
         """Normalize recognized census date formats to physical DATE columns."""
-        placeholders = ", ".join("?" for _ in CENSUS_DATE_FORMATS)
+        types = {row[0]: row[1] for row in conn.execute("DESCRIBE census").fetchall()}
         for column in self.DATE_COLUMNS:
             if column not in columns:
                 continue
-            parse_expression = (
-                f"TRY_STRPTIME(NULLIF(TRIM(CAST(\"{column}\" AS VARCHAR)), ''), "
-                f"[{placeholders}])::DATE"
-            )
+            column_type = types[column].upper()
+            params: List[str] = []
+            if column_type.startswith(("DATE", "TIMESTAMP")):
+                parse_expression = f'CAST("{column}" AS DATE)'
+            else:
+                values = [
+                    row[0]
+                    for row in conn.execute(
+                        f'SELECT DISTINCT TRIM(CAST("{column}" AS VARCHAR)) FROM census '
+                        f'WHERE "{column}" IS NOT NULL AND TRIM(CAST("{column}" AS VARCHAR)) <> \'\''
+                    ).fetchall()
+                ]
+                formats = matching_census_date_formats(values)
+                selected = date_formats.get(column)
+                if selected is not None and selected not in CENSUS_DATE_FORMATS:
+                    raise ValueError(f"Unsupported date format for column {column!r}")
+                if (
+                    selected is None
+                    and len(formats) > 1
+                    and census_date_order_is_ambiguous(values, formats)
+                ):
+                    raise ValueError(
+                        f"Column {column!r} has ambiguous dates. Choose month-first "
+                        f"or day-first in the import mapping step. Available formats: {', '.join(formats)}."
+                    )
+                params = [
+                    selected or (formats[0] if formats else CENSUS_DATE_FORMATS[0])
+                ]
+                parse_expression = f"TRY_STRPTIME(NULLIF(TRIM(CAST(\"{column}\" AS VARCHAR)), ''), ?)::DATE"
             self._reject_unparseable_values(
                 conn,
                 column=column,
                 parsed_expression=parse_expression,
                 expected_type="a date",
-                params=list(CENSUS_DATE_FORMATS),
+                params=params,
             )
             self._replace_column(
                 conn,
                 column=column,
                 sql_type="DATE",
                 value_expression=parse_expression,
-                params=list(CENSUS_DATE_FORMATS),
+                params=params,
             )
 
     def _normalize_decimal_columns(
         self, conn: duckdb.DuckDBPyConnection, columns: set[str]
     ) -> None:
         """Normalize supported currency-style census values to DOUBLE columns."""
+        types = {row[0]: row[1] for row in conn.execute("DESCRIBE census").fetchall()}
         for column in self.DECIMAL_COLUMNS:
             if column not in columns:
+                continue
+            if types[column].upper() not in ("VARCHAR", "TEXT"):
+                parsed_expression = f'TRY_CAST("{column}" AS DOUBLE)'
+                self._reject_unparseable_values(
+                    conn,
+                    column=column,
+                    parsed_expression=parsed_expression,
+                    expected_type="a number",
+                )
+                self._replace_column(
+                    conn,
+                    column=column,
+                    sql_type="DOUBLE",
+                    value_expression=parsed_expression,
+                )
                 continue
             token = f"NULLIF(TRIM(CAST(\"{column}\" AS VARCHAR)), '')"
             unwrapped = (
                 f"CASE WHEN LEFT({token}, 1) = '(' AND RIGHT({token}, 1) = ')' "
                 f"THEN '-' || SUBSTR({token}, 2, LENGTH({token}) - 2) ELSE {token} END"
             )
-            cleaned = f"REGEXP_REPLACE({unwrapped}, '[$€£,[:space:]]', '', 'g')"
-            parsed_expression = f"TRY_CAST({cleaned} AS DOUBLE)"
+            undecorated = f"REGEXP_REPLACE({unwrapped}, '[$€£[:space:]]', '', 'g')"
+            parsed_expression = (
+                f"CASE WHEN REGEXP_FULL_MATCH({undecorated}, '{GROUPED_NUMBER_PATTERN}') "
+                f"THEN TRY_CAST(REPLACE({undecorated}, ',', '') AS DOUBLE) ELSE NULL END"
+            )
             self._reject_unparseable_values(
                 conn,
                 column=column,

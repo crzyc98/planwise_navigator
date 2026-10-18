@@ -12,7 +12,6 @@ from __future__ import annotations
 import ast
 import logging
 import operator
-import re
 from collections.abc import Collection
 from typing import Callable, List, Tuple, cast
 
@@ -22,13 +21,12 @@ from ..models.imports import FieldMapping, TransformationWarning
 from .census_schema import (
     BOOLEAN_FALSE_ALIASES,
     BOOLEAN_TRUE_ALIASES,
-    CENSUS_DATE_FORMATS,
+    census_date_order_is_ambiguous,
+    clean_census_number,
+    matching_census_date_formats,
 )
 
 logger = logging.getLogger(__name__)
-
-_CURRENCY_STRIP_RE = re.compile(r"[$€£,\s]")
-_PAREN_NEG_RE = re.compile(r"^\((.+)\)$")
 
 
 class FieldCoercionError(ValueError):
@@ -152,14 +150,12 @@ def _apply_transform(series: pd.Series, transform_type: str, params: dict) -> pd
 
 
 def _strip_currency(series: pd.Series) -> pd.Series:
-    """Strip currency symbols, commas, and parenthetical negatives from string values."""
+    """Clean valid currency values; invalid comma placement stays invalid."""
 
     def _clean(v: object) -> object:
-        if v is None or (isinstance(v, float) and pd.isna(v)):
+        if pd.isna(v):
             return v
-        s = _CURRENCY_STRIP_RE.sub("", str(v))
-        m = _PAREN_NEG_RE.match(s)
-        return f"-{m.group(1)}" if m else s
+        return clean_census_number(str(v))
 
     return series.apply(_clean)
 
@@ -230,14 +226,17 @@ def _coerce_date(
     if pd.api.types.is_datetime64_any_dtype(series):
         converted = series
     else:
-        converted = pd.Series(pd.NaT, index=series.index, dtype="datetime64[ns]")
-        for date_format in CENSUS_DATE_FORMATS:
-            remaining = _nonempty_mask(series) & converted.isna()
-            if not remaining.any():
-                break
-            converted.loc[remaining] = pd.to_datetime(
-                series[remaining], format=date_format, errors="coerce"
+        values = series.dropna().astype(str).tolist()
+        formats = matching_census_date_formats(values)
+        if len(formats) > 1 and census_date_order_is_ambiguous(values, formats):
+            raise FieldCoercionError(
+                f"Column {input_column!r} has ambiguous dates. Choose month-first "
+                "or day-first in the mapping step.",
+                rows_affected=len(values),
             )
+        converted = pd.to_datetime(
+            series, format=formats[0] if formats else "%Y-%m-%d", errors="coerce"
+        )
     invalid_mask = _nonempty_mask(original) & converted.isna()
     if invalid_mask.any():
         raise _coercion_error(
@@ -285,10 +284,6 @@ class MappingEngine:
 
             col = result[mapping.input_column].copy()
             original_col = col.copy()
-
-            # Auto-strip currency formatting for decimal fields with string source values
-            if mapping.output_type == "decimal" and col.dtype == object:
-                col = _strip_currency(col)
 
             for transform in mapping.transformations:
                 t = transform.transform_type

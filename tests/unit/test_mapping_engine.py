@@ -228,6 +228,48 @@ def test_decimal_output_rejects_unparseable_values():
     assert "'competitive'" in str(exc_info.value)
 
 
+@pytest.mark.parametrize("raw", ["1.234,56", "12,5", "12,345,67"])
+def test_decimal_output_rejects_invalid_comma_grouping(raw):
+    mapping = _mapping(
+        "SALARY", "employee_gross_compensation", [], output_type="decimal"
+    )
+    with pytest.raises(ValueError, match="cannot be parsed as a number"):
+        _engine().apply(pd.DataFrame({"SALARY": [raw]}), [mapping])
+
+
+def test_date_output_uses_one_format_for_every_row():
+    mapping = _mapping("DATE", "employee_hire_date", [], output_type="date")
+    result = _engine().apply(
+        pd.DataFrame({"DATE": ["03/04/2020", "25/04/2020"]}), [mapping]
+    )
+    assert [str(value) for value in result["employee_hire_date"]] == [
+        "2020-04-03",
+        "2020-04-25",
+    ]
+
+
+def test_ambiguous_date_requires_selected_order():
+    mapping = _mapping("DATE", "employee_hire_date", [], output_type="date")
+    with pytest.raises(ValueError, match="ambiguous"):
+        _engine().apply(pd.DataFrame({"DATE": ["03/04/2020"]}), [mapping])
+
+
+def test_selected_date_order_applies_to_entire_column():
+    mapping = _mapping(
+        "DATE",
+        "employee_hire_date",
+        [{"transform_type": "date_parse", "params": {"format": "%d/%m/%Y"}}],
+        output_type="date",
+    )
+    result = _engine().apply(
+        pd.DataFrame({"DATE": ["03/04/2020", "05/06/2020"]}), [mapping]
+    )
+    assert [str(value) for value in result["employee_hire_date"]] == [
+        "2020-04-03",
+        "2020-06-05",
+    ]
+
+
 # ---------------------------------------------------------------------------
 # null_drop
 # ---------------------------------------------------------------------------

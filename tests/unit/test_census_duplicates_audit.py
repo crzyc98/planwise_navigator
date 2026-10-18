@@ -12,27 +12,30 @@ MODEL = (
     Path(__file__).resolve().parents[2]
     / "dbt/models/staging/stg_census_duplicates_audit.sql"
 )
+SCAFFOLD = MODEL.parents[2] / "macros/census_schema_scaffold.sql"
 
 
 @pytest.mark.fast
 @pytest.mark.parametrize("include_ssn", [False, True])
 @pytest.mark.parametrize("include_termination", [False, True])
+@pytest.mark.parametrize("include_active", [False, True])
 def test_optional_columns_preserve_raw_duplicate_ranking(
-    tmp_path: Path, include_ssn: bool, include_termination: bool
+    tmp_path: Path, include_ssn: bool, include_termination: bool, include_active: bool
 ) -> None:
     parquet = tmp_path / "census.parquet"
     optional_columns = (
-        ", 'synthetic-ssn'::VARCHAR AS employee_ssn" if include_ssn else ""
-    ) + (
-        ", DATE '2024-12-01' AS employee_termination_date"
-        if include_termination
-        else ""
+        (", 'synthetic-ssn'::VARCHAR AS employee_ssn" if include_ssn else "")
+        + (
+            ", DATE '2024-12-01' AS employee_termination_date"
+            if include_termination
+            else ""
+        )
+        + (", TRUE AS active" if include_active else "")
     )
     with duckdb.connect(str(tmp_path / "audit.duckdb")) as conn:
         conn.execute(
             f"""COPY (
-              SELECT employee_id, DATE '1980-01-01' AS employee_birth_date,
-                employee_hire_date, employee_gross_compensation, TRUE AS active
+              SELECT employee_id, employee_hire_date, employee_gross_compensation
                 {optional_columns}
               FROM (VALUES
                 ('duplicate', DATE '2020-01-01', 90000),
@@ -42,10 +45,12 @@ def test_optional_columns_preserve_raw_duplicate_ranking(
               ) AS census(employee_id, employee_hire_date, employee_gross_compensation)
             ) TO '{parquet.as_posix()}' (FORMAT PARQUET)"""
         )
-        sql = (
-            Environment(undefined=StrictUndefined)
-            .from_string(MODEL.read_text())
-            .render(config=lambda **_: "", var=lambda _: parquet.as_posix())
+        env = Environment(undefined=StrictUndefined)
+        macro = env.from_string(SCAFFOLD.read_text()).module.census_schema_scaffold
+        sql = env.from_string(MODEL.read_text()).render(
+            config=lambda **_: "",
+            var=lambda _: parquet.as_posix(),
+            census_schema_scaffold=macro,
         )
         conn.execute(f"CREATE TABLE audit AS {sql}")
         rows = conn.execute(
@@ -61,3 +66,7 @@ def test_optional_columns_preserve_raw_duplicate_ranking(
         ("duplicate", 80000, 3, 2, "DROPPED", ssn, termination),
         ("duplicate", 90000, 3, 3, "DROPPED", ssn, termination),
     ]
+    with duckdb.connect(str(tmp_path / "audit.duckdb")) as conn:
+        assert conn.execute("SELECT DISTINCT active FROM audit").fetchall() == [
+            (True if include_active else None,)
+        ]
