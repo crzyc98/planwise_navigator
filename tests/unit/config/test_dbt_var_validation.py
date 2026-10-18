@@ -1,7 +1,6 @@
 """Exported vars are checked against the types their SQL consumers require."""
 
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -10,7 +9,7 @@ from planalign_orchestrator.config.dbt_var_validation import validate_dbt_vars
 from planalign_orchestrator.config.export import to_dbt_vars
 from planalign_orchestrator.config.loader import SimulationConfig
 from planalign_orchestrator.exceptions import ConfigurationError
-from planalign_orchestrator.pipeline_orchestrator import PipelineOrchestrator
+from planalign_orchestrator.construction import ConstructionSpec, build_orchestrator
 
 pytestmark = pytest.mark.fast
 
@@ -54,12 +53,12 @@ def test_simulation_rejects_invalid_export_before_dbt(tmp_path):
     payload.setdefault("setup", {})["plan_year_start_date"] = "2025-02-30"
     config = SimulationConfig.model_validate(payload)
     with pytest.raises(ConfigurationError, match="plan_year_start_date"):
-        PipelineOrchestrator(
-            config,
-            SimpleNamespace(db_path=tmp_path / "run.duckdb"),
-            None,
-            None,
-            None,
+        build_orchestrator(
+            ConstructionSpec(
+                config=config,
+                database=tmp_path / "run.duckdb",
+                reports_dir=tmp_path / "reports",
+            )
         )
 
 
