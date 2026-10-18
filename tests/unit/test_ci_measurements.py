@@ -77,8 +77,6 @@ def test_combined_coverage_includes_unexecuted_shipped_modules(
     files = json.loads(report.read_text())["files"]
     config = tomllib.loads((ROOT / "pyproject.toml").read_text())
     sources = set(config["tool"]["coverage"]["run"]["source"])
-    shipped = {p.split(".")[0] for p in config["tool"]["setuptools"]["packages"]}
-    assert sources == shipped
     for package in sources:
         expected = {
             p.relative_to(ROOT).as_posix() for p in (ROOT / package).rglob("*.py")
@@ -91,6 +89,7 @@ def test_combined_coverage_includes_unexecuted_shipped_modules(
     assert spec is not None and spec.loader is not None
     inventory = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(inventory)
+    assert sources == inventory.shipped_packages(config)
     monkeypatch.chdir(ROOT)
     inventory.main(report)
     content = json.loads(report.read_text())

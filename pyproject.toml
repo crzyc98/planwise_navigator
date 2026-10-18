@@ -105,29 +105,12 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = [
-    "planalign_orchestrator",
-    "planalign_orchestrator.pipeline",
-    "planalign_cli",
-    "planalign_cli.commands",
-    "planalign_cli.integration",
-    "planalign_cli.ui",
-    "planalign_cli.utils",
-    "planalign_api",
-    "planalign_api.models",
-    "planalign_api.routers",
-    "planalign_api.services",
-    "planalign_api.storage",
-    "planalign_api.websocket",
-    "planalign_core",
-    "planalign_core.events",
-    "planalign_fit",
-    "planalign_backtest",
-    "planalign_ensemble",
-    "planalign_evidence",
-    "planalign_optimizer",
-]
 py-modules = ["_version"]
+
+# Discover subpackages automatically; an explicit list silently drops new ones.
+[tool.setuptools.packages.find]
+include = ["planalign_*"]
+exclude = ["planalign_studio*"]
 
 [tool.setuptools.package-data]
 planalign_orchestrator = ["py.typed"]
