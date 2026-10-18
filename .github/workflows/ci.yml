@@ -150,9 +150,9 @@ jobs:
             --ignore-vuln PYSEC-2026-2120 \
             --ignore-vuln PYSEC-2026-2121
 
-  # The PR gate. Unit-only, no dbt runs, no database: ~330s for ~2,800 tests
-  # on 4 xdist workers as of 2026-09-28 (budget enforced below per
-  # constitution.md III, #648).
+  # The PR gate. About 3,250 tests run on 4 xdist workers; recent hosted
+  # timings vary from 368-463s (see #928). Budget is enforced below per
+  # constitution.md III.
   # This is the check developers wait on, so keep it fast -- anything
   # needing a real dbt invocation belongs in `test` below, not here.
   fast-tests:
@@ -197,12 +197,12 @@ jobs:
           DATABASE_PATH: ${{ runner.temp }}/planalign-ci-fast.duckdb
         run: |
           # Constitution III caps the fast suite's wall-clock time (see #648).
-          # Budget is ~1.25x the worst observed time on GitHub-hosted runners:
-          # 322-356s with -n 4 (one worker per vCPU) vs 615-915s serial, as of
-          # 2026-09-28. Re-measure here, not on a laptop, when re-baselining.
+          # Warn above 450s to track drift; fail above 540s to allow for runner
+          # variance observed on GitHub-hosted runners (see #928).
           # --dist load: tests must not depend on sharing a worker with their
           # file-mates; keep collection deterministic (no uuid4() in IDs).
-          FAST_SUITE_BUDGET_SECONDS=450
+          FAST_SUITE_BUDGET_SECONDS=540
+          FAST_SUITE_WARNING_SECONDS=450
           start=$(date +%s)
           pytest -m fast -q -n 4 --dist load
           status=$?
@@ -210,6 +210,9 @@ jobs:
           echo "Fast suite took ${elapsed}s (budget: ${FAST_SUITE_BUDGET_SECONDS}s)"
           if [ "$status" -ne 0 ]; then
             exit "$status"
+          fi
+          if [ "$elapsed" -gt "$FAST_SUITE_WARNING_SECONDS" ]; then
+            echo "::warning::Fast suite took ${elapsed}s, above the ${FAST_SUITE_WARNING_SECONDS}s warning threshold and drifting toward the ${FAST_SUITE_BUDGET_SECONDS}s budget."
           fi
           if [ "$elapsed" -gt "$FAST_SUITE_BUDGET_SECONDS" ]; then
             echo "::error::Fast suite took ${elapsed}s, exceeding the ${FAST_SUITE_BUDGET_SECONDS}s budget in constitution.md III. Re-profile with 'pytest -m fast --durations=50' and either fix the regression or re-baseline the budget."
