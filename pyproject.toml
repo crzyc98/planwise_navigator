@@ -71,7 +71,7 @@ dev = [
     "Faker==40.43.0",
 
     # Code Quality
-    "ruff==0.4.3",
+    "ruff==0.17.1",
     "black==23.9.1",
     "isort==9.0.2",
     # mypy >=1.20 requires pathspec >=1, conflicting with dbt-core's <0.13.
@@ -122,6 +122,10 @@ force-exclude = '/\.worktrees/'
 [tool.ruff]
 extend-exclude = [".worktrees"]
 force-exclude = true
+
+[tool.ruff.lint]
+# Preserve Ruff 0.4.3's default rules; Ruff 0.16 expanded its defaults.
+select = ["E4", "E7", "E9", "F"]
 
 [tool.pytest.ini_options]
 # Exclude third-party packages and non-test directories

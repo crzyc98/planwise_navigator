@@ -26,7 +26,7 @@ repos:
       - id: black
         args: ["--check"]
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.3
+    rev: v0.17.1
     hooks:
       - id: ruff
 
