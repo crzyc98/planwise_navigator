@@ -44,8 +44,7 @@ compatibility, tests, or historical documentation. Eligibility events use
 `int_deferral_rate_state_accumulator`. Historical specs and performance reports
 describe earlier implementations and are retained.
 
-The API year-range cleanup retains the legacy escalation relation name to prune
-old databases if present. This compatibility cleanup never materializes it.
+The API year-range cleanup no longer references the retired escalation relation.
 
 Removing these models also exposed `int_workforce_active_for_events` as an input
 only to `test_compensation_compounding_validation`. It is preserved under
@@ -56,17 +55,15 @@ are deleted.
 
 ## Reproduce parity
 
-Activate the virtual environment and run from the repository root:
+The baseline comparison was run before the model removal and cannot be rerun
+against the current tree. Its original evidence is retained below. Current
+graph checks can be run from the repository root:
 
 ```bash
-PYTHONPATH=. python scripts/validate_scheduled_model_cleanup.py baseline --artifacts var/validation/875
-# Apply the cleanup between baseline and candidate.
-PYTHONPATH=. python scripts/validate_scheduled_model_cleanup.py candidate --artifacts var/validation/875
-PYTHONPATH=. python scripts/validate_scheduled_model_cleanup.py compare --artifacts var/validation/875
 pytest tests/unit/orchestrator/test_dbt_model_reachability.py tests/unit/orchestrator/test_pipeline_graph_contract.py tests/test_workflow_schedule.py tests/test_calibration_workflow.py tests/unit/orchestrator/test_post_termination_workflow.py -q
 ```
 
-The harness uses checked-in synthetic census fixtures, fresh databases, isolated
+The original comparison used checked-in synthetic census fixtures, fresh databases, isolated
 dbt artifacts, one dbt thread, and complete 2025–2027 runs for standard enrollment,
 broad auto-enrollment with an early hire cutoff, new-hire eligibility suppression,
 an escalation cap, and grandfathered hire-date designs with different enrollment,

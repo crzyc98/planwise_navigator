@@ -66,7 +66,7 @@ def run_optimizer(
     budget = resolve_worker_count(parallel, max_runs)
     seed_count = seed_phase_count(max_runs)
     seed_values = sample_candidates(spec.design_space, seed_count, seed=search_seed)
-    candidates = evaluate_candidate_values(
+    candidates = _evaluate_candidate_values(
         seed_values,
         spec,
         baseline,
@@ -90,7 +90,7 @@ def run_optimizer(
             seed=search_seed + 1,
             exclude=excluded,
         )
-        candidates += evaluate_candidate_values(
+        candidates += _evaluate_candidate_values(
             refinement_values,
             spec,
             baseline,
@@ -157,7 +157,7 @@ def binding_constraints(candidates: Sequence[Candidate]) -> tuple[str, ...]:
     )
 
 
-def evaluate_candidate_values(
+def _evaluate_candidate_values(
     values: Sequence[dict[str, LeverValue]],
     spec: OptimizerSpec,
     baseline: SimulationConfig,

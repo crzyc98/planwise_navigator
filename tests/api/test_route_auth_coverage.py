@@ -21,6 +21,8 @@ pytestmark = [pytest.mark.fast]
 PUBLIC_ROUTES: frozenset[tuple[str, str]] = frozenset(
     {
         ("/api/health", "GET"),
+        # Access requires a valid, short-lived path-bound ticket.
+        ("/api/artifact-download/{ticket}", "GET"),
     }
 )
 

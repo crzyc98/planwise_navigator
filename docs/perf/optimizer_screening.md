@@ -3,7 +3,7 @@
 ## Plan and implementation boundary
 
 Measure a paired, fixed candidate set through the existing optimizer's
-`evaluate_candidate_values` / `ScenarioRunPool` / `run_seed_worker` path before
+the private `_evaluate_candidate_values` / `ScenarioRunPool` / `run_seed_worker` path before
 changing production search. Preserve the simulation seed and all undeclared
 inputs. Run a fresh full-horizon reference, a fresh first-year screen, and
 fresh full-horizon reruns of the selected candidates. Use the same worker

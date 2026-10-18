@@ -29,33 +29,22 @@ describe('browser downloads', () => {
     vi.resetAllMocks();
   });
 
-  it.each([
-    ['results.xlsx', 12],
-    ['simulation.duckdb', 150],
-  ])('keeps %s (%i MiB) available after the click, then releases it', async (filename, sizeMiB) => {
-    const blob = new Blob([new Uint8Array(sizeMiB * 1024 * 1024)]);
-    let finishBody!: (blob: Blob) => void;
-    const body = new Promise<Blob>((resolve) => { finishBody = resolve; });
-    const response = new Response(null);
-    vi.spyOn(response, 'blob').mockReturnValue(body);
+  it.each(['results.xlsx', 'simulation.duckdb'])('streams %s through a signed URL', async (filename) => {
+    const response = new Response(JSON.stringify({ url: '/api/artifact-download/signed-ticket' }));
+    const blobSpy = vi.spyOn(response, 'blob');
     const fetchMock = vi.fn().mockResolvedValue(response);
     vi.stubGlobal('fetch', fetchMock);
 
-    const download = downloadArtifact('scenario-1', `runs/run-1/${filename}`, filename);
-    await vi.advanceTimersByTimeAsync(0);
-    expect(anchor.click).not.toHaveBeenCalled();
-    finishBody(blob);
-    await download;
+    await downloadArtifact('scenario-1', `runs/run-1/${filename}`, filename);
 
-    expect(fetchMock.mock.calls[0][0]).toContain(`/scenarios/scenario-1/artifacts/runs/run-1/${filename}`);
-    expect(createObjectURL).toHaveBeenCalledWith(blob);
+    expect(fetchMock.mock.calls[0][0]).toContain(`/scenarios/scenario-1/artifact-download-url/runs/run-1/${filename}`);
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: 'POST' });
+    expect(anchor.href).toContain('/api/artifact-download/signed-ticket');
     expect(anchor.download).toBe(filename);
     expect(anchor.click).toHaveBeenCalledOnce();
     expect(removeChild).toHaveBeenCalledWith(anchor);
-    await vi.advanceTimersByTimeAsync(1_000);
-    expect(revokeObjectURL).not.toHaveBeenCalled();
-    await vi.runAllTimersAsync();
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:download');
+    expect(blobSpy).not.toHaveBeenCalled();
+    expect(createObjectURL).not.toHaveBeenCalled();
   });
 
   it('surfaces server errors without saving an error response as a workbook', async () => {
@@ -68,6 +57,16 @@ describe('browser downloads', () => {
       .rejects.toThrow('Artifact not found');
     expect(createObjectURL).not.toHaveBeenCalled();
     expect(anchor.click).not.toHaveBeenCalled();
+  });
+
+  it('removes the signed download link if the click fails', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ url: '/api/artifact-download/signed-ticket' }),
+    )));
+    anchor.click.mockImplementationOnce(() => { throw new Error('Download rejected'); });
+    await expect(downloadArtifact('scenario-1', 'runs/run-1/results.xlsx', 'results.xlsx'))
+      .rejects.toThrow('Download rejected');
+    expect(removeChild).toHaveBeenCalledWith(anchor);
   });
 
   it('cleans up even if the browser rejects the click', async () => {

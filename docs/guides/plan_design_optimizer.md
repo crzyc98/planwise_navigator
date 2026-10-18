@@ -124,6 +124,9 @@ DATABASE_PATH=/tmp/optimizer_validation/isolated.duckdb \
 
 ## Experimental first-year screening benchmark
 
+The research-only screening modules live under `scripts/perf_profile/` and are
+not included in the installed optimizer package.
+
 Before adding a cheaper evaluation mode, measure its decision quality using
 the paired benchmark. This research tool evaluates the same fixed designs at
 one year and across the full baseline horizon, then independently reruns the
