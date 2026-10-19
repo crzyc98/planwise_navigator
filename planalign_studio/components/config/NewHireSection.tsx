@@ -24,6 +24,12 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
     update: Partial<FormData>; description: string; before: string; after: string;
     analysis?: CompensationAnalysis;
   }>(JSON.stringify([formData, compLookbackYears, compScaleLocal, scenarioLoading]), JSON.stringify([activeWorkspace?.id, scenarioId]));
+  // The three census buttons share one preview; show it beside the button that requested it.
+  const [suggestionSource, setSuggestionSource] = useState<'age' | 'partTime' | 'comp' | null>(null);
+  const suggest = (source: typeof suggestionSource, calculateValue: Parameters<typeof preview.calculate>[0]) => {
+    setSuggestionSource(source);
+    return preview.calculate(calculateValue);
+  };
   const matchCensusLoading = preview.pending;
   const matchPartTimeLoading = preview.pending;
   const matchCompLoading = preview.pending;
@@ -64,7 +70,7 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
     }));
   };
 
-  const handleMatchCensus = () => preview.calculate(async () => {
+  const handleMatchCensus = () => suggest('age', async () => {
     const result = await analyzeAgeDistribution(activeWorkspace.id, formData.censusDataPath);
     return {
       update: { newHireAgeDistribution: result.distribution.map(d => ({ age: d.age, weight: d.weight, description: d.description })) },
@@ -74,7 +80,7 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
     };
   });
 
-  const handleMatchPartTime = () => preview.calculate(async () => {
+  const handleMatchPartTime = () => suggest('partTime', async () => {
     const result = await analyzePartTimePct(activeWorkspace.id, formData.censusDataPath);
     if (!result.column_present) throw new Error('Census file has no scheduled hours column.');
     const percentage = Math.round(result.part_time_pct * 1000) / 10;
@@ -86,7 +92,7 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
     };
   });
 
-  const handleMatchCompensation = () => preview.calculate(async () => {
+  const handleMatchCompensation = () => suggest('comp', async () => {
     const result = await analyzeCompensation(activeWorkspace.id, formData.censusDataPath, compLookbackYears);
     const levels = result.has_level_data
       ? result.levels?.map(row => ({ level: row.level, name: row.name, minComp: Math.round(row.min_compensation * compScaleFactor), maxComp: Math.round(row.max_compensation * compScaleFactor) }))
@@ -100,6 +106,21 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
     };
   });
 
+  const suggestionPanel = (source: typeof suggestionSource) => source === suggestionSource && (<>
+    {preview.error && <p role="alert" className="text-sm text-danger-ink">{preview.error}</p>}
+    {preview.value && <div className="bg-info-surface rounded-lg border border-info-border p-4 space-y-2" aria-label="Census suggestion preview">
+      <h3 className="font-medium text-info-ink">Census suggestion — not applied</h3>
+      <p className="text-xs text-info-ink">Source: {formData.censusDataPath}. {preview.value.description}</p>
+      {preview.stale && <p role="status" className="text-sm text-warning-ink">Needs recalculation: inputs have changed.</p>}
+      <p className="text-sm text-ink"><strong>Current draft:</strong> {preview.value.before}</p>
+      <p className="text-sm text-ink"><strong>Suggested:</strong> {preview.value.after}</p>
+      <div className="flex gap-2">
+        <button type="button" disabled={preview.stale} onClick={() => preview.apply(value => setFormData(previous => ({ ...previous, ...value.update })))} className="px-3 py-2 rounded bg-info-solid text-ink-inverse text-sm disabled:opacity-50">Apply census suggestion</button>
+        <button type="button" onClick={preview.cancel} className="px-3 py-2 rounded border border-border text-sm">Cancel</button>
+      </div>
+    </div>}
+  </>);
+
   return (
     <div className="space-y-8 animate-fadeIn">
       <div className="border-b border-border pb-4">
@@ -107,18 +128,6 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
         <p className="text-sm text-ink-muted">Review age profile, pay ranges, part-time share and market assumptions for new hires.</p>
       </div>
 
-      {preview.error && <p role="alert" className="text-sm text-danger-ink">{preview.error}</p>}
-      {preview.value && <div className="bg-info-surface rounded-lg border border-info-border p-4 space-y-2" aria-label="Census suggestion preview">
-        <h3 className="font-medium text-info-ink">Census suggestion — not applied</h3>
-        <p className="text-xs text-info-ink">Source: {formData.censusDataPath}. {preview.value.description}</p>
-        {preview.stale && <p role="status" className="text-sm text-warning-ink">Needs recalculation: inputs have changed.</p>}
-        <p className="text-sm text-ink"><strong>Current draft:</strong> {preview.value.before}</p>
-        <p className="text-sm text-ink"><strong>Suggested:</strong> {preview.value.after}</p>
-        <div className="flex gap-2">
-          <button type="button" disabled={preview.stale} onClick={() => preview.apply(value => setFormData(previous => ({ ...previous, ...value.update })))} className="px-3 py-2 rounded bg-info-solid text-ink-inverse text-sm disabled:opacity-50">Apply census suggestion</button>
-          <button type="button" onClick={preview.cancel} className="px-3 py-2 rounded border border-border text-sm">Cancel</button>
-        </div>
-      </div>}
 
       <div className="space-y-4">
         {!essentials && (<fieldset disabled className="space-y-4">
@@ -198,6 +207,7 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
               <span className="text-info-ink ml-1">Click "Suggest from census" to preview values from your workforce.</span>
             )}
           </p>
+          {suggestionPanel('age')}
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-border">
               <thead className="bg-surface-subtle">
@@ -269,6 +279,7 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
               <span className="text-info-ink ml-1">Click "Suggest from census" to preview values from your workforce's scheduled hours.</span>
             )}
           </p>
+          {suggestionPanel('partTime')}
           <div className="flex items-center space-x-3">
             <label htmlFor="part-time-new-hire-pct" className="text-sm font-medium text-ink-muted">
               Part-Time New Hire %
@@ -419,6 +430,7 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
               <span className="text-info-ink ml-1">Select lookback period and click "Suggest from census" to derive ranges from recent hire data.</span>
             )}
           </p>
+          {suggestionPanel('comp')}
           {compensationAnalysis && (
             <div className={`mb-4 p-2 rounded text-xs ${compensationAnalysis.recent_hires_only ? 'bg-info-surface border border-info-border text-info-ink' : 'bg-warning-surface border border-warning-border text-warning-ink'}`}>
               <strong>Analysis:</strong> {compensationAnalysis.analysis_type} ({compensationAnalysis.total_employees} employees)
