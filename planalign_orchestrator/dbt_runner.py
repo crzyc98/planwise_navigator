@@ -561,12 +561,12 @@ class DbtRunner:
 
         return self._run_subprocess(cmd, start_ts=start)
 
-    def _build_subprocess_env(self) -> Optional[Dict[str, str]]:
+    def _build_subprocess_env(self) -> Dict[str, str]:
         """Build environment variables for subprocess execution.
 
-        Pins DBT_PROFILES_DIR to the repo profile, sets DATABASE_PATH (relative
-        to working dir) and corporate network proxy/certificate settings when
-        available.
+        Pins DBT_PROFILES_DIR to the repo profile, disables dbt usage tracking,
+        sets DATABASE_PATH (relative to working dir) and corporate network
+        proxy/certificate settings when available.
         """
         import os
 
@@ -626,6 +626,13 @@ class DbtRunner:
         except ImportError:
             # Corporate network support not available, continue with standard env
             pass
+
+        # Opt out of dbt's anonymous usage tracking (#971) so no run depends on
+        # an outbound call. dbt applies DO_NOT_TRACK after every other source,
+        # so it also overrides an inherited DBT_SEND_ANONYMOUS_USAGE_STATS.
+        if env is None:
+            env = os.environ.copy()
+        env["DO_NOT_TRACK"] = "1"
 
         return env
 
