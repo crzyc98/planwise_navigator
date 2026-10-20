@@ -72,11 +72,28 @@ default purge produces clean results.
 
 ## Fresh-database initialization
 
-CLI, batch, and Studio use one default initialization contract: no implicit
-self-healing hook is installed. The pipeline creates required disposable
-sources, loads seeds, and builds start-year staging before the yearly workflow.
+CLI, batch, Studio, and ensemble/optimizer seed workers use one default
+initialization contract: no implicit self-healing hook is installed.
+The pipeline creates required disposable sources, loads seeds, and builds
+start-year staging before the yearly workflow.
 Any critical setup failure aborts the run; it is never swallowed as an optional
 hook error.
+
+Ensemble and optimizer seed workers used `SELF_HEALING` before #967. Their
+setup failures now surface from the pipeline instead of the pre-simulation
+initializer, so:
+
+- unsuccessful dbt seed/staging results report `PipelineStageError` (for
+  example `Dbt seed failed` or `Staging models failed`); other exceptions can
+  propagate directly, without the initializer's correlation ID and hints;
+- these seed/staging failures happen after the run is recorded in `run_metadata`, any
+  configured `setup.clear_tables` cleanup has run, and (for a run starting at
+  the configured start year) enrollment/deferral registry reset was attempted;
+- the initializer's 600-second elapsed-time limit no longer applies;
+- the recorded construction signature reports `initialization_policy: none`.
+
+The failed seed is still excluded from aggregation. Retry it in a fresh seed
+database, as for any other partial run.
 
 Diagnostic callers may explicitly request `SELF_HEALING`. That policy runs
 before the simulation and fails loudly with a correlation ID, failed-step

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from hashlib import sha256
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -139,8 +138,11 @@ def run_seed_worker(job: ScenarioJob) -> dict[str, Any]:
             dbt_project_dir=resolved_project_dir,
             dbt_artifacts_dir=artifacts_dir,
             reports_dir=reports_dir,
-            initialization=InitializationPolicy.SELF_HEALING,
-            initialization_lock_name=_seed_initialization_lock_name(database_path),
+            # The pipeline owns fresh-database initialization (seeds, staging,
+            # and a full-refresh start-year FOUNDATION), exactly as for CLI,
+            # batch, and Studio. SELF_HEALING would build the same tables first
+            # only for the pipeline to rebuild them, once per seed (#967).
+            initialization=InitializationPolicy.NONE,
             entry_point="cli.simulate",
             validation_mode=True,
             verbose=False,
@@ -152,12 +154,6 @@ def run_seed_worker(job: ScenarioJob) -> dict[str, Any]:
         fail_on_validation_error=True,
     )
     return {"config_fingerprint": compute_config_fingerprint(job.config)}
-
-
-def _seed_initialization_lock_name(database_path: Path) -> str:
-    """Derive a lock namespace that cannot collide with another seed database."""
-    digest = sha256(str(database_path).encode("utf-8")).hexdigest()[:16]
-    return f"planalign_init_{digest}"
 
 
 def _resolve_config(plan: SeedPlan, config: Any | None) -> Any:
