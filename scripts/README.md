@@ -4,6 +4,7 @@ Small standalone utilities that support development. Run them from the repo root
 
 | Script | Purpose |
 |--------|---------|
+| `dev.py` | Check the active checkout and Python environment, then execute a command with its venv on PATH. |
 | `check_worktree_gitlinks.py` | Reject `.worktrees/*` gitlinks in the Git index without inspecting nested checkout contents. |
 | `check_fast_suite_runtime.py` | Fails when the fast pytest suite (`pytest -m fast`) exceeds its hard time budget — a guard against fast-suite bloat. |
 | `create_census.py` | Generate a synthetic employee census parquet for development and testing. |
@@ -12,6 +13,21 @@ Small standalone utilities that support development. Run them from the repo root
 | `install_sqlparse_fix.py` | Manual fallback installer for the sqlparse token-limit fix. Normally unnecessary — the fix auto-installs on first `import planalign_orchestrator`. |
 
 ## Nested development worktrees
+
+Start a tool session with `python3 scripts/dev.py --check`. Run project commands as
+`python3 scripts/dev.py -- python -m pytest ...`. Use `--require <path>` before
+`--` to reject missing input paths before execution. The runner preserves cwd and
+child exit codes; from `dbt/`, invoke `python3 ../scripts/dev.py -- dbt ... --threads 1`.
+Continue to set an isolated `DATABASE_PATH` for behavioral validation.
+
+For a worktree that predates this script, invoke the main checkout's `scripts/dev.py`
+by absolute path while keeping cwd in the worktree. A local `.venv` takes precedence.
+Without one, the runner can reuse the main checkout's environment only if Python
+dependency declarations and `uv.lock` match. It puts the active checkout on
+`PYTHONPATH` and verifies application import origin. Do not install or update packages
+in a borrowed environment; dependency changes need an independently provisioned venv.
+The preflight reports missing dbt and Studio packages but does not install them.
+It checks core imports, not the complete dependency graph or every optional tool.
 
 Keep nested checkouts under `.worktrees/`. Git ignores this directory, and Black,
 Ruff, and pre-commit explicitly exclude it. Run `python scripts/check_worktree_gitlinks.py`

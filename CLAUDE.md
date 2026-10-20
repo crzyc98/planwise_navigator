@@ -12,6 +12,12 @@ uv venv .venv --python python3.12
 source .venv/bin/activate
 uv pip install -e ".[dev]"
 
+# Existing environment: preflight and execute in the intended checkout
+python3 scripts/dev.py --check
+python3 scripts/dev.py -- python -m pytest -m fast
+# Each tool shell is independent; a previous activation does not persist.
+# Discover uncertain paths with rg --files before reading them.
+
 # Primary workflows
 planalign health                              # System check
 planalign simulate 2025-2027                  # Multi-year simulation
