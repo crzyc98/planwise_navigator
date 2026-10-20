@@ -33,9 +33,11 @@ dependencies = [
     "openpyxl>=3.1.0",
     # openpyxl uses lxml when present: ~4x faster large-sheet writes.
     "lxml>=5.0.0",
-    # Tableau .hyper export (Cost Comparison page). Pinned: releases after
-    # 0.0.26479 dropped macOS wheels; no Linux aarch64 wheels exist at all.
-    "tableauhyperapi==0.0.26784; platform_machine != 'aarch64'",
+    # Tableau .hyper export (Cost Comparison page). Releases after 0.0.26479
+    # dropped macOS wheels, so macOS stays on that pin; no Linux aarch64 wheels
+    # exist at all. Dependabot ignores this package (see .github/dependabot.yml).
+    "tableauhyperapi==0.0.26479; sys_platform == 'darwin'",
+    "tableauhyperapi==0.0.26784; sys_platform != 'darwin' and platform_machine != 'aarch64'",
     # Corporate network and HTTP client dependencies
     "requests>=2.28.0",
     "urllib3>=1.26.0",
