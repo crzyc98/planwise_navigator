@@ -37,6 +37,11 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# The repo profile reads DATABASE_PATH. Pinning it keeps dbt from silently
+# falling back to ~/.dbt/profiles.yml (and another database) whenever its
+# working directory lacks a profiles.yml, e.g. Studio's per-run overlays.
+REPO_PROFILES_DIR = Path(__file__).resolve().parents[1] / "dbt"
+
 # Import parallel execution components (lazy import to avoid circular dependencies)
 try:
     from .parallel_execution_engine import (
@@ -559,18 +564,24 @@ class DbtRunner:
     def _build_subprocess_env(self) -> Optional[Dict[str, str]]:
         """Build environment variables for subprocess execution.
 
-        Sets DATABASE_PATH (relative to working dir) and corporate network
-        proxy/certificate settings when available.
+        Pins DBT_PROFILES_DIR to the repo profile, sets DATABASE_PATH (relative
+        to working dir) and corporate network proxy/certificate settings when
+        available.
         """
         import os
 
         env: Optional[Dict[str, str]] = None
 
+        if (REPO_PROFILES_DIR / "profiles.yml").is_file():
+            env = os.environ.copy()
+            env["DBT_PROFILES_DIR"] = str(REPO_PROFILES_DIR)
+
         if self.dbt_artifacts_dir is not None:
             # dbt 1.8 honors these over the project defaults, which keeps the
             # position-sensitive --target-path/--log-path flags out of every
             # command we build.
-            env = os.environ.copy()
+            if env is None:
+                env = os.environ.copy()
             env["DBT_TARGET_PATH"] = str(self.target_path)
             env["DBT_LOG_PATH"] = str(self.log_path)
 
