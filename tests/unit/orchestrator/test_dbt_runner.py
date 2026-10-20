@@ -626,6 +626,18 @@ class TestBuildSubprocessEnv:
             assert "DATABASE_PATH" in env
 
     @pytest.mark.fast
+    def test_pins_repo_profiles_dir(self, tmp_path, monkeypatch):
+        """A stray ~/.dbt profile must never redirect dbt to another database."""
+        from planalign_orchestrator.dbt_runner import REPO_PROFILES_DIR
+
+        monkeypatch.setenv("DBT_PROFILES_DIR", str(tmp_path))
+        env = DbtRunner(working_dir=tmp_path)._build_subprocess_env()
+
+        assert env is not None
+        assert env["DBT_PROFILES_DIR"] == str(REPO_PROFILES_DIR)
+        assert (REPO_PROFILES_DIR / "profiles.yml").is_file()
+
+    @pytest.mark.fast
     def test_database_path_absolute_fallback(self, tmp_path):
         """When database is outside working_dir, absolute path is used."""
         runner = DbtRunner(
