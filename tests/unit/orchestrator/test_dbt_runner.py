@@ -661,6 +661,48 @@ class TestBuildSubprocessEnv:
             Path("/some/other/path/sim.duckdb").absolute()
         )
 
+    @pytest.mark.fast
+    def test_disables_dbt_usage_tracking(self, monkeypatch):
+        """dbt telemetry is forced off (#971) without dropping unrelated vars."""
+        monkeypatch.setenv("DO_NOT_TRACK", "0")
+        monkeypatch.setenv("DBT_SEND_ANONYMOUS_USAGE_STATS", "True")
+        monkeypatch.setenv("PLANALIGN_UNRELATED_SETTING", "keep-me")
+
+        with patch.dict("sys.modules", {"planalign_orchestrator.network_utils": None}):
+            env = DbtRunner()._build_subprocess_env()
+
+        assert env["DO_NOT_TRACK"] == "1"
+        assert env["PLANALIGN_UNRELATED_SETTING"] == "keep-me"
+        assert env["DBT_SEND_ANONYMOUS_USAGE_STATS"] == "True"
+
+
+class TestSubprocessTelemetryEnv:
+    """Every dbt launch path hands the subprocess DO_NOT_TRACK=1 (#971)."""
+
+    @pytest.mark.fast
+    @patch("subprocess.run")
+    def test_run_subprocess_passes_do_not_track(self, mock_run):
+        mock_run.return_value = Mock(returncode=0, stdout="", stderr="")
+        DbtRunner()._run_subprocess(["dbt", "run"], start_ts=time.perf_counter())
+        assert mock_run.call_args.kwargs["env"]["DO_NOT_TRACK"] == "1"
+
+    @pytest.mark.fast
+    @patch("subprocess.run")
+    def test_run_subprocess_fallback_passes_do_not_track(self, mock_run):
+        mock_run.return_value = Mock(returncode=0, stdout="", stderr="")
+        with patch.dict("sys.modules", {"planalign_orchestrator.network_utils": None}):
+            DbtRunner()._run_subprocess(["dbt", "run"], start_ts=time.perf_counter())
+        assert mock_run.call_args.kwargs["env"]["DO_NOT_TRACK"] == "1"
+
+    @pytest.mark.fast
+    @patch("subprocess.Popen")
+    def test_streaming_passes_do_not_track(self, mock_popen):
+        mock_popen.return_value = _mock_popen_process()
+        DbtRunner()._execute_with_streaming(
+            ["dbt", "run"], start_ts=time.perf_counter()
+        )
+        assert mock_popen.call_args.kwargs["env"]["DO_NOT_TRACK"] == "1"
+
 
 # ===================================================================
 # execute_command / _execute_with_retry
