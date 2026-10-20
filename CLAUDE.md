@@ -1,376 +1,81 @@
-# Fidelity PlanAlign Engine – Claude Code Playbook
+# Fidelity PlanAlign Engine
 
-Production-ready code for workforce simulation and event sourcing. This playbook captures hard-won lessons and essentials for shipping features.
+Event-sourced workforce and DC-plan simulation: DuckDB + dbt, driven by a Python orchestrator, with PlanAlign Studio (FastAPI + React/Vite + Tailwind v4) as the product UI. The team uses Studio, not the CLI; the CLI is the execution engine and dev tool. dbt-specific guidance lives in `dbt/CLAUDE.md`.
 
----
+Versions are pinned in `pyproject.toml` (Python 3.12, DuckDB, dbt-core/dbt-duckdb) and `planalign_studio/package.json`. Current release: `_version.py`.
 
-## **Quick Start**
+## Commands
+
+Each tool shell is independent, so activating the venv in one call doesn't carry over. Run project commands through the runner:
 
 ```bash
-# Environment
-uv venv .venv --python python3.12
-source .venv/bin/activate
-uv pip install -e ".[dev]"
-
-# Primary workflows
-planalign health                              # System check
-planalign simulate 2025-2027                  # Multi-year simulation
-planalign batch --scenarios baseline high_growth  # Batch processing
-planalign studio                              # Launch web UI
-
-# dbt (always from /dbt directory, --threads 1)
-cd dbt
-dbt build --threads 1 --fail-fast
-dbt run --select int_baseline_workforce+ --threads 1
-
-# Database queries
-duckdb dbt/simulation.duckdb "SELECT COUNT(*) FROM fct_yearly_events"
+python3 scripts/dev.py --check                          # Preflight: checkout + venv
+python3 scripts/dev.py -- python -m pytest -m fast      # Fast suite (TDD loop)
+python3 scripts/dev.py -- ruff check .
+python3 scripts/dev.py -- planalign health              # Also detects DB locks
 ```
 
----
+Fresh environment: `uv venv .venv --python python3.12 && uv pip install -e ".[dev]"`.
 
-## **Tech Stack**
+Main CLI commands (`planalign --help` for the full list): `simulate`, `batch`, `studio`, `validate`, `validate-change` (isolated-DB parity gate), `calibrate`, `fit`, `backtest`, `optimize`, `evidence-pack`, `provenance`, `report`, `gc`.
 
-| Layer | Technology | Why |
-|-------|-----------|-----|
-| Storage | DuckDB 1.5.6 | Immutable event store; column-store OLAP |
-| Transformation | dbt-core 1.12.6 / dbt-duckdb 1.9.6 | Declarative SQL, testable models |
-| Orchestration | planalign_orchestrator | Modular pipeline with staged execution |
-| CLI | Typer + Rich | Beautiful terminal UI with progress |
-| Web | FastAPI + React/Vite + Tailwind | Modern web-based scenario management |
-| Config | Pydantic v2 | Type-safe validation |
-| Python | 3.12 | Version CI tests against |
+Run dbt only from `dbt/`, always with `--threads 1`.
 
----
+## Architecture
 
-## **Event Sourcing Architecture**
+- **Events are immutable.** Every workforce/plan change is a row in `fct_yearly_events`. Same seed + inputs ⇒ identical output. Python event models (Pydantic v2) live in `planalign_core/events`.
+- **Per-year pipeline** (`planalign_orchestrator/pipeline/workflow.py` is authoritative): INITIALIZATION → FOUNDATION → EVENT_GENERATION (ends by publishing `fct_yearly_events`) → STATE_ACCUMULATION (accumulators → contributions/match → `fct_workforce_snapshot`) → VALIDATION → REPORTING.
+- **Construction:** `build_orchestrator(ConstructionSpec(...))` from `planalign_orchestrator`; then `orchestrator.execute_multi_year_simulation(start_year, end_year)`.
+- **New event types:** subclass `EventGenerator` in `planalign_orchestrator/generators/` and register with `@EventRegistry.register(...)`. `generators/sabbatical.py` is the template.
+- **One DB per scenario.** Studio gives every run its own `runs/<run_id>/` database; batch writes one `.duckdb` per scenario. Prefer warnings over schema migrations for cross-scenario concerns.
+- **DB paths:** in Python always use `get_database_path()` (`planalign_orchestrator.config`), which honors `DATABASE_PATH`. The orchestrator pins dbt to `dbt/profiles.yml`, which reads the same variable.
 
-Every decision is an immutable event with a UUID, timestamp, and validation.
+## Hard rules
 
-**Core Event Types:**
-- HIRE, TERMINATION, PROMOTION, RAISE
-- BENEFIT_ENROLLMENT, DC_PLAN_ELIGIBILITY, DC_PLAN_ENROLLMENT
-- DC_PLAN_CONTRIBUTION, DC_PLAN_VESTING, FORFEITURE, HCE_STATUS
+**Validate behavioral changes in an isolated database, never the shared `dbt/simulation.duckdb`.** Reading it is fine. Running dbt into it overwrites shared state, and its contents aren't ground truth.
 
-**Event Creation (Pydantic v2):**
-```python
-from planalign_core.events import WorkforceEventFactory
-from decimal import Decimal
-from datetime import date
-
-hire = WorkforceEventFactory.create_hire_event(
-    employee_id="EMP_2025_001",
-    scenario_id="baseline_2025",
-    plan_design_id="standard_401k",
-    hire_date=date(2025, 1, 15),
-    department="Engineering",
-    job_level=3,
-    annual_compensation=Decimal("125000.00")
-)
-```
-
-**New Event Types:** Implement `EventGenerator` in `planalign_orchestrator/generators/`, register via `@EventRegistry.register("name")`. See `generators/sabbatical.py` for a template.
-
----
-
-## **Pipeline Stages**
-
-Sequential execution per year via `PipelineOrchestrator`:
-
-1. **INITIALIZATION** – Load seeds and staging data
-2. **FOUNDATION** – Build baseline workforce and compensation
-3. **EVENT_GENERATION** – Generate hire/termination/promotion events
-4. **STATE_ACCUMULATION** – Build accumulators and snapshots
-5. **VALIDATION** – Run data quality checks
-6. **REPORTING** – Generate audit reports
-
-Entry point: `orchestrator.execute_multi_year_simulation(start_year, end_year)`
-
----
-
-## **Development Standards**
-
-### Code Quality (Hard Rules)
-
-**Cognitive Complexity ≤ 15:**
-- Early returns over nesting. No nesting >3 levels.
-- Extract helper functions from loops/conditionals.
-- Use dict dispatch over elif chains.
-- Named booleans for complex conditions.
-
-**Parameters ≤ 13:**
-- Group related params into dataclasses/config objects (e.g., `AutoEnrollmentOptions`).
-
-**Exception Handling:**
-- Never bare `except:` or empty `except Exception: pass`.
-- Catch specific exceptions; log or re-raise intentionally.
-
-**Dead Code:**
-- No commented-out code. No empty blocks (`pass` after `yield`).
-- Remove unused imports.
-
-**Type Hints:**
-- Return types must match all paths. Use `Union[A, B]` or `A | B` for multiple returns.
-
-### SQL (dbt) Standards
-
-- 2-space indents, UPPERCASE keywords, one clause per line.
-- No `SELECT *`. Use `{{ ref() }}` and CTEs for readability.
-- Filter heavy models by `{{ var('simulation_year') }}`.
-- Join on `(scenario_id, plan_design_id, employee_id, simulation_year)`.
-- Use `incremental_strategy='delete+insert'` for incremental models.
-
-**Sanctioned Reads:**
-- `int_*` models can read `fct_yearly_events` (published during EVENT_GENERATION, available to STATE_ACCUMULATION).
-- `int_*` models can read prior-year `fct_workforce_snapshot`.
-- Otherwise: no `int_*` → `fct_*` reads (circular dependency).
-
-### Python Standards
-
-```python
-from __future__ import annotations
-from pydantic import BaseModel, Field
-from typing import Literal
-from datetime import date
-from decimal import Decimal
-
-class EmployeeEvent(BaseModel):
-    employee_id: str = Field(..., min_length=1)
-    event_type: Literal["HIRE", "TERMINATION", "PROMOTION", "RAISE"]
-    effective_date: date
-    annual_compensation: Decimal
-```
-
-- Keep functions ≤40 lines. Raise explicit exceptions.
-- Use Pydantic v2 for all data models.
-- PEP 8, mandatory type hints.
-
-### Naming Conventions
-
-- **dbt models:** `tier_entity_purpose` (e.g., `fct_workforce_snapshot`, `int_termination_events`)
-- **Event tables:** `fct_yearly_events` (immutable), `fct_workforce_snapshot` (point-in-time)
-- **Python:** `snake_case`, descriptive (e.g., `run_year_simulation`, `audit_year_results`)
-- **Config:** `snake_case` in YAML, hierarchical structure
-
----
-
-## **Critical Patterns**
-
-### Temporal State Accumulators
-
-**Problem:** Year N depends on Year N-1 state + Year N events. Avoid circular dependencies.
-
-**Pattern:**
-```sql
-WITH prior_year_state AS (
-  SELECT * FROM {{ this }}
-  WHERE simulation_year = {{ var('simulation_year') }} - 1
-),
-current_year_events AS (
-  SELECT * FROM {{ ref('int_enrollment_events') }}
-  WHERE simulation_year = {{ var('simulation_year') }}
-)
-SELECT
-  COALESCE(e.employee_id, p.employee_id) AS employee_id,
-  ...
-FROM current_year_events e
-FULL OUTER JOIN prior_year_state p ON ...
-```
-
-Build order: Accumulator → `int_*` models → `fct_yearly_events` → `fct_workforce_snapshot`
-
-### Validate in Isolated Databases
-
-**Rule:** Never validate behavioral changes in the shared dev DB (`dbt/simulation.duckdb`).
-
-**Why:** Running `dbt run`/`build` overwrites shared state. Edge configs (e.g., `auto_enrollment_scope: all_eligible_employees`) only exercise logic in isolation.
-
-**Correct Approach:**
 ```bash
-# Option 1: Isolated scenario database
 planalign batch --scenarios my_edge_case --clean
-
-# Option 2: Explicit config + DATABASE_PATH
-cp config/simulation_config.yaml /tmp/run/cfg.yaml  # Edit edge config
-DATABASE_PATH=/tmp/run/iso.duckdb \
-  planalign simulate 2025-2027 --config /tmp/run/cfg.yaml --database /tmp/run/iso.duckdb
-
-# Run tests against the isolated DB
-DATABASE_PATH=/tmp/run/iso.duckdb pytest tests/test_my_feature.py -v
+# or
+DATABASE_PATH=/tmp/run/iso.duckdb planalign simulate 2025-2027 \
+  --config /tmp/run/cfg.yaml --database /tmp/run/iso.duckdb
+DATABASE_PATH=/tmp/run/iso.duckdb python -m pytest tests/test_x.py -v
 ```
 
-### Batch Scenario Processing
+Cover edge configs, not just defaults (e.g. `auto_enrollment_scope: all_eligible_employees`). Use a full multi-year `simulate` for cross-year invariants. A single-year dbt run can hide them.
 
-```bash
-planalign batch                           # All scenarios in scenarios/ dir
-planalign batch --scenarios baseline high_growth --clean  # Specific, fresh start
-planalign batch --export-format excel     # Excel exports with metadata
+**Event counts are config-dominated.** The same code and census can differ by 100k+ events under different configs, so only compare runs that share a config. `run_metadata` stamps each run's config fingerprint and seed. A drift warning means the DB was written under a different config.
 
-# Output: timestamped directory with:
-# - Individual .duckdb per scenario (isolated, never touches shared dev DB)
-# - Excel exports (workforce snapshots, metrics, events)
-# - Metadata (git SHA, seed, config)
-# - Comparison reports
-```
+**Code quality** (enforced in review):
+- Cognitive complexity ≤ 15, nesting ≤ 3, functions ≤ ~40 lines, ≤ 13 parameters (group them into dataclasses or config objects).
+- Full type hints; return types cover every path. Pydantic v2 for data/config models.
+- No bare `except:`, no swallowed exceptions, no commented-out code, no unused imports.
 
-### Database Locks
+## Testing & CI
 
-**Problem:** "Conflicting lock is held" on simulation.
+- Markers: `fast`, `integration`, `multi_year_invariants`, `edge_config_matrix`, plus area markers (`orchestrator`, `events`, `config`, `dbt`, ...). They're registered in `pyproject.toml` with `--strict-markers`.
+- Integration tests run against an isolated `DATABASE_PATH`.
+- The fast suite has a CI time budget (`scripts/check_fast_suite_runtime.py`). Coverage is a 60% gate that only ratchets up. Local Mac timings are unreliable, so measure timing on CI.
+- **Don't add the `full-ci` label by default.** `scripts/ci_policy.py` already runs the invariants and edge-config matrix for non-frontend, non-docs changes. `full-ci` only adds the integration shards and coverage, which run on every push to `main` and nightly anyway. If a PR does need it, apply the label at creation. Adding it later starts a second run, and the cancelled first run's `CI Gate` failure is spurious.
 
-**Cause:** Active DB connection in IDE (VS Code, DBeaver, Windsurf).
+## Gotchas
 
-**Solution:** Close all DB connections before running simulations. `planalign health` detects active locks.
+- **"Conflicting lock is held":** an IDE or DBeaver has the DuckDB open. Close it (`planalign health` detects this).
+- **sqlparse token limit:** fixed automatically by a `.pth` installed on first `import planalign_orchestrator`. Don't hand-patch sqlparse.
+- **Disk filling up (`var/`, `workspaces/`):** `planalign gc` (dry run), then `planalign gc --yes`.
+- **Frontend:** Tailwind is bundled via `@tailwindcss/vite`. Never add CDN scripts or external stylesheets to `planalign_studio/index.html`.
+- **Security:** the API binds to loopback by default, and `PLANALIGN_API_TOKEN` gates non-local deployments (see `SECURITY.md`). Don't weaken these defaults. Report vulnerabilities privately, never in public issues.
+- **PII:** `data/`, `var/`, and `*.duckdb` are git-ignored census/output artifacts. Never commit them or quote their contents unnecessarily.
+- **Worktrees:** keep nested checkouts under `.worktrees/` (see `scripts/README.md`).
 
-### Config Drift Detection
+## References
 
-**What it means:** The target DB was last written under a different config/seed. `run_metadata` table stamps effective-config fingerprint + seed at run start. Mismatches warn (never block).
-
-**Audit:**
-```bash
-duckdb <db> "SELECT run_timestamp, run_type, substr(config_fingerprint,1,12) AS fp, \
-  random_seed, start_year, end_year FROM run_metadata ORDER BY run_timestamp DESC"
-```
-
-**Remedy:** Use fresh/isolated DB (per the isolated-DB rule), or clean rerun via `setup.clear_tables: true` + `setup.clear_mode: all`.
-
-### SQLParse Token Limit (Auto-Fixed)
-
-**Problem:** Year 2+ fails with "Maximum number of tokens exceeded (10000)".
-
-**Why:** sqlparse 0.5.4+ DoS protection. `fct_workforce_snapshot.sql` compiles to ~13,668 tokens.
-
-**Solution:** Auto-installed on first import of `planalign_orchestrator`. Just run:
-```bash
-planalign health
-# Or: python -c "import planalign_orchestrator"
-```
-
-Verify: `python -c "import sqlparse.engine.grouping; print(f'MAX_GROUPING_TOKENS={sqlparse.engine.grouping.MAX_GROUPING_TOKENS}')"` → should print `50000`.
-
----
-
-## **Testing**
-
-```bash
-# Fast unit tests (TDD)
-pytest -m fast
-
-# Component-specific
-pytest -m "fast and orchestrator"
-pytest -m "fast and events"
-pytest -m "fast and config"
-
-# Integration tests
-pytest -m integration
-
-# Coverage
-pytest --cov=planalign_orchestrator --cov=planalign_cli --cov-report=html
-```
-
-**CI on pull requests:** don't add the `full-ci` label by default. `scripts/ci_policy.py` already runs the multi-year invariants and edge-config matrix for any non-frontend, non-docs change. `full-ci` only adds the four integration shards and coverage, which run anyway on every push to `main` and nightly. Use it only when a PR needs that evidence before merge (e.g. it changes integration tests, the coverage inventory, or CI itself). Adding the label (even via `gh pr create --label`) fires a separate `labeled` event, so a second run starts and cancels the first; that cancelled run's `CI Gate` failure is spurious, and the newer run decides the check.
-
-**Using Fixtures:**
-```python
-from pathlib import Path
-from planalign_orchestrator import ConstructionSpec, build_orchestrator
-from tests.fixtures.database import populated_db
-from tests.fixtures.config import minimal_config
-
-def test_hire_event_generation(populated_db, minimal_config):
-    orchestrator = build_orchestrator(
-        ConstructionSpec(
-            config=minimal_config,
-            database=Path("/tmp/test.duckdb"),
-            entry_point="invariant_test",
-            validation_mode=True,
-        )
-    ).orchestrator
-    result = orchestrator.execute_year(2025)
-    assert result.success
-```
-
----
-
-## **Database Access Pattern**
-
-**Always use `get_database_path()`** — it honors the `DATABASE_PATH` env var:
-
-```python
-from planalign_orchestrator.config import get_database_path
-import duckdb
-
-conn = duckdb.connect(str(get_database_path()))
-result = conn.execute(
-    "SELECT COUNT(*) FROM fct_yearly_events WHERE simulation_year = ?",
-    [year]
-).fetchall()
-conn.close()
-```
-
----
-
-## **Troubleshooting**
-
-### ModuleNotFoundError
-**Cause:** Using system packages instead of venv.
-**Fix:** Activate venv: `source .venv/bin/activate`
-
-### dbt Errors
-**Always run from `/dbt` directory with `--threads 1`:**
-```bash
-cd dbt
-dbt run --select int_baseline_workforce --vars "simulation_year: 2025" --threads 1
-```
-
-### Circular Dependencies in Enrollment
-**Problem:** Duplicate events or missing dates.
-**Solution:** Use `int_enrollment_state_accumulator` with proper temporal tracking (see Critical Patterns).
-
-### Disk Filling Up (`var/`, `workspaces/`)
-**Cause:** Perf campaigns, ensembles, and validation harnesses leave ~250–500 MB isolated DuckDBs under `var/`; Studio runs beyond `storage.max_runs_per_scenario` pile up under `workspaces/`.
-**Fix:** `planalign gc` (dry run) → `planalign gc --yes`. Keeps reports, `campaign.json`, census parquet, and `ensemble.duckdb`; age cutoff is `storage.artifact_max_age_days` (override with `--older-than-days`).
-
-### Virtual Environment Issues
-**Recreate and reinstall:**
-```bash
-rm -rf .venv
-uv venv .venv --python python3.12
-source .venv/bin/activate
-uv pip install -e ".[dev]"
-planalign health  # Trigger sqlparse auto-fix
-```
-
----
-
-## **Key Learnings**
-
-1. **Config Dominates Event Counts:** Identical code + census can swing `fct_yearly_events` by 142k on different configs. Don't compare across configs.
-
-2. **One DB Per Scenario:** Every workflow isolates one `.duckdb` per scenario. Prefer warnings over schema migrations for cross-scenario concerns.
-
-3. **Hazard Cache Gotcha:** Cache-currency check queries the global DB, so caches rebuild every year on isolated-DB runs (~22% of wall time).
-
-4. **dbt Invocation Baseline:** Production baseline is 38 dbt commands (not 62). Feature 121 optimized to 30 commands, byte-identical, 9.4% faster.
-
-5. **CI is Green:** No Sonar/Codecov/Docker steps. Coverage gate: 60% ratchet-up-only.
-
----
-
-## **Versioning**
-
-Current version: **3.0.0** ("Plan Design & Evidence").
-
-Managed in `_version.py` and `pyproject.toml`. See `/docs/VERSIONING_GUIDE.md` for the full process and `/CHANGELOG.md` for history.
-
----
-
-## **Resources**
-
-- **Architecture Guides:** `/docs/guides/` (parallel_scenario_fanout.md, parameter_fitting.md, backtesting.md, seed_ensembles.md, net_employer_cost.md)
-- **Performance:** `/docs/perf/` (profiling reports, timings)
-- **Security:** `SECURITY.md` (API token auth, CORS policy, non-loopback deployments)
+- `docs/architecture.md`, `docs/data-model.md`, `docs/development.md`
+- `docs/guides/`: fitting, backtesting, ensembles, optimizer, fan-out, net employer cost, and more
+- `docs/perf/`: run-cost profiles, state-pipeline redesign
+- `docs/VERSIONING_GUIDE.md`, `CHANGELOG.md`
 
 ## Active Technologies
-- Authoritative versions live in `pyproject.toml` (Python >=3.12, DuckDB 1.5.6, dbt-core 1.12.6 / dbt-duckdb 1.9.6) and `planalign_studio/package.json`. Per-feature entries below are appended by speckit.
+- Authoritative versions live in `pyproject.toml` and `planalign_studio/package.json`. Per-feature entries below are appended by speckit.
 
 ## Recent Changes

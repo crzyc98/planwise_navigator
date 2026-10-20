@@ -80,7 +80,9 @@ DATABASE_PATH=/tmp/run/iso.duckdb pytest tests/test_my_feature.py -v
 
 Local commands to favor (no network):
 
-- **Environment**: `source .venv/bin/activate` first — `ModuleNotFoundError` almost always means the venv is inactive.
+- **Environment**: Start with `python3 scripts/dev.py --check`. Run Python/project commands with `python3 scripts/dev.py -- <command>` (for example `python3 scripts/dev.py -- python -m pytest ...`). This sets both Python and subprocess PATH for each tool call; activation in an earlier shell call does not persist. In worktrees without this script, invoke the main checkout's `scripts/dev.py` by absolute path while keeping cwd in the intended worktree. It reuses main-checkout dependencies only when dependency declarations and `uv.lock` match; never install into that borrowed environment. A missing module can also be an undeclared dependency or a bad import—inspect the error before installing anything.
+- **Paths**: Discover uncertain filenames with `rg --files` before reading them. Use the command runner's `--require <path>` before expensive commands that depend on a file. Do not assume directories such as `planalign_studio/src` exist.
+- **Search outcomes**: `rg`/`grep` exit 1 means no matches; exit 2 indicates an error. Handle an expected exit 1 explicitly instead of retrying it or masking all failures with `|| true`. Keep exploratory searches separate from validation commands so the shell's last exit code does not hide a failure.
 - **dbt**: run from the `dbt/` directory only, always `--threads 1`; prefer `--select` for targeted runs.
 - **CLI**: `planalign health`, `planalign simulate 2025-2027`, `planalign batch`, `planalign validate`, `planalign calibrate` (comp-only, isolated DB by default).
 - **Tests**: `pytest -m fast` for the TDD loop; `pytest -m integration` against an isolated `DATABASE_PATH` DB; full suite is ~2,200 tests.
