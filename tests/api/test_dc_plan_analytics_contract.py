@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import duckdb
 import pytest
@@ -356,3 +357,177 @@ def test_empty_cohort_is_distinguishable_from_zero_cost(env):
     # 2026: e2 is a genuine new hire with nonzero cost.
     assert rows[2026]["total_eligible_count"] == 1
     assert rows[2026]["total_employer_cost"] > 0.0
+
+
+# Issue #970: the final-year deferral distribution is derived from the
+# all-years query. These rows make the two rate modes bucket differently, add a
+# terminated-in-final-year row, a NULL current rate, and a 2025-only new-hire
+# termination so `terminated_eligible` + `new_hires` has rows only before the
+# final year.
+DEFERRAL_PARITY_ROWS = """
+    INSERT INTO fct_workforce_snapshot (
+        employee_id, simulation_year, employment_status, termination_date,
+        employee_hire_date, current_eligibility_status, is_enrolled_flag,
+        current_deferral_rate, effective_annual_deferral_rate
+    ) VALUES
+        ('e4', 2026, 'TERMINATED', DATE '2026-05-01', DATE '2021-01-01', 'eligible', true, 0, 0.04),
+        ('e5', 2026, 'ACTIVE', NULL, DATE '2026-02-01', 'eligible', true, 0.12, 0.09),
+        ('e6', 2026, 'ACTIVE', NULL, DATE '2023-01-01', 'eligible', true, NULL, 0.015),
+        ('e7', 2025, 'TERMINATED', DATE '2025-09-01', DATE '2025-02-01', 'eligible', true, 0.03, 0.01)
+"""
+
+DEFERRAL_FILTERS = [
+    (False, None),
+    (True, None),
+    (False, "all_eligible"),
+    (False, "active_eligible"),
+    (False, "terminated_eligible"),
+]
+
+
+def _legacy_final_year_counts(
+    conn: duckdb.DuckDBPyConnection,
+    effective_rate: bool,
+    active_only: bool,
+    population: str | None,
+    cohort: str,
+) -> dict[str, int]:
+    """Pre-#970 dedicated final-year query, kept verbatim as the parity oracle."""
+    service = AnalyticsService
+    rate_col = (
+        "effective_annual_deferral_rate" if effective_rate else "current_deferral_rate"
+    )
+    status_filter = ""
+    if population is None and (active_only or not effective_rate):
+        status_filter = "UPPER(employment_status) = 'ACTIVE'"
+    where_clause = service._combine_where(
+        "simulation_year = final_year.max_year",
+        status_filter,
+        service._population_predicate(population),
+        service._cohort_predicate(cohort, 2025),
+    )
+    rows = conn.execute(
+        f"""
+        WITH final_year AS (
+            SELECT MAX(simulation_year) as max_year FROM fct_workforce_snapshot
+        ),
+        bucketed AS (
+            SELECT
+                CASE
+                    WHEN {rate_col} IS NULL OR {rate_col} = 0 THEN '0%'
+                    WHEN {rate_col} < 0.015 THEN '1%'
+                    WHEN {rate_col} < 0.025 THEN '2%'
+                    WHEN {rate_col} < 0.035 THEN '3%'
+                    WHEN {rate_col} < 0.045 THEN '4%'
+                    WHEN {rate_col} < 0.055 THEN '5%'
+                    WHEN {rate_col} < 0.065 THEN '6%'
+                    WHEN {rate_col} < 0.075 THEN '7%'
+                    WHEN {rate_col} < 0.085 THEN '8%'
+                    WHEN {rate_col} < 0.095 THEN '9%'
+                    ELSE '10%+'
+                END as bucket
+            FROM fct_workforce_snapshot, final_year
+            {where_clause}
+        )
+        SELECT bucket, COUNT(*) as count FROM bucketed GROUP BY bucket
+        """
+    ).fetchall()
+    return {str(bucket): int(count) for bucket, count in rows}
+
+
+@pytest.fixture
+def deferral_conn(tmp_path):
+    path = _build_db(tmp_path / "deferral.duckdb")
+    conn = duckdb.connect(str(path))
+    conn.execute(DEFERRAL_PARITY_ROWS)
+    yield conn
+    conn.close()
+
+
+@pytest.mark.parametrize("cohort", ["all", "new_hires", "baseline"])
+@pytest.mark.parametrize(("active_only", "population"), DEFERRAL_FILTERS)
+@pytest.mark.parametrize("effective_rate", [False, True])
+def test_derived_final_year_deferral_matches_legacy_query(
+    deferral_conn, effective_rate, active_only, population, cohort
+):
+    service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
+    final, by_year = service._get_deferral_distributions(
+        deferral_conn,
+        effective_rate=effective_rate,
+        active_only=active_only,
+        population=population,
+        cohort=cohort,
+        first_simulation_year=2025,
+    )
+    expected = service._deferral_buckets(
+        _legacy_final_year_counts(
+            deferral_conn, effective_rate, active_only, population, cohort
+        )
+    )
+
+    assert final == expected
+    assert [b.bucket for b in final] == list(
+        "0% 1% 2% 3% 4% 5% 6% 7% 8% 9% 10%+".split()
+    )
+    if by_year and by_year[-1].year == 2026:
+        assert by_year[-1].distribution == final
+
+
+def test_final_year_is_snapshot_max_not_latest_nonempty_year(deferral_conn):
+    """A filter that empties the final year yields zero buckets, never 2025's."""
+    service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
+    final, by_year = service._get_deferral_distributions(
+        deferral_conn,
+        effective_rate=True,
+        population="terminated_eligible",
+        cohort="new_hires",
+        first_simulation_year=2025,
+    )
+
+    assert [year.year for year in by_year] == [2025]
+    assert sum(b.count for b in by_year[0].distribution) == 1
+    assert all(b.count == 0 and b.percentage == 0.0 for b in final)
+    assert len(final) == 11
+
+
+def test_deferral_distributions_use_one_query(deferral_conn):
+    spy = MagicMock(wraps=deferral_conn)
+    service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
+
+    service._get_deferral_distributions(spy, effective_rate=True)
+
+    assert spy.execute.call_count == 1
+
+
+def test_empty_snapshot_yields_zero_buckets_and_no_years(tmp_path):
+    conn = duckdb.connect(str(tmp_path / "empty.duckdb"))
+    conn.execute(SNAPSHOT_DDL)
+    service = AnalyticsService(storage=MagicMock(), db_resolver=MagicMock())
+
+    final, by_year = service._get_deferral_distributions(conn)
+    conn.close()
+
+    assert by_year == []
+    assert [(b.count, b.percentage) for b in final] == [(0, 0.0)] * 11
+
+
+@pytest.mark.parametrize("effective_rate", ["false", "true"])
+def test_api_final_year_distribution_matches_last_year(env, effective_rate):
+    client, workspace, scenarios = env
+    endpoint = SINGLE_ENDPOINT.format(
+        workspace_id=workspace.id, scenario_id=scenarios[0].id
+    )
+
+    body = client.get(endpoint, params={"effective_rate": effective_rate}).json()
+    assert body["deferral_distribution_by_year"][-1]["year"] == 2026
+    assert (
+        body["deferral_rate_distribution"]
+        == body["deferral_distribution_by_year"][-1]["distribution"]
+    )
+
+    terms = client.get(
+        endpoint,
+        params={"effective_rate": effective_rate, "population": "terminated_eligible"},
+    ).json()
+    assert [y["year"] for y in terms["deferral_distribution_by_year"]] == [2025]
+    assert all(b["count"] == 0 for b in terms["deferral_rate_distribution"])

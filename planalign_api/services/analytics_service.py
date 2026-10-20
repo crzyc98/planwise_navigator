@@ -2,7 +2,7 @@
 
 import logging
 from decimal import Decimal
-from typing import Dict, List, Literal, Optional
+from typing import Dict, List, Literal, Optional, Tuple
 
 from ..models.analytics import (
     ContributionYearSummary,
@@ -44,6 +44,20 @@ Population = Literal[
     "active_eligible",
     "terminated_eligible",
 ]
+
+DEFERRAL_BUCKET_ORDER = (
+    "0%",
+    "1%",
+    "2%",
+    "3%",
+    "4%",
+    "5%",
+    "6%",
+    "7%",
+    "8%",
+    "9%",
+    "10%+",
+)
 
 
 class AnalyticsService:
@@ -483,23 +497,16 @@ class AnalyticsService:
                     conn, active_only, cohort, first_simulation_year, population
                 )
                 totals = self._compute_grand_totals(contribution_by_year)
-                deferral_distribution = self._get_deferral_distribution(
+                (
+                    deferral_distribution,
+                    deferral_distribution_by_year,
+                ) = self._get_deferral_distributions(
                     conn,
                     effective_rate=effective_rate,
                     active_only=active_only,
                     population=population,
                     cohort=cohort,
                     first_simulation_year=first_simulation_year,
-                )
-                deferral_distribution_by_year = (
-                    self._get_deferral_distribution_all_years(
-                        conn,
-                        effective_rate=effective_rate,
-                        active_only=active_only,
-                        population=population,
-                        cohort=cohort,
-                        first_simulation_year=first_simulation_year,
-                    )
                 )
                 escalation = self._get_escalation_metrics(
                     conn, population, cohort, first_simulation_year
@@ -774,6 +781,23 @@ class AnalyticsService:
             logger.warning(f"Failed to get contribution by year: {e}")
             return []
 
+    @staticmethod
+    def _deferral_buckets(bucket_counts: Dict[str, int]) -> List[DeferralRateBucket]:
+        """Expand sparse bucket counts into the full ordered 11-bucket list."""
+        total_count = sum(bucket_counts.values())
+        return [
+            DeferralRateBucket(
+                bucket=bucket,
+                count=bucket_counts.get(bucket, 0),
+                percentage=(
+                    round(bucket_counts.get(bucket, 0) / total_count * 100, 2)
+                    if total_count > 0
+                    else 0.0
+                ),
+            )
+            for bucket in DEFERRAL_BUCKET_ORDER
+        ]
+
     def _get_deferral_distribution(
         self,
         conn,
@@ -783,112 +807,10 @@ class AnalyticsService:
         cohort: Cohort = "all",
         first_simulation_year: Optional[int] = None,
     ) -> List[DeferralRateBucket]:
-        """Get deferral rate distribution (11 buckets: 0%, 1%...9%, 10%+).
-
-        effective_rate=True  → uses effective_annual_deferral_rate (matches contribution
-                               calculation) with the same population as participation rate.
-        effective_rate=False → uses current_deferral_rate (year-end snapshot, active only).
-        """
-        rate_col = (
-            "effective_annual_deferral_rate"
-            if effective_rate
-            else "current_deferral_rate"
-        )
-        status_filter = ""
-        if population is None and (active_only or not effective_rate):
-            status_filter = "UPPER(employment_status) = 'ACTIVE'"
-        population_filter = self._population_predicate(population)
-        cohort_filter = self._cohort_predicate(cohort, first_simulation_year)
-        where_clause = self._combine_where(
-            "simulation_year = final_year.max_year",
-            status_filter,
-            population_filter,
-            cohort_filter,
-        )
-        try:
-            # Query for distribution buckets
-            df = conn.execute(
-                f"""
-                WITH final_year AS (
-                    SELECT MAX(simulation_year) as max_year
-                    FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
-                ),
-                bucketed AS (
-                    SELECT
-                        CASE
-                            WHEN {rate_col} IS NULL OR {rate_col} = 0 THEN '0%'
-                            WHEN {rate_col} < 0.015 THEN '1%'
-                            WHEN {rate_col} < 0.025 THEN '2%'
-                            WHEN {rate_col} < 0.035 THEN '3%'
-                            WHEN {rate_col} < 0.045 THEN '4%'
-                            WHEN {rate_col} < 0.055 THEN '5%'
-                            WHEN {rate_col} < 0.065 THEN '6%'
-                            WHEN {rate_col} < 0.075 THEN '7%'
-                            WHEN {rate_col} < 0.085 THEN '8%'
-                            WHEN {rate_col} < 0.095 THEN '9%'
-                            ELSE '10%+'
-                        END as bucket
-                    FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}, final_year
-                    {where_clause}
-                )
-                SELECT
-                    bucket,
-                    COUNT(*) as count
-                FROM bucketed
-                GROUP BY bucket
-            """
-            ).fetchdf()
-
-            # Create a complete list with all buckets
-            bucket_order = [
-                "0%",
-                "1%",
-                "2%",
-                "3%",
-                "4%",
-                "5%",
-                "6%",
-                "7%",
-                "8%",
-                "9%",
-                "10%+",
-            ]
-            bucket_counts = {
-                row["bucket"]: int(row["count"]) for _, row in df.iterrows()
-            }
-
-            total_count = sum(bucket_counts.values())
-
-            return [
-                DeferralRateBucket(
-                    bucket=bucket,
-                    count=bucket_counts.get(bucket, 0),
-                    percentage=(
-                        round(bucket_counts.get(bucket, 0) / total_count * 100, 2)
-                        if total_count > 0
-                        else 0.0
-                    ),
-                )
-                for bucket in bucket_order
-            ]
-        except Exception as e:
-            logger.warning(f"Failed to get deferral distribution: {e}")
-            return [
-                DeferralRateBucket(bucket=b, count=0, percentage=0.0)
-                for b in [
-                    "0%",
-                    "1%",
-                    "2%",
-                    "3%",
-                    "4%",
-                    "5%",
-                    "6%",
-                    "7%",
-                    "8%",
-                    "9%",
-                    "10%+",
-                ]
-            ]
+        """Get the final-year deferral rate distribution (11 buckets: 0%...10%+)."""
+        return self._get_deferral_distributions(
+            conn, effective_rate, active_only, population, cohort, first_simulation_year
+        )[0]
 
     def _get_deferral_distribution_all_years(
         self,
@@ -899,11 +821,30 @@ class AnalyticsService:
         cohort: Cohort = "all",
         first_simulation_year: Optional[int] = None,
     ) -> List[DeferralDistributionYear]:
-        """Get deferral rate distribution for all simulation years (E059).
+        """Get deferral rate distribution for all simulation years (E059)."""
+        return self._get_deferral_distributions(
+            conn, effective_rate, active_only, population, cohort, first_simulation_year
+        )[1]
 
-        effective_rate=True  → uses effective_annual_deferral_rate with participation-rate
-                               population (respects active_only).
-        effective_rate=False → uses current_deferral_rate, active employees only.
+    def _get_deferral_distributions(
+        self,
+        conn,
+        effective_rate: bool = False,
+        active_only: bool = False,
+        population: Optional[Population] = None,
+        cohort: Cohort = "all",
+        first_simulation_year: Optional[int] = None,
+    ) -> Tuple[List[DeferralRateBucket], List[DeferralDistributionYear]]:
+        """Get (final-year, per-year) deferral rate distributions in one query.
+
+        effective_rate=True  → uses effective_annual_deferral_rate (matches contribution
+                               calculation) with the participation-rate population
+                               (respects active_only).
+        effective_rate=False → uses current_deferral_rate (year-end snapshot, active only).
+
+        The final year is MAX(simulation_year) over the unfiltered snapshot, not
+        the latest year with rows after filtering, so a filter that empties the
+        final year yields 11 zero-count buckets.
         """
         rate_col = (
             "effective_annual_deferral_rate"
@@ -918,23 +859,14 @@ class AnalyticsService:
         where_clause = self._combine_where(
             status_filter, population_filter, cohort_filter
         )
-        bucket_order = [
-            "0%",
-            "1%",
-            "2%",
-            "3%",
-            "4%",
-            "5%",
-            "6%",
-            "7%",
-            "8%",
-            "9%",
-            "10%+",
-        ]
         try:
-            df = conn.execute(
+            rows = conn.execute(
                 f"""
-                WITH bucketed AS (
+                WITH final_year AS (
+                    SELECT MAX(simulation_year) as max_year
+                    FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
+                ),
+                bucketed AS (
                     SELECT
                         simulation_year,
                         CASE
@@ -954,50 +886,34 @@ class AnalyticsService:
                     {where_clause}
                 )
                 SELECT
-                    simulation_year,
-                    bucket,
-                    COUNT(*) as count
-                FROM bucketed
-                GROUP BY simulation_year, bucket
-                ORDER BY simulation_year, bucket
+                    bucketed.simulation_year,
+                    bucketed.bucket,
+                    COUNT(*) as count,
+                    final_year.max_year
+                FROM bucketed, final_year
+                GROUP BY bucketed.simulation_year, bucketed.bucket, final_year.max_year
+                ORDER BY bucketed.simulation_year, bucketed.bucket
             """
-            ).fetchdf()
-
-            # Group by year
-            years_data: dict = {}
-            for _, row in df.iterrows():
-                year = int(row["simulation_year"])
-                bucket = str(row["bucket"])
-                count = int(row["count"])
-                if year not in years_data:
-                    years_data[year] = {}
-                years_data[year][bucket] = count
-
-            results = []
-            for year in sorted(years_data.keys()):
-                bucket_counts = years_data[year]
-                total_count = sum(bucket_counts.values())
-
-                distribution = [
-                    DeferralRateBucket(
-                        bucket=b,
-                        count=bucket_counts.get(b, 0),
-                        percentage=(
-                            round(bucket_counts.get(b, 0) / total_count * 100, 2)
-                            if total_count > 0
-                            else 0.0
-                        ),
-                    )
-                    for b in bucket_order
-                ]
-                results.append(
-                    DeferralDistributionYear(year=year, distribution=distribution)
-                )
-
-            return results
+            ).fetchall()
         except Exception as e:
-            logger.warning(f"Failed to get deferral distribution by year: {e}")
-            return []
+            logger.warning(f"Failed to get deferral distribution: {e}")
+            return self._deferral_buckets({}), []
+
+        years_data: Dict[int, Dict[str, int]] = {}
+        final_year: Optional[int] = None
+        for year, bucket, count, max_year in rows:
+            years_data.setdefault(int(year), {})[str(bucket)] = int(count)
+            final_year = int(max_year)
+
+        by_year = [
+            DeferralDistributionYear(
+                year=year, distribution=self._deferral_buckets(years_data[year])
+            )
+            for year in sorted(years_data)
+        ]
+        final_counts = years_data.get(final_year, {}) if final_year is not None else {}
+        final = self._deferral_buckets(final_counts)
+        return final, by_year
 
     def _get_escalation_metrics(
         self,
