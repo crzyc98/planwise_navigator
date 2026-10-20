@@ -42,3 +42,7 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      # Releases after 0.0.26479 ship no macOS wheels; bumps broke macOS
+      # installs (#808, #946). pyproject.toml pins it per-platform by hand.
+      - dependency-name: "tableauhyperapi"
