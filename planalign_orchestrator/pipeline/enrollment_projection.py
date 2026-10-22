@@ -86,13 +86,11 @@ class EnrollmentDecisionProjection:
                     sorted(existing - set(self._columns)) or "none",
                 )
                 conn.execute(f"DROP TABLE {self.table_name}")
-            conn.execute(
-                f"""
+            conn.execute(f"""
                 CREATE TABLE IF NOT EXISTS {self.table_name} (
                   {column_defs}
                 )
-                """
-            )
+                """)
 
         self.db_manager.execute_with_retry(_create, deterministic=True)
 

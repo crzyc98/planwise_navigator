@@ -46,9 +46,9 @@ class AdaptiveThreadAdjuster:
 
         # Adjustment history for learning
         self.adjustment_history: List[Dict[str, Any]] = []
-        self.performance_history: Dict[
-            int, List[float]
-        ] = {}  # thread_count -> execution_times
+        self.performance_history: Dict[int, List[float]] = (
+            {}
+        )  # thread_count -> execution_times
 
         # Configuration
         self.min_threads = 1

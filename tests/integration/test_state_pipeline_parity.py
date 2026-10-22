@@ -225,8 +225,7 @@ def test_snapshot_composition_matches_frozen_baseline() -> None:
 def test_migrated_consumer_financial_invariants() -> None:
     candidate = _required_path("F122_CANDIDATE_DB")
     with duckdb.connect(str(candidate), read_only=True) as connection:
-        violations = connection.execute(
-            """SELECT
+        violations = connection.execute("""SELECT
                 (SELECT COUNT(*) FROM int_employee_contributions
                  WHERE annual_contribution_amount < 0
                     OR annual_contribution_amount > applicable_irs_limit),
@@ -238,7 +237,6 @@ def test_migrated_consumer_financial_invariants() -> None:
                     OR employer_match_amount < 0),
                 (SELECT COUNT(*) FROM int_employer_eligibility
                  WHERE annual_hours_worked < 0)
-            """
-        ).fetchone()
+            """).fetchone()
 
     assert violations == (0, 0, 0, 0)

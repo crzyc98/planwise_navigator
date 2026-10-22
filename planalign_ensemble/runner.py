@@ -28,7 +28,6 @@ from .models import AttributionShare, EnsembleResult, SeedPlan, SeedRunOutcome
 from .provenance import write_ensemble_provenance
 from .risk import evaluate_thresholds
 
-
 logger = logging.getLogger(__name__)
 
 

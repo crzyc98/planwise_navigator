@@ -4,7 +4,6 @@ This module defines constants for strings that are used across multiple files
 to eliminate duplication and ensure consistency. Organized by category.
 """
 
-
 # =============================================================================
 # Database & Table Names
 # =============================================================================

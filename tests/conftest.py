@@ -13,7 +13,6 @@ import warnings
 
 import pytest
 
-
 # Register fixtures here for pytest auto-discovery so individual test modules
 # don't need to import them (which would trigger F811 redefinition on the test
 # parameters). Not referenced directly here, hence the noqa.
@@ -33,7 +32,6 @@ from tests.fixtures import (  # noqa: F401
     census_enrollment_rows,
     enrollment_history_rows,
 )
-
 
 SHARED_DEV_DB = Path(__file__).resolve().parents[1] / "dbt" / "simulation.duckdb"
 FileSignature = tuple[int, str] | None

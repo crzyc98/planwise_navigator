@@ -16,7 +16,6 @@ from tests.fixtures.studio_theme import (
     recharts_consumer_files,
 )
 
-
 pytestmark = pytest.mark.fast
 
 FORBIDDEN_LITERAL_UTILITY = re.compile(

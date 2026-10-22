@@ -712,29 +712,23 @@ class FileService:
 
             try:
                 # Get count of affected rows
-                affected_count = _fetchone_scalar(
-                    conn.execute(
-                        f"""
+                affected_count = _fetchone_scalar(conn.execute(f"""
                     SELECT COUNT(*) FROM (
                         SELECT CAST("{col}" AS VARCHAR) AS val FROM census
                     ) WHERE val IS NULL OR TRIM(val) = ''
-                """
-                    )
-                )
+                """))
                 if affected_count == 0:
                     continue
 
                 # Get up to 5 sample rows
-                sample_rows = conn.execute(
-                    f"""
+                sample_rows = conn.execute(f"""
                     SELECT rn, val FROM (
                         SELECT ROW_NUMBER() OVER () AS rn, CAST("{col}" AS VARCHAR) AS val
                         FROM census
                     ) WHERE val IS NULL OR TRIM(val) = ''
                     ORDER BY rn
                     LIMIT 5
-                """
-                ).fetchall()
+                """).fetchall()
 
                 samples = [
                     {"row_number": row[0], "value": row[1]} for row in sample_rows
@@ -775,22 +769,17 @@ class FileService:
 
             try:
                 # Check for values that are non-null strings but fail date parsing
-                affected_count = _fetchone_scalar(
-                    conn.execute(
-                        f"""
+                affected_count = _fetchone_scalar(conn.execute(f"""
                     SELECT COUNT(*) FROM (
                         SELECT CAST("{col}" AS VARCHAR) AS val FROM census
                     ) WHERE val IS NOT NULL AND TRIM(val) != ''
                       AND TRY_CAST(val AS DATE) IS NULL
-                """
-                    )
-                )
+                """))
                 if affected_count == 0:
                     continue
 
                 # Get up to 5 samples
-                sample_rows = conn.execute(
-                    f"""
+                sample_rows = conn.execute(f"""
                     SELECT rn, val FROM (
                         SELECT ROW_NUMBER() OVER () AS rn, CAST("{col}" AS VARCHAR) AS val
                         FROM census
@@ -798,8 +787,7 @@ class FileService:
                       AND TRY_CAST(val AS DATE) IS NULL
                     ORDER BY rn
                     LIMIT 5
-                """
-                ).fetchall()
+                """).fetchall()
 
                 samples = [
                     {"row_number": row[0], "value": row[1]} for row in sample_rows
@@ -836,21 +824,16 @@ class FileService:
                 continue
 
             try:
-                affected_count = _fetchone_scalar(
-                    conn.execute(
-                        f"""
+                affected_count = _fetchone_scalar(conn.execute(f"""
                     SELECT COUNT(*) FROM (
                         SELECT TRY_CAST("{col}" AS DOUBLE) AS num_val FROM census
                     ) WHERE num_val IS NOT NULL AND num_val <= 0
-                """
-                    )
-                )
+                """))
                 if affected_count == 0:
                     continue
 
                 # Get up to 5 samples
-                sample_rows = conn.execute(
-                    f"""
+                sample_rows = conn.execute(f"""
                     SELECT rn, val FROM (
                         SELECT ROW_NUMBER() OVER () AS rn,
                                CAST("{col}" AS VARCHAR) AS val,
@@ -859,8 +842,7 @@ class FileService:
                     ) WHERE num_val IS NOT NULL AND num_val <= 0
                     ORDER BY rn
                     LIMIT 5
-                """
-                ).fetchall()
+                """).fetchall()
 
                 samples = [
                     {"row_number": row[0], "value": row[1]} for row in sample_rows
@@ -1137,13 +1119,11 @@ class FileService:
             conn.execute("ALTER TABLE census ADD COLUMN _age INTEGER")
             if recent_hires_only and hire_date_col:
                 # Age at time of hire
-                conn.execute(
-                    f"""
+                conn.execute(f"""
                     UPDATE census SET _age = FLOOR(
                         DATEDIFF('day', CAST({birth_date_col} AS DATE), CAST({hire_date_col} AS DATE)) / 365.25
                     )
-                """
-                )
+                """)
             else:
                 # Current age using parameterized date
                 conn.execute(
@@ -1203,9 +1183,11 @@ class FileService:
             return {
                 "total_employees": total_count,
                 "recent_hires_only": recent_hires_only,
-                "analysis_type": f"New hires from {recent_year}"
-                if recent_hires_only
-                else "All employees (no recent hire data)",
+                "analysis_type": (
+                    f"New hires from {recent_year}"
+                    if recent_hires_only
+                    else "All employees (no recent hire data)"
+                ),
                 "distribution": distribution,
                 "source_file": str(file_path),
                 "as_of_date": resolved_as_of.date.isoformat(),
@@ -1299,15 +1281,11 @@ class FileService:
                     "part_time_pct": 0.0,
                 }
 
-            part_time_count = _fetchone_scalar(
-                conn.execute(
-                    f"""
+            part_time_count = _fetchone_scalar(conn.execute(f"""
                 SELECT COUNT(*) FROM census
                 WHERE {hours_col} IS NOT NULL
                   AND CAST({hours_col} AS DOUBLE) * 52 < 1000
-                """
-                )
-            )
+                """))
 
             part_time_pct = round(part_time_count / headcount, 4) if headcount else 0.0
 
@@ -1481,14 +1459,12 @@ class FileService:
                             [census_year, census_date_str],
                         )
 
-                        conn.execute(
-                            """
+                        conn.execute("""
                             UPDATE census SET _compensation = CASE
                                 WHEN _days_worked < 365 THEN _compensation * 365.0 / _days_worked
                                 ELSE _compensation
                             END
-                        """
-                        )
+                        """)
                         annualized = True
 
                         # Now filter to recent hires if requested
@@ -1531,8 +1507,7 @@ class FileService:
 
             # If we have level data, calculate by level
             if level_col:
-                level_stats = conn.execute(
-                    """
+                level_stats = conn.execute("""
                     SELECT
                         _level,
                         MIN(_compensation) as min_comp,
@@ -1546,8 +1521,7 @@ class FileService:
                     WHERE _level IS NOT NULL
                     GROUP BY _level
                     ORDER BY _level
-                """
-                ).fetchall()
+                """).fetchall()
 
                 levels = []
                 level_names = {
@@ -1599,8 +1573,7 @@ class FileService:
                 }
             else:
                 # No level data - provide overall distribution with suggested bands
-                overall_stats = conn.execute(
-                    """
+                overall_stats = conn.execute("""
                     SELECT
                         MIN(_compensation) as min_comp,
                         MAX(_compensation) as max_comp,
@@ -1615,8 +1588,7 @@ class FileService:
                         QUANTILE_CONT(_compensation, 0.97) as p97_comp,
                         AVG(_compensation) as avg_comp
                     FROM census
-                """
-                ).fetchone()
+                """).fetchone()
                 assert overall_stats is not None, "Expected a row from aggregate query"
 
                 # Create suggested level ranges based on percentiles
@@ -1671,9 +1643,11 @@ class FileService:
                     "has_level_data": False,
                     "analysis_type": analysis_desc,
                     "compensation_annualized": annualized,
-                    "message": "Census does not have job level data. Showing overall compensation distribution with suggested level ranges based on percentiles of recent hires."
-                    if recent_hires_only
-                    else "Census does not have job level data. Showing overall compensation distribution with suggested level ranges based on percentiles.",
+                    "message": (
+                        "Census does not have job level data. Showing overall compensation distribution with suggested level ranges based on percentiles of recent hires."
+                        if recent_hires_only
+                        else "Census does not have job level data. Showing overall compensation distribution with suggested level ranges based on percentiles."
+                    ),
                     "overall_stats": {
                         "min_compensation": round(overall_stats[0], 2),
                         "max_compensation": round(overall_stats[1], 2),

@@ -25,16 +25,14 @@ def scenario_service(tmp_path):
         for scenario_id, years in [("a", years_a), ("b", years_b)]:
             path = tmp_path / f"{scenario_id}.duckdb"
             with duckdb.connect(str(path)) as conn:
-                conn.execute(
-                    """
+                conn.execute("""
                     CREATE TABLE fct_workforce_snapshot (
                         employee_id VARCHAR, simulation_year INTEGER,
                         employment_status VARCHAR, age_band VARCHAR,
                         tenure_band VARCHAR, employer_match_amount DOUBLE,
                         employer_core_amount DOUBLE
                     )
-                """
-                )
+                """)
                 for year in years:
                     # Same-year B loses; comparing an earlier A to a later B wins.
                     amount = (

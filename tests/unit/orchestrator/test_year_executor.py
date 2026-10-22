@@ -32,7 +32,6 @@ from planalign_orchestrator.pipeline.year_executor import (
     YearExecutor,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -260,9 +259,12 @@ class TestDispatchStageExecution:
     def test_state_accumulation_validates_then_runs(self):
         executor = _make_executor()
         stage = _state_accum_stage()
-        with patch.object(
-            executor._year_validator, "validate_year_dependencies"
-        ) as mock_val, patch.object(executor, "_run_stage_models") as mock_run:
+        with (
+            patch.object(
+                executor._year_validator, "validate_year_dependencies"
+            ) as mock_val,
+            patch.object(executor, "_run_stage_models") as mock_run,
+        ):
             executor._dispatch_stage_execution(stage, 2026)
             mock_val.assert_called_once_with(2026)
             mock_run.assert_called_once_with(stage, 2026)
@@ -412,9 +414,12 @@ class TestRunStageModels:
         )
         stage = _foundation_stage(models=["a", "b"])
 
-        with patch.object(
-            executor, "_should_use_model_parallelization", return_value=True
-        ), patch.object(executor, "_run_stage_with_model_parallelization") as mock_par:
+        with (
+            patch.object(
+                executor, "_should_use_model_parallelization", return_value=True
+            ),
+            patch.object(executor, "_run_stage_with_model_parallelization") as mock_par,
+        ):
             executor._run_stage_models(stage, 2025)
             mock_par.assert_called_once_with(stage, 2025)
 
@@ -425,9 +430,12 @@ class TestRunStageModels:
             parallel_execution_engine=engine,
         )
         stage = _foundation_stage()
-        with patch.object(
-            executor, "_should_use_model_parallelization", return_value=False
-        ), patch.object(executor, "_run_stage_models_legacy") as mock_leg:
+        with (
+            patch.object(
+                executor, "_should_use_model_parallelization", return_value=False
+            ),
+            patch.object(executor, "_run_stage_models_legacy") as mock_leg,
+        ):
             executor._run_stage_models(stage, 2025)
             mock_leg.assert_called_once()
 

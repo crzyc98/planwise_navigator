@@ -394,15 +394,19 @@ def solve_compensation_growth(
         ]
     ):
         dynamics = WorkforceDynamics(
-            turnover_rate=request.turnover_rate
-            if request.turnover_rate is not None
-            else 0.15,
-            workforce_growth_rate=request.workforce_growth_rate
-            if request.workforce_growth_rate is not None
-            else 0.03,
-            new_hire_comp_ratio=request.new_hire_comp_ratio
-            if request.new_hire_comp_ratio is not None
-            else 0.85,
+            turnover_rate=(
+                request.turnover_rate if request.turnover_rate is not None else 0.15
+            ),
+            workforce_growth_rate=(
+                request.workforce_growth_rate
+                if request.workforce_growth_rate is not None
+                else 0.03
+            ),
+            new_hire_comp_ratio=(
+                request.new_hire_comp_ratio
+                if request.new_hire_comp_ratio is not None
+                else 0.85
+            ),
         )
 
     try:

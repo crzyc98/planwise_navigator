@@ -76,21 +76,29 @@ class DevRunnerTests(unittest.TestCase):
 
     def test_missing_required_path_prevents_command_execution(self) -> None:
         args = ["dev.py", "--require", str(self.root / "absent"), "--", "python"]
-        with patch.object(sys, "argv", args), patch.object(
-            DEV, "git_path", side_effect=[self.root, self.primary / ".git"]
-        ), patch.object(DEV, "verify") as verify, patch.object(
-            DEV.subprocess, "run"
-        ) as run:
+        with (
+            patch.object(sys, "argv", args),
+            patch.object(
+                DEV, "git_path", side_effect=[self.root, self.primary / ".git"]
+            ),
+            patch.object(DEV, "verify") as verify,
+            patch.object(DEV.subprocess, "run") as run,
+        ):
             self.assertEqual(DEV.main(), 2)
         verify.assert_not_called()
         run.assert_not_called()
 
     def test_child_status_and_cwd_are_preserved(self) -> None:
-        with patch.object(sys, "argv", ["dev.py", "--", "rg", "missing"]), patch.object(
-            DEV, "git_path", side_effect=[self.root, self.primary / ".git"]
-        ), patch.object(DEV, "verify"), patch.object(
-            DEV.subprocess, "run", return_value=subprocess.CompletedProcess([], 1)
-        ) as run:
+        with (
+            patch.object(sys, "argv", ["dev.py", "--", "rg", "missing"]),
+            patch.object(
+                DEV, "git_path", side_effect=[self.root, self.primary / ".git"]
+            ),
+            patch.object(DEV, "verify"),
+            patch.object(
+                DEV.subprocess, "run", return_value=subprocess.CompletedProcess([], 1)
+            ) as run,
+        ):
             self.assertEqual(DEV.main(), 1)
         self.assertEqual(run.call_args.args[0], ["rg", "missing"])
         self.assertNotIn("cwd", run.call_args.kwargs)

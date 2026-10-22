@@ -194,9 +194,9 @@ def generate_mock_workforce_parquet(
                 "employee_ssn": ssn,
                 "employee_birth_date": birth_date.strftime("%Y-%m-%d"),
                 "employee_hire_date": hire_date.strftime("%Y-%m-%d"),
-                "employee_termination_date": termination_date.strftime("%Y-%m-%d")
-                if termination_date
-                else None,
+                "employee_termination_date": (
+                    termination_date.strftime("%Y-%m-%d") if termination_date else None
+                ),
                 "employee_gross_compensation": float(gross_compensation),
                 "employee_capped_compensation": float(employee_capped_compensation),
                 "employee_deferral_rate": float(employee_deferral_rate),

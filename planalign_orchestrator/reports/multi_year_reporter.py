@@ -92,9 +92,7 @@ class MultiYearReporter:
         WHERE simulation_year IN ({})
         GROUP BY simulation_year
         ORDER BY simulation_year
-        """.format(
-            ",".join("?" * len(completed_years))
-        )
+        """.format(",".join("?" * len(completed_years)))
 
         results = conn.execute(progression_query, completed_years).fetchall()
 
@@ -130,9 +128,7 @@ class MultiYearReporter:
         WHERE simulation_year IN ({})
         GROUP BY simulation_year
         ORDER BY simulation_year
-        """.format(
-            ",".join("?" * len(completed_years))
-        )
+        """.format(",".join("?" * len(completed_years)))
 
         results = conn.execute(participation_query, completed_years).fetchall()
 
@@ -175,9 +171,7 @@ class MultiYearReporter:
         WHERE simulation_year IN ({})
         GROUP BY simulation_year
         ORDER BY simulation_year
-        """.format(
-            ",".join("?" * len(completed_years))
-        )
+        """.format(",".join("?" * len(completed_years)))
 
         results = conn.execute(detail_query, completed_years).fetchall()
 
@@ -224,9 +218,7 @@ class MultiYearReporter:
         WHERE simulation_year IN ({})
         GROUP BY simulation_year
         ORDER BY simulation_year
-        """.format(
-            ",".join("?" * len(completed_years))
-        )
+        """.format(",".join("?" * len(completed_years)))
 
         results = conn.execute(progression_query, completed_years).fetchall()
 
@@ -266,9 +258,7 @@ class MultiYearReporter:
         WHERE simulation_year IN ({})
         GROUP BY event_type, simulation_year
         ORDER BY event_type, simulation_year
-        """.format(
-            ",".join("?" * len(completed_years))
-        )
+        """.format(",".join("?" * len(completed_years)))
 
         results = conn.execute(events_summary_query, completed_years).fetchall()
 
@@ -349,9 +339,7 @@ class MultiYearReporter:
         FROM fct_yearly_events
         WHERE simulation_year IN ({})
         GROUP BY simulation_year, lower(event_type)
-        """.format(
-            ",".join(["?"] * len(years))
-        )
+        """.format(",".join(["?"] * len(years)))
         rows = conn.execute(q, years).fetchall()
         # Collect per-type sequence aligned to years
         types = sorted({r[1] for r in rows})

@@ -222,17 +222,12 @@ class DataCleanupManager:
 
         def _run(conn):
             # Get all tables in the database
-            tables = [
-                r[0]
-                for r in conn.execute(
-                    """
+            tables = [r[0] for r in conn.execute("""
                     SELECT table_name
                     FROM information_schema.tables
                     WHERE table_schema = 'main'
                     ORDER BY table_name
-                    """
-                ).fetchall()
-            ]
+                    """).fetchall()]
 
             cleared = 0
             for table in tables:
@@ -294,17 +289,12 @@ class DataCleanupManager:
 
         def _run(conn):
             # Get all base tables (exclude views)
-            tables = [
-                r[0]
-                for r in conn.execute(
-                    """
+            tables = [r[0] for r in conn.execute("""
                     SELECT table_name
                     FROM information_schema.tables
                     WHERE table_schema = 'main' AND table_type = 'BASE TABLE'
                     ORDER BY table_name
-                    """
-                ).fetchall()
-            ]
+                    """).fetchall()]
 
             cleared = 0
             for table in tables:
@@ -389,17 +379,12 @@ class DataCleanupManager:
         patterns = patterns or self.DEFAULT_CLEAR_PATTERNS
 
         def _run(conn):
-            tables = [
-                r[0]
-                for r in conn.execute(
-                    """
+            tables = [r[0] for r in conn.execute("""
                     SELECT table_name
                     FROM information_schema.tables
                     WHERE table_schema = 'main' AND table_type = 'BASE TABLE'
                     ORDER BY table_name
-                    """
-                ).fetchall()
-            ]
+                    """).fetchall()]
             return [t for t in tables if self.should_clear_table(t, patterns)]
 
         return self.db_manager.execute_with_retry(_run)
@@ -510,16 +495,11 @@ class DataCleanupManager:
         def _run(conn):
             nonlocal dropped_tables
 
-            existing_tables = {
-                row[0]
-                for row in conn.execute(
-                    """
+            existing_tables = {row[0] for row in conn.execute("""
                     SELECT table_name
                     FROM information_schema.tables
                     WHERE table_schema = 'main'
-                    """
-                ).fetchall()
-            }
+                    """).fetchall()}
 
             for csv_path in seeds_dir.glob("*.csv"):
                 table_name = csv_path.stem

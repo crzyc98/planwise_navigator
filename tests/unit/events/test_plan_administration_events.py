@@ -126,7 +126,7 @@ class TestHCEStatusPayload:
             annualized_compensation=Decimal("120000"),
             hce_threshold=Decimal("135000"),
             is_hce=False,
-            determination_date=date(2025, 1, 1)
+            determination_date=date(2025, 1, 1),
             # prior_year_hce not provided - should be None
         )
 

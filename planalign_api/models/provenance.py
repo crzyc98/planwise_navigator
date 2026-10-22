@@ -199,9 +199,9 @@ class AnnualWorkforceReconciliation(StrictModel):
     expected_closing_workforce: int | None = None
     actual_closing_workforce: int | None = Field(default=None, ge=0)
     variance: int | None = None
-    opening_source: Literal[
-        "baseline", "prior_year_snapshot", "unavailable"
-    ] | None = None
+    opening_source: Literal["baseline", "prior_year_snapshot", "unavailable"] | None = (
+        None
+    )
 
 
 class CapturedValidationResult(StrictModel):
@@ -337,9 +337,9 @@ class ReportEvidence(StrictModel):
 
 class ReportDigest(StrictModel):
     algorithm: Literal["SHA-256"] = "SHA-256"
-    canonicalization: Literal[
+    canonicalization: Literal["planalign-provenance-json-v1"] = (
         "planalign-provenance-json-v1"
-    ] = "planalign-provenance-json-v1"
+    )
     value: str
 
     _valid_hash = field_validator("value")(_sha256)

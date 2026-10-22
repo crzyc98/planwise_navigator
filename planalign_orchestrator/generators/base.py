@@ -413,13 +413,11 @@ class HazardBasedEventGeneratorMixin:
         """Load age band definitions from database."""
 
         def _query(conn):
-            return conn.execute(
-                """
+            return conn.execute("""
                 SELECT band_label, min_value, max_value
                 FROM stg_config_age_bands
                 ORDER BY min_value
-                """
-            ).fetchall()
+                """).fetchall()
 
         rows = context.db_manager.execute_with_retry(_query)
         self._age_bands = [
@@ -431,13 +429,11 @@ class HazardBasedEventGeneratorMixin:
         """Load tenure band definitions from database."""
 
         def _query(conn):
-            return conn.execute(
-                """
+            return conn.execute("""
                 SELECT band_label, min_value, max_value
                 FROM stg_config_tenure_bands
                 ORDER BY min_value
-                """
-            ).fetchall()
+                """).fetchall()
 
         rows = context.db_manager.execute_with_retry(_query)
         self._tenure_bands = [

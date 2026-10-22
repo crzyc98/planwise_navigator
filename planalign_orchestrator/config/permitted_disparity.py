@@ -9,7 +9,6 @@ from typing import Any, Mapping
 
 from .workforce import CoreIntegrationSettings
 
-
 _SEED_PATH = Path(__file__).resolve().parents[2] / "dbt/seeds/config_irs_limits.csv"
 _SCHEDULES = {
     "graded_by_service": "graded_schedule",

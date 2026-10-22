@@ -118,9 +118,9 @@ class DataValidator:
                     "check_name": result.rule_name,
                     "severity": severity_value(result),
                     "passed": result.passed,
-                    "affected_record_count": 0
-                    if result.passed
-                    else result.affected_records,
+                    "affected_record_count": (
+                        0 if result.passed else result.affected_records
+                    ),
                 }
                 for result in ordered
             ],

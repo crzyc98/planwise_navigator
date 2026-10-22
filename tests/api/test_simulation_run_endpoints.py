@@ -12,7 +12,6 @@ from fastapi import HTTPException
 
 from planalign_api.routers import simulations
 
-
 RUN_ID = str(uuid.uuid4())
 
 

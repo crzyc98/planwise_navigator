@@ -65,8 +65,7 @@ def query_gross_employer_cost(conn, where_clause: str = "") -> List[EmployerCost
     ``WHERE`` keyword) so callers can reuse their own cohort filters. The
     returned rows carry no offset yet — see :func:`apply_forfeiture_offsets`.
     """
-    rows = conn.execute(
-        f"""
+    rows = conn.execute(f"""
         SELECT
             simulation_year,
             {GROSS_MATCH_SQL} AS gross_match,
@@ -76,8 +75,7 @@ def query_gross_employer_cost(conn, where_clause: str = "") -> List[EmployerCost
         {where_clause}
         GROUP BY simulation_year
         ORDER BY simulation_year
-        """
-    ).fetchall()
+        """).fetchall()
 
     series: List[EmployerCostYear] = []
     for year, match, core, compensation in rows:

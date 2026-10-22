@@ -255,13 +255,15 @@ class SimulationService:
             seed=seed,
             run_dir=run_dir,
             finalize_provenance=(
-                lambda: provenance_recorder.finalize(
-                    STATUS_COMPLETED,
-                    completed_at=datetime.now().astimezone(),
-                    duration_seconds=final_elapsed,
+                lambda: (
+                    provenance_recorder.finalize(
+                        STATUS_COMPLETED,
+                        completed_at=datetime.now().astimezone(),
+                        duration_seconds=final_elapsed,
+                    )
+                    if provenance_recorder is not None
+                    else None
                 )
-                if provenance_recorder is not None
-                else None
             ),
         )
         self.storage.publish_current_result(workspace_id, scenario_id, run_id)

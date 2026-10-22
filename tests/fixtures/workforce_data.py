@@ -226,11 +226,13 @@ def edge_case_census_data() -> Dict[str, List[Dict]]:
                 "annual_salary": 50000 + (i * 500),
                 "age": 25 + (i % 40),
                 "tenure_months": (
-                    date(2025, 3, 1) - (date(2020, 1, 1) + timedelta(days=i * 10))
-                ).days
-                / 30
-                if i >= 50
-                else (today - (date(2020, 1, 1) + timedelta(days=i * 10))).days / 30,
+                    (
+                        date(2025, 3, 1) - (date(2020, 1, 1) + timedelta(days=i * 10))
+                    ).days
+                    / 30
+                    if i >= 50
+                    else (today - (date(2020, 1, 1) + timedelta(days=i * 10))).days / 30
+                ),
             }
             for i in range(100)
         ],

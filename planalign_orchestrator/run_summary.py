@@ -60,9 +60,9 @@ class RunMetadata:
             "run_id": self.run_id,
             "start_time": self.start_time.isoformat(),
             "end_time": self.end_time.isoformat() if self.end_time else None,
-            "duration_seconds": round(self.duration_seconds, 2)
-            if self.duration_seconds
-            else None,
+            "duration_seconds": (
+                round(self.duration_seconds, 2) if self.duration_seconds else None
+            ),
             "status": self.status,
             "backup_path": self.backup_path,
             "configuration": self.configuration,

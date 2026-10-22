@@ -34,12 +34,10 @@ class Registry(ABC):
         self.db_manager = db_manager
 
     @abstractmethod
-    def create_table(self) -> bool:
-        ...
+    def create_table(self) -> bool: ...
 
     @abstractmethod
-    def validate_integrity(self) -> RegistryValidationResult:
-        ...
+    def validate_integrity(self) -> RegistryValidationResult: ...
 
 
 class SQLTemplateManager:
@@ -247,26 +245,22 @@ class EnrollmentRegistry(Registry, TransactionalRegistry):
         warnings: List[str] = []
 
         def _run(conn):
-            orphaned = conn.execute(
-                """
+            orphaned = conn.execute("""
                 SELECT COUNT(*) FROM enrollment_registry er
                 WHERE NOT EXISTS (
                     SELECT 1 FROM fct_yearly_events fye
                     WHERE fye.employee_id = er.employee_id
                     AND fye.event_type IN ('enrollment','ENROLLMENT')
                 )
-                """
-            ).fetchone()[0]
+                """).fetchone()[0]
 
-            duplicates = conn.execute(
-                """
+            duplicates = conn.execute("""
                 SELECT COUNT(*) FROM (
                     SELECT employee_id, COUNT(*) c
                     FROM enrollment_registry
                     GROUP BY employee_id HAVING COUNT(*) > 1
                 )
-                """
-            ).fetchone()[0]
+                """).fetchone()[0]
 
             return orphaned, duplicates
 
@@ -306,14 +300,12 @@ class DeferralEscalationRegistry(Registry, TransactionalRegistry):
 
     def get_escalation_participants(self, year: int) -> List[str]:
         def _run(conn):
-            rows = conn.execute(
-                """
+            rows = conn.execute("""
                 SELECT employee_id
                 FROM deferral_escalation_registry
                 WHERE is_participating = TRUE
                 ORDER BY employee_id
-                """
-            ).fetchall()
+                """).fetchall()
             return [r[0] for r in rows]
 
         return self.db_manager.execute_with_retry(_run)
@@ -337,12 +329,10 @@ class DeferralEscalationRegistry(Registry, TransactionalRegistry):
         warnings: List[str] = []
 
         def _run(conn):
-            negatives = conn.execute(
-                """
+            negatives = conn.execute("""
                 SELECT COUNT(*) FROM deferral_escalation_registry
                 WHERE escalation_count < 0
-                """
-            ).fetchone()[0]
+                """).fetchone()[0]
             return negatives
 
         negatives = self.db_manager.execute_with_retry(_run)

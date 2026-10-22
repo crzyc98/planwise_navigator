@@ -142,8 +142,7 @@ class ComparisonService:
         headcount data, not blank the whole comparison.
         """
         try:
-            df = conn.execute(
-                f"""
+            df = conn.execute(f"""
                 SELECT{cls._WORKFORCE_COUNTS_CTE},
                     ROUND(COALESCE(AVG(CASE
                         WHEN UPPER(employment_status) = 'ACTIVE'
@@ -152,8 +151,7 @@ class ComparisonService:
                 FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
                 GROUP BY simulation_year
                 ORDER BY simulation_year
-            """
-            ).fetchdf()
+            """).fetchdf()
             return df.to_dict("records")
         except duckdb.BinderException as exc:
             if 'Referenced column "prorated_annual_compensation" not found' not in str(
@@ -165,21 +163,18 @@ class ComparisonService:
                 "avg_compensation for older scenario databases.",
                 exc,
             )
-        df = conn.execute(
-            f"""
+        df = conn.execute(f"""
             SELECT{cls._WORKFORCE_COUNTS_CTE}
             FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
             GROUP BY simulation_year
             ORDER BY simulation_year
-        """
-        ).fetchdf()
+        """).fetchdf()
         return [{**row, "avg_compensation": None} for row in df.to_dict("records")]
 
     @staticmethod
     def _query_events(conn: duckdb.DuckDBPyConnection) -> List[Dict[str, Any]]:
         """Query event counts grouped by simulation year and event type."""
-        df = conn.execute(
-            f"""
+        df = conn.execute(f"""
             SELECT
                 simulation_year,
                 event_type,
@@ -187,15 +182,13 @@ class ComparisonService:
             FROM {TABLE_FCT_YEARLY_EVENTS}
             GROUP BY simulation_year, event_type
             ORDER BY simulation_year, event_type
-        """
-        ).fetchdf()
+        """).fetchdf()
         return df.to_dict("records")
 
     @staticmethod
     def _query_hires_by_year(conn: duckdb.DuckDBPyConnection) -> Dict[int, int]:
         """Query hire counts grouped by simulation year."""
-        df = conn.execute(
-            f"""
+        df = conn.execute(f"""
             SELECT
                 simulation_year,
                 COUNT(*) as hires
@@ -203,8 +196,7 @@ class ComparisonService:
             WHERE event_type = '{EVENT_TYPE_HIRE}'
             GROUP BY simulation_year
             ORDER BY simulation_year
-        """
-        ).fetchdf()
+        """).fetchdf()
         return {row["simulation_year"]: row["hires"] for row in df.to_dict("records")}
 
     @staticmethod
@@ -218,8 +210,7 @@ class ComparisonService:
         }
         has_compensation = "prorated_annual_compensation" in columns
         compensation_sql = TOTAL_COMPENSATION_SQL if has_compensation else "NULL"
-        df = conn.execute(
-            f"""
+        df = conn.execute(f"""
             SELECT
                 simulation_year,
                 COALESCE(
@@ -246,8 +237,7 @@ class ComparisonService:
             FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
             GROUP BY simulation_year
             ORDER BY simulation_year
-        """
-        ).fetchdf()
+        """).fetchdf()
         dc_plan = df.to_dict("records")
         for row in dc_plan:
             total_comp = row.get("total_compensation", 0) or 0
@@ -534,9 +524,9 @@ class ComparisonService:
             )
             values[baseline_id] = baseline_metrics
             deltas[baseline_id] = DCPlanMetrics(
-                employer_cost_rate=0.0
-                if baseline_metrics.employer_cost_rate is not None
-                else None
+                employer_cost_rate=(
+                    0.0 if baseline_metrics.employer_cost_rate is not None else None
+                )
             )
 
             # Calculate for each non-baseline scenario

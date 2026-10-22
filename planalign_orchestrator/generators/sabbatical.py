@@ -163,8 +163,7 @@ class SabbaticalEventGenerator(EventGenerator):
         """
 
         def _query(conn):
-            return conn.execute(
-                f"""
+            return conn.execute(f"""
                 SELECT DISTINCT
                     w.employee_id,
                     w.tenure_years,
@@ -183,8 +182,7 @@ class SabbaticalEventGenerator(EventGenerator):
                       AND e.simulation_year = w.simulation_year
                       AND e.event_type = 'sabbatical'
                   )
-                """
-            ).fetchall()
+                """).fetchall()
 
         result = context.db_manager.execute_with_retry(_query)
         return [

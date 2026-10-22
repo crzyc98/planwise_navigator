@@ -231,8 +231,7 @@ class CompensationSolver:
 
         if level_col:
             level_col_sql = self._quote_identifier(level_col)
-            level_stats = conn.execute(
-                f"""
+            level_stats = conn.execute(f"""
                 SELECT
                     {level_col_sql} as level,
                     COUNT(*) as headcount,
@@ -240,8 +239,7 @@ class CompensationSolver:
                 FROM census
                 GROUP BY {level_col_sql}
                 ORDER BY {level_col_sql}
-                """
-            ).fetchall()
+                """).fetchall()
 
             for row in level_stats:
                 level = int(row[0])

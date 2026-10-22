@@ -18,21 +18,17 @@ class TestCleanupYearsOutsideRange:
         """Create a DuckDB file with a table containing simulation_year data."""
         db_path = tmp_path / "test.duckdb"
         conn = duckdb.connect(str(db_path))
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE fct_workforce_snapshot (
                 employee_id VARCHAR,
                 simulation_year INTEGER
             )
-        """
-        )
-        conn.execute(
-            """
+        """)
+        conn.execute("""
             INSERT INTO fct_workforce_snapshot VALUES
                 ('EMP1', 2024), ('EMP2', 2025), ('EMP3', 2026),
                 ('EMP4', 2027), ('EMP5', 2028)
-        """
-        )
+        """)
         conn.close()
         return db_path
 

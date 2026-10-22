@@ -34,7 +34,6 @@ from tests.fixtures.irs_limits import (
     is_contribution_compliant,
 )
 
-
 # Hypothesis strategies for test data generation
 age_strategy = st.integers(min_value=18, max_value=80)
 compensation_strategy = st.decimals(

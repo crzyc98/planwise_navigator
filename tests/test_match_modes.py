@@ -22,7 +22,6 @@ from planalign_orchestrator.config.workforce import (
     validate_tier_contiguity,
 )
 
-
 # =============================================================================
 # T017: TenureMatchTier Validation
 # =============================================================================

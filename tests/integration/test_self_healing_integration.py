@@ -16,7 +16,6 @@ from planalign_orchestrator.self_healing.initialization_state import (
     REQUIRED_TABLES,
 )
 
-
 # ============================================================================
 # T014: Integration test full initialization flow with mock dbt runner
 # ============================================================================

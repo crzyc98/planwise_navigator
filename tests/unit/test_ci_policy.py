@@ -8,7 +8,6 @@ import subprocess
 import pytest
 import yaml
 
-
 ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location(
     "ci_policy", ROOT / "scripts/ci_policy.py"

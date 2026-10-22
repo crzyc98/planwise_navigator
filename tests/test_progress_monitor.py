@@ -19,7 +19,6 @@ from planalign_cli.integration.orchestrator_wrapper import (
     _ProgressMonitor,
 )
 
-
 # ---------------------------------------------------------------------------
 # Regex pattern tests
 # ---------------------------------------------------------------------------

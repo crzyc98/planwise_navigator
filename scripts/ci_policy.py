@@ -8,7 +8,6 @@ from pathlib import Path
 import subprocess
 import sys
 
-
 BASE_JOBS = {
     "lint",
     "studio",

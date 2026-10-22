@@ -10,7 +10,6 @@ from pathlib import Path
 
 from .models import EnsembleSpec, SeedPlan, Subsystem
 
-
 _DERIVED_SEED_INCREMENT = 1001
 
 # Calibrated against two measured ensembles (issue #544): a 5-year, ~7k-employee

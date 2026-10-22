@@ -8,7 +8,6 @@ from typing import Any
 
 import duckdb
 
-
 SNAPSHOT_DDL = """
 CREATE TABLE fct_workforce_snapshot (
   employee_id VARCHAR,

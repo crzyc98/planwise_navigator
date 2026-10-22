@@ -456,9 +456,9 @@ class CalibrationRunner:
         # Override the new-hire age distribution via the same dbt var the full
         # simulation consumes (int_hiring_events), replacing the seed values.
         if self.run.params.new_hire_age_distribution:
-            dbt_vars[
-                "new_hire_age_distribution"
-            ] = self.run.params.new_hire_age_distribution
+            dbt_vars["new_hire_age_distribution"] = (
+                self.run.params.new_hire_age_distribution
+            )
         stages = WorkflowBuilder.build_calibration_year_workflow(
             year, self.run.start_year
         )

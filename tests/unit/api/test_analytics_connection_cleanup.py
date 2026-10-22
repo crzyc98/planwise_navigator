@@ -13,7 +13,6 @@ from planalign_api.services.analytics_service import AnalyticsService
 from planalign_api.services.database_path_resolver import ResolvedDatabasePath
 from planalign_api.services.ndt_service import NDTService
 
-
 METHODS = (
     "get_dc_plan_analytics",
     "get_available_years",
@@ -88,8 +87,7 @@ def test_ndt_early_return_and_later_query_failure_close_connection(
     method: str, database_path: Path, has_limits: bool
 ) -> None:
     with duckdb.connect(str(database_path)) as conn:
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE config_irs_limits (
                 limit_year INTEGER, hce_compensation_threshold INTEGER,
                 annual_additions_limit INTEGER, base_limit INTEGER,
@@ -97,8 +95,7 @@ def test_ndt_early_return_and_later_query_failure_close_connection(
                 super_catch_up_limit INTEGER, super_catch_up_age_min INTEGER,
                 super_catch_up_age_max INTEGER
             )
-        """
-        )
+        """)
         if has_limits:
             conn.execute(
                 "INSERT INTO config_irs_limits VALUES "

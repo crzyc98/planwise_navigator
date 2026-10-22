@@ -10,7 +10,6 @@ from typing import Any
 
 import duckdb
 
-
 RUN_ID = "00000000-0000-0000-0000-000000000138"
 FINGERPRINT = "1" * 64
 

@@ -3,7 +3,6 @@
 from pathlib import Path
 import subprocess
 
-
 ROOT = Path(__file__).resolve().parents[3]
 CANONICAL_BUILDER = ROOT / "planalign_orchestrator/construction/builder.py"
 THIS_TEST = Path(__file__).resolve()

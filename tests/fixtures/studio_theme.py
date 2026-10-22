@@ -7,7 +7,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-
 REPO_ROOT = Path(__file__).parents[2]
 STUDIO_ROOT = REPO_ROOT / "planalign_studio"
 COMPONENT_ROOT = STUDIO_ROOT / "components"

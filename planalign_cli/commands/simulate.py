@@ -1045,7 +1045,9 @@ def _show_enhanced_simulation_summary(
         # Average events per year
         avg_events = summary.total_events / completed_years_count
         summary_table.add_row(
-            "📊 Average Events/Year", f"{avg_events:,.0f}", "Consistent simulation scale"
+            "📊 Average Events/Year",
+            f"{avg_events:,.0f}",
+            "Consistent simulation scale",
         )
 
     # Completed years information

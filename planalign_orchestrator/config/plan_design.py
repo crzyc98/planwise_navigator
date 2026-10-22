@@ -171,9 +171,10 @@ class CoreParameterSet(BaseModel):
     age_schedule: list[CoreAgeBand] = Field(default_factory=list)
     points_schedule: list[CorePointsBand] = Field(default_factory=list)
     integration_enabled: bool | None = None
-    integration_level_mode: Literal[
-        "ss_wage_base", "explicit", "percent_of_ss_wage_base", "fixed_dollar"
-    ] | None = None
+    integration_level_mode: (
+        Literal["ss_wage_base", "explicit", "percent_of_ss_wage_base", "fixed_dollar"]
+        | None
+    ) = None
     integration_level_value: int | None = Field(default=None, ge=0)
     integration_disparity_rate: float | None = Field(default=None, ge=0.0, le=1.0)
 

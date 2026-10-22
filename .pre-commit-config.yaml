@@ -21,7 +21,7 @@ repos:
   # during commit. This keeps partially staged files safe; format explicitly
   # before staging when a check fails. Versions match pyproject/CI.
   - repo: https://github.com/psf/black
-    rev: 23.9.1
+    rev: 26.10.1
     hooks:
       - id: black
         args: ["--check"]

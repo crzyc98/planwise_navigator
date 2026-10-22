@@ -15,7 +15,6 @@ from planalign_api.routers import scenarios as scenarios_router
 from planalign_api.routers import workspaces as workspaces_router
 from planalign_api.storage.workspace_storage import WorkspaceStorage
 
-
 WORKSPACE_ID = str(uuid.uuid4())
 SCENARIO_ID = str(uuid.uuid4())
 OTHER_WORKSPACE_ID = str(uuid.uuid4())

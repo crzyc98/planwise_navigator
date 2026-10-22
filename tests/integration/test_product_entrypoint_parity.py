@@ -7,7 +7,6 @@ from planalign_api.services.simulation.service import SimulationService
 from planalign_orchestrator.config import load_simulation_config
 from planalign_orchestrator.construction import ConstructionSpec, build_orchestrator
 
-
 SHARED_DATABASE = Path("dbt/simulation.duckdb")
 
 

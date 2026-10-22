@@ -25,8 +25,9 @@ def download_scenario_report(
     workspace_id: str,
     scenario_id: str,
     format: str = Query("pdf", pattern="^(pdf|pptx|html)$"),
-    compare: str
-    | None = Query(None, description="Comma-separated comparison scenario IDs"),
+    compare: str | None = Query(
+        None, description="Comma-separated comparison scenario IDs"
+    ),
     settings: APISettings = Depends(get_settings),
 ) -> FileResponse:
     storage = WorkspaceStorage(settings.workspaces_root)
@@ -35,9 +36,11 @@ def download_scenario_report(
             storage,
             workspace_id,
             scenario_id,
-            [item.strip() for item in compare.split(",") if item.strip()]
-            if compare
-            else None,
+            (
+                [item.strip() for item in compare.split(",") if item.strip()]
+                if compare
+                else None
+            ),
         )
     except ReportNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

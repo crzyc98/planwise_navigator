@@ -1,6 +1,5 @@
 """Unit tests for SimulationLogWriter."""
 
-
 from planalign_api.services.simulation.log_writer import SimulationLogWriter
 
 

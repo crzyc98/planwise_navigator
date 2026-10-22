@@ -15,7 +15,6 @@ from .models import (
     SeedRunOutcome,
 )
 
-
 _SNAPSHOT_TABLE = "fct_workforce_snapshot"
 
 

@@ -107,9 +107,11 @@ def measure(directory: Path, project: Path, config: Path, horizon: str) -> dict:
         cpu = os.times()
         started = time.perf_counter()
         try:
-            with (directory / "run.log").open("w") as log, redirect_stdout(
-                log
-            ), redirect_stderr(log):
+            with (
+                (directory / "run.log").open("w") as log,
+                redirect_stdout(log),
+                redirect_stderr(log),
+            ):
                 _invoke_cli(database, isolated_project, config, horizon)
         except (Exception, SystemExit) as exc:
             error = f"{type(exc).__name__}: {exc}"

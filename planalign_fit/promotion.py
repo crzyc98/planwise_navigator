@@ -179,13 +179,11 @@ def exposure_filter(classification: Optional[PromotionClassification]) -> str:
 
 def _restrict_measured_exposure(transitions: TransitionSet) -> None:
     """Zero the weight of rows the measured path cannot speak to."""
-    transitions.conn.execute(
-        f"""
+    transitions.conn.execute(f"""
         UPDATE {transitions.table}
         SET promotion_weight = 0.0
         WHERE NOT has_source_level
-        """
-    )
+        """)
 
 
 def _zero_weights(transitions: TransitionSet) -> None:
@@ -329,15 +327,13 @@ def _stash_weights(
 ) -> None:
     """Hold one level's fitted weights until every level has been fitted."""
     conn = transitions.conn
-    conn.execute(
-        f"""
+    conn.execute(f"""
         CREATE TABLE IF NOT EXISTS {WEIGHTS_TABLE} (
             employee_id VARCHAR,
             from_year INTEGER,
             weight DOUBLE
         )
-        """
-    )
+        """)
     conn.executemany(
         f"INSERT INTO {WEIGHTS_TABLE} VALUES (?, ?, ?)",
         [
@@ -367,13 +363,11 @@ def _write_weights(transitions: TransitionSet, levels: list[LevelSeparation]) ->
             "would otherwise report a promotion rate of zero."
         )
 
-    conn.execute(
-        f"""
+    conn.execute(f"""
         UPDATE {transitions.table} AS t
         SET promotion_weight = w.weight
         FROM {WEIGHTS_TABLE} AS w
         WHERE t.employee_id = w.employee_id
           AND t.from_year = w.from_year
-        """
-    )
+        """)
     conn.execute(f"DROP TABLE {WEIGHTS_TABLE}")

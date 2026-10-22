@@ -249,8 +249,7 @@ class DeferralSegmentAnalysisService:
             conn, "SELECT AVG(deferral_rate) FROM analyzed WHERE deferral_rate > 0"
         )
 
-        rows = conn.execute(
-            """
+        rows = conn.execute("""
             SELECT
               age_segment,
               income_segment,
@@ -260,8 +259,7 @@ class DeferralSegmentAnalysisService:
             FROM analyzed
             GROUP BY age_segment, income_segment
             ORDER BY age_segment, income_segment
-            """
-        ).fetchall()
+            """).fetchall()
 
         segments = [
             DeferralSegment(

@@ -24,7 +24,6 @@ from planalign_cli.integration.orchestrator_wrapper import (
     OrchestratorWrapper,
 )
 
-
 # =============================================================================
 # Regex patterns
 # =============================================================================

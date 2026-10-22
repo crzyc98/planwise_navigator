@@ -29,7 +29,6 @@ from typing import Optional
 import duckdb
 from .config import get_database_path
 
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -98,8 +97,7 @@ class DatabaseInitializer:
         logger.info("Creating staging tables...")
 
         # stg_census_data - Core employee data
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS stg_census_data (
                 employee_id VARCHAR PRIMARY KEY,
                 employee_ssn VARCHAR,
@@ -115,12 +113,10 @@ class DatabaseInitializer:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """
-        )
+        """)
 
         # stg_config_job_levels - Job level configuration
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS stg_config_job_levels (
                 level_id INTEGER PRIMARY KEY,
                 name VARCHAR,
@@ -137,12 +133,10 @@ class DatabaseInitializer:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """
-        )
+        """)
 
         # stg_comp_levers - Compensation parameter configuration
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS stg_comp_levers (
                 scenario_id VARCHAR,
                 fiscal_year INTEGER,
@@ -154,8 +148,7 @@ class DatabaseInitializer:
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (scenario_id, fiscal_year, event_type, parameter_name, COALESCE(job_level, -1))
             )
-        """
-        )
+        """)
 
         # Hazard configuration tables
         hazard_tables = [
@@ -169,8 +162,7 @@ class DatabaseInitializer:
         ]
 
         for table in hazard_tables:
-            conn.execute(
-                f"""
+            conn.execute(f"""
                 CREATE TABLE IF NOT EXISTS {table} (
                     id INTEGER PRIMARY KEY,
                     level_id INTEGER,
@@ -179,12 +171,10 @@ class DatabaseInitializer:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            """
-            )
+            """)
 
         # IRS contribution limits
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS irs_contribution_limits (
                 tax_year INTEGER PRIMARY KEY,
                 employee_deferral_limit DECIMAL(10,2),
@@ -194,12 +184,10 @@ class DatabaseInitializer:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """
-        )
+        """)
 
         # Default deferral rates
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS default_deferral_rates (
                 demographic_segment VARCHAR PRIMARY KEY,
                 base_rate DECIMAL(5,4),
@@ -207,8 +195,7 @@ class DatabaseInitializer:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """
-        )
+        """)
 
         logger.info("Created staging tables")
 
@@ -217,8 +204,7 @@ class DatabaseInitializer:
         logger.info("Creating intermediate tables...")
 
         # int_baseline_workforce - Starting workforce state
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS int_baseline_workforce (
                 employee_id VARCHAR,
                 employee_ssn VARCHAR,
@@ -240,12 +226,10 @@ class DatabaseInitializer:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (employee_id, simulation_year)
             )
-        """
-        )
+        """)
 
         # int_employee_compensation_by_year - Year-aware compensation
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS int_employee_compensation_by_year (
                 employee_id VARCHAR,
                 simulation_year INTEGER,
@@ -259,12 +243,10 @@ class DatabaseInitializer:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (employee_id, simulation_year)
             )
-        """
-        )
+        """)
 
         # int_workforce_needs - Workforce planning calculations
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS int_workforce_needs (
                 simulation_year INTEGER PRIMARY KEY,
                 starting_workforce_count INTEGER,
@@ -277,12 +259,10 @@ class DatabaseInitializer:
                 balance_status VARCHAR,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """
-        )
+        """)
 
         # int_deferral_rate_state_accumulator - Deferral rate state management
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS int_deferral_rate_state_accumulator (
                 scenario_id VARCHAR,
                 plan_design_id VARCHAR,
@@ -298,12 +278,10 @@ class DatabaseInitializer:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (scenario_id, plan_design_id, employee_id, simulation_year, as_of_month)
             )
-        """
-        )
+        """)
 
         # int_employee_contributions - Employee contribution calculations
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS int_employee_contributions (
                 employee_id VARCHAR,
                 simulation_year INTEGER,
@@ -319,8 +297,7 @@ class DatabaseInitializer:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (employee_id, simulation_year)
             )
-        """
-        )
+        """)
 
         logger.info("Created intermediate tables")
 
@@ -329,8 +306,7 @@ class DatabaseInitializer:
         logger.info("Creating fact tables...")
 
         # fct_yearly_events - Core event stream
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS fct_yearly_events (
                 employee_id VARCHAR,
                 employee_ssn VARCHAR,
@@ -356,12 +332,10 @@ class DatabaseInitializer:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """
-        )
+        """)
 
         # fct_workforce_snapshot - Point-in-time workforce state
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS fct_workforce_snapshot (
                 employee_id VARCHAR,
                 employee_ssn VARCHAR,
@@ -387,12 +361,10 @@ class DatabaseInitializer:
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (employee_id, simulation_year)
             )
-        """
-        )
+        """)
 
         # fct_compensation_growth - Compensation analytics
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS fct_compensation_growth (
                 simulation_year INTEGER,
                 level_id INTEGER,
@@ -406,8 +378,7 @@ class DatabaseInitializer:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (simulation_year, level_id)
             )
-        """
-        )
+        """)
 
         logger.info("Created fact tables")
 
@@ -416,8 +387,7 @@ class DatabaseInitializer:
         logger.info("Creating dimension tables...")
 
         # dim_hazard_table - Risk probability lookup
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS dim_hazard_table (
                 event_type VARCHAR,
                 level_id INTEGER,
@@ -430,8 +400,7 @@ class DatabaseInitializer:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (event_type, level_id, age_band, tenure_band)
             )
-        """
-        )
+        """)
 
         logger.info("Created dimension tables")
 
@@ -467,12 +436,10 @@ class DatabaseInitializer:
 
             try:
                 # Use DuckDB's efficient CSV reading
-                conn.execute(
-                    f"""
+                conn.execute(f"""
                     INSERT INTO {table_name}
                     SELECT * FROM read_csv_auto('{csv_path}')
-                """
-                )
+                """)
 
                 # Get row count for logging
                 count_row = conn.execute(
@@ -496,8 +463,7 @@ class DatabaseInitializer:
             return
 
         # Create sample employees
-        conn.execute(
-            """
+        conn.execute("""
             INSERT INTO stg_census_data (
                 employee_id, employee_ssn, employee_first_name, employee_last_name,
                 employee_birth_date, employee_hire_date, employee_enrollment_date,
@@ -523,8 +489,7 @@ class DatabaseInitializer:
                 FROM generate_series(1, 1000)
             )
             SELECT * FROM sample_employees
-        """
-        )
+        """)
 
         count_row = conn.execute("SELECT COUNT(*) FROM stg_census_data").fetchone()
         count = count_row[0] if count_row is not None else 0

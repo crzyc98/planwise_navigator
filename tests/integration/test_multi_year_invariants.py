@@ -55,12 +55,10 @@ class _DirectConnectionManager:
 
 def test_snapshot_no_foreign_rows_cleanup_defaults_on() -> None:
     with duckdb.connect() as connection:
-        connection.execute(
-            """CREATE TABLE fct_workforce_snapshot (
+        connection.execute("""CREATE TABLE fct_workforce_snapshot (
               employee_id VARCHAR, simulation_year INTEGER,
               scenario_id VARCHAR, plan_design_id VARCHAR
-            )"""
-        )
+            )""")
         connection.execute(
             "INSERT INTO fct_workforce_snapshot VALUES "
             "('STALE_PRIOR_RUN', 2027, 'invariant_reference', 'invariant_tiered_401k')"

@@ -27,45 +27,37 @@ class DummyRunner(DbtRunner):
 
 def _seed_minimal(db_path: Path, years):
     conn = duckdb.connect(str(db_path))
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE fct_workforce_snapshot(
             simulation_year INTEGER,
             employment_status VARCHAR,
             detailed_status_code VARCHAR,
             participation_status VARCHAR
         )
-        """
-    )
-    conn.execute(
-        """
+        """)
+    conn.execute("""
         CREATE TABLE fct_yearly_events(
             employee_id VARCHAR,
             event_type VARCHAR,
             simulation_year INTEGER,
             event_date DATE
         )
-        """
-    )
+        """)
     # Create accumulator tables required for year dependency validation
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE int_enrollment_state_accumulator(
             employee_id VARCHAR,
             simulation_year INTEGER,
             enrollment_date DATE
         )
-        """
-    )
-    conn.execute(
-        """
+        """)
+    conn.execute("""
         CREATE TABLE int_deferral_rate_state_accumulator(
             employee_id VARCHAR,
             simulation_year INTEGER,
             deferral_rate DECIMAL(10,4)
         )
-        """
-    )
+        """)
     for y in years:
         # 5 active, 3 participating
         conn.executemany(
