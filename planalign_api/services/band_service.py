@@ -30,6 +30,7 @@ from .sql_security import (
     validate_numeric,
 )
 from .census_as_of import resolve_as_of_date
+from .census_schema import active_filter_sql
 
 logger = logging.getLogger(__name__)
 
@@ -410,7 +411,9 @@ class BandService:
 
             # Filter to active employees (using validated column names)
             if "active" in columns:
-                conn.execute("DELETE FROM census WHERE active != true")
+                conn.execute(
+                    f"DELETE FROM census WHERE NOT {active_filter_sql(columns)}"
+                )
             elif "status" in columns:
                 conn.execute("DELETE FROM census WHERE LOWER(status) != 'active'")
 
@@ -708,7 +711,9 @@ class BandService:
 
             # Filter to active employees
             if "active" in columns:
-                conn.execute("DELETE FROM census WHERE active != true")
+                conn.execute(
+                    f"DELETE FROM census WHERE NOT {active_filter_sql(columns)}"
+                )
             elif "status" in columns:
                 conn.execute("DELETE FROM census WHERE LOWER(status) != 'active'")
 

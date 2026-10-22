@@ -28,6 +28,7 @@ from .census_schema import (
     CENSUS_DATE_FORMATS,
     FIELDS,
     GROUPED_NUMBER_PATTERN,
+    active_filter_sql,
     census_date_order_is_ambiguous,
     matching_census_date_formats,
 )
@@ -1097,7 +1098,9 @@ class FileService:
 
             # Filter to active employees if status column exists
             if "active" in columns:
-                conn.execute("DELETE FROM census WHERE active != true")
+                conn.execute(
+                    f"DELETE FROM census WHERE NOT {active_filter_sql(columns)}"
+                )
             elif "status" in columns:
                 conn.execute("DELETE FROM census WHERE LOWER(status) != 'active'")
 
@@ -1274,7 +1277,9 @@ class FileService:
 
             # Filter to active employees if status column exists
             if "active" in columns:
-                conn.execute("DELETE FROM census WHERE active != true")
+                conn.execute(
+                    f"DELETE FROM census WHERE NOT {active_filter_sql(columns)}"
+                )
             elif "status" in columns:
                 conn.execute("DELETE FROM census WHERE LOWER(status) != 'active'")
 
@@ -1431,7 +1436,9 @@ class FileService:
 
             # Filter to active employees if status column exists
             if "active" in columns:
-                conn.execute("DELETE FROM census WHERE active != true")
+                conn.execute(
+                    f"DELETE FROM census WHERE NOT {active_filter_sql(columns)}"
+                )
             elif "status" in columns:
                 conn.execute("DELETE FROM census WHERE LOWER(status) != 'active'")
 
