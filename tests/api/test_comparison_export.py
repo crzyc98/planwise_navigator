@@ -39,8 +39,7 @@ def _build_db(
 ) -> Path:
     conn = duckdb.connect(str(path))
     try:
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE fct_workforce_snapshot (
                 scenario_id VARCHAR DEFAULT 'default',
                 employee_id VARCHAR,
@@ -52,8 +51,7 @@ def _build_db(
                 employee_id VARCHAR,
                 employee_hire_date DATE
             );
-            """
-        )
+            """)
         for year in years:
             conn.execute(
                 "INSERT INTO fct_workforce_snapshot SELECT 'default', 'e' || i, ?, 50000 + i, "
@@ -285,10 +283,13 @@ def test_hyper_has_all_scenarios_census_and_native_types(tmp_path):
 
     path = _export(tmp_path, scenarios, "hyper")
 
-    with hyperapi.HyperProcess(
-        hyperapi.Telemetry.DO_NOT_SEND_USAGE_DATA_TO_TABLEAU,
-        parameters={"log_dir": str(tmp_path)},
-    ) as hyper, hyperapi.Connection(hyper.endpoint, str(path)) as conn:
+    with (
+        hyperapi.HyperProcess(
+            hyperapi.Telemetry.DO_NOT_SEND_USAGE_DATA_TO_TABLEAU,
+            parameters={"log_dir": str(tmp_path)},
+        ) as hyper,
+        hyperapi.Connection(hyper.endpoint, str(path)) as conn,
+    ):
         counts = conn.execute_list_query(
             "SELECT scenario_name, COUNT(*) FROM workforce_snapshot "
             "GROUP BY scenario_name ORDER BY scenario_name"
@@ -416,9 +417,9 @@ def env(tmp_path, monkeypatch):
         scenarios.append(scenario)
 
     app = create_app()
-    app.dependency_overrides[
-        analytics_router.get_comparison_export_service
-    ] = lambda: ComparisonExportService(storage, _StubResolver(paths))
+    app.dependency_overrides[analytics_router.get_comparison_export_service] = (
+        lambda: ComparisonExportService(storage, _StubResolver(paths))
+    )
     return TestClient(app), storage, workspace, scenarios
 
 

@@ -67,13 +67,11 @@ def _per_employee_comp(db: Path) -> dict[tuple[int, str], float]:
     """Active employees' prorated comp keyed by (year, employee_id)."""
     conn = duckdb.connect(str(db), read_only=True)
     try:
-        rows = conn.execute(
-            """
+        rows = conn.execute("""
             SELECT simulation_year, employee_id, prorated_annual_compensation
             FROM fct_workforce_snapshot
             WHERE detailed_status_code IN ('continuous_active', 'new_hire_active')
-            """
-        ).fetchall()
+            """).fetchall()
     finally:
         conn.close()
     return {(int(r[0]), r[1]): r[2] for r in rows}

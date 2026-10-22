@@ -17,7 +17,6 @@ from .models import (
     Subsystem,
 )
 
-
 _METRIC_LABELS = {
     "active_headcount": "Active headcount",
     "total_compensation": "Total compensation",

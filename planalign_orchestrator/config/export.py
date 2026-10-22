@@ -88,9 +88,9 @@ def _export_simulation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
         dbt_vars["plan_design_assignment"] = assignment.model_dump(mode="json")
     parameters = cfg.plan_design_parameters
     if parameters is not None:
-        dbt_vars[
-            "plan_design_parameters"
-        ] = cfg.validated_plan_design_parameters().to_dbt_payload()
+        dbt_vars["plan_design_parameters"] = (
+            cfg.validated_plan_design_parameters().to_dbt_payload()
+        )
     # Audit-trail scenario tag (#510): several data-quality/contribution models tag
     # rows with both scenario_id and parameter_scenario_id; the latter had no
     # exporter and always fell back to its SQL literal "default".
@@ -123,9 +123,9 @@ def _export_simulation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
         dbt_vars["minimum_age"] = cfg.plan_eligibility.minimum_age
     # Feature 103: configurable new-hire plan ineligibility (no-op defaults).
     dbt_vars["new_hire_ineligible_pct"] = cfg.eligibility.new_hire_ineligible_pct
-    dbt_vars[
-        "new_hire_eligibility_match_census"
-    ] = cfg.eligibility.new_hire_eligibility_match_census
+    dbt_vars["new_hire_eligibility_match_census"] = (
+        cfg.eligibility.new_hire_eligibility_match_census
+    )
 
     # Random seed
     if cfg.simulation.random_seed is not None:
@@ -140,9 +140,9 @@ def _export_simulation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
         if cfg.workforce.total_termination_rate is not None:
             dbt_vars["total_termination_rate"] = cfg.workforce.total_termination_rate
         if cfg.workforce.new_hire_termination_rate is not None:
-            dbt_vars[
-                "new_hire_termination_rate"
-            ] = cfg.workforce.new_hire_termination_rate
+            dbt_vars["new_hire_termination_rate"] = (
+                cfg.workforce.new_hire_termination_rate
+            )
         if getattr(cfg.workforce, "part_time_new_hire_pct", None):
             dbt_vars["part_time_new_hire_pct"] = cfg.workforce.part_time_new_hire_pct
 
@@ -1023,21 +1023,21 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                     dc_plan_dict["match_min_tenure_years"]
                 )
             if dc_plan_dict.get("match_require_year_end_active") is not None:
-                match_eligibility_overrides[
-                    "require_active_at_year_end"
-                ] = dc_plan_dict["match_require_year_end_active"]
+                match_eligibility_overrides["require_active_at_year_end"] = (
+                    dc_plan_dict["match_require_year_end_active"]
+                )
             if dc_plan_dict.get("match_min_hours_annual") is not None:
                 match_eligibility_overrides["minimum_hours_annual"] = int(
                     dc_plan_dict["match_min_hours_annual"]
                 )
             if dc_plan_dict.get("match_allow_terminated_new_hires") is not None:
-                match_eligibility_overrides[
-                    "allow_terminated_new_hires"
-                ] = dc_plan_dict["match_allow_terminated_new_hires"]
+                match_eligibility_overrides["allow_terminated_new_hires"] = (
+                    dc_plan_dict["match_allow_terminated_new_hires"]
+                )
             if dc_plan_dict.get("match_allow_experienced_terminations") is not None:
-                match_eligibility_overrides[
-                    "allow_experienced_terminations"
-                ] = dc_plan_dict["match_allow_experienced_terminations"]
+                match_eligibility_overrides["allow_experienced_terminations"] = (
+                    dc_plan_dict["match_allow_experienced_terminations"]
+                )
             # E047: Export match_allow_new_hires from dc_plan (UI path)
             if dc_plan_dict.get("match_allow_new_hires") is not None:
                 match_eligibility_overrides["allow_new_hires"] = dc_plan_dict[
@@ -1103,9 +1103,9 @@ def _export_compensation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
         dbt_vars["promotion_base_increase_pct"] = promotion.base_increase_pct
 
     if cfg.compensation.promotion_distribution_range != 0.05:
-        dbt_vars[
-            "promotion_distribution_range"
-        ] = cfg.compensation.promotion_distribution_range
+        dbt_vars["promotion_distribution_range"] = (
+            cfg.compensation.promotion_distribution_range
+        )
     else:
         dbt_vars["promotion_distribution_range"] = promotion.distribution_range
 
@@ -1499,12 +1499,12 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                 dbt_vars["employer_core_integration_level_mode"] = integration_settings[
                     "level_mode"
                 ]
-                dbt_vars[
-                    "employer_core_integration_level_value"
-                ] = integration_settings["level_value"]
-                dbt_vars[
-                    "employer_core_integration_disparity_rate"
-                ] = integration_settings["disparity_rate"]
+                dbt_vars["employer_core_integration_level_value"] = (
+                    integration_settings["level_value"]
+                )
+                dbt_vars["employer_core_integration_disparity_rate"] = (
+                    integration_settings["disparity_rate"]
+                )
 
             # Merge dc_plan eligibility overrides into employer_core_contribution
             if core_eligibility_overrides or core_top_level:

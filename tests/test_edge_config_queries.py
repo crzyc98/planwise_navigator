@@ -19,16 +19,14 @@ def _case(name: str) -> EdgeConfigScenario:
 
 def _cutoff_database(path: Path, after_enrolled: bool) -> None:
     with duckdb.connect(str(path)) as connection:
-        connection.execute(
-            """
+        connection.execute("""
             CREATE TABLE fct_workforce_snapshot (
               employee_id VARCHAR,
               simulation_year INTEGER,
               is_enrolled_flag BOOLEAN,
               employee_enrollment_date DATE
             )
-            """
-        )
+            """)
         connection.execute(
             "INSERT INTO fct_workforce_snapshot VALUES "
             "('EDGE_CUTOFF_BEFORE', 2025, FALSE, NULL), "
@@ -81,15 +79,13 @@ def _eligibility_database(
 ) -> None:
     """Build the case's outputs; `suppressed_hire_status=None` omits the new hire."""
     with duckdb.connect(str(path)) as connection:
-        connection.execute(
-            """
+        connection.execute("""
             CREATE TABLE fct_workforce_snapshot (
               employee_id VARCHAR,
               simulation_year INTEGER,
               current_eligibility_status VARCHAR
             )
-            """
-        )
+            """)
         connection.execute(
             "INSERT INTO fct_workforce_snapshot VALUES "
             "('EDGE_SUPPRESSED', 2025, 'pending'), "
@@ -98,16 +94,14 @@ def _eligibility_database(
             "('EDGE_CONTROL', 2026, 'eligible')",
             [end_status],
         )
-        connection.execute(
-            """
+        connection.execute("""
             CREATE TABLE int_plan_eligibility_override (
               employee_id VARCHAR,
               simulation_year INTEGER,
               is_plan_ineligible_override BOOLEAN,
               override_source VARCHAR
             )
-            """
-        )
+            """)
         if suppressed_hire_status is None:
             return
         # Feature 103 (#499): a dial-suppressed hire, carried across both years.
@@ -212,8 +206,7 @@ def _growth_database(
 ) -> None:
     """Build snapshot/event/needs rows from (year, starting, rate, ending, hires, terms)."""
     with duckdb.connect(str(path)) as connection:
-        connection.execute(
-            """
+        connection.execute("""
             CREATE TABLE fct_workforce_snapshot (
               employee_id VARCHAR, simulation_year INTEGER, employment_status VARCHAR
             );
@@ -225,8 +218,7 @@ def _growth_database(
               starting_workforce_count BIGINT,
               target_growth_rate DECIMAL(9, 4)
             )
-            """
-        )
+            """)
         for year, starting, rate, ending, hires, terminations in years:
             connection.execute(
                 "INSERT INTO int_workforce_needs VALUES (?, ?, ?)",

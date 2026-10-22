@@ -19,8 +19,7 @@ def _build(
     eligibility_rows: list[tuple],
 ) -> None:
     with duckdb.connect(str(path)) as connection:
-        connection.execute(
-            """
+        connection.execute("""
             CREATE TABLE int_workforce_state_accumulator (
               scenario_id VARCHAR,
               plan_design_id VARCHAR,
@@ -29,14 +28,12 @@ def _build(
               current_tenure INTEGER,
               employee_hire_date DATE
             )
-            """
-        )
+            """)
         connection.executemany(
             "INSERT INTO int_workforce_state_accumulator VALUES (?, ?, ?, ?, ?, ?)",
             workforce_rows,
         )
-        connection.execute(
-            """
+        connection.execute("""
             CREATE TABLE int_employer_eligibility (
               scenario_id VARCHAR,
               employee_id VARCHAR,
@@ -50,8 +47,7 @@ def _build(
               match_tenure_requirement INTEGER,
               match_allow_new_hires BOOLEAN
             )
-            """
-        )
+            """)
         connection.executemany(
             "INSERT INTO int_employer_eligibility VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             eligibility_rows,

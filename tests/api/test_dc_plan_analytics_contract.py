@@ -71,8 +71,7 @@ def _build_db(path: Path) -> Path:
     conn = duckdb.connect(str(path))
     try:
         conn.execute(SNAPSHOT_DDL)
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE config_irs_limits (
                 limit_year INTEGER,
                 compensation_limit DECIMAL(12, 2)
@@ -80,8 +79,7 @@ def _build_db(path: Path) -> Path:
             INSERT INTO config_irs_limits VALUES
                 (2025, 350000),
                 (2026, 350000)
-            """
-        )
+            """)
         conn.execute(ROWS)
     finally:
         conn.close()
@@ -406,8 +404,7 @@ def _legacy_final_year_counts(
         service._population_predicate(population),
         service._cohort_predicate(cohort, 2025),
     )
-    rows = conn.execute(
-        f"""
+    rows = conn.execute(f"""
         WITH final_year AS (
             SELECT MAX(simulation_year) as max_year FROM fct_workforce_snapshot
         ),
@@ -430,8 +427,7 @@ def _legacy_final_year_counts(
             {where_clause}
         )
         SELECT bucket, COUNT(*) as count FROM bucketed GROUP BY bucket
-        """
-    ).fetchall()
+        """).fetchall()
     return {str(bucket): int(count) for bucket, count in rows}
 
 

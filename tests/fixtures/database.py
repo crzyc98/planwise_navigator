@@ -24,8 +24,7 @@ def in_memory_db() -> Generator[duckdb.DuckDBPyConnection, None, None]:
     conn = duckdb.connect(":memory:")
 
     # Create minimal schema for testing
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS fct_yearly_events (
             event_id VARCHAR PRIMARY KEY,
             employee_id VARCHAR NOT NULL,
@@ -36,11 +35,9 @@ def in_memory_db() -> Generator[duckdb.DuckDBPyConnection, None, None]:
             plan_design_id VARCHAR NOT NULL,
             payload JSON
         )
-    """
-    )
+    """)
 
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS fct_workforce_snapshot (
             employee_id VARCHAR,
             simulation_year INTEGER NOT NULL,
@@ -50,8 +47,7 @@ def in_memory_db() -> Generator[duckdb.DuckDBPyConnection, None, None]:
             plan_design_id VARCHAR NOT NULL,
             PRIMARY KEY (employee_id, simulation_year, scenario_id, plan_design_id)
         )
-    """
-    )
+    """)
 
     yield conn
     conn.close()
@@ -77,27 +73,23 @@ def populated_test_db(in_memory_db) -> duckdb.DuckDBPyConnection:
     """
     # Insert sample workforce data
     for i in range(100):
-        in_memory_db.execute(
-            f"""
+        in_memory_db.execute(f"""
             INSERT INTO fct_workforce_snapshot VALUES (
                 'EMP{i:05d}', 2025, {50000 + (i * 500)}, NULL, 'test_scenario', 'test_plan'
             )
-        """
-        )
+        """)
 
     # Insert sample events
     event_types = ["hire", "termination", "promotion"]
     for i in range(50):
         event_type = event_types[i % 3]
-        in_memory_db.execute(
-            f"""
+        in_memory_db.execute(f"""
             INSERT INTO fct_yearly_events VALUES (
                 'EVT{i:05d}', 'EMP{i:05d}', '{event_type}',
                 DATE '2025-01-01' + INTERVAL {i * 7} DAY,
                 2025, 'test_scenario', 'test_plan', '{{}}'
             )
-        """
-        )
+        """)
 
     return in_memory_db
 
@@ -167,8 +159,7 @@ def timeline_db(tmp_path) -> Generator[Path, None, None]:
     """Create a deterministic, isolated database for employee timeline tests."""
     db_path = tmp_path / "timeline.duckdb"
     conn = duckdb.connect(str(db_path))
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE fct_yearly_events (
           event_id VARCHAR, employee_id VARCHAR, event_type VARCHAR,
           simulation_year INTEGER, effective_date DATE, event_sequence INTEGER,
@@ -195,8 +186,7 @@ def timeline_db(tmp_path) -> Generator[Path, None, None]:
           employer_match_amount DOUBLE, employer_core_amount DOUBLE,
           total_employer_contributions DOUBLE, irs_limit_reached BOOLEAN
         )
-        """
-    )
+        """)
     conn.executemany(
         "INSERT INTO fct_yearly_events VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
@@ -430,8 +420,7 @@ def events_explorer_db(tmp_path) -> Generator[Path, None, None]:
     """Create a deterministic, isolated database for event explorer tests."""
     db_path = tmp_path / "events_explorer.duckdb"
     conn = duckdb.connect(str(db_path))
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE fct_yearly_events (
           event_id VARCHAR, scenario_id VARCHAR, plan_design_id VARCHAR,
           employee_id VARCHAR, employee_ssn VARCHAR, event_type VARCHAR,
@@ -445,8 +434,7 @@ def events_explorer_db(tmp_path) -> Generator[Path, None, None]:
           employee_deferral_rate DECIMAL(5, 4),
           prev_employee_deferral_rate DECIMAL(5, 4)
         )
-        """
-    )
+        """)
     conn.executemany(
         """
         INSERT INTO fct_yearly_events VALUES (

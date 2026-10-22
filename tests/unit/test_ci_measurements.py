@@ -9,7 +9,6 @@ import tomllib
 
 import pytest
 
-
 ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location(
     "refresh_test_durations", ROOT / "scripts/refresh_test_durations.py"

@@ -591,9 +591,11 @@ def report(
         WorkspaceStorage(get_settings().workspaces_root),
         workspace,
         scenario,
-        [item.strip() for item in compare.split(",") if item.strip()]
-        if compare
-        else None,
+        (
+            [item.strip() for item in compare.split(",") if item.strip()]
+            if compare
+            else None
+        ),
     )
     target = Path(output or f"{scenario}-report.{format}")
     render_report(

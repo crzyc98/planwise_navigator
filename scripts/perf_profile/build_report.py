@@ -98,7 +98,7 @@ def _median(values: List[float]) -> float:
 
 
 def decision_size(
-    grouped: Dict[CensusSize, List[TimingSample]]
+    grouped: Dict[CensusSize, List[TimingSample]],
 ) -> Optional[CensusSize]:
     for size in reversed(SIZE_ORDER):
         if grouped.get(size):

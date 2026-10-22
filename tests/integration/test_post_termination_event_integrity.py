@@ -26,8 +26,7 @@ def isolated_event_database(tmp_path: Path) -> Path:
     database_path = tmp_path / "post-termination.duckdb"
     rows = synthetic_sequence_events()
     with duckdb.connect(str(database_path)) as connection:
-        connection.execute(
-            """
+        connection.execute("""
             CREATE TABLE fct_yearly_events (
               scenario_id VARCHAR,
               plan_design_id VARCHAR,
@@ -36,8 +35,7 @@ def isolated_event_database(tmp_path: Path) -> Path:
               simulation_year INTEGER,
               effective_date DATE
             )
-            """
-        )
+            """)
         connection.executemany(
             "INSERT INTO fct_yearly_events VALUES (?, ?, ?, ?, ?, ?)",
             [
@@ -136,8 +134,7 @@ def test_enrollment_filters_candidates_before_priority_deduplication() -> None:
 def test_synthetic_boundary_retains_same_day_and_valid_enrollment_fallback() -> None:
     connection = duckdb.connect(":memory:")
     try:
-        connection.execute(
-            """
+        connection.execute("""
             CREATE TABLE terminations (
               employee_id VARCHAR, simulation_year INTEGER,
               termination_date DATE, cohort VARCHAR
@@ -158,10 +155,8 @@ def test_synthetic_boundary_retains_same_day_and_valid_enrollment_fallback() -> 
               ('new-hire', 'enrollment', 2026, DATE '2026-03-15', 'auto_enrollment', 4),
               ('new-hire', 'enrollment', 2026, DATE '2026-05-01', 'voluntary_enrollment', 1),
               ('new-hire', 'enrollment_change', 2026, DATE '2026-05-15', 'enrollment_opt_out', 1)
-            """
-        )
-        retained = connection.execute(
-            """
+            """)
+        retained = connection.execute("""
             WITH sequence_eligible AS (
               SELECT c.*
               FROM candidates c
@@ -180,15 +175,13 @@ def test_synthetic_boundary_retains_same_day_and_valid_enrollment_fallback() -> 
             FROM prioritized
             WHERE event_rank = 1
             ORDER BY employee_id, event_type
-            """
-        ).fetchall()
+            """).fetchall()
         assert retained == [
             ("experienced", "eligibility", date(2026, 6, 1), "eligibility"),
             ("experienced", "promotion", date(2026, 6, 15), "promotion"),
             ("new-hire", "enrollment", date(2026, 3, 15), "auto_enrollment"),
         ]
-        connection.execute(
-            """
+        connection.execute("""
             CREATE TABLE fct_yearly_events AS
             SELECT 'scenario-a'::VARCHAR AS scenario_id,
                    'plan-a'::VARCHAR AS plan_design_id,
@@ -204,8 +197,7 @@ def test_synthetic_boundary_retains_same_day_and_valid_enrollment_fallback() -> 
                 ('experienced', 'promotion', DATE '2026-06-15'),
                 ('new-hire', 'enrollment', DATE '2026-03-15')
             ) AS retained(employee_id, event_type, effective_date)
-            """
-        )
+            """)
         result = EventSequenceRule().validate(connection, 2026)
     finally:
         connection.close()

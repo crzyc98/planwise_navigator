@@ -10,7 +10,6 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 SAMPLE_CSV = FIXTURES_DIR / "sample_census_import.csv"
 

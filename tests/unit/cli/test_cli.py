@@ -8,8 +8,7 @@ from planalign_orchestrator.cli import main
 
 def _write_config(tmp_path: Path):
     cfg = tmp_path / "cfg.yaml"
-    cfg.write_text(
-        """
+    cfg.write_text("""
 simulation:
   start_year: 2025
   end_year: 2025
@@ -19,33 +18,28 @@ compensation:
 enrollment:
   auto_enrollment:
     enabled: true
-"""
-    )
+""")
     return cfg
 
 
 def _seed_minimal(db_path: Path):
     conn = duckdb.connect(str(db_path))
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS fct_workforce_snapshot(
             simulation_year INTEGER,
             employment_status VARCHAR,
             detailed_status_code VARCHAR,
             participation_status VARCHAR
         )
-        """
-    )
-    conn.execute(
-        """
+        """)
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS fct_yearly_events(
             employee_id VARCHAR,
             event_type VARCHAR,
             simulation_year INTEGER,
             event_date DATE
         )
-        """
-    )
+        """)
     conn.executemany(
         "INSERT INTO fct_workforce_snapshot VALUES (?,?,?,?)",
         [(2025, "active", "active", "participating")] * 3

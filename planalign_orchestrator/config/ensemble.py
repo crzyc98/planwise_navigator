@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-
 _FREEZABLE_SUBSYSTEMS = frozenset({"termination", "hiring", "promotion"})
 
 

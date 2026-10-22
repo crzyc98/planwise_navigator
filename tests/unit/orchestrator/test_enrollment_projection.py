@@ -23,18 +23,14 @@ class DirectConnectionManager:
 @pytest.fixture
 def projection_db():
     conn = duckdb.connect(":memory:")
-    conn.execute(
-        """CREATE TABLE int_baseline_workforce (
+    conn.execute("""CREATE TABLE int_baseline_workforce (
           employee_id VARCHAR, employee_enrollment_date DATE, employee_deferral_rate DECIMAL(9, 6), is_enrolled_at_census BOOLEAN
-        )"""
-    )
-    conn.execute(
-        """CREATE TABLE fct_yearly_events (
+        )""")
+    conn.execute("""CREATE TABLE fct_yearly_events (
           event_id VARCHAR, scenario_id VARCHAR, plan_design_id VARCHAR,
           employee_id VARCHAR, event_type VARCHAR, effective_date DATE,
           simulation_year INTEGER, event_sequence INTEGER, event_details VARCHAR, employee_deferral_rate DECIMAL(9, 6)
-        )"""
-    )
+        )""")
     conn.execute(
         "INSERT INTO int_baseline_workforce VALUES ('baseline', DATE '2020-01-01', 0.05, true), ('new', NULL, NULL, false)"
     )
@@ -45,13 +41,11 @@ def projection_db():
 @pytest.mark.fast
 @pytest.mark.unit
 def test_projection_uses_prior_facts_and_preserves_scope(projection_db):
-    projection_db.execute(
-        """INSERT INTO fct_yearly_events VALUES
+    projection_db.execute("""INSERT INTO fct_yearly_events VALUES
           ('enroll-new', 'scenario-a', 'plan-a', 'new', 'enrollment', DATE '2025-02-01', 2025, 1, 'Voluntary enrollment', 0.04),
           ('optout-base', 'scenario-a', 'plan-a', 'baseline', 'enrollment_change', DATE '2025-06-01', 2025, 2, 'Auto-enrollment opt-out', 0.00),
           ('other-scope', 'scenario-b', 'plan-a', 'new', 'enrollment_change', DATE '2025-07-01', 2025, 2, 'Auto-enrollment opt-out', 0.00)
-        """
-    )
+        """)
     result = EnrollmentDecisionProjection(
         DirectConnectionManager(projection_db)
     ).rebuild(2026, "scenario-a", "plan-a")
@@ -70,11 +64,9 @@ def test_projection_uses_prior_facts_and_preserves_scope(projection_db):
 @pytest.mark.fast
 @pytest.mark.unit
 def test_projection_excludes_current_year_events(projection_db):
-    projection_db.execute(
-        """INSERT INTO fct_yearly_events VALUES
+    projection_db.execute("""INSERT INTO fct_yearly_events VALUES
           ('future-event', 'scenario-a', 'plan-a', 'new', 'enrollment', DATE '2026-02-01', 2026, 1, 'Voluntary enrollment', 0.04)
-        """
-    )
+        """)
     EnrollmentDecisionProjection(DirectConnectionManager(projection_db)).rebuild(
         2026, "scenario-a", "plan-a"
     )
@@ -131,19 +123,15 @@ def test_projection_replay_is_deterministic_and_latest_event_wins(projection_db)
 @pytest.mark.fast
 @pytest.mark.unit
 def test_projection_carries_strict_prior_authoritative_enrollment(projection_db):
-    projection_db.execute(
-        """CREATE TABLE int_enrollment_state_accumulator (
+    projection_db.execute("""CREATE TABLE int_enrollment_state_accumulator (
           employee_id VARCHAR, simulation_year INTEGER, enrollment_date DATE,
           enrollment_status BOOLEAN, scenario_id VARCHAR
-        )"""
-    )
-    projection_db.execute(
-        """INSERT INTO int_enrollment_state_accumulator VALUES
+        )""")
+    projection_db.execute("""INSERT INTO int_enrollment_state_accumulator VALUES
           ('new', 2025, DATE '2025-03-01', true, 'scenario-a'),
           ('new', 2026, DATE '2025-03-01', false, 'scenario-a'),
           ('baseline', 2025, DATE '2020-01-01', false, 'other-scope')
-        """
-    )
+        """)
 
     EnrollmentDecisionProjection(DirectConnectionManager(projection_db)).rebuild(
         2026, "scenario-a", "plan-a"
@@ -209,8 +197,7 @@ def test_ensure_table_recreates_stale_pre_420_schema():
     schema that stg_prior_enrollment_state cannot bind against."""
     conn = duckdb.connect(":memory:")
     try:
-        conn.execute(
-            """CREATE TABLE enrollment_decision_projection (
+        conn.execute("""CREATE TABLE enrollment_decision_projection (
               employee_id VARCHAR,
               decision_year INTEGER,
               scenario_id VARCHAR,
@@ -219,8 +206,7 @@ def test_ensure_table_recreates_stale_pre_420_schema():
               is_enrolled BOOLEAN,
               ever_opted_out BOOLEAN,
               enrollment_source VARCHAR
-            )"""
-        )
+            )""")
         conn.execute(
             "INSERT INTO enrollment_decision_projection VALUES "
             "('stale', 2025, 'default', 'default', TIMESTAMP '2020-01-01', "

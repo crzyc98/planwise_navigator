@@ -136,10 +136,12 @@ def test_end_to_end_self_test_detects_a_comparison_defect(
     defective = scorecard.model_copy(
         update={
             "comparisons": tuple(
-                comparison.model_copy(update={"percent_error": 0.5})
-                if comparison.metric == "headcount.total"
-                and comparison.period != "cumulative"
-                else comparison
+                (
+                    comparison.model_copy(update={"percent_error": 0.5})
+                    if comparison.metric == "headcount.total"
+                    and comparison.period != "cumulative"
+                    else comparison
+                )
                 for comparison in scorecard.comparisons
             )
         }

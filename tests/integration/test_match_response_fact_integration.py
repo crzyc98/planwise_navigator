@@ -79,14 +79,12 @@ def test_studio_match_response_events_reach_yearly_facts(tmp_path, monkeypatch):
     orchestrator.execute_multi_year_simulation(start_year=2025, end_year=2026)
 
     with duckdb.connect(str(database), read_only=True) as connection:
-        events = connection.execute(
-            """
+        events = connection.execute("""
             SELECT simulation_year, employee_id, event_category, event_details
             FROM fct_yearly_events
             WHERE event_type = 'deferral_match_response'
             ORDER BY employee_id
-            """
-        ).fetchall()
+            """).fetchall()
 
     # The invariant census has 21 eligible below-threshold enrolled employees;
     # the model's deterministic hash selects these nine responders at the
@@ -163,17 +161,14 @@ def test_full_match_response_exceeds_annual_escalation_cap(
     orchestrator.execute_multi_year_simulation(start_year=2025, end_year=2026)
 
     with duckdb.connect(str(database), read_only=True) as connection:
-        responders = connection.execute(
-            """
+        responders = connection.execute("""
             SELECT employee_id, employee_deferral_rate
             FROM fct_yearly_events
             WHERE event_type = 'deferral_match_response'
               AND employee_deferral_rate = 0.08
-        """
-        ).fetchall()
+        """).fetchall()
         assert responders, "Full-match responders must be allowed to reach 8%"
-        retained = connection.execute(
-            """
+        retained = connection.execute("""
             SELECT snapshot.simulation_year, snapshot.current_deferral_rate
             FROM fct_workforce_snapshot snapshot
             JOIN fct_yearly_events response USING (employee_id)
@@ -181,27 +176,19 @@ def test_full_match_response_exceeds_annual_escalation_cap(
               AND response.employee_deferral_rate = 0.08
               AND snapshot.employment_status = 'active'
               AND snapshot.is_enrolled_flag
-        """
-        ).fetchall()
+        """).fetchall()
         assert {row[0] for row in retained} == {2025, 2026}
         assert all(float(row[1]) == pytest.approx(0.08) for row in retained)
-        simultaneous = connection.execute(
-            """
+        simultaneous = connection.execute("""
             SELECT COUNT(*) FROM fct_yearly_events response
             JOIN fct_yearly_events escalation USING (employee_id, simulation_year)
             WHERE response.event_type = 'deferral_match_response'
               AND response.employee_deferral_rate = 0.08
               AND escalation.event_type = 'deferral_escalation'
-        """
-        ).fetchone()[0]
+        """).fetchone()[0]
         assert (simultaneous > 0) == escalation_enabled
-        assert (
-            connection.execute(
-                """
+        assert connection.execute("""
             SELECT COUNT(*) FROM fct_yearly_events
             WHERE event_type = 'deferral_escalation'
               AND employee_deferral_rate > 0.0601
-        """
-            ).fetchone()[0]
-            == 0
-        )
+        """).fetchone()[0] == 0

@@ -88,12 +88,16 @@ class OrchestratorWrapper:
                 "path": str(self.config_path),
                 "scenario_id": getattr(config, "scenario_id", None),
                 "plan_design_id": getattr(config, "plan_design_id", None),
-                "start_year": getattr(config.simulation, "start_year", None)
-                if hasattr(config, "simulation")
-                else None,
-                "end_year": getattr(config.simulation, "end_year", None)
-                if hasattr(config, "simulation")
-                else None,
+                "start_year": (
+                    getattr(config.simulation, "start_year", None)
+                    if hasattr(config, "simulation")
+                    else None
+                ),
+                "end_year": (
+                    getattr(config.simulation, "end_year", None)
+                    if hasattr(config, "simulation")
+                    else None
+                ),
             }
         except Exception as e:
             status["config"] = {"valid": False, "error": str(e)}

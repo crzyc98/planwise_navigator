@@ -11,7 +11,6 @@ import numpy as np
 
 from .models import MetricDistribution, MetricSeedValue
 
-
 _PERCENTILES = (10, 25, 50, 75, 90)
 
 _CREATE_DISTRIBUTIONS_SQL = """

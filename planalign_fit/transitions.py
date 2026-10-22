@@ -281,12 +281,10 @@ def _level_coverage(conn: "duckdb.DuckDBPyConnection", linked_pairs: int) -> flo
     """
     if linked_pairs <= 0:
         return 0.0
-    row = conn.execute(
-        f"""
+    row = conn.execute(f"""
         SELECT COUNT(*) FROM {TRANSITIONS_TABLE}
         WHERE has_source_level
-        """
-    ).fetchone()
+        """).fetchone()
     if row is None:
         raise TransitionError("Could not measure job-level coverage.")
     return float(row[0]) / float(linked_pairs)
@@ -383,16 +381,14 @@ def _count_reappearances(
     """
     total = 0
     for prior, later in zip(snapshot_set.snapshots, snapshot_set.snapshots[1:]):
-        row = conn.execute(
-            f"""
+        row = conn.execute(f"""
                 SELECT COUNT(*)
                 FROM banded_{later.year} n
                 LEFT JOIN banded_{prior.year} p USING (employee_id)
                 WHERE p.employee_id IS NULL
                   AND (n.hire_date IS NULL
                        OR EXTRACT(YEAR FROM n.hire_date) < {later.year})
-                """
-        ).fetchone()
+                """).fetchone()
         if row is None:
             raise TransitionError(
                 f"Could not count reappearances between {prior.year} and {later.year}."

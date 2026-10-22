@@ -15,7 +15,6 @@ import duckdb
 
 from planalign_orchestrator.hazard_cache_manager import HazardCacheManager
 
-
 RUN_HASH = "e" * 64
 OTHER_HASH = "9" * 64
 
@@ -23,16 +22,14 @@ OTHER_HASH = "9" * 64
 def _write_metadata(db_path: Path, params_hash: str) -> None:
     """Create a minimal hazard_cache_metadata table holding one current hash."""
     with duckdb.connect(str(db_path)) as conn:
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE hazard_cache_metadata (
                 cache_name VARCHAR,
                 params_hash VARCHAR,
                 built_at TIMESTAMP,
                 is_current BOOLEAN
             )
-            """
-        )
+            """)
         conn.execute(
             "INSERT INTO hazard_cache_metadata VALUES "
             "('dim_termination_hazards', ?, now(), TRUE)",

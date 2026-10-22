@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 SNAPSHOT_MODEL = ROOT / "dbt/models/marts/fct_workforce_snapshot.sql"
 CORE_MODEL = ROOT / "dbt/models/intermediate/int_employer_core_contributions.sql"

@@ -39,8 +39,7 @@ def _signature(database: Path) -> ConstructionSignature:
 
 def _create_old_schema(database: Path) -> None:
     with duckdb.connect(str(database)) as conn:
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE run_metadata (
                 run_id VARCHAR NOT NULL,
                 run_timestamp TIMESTAMP NOT NULL,
@@ -54,14 +53,12 @@ def _create_old_schema(database: Path) -> None:
                 planalign_version VARCHAR,
                 full_reset BOOLEAN NOT NULL DEFAULT FALSE
             )
-            """
-        )
+            """)
 
 
 def _create_feature_119_execution_schema(database: Path) -> None:
     with duckdb.connect(str(database)) as conn:
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE run_execution_metadata (
                 run_id VARCHAR NOT NULL,
                 recorded_at TIMESTAMP NOT NULL,
@@ -75,8 +72,7 @@ def _create_feature_119_execution_schema(database: Path) -> None:
                 parity_status VARCHAR NOT NULL,
                 peak_rss_mb DOUBLE
             )
-            """
-        )
+            """)
         conn.execute(
             """
             INSERT INTO run_execution_metadata VALUES (
@@ -90,16 +86,14 @@ def _create_feature_119_execution_schema(database: Path) -> None:
 
 def _create_broken_feature_120_execution_schema(database: Path) -> None:
     with duckdb.connect(str(database)) as conn:
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE run_execution_metadata (
                 run_id VARCHAR NOT NULL,
                 recorded_at TIMESTAMP NOT NULL,
                 invocation_count INTEGER NOT NULL,
                 schedule_steps VARCHAR NOT NULL
             )
-            """
-        )
+            """)
         conn.execute(
             """
             INSERT INTO run_execution_metadata VALUES (

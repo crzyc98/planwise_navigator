@@ -24,7 +24,6 @@ from planalign_api.models.analytics import ContributionYearSummary
 from planalign_api.services.analytics_service import AnalyticsService
 from planalign_api.services.database_path_resolver import ResolvedDatabasePath
 
-
 # =============================================================================
 # Fixtures
 # =============================================================================
@@ -32,8 +31,7 @@ from planalign_api.services.database_path_resolver import ResolvedDatabasePath
 
 def _create_snapshot_table(conn: duckdb.DuckDBPyConnection) -> None:
     """Create fct_workforce_snapshot table with required columns."""
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE fct_workforce_snapshot (
             employee_id VARCHAR,
             scenario_id VARCHAR DEFAULT 'baseline',
@@ -53,10 +51,8 @@ def _create_snapshot_table(conn: duckdb.DuckDBPyConnection) -> None:
             total_escalation_amount DECIMAL(8,4) DEFAULT 0,
             irs_limit_reached BOOLEAN DEFAULT FALSE
         )
-    """
-    )
-    conn.execute(
-        """
+    """)
+    conn.execute("""
         CREATE TABLE config_irs_limits (
             limit_year INTEGER,
             compensation_limit DECIMAL(12,2)
@@ -66,8 +62,7 @@ def _create_snapshot_table(conn: duckdb.DuckDBPyConnection) -> None:
             (2025, 350000),
             (2026, 350000),
             (2027, 355000)
-        """
-    )
+        """)
 
 
 def _seed_employees(

@@ -314,9 +314,9 @@ async def _execute_batch(
             if outcome == "completed":
                 batch_job.scenarios[index].progress = 100
             else:
-                batch_job.scenarios[
-                    index
-                ].error_message = f"Simulation finished with terminal status {outcome}"
+                batch_job.scenarios[index].error_message = (
+                    f"Simulation finished with terminal status {outcome}"
+                )
             await _broadcast_batch(batch_job, outcome, manager)
             logger.info(
                 f"  [{end_time.strftime('%H:%M:%S.%f')}] [Scenario {index}] "

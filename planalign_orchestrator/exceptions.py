@@ -207,9 +207,9 @@ class NavigatorError(Exception):
                 }
                 for hint in self.resolution_hints
             ],
-            "original_exception": str(self.original_exception)
-            if self.original_exception
-            else None,
+            "original_exception": (
+                str(self.original_exception) if self.original_exception else None
+            ),
             **self.additional_data,
         }
 

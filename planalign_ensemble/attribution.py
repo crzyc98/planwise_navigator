@@ -20,7 +20,6 @@ from .models import (
     Subsystem,
 )
 
-
 BaselineExecutor = Callable[[SeedPlan], Sequence[SeedRunOutcome]]
 
 _BOOTSTRAP_ITERATIONS = 2000
@@ -549,9 +548,9 @@ def _frozen_shares(
     baseline_index = _values_by_metric_and_seed(baseline_values)
     eligible_keys = sorted(baseline_index)
     for subsystem in (item for item in subsystems if item.is_seed_variant):
-        observations_by_key: dict[
-            tuple[str, int], list[_AnchorObservation]
-        ] = defaultdict(list)
+        observations_by_key: dict[tuple[str, int], list[_AnchorObservation]] = (
+            defaultdict(list)
+        )
         for anchor in anchors:
             frozen_config = _frozen_config(config, subsystem, anchor)
             frozen_plan = _frozen_plan(

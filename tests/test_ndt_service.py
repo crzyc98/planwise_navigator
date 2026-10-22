@@ -11,7 +11,6 @@ from planalign_api.services.database_path_resolver import (
     ResolvedDatabasePath,
 )
 
-
 # ==============================================================================
 # Fixtures
 # ==============================================================================
@@ -20,8 +19,7 @@ from planalign_api.services.database_path_resolver import (
 def _create_test_db(conn: duckdb.DuckDBPyConnection, year: int = 2025):
     """Populate an in-memory DuckDB connection with test tables."""
     # IRS limits seed
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS config_irs_limits (
             limit_year INTEGER,
             base_limit INTEGER,
@@ -30,20 +28,16 @@ def _create_test_db(conn: duckdb.DuckDBPyConnection, year: int = 2025):
             compensation_limit INTEGER,
             hce_compensation_threshold INTEGER
         )
-    """
-    )
-    conn.execute(
-        """
+    """)
+    conn.execute("""
         INSERT INTO config_irs_limits VALUES
         (2024, 23000, 30500, 50, 345000, 155000),
         (2025, 23500, 31000, 50, 350000, 160000),
         (2026, 24000, 32000, 50, 360000, 165000)
-    """
-    )
+    """)
 
     # Workforce snapshot
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS fct_workforce_snapshot (
             employee_id VARCHAR,
             simulation_year INTEGER,
@@ -54,8 +48,7 @@ def _create_test_db(conn: duckdb.DuckDBPyConnection, year: int = 2025):
             is_enrolled_flag BOOLEAN,
             employment_status VARCHAR
         )
-    """
-    )
+    """)
 
 
 def _insert_employee(
@@ -318,13 +311,11 @@ class TestACPCompensationBasis:
         conn.execute(
             "ALTER TABLE fct_workforce_snapshot ADD COLUMN after_tax_contribution DOUBLE"
         )
-        conn.execute(
-            """
+        conn.execute("""
             UPDATE fct_workforce_snapshot
             SET after_tax_contribution = 2000.0
             WHERE employee_id = 'HCE1' AND simulation_year = 2025
-            """
-        )
+            """)
 
         mock_resolver.resolve.return_value = ResolvedDatabasePath(
             path=Path(":memory:"), source="scenario"

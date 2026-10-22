@@ -52,16 +52,13 @@ def test_compliance_monitor_compiles(tmp_path: Path) -> None:
 def test_compliance_monitor_classifies_fixture_states(tmp_path: Path) -> None:
     sql = _compiled_model(tmp_path)
     with duckdb.connect(str(tmp_path / "compile.duckdb")) as connection:
-        connection.execute(
-            """
+        connection.execute("""
             CREATE TABLE config_irs_limits AS
             SELECT 2025 AS limit_year, 50 AS catch_up_age_threshold,
                    23500 AS base_limit, 31000 AS catch_up_limit,
                    350000 AS compensation_limit
-        """
-        )
-        connection.execute(
-            """
+        """)
+        connection.execute("""
             CREATE TABLE int_employee_contributions AS
             SELECT employee_id, 2025 AS simulation_year, contribution AS annual_contribution_amount,
                    requested AS requested_contribution_amount, 0.06 AS effective_annual_deferral_rate,
@@ -77,8 +74,7 @@ def test_compliance_monitor_classifies_fixture_states(tmp_path: Path) -> None:
                 ('bad_id', 0, 0, FALSE, 100000, 'IRS_LIMITED', 'INVALID_EMPLOYEE_ID'),
                 ('over_402g', 24000, 24000, FALSE, 100000, 'NORMAL', 'VALID')
             ) AS rows(employee_id, contribution, requested, limited, pay, flag, source)
-        """
-        )
+        """)
         rows = connection.execute(
             f"SELECT compliance_category, violation_count, employees_with_excess, "
             f"total_excess_contributions, compliance_status FROM ({sql})"

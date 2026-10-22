@@ -18,7 +18,6 @@ from planalign_orchestrator.run_metadata import (
 
 from .models import SeedPlan, Subsystem
 
-
 EnsembleRole = Literal["headline", "attribution_frozen", "attribution_baseline"]
 
 

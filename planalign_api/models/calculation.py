@@ -39,9 +39,9 @@ class TerminationRateCalculation(APIModel):
     )
 
     # Error Handling
-    calculation_status: Literal[
-        "SUCCESS", "INSUFFICIENT_DATA", "DIVISION_BY_ZERO"
-    ] = Field(..., description="Status of calculation")
+    calculation_status: Literal["SUCCESS", "INSUFFICIENT_DATA", "DIVISION_BY_ZERO"] = (
+        Field(..., description="Status of calculation")
+    )
     error_message: Optional[str] = Field(
         None, description="Error message if calculation failed"
     )

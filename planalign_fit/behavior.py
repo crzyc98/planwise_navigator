@@ -98,13 +98,11 @@ def _segment_cells(
         f"FROM {table} WHERE {where}"
         for table, event, where in sources
     )
-    rows = conn.execute(
-        f"""
+    rows = conn.execute(f"""
         SELECT age_segment, income_segment, COUNT(*) AS exposure, SUM(event) AS events
         FROM ({unioned})
         GROUP BY age_segment, income_segment
-        """
-    ).fetchall()
+        """).fetchall()
     return [
         ipf.FactorCell(
             row=str(row[0]),
@@ -139,9 +137,11 @@ def _fit_segments(
         segment: FittedValue.from_credibility(
             f"{prefix}.base_rates_by_age.{segment}",
             shrink_ratio(
-                solution.base * solution.row_multipliers[segment]
-                if fitted_anything
-                else None,
+                (
+                    solution.base * solution.row_multipliers[segment]
+                    if fitted_anything
+                    else None
+                ),
                 age_exposure.get(segment, 0.0),
                 age_priors[segment],
                 credibility_k=credibility_k,
@@ -255,13 +255,11 @@ def fit_opt_out_target(
     """
     if not posture.covers_new_hires:
         return None
-    row = transitions.conn.execute(
-        f"""
+    row = transitions.conn.execute(f"""
         SELECT COUNT(*), SUM(CASE WHEN NOT is_enrolled THEN 1 ELSE 0 END)
         FROM {transitions.new_hires_table}
         WHERE is_active AND is_enrolled IS NOT NULL
-        """
-    ).fetchone()
+        """).fetchone()
     if row is None:
         return None
     exposure, opted_out = row
@@ -292,8 +290,7 @@ def fit_default_deferral_rates(
     converts plus first-year new hires — because both pick a starting rate the
     same way.
     """
-    rows = transitions.conn.execute(
-        f"""
+    rows = transitions.conn.execute(f"""
         WITH newly_enrolled AS (
           SELECT age_segment, income_segment, to_deferral_rate AS deferral_rate
           FROM {transitions.table}
@@ -309,8 +306,7 @@ def fit_default_deferral_rates(
         FROM newly_enrolled
         WHERE deferral_rate IS NOT NULL AND deferral_rate > 0
         GROUP BY age_segment, income_segment
-        """
-    ).fetchall()
+        """).fetchall()
     observed = {
         (str(row[0]), str(row[1])): (float(row[2]), float(row[3]))
         for row in rows
@@ -357,8 +353,7 @@ def fit_escalation(
     ``deferral_auto_escalation.enabled`` is a switch, not a rate, so adoption is
     reported as evidence for that switch rather than written into the pack.
     """
-    row = transitions.conn.execute(
-        f"""
+    row = transitions.conn.execute(f"""
         SELECT COUNT(*),
                SUM(CASE WHEN to_deferral_rate > from_deferral_rate THEN 1 ELSE 0 END),
                MEDIAN(CASE WHEN to_deferral_rate > from_deferral_rate
@@ -368,8 +363,7 @@ def fit_escalation(
           AND COALESCE(from_enrolled, FALSE)
           AND from_deferral_rate IS NOT NULL
           AND to_deferral_rate IS NOT NULL
-        """
-    ).fetchone()
+        """).fetchone()
     if row is None:
         return None
     exposure, escalated, median_increase = row

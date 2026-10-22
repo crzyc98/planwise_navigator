@@ -67,8 +67,7 @@ def _config(census: Path) -> dict:
 
 def _full_metrics(database: Path) -> dict[int, tuple[int, float, float, float | None]]:
     with duckdb.connect(str(database), read_only=True) as connection:
-        rows = connection.execute(
-            """
+        rows = connection.execute("""
             WITH annual AS (
               SELECT
                 simulation_year,
@@ -90,8 +89,7 @@ def _full_metrics(database: Path) -> dict[int, tuple[int, float, float, float | 
               ) - 1) AS yoy_growth_pct
             FROM annual
             ORDER BY simulation_year
-            """
-        ).fetchall()
+            """).fetchall()
     return {
         int(year): (int(headcount), float(avg_comp), float(total_comp), yoy)
         for year, headcount, avg_comp, total_comp, yoy in rows

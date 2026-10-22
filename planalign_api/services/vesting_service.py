@@ -256,27 +256,23 @@ def _terminated_employees_all_years(conn, where_clause: str = "") -> List[dict]:
 
 def _terminated_counts_by_year(conn, where_clause: str = "") -> dict[int, int]:
     """All terminations per year, regardless of contribution basis."""
-    rows = conn.execute(
-        f"""
+    rows = conn.execute(f"""
         SELECT simulation_year, COUNT(*)
         FROM fct_workforce_snapshot
         {where_clause}
         {"AND" if where_clause else "WHERE"}
             UPPER(employment_status) = 'TERMINATED'
         GROUP BY simulation_year
-        """
-    ).fetchall()
+        """).fetchall()
     return {int(year): int(count) for year, count in rows}
 
 
 def _simulation_years(conn) -> List[int]:
-    rows = conn.execute(
-        """
+    rows = conn.execute("""
         SELECT DISTINCT simulation_year
         FROM fct_workforce_snapshot
         ORDER BY simulation_year
-        """
-    ).fetchall()
+        """).fetchall()
     return [int(row[0]) for row in rows]
 
 
@@ -514,12 +510,16 @@ class VestingService:
 
             detail = EmployeeVestingDetail(
                 employee_id=emp["employee_id"],
-                hire_date=emp["employee_hire_date"].date()
-                if hasattr(emp["employee_hire_date"], "date")
-                else emp["employee_hire_date"],
-                termination_date=emp["termination_date"].date()
-                if hasattr(emp["termination_date"], "date")
-                else emp["termination_date"],
+                hire_date=(
+                    emp["employee_hire_date"].date()
+                    if hasattr(emp["employee_hire_date"], "date")
+                    else emp["employee_hire_date"]
+                ),
+                termination_date=(
+                    emp["termination_date"].date()
+                    if hasattr(emp["termination_date"], "date")
+                    else emp["termination_date"]
+                ),
                 tenure_years=int(tenure),
                 tenure_band=emp["tenure_band"] or "Unknown",
                 annual_hours_worked=hours,

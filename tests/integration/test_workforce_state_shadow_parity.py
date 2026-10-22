@@ -73,8 +73,7 @@ def test_shadow_workforce_matches_snapshot_per_column_and_year() -> None:
 
 def test_shadow_preserves_representative_lifecycle_transitions() -> None:
     with duckdb.connect(str(_shadow_database()), read_only=True) as connection:
-        mismatches = connection.execute(
-            """SELECT COUNT(*)
+        mismatches = connection.execute("""SELECT COUNT(*)
             FROM int_workforce_state_accumulator shadow
             JOIN fct_yearly_events event
               ON shadow.scenario_id = event.scenario_id
@@ -86,6 +85,5 @@ def test_shadow_preserves_representative_lifecycle_transitions() -> None:
                OR (event.event_type = 'hire'
                    AND EXTRACT(YEAR FROM shadow.employee_hire_date)
                        != shadow.simulation_year)
-            """
-        ).fetchone()[0]
+            """).fetchone()[0]
         assert mismatches == 0

@@ -211,8 +211,7 @@ class TurnoverAnalysisService:
                 )
 
             # Split into experienced (tenure >= 1 year) and new hires (tenure < 1 year)
-            stats = conn.execute(
-                """
+            stats = conn.execute("""
                 SELECT
                     -- Experienced employees (tenure >= 1 year)
                     COUNT(*) FILTER (WHERE _tenure_years >= 1) AS experienced_total,
@@ -221,8 +220,7 @@ class TurnoverAnalysisService:
                     COUNT(*) FILTER (WHERE _tenure_years < 1) AS new_hire_total,
                     COUNT(*) FILTER (WHERE _tenure_years < 1 AND _is_terminated) AS new_hire_terminated
                 FROM census
-                """
-            ).fetchone()
+                """).fetchone()
             assert stats is not None
 
             experienced_total = stats[0]
@@ -308,11 +306,9 @@ def _set_termination_status(
     if term_date_col:
         populated = f"NULLIF(TRIM(CAST({term_date_col} AS VARCHAR)), '') IS NOT NULL"
         term_date = f"TRY_CAST({term_date_col} AS DATE)"
-        invalid_row = conn.execute(
-            f"""SELECT COUNT(*) FROM census WHERE {populated}
+        invalid_row = conn.execute(f"""SELECT COUNT(*) FROM census WHERE {populated}
                 AND ({term_date} IS NULL
-                     OR {term_date} < CAST({hire_date_col} AS DATE))"""
-        ).fetchone()
+                     OR {term_date} < CAST({hire_date_col} AS DATE))""").fetchone()
         assert invalid_row is not None
         invalid_count = invalid_row[0]
         if invalid_count:

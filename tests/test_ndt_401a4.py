@@ -13,7 +13,6 @@ from planalign_api.services.database_path_resolver import (
     ResolvedDatabasePath,
 )
 
-
 # ==============================================================================
 # Fixtures
 # ==============================================================================
@@ -21,8 +20,7 @@ from planalign_api.services.database_path_resolver import (
 
 def _create_test_db(conn: duckdb.DuckDBPyConnection):
     """Populate an in-memory DuckDB connection with test tables for 401(a)(4)."""
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS config_irs_limits (
             limit_year INTEGER,
             base_limit INTEGER,
@@ -36,18 +34,14 @@ def _create_test_db(conn: duckdb.DuckDBPyConnection):
             is_estimated BOOLEAN,
             annual_additions_limit INTEGER
         )
-    """
-    )
-    conn.execute(
-        """
+    """)
+    conn.execute("""
         INSERT INTO config_irs_limits VALUES
         (2024, 23000, 30500, 50, 345000, 155000, 30500, 60, 63, false, 69000),
         (2025, 23500, 31000, 50, 350000, 160000, 34750, 60, 63, false, 70000)
-    """
-    )
+    """)
 
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS fct_workforce_snapshot (
             employee_id VARCHAR,
             simulation_year INTEGER,
@@ -61,8 +55,7 @@ def _create_test_db(conn: duckdb.DuckDBPyConnection):
             employment_status VARCHAR,
             current_tenure DOUBLE
         )
-    """
-    )
+    """)
 
 
 def _insert_employee(

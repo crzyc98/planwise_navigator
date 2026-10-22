@@ -10,7 +10,6 @@ from pydantic import ValidationError
 from planalign_ensemble.models import EnsembleSpec
 from planalign_ensemble.planner import plan_ensemble
 
-
 _PLANNED_AT = datetime(2026, 8, 3, 14, 15, 22, tzinfo=timezone.utc)
 
 

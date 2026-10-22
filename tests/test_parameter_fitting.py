@@ -591,8 +591,7 @@ class TestSyntheticFixture:
     @staticmethod
     def _growth(history) -> list[tuple[float, int, int]]:
         with duckdb.connect(":memory:") as conn:
-            return conn.execute(
-                f"""
+            return conn.execute(f"""
                 SELECT b.employee_gross_compensation
                          / a.employee_gross_compensation - 1 AS growth,
                        a.level_id AS from_level,
@@ -600,8 +599,7 @@ class TestSyntheticFixture:
                 FROM read_csv_auto('{history.paths[0]}') a
                 JOIN read_csv_auto('{history.paths[1]}') b USING (employee_id)
                 WHERE a.active AND b.active
-                """
-            ).fetchall()
+                """).fetchall()
 
     def test_raises_are_dispersed_not_point_masses(self, history):
         rows = self._growth(history)
@@ -682,13 +680,11 @@ class TestCleanPathParity:
         with duckdb.connect(":memory:") as conn:
             snapshots = load_snapshots(history.directory, conn)
             transitions = build_transitions(conn, snapshots, bands)
-            mismatched = conn.execute(
-                f"""
+            mismatched = conn.execute(f"""
                 SELECT COUNT(*) FROM {transitions.table}
                 WHERE promotion_weight
                       <> CASE WHEN promoted THEN 1.0 ELSE 0.0 END
-                """
-            ).fetchone()[0]
+                """).fetchone()[0]
         assert mismatched == 0
 
     def test_promotion_weight_stays_within_bounds(self, history):
@@ -697,14 +693,12 @@ class TestCleanPathParity:
         with duckdb.connect(":memory:") as conn:
             snapshots = load_snapshots(history.directory, conn)
             transitions = build_transitions(conn, snapshots, bands)
-            out_of_range = conn.execute(
-                f"""
+            out_of_range = conn.execute(f"""
                 SELECT COUNT(*) FROM {transitions.table}
                 WHERE promotion_weight IS NULL
                    OR promotion_weight < 0.0
                    OR promotion_weight > 1.0
-                """
-            ).fetchone()[0]
+                """).fetchone()[0]
         assert out_of_range == 0
 
     def test_weighted_median_reduces_to_the_plain_median(self):
@@ -817,14 +811,12 @@ class TestPromotionWithoutLevelId:
             snapshots = load_snapshots(levelless_history.directory, conn)
             transitions = build_transitions(conn, snapshots, bands)
             classify(transitions, load_priors(), min_exposure=50.0)
-            fractional, total = conn.execute(
-                f"""
+            fractional, total = conn.execute(f"""
                 SELECT SUM(CASE WHEN promotion_weight BETWEEN 0.001 AND 0.999
                                 THEN 1 ELSE 0 END),
                        COUNT(*)
                 FROM {transitions.table} WHERE continued
-                """
-            ).fetchone()
+                """).fetchone()
         assert fractional > 0, "every raise was forced to a hard classification"
         assert fractional < total
 

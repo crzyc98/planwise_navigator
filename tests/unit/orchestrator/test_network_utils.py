@@ -175,9 +175,10 @@ def test_subprocess_with_proxy_injects_env_and_runs():
         args=["echo"], returncode=0, stdout="hi", stderr=""
     )
 
-    with patch.object(nu, "load_network_config", return_value=cfg), patch.object(
-        nu.subprocess, "run", return_value=completed
-    ) as run_mock:
+    with (
+        patch.object(nu, "load_network_config", return_value=cfg),
+        patch.object(nu.subprocess, "run", return_value=completed) as run_mock,
+    ):
         result = nu.test_subprocess_with_proxy(["echo", "hi"], env={})
 
     assert result.returncode == 0
@@ -190,10 +191,13 @@ def test_subprocess_with_proxy_injects_env_and_runs():
 
 def test_subprocess_with_proxy_handles_timeout():
     cfg = _proxy_config(total_timeout=5)
-    with patch.object(nu, "load_network_config", return_value=cfg), patch.object(
-        nu.subprocess,
-        "run",
-        side_effect=subprocess.TimeoutExpired(cmd=["sleep"], timeout=5),
+    with (
+        patch.object(nu, "load_network_config", return_value=cfg),
+        patch.object(
+            nu.subprocess,
+            "run",
+            side_effect=subprocess.TimeoutExpired(cmd=["sleep"], timeout=5),
+        ),
     ):
         result = nu.test_subprocess_with_proxy(["sleep", "10"], env={})
 
@@ -209,11 +213,14 @@ def test_subprocess_with_proxy_handles_timeout():
 def test_create_network_client_uses_loaded_config():
     sentinel_config = MagicMock(name="config")
     sentinel_client = MagicMock(name="client")
-    with patch.object(
-        nu, "load_network_config", return_value=sentinel_config
-    ) as load_mock, patch.object(
-        nu, "CorporateNetworkClient", return_value=sentinel_client
-    ) as client_cls:
+    with (
+        patch.object(
+            nu, "load_network_config", return_value=sentinel_config
+        ) as load_mock,
+        patch.object(
+            nu, "CorporateNetworkClient", return_value=sentinel_client
+        ) as client_cls,
+    ):
         result = create_network_client("/path/cfg.json")
 
     load_mock.assert_called_once_with("/path/cfg.json")

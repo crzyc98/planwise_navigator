@@ -69,14 +69,12 @@ class TestPartTimeNewHireHash:
     """The deterministic hash assignment in int_hiring_events."""
 
     def _pt_count(self, conn, pct: float, n: int = 1000) -> int:
-        return conn.execute(
-            f"""
+        return conn.execute(f"""
             SELECT COUNT(*) FROM (
                 SELECT seq FROM range(1, {n + 1}) t(seq)
                 WHERE {PT_HASH_EXPR} < {pct}
             )
-            """
-        ).fetchone()[0]
+            """).fetchone()[0]
 
     def test_zero_pct_assigns_no_part_time(self, conn):
         assert self._pt_count(conn, 0.0) == 0

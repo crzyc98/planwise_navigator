@@ -176,8 +176,7 @@ class OptOutAnalysisService:
 
         f"(MAX(TRY_CAST({hire_col} AS DATE)) - INTERVAL {lookback_years * 365} DAYS)"
 
-        eligible_count_row = conn.execute(
-            f"""
+        eligible_count_row = conn.execute(f"""
             SELECT COUNT(*) FROM census
             WHERE {active_filter}
               AND TRY_CAST({hire_col} AS DATE) IS NOT NULL
@@ -186,8 +185,7 @@ class OptOutAnalysisService:
                   FROM census
                   WHERE {active_filter} AND {hire_col} IS NOT NULL AND CAST({hire_col} AS VARCHAR) != ''
               )
-            """
-        ).fetchone()
+            """).fetchone()
         assert eligible_count_row is not None
         eligible_count = eligible_count_row[0]
 
@@ -208,8 +206,7 @@ class OptOutAnalysisService:
                 ),
             )
 
-        non_participant_count_row = conn.execute(
-            f"""
+        non_participant_count_row = conn.execute(f"""
             SELECT COUNT(*) FROM census
             WHERE {active_filter}
               AND TRY_CAST({hire_col} AS DATE) IS NOT NULL
@@ -220,8 +217,7 @@ class OptOutAnalysisService:
               )
               AND (TRY_CAST({deferral_col} AS DOUBLE) IS NULL
                    OR TRY_CAST({deferral_col} AS DOUBLE) = 0)
-            """
-        ).fetchone()
+            """).fetchone()
         assert non_participant_count_row is not None
         non_participant_count = non_participant_count_row[0]
 

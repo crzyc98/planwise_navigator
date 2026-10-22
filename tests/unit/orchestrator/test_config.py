@@ -154,8 +154,7 @@ def test_environment_variable_overrides(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     p = tmp_path / "config.yaml"
-    p.write_text(
-        """
+    p.write_text("""
 simulation:
   start_year: 2025
   end_year: 2029
@@ -165,8 +164,7 @@ compensation:
 enrollment:
   auto_enrollment:
     enabled: true
-"""
-    )
+""")
 
     monkeypatch.setenv("NAV_SIMULATION__START_YEAR", "2030")
     cfg = load_simulation_config(p)
@@ -175,8 +173,7 @@ enrollment:
 
 def test_dbt_var_mapping(tmp_path: Path):
     p = tmp_path / "config.yaml"
-    p.write_text(
-        """
+    p.write_text("""
 simulation:
   start_year: 2025
   end_year: 2029
@@ -206,8 +203,7 @@ enrollment:
       senior: 0.75
   timing:
     business_day_adjustment: true
-"""
-    )
+""")
 
     cfg = load_simulation_config(p)
     vars_dict = to_dbt_vars(cfg)

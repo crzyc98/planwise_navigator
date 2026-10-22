@@ -215,9 +215,9 @@ class DuckDBPerformanceMonitor:
                 "avg_cpu_percent": sum(cpu_values) / len(cpu_values),
                 "min_cpu_percent": min(cpu_values),
                 "final_database_size_gb": db_sizes[-1],
-                "database_growth_gb": db_sizes[-1] - db_sizes[0]
-                if len(db_sizes) > 1
-                else 0,
+                "database_growth_gb": (
+                    db_sizes[-1] - db_sizes[0] if len(db_sizes) > 1 else 0
+                ),
                 "system_memory_gb": psutil.virtual_memory().total / (1024**3),
                 "cpu_cores": self.checkpoints[0].cpu_count if self.checkpoints else 0,
             },
@@ -560,9 +560,9 @@ class DuckDBPerformanceMonitor:
             "total_execution_time": self.checkpoints[-1].elapsed_time,
             "peak_memory_gb": max(memory_values),
             "avg_cpu_percent": sum(cpu_values) / len(cpu_values),
-            "database_growth_gb": db_sizes[-1] - db_sizes[0]
-            if len(db_sizes) > 1
-            else 0,
+            "database_growth_gb": (
+                db_sizes[-1] - db_sizes[0] if len(db_sizes) > 1 else 0
+            ),
         }
 
         # E068E-aligned performance scoring (0-100)

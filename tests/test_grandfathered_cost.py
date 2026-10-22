@@ -15,8 +15,7 @@ from planalign_api.services.vesting_service import project_forfeitures_for_conne
 
 def _database(path: Path, rows: list[tuple], seed: int | None = None) -> None:
     conn = duckdb.connect(str(path))
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE fct_workforce_snapshot (
             employee_id VARCHAR,
             simulation_year INTEGER,
@@ -25,20 +24,17 @@ def _database(path: Path, rows: list[tuple], seed: int | None = None) -> None:
             employer_core_amount DECIMAL(12, 2),
             prorated_annual_compensation DECIMAL(12, 2)
         )
-        """
-    )
+        """)
     conn.executemany(
         "INSERT INTO fct_workforce_snapshot VALUES (?, ?, ?, ?, ?, ?)", rows
     )
     if seed is not None:
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE run_metadata (
                 random_seed INTEGER,
                 run_timestamp TIMESTAMP
             )
-            """
-        )
+            """)
         conn.execute(
             "INSERT INTO run_metadata VALUES (?, TIMESTAMP '2026-08-28 12:00:00')",
             [seed],
@@ -63,8 +59,7 @@ def _cliff_4() -> VestingScheduleConfig:
 
 def _forfeiture_database(path: Path) -> None:
     conn = duckdb.connect(str(path))
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE fct_workforce_snapshot (
             employee_id VARCHAR,
             simulation_year INTEGER,
@@ -78,10 +73,8 @@ def _forfeiture_database(path: Path) -> None:
             employer_core_amount DECIMAL(12, 2),
             prorated_annual_compensation DECIMAL(12, 2)
         )
-        """
-    )
-    conn.execute(
-        """
+        """)
+    conn.execute("""
         INSERT INTO fct_workforce_snapshot VALUES
             ('old', 2025, DATE '2020-01-01', 'ACTIVE', 5, '5-9', 2080, 1000, 700, 300, 100000),
             ('old', 2026, DATE '2020-01-01', 'ACTIVE', 6, '5-9', 2080, 1000, 700, 300, 100000),
@@ -95,8 +88,7 @@ def _forfeiture_database(path: Path) -> None:
             ('stayer', 2027, DATE '2010-01-01', 'ACTIVE', 17, '10-19', 2080, 100, 70, 30, 10000),
             ('stayer', 2028, DATE '2010-01-01', 'ACTIVE', 18, '10-19', 2080, 100, 70, 30, 10000),
             ('stayer', 2029, DATE '2010-01-01', 'ACTIVE', 19, '10-19', 2080, 100, 70, 30, 10000)
-        """
-    )
+        """)
     conn.close()
 
 

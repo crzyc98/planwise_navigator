@@ -229,15 +229,21 @@ def analyze_scenario(
                     str(
                         item.headcount if item.headcount is not None else "Unavailable"
                     ),
-                    f"${item.average_compensation:,.0f}"
-                    if item.average_compensation is not None
-                    else "Unavailable",
-                    f"{item.participation_rate:.1f}%"
-                    if item.participation_rate is not None
-                    else "Unavailable",
-                    f"${item.employer_cost:,.0f}"
-                    if item.employer_cost is not None
-                    else "Unavailable",
+                    (
+                        f"${item.average_compensation:,.0f}"
+                        if item.average_compensation is not None
+                        else "Unavailable"
+                    ),
+                    (
+                        f"{item.participation_rate:.1f}%"
+                        if item.participation_rate is not None
+                        else "Unavailable"
+                    ),
+                    (
+                        f"${item.employer_cost:,.0f}"
+                        if item.employer_cost is not None
+                        else "Unavailable"
+                    ),
                 )
             console.print(table)
             for warning in report.warnings:

@@ -288,21 +288,25 @@ class PerformanceMonitor:
             "successful_operations": len(successful),
             "failed_operations": len(failed),
             "total_duration_seconds": round(total_duration, 2),
-            "average_duration_seconds": round(total_duration / len(durations), 2)
-            if durations
-            else 0,
-            "slowest_operation": {
-                "name": slowest.operation_name,
-                "duration": slowest.duration_seconds,
-            }
-            if slowest and slowest.duration_seconds
-            else None,
-            "fastest_operation": {
-                "name": fastest.operation_name,
-                "duration": fastest.duration_seconds,
-            }
-            if fastest and fastest.duration_seconds
-            else None,
+            "average_duration_seconds": (
+                round(total_duration / len(durations), 2) if durations else 0
+            ),
+            "slowest_operation": (
+                {
+                    "name": slowest.operation_name,
+                    "duration": slowest.duration_seconds,
+                }
+                if slowest and slowest.duration_seconds
+                else None
+            ),
+            "fastest_operation": (
+                {
+                    "name": fastest.operation_name,
+                    "duration": fastest.duration_seconds,
+                }
+                if fastest and fastest.duration_seconds
+                else None
+            ),
         }
 
     def log_data_quality_check(

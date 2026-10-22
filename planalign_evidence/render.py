@@ -8,7 +8,6 @@ from typing import Protocol
 
 from .models import EvidencePack, EvidencePackEnvelope
 
-
 # Half of the smallest displayed step per unit: values below it round to zero.
 _DISPLAY_EPSILON = {
     "currency": Decimal("0.005"),
@@ -22,20 +21,16 @@ class FigureLike(Protocol):
     """The fields a figure needs to render; shared by single and cross packs."""
 
     @property
-    def value(self) -> str | None:
-        ...
+    def value(self) -> str | None: ...
 
     @property
-    def unit(self) -> str:
-        ...
+    def unit(self) -> str: ...
 
     @property
-    def status(self) -> str:
-        ...
+    def status(self) -> str: ...
 
     @property
-    def reason(self) -> str | None:
-        ...
+    def reason(self) -> str | None: ...
 
 
 def render_evidence_pack(pack: EvidencePack) -> str:

@@ -60,16 +60,14 @@ def build_query(source: Path, factor: int) -> str:
 
 
 def summarize(conn: duckdb.DuckDBPyConnection, path: Path, label: str) -> dict:
-    row = conn.sql(
-        f"""
+    row = conn.sql(f"""
         SELECT COUNT(*),
                COUNT(DISTINCT employee_id),
                round(avg(employee_gross_compensation), 2),
                round(avg(2025 - year(CAST(employee_birth_date AS DATE))), 1),
                sum(CASE WHEN active THEN 1 ELSE 0 END)
         FROM read_parquet('{path}')
-        """
-    ).fetchone()
+        """).fetchone()
     stats = {
         "rows": row[0],
         "unique_ids": row[1],

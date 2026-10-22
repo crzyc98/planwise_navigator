@@ -22,7 +22,6 @@ from planalign_orchestrator.hazard_cache_manager import (
     HazardCacheError,
 )
 
-
 FIXED_HASH = "a" * 64
 
 

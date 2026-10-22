@@ -22,14 +22,12 @@ class DirectConnectionManager:
 def _insert_scenario_rows(
     connection, scenario_id: str, plan_design_id: str = "plan-a"
 ) -> None:
-    connection.execute(
-        """
+    connection.execute("""
         CREATE TABLE IF NOT EXISTS fct_employer_match_events (
             simulation_year INTEGER NOT NULL,
             scenario_id VARCHAR NOT NULL
         )
-        """
-    )
+        """)
     connection.execute(
         """
         INSERT INTO fct_yearly_events VALUES
@@ -171,8 +169,7 @@ def test_critical_fact_cleanup_falls_back_to_default_scenario_when_unconfigured(
 
 def _insert_stale_deferral_rows(connection) -> None:
     """Seed the issue #419 contamination shape: prior-run accumulator rows."""
-    connection.execute(
-        """
+    connection.execute("""
         CREATE TABLE IF NOT EXISTS int_deferral_rate_state_accumulator (
             employee_id VARCHAR NOT NULL,
             simulation_year INTEGER NOT NULL,
@@ -183,8 +180,7 @@ def _insert_stale_deferral_rows(connection) -> None:
             plan_design_id VARCHAR NOT NULL,
             created_at TIMESTAMP
         )
-        """
-    )
+        """)
     connection.executemany(
         """
         INSERT INTO int_deferral_rate_state_accumulator VALUES
@@ -203,15 +199,10 @@ def _insert_stale_deferral_rows(connection) -> None:
 
 
 def _accumulator_keys(connection) -> set[tuple[str, int, str]]:
-    return {
-        (row[0], row[1], row[2])
-        for row in connection.execute(
-            """
+    return {(row[0], row[1], row[2]) for row in connection.execute("""
             SELECT employee_id, simulation_year, scenario_id
             FROM int_deferral_rate_state_accumulator
-            """
-        ).fetchall()
-    }
+            """).fetchall()}
 
 
 @pytest.mark.fast
