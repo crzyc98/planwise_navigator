@@ -19,6 +19,7 @@ from .sql_security import (
     validate_file_path_for_sql,
 )
 from .census_as_of import resolve_as_of_date
+from .census_schema import active_filter_sql
 
 logger = logging.getLogger(__name__)
 
@@ -298,7 +299,7 @@ def _set_termination_status(
     """Prefer explicit dates; use status flags only when the date is missing."""
     fallback = "false"
     if has_active_col:
-        fallback = "active = false"
+        fallback = f"NOT {active_filter_sql(['active'])}"
     elif has_status_col:
         fallback = "LOWER(status) != 'active'"
     condition = fallback
