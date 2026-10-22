@@ -68,14 +68,12 @@ class TableExistenceChecker:
         """
 
         def _query(conn):
-            result = conn.execute(
-                """
+            result = conn.execute("""
                 SELECT table_name
                 FROM information_schema.tables
                 WHERE table_schema = 'main'
                 ORDER BY table_name
-            """
-            ).fetchall()
+            """).fetchall()
             return {row[0] for row in result}
 
         return self.db_manager.execute_with_retry(_query)

@@ -137,8 +137,8 @@ def extract_actuals(
                 snapshot.has(column)
                 for column in ("employee_enrollment_date", "employee_deferral_rate")
             ):
-                values[
-                    MetricValue(metric="plan.participation_rate", period=year)
-                ] = None
+                values[MetricValue(metric="plan.participation_rate", period=year)] = (
+                    None
+                )
     _add_cumulative(values, split.holdout_years)
     return values

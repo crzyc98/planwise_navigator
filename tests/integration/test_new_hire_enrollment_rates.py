@@ -56,8 +56,7 @@ def _eligible_new_hire_shares(database: Path) -> dict[int, dict[str, float]]:
     permanent floor under "not enrolled" that no rate setting can move.
     """
     with duckdb.connect(str(database), read_only=True) as conn:
-        rows = conn.execute(
-            """
+        rows = conn.execute("""
             SELECT
               simulation_year,
               participation_status_detail,
@@ -68,8 +67,7 @@ def _eligible_new_hire_shares(database: Path) -> dict[int, dict[str, float]]:
               AND current_eligibility_status = 'eligible'
               AND termination_date IS NULL
             GROUP BY 1, 2
-            """
-        ).fetchall()
+            """).fetchall()
     shares: dict[int, dict[str, float]] = {}
     for year, detail, pct in rows:
         shares.setdefault(year, {})[detail] = pct
@@ -79,16 +77,12 @@ def _eligible_new_hire_shares(database: Path) -> dict[int, dict[str, float]]:
 
 def _voluntary_employee_ids(database: Path) -> set[tuple[str, int]]:
     with duckdb.connect(str(database), read_only=True) as conn:
-        return set(
-            conn.execute(
-                """
+        return set(conn.execute("""
                 SELECT employee_id, simulation_year
                 FROM fct_yearly_events
                 WHERE event_type = 'enrollment'
                   AND event_category = 'voluntary_enrollment'
-                """
-            ).fetchall()
-        )
+                """).fetchall())
 
 
 class TestVoluntaryRateIsHonoured:
@@ -130,8 +124,7 @@ class TestSingleEnrollmentDecision:
     def test_no_employee_enrolls_twice_in_a_year(self):
         database = _database("PLANALIGN_652_DB_P60Q10")
         with duckdb.connect(str(database), read_only=True) as conn:
-            (count,) = conn.execute(
-                """
+            (count,) = conn.execute("""
                 SELECT COUNT(*) FROM (
                   SELECT employee_id, simulation_year
                   FROM fct_yearly_events
@@ -139,20 +132,17 @@ class TestSingleEnrollmentDecision:
                   GROUP BY 1, 2
                   HAVING COUNT(*) > 1
                 )
-                """
-            ).fetchone()
+                """).fetchone()
         assert count == 0, f"{count} employee-years hold multiple enrollment events"
 
     def test_proactive_path_produces_nothing_when_flat_rate_is_set(self):
         """The second independent draw must be gone, not merely outranked."""
         database = _database("PLANALIGN_652_DB_P60Q10")
         with duckdb.connect(str(database), read_only=True) as conn:
-            (count,) = conn.execute(
-                """
+            (count,) = conn.execute("""
                 SELECT COUNT(*) FROM fct_yearly_events
                 WHERE event_category = 'proactive_voluntary'
-                """
-            ).fetchone()
+                """).fetchone()
         assert count == 0, (
             f"{count} proactive_voluntary events remain; new hires are still "
             "being drawn twice"

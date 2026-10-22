@@ -446,9 +446,9 @@ class DCPlanEventFactory(EventFactory):
             employee_id=employee_id,
             scenario_id=scenario_id,
             plan_design_id=plan_design_id,
-            effective_date=window_start_date
-            if window_action == "opened"
-            else window_end_date,
+            effective_date=(
+                window_start_date if window_action == "opened" else window_end_date
+            ),
             source_system="auto_enrollment_engine",
             payload=payload,
         )

@@ -211,9 +211,9 @@ class InvocationRecorder:
                 stage=self.current_stage,
                 command=" ".join(command_args),
                 wall_s=wall,
-                models=_parse_run_results(self._target_dir)
-                if status == "fresh"
-                else [],
+                models=(
+                    _parse_run_results(self._target_dir) if status == "fresh" else []
+                ),
                 node_timing_status=status,
             )
         )

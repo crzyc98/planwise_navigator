@@ -27,14 +27,12 @@ def report(tmp_path):
             "CREATE TABLE config_irs_limits AS SELECT * FROM read_csv_auto(?)",
             [str(seed)],
         )
-        conn.execute(
-            """CREATE TABLE fct_workforce_snapshot (
+        conn.execute("""CREATE TABLE fct_workforce_snapshot (
             employee_id VARCHAR, plan_design_id VARCHAR, simulation_year INTEGER,
             current_age INTEGER, current_compensation DOUBLE, prorated_annual_compensation DOUBLE,
             prorated_annual_contributions DOUBLE, employer_match_amount DOUBLE, employer_core_amount DOUBLE,
             current_eligibility_status VARCHAR, is_enrolled_flag BOOLEAN, current_tenure DOUBLE
-        )"""
-        )
+        )""")
         for index, age in enumerate((49, 50, 59, 60, 63, 64)):
             conn.execute(
                 "INSERT INTO fct_workforce_snapshot VALUES (?, 'design', 2026, ?, 400000, 400000, 32500, 10000, 5000, 'eligible', true, 5)",

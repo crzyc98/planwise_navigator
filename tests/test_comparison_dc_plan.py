@@ -8,7 +8,6 @@ import pytest
 from planalign_api.services.comparison_service import ComparisonService
 from planalign_api.services.database_path_resolver import ResolvedDatabasePath
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -16,8 +15,7 @@ from planalign_api.services.database_path_resolver import ResolvedDatabasePath
 
 def _create_snapshot_table(conn: duckdb.DuckDBPyConnection) -> None:
     """Create fct_workforce_snapshot table with required columns."""
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS fct_workforce_snapshot (
             employee_id VARCHAR,
             simulation_year INTEGER,
@@ -29,21 +27,18 @@ def _create_snapshot_table(conn: duckdb.DuckDBPyConnection) -> None:
             employer_core_amount DOUBLE,
             prorated_annual_compensation DOUBLE
         )
-    """
-    )
+    """)
 
 
 def _create_events_table(conn: duckdb.DuckDBPyConnection) -> None:
     """Create fct_yearly_events table (needed by _load_scenario_data)."""
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS fct_yearly_events (
             employee_id VARCHAR,
             simulation_year INTEGER,
             event_type VARCHAR
         )
-    """
-    )
+    """)
 
 
 def _seed_employees(

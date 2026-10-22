@@ -207,9 +207,9 @@ def test_unknown_workspace_returns_404(client, monkeypatch) -> None:
         def get_workspace(self, workspace_id):
             return None
 
-    client.app.dependency_overrides[
-        calibration_router.get_storage
-    ] = lambda: _NoWorkspaceStorage()
+    client.app.dependency_overrides[calibration_router.get_storage] = (
+        lambda: _NoWorkspaceStorage()
+    )
     try:
         resp = client.post(
             "/api/calibration/run",

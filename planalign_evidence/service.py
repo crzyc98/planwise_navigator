@@ -15,7 +15,6 @@ from .decompose import build_executive_summary, decompose_row
 from .models import EvidencePack, PackProvenance, PackWarning
 from .queries import build_metric_query
 
-
 SNAPSHOT_TABLE = "fct_workforce_snapshot"
 
 
@@ -230,9 +229,7 @@ def _read_provenance(
         seed_column = (
             "random_seed"
             if "random_seed" in columns
-            else "seed"
-            if "seed" in columns
-            else "NULL"
+            else "seed" if "seed" in columns else "NULL"
         )
         if target.run_id != "legacy" and "run_id" in columns:
             row = connection.execute(
@@ -251,13 +248,13 @@ def _read_provenance(
         run_id=target.run_id,
         run_timestamp=timestamp,
         random_seed=seed,
-        config_fingerprint=fingerprint
-        if fingerprint and len(str(fingerprint)) == 64
-        else None,
+        config_fingerprint=(
+            fingerprint if fingerprint and len(str(fingerprint)) == 64 else None
+        ),
         result_store=target.result_store,
-        verification_disposition="unverifiable"
-        if target.run_id == "legacy"
-        else "fully_verified",
+        verification_disposition=(
+            "unverifiable" if target.run_id == "legacy" else "fully_verified"
+        ),
     )
 
 

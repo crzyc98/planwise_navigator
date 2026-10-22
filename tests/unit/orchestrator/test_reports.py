@@ -16,16 +16,14 @@ def _seed_year(
     conn, year: int, active: int, hires: int, terms: int, participating: int
 ):
     # workforce snapshot
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS fct_workforce_snapshot(
             simulation_year INTEGER,
             employment_status VARCHAR,
             detailed_status_code VARCHAR,
             participation_status VARCHAR
         )
-        """
-    )
+        """)
     rows = []
     # New hires (detailed_status_code='new_hire_active') - some participating, some not
     hire_participating = min(hires, participating)
@@ -47,16 +45,14 @@ def _seed_year(
     conn.executemany("INSERT INTO fct_workforce_snapshot VALUES (?,?,?,?)", rows)
 
     # events
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS fct_yearly_events(
             employee_id VARCHAR,
             event_type VARCHAR,
             simulation_year INTEGER,
             event_date DATE
         )
-        """
-    )
+        """)
     conn.executemany(
         "INSERT INTO fct_yearly_events VALUES (?,?,?, DATE '" + str(year) + "-01-01')",
         [(f"E{i}", "hire", year) for i in range(hires)],

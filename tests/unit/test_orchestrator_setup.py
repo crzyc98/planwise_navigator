@@ -33,12 +33,12 @@ class TestSetupParallelization:
         manifest.write_text("{}")
         monkeypatch.chdir(tmp_path)
 
-        with patch.object(
-            orchestrator_setup, "MODEL_PARALLELIZATION_AVAILABLE", True
-        ), patch.object(
-            orchestrator_setup, "ModelDependencyAnalyzer"
-        ) as mock_analyzer, patch.object(
-            orchestrator_setup, "ParallelExecutionEngine"
+        with (
+            patch.object(orchestrator_setup, "MODEL_PARALLELIZATION_AVAILABLE", True),
+            patch.object(
+                orchestrator_setup, "ModelDependencyAnalyzer"
+            ) as mock_analyzer,
+            patch.object(orchestrator_setup, "ParallelExecutionEngine"),
         ):
             (
                 engine,
@@ -59,9 +59,12 @@ class TestSetupParallelization:
         """No manifest -> parallelization disabled, analyzer never constructed."""
         monkeypatch.chdir(tmp_path)  # no dbt/target/manifest.json here
 
-        with patch.object(
-            orchestrator_setup, "MODEL_PARALLELIZATION_AVAILABLE", True
-        ), patch.object(orchestrator_setup, "ModelDependencyAnalyzer") as mock_analyzer:
+        with (
+            patch.object(orchestrator_setup, "MODEL_PARALLELIZATION_AVAILABLE", True),
+            patch.object(
+                orchestrator_setup, "ModelDependencyAnalyzer"
+            ) as mock_analyzer,
+        ):
             result = orchestrator_setup.setup_parallelization(
                 _parallel_config(), MagicMock(), verbose=False
             )

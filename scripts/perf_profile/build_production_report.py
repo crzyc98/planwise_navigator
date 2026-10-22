@@ -105,17 +105,19 @@ def _stats(group: List[TimingSample]) -> dict:
         "n": len(group),
         "rows": group[0].census_rows,
         "invocations": round(_median([float(len(s.invocations)) for s in group])),
-        "product_invocations": round(
-            _median(
-                [
-                    float(s.product_invocation_count)
-                    for s in group
-                    if s.product_invocation_count is not None
-                ]
+        "product_invocations": (
+            round(
+                _median(
+                    [
+                        float(s.product_invocation_count)
+                        for s in group
+                        if s.product_invocation_count is not None
+                    ]
+                )
             )
-        )
-        if any(s.product_invocation_count is not None for s in group)
-        else None,
+            if any(s.product_invocation_count is not None for s in group)
+            else None
+        ),
         "signature_hashes": sorted(
             {
                 str(s.construction_signature["signature_hash"])

@@ -164,16 +164,14 @@ def load_cells(
     The IPF solver already carries events as a float, so both are the same
     arithmetic to everything downstream.
     """
-    rows = conn.execute(
-        f"""
+    rows = conn.execute(f"""
         SELECT age_band, tenure_band, level_id,
                COUNT(*) AS exposure,
                SUM({event_weight}) AS events
         FROM {table}
         GROUP BY age_band, tenure_band, level_id
         ORDER BY age_band, tenure_band, level_id
-        """
-    ).fetchall()
+        """).fetchall()
     return [
         CellObservation(
             age_band=str(row[0]),
@@ -265,12 +263,10 @@ def fit_scalar_rate(
 ) -> FittedValue:
     """Fit one population-level rate (events over exposure)."""
     clause = f"WHERE {where}" if where else ""
-    row = conn.execute(
-        f"""
+    row = conn.execute(f"""
         SELECT COUNT(*), SUM(CASE WHEN {event_predicate} THEN 1 ELSE 0 END)
         FROM {table} {clause}
-        """
-    ).fetchone()
+        """).fetchone()
     if row is None:
         raise TransitionError(f"Could not calculate scalar rate '{name}'.")
     exposure, events = row

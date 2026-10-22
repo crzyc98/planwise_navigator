@@ -65,8 +65,7 @@ def observed_merit_by_level(
     credibility smoothing downstream sees the evidence actually behind the
     median rather than a headcount that includes probable promotions.
     """
-    rows = conn.execute(
-        f"""
+    rows = conn.execute(f"""
         SELECT level_id,
                compensation_growth,
                1.0 - promotion_weight AS ordinary_weight
@@ -76,8 +75,7 @@ def observed_merit_by_level(
           AND compensation_growth BETWEEN {MIN_PLAUSIBLE_GROWTH} AND {MAX_PLAUSIBLE_GROWTH}
           AND promotion_weight < 1.0
         ORDER BY level_id
-        """
-    ).fetchall()
+        """).fetchall()
 
     by_level: dict[int, list[tuple[float, float]]] = {}
     for level_id, growth, weight in rows:

@@ -392,8 +392,7 @@ def _schedule_config(
 def test_vesting_summary_distinguishes_total_and_eligible_terminations():
     """All terminations are reported, while only contributed balances are analyzed."""
     conn = duckdb.connect(":memory:")
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE fct_workforce_snapshot (
             employee_id VARCHAR,
             simulation_year INTEGER,
@@ -405,18 +404,15 @@ def test_vesting_summary_distinguishes_total_and_eligible_terminations():
             annual_hours_worked INTEGER,
             total_employer_contributions DECIMAL(12, 2)
         )
-        """
-    )
-    conn.execute(
-        """
+        """)
+    conn.execute("""
         INSERT INTO fct_workforce_snapshot VALUES
             ('eligible', 2028, 'ACTIVE', DATE '2020-01-01', NULL, 8, '5-9', 2080, 100.00),
             ('zero_balance', 2028, 'ACTIVE', DATE '2020-01-01', NULL, 8, '5-9', 2080, 0.00),
             ('eligible', 2029, 'TERMINATED', DATE '2020-01-01', DATE '2029-06-30', 9, '5-9', 1040, 0.00),
             ('zero_balance', 2029, 'TERMINATED', DATE '2020-01-01', DATE '2029-06-30', 9, '5-9', 1040, 0.00),
             ('no_prior_record', 2029, 'TERMINATED', DATE '2028-01-01', DATE '2029-06-30', 1, '<2', 1040, 0.00)
-        """
-    )
+        """)
     service = VestingService(storage=Mock())
 
     employees = service._get_terminated_employees(conn, 2029)

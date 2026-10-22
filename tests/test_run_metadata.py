@@ -323,8 +323,9 @@ class TestStateMachine:
     def test_match_is_silent(self, db_manager, minimal_config, caplog):
         _stamp(db_manager, minimal_config)
         # Exercise the same root INFO level enabled by other CLI tests.
-        with caplog.at_level(logging.INFO), caplog.at_level(
-            logging.INFO, logger=LOGGER_NAME
+        with (
+            caplog.at_level(logging.INFO),
+            caplog.at_level(logging.INFO, logger=LOGGER_NAME),
         ):
             caplog.clear()
             result = _stamp(db_manager, minimal_config)

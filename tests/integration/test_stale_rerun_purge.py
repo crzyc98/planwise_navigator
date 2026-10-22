@@ -35,52 +35,38 @@ class DirectConnectionManager:
 def contaminated_db():
     """Isolated DB shaped like the issue #419 workspace after the first run."""
     conn = duckdb.connect(":memory:")
-    conn.execute(
-        """CREATE TABLE int_deferral_rate_state_accumulator (
+    conn.execute("""CREATE TABLE int_deferral_rate_state_accumulator (
             employee_id VARCHAR, simulation_year INTEGER,
             current_deferral_rate DECIMAL(10, 4), rate_source VARCHAR,
             is_enrolled_flag BOOLEAN, scenario_id VARCHAR,
-            plan_design_id VARCHAR, created_at TIMESTAMP)"""
-    )
-    conn.execute(
-        """CREATE TABLE int_enrollment_state_accumulator (
+            plan_design_id VARCHAR, created_at TIMESTAMP)""")
+    conn.execute("""CREATE TABLE int_enrollment_state_accumulator (
             employee_id VARCHAR, simulation_year INTEGER,
             enrollment_status BOOLEAN, enrollment_source VARCHAR,
-            scenario_id VARCHAR, plan_design_id VARCHAR, created_at TIMESTAMP)"""
-    )
-    conn.execute(
-        """CREATE TABLE fct_workforce_snapshot (
+            scenario_id VARCHAR, plan_design_id VARCHAR, created_at TIMESTAMP)""")
+    conn.execute("""CREATE TABLE fct_workforce_snapshot (
             employee_id VARCHAR, simulation_year INTEGER,
             participation_status VARCHAR, participation_status_detail VARCHAR,
-            scenario_id VARCHAR, plan_design_id VARCHAR)"""
-    )
+            scenario_id VARCHAR, plan_design_id VARCHAR)""")
     # Prior AE-on run: never-enrolled census employees were auto-enrolled at
     # 3% and carried forward; a re-run with AE off never re-emits these keys.
     for year in SIMULATED_YEARS:
-        conn.execute(
-            f"""INSERT INTO int_deferral_rate_state_accumulator VALUES
+        conn.execute(f"""INSERT INTO int_deferral_rate_state_accumulator VALUES
                 ('EMP_2025_0002574', {year}, 0.03, 'carried_forward', true,
                  'baseline', 'default', {PRIOR_RUN_TS}),
                 ('EMP_2025_0000042', {year}, 0.03, 'ae_default', true,
-                 'baseline', 'default', {PRIOR_RUN_TS})"""
-        )
-        conn.execute(
-            f"""INSERT INTO fct_workforce_snapshot VALUES
+                 'baseline', 'default', {PRIOR_RUN_TS})""")
+        conn.execute(f"""INSERT INTO fct_workforce_snapshot VALUES
                 ('EMP_2025_0002574', {year}, 'participating',
-                 'participating - census enrollment', 'baseline', 'default')"""
-        )
+                 'participating - census enrollment', 'baseline', 'default')""")
     # A different scenario sharing the DB shape must never be touched.
-    conn.execute(
-        f"""INSERT INTO int_deferral_rate_state_accumulator VALUES
+    conn.execute(f"""INSERT INTO int_deferral_rate_state_accumulator VALUES
             ('EMP_OTHER', 2027, 0.06, 'voluntary', true,
-             'other-scenario', 'default', {PRIOR_RUN_TS})"""
-    )
+             'other-scenario', 'default', {PRIOR_RUN_TS})""")
     # A year outside the re-run range (prior run went one year further).
-    conn.execute(
-        f"""INSERT INTO int_deferral_rate_state_accumulator VALUES
+    conn.execute(f"""INSERT INTO int_deferral_rate_state_accumulator VALUES
             ('EMP_2025_0002574', 2031, 0.03, 'carried_forward', true,
-             'baseline', 'default', {PRIOR_RUN_TS})"""
-    )
+             'baseline', 'default', {PRIOR_RUN_TS})""")
     yield conn
     conn.close()
 
@@ -101,11 +87,9 @@ def _rebuild_year_like_ae_off_run(conn, year: int) -> None:
     enroll, so the accumulator build emits nothing for them — exactly why
     delete+insert alone cannot clean the prior run's rows.
     """
-    conn.execute(
-        f"""INSERT INTO int_deferral_rate_state_accumulator VALUES
+    conn.execute(f"""INSERT INTO int_deferral_rate_state_accumulator VALUES
             ('EMP_VOLUNTARY', {year}, 0.06, 'voluntary', true,
-             'baseline', 'default', {RERUN_START_TS})"""
-    )
+             'baseline', 'default', {RERUN_START_TS})""")
 
 
 @pytest.mark.integration
@@ -169,8 +153,6 @@ def test_snapshot_year_rows_purged_including_phantom_census_labels(contaminated_
 
     manager.maybe_clear_year_data(2027)
 
-    phantom = contaminated_db.execute(
-        """SELECT COUNT(*) FROM fct_workforce_snapshot
-           WHERE simulation_year = 2027 AND scenario_id = 'baseline'"""
-    ).fetchone()[0]
+    phantom = contaminated_db.execute("""SELECT COUNT(*) FROM fct_workforce_snapshot
+           WHERE simulation_year = 2027 AND scenario_id = 'baseline'""").fetchone()[0]
     assert phantom == 0

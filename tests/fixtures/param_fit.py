@@ -210,7 +210,7 @@ def make_harness(
         commands=commands,
         max_jobs=max_jobs,
     )
-    app.dependency_overrides[
-        param_fits.get_param_fit_service
-    ] = lambda: harness.service()
+    app.dependency_overrides[param_fits.get_param_fit_service] = (
+        lambda: harness.service()
+    )
     return harness

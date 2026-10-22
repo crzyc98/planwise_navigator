@@ -8,7 +8,6 @@ from typing import List
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings
 
-
 logger = logging.getLogger(__name__)
 
 _LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}

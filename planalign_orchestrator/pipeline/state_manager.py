@@ -171,17 +171,12 @@ class StateManager:
             return any(name.startswith(p) for p in patterns)
 
         def _run(conn):
-            tables = [
-                r[0]
-                for r in conn.execute(
-                    """
+            tables = [r[0] for r in conn.execute("""
                 SELECT table_name
                 FROM information_schema.tables
                 WHERE table_schema = 'main'
                 ORDER BY table_name
-                """
-                ).fetchall()
-            ]
+                """).fetchall()]
             cleared = 0
             for t in tables:
                 if not _should_clear(t):
@@ -242,17 +237,12 @@ class StateManager:
             return any(name.startswith(p) for p in patterns)
 
         def _run(conn):
-            tables = [
-                r[0]
-                for r in conn.execute(
-                    """
+            tables = [r[0] for r in conn.execute("""
                 SELECT table_name
                 FROM information_schema.tables
                 WHERE table_schema = 'main' AND table_type = 'BASE TABLE'
                 ORDER BY table_name
-                """
-                ).fetchall()
-            ]
+                """).fetchall()]
             cleared = 0
             for t in tables:
                 if not _should_clear(t):

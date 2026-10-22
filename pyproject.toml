@@ -74,7 +74,7 @@ dev = [
 
     # Code Quality
     "ruff==0.17.1",
-    "black==23.9.1",
+    "black==26.10.1",
     "isort==9.0.2",
     # Keep mypy on the validated version until the dev toolchain is reviewed.
     "mypy==1.19.1",

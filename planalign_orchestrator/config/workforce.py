@@ -398,9 +398,9 @@ class CoreIntegrationSettings(BaseModel):
     """Social Security integrated employer core contribution settings."""
 
     enabled: bool = False
-    level_mode: Literal[
-        "ss_wage_base", "percent_of_ss_wage_base", "fixed_dollar"
-    ] = "ss_wage_base"
+    level_mode: Literal["ss_wage_base", "percent_of_ss_wage_base", "fixed_dollar"] = (
+        "ss_wage_base"
+    )
     level_value: Optional[float] = None
     disparity_rate: float = 0.0
 

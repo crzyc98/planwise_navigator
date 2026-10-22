@@ -189,9 +189,11 @@ def _render_summary(run: FitRun, destination: Path) -> None:
         label = promotion_basis_label(classification)
         table.add_row(
             "Promotion basis",
-            f"[yellow]{label}[/yellow]"
-            if classification.basis is PromotionBasis.NOT_FITTED
-            else label,
+            (
+                f"[yellow]{label}[/yellow]"
+                if classification.basis is PromotionBasis.NOT_FITTED
+                else label
+            ),
         )
     table.add_row(
         "Could not be fitted",

@@ -373,9 +373,7 @@ class NDTService:
                 prior_year_comp
             FROM per_employee
             ORDER BY is_hce DESC, individual_acp DESC
-            """.format(
-                    after_tax_expression=after_tax_expression
-                )
+            """.format(after_tax_expression=after_tax_expression)
 
                 prior_year_param = year - 1 if prior_year_exists else year
                 rows = conn.execute(
@@ -419,9 +417,9 @@ class NDTService:
                             employer_match_amount=float(match_amt),
                             eligible_compensation=float(comp),
                             individual_acp=float(acp),
-                            prior_year_compensation=float(prior_comp)
-                            if prior_comp is not None
-                            else None,
+                            prior_year_compensation=(
+                                float(prior_comp) if prior_comp is not None else None
+                            ),
                         )
                     )
 
@@ -691,9 +689,9 @@ class NDTService:
                             employee_id=str(emp_id),
                             is_hce=bool(is_hce),
                             employer_nec_amount=float(core_amt),
-                            employer_match_amount=float(match_amt)
-                            if include_match
-                            else 0.0,
+                            employer_match_amount=(
+                                float(match_amt) if include_match else 0.0
+                            ),
                             total_employer_amount=float(total_employer),
                             plan_compensation=float(plan_comp),
                             contribution_rate=float(rate),
@@ -1344,9 +1342,9 @@ class NDTService:
                             employee_deferrals=float(deferrals),
                             plan_compensation=float(comp),
                             individual_adp=float(adp),
-                            prior_year_compensation=float(prior_comp)
-                            if prior_comp is not None
-                            else None,
+                            prior_year_compensation=(
+                                float(prior_comp) if prior_comp is not None else None
+                            ),
                         )
                     )
 

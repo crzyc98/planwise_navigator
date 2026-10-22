@@ -9,7 +9,6 @@ from pathlib import Path
 
 import pytest
 
-
 SEED_PATH = Path(__file__).resolve().parents[3] / "dbt/seeds/config_irs_limits.csv"
 CHARACTERIZATION_PATH = (
     Path(__file__).resolve().parents[3]

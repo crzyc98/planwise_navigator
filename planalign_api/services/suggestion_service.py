@@ -13,7 +13,6 @@ from uuid import uuid4
 from ..models.suggestion import TerminationRateSuggestion
 from ..models.calculation import TerminationRateCalculation
 
-
 logger = logging.getLogger(__name__)
 
 

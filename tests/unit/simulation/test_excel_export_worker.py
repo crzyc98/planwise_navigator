@@ -19,12 +19,15 @@ def test_export_uses_dedicated_process_executor(tmp_path):
         0, result=tmp_path / "results.xlsx"
     )
 
-    with patch(
-        "planalign_api.services.simulation.excel_export_worker._get_executor",
-        return_value=executor,
-    ), patch(
-        "planalign_api.services.simulation.excel_export_worker.asyncio.get_running_loop",
-        return_value=loop,
+    with (
+        patch(
+            "planalign_api.services.simulation.excel_export_worker._get_executor",
+            return_value=executor,
+        ),
+        patch(
+            "planalign_api.services.simulation.excel_export_worker.asyncio.get_running_loop",
+            return_value=loop,
+        ),
     ):
         result = asyncio.run(
             export_run_excel_in_process(

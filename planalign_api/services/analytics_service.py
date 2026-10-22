@@ -260,8 +260,7 @@ class AnalyticsService:
     @staticmethod
     def _population_by_year(conn, where_clause: str) -> Dict[int, tuple[int, Decimal]]:
         """Return cohort headcount and compensation at the yearly snapshot grain."""
-        rows = conn.execute(
-            f"""
+        rows = conn.execute(f"""
             SELECT
                 simulation_year,
                 COUNT(*) AS headcount,
@@ -270,8 +269,7 @@ class AnalyticsService:
             {where_clause}
             GROUP BY simulation_year
             ORDER BY simulation_year
-            """
-        ).fetchall()
+            """).fetchall()
         return {
             int(year): (
                 int(headcount),
@@ -584,8 +582,7 @@ class AnalyticsService:
                 population_filter,
                 cohort_filter,
             )
-            result = conn.execute(
-                f"""
+            result = conn.execute(f"""
                 WITH final_year AS (
                     SELECT MAX(simulation_year) as max_year
                     FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
@@ -608,8 +605,7 @@ class AnalyticsService:
                              THEN 1 ELSE 0 END) as census_enrolled
                 FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}, final_year
                 {where_clause}
-            """
-            ).fetchone()
+            """).fetchone()
 
             total_eligible = result[0] or 0
             total_enrolled = result[1] or 0
@@ -677,8 +673,7 @@ class AnalyticsService:
                 "/ NULLIF(COUNT(*), 0), 0)"
             )
 
-            df = conn.execute(
-                f"""
+            df = conn.execute(f"""
                 SELECT
                     snapshot.simulation_year as year,
                     COALESCE(SUM(prorated_annual_contributions), 0) as total_employee,
@@ -703,8 +698,7 @@ class AnalyticsService:
                 {where_clause}
                 GROUP BY snapshot.simulation_year
                 ORDER BY snapshot.simulation_year
-            """
-            ).fetchdf()
+            """).fetchdf()
 
             results = []
             for _, row in df.iterrows():
@@ -860,8 +854,7 @@ class AnalyticsService:
             status_filter, population_filter, cohort_filter
         )
         try:
-            rows = conn.execute(
-                f"""
+            rows = conn.execute(f"""
                 WITH final_year AS (
                     SELECT MAX(simulation_year) as max_year
                     FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
@@ -893,8 +886,7 @@ class AnalyticsService:
                 FROM bucketed, final_year
                 GROUP BY bucketed.simulation_year, bucketed.bucket, final_year.max_year
                 ORDER BY bucketed.simulation_year, bucketed.bucket
-            """
-            ).fetchall()
+            """).fetchall()
         except Exception as e:
             logger.warning(f"Failed to get deferral distribution: {e}")
             return self._deferral_buckets({}), []
@@ -934,8 +926,7 @@ class AnalyticsService:
                 self._cohort_predicate(cohort, first_simulation_year),
                 "is_enrolled_flag = true",
             )
-            result = conn.execute(
-                f"""
+            result = conn.execute(f"""
                 WITH final_year AS (
                     SELECT MAX(simulation_year) as max_year
                     FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
@@ -946,8 +937,7 @@ class AnalyticsService:
                     SUM(COALESCE(total_escalation_amount, 0)) as total_escalation_amount
                 FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}, final_year
                 {where_clause}
-            """
-            ).fetchone()
+            """).fetchone()
 
             return EscalationMetrics(
                 employees_with_escalations=int(result[0] or 0),
@@ -981,8 +971,7 @@ class AnalyticsService:
                 self._cohort_predicate(cohort, first_simulation_year),
                 "is_enrolled_flag = true",
             )
-            result = conn.execute(
-                f"""
+            result = conn.execute(f"""
                 WITH final_year AS (
                     SELECT MAX(simulation_year) as max_year
                     FROM {TABLE_FCT_WORKFORCE_SNAPSHOT}
@@ -1002,8 +991,7 @@ class AnalyticsService:
                         ELSE 0
                     END as limit_rate
                 FROM participants
-            """
-            ).fetchone()
+            """).fetchone()
 
             return IRSLimitMetrics(
                 employees_at_irs_limit=int(result[0] or 0),

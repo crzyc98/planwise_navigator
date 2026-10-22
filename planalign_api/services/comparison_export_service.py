@@ -423,12 +423,15 @@ def _write_hyper(
 
     with tempfile.TemporaryDirectory(dir=path.parent) as staging:
         staging_dir = Path(staging)
-        with HyperProcess(
-            Telemetry.DO_NOT_SEND_USAGE_DATA_TO_TABLEAU,
-            parameters={"log_dir": str(staging_dir)},
-        ) as hyper, Connection(
-            hyper.endpoint, str(path), CreateMode.CREATE_AND_REPLACE
-        ) as hyper_conn:
+        with (
+            HyperProcess(
+                Telemetry.DO_NOT_SEND_USAGE_DATA_TO_TABLEAU,
+                parameters={"log_dir": str(staging_dir)},
+            ) as hyper,
+            Connection(
+                hyper.endpoint, str(path), CreateMode.CREATE_AND_REPLACE
+            ) as hyper_conn,
+        ):
             for table in tables:
                 parquet = staging_dir / f"{table.name}.parquet"
                 conn.execute(

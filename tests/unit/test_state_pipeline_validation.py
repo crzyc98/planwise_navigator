@@ -15,7 +15,6 @@ from planalign_orchestrator.state_pipeline_validation import (
     load_exclusion_manifest,
 )
 
-
 HASH_A = "a" * 64
 HASH_B = "b" * 64
 

@@ -196,9 +196,9 @@ def _fake_evaluator(
         return tuple(
             _candidate(
                 f"candidate-{index:04d}",
-                participation=0.9
-                if full or not value["eligibility.waiting_period_days"]
-                else 0.3,
+                participation=(
+                    0.9 if full or not value["eligibility.waiting_period_days"] else 0.3
+                ),
                 cost=100 if not value["eligibility.waiting_period_days"] else 80,
                 spec=spec,
             ).model_copy(update={"lever_values": value})

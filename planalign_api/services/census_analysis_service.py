@@ -380,8 +380,7 @@ class CensusAnalysisService:
     def _metrics_for_filter(
         self, conn: duckdb.DuckDBPyConnection, where: str
     ) -> CensusMetrics:
-        row = conn.execute(
-            f"""
+        row = conn.execute(f"""
             WITH scoped AS (
               SELECT *,
                 CASE WHEN _compensation > 0
@@ -407,8 +406,7 @@ class CensusAnalysisService:
               AVG(COALESCE(_deferral_rate, 0) + _employer_contribution_rate)
                 FILTER (WHERE _eligible AND _employer_contribution_rate IS NOT NULL) AS avg_total_savings
             FROM scoped
-            """
-        ).fetchone()
+            """).fetchone()
         assert row is not None
 
         (
@@ -492,14 +490,12 @@ class CensusAnalysisService:
     def _deferral_distribution(
         self, conn: duckdb.DuckDBPyConnection
     ) -> list[CensusDeferralRateBucket]:
-        rows = conn.execute(
-            f"""
+        rows = conn.execute(f"""
             SELECT {_DEFERRAL_BUCKET_SQL} AS bucket, COUNT(*) AS cnt
             FROM analyzed
             WHERE _eligible
             GROUP BY 1
-            """
-        ).fetchall()
+            """).fetchall()
         counts = {bucket: count for bucket, count in rows}
         total = sum(counts.values())
         return [

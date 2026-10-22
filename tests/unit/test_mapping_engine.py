@@ -8,7 +8,6 @@ import pandas as pd
 
 from planalign_api.models.imports import FieldMapping, Transformation
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

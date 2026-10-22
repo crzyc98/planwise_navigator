@@ -97,8 +97,7 @@ def test_match_response_uses_year_end_age_and_2027_limits(tmp_path, monkeypatch)
     orchestrator.execute_multi_year_simulation(start_year=2027, end_year=2027)
 
     with duckdb.connect(str(database), read_only=True) as connection:
-        events = connection.execute(
-            """
+        events = connection.execute("""
             SELECT e.employee_id, e.compensation_amount, e.employee_deferral_rate,
                    2027 - YEAR(c.employee_birth_date) AS year_end_age,
                    CASE
@@ -113,8 +112,7 @@ def test_match_response_uses_year_end_age_and_2027_limits(tmp_path, monkeypatch)
             JOIN stg_census_data c USING (employee_id)
             JOIN config_irs_limits l ON l.limit_year = e.simulation_year
             WHERE e.event_type = 'deferral_match_response'
-            """
-        ).fetchall()
+            """).fetchall()
         selected = {row[0]: row for row in events if row[0] in EMPLOYEE_BIRTH_YEARS}
         assert set(selected) == set(EMPLOYEE_BIRTH_YEARS)
         assert {row[3]: row[4] for row in selected.values()} == {
@@ -131,25 +129,21 @@ def test_match_response_uses_year_end_age_and_2027_limits(tmp_path, monkeypatch)
             _, compensation, rate, _, _ = selected[employee_id]
             assert float(rate) > 23500 / compensation
 
-        state = connection.execute(
-            """
+        state = connection.execute("""
             SELECT employee_id, current_deferral_rate, rate_source
             FROM int_deferral_rate_state_accumulator
             WHERE simulation_year = 2027
               AND employee_id IN ('INV_EMP_0001', 'INV_EMP_0002')
-            """
-        ).fetchall()
+            """).fetchall()
         assert len(state) == 2
         for employee_id, rate, source in state:
             assert source == "match_response_plus_escalation"
             assert float(rate) == pytest.approx(float(selected[employee_id][2]))
 
-        excess_count = connection.execute(
-            """
+        excess_count = connection.execute("""
             SELECT COUNT(*)
             FROM int_employee_contributions
             WHERE annual_contribution_amount > applicable_irs_limit
               AND simulation_year = 2027
-            """
-        ).fetchone()[0]
+            """).fetchone()[0]
         assert excess_count == 0

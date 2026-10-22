@@ -31,7 +31,6 @@ from planalign_orchestrator.exceptions import (
     ConcurrentInitializationError,
 )
 
-
 # ============================================================================
 # T011: Unit test TableExistenceChecker.is_initialized() returns False for empty DB
 # ============================================================================

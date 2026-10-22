@@ -83,9 +83,9 @@ class SuggestionEngine:
     def suggest(self, detected_columns: list[DetectedColumn]) -> list[ColumnSuggestion]:
         """Auto-suggest canonical field for each detected input column."""
         # First pass: score all columns against all fields
-        raw: list[
-            tuple[int, float, str, str, str]
-        ] = []  # (col_idx, score, canonical, reason, input)
+        raw: list[tuple[int, float, str, str, str]] = (
+            []
+        )  # (col_idx, score, canonical, reason, input)
         for idx, col in enumerate(detected_columns):
             norm = _normalize(col.name)
             best_score = 0.0

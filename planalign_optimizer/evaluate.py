@@ -119,9 +119,11 @@ def classify_candidate(
     status = (
         "non_evaluable"
         if missing
-        else "feasible"
-        if all(result.satisfied for result in constraint_results)
-        else "infeasible"
+        else (
+            "feasible"
+            if all(result.satisfied for result in constraint_results)
+            else "infeasible"
+        )
     )
     return Candidate(
         candidate_id=candidate_id,

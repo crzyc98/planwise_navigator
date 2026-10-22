@@ -16,7 +16,6 @@ from planalign_api.services.seed_config_validator import (
     validate_seed_configs,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
 # ---------------------------------------------------------------------------

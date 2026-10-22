@@ -154,9 +154,9 @@ class RunTelemetrySnapshot(APIModel):
 
     run_id: str
     scenario_id: str = ""
-    status: Literal[
-        "pending", "running", "completed", "failed", "cancelled"
-    ] = "running"
+    status: Literal["pending", "running", "completed", "failed", "cancelled"] = (
+        "running"
+    )
     progress: int = Field(0, ge=0, le=100)
     current_stage: str = "INITIALIZATION"
     current_year: int = 0
@@ -181,9 +181,9 @@ class RunTelemetryUpdate(APIModel):
 
     run_id: str
     scenario_id: str = ""
-    status: Literal[
-        "pending", "running", "completed", "failed", "cancelled"
-    ] = "running"
+    status: Literal["pending", "running", "completed", "failed", "cancelled"] = (
+        "running"
+    )
     progress: int = Field(0, ge=0, le=100)
     current_stage: str = "INITIALIZATION"
     current_year: int = 0

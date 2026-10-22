@@ -7,7 +7,6 @@ import duckdb
 from jinja2 import Environment, StrictUndefined
 import pytest
 
-
 MODEL = (
     Path(__file__).resolve().parents[2]
     / "dbt/models/staging/stg_census_duplicates_audit.sql"
@@ -33,8 +32,7 @@ def test_optional_columns_preserve_raw_duplicate_ranking(
         + (", TRUE AS active" if include_active else "")
     )
     with duckdb.connect(str(tmp_path / "audit.duckdb")) as conn:
-        conn.execute(
-            f"""COPY (
+        conn.execute(f"""COPY (
               SELECT employee_id, employee_hire_date, employee_gross_compensation
                 {optional_columns}
               FROM (VALUES
@@ -43,8 +41,7 @@ def test_optional_columns_preserve_raw_duplicate_ranking(
                 ('duplicate', DATE '2021-01-01', 85000),
                 ('unique', DATE '2020-01-01', 70000)
               ) AS census(employee_id, employee_hire_date, employee_gross_compensation)
-            ) TO '{parquet.as_posix()}' (FORMAT PARQUET)"""
-        )
+            ) TO '{parquet.as_posix()}' (FORMAT PARQUET)""")
         env = Environment(undefined=StrictUndefined)
         macro = env.from_string(SCAFFOLD.read_text()).module.census_schema_scaffold
         sql = env.from_string(MODEL.read_text()).render(

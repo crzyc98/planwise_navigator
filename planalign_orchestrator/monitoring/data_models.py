@@ -32,15 +32,15 @@ class PerformanceMetrics:
         """Convert metrics to dictionary for logging"""
         return {
             "operation": self.operation_name,
-            "duration_seconds": round(self.duration_seconds, 3)
-            if self.duration_seconds
-            else None,
-            "memory_delta_mb": round(self.memory_delta_mb, 2)
-            if self.memory_delta_mb
-            else None,
-            "peak_memory_mb": round(self.peak_memory_mb, 2)
-            if self.peak_memory_mb
-            else None,
+            "duration_seconds": (
+                round(self.duration_seconds, 3) if self.duration_seconds else None
+            ),
+            "memory_delta_mb": (
+                round(self.memory_delta_mb, 2) if self.memory_delta_mb else None
+            ),
+            "peak_memory_mb": (
+                round(self.peak_memory_mb, 2) if self.peak_memory_mb else None
+            ),
             "cpu_percent": round(self.cpu_percent, 1) if self.cpu_percent else None,
             "status": self.status,
             "error": self.error_message,

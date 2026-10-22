@@ -180,12 +180,16 @@ class HazardCacheManager:
                     if hasattr(auto, "opt_out_rates"):
                         opt_out = auto.opt_out_rates
                         params["simulation_config"]["enrollment"]["opt_out_rates"] = {
-                            "by_age": getattr(opt_out, "by_age", {}).dict()  # type: ignore[union-attr]
-                            if hasattr(getattr(opt_out, "by_age", {}), "dict")
-                            else getattr(opt_out, "by_age", {}),
-                            "by_income": getattr(opt_out, "by_income", {}).dict()  # type: ignore[union-attr]
-                            if hasattr(getattr(opt_out, "by_income", {}), "dict")
-                            else getattr(opt_out, "by_income", {}),
+                            "by_age": (
+                                getattr(opt_out, "by_age", {}).dict()  # type: ignore[union-attr]
+                                if hasattr(getattr(opt_out, "by_age", {}), "dict")
+                                else getattr(opt_out, "by_age", {})
+                            ),
+                            "by_income": (
+                                getattr(opt_out, "by_income", {}).dict()  # type: ignore[union-attr]
+                                if hasattr(getattr(opt_out, "by_income", {}), "dict")
+                                else getattr(opt_out, "by_income", {})
+                            ),
                         }
 
             # Include comp_levers.csv if exists
@@ -266,25 +270,21 @@ class HazardCacheManager:
             # the file from being created.
             with duckdb.connect(str(metadata_db)) as conn:
                 # Check if metadata table exists first
-                table_check = conn.execute(
-                    """
+                table_check = conn.execute("""
                     SELECT COUNT(*)
                     FROM information_schema.tables
                     WHERE table_name = 'hazard_cache_metadata'
-                """
-                ).fetchone()
+                """).fetchone()
 
                 if table_check and table_check[0] > 0:
                     # Query cache metadata table for current hash
-                    result = conn.execute(
-                        """
+                    result = conn.execute("""
                         SELECT params_hash
                         FROM hazard_cache_metadata
                         WHERE is_current = TRUE
                         ORDER BY built_at DESC
                         LIMIT 1
-                    """
-                    ).fetchall()
+                    """).fetchall()
 
                     if result:
                         params_hash = result[0][0]
@@ -550,18 +550,15 @@ class HazardCacheManager:
             # conflicts with an existing read-write connection to the same file.
             with duckdb.connect(str(metadata_db)) as conn:
                 # Check if metadata table exists first
-                table_check = conn.execute(
-                    """
+                table_check = conn.execute("""
                     SELECT COUNT(*)
                     FROM information_schema.tables
                     WHERE table_name = 'hazard_cache_metadata'
-                """
-                ).fetchone()
+                """).fetchone()
 
                 if table_check and table_check[0] > 0:
                     # Query cache metadata for statistics
-                    results = conn.execute(
-                        """
+                    results = conn.execute("""
                         SELECT
                             cache_name,
                             built_at,
@@ -570,8 +567,7 @@ class HazardCacheManager:
                         FROM hazard_cache_metadata
                         WHERE is_current = TRUE
                         ORDER BY cache_name
-                    """
-                    ).fetchall()
+                    """).fetchall()
 
                     if results:
                         self.logger.info("Hazard cache statistics:")

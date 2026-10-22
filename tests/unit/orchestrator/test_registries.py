@@ -13,18 +13,15 @@ from planalign_orchestrator.utils import DatabaseConnectionManager
 def _setup_db(db_path: Path):
     conn = duckdb.connect(str(db_path))
     # baseline workforce table
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE int_baseline_workforce (
             employee_id VARCHAR,
             employment_status VARCHAR,
             employee_enrollment_date DATE
         )
-        """
-    )
+        """)
     # yearly events table (matches actual schema with effective_date)
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE fct_yearly_events (
             employee_id VARCHAR,
             event_type VARCHAR,
@@ -32,8 +29,7 @@ def _setup_db(db_path: Path):
             effective_date DATE,
             event_details VARCHAR
         )
-        """
-    )
+        """)
     conn.close()
 
 

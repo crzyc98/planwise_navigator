@@ -130,15 +130,13 @@ def test_complementary_cohort_forfeitures_sum_to_unfiltered_by_year(
 ):
     conn = duckdb.connect(str(scenario_db))
     try:
-        conn.execute(
-            """
+        conn.execute("""
             INSERT INTO fct_workforce_snapshot VALUES
                 ('new', 2026, 'ACTIVE', DATE '2025-01-01', NULL, 1, '<2', 2080,
                  300.0, 200.0, 500.0, 80000.0),
                 ('new', 2027, 'TERMINATED', DATE '2025-01-01', DATE '2027-06-30',
                  1, '<2', 1040, 0.0, 0.0, 0.0, 40000.0)
-            """
-        )
+            """)
     finally:
         conn.close()
 

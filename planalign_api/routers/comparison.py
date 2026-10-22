@@ -1,6 +1,5 @@
 """Scenario comparison endpoints."""
 
-
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from ..config import APISettings, get_settings

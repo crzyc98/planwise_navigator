@@ -542,9 +542,9 @@ class ParallelExecutionEngine:
             model_results=model_results,
             execution_time=execution_time,
             parallelism_achieved=max_parallel,
-            resource_usage=resource_manager.get_resource_status()
-            if resource_manager
-            else {},
+            resource_usage=(
+                resource_manager.get_resource_status() if resource_manager else {}
+            ),
             errors=errors,
         )
 
@@ -690,9 +690,9 @@ class ParallelExecutionEngine:
 
                 # Override random_seed with deterministic thread-local value
                 deterministic_vars["thread_local_seed"] = thread_seed
-                deterministic_vars[
-                    "model_execution_id"
-                ] = f"{context.execution_id}:{model}"
+                deterministic_vars["model_execution_id"] = (
+                    f"{context.execution_id}:{model}"
+                )
 
             # Execute the model
             result = self.dbt_runner.execute_command(
@@ -740,9 +740,7 @@ class ParallelExecutionEngine:
 
             model_seed_str = f"{execution_order:03d}:{model}:{context.simulation_year}:{context.dbt_vars.get('random_seed', 42)}"
             model_seed_hash = hashlib.sha256(model_seed_str.encode()).hexdigest()[:8]
-            model_seed = int(model_seed_hash, 16) % (
-                2**31
-            )  # Ensure 32-bit signed int
+            model_seed = int(model_seed_hash, 16) % (2**31)  # Ensure 32-bit signed int
 
             # Override dbt vars with deterministic values
             deterministic_vars.update(
@@ -893,21 +891,25 @@ class ParallelExecutionEngine:
             "parallel_safe": len(parallel_safe),
             "sequential_required": len(sequential),
             "conditional": len(conditional),
-            "parallelization_ratio": len(parallel_safe) / len(all_models)
-            if all_models
-            else 0,
-            "max_theoretical_speedup": min(len(parallel_safe), self.max_workers)
-            if parallel_safe
-            else 1,
+            "parallelization_ratio": (
+                len(parallel_safe) / len(all_models) if all_models else 0
+            ),
+            "max_theoretical_speedup": (
+                min(len(parallel_safe), self.max_workers) if parallel_safe else 1
+            ),
             "parallel_groups": self.classifier.get_parallel_groups(parallel_safe),
             "resource_limits": {
                 "max_workers": self.max_workers,
-                "memory_limit_mb": self.legacy_resource_monitor.memory_threshold_mb
-                if self.legacy_resource_monitor
-                else 0,
-                "cpu_threshold_pct": self.legacy_resource_monitor.cpu_threshold_pct
-                if self.legacy_resource_monitor
-                else 0,
+                "memory_limit_mb": (
+                    self.legacy_resource_monitor.memory_threshold_mb
+                    if self.legacy_resource_monitor
+                    else 0
+                ),
+                "cpu_threshold_pct": (
+                    self.legacy_resource_monitor.cpu_threshold_pct
+                    if self.legacy_resource_monitor
+                    else 0
+                ),
             },
         }
 

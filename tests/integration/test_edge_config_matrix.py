@@ -29,7 +29,7 @@ def test_catalog_shape(edge_catalog: tuple[EdgeConfigScenario, ...]) -> None:
 
 
 def test_fixture_groups_are_non_empty(
-    edge_catalog: tuple[EdgeConfigScenario, ...]
+    edge_catalog: tuple[EdgeConfigScenario, ...],
 ) -> None:
     from tests.fixtures.edge_config_matrix import load_case_frame
 

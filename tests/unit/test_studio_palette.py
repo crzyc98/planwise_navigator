@@ -13,7 +13,6 @@ from tests.fixtures.studio_theme import (
     load_palette_source,
 )
 
-
 pytestmark = pytest.mark.fast
 
 

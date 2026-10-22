@@ -221,15 +221,15 @@ def run_gc(
 
 def gc_command(
     yes: bool = typer.Option(False, "--yes", help="Delete (default is a dry run)"),
-    older_than_days: int
-    | None = typer.Option(
+    older_than_days: int | None = typer.Option(
         None,
         "--older-than-days",
         min=0,
         help="var/ artifact age cutoff (default: storage.artifact_max_age_days)",
     ),
-    workspaces_root: Path
-    | None = typer.Option(None, "--workspaces-root", help="Studio workspace root"),
+    workspaces_root: Path | None = typer.Option(
+        None, "--workspaces-root", help="Studio workspace root"
+    ),
 ) -> None:
     """Reclaim disk from old Studio runs and aged var/ campaign artifacts."""
     run_gc(yes, older_than_days, workspaces_root)

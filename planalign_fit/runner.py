@@ -175,29 +175,29 @@ def _fit_scalars(
     priors: Priors,
     options: FitOptions,
 ) -> None:
-    result.config_overrides[
-        "workforce.total_termination_rate"
-    ] = hazards.fit_scalar_rate(
-        transitions.conn,
-        "workforce.total_termination_rate",
-        transitions.table,
-        "terminated",
-        float(priors.config_value("workforce.total_termination_rate", 0.12)),
-        credibility_k=options.credibility_k,
-        min_exposure=options.min_exposure,
+    result.config_overrides["workforce.total_termination_rate"] = (
+        hazards.fit_scalar_rate(
+            transitions.conn,
+            "workforce.total_termination_rate",
+            transitions.table,
+            "terminated",
+            float(priors.config_value("workforce.total_termination_rate", 0.12)),
+            credibility_k=options.credibility_k,
+            min_exposure=options.min_exposure,
+        )
     )
 
     if transitions.observability.has_termination_rows:
-        result.config_overrides[
-            "workforce.new_hire_termination_rate"
-        ] = hazards.fit_scalar_rate(
-            transitions.conn,
-            "workforce.new_hire_termination_rate",
-            transitions.new_hires_table,
-            "terminated",
-            float(priors.config_value("workforce.new_hire_termination_rate", 0.25)),
-            credibility_k=options.credibility_k,
-            min_exposure=options.min_exposure,
+        result.config_overrides["workforce.new_hire_termination_rate"] = (
+            hazards.fit_scalar_rate(
+                transitions.conn,
+                "workforce.new_hire_termination_rate",
+                transitions.new_hires_table,
+                "terminated",
+                float(priors.config_value("workforce.new_hire_termination_rate", 0.25)),
+                credibility_k=options.credibility_k,
+                min_exposure=options.min_exposure,
+            )
         )
     else:
         result.unfittable.append(
@@ -338,9 +338,9 @@ def _fit_deferral(
                 )
             )
         else:
-            result.config_overrides[
-                escalation.increment_amount.name
-            ] = escalation.increment_amount
+            result.config_overrides[escalation.increment_amount.name] = (
+                escalation.increment_amount
+            )
             result.diagnostics["escalation_adoption_rate"] = escalation.adoption_rate
             result.diagnostics["escalation_exposure"] = escalation.exposure
 

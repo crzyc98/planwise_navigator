@@ -460,13 +460,11 @@ class BandService:
             # Calculate age using validated column names
             conn.execute("ALTER TABLE census ADD COLUMN _age INTEGER")
             if recent_hires_only and hire_date_col:
-                conn.execute(
-                    f"""
+                conn.execute(f"""
                     UPDATE census SET _age = FLOOR(
                         DATEDIFF('day', CAST({birth_date_col} AS DATE), CAST({hire_date_col} AS DATE)) / 365.25
                     )
-                """
-                )
+                """)
             else:
                 conn.execute(
                     f"""
@@ -486,8 +484,7 @@ class BandService:
                 raise ValueError("No employees with valid age data found")
 
             # Calculate distribution statistics
-            stats = conn.execute(
-                """
+            stats = conn.execute("""
                 SELECT
                     COUNT(_age) as total,
                     MIN(_age) as min_age,
@@ -500,8 +497,7 @@ class BandService:
                     QUANTILE_CONT(_age, 0.75) as p75,
                     QUANTILE_CONT(_age, 0.90) as p90
                 FROM census
-            """
-            ).fetchone()
+            """).fetchone()
             assert stats is not None, "Expected a row from aggregate query"
 
             # Generate suggested bands using percentile-based boundaries
@@ -737,8 +733,7 @@ class BandService:
                 raise ValueError("No employees with valid tenure data found")
 
             # Calculate distribution statistics
-            stats = conn.execute(
-                """
+            stats = conn.execute("""
                 SELECT
                     COUNT(_tenure) as total,
                     MIN(_tenure) as min_tenure,
@@ -751,8 +746,7 @@ class BandService:
                     QUANTILE_CONT(_tenure, 0.75) as p75,
                     QUANTILE_CONT(_tenure, 0.90) as p90
                 FROM census
-            """
-            ).fetchone()
+            """).fetchone()
             assert stats is not None, "Expected a row from aggregate query"
 
             # Generate suggested bands using percentile-based boundaries

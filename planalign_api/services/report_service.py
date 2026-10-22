@@ -120,11 +120,13 @@ def _append_scenario(
                 contribution.get(year), "participation_rate", None
             ),
             employer_cost=(
-                getattr(contribution.get(year), "total_employer_match", 0.0)
-                + getattr(contribution.get(year), "total_employer_core", 0.0)
-            )
-            if contribution.get(year)
-            else None,
+                (
+                    getattr(contribution.get(year), "total_employer_match", 0.0)
+                    + getattr(contribution.get(year), "total_employer_core", 0.0)
+                )
+                if contribution.get(year)
+                else None
+            ),
         )
         for year in years
     ]
@@ -387,9 +389,9 @@ def _add_pptx_footer(slide, report: ScenarioReport) -> None:
         f"{item.scenario_id} / config {item.config_fingerprint or 'unavailable'}"
         for item in report.provenance
     )
-    slide.shapes.add_textbox(
-        400000, 6800000, 9000000, 250000
-    ).text_frame.text = f"Traceable PlanAlign report — {trace}"
+    slide.shapes.add_textbox(400000, 6800000, 9000000, 250000).text_frame.text = (
+        f"Traceable PlanAlign report — {trace}"
+    )
 
 
 def _money(value: float | None) -> str:

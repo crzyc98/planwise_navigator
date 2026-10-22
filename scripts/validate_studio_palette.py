@@ -17,7 +17,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Literal, Sequence
 
-
 Mode = Literal["light", "dark"]
 CheckResult = tuple[list[str], list[str], list[str]]
 

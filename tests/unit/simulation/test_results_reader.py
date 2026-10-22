@@ -155,18 +155,15 @@ class TestWorkforceProgressionQuery:
 
     def _make_db(self) -> duckdb.DuckDBPyConnection:
         conn = duckdb.connect()
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE fct_workforce_snapshot (
                 employee_id VARCHAR,
                 simulation_year INTEGER,
                 employment_status VARCHAR,
                 prorated_annual_compensation DOUBLE
             )
-        """
-        )
-        conn.execute(
-            """
+        """)
+        conn.execute("""
             INSERT INTO fct_workforce_snapshot VALUES
                 -- 2025: 3 active, 2 terminated
                 ('E001', 2025, 'active', 100000),
@@ -180,8 +177,7 @@ class TestWorkforceProgressionQuery:
                 ('E003', 2026, 'active', 93000),
                 ('E006', 2026, 'active', 95000),
                 ('E007', 2026, 'terminated', 60000)
-        """
-        )
+        """)
         return conn
 
     def test_active_filter_counts_only_active_employees(self):
@@ -226,15 +222,13 @@ class TestEventTrendsQuery:
 
     def _make_db(self, rows: list) -> duckdb.DuckDBPyConnection:
         conn = duckdb.connect()
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE fct_yearly_events (
                 employee_id VARCHAR,
                 simulation_year INTEGER,
                 event_type VARCHAR
             )
-        """
-        )
+        """)
         if rows:
             placeholders = ", ".join(["?"] * 3)
             conn.executemany(
@@ -292,8 +286,7 @@ class TestParticipationRateQuery:
 
     def _make_db(self) -> duckdb.DuckDBPyConnection:
         conn = duckdb.connect()
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE fct_workforce_snapshot (
                 employee_id VARCHAR,
                 simulation_year INTEGER,
@@ -301,18 +294,15 @@ class TestParticipationRateQuery:
                 participation_status VARCHAR,
                 prorated_annual_compensation DOUBLE
             )
-        """
-        )
-        conn.execute(
-            """
+        """)
+        conn.execute("""
             INSERT INTO fct_workforce_snapshot VALUES
                 ('E001', 2026, 'active', 'participating', 100000),
                 ('E002', 2026, 'active', 'participating', 100000),
                 ('E003', 2026, 'active', 'not_participating', 100000),
                 ('E004', 2026, 'terminated', 'participating', 100000),
                 ('E005', 2026, 'terminated', 'not_participating', 100000)
-        """
-        )
+        """)
         return conn
 
     def test_active_filter_excludes_terminated_from_denominator(self):

@@ -14,7 +14,6 @@ from planalign_orchestrator import ConstructionSpec, build_orchestrator
 from planalign_orchestrator.config import load_simulation_config
 from tests.fixtures.edge_config_matrix import SHARED_DEV_DB, file_signature
 
-
 pytestmark = [pytest.mark.integration, pytest.mark.very_slow]
 
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures/integrated_core"
@@ -248,7 +247,7 @@ def test_flat_vs_integrated_cost_delta_equals_disparity_total(
 
 
 def test_disparity_composes_with_every_core_status(
-    mode_databases: dict[str, Path]
+    mode_databases: dict[str, Path],
 ) -> None:
     for name, database in mode_databases.items():
         violations = _query(
@@ -270,7 +269,7 @@ def test_disparity_composes_with_every_core_status(
 
 
 def test_graded_schedule_keeps_its_base_rate_below_and_above_the_level(
-    mode_databases: dict[str, Path]
+    mode_databases: dict[str, Path],
 ) -> None:
     rows = _query(
         mode_databases["core_mode_graded_by_service_integrated"],
@@ -300,13 +299,11 @@ def test_disabled_integration_matches_an_omitted_integration_block(
         with duckdb.connect() as connection:
             connection.execute(f"ATTACH '{disabled}' AS disabled (READ_ONLY)")
             connection.execute(f"ATTACH '{omitted}' AS omitted (READ_ONLY)")
-            differences = connection.execute(
-                f"""
+            differences = connection.execute(f"""
                 SELECT {PARITY_COLUMNS} FROM disabled.int_employer_core_contributions
                 EXCEPT
                 SELECT {PARITY_COLUMNS} FROM omitted.int_employer_core_contributions
-                """
-            ).fetchall()
+                """).fetchall()
         assert differences == [], config_path.stem
     assert file_signature(SHARED_DEV_DB) == shared_db_signature
 

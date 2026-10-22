@@ -509,12 +509,10 @@ def get_winners_losers_employees(
     comparison_year: int = Query(
         ..., description="Year returned by the comparison summary"
     ),
-    plan_a_run_id: str
-    | None = Query(
+    plan_a_run_id: str | None = Query(
         None, description="Run ID returned by the summary; omit for legacy results"
     ),
-    plan_b_run_id: str
-    | None = Query(
+    plan_b_run_id: str | None = Query(
         None, description="Run ID returned by the summary; omit for legacy results"
     ),
     age_band: str | None = Query(None),

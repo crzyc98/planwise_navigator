@@ -55,9 +55,9 @@ def _client(storage: MagicMock, service: MagicMock) -> TestClient:
     app = FastAPI()
     app.include_router(comparison_router.router, prefix="/api/workspaces")
     app.dependency_overrides[comparison_router.get_storage] = lambda: storage
-    app.dependency_overrides[
-        comparison_router.get_config_diff_service
-    ] = lambda: service
+    app.dependency_overrides[comparison_router.get_config_diff_service] = (
+        lambda: service
+    )
     return TestClient(app)
 
 

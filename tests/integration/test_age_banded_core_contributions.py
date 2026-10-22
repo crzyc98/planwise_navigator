@@ -384,7 +384,7 @@ def core_mode_run(
 
 
 def test_existing_mode_rate_matches_its_configured_schedule(
-    core_mode_run: tuple[CoreMode, Path]
+    core_mode_run: tuple[CoreMode, Path],
 ) -> None:
     """FR-007: flat, service-graded, and points-based selection is unchanged."""
     mode, database = core_mode_run
@@ -406,7 +406,7 @@ def test_existing_mode_rate_matches_its_configured_schedule(
 
 
 def test_existing_mode_amount_agrees_with_audited_rate(
-    core_mode_run: tuple[CoreMode, Path]
+    core_mode_run: tuple[CoreMode, Path],
 ) -> None:
     """FR-006 holds for every core mode, not only the age-banded one."""
     mode, database = core_mode_run
@@ -429,7 +429,7 @@ def test_existing_mode_amount_agrees_with_audited_rate(
 
 
 def test_existing_mode_exercises_its_tiers(
-    core_mode_run: tuple[CoreMode, Path]
+    core_mode_run: tuple[CoreMode, Path],
 ) -> None:
     """Keep the two assertions above from passing on a single-tier population."""
     mode, database = core_mode_run

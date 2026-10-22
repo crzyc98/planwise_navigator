@@ -209,11 +209,9 @@ def test_calibration_self_heals_missing_enrollment_projection(
     conn = duckdb.connect(str(runner.database_path), read_only=True)
     columns = {
         row[0]
-        for row in conn.execute(
-            """SELECT column_name FROM information_schema.columns
+        for row in conn.execute("""SELECT column_name FROM information_schema.columns
                WHERE table_schema = 'main'
-                 AND table_name = 'enrollment_decision_projection'"""
-        ).fetchall()
+                 AND table_name = 'enrollment_decision_projection'""").fetchall()
     }
     conn.close()
     assert columns == set(EnrollmentDecisionProjection._columns)

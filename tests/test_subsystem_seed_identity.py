@@ -12,7 +12,6 @@ from planalign_orchestrator.config import load_simulation_config
 from planalign_orchestrator.construction import ConstructionSpec, build_orchestrator
 from tests.invariants.comparison import COMPARED_TABLES, compare_tables
 
-
 pytest_plugins = ("tests.fixtures.invariant_simulation",)
 
 

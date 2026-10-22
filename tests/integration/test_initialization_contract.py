@@ -48,15 +48,13 @@ def _assert_multiset_equal(first: Path, second: Path, table: str) -> None:
             ("first_run", "second_run"),
             ("second_run", "first_run"),
         ):
-            differences = conn.execute(
-                f"""
+            differences = conn.execute(f"""
                 SELECT COUNT(*) FROM (
                     SELECT {projection} FROM {left}.{table}
                     EXCEPT ALL
                     SELECT {projection} FROM {right}.{table}
                 )
-                """
-            ).fetchone()[0]
+                """).fetchone()[0]
             assert differences == 0
 
 
