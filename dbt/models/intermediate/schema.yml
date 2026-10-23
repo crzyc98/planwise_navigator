@@ -338,7 +338,7 @@ models:
       - name: annual_hours_worked
         description: Annual hours used by the core eligibility calculation.
       - name: eligible_compensation
-        description: Compensation used for contribution calculation
+        description: Actual earned compensation from workforce prorated_annual_compensation, before the IRS cap.
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
@@ -426,7 +426,7 @@ models:
             severity: error
       - dbt_utils.expression_is_true:
           arguments:
-            expression: "ABS(employer_core_amount - (eligible_compensation * core_contribution_rate)) < 0.01"
+            expression: "ABS(base_core_amount - ROUND(LEAST(eligible_compensation, irs_401a17_limit) * core_contribution_rate, 2)) <= 0.01 AND ABS(employer_core_amount - base_core_amount - disparity_core_amount) <= 0.01"
           config:
             severity: warn
 

@@ -160,18 +160,24 @@ def test_integrated_amounts_reconcile_to_the_audited_components(
     assert violations == []
 
 
-def test_employee_at_integration_level_receives_no_disparity(
+def test_employee_starting_at_integration_level_gets_disparity_only_above_it(
     integrated_db: Path,
 ) -> None:
+    # CORE_AT_BASE starts the year at the wage base; core uses actual earned pay
+    # (#856), so only the in-year raise above the wage base earns disparity.
     row = _query(
         integrated_db,
         """
-        SELECT excess_compensation, disparity_core_amount
+        SELECT eligible_compensation, ss_wage_base, excess_compensation
         FROM int_employer_core_contributions
         WHERE employee_id = 'CORE_AT_BASE'
         """,
     )
-    assert row == [(0, 0)]
+    assert len(row) == 1
+    compensation, wage_base, excess = row[0]
+    assert float(excess) == pytest.approx(
+        max(0.0, float(compensation) - float(wage_base)), abs=0.01
+    )
 
 
 def test_cap_applies_before_split(integrated_db: Path) -> None:

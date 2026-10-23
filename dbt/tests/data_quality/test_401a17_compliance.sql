@@ -78,21 +78,21 @@ core_violations AS (
         cc.employee_id,
         cc.simulation_year,
         cc.eligible_compensation,
-        cc.employer_core_amount AS employer_contribution_amount,
+        cc.base_core_amount AS employer_contribution_amount,
         lim.irs_401a17_limit,
         -- Maximum allowable core based on capped compensation
         ROUND(LEAST(cc.eligible_compensation, lim.irs_401a17_limit) * cc.core_contribution_rate, 2) AS max_allowable_amount,
         'core' AS violation_type,
-        cc.employer_core_amount - ROUND(LEAST(cc.eligible_compensation, lim.irs_401a17_limit) * cc.core_contribution_rate, 2) AS excess_amount
+        cc.base_core_amount - ROUND(LEAST(cc.eligible_compensation, lim.irs_401a17_limit) * cc.core_contribution_rate, 2) AS excess_amount
     FROM {{ ref('int_employer_core_contributions') }} cc
     CROSS JOIN irs_limits lim
     WHERE cc.simulation_year = {{ simulation_year }}
       -- Only check high earners (above 401(a)(17) limit)
       AND cc.eligible_compensation > lim.irs_401a17_limit
       -- Violation: core exceeds what would be allowed with capped compensation
-      AND cc.employer_core_amount > ROUND(LEAST(cc.eligible_compensation, lim.irs_401a17_limit) * cc.core_contribution_rate, 2)
+      AND cc.base_core_amount > ROUND(LEAST(cc.eligible_compensation, lim.irs_401a17_limit) * cc.core_contribution_rate, 2)
       -- Only check employees with actual core amounts
-      AND cc.employer_core_amount > 0
+      AND cc.base_core_amount > 0
 )
 
 -- Return all violations

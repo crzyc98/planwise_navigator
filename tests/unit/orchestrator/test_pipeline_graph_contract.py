@@ -239,10 +239,14 @@ def test_employer_core_consumes_workforce_state_and_eligibility():
 
     assert _refs(path) == {
         "config_irs_limits",
-        MODEL_FCT_YEARLY_EVENTS,
         "int_employer_eligibility",
         MODEL_INT_WORKFORCE_STATE_ACCUMULATOR,
     }
+
+    source = path.read_text()
+    assert "workforce.prorated_annual_compensation," in source
+    assert "pop.prorated_annual_compensation AS eligible_compensation" in source
+    assert "starting_compensation" not in source
 
 
 def test_employee_match_consumes_canonical_workforce_and_benefit_inputs():

@@ -6,13 +6,13 @@
 
   Validates the comprehensive fix for new hire core contribution proration implemented in Epic S065-02.
   Ensures that new hire core contributions are properly calculated based on prorated compensation,
-  not full annual compensation, maintaining the ~1% contribution rate accuracy.
+  not full annual compensation, using the configured base rate plus any permitted disparity.
 
   The Problem (Story S065-02):
   - New hires were receiving core contributions based on full annual compensation
   - Should receive contributions based on prorated compensation from hire date to year-end
   - Employees with <1000 hours should receive $0 core contributions
-  - Core contribution rate should be approximately 1% of prorated compensation
+  - Base core uses the configured rate on capped actual earned compensation
 
   The Solution:
   - Fixed proration logic in int_employer_core_contributions.sql
@@ -21,7 +21,7 @@
   - Validation of rate consistency across the workforce
 
   Key Validations:
-  - Verifies proper proration for new hires (rate ~1% of prorated, not annual compensation)
+  - Verifies proper proration for new hires (configured base rate on capped prorated compensation)
   - Validates <1000 hour employees receive $0 core contributions
   - Checks for rate consistency violations (deviation > 0.1% from expected rate)
   - Ensures no regression in existing functionality
@@ -73,6 +73,7 @@ employer_core_data AS (
         annual_hours_worked,
         core_contribution_rate,
         irs_401a17_limit,
+        disparity_core_amount,
         employer_core_amount
     FROM {{ ref('int_employer_core_contributions') }}
     WHERE simulation_year = {{ simulation_year }}
@@ -115,6 +116,7 @@ employee_analysis AS (
         ecd.employer_core_amount AS calculated_core_amount,
         ecd.eligible_for_core,
         ecd.eligible_compensation,
+        ecd.disparity_core_amount,
         ecd.irs_401a17_limit,
         ecd.core_contribution_rate AS expected_core_rate,
 
@@ -124,12 +126,12 @@ employee_analysis AS (
                  AND ecd.eligible_compensation > 0
                  AND COALESCE(ws.annual_hours_worked, 0) >= 1000
             THEN ROUND(
-                LEAST(ecd.eligible_compensation, ecd.irs_401a17_limit)
+                LEAST(ws.prorated_annual_compensation, ecd.irs_401a17_limit)
                 * ecd.core_contribution_rate,
                 2
             )
             ELSE 0.00
-        END AS expected_core_amount_prorated,
+        END + COALESCE(ecd.disparity_core_amount, 0) AS expected_core_amount_prorated,
 
         -- Calculate what core would be if incorrectly based on annual compensation
         CASE
@@ -163,6 +165,7 @@ validation_results AS (
         final_core_amount,
         calculated_core_amount,
         eligible_compensation,
+        disparity_core_amount,
         irs_401a17_limit,
         expected_core_amount_prorated,
         incorrect_core_amount_annual,
@@ -208,12 +211,12 @@ validation_results AS (
             WHEN eligible_for_core = true
                  AND COALESCE(annual_hours_worked, 0) >= 1000
                  AND eligible_compensation > 0
-                 AND ABS((COALESCE(final_core_amount, 0) / LEAST(eligible_compensation, irs_401a17_limit)) - expected_core_rate) <= {{ rate_tolerance }}
+                 AND ABS(((COALESCE(final_core_amount, 0) - COALESCE(disparity_core_amount, 0)) / LEAST(prorated_annual_compensation, irs_401a17_limit)) - expected_core_rate) <= {{ rate_tolerance }}
             THEN 'PASS'
             WHEN eligible_for_core = true
                  AND COALESCE(annual_hours_worked, 0) >= 1000
                  AND eligible_compensation > 0
-                 AND ABS((COALESCE(final_core_amount, 0) / LEAST(eligible_compensation, irs_401a17_limit)) - expected_core_rate) > {{ rate_tolerance }}
+                 AND ABS(((COALESCE(final_core_amount, 0) - COALESCE(disparity_core_amount, 0)) / LEAST(prorated_annual_compensation, irs_401a17_limit)) - expected_core_rate) > {{ rate_tolerance }}
             THEN 'FAIL'
             ELSE 'N/A'
         END AS rate_consistency_validation,
@@ -221,7 +224,7 @@ validation_results AS (
         -- Calculate actual rate for analysis
         CASE
             WHEN eligible_compensation > 0
-            THEN ROUND(COALESCE(final_core_amount, 0) / LEAST(eligible_compensation, irs_401a17_limit), 4)
+            THEN ROUND((COALESCE(final_core_amount, 0) - COALESCE(disparity_core_amount, 0)) / LEAST(prorated_annual_compensation, irs_401a17_limit), 4)
             ELSE 0
         END AS actual_core_rate,
 

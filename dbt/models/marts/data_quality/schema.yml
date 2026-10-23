@@ -344,13 +344,13 @@ models:
 
       Validates the comprehensive fix for new hire core contribution proration implemented in Story S065-02.
       Ensures that new hire core contributions are properly calculated based on prorated compensation,
-      not full annual compensation, maintaining the ~1% contribution rate accuracy.
+      not full annual compensation, using the configured base rate plus any permitted disparity.
 
       **The Problem (Story S065-02):**
       - New hires were receiving core contributions based on full annual compensation
       - Should receive contributions based on prorated compensation from hire date to year-end
       - Employees with <1000 hours should receive $0 core contributions
-      - Core contribution rate should be approximately 1% of prorated compensation
+      - Base core uses the configured rate on capped actual earned compensation
 
       **The Solution:**
       - Fixed proration logic in int_employer_core_contributions.sql
@@ -359,7 +359,7 @@ models:
       - Validation of rate consistency across the workforce
 
       **VALIDATION CATEGORIES:**
-      - A. New Hire Proration Validation (rate ~1% of prorated, not annual compensation)
+      - A. New Hire Proration Validation (configured base rate on capped prorated compensation)
       - B. Low Hours Validation (<1000 hour employees receive $0 core)
       - C. Rate Consistency Validation (deviation <= 0.1% from expected rate)
       - D. Compensation Basis Validation (ensuring prorated vs annual usage)

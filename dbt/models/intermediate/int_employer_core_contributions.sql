@@ -38,8 +38,9 @@
   - applied_years_of_service field provides audit trail for tier selection
 
   Workforce status, dates, tenure, age, and population are owned by
-  int_workforce_state_accumulator. The starting-compensation fact is retained only
-  to preserve the accepted core contribution basis independently of deferral state.
+  int_workforce_state_accumulator. Core uses its actual earned compensation,
+  prorated for hires and terminations and time-weighted across compensation events.
+  The IRS-capped basis applies to both base and permitted-disparity contributions.
 */
 
 {% set simulation_year = var('simulation_year', 2025) | int %}
@@ -121,55 +122,12 @@ plan_design_core_points_schedule AS (
 {% endif %}
 {% endif %}
 
-starting_compensation AS (
-    SELECT
-        employee_id,
-        plan_design_id,
-        ARG_MIN(
-            CASE
-                WHEN event_type = 'hire' THEN compensation_amount
-                WHEN event_type IN ('promotion', 'raise') THEN previous_compensation
-            END,
-            effective_date
-        ) FILTER (WHERE event_type IN ('hire', 'promotion', 'raise'))
-            AS starting_compensation
-    FROM {{ ref('fct_yearly_events') }}
-    WHERE scenario_id = '{{ scenario_id }}'
-      AND simulation_year = {{ simulation_year }}
-    GROUP BY employee_id, plan_design_id
-),
-
 population AS (
     SELECT
         workforce.employee_id,
         workforce.plan_design_id,
         workforce.simulation_year,
-        COALESCE(starting.starting_compensation, workforce.current_compensation)
-            AS employee_compensation,
-        CASE
-            WHEN EXTRACT(YEAR FROM workforce.employee_hire_date)
-                = {{ simulation_year }} THEN
-                ROUND(
-                    COALESCE(
-                        starting.starting_compensation,
-                        workforce.current_compensation
-                    ) * LEAST(365, GREATEST(0,
-                        DATEDIFF(
-                            'day',
-                            workforce.employee_hire_date::DATE,
-                            COALESCE(
-                                workforce.termination_date::DATE,
-                                '{{ simulation_year }}-12-31'::DATE
-                            )
-                        ) + 1
-                    )) / 365.0,
-                    2
-                )
-            ELSE COALESCE(
-                starting.starting_compensation,
-                workforce.current_compensation
-            )
-        END AS prorated_annual_compensation,
+        workforce.prorated_annual_compensation,
         CASE
             WHEN workforce.detailed_status_code = 'experienced_termination'
                 THEN 'active'
@@ -180,24 +138,9 @@ population AS (
         workforce.detailed_status_code,
         workforce.termination_date::DATE AS termination_date
     FROM {{ ref('int_workforce_state_accumulator') }} workforce
-    LEFT JOIN starting_compensation starting
-      ON workforce.employee_id = starting.employee_id
-     AND workforce.plan_design_id = starting.plan_design_id
     WHERE workforce.scenario_id = '{{ scenario_id }}'
       AND workforce.simulation_year = {{ simulation_year }}
       AND workforce.employee_id IS NOT NULL
-),
-
-workforce_proration AS (
-    SELECT
-        employee_id,
-        plan_design_id,
-        simulation_year,
-        employee_compensation AS current_compensation,
-        prorated_annual_compensation,
-        employment_status,
-        termination_date
-    FROM population
 ),
 
 eligibility_check AS (
@@ -244,18 +187,18 @@ SELECT
     pop.employee_id,
     pop.plan_design_id,
     pop.simulation_year,
-    -- Prefer workforce proration; else use population prorated value; else fall back to employee compensation
-    COALESCE(wf.prorated_annual_compensation, pop.prorated_annual_compensation, pop.employee_compensation) AS eligible_compensation,
-    COALESCE(wf.employment_status, pop.employment_status) AS employment_status,
+    -- Actual earned compensation from canonical workforce state
+    pop.prorated_annual_compensation AS eligible_compensation,
+    pop.employment_status AS employment_status,
     elig.eligible_for_core,
     elig.annual_hours_worked,
     -- E026: IRS 401(a)(17) limit for audit trail
     lim.irs_401a17_limit,
     -- E026: Track if 401(a)(17) limit was applied
-    COALESCE(wf.prorated_annual_compensation, pop.prorated_annual_compensation, pop.employee_compensation) > lim.irs_401a17_limit AS irs_401a17_limit_applied,
+    pop.prorated_annual_compensation > lim.irs_401a17_limit AS irs_401a17_limit_applied,
     lim.social_security_wage_base AS ss_wage_base,
     LEAST(
-        COALESCE(wf.prorated_annual_compensation, pop.prorated_annual_compensation, pop.employee_compensation),
+        pop.prorated_annual_compensation,
         lim.irs_401a17_limit
     ) AS recognized_compensation,
 
@@ -265,11 +208,11 @@ SELECT
     CASE
         WHEN {{ employer_core_enabled }}
             AND COALESCE(elig.eligible_for_core, FALSE) = TRUE
-            AND COALESCE(wf.prorated_annual_compensation, pop.prorated_annual_compensation, pop.employee_compensation) > 0
+            AND pop.prorated_annual_compensation > 0
             -- Enforce EOY active unless exceptions are allowed
             AND (
                 {% if core_require_active_eoy %}
-                    COALESCE(wf.employment_status, pop.employment_status) = 'active'
+                    pop.employment_status = 'active'
                     OR (
                         (COALESCE(term.has_new_hire_termination, FALSE) AND ({{ 'true' if core_allow_terminated_new_hires else 'false' }}))
                         OR (COALESCE(term.has_experienced_termination, FALSE) AND ({{ 'true' if core_allow_experienced_terminations else 'false' }}))
@@ -297,7 +240,7 @@ SELECT
         THEN ROUND(
             -- E026: Use LEAST(compensation, 401a17_limit) to cap at IRS limit
             LEAST(
-                COALESCE(wf.prorated_annual_compensation, pop.prorated_annual_compensation, pop.employee_compensation),
+                pop.prorated_annual_compensation,
                 lim.irs_401a17_limit
             ) *
             {{ core_rate_expr }}
@@ -311,7 +254,7 @@ SELECT
              AND COALESCE(elig.eligible_for_core, FALSE) = TRUE
              AND (
                 {% if core_require_active_eoy %}
-                    COALESCE(wf.employment_status, pop.employment_status) = 'active'
+                    pop.employment_status = 'active'
                     OR (
                         (COALESCE(term.has_new_hire_termination, FALSE) AND ({{ 'true' if core_allow_terminated_new_hires else 'false' }}))
                         OR (COALESCE(term.has_experienced_termination, FALSE) AND ({{ 'true' if core_allow_experienced_terminations else 'false' }}))
@@ -373,10 +316,6 @@ FROM population pop
 -- E026: CROSS JOIN is safe here because irs_compensation_limits CTE filters to a single
 -- simulation_year, guaranteeing exactly one row. This provides the 401(a)(17) limit constant.
 CROSS JOIN irs_compensation_limits lim
-LEFT JOIN workforce_proration wf
-    ON pop.employee_id = wf.employee_id
-    AND pop.plan_design_id = wf.plan_design_id
-    AND pop.simulation_year = wf.simulation_year
 LEFT JOIN eligibility_check elig
     ON pop.employee_id = elig.employee_id
     AND pop.plan_design_id = elig.plan_design_id
