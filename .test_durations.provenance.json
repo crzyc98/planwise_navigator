@@ -1,0 +1,13 @@
+{
+  "source": {
+    "head_sha": "04bff1eb332837e8a25c16f0ec0c7b06f0a166a7",
+    "test_step_seconds": {
+      "test (1)": 4308.0,
+      "test (2)": 2927.0,
+      "test (3)": 3835.0,
+      "test (4)": 2547.0
+    },
+    "url": "https://github.com/crzyc98/planwise_navigator/actions/runs/39954102337"
+  },
+  "test_count": 4345
+}

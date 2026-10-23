@@ -395,10 +395,9 @@ jobs:
           coverage xml
           coverage json
           python scripts/check_coverage_inventory.py
-          # Preserve the 60% gate as the denominator expands (#874). The JSON
-          # inventory prints each package's measured numerator/denominator;
-          # a lower result must be investigated, not hidden by lowering this.
-          coverage report --fail-under=60
+          # Ratchet to 75% after complete nine-package runs measured 77.54%
+          # and 77.88% (#874); investigate regressions rather than lower the gate.
+          coverage report --fail-under=75
 
       - name: Archive coverage report
         if: always()
