@@ -55,11 +55,27 @@ that inventory. The combined CI report checks every shipped `.py` file, includin
 unexecuted modules, and prints covered/total statements for each package. Both
 JSON and XML reports are retained even if the gate fails.
 
-The gate remains **60%**. The July 2026 estimate of 63% used an incomplete
-denominator and is not the expanded baseline. Record the first complete run's
-per-package counts and combined percentage before proposing any threshold change.
-A synthetic smoke run proves inventory inclusion, not suite coverage. A fresh
-four-shard CI run is required to establish the expanded suite baseline.
+Complete four-shard run
+[39954102337](https://github.com/crzyc98/planwise_navigator/actions/runs/39954102337)
+measured **77.88%** combined coverage (35,288 statements, 7,804 missed) across all
+nine packages:
+
+| Package | Covered / statements | Modules |
+| --- | ---: | ---: |
+| planalign_api | 12,888 / 15,217 | 145 |
+| planalign_backtest | 544 / 606 | 10 |
+| planalign_cli | 1,165 / 2,997 | 26 |
+| planalign_core | 610 / 731 | 10 |
+| planalign_ensemble | 891 / 950 | 11 |
+| planalign_evidence | 898 / 946 | 11 |
+| planalign_fit | 1,659 / 1,778 | 19 |
+| planalign_optimizer | 562 / 606 | 12 |
+| planalign_orchestrator | 8,267 / 11,457 | 103 |
+
+The gate is **75%**, ratcheted up after this run and the earlier complete run
+39034496592 (2026-10-18, 77.54%). The July 2026 estimate of 63% used an incomplete
+denominator and is not the expanded baseline. Investigate regressions rather than
+lower the gate.
 
 The validation job installs `-e .` directly, then prints and checks the effective
 dbt-core/dbt-duckdb versions against `project.dependencies` in `pyproject.toml`.
@@ -105,11 +121,15 @@ Do not use timings from failed, interrupted, or partial shards as a baseline.
 
 ## Issue #874 measurement status
 
-The checked-in timings remain unchanged until a representative complete run can
-produce artifacts under the new workflow. The October 15 run
-[38803893150](https://github.com/crzyc98/planwise_navigator/actions/runs/38803893150)
-at `e20a92836c2d08827369b63cb39dc18536da1999` failed shard 1 and has no timing
-artifacts; it cannot supply that baseline. The 49/65/49/63-minute figures in the
-workflow header are historical August measurements, not evidence of a current
-regression. Expanded suite coverage and actual before/after shard measurements
-remain pending the two complete runs above.
+The BEFORE baseline is nightly main run
+[39954102337](https://github.com/crzyc98/planwise_navigator/actions/runs/39954102337)
+at `04bff1eb`; all four test shards succeeded. Their "Run Python tests" steps
+elapsed 71.8, 48.8, 63.9, and 42.5 minutes for shards 1–4 respectively. Shard 1
+was the critical path (4,308 seconds). `.test_durations` was refreshed from this
+run's four timing artifacts; `.test_durations.provenance.json` records the source
+SHA, run URL, test count, and step elapsed seconds.
+
+The AFTER comparison run on this branch with refreshed timings is pending and
+will be added. No shard-balancing improvement is established until that complete
+run can be compared using the procedure above. The 49/65/49/63-minute figures in
+the workflow header remain historical August measurements.
