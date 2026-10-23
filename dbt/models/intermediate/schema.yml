@@ -658,7 +658,7 @@ models:
         data_tests:
           - not_null
       - name: prorated_annual_compensation
-        description: Time-weighted annual compensation used for contribution calculations
+        description: Actual earned compensation from workforce state, prorated for employment and time-weighted for pay changes
         data_tests:
           - not_null
           # Executives legitimately exceed $500k; bound generously to catch gross

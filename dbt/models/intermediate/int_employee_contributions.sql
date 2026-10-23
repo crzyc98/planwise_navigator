@@ -29,7 +29,7 @@
   - int_workforce_state_accumulator for workforce population and state
   - int_enrollment_state_accumulator for enrollment state
   - int_deferral_rate_state_accumulator for deferral rates (S042-01: Source of Truth Architecture Fix)
-  - fct_yearly_events for contribution-window and starting-compensation facts
+  - fct_yearly_events for contribution-window facts
   - config_irs_limits for IRS limit configuration
 */
 
@@ -137,66 +137,25 @@ enroll_optout_window AS (
     GROUP BY employee_id
 ),
 
--- Published compensation events supply the accepted starting-year compensation.
--- Workforce population, dates, status, and age remain owned by canonical state.
-starting_compensation AS (
-    SELECT
-        employee_id,
-        ARG_MIN(
-            CASE
-                WHEN event_type = 'hire' THEN compensation_amount
-                WHEN event_type IN ('promotion', 'raise') THEN previous_compensation
-            END,
-            effective_date
-        ) FILTER (WHERE event_type IN ('hire', 'promotion', 'raise'))
-            AS starting_compensation
-    FROM {{ ref('fct_yearly_events') }}
-    WHERE scenario_id = '{{ scenario_id }}'
-      AND simulation_year = (SELECT current_year FROM simulation_parameters)
-    GROUP BY employee_id
-),
-
+-- Canonical state owns actual earned pay and the year-end annual rate.
 workforce_proration AS (
     SELECT
         workforce.employee_id,
         workforce.plan_design_id,
         {{ simulation_year }} AS simulation_year,
-        COALESCE(starting.starting_compensation, workforce.current_compensation)
-            AS current_compensation,
-        ROUND(
-            COALESCE(starting.starting_compensation, workforce.current_compensation)
-            * CASE
-                WHEN EXTRACT(YEAR FROM workforce.employee_hire_date)
-                    = {{ simulation_year }} THEN
-                    LEAST(365, GREATEST(0,
-                        DATEDIFF(
-                            'day',
-                            workforce.employee_hire_date::DATE,
-                            COALESCE(
-                                workforce.termination_date::DATE,
-                                '{{ simulation_year }}-12-31'::DATE
-                            )
-                        ) + 1
-                    )) / 365.0
-                WHEN workforce.termination_date IS NOT NULL THEN
-                    LEAST(365, GREATEST(0,
-                        DATEDIFF(
-                            'day',
-                            '{{ simulation_year }}-01-01'::DATE,
-                            workforce.termination_date::DATE
-                        ) + 1
-                    )) / 365.0
-                ELSE 1
-              END,
-            2
-        ) AS prorated_annual_compensation,
+        workforce.current_compensation,
+        workforce.prorated_annual_compensation,
+        GREATEST(0, DATEDIFF(
+            'day',
+            GREATEST(workforce.employee_hire_date::DATE, '{{ simulation_year }}-01-01'::DATE),
+            LEAST(COALESCE(workforce.termination_date::DATE, '{{ simulation_year }}-12-31'::DATE),
+                  '{{ simulation_year }}-12-31'::DATE)
+        ) + 1) AS days_employed_in_year,
         workforce.employment_status,
         workforce.termination_date::DATE AS termination_date,
         workforce.employee_birth_date::DATE AS employee_birth_date,
         workforce.current_age AS current_age
     FROM {{ ref('int_workforce_state_accumulator') }} workforce
-    LEFT JOIN starting_compensation starting
-      ON workforce.employee_id = starting.employee_id
     WHERE workforce.scenario_id = '{{ scenario_id }}'
       AND workforce.simulation_year = {{ simulation_year }}
 ),
@@ -243,10 +202,11 @@ contribution_inputs AS (
              THEN enrollment_window_deferral_rate
              ELSE year_end_deferral_rate
         END AS effective_deferral_rate,
-        -- Contribution base: active-window comp for enroll→opt-out (= annual comp ×
-        -- active_enrollment_days/365), else the employment-prorated comp (unchanged)
+        -- Contribution base: earned pay scaled to the enrolled share of employed days
+        -- for enroll→opt-out, otherwise actual earned compensation.
         CASE WHEN is_same_year_enroll_optout
-             THEN ROUND(current_compensation * active_enrollment_days / 365.0, 2)
+             THEN COALESCE(ROUND(prorated_annual_compensation * active_enrollment_days
+                 / NULLIF(days_employed_in_year, 0), 2), 0)
              ELSE prorated_annual_compensation
         END AS contribution_base_compensation,
         CASE
