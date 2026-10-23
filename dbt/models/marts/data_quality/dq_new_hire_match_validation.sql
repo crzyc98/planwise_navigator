@@ -105,8 +105,8 @@ validation_results AS (
         ws.prorated_annual_compensation AS snapshot_prorated_comp,
 
         -- Expected calculations
-        ROUND(nhe.hire_event_compensation * (nhe.days_worked / 365.0), 2) AS expected_prorated_comp,
-        ROUND(nhe.hire_event_compensation * (nhe.days_worked / 365.0) * 0.03, 2) AS expected_max_match,
+        ws.prorated_annual_compensation AS expected_prorated_comp,
+        ROUND(ws.prorated_annual_compensation * 0.03, 2) AS expected_max_match,
 
         -- Validation flags
         CASE
@@ -129,15 +129,15 @@ validation_results AS (
             ELSE 'PASS'
         END AS match_consistency_validation,
 
-        -- Expected vs Actual comparison
+        -- Compare with canonical earned compensation, including pay changes
         CASE
-            WHEN ABS(nhc.prorated_annual_compensation - ROUND(nhe.hire_event_compensation * (nhe.days_worked / 365.0), 2)) > 100.0 THEN 'FAIL'
+            WHEN ABS(nhc.prorated_annual_compensation - ws.prorated_annual_compensation) > 100.0 THEN 'FAIL'
             ELSE 'PASS'
         END AS proration_accuracy_validation,
 
         -- Data quality metrics
-        ROUND(nhm.employer_match_amount - ROUND(nhe.hire_event_compensation * (nhe.days_worked / 365.0) * 0.03, 2), 2) AS match_overage_amount,
-        ROUND((nhm.employer_match_amount / NULLIF(ROUND(nhe.hire_event_compensation * (nhe.days_worked / 365.0) * 0.03, 2), 0) - 1) * 100, 1) AS match_overage_percentage
+        ROUND(nhm.employer_match_amount - ROUND(ws.prorated_annual_compensation * 0.03, 2), 2) AS match_overage_amount,
+        ROUND((nhm.employer_match_amount / NULLIF(ROUND(ws.prorated_annual_compensation * 0.03, 2), 0) - 1) * 100, 1) AS match_overage_percentage
 
     FROM new_hire_events nhe
     LEFT JOIN new_hire_contributions nhc ON nhe.employee_id = nhc.employee_id

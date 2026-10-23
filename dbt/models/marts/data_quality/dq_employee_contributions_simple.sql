@@ -33,9 +33,9 @@ WITH base_contribution_data AS (
 
 workforce_data AS (
     SELECT
-        *,
-        employee_compensation AS prorated_annual_compensation  -- Map to expected name
-    FROM {{ ref('int_employee_compensation_by_year') }}
+        employee_id,
+        prorated_annual_compensation
+    FROM {{ ref('int_workforce_state_accumulator') }}
     WHERE simulation_year = {{ simulation_year }}
 ),
 

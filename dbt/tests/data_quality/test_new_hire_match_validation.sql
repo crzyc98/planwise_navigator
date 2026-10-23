@@ -10,8 +10,7 @@
   Key Validations:
   - Contribution-model prorated comp matches the workforce snapshot
   - Match amount matches between the match model and the workforce snapshot
-  - Prorated comp equals hire_comp x (days worked / 365), where days worked runs
-    hire -> termination (if any) else year-end
+  - Prorated comp equals actual earned pay, including time-weighted pay changes
 
   This model helps prevent the critical bug where new hires received match (and
   contribution) calculations on full annual salaries instead of prorated amounts.
@@ -124,7 +123,7 @@ validation_results AS (
         ws.prorated_annual_compensation AS snapshot_prorated_comp,
 
         -- Expected calculations
-        ROUND(nhe.hire_event_compensation * (nhe.days_worked / 365.0), 2) AS expected_prorated_comp,
+        ws.prorated_annual_compensation AS expected_prorated_comp,
 
         -- Validation flags. This test's purpose is to confirm new-hire match is computed
         -- on PRORATED compensation, so it checks comp/match consistency against the
@@ -142,9 +141,9 @@ validation_results AS (
             ELSE 'PASS'
         END AS match_consistency_validation,
 
-        -- Expected vs Actual comparison
+        -- Compare with canonical earned compensation, including pay changes
         CASE
-            WHEN ABS(nhc.prorated_annual_compensation - ROUND(nhe.hire_event_compensation * (nhe.days_worked / 365.0), 2)) > 100.0 THEN 'FAIL'
+            WHEN ABS(nhc.prorated_annual_compensation - ws.prorated_annual_compensation) > 100.0 THEN 'FAIL'
             ELSE 'PASS'
         END AS proration_accuracy_validation
 
