@@ -55,7 +55,7 @@ Cover edge configs, not just defaults (e.g. `auto_enrollment_scope: all_eligible
 
 - Markers: `fast`, `integration`, `multi_year_invariants`, `edge_config_matrix`, plus area markers (`orchestrator`, `events`, `config`, `dbt`, ...). They're registered in `pyproject.toml` with `--strict-markers`.
 - Integration tests run against an isolated `DATABASE_PATH`.
-- The fast suite has a CI time budget (`scripts/check_fast_suite_runtime.py`). Coverage is a 60% gate that only ratchets up. Local Mac timings are unreliable, so measure timing on CI.
+- The fast suite has a CI time budget (`scripts/check_fast_suite_runtime.py`). Coverage is a 75% gate that only ratchets up. Local Mac timings are unreliable, so measure timing on CI.
 - **Don't add the `full-ci` label by default.** `scripts/ci_policy.py` already runs the invariants and edge-config matrix for non-frontend, non-docs changes. `full-ci` only adds the integration shards and coverage, which run on every push to `main` and nightly anyway. If a PR does need it, apply the label at creation. Adding it later starts a second run, and the cancelled first run's `CI Gate` failure is spurious.
 
 ## Gotchas
