@@ -1,5 +1,6 @@
 """Optimizer bounded-search tests."""
 
+from itertools import permutations
 from pathlib import Path
 
 import pytest
@@ -14,7 +15,12 @@ from planalign_optimizer.models import (
     ObjectiveTerm,
     OptimizerSpec,
 )
-from planalign_optimizer.search import binding_constraints, rank_feasible, run_optimizer
+from planalign_optimizer.search import (
+    _refinement_anchor,
+    binding_constraints,
+    rank_feasible,
+    run_optimizer,
+)
 from planalign_orchestrator.config import load_simulation_config
 from planalign_orchestrator.run_pool import JobResult
 
@@ -188,3 +194,75 @@ def test_exact_duplicates_do_not_consume_budget(monkeypatch, tmp_path: Path) -> 
     assert len(_FailedPool.submitted) == 2
     assert run.candidates[1].is_duplicate_of == "candidate-0000"
     assert run.candidates[2].is_duplicate_of is None
+
+
+def test_two_objective_refinement_anchor_is_order_independent() -> None:
+    spec = ObjectiveConstraintSpec(
+        objectives=(
+            ObjectiveTerm(metric="cost", direction="minimize"),
+            ObjectiveTerm(metric="participation", direction="maximize"),
+        )
+    )
+    candidates = tuple(
+        _candidate(name, cost).model_copy(
+            update={"objective_values": {"cost": cost, "participation": participation}}
+        )
+        for name, cost, participation in (
+            ("a", 100, 0.5),
+            ("b", 140, 0.85),
+            ("c", 200, 0.9),
+        )
+    )
+    for ordering in permutations(candidates):
+        assert _refinement_anchor(ordering, spec) is candidates[1]
+
+
+@pytest.mark.parametrize("direction,expected", [("minimize", "a"), ("maximize", "b")])
+def test_single_objective_refinement_preserves_ranking(
+    direction: str, expected: str
+) -> None:
+    spec = ObjectiveConstraintSpec(
+        objectives=(ObjectiveTerm(metric="cost", direction=direction),)
+    )
+    candidates = (
+        _candidate("b", 2),
+        _candidate("a", 1),
+        _candidate("x", 0, "infeasible"),
+    )
+    for ordering in permutations(candidates):
+        assert _refinement_anchor(ordering, spec).candidate_id == expected
+
+
+@pytest.mark.parametrize("objective_count", [1, 2])
+def test_no_feasible_refinement_preserves_constraint_penalty(
+    objective_count: int,
+) -> None:
+    objectives = (
+        ObjectiveTerm(metric="cost", direction="minimize"),
+        ObjectiveTerm(metric="participation", direction="maximize"),
+    )
+    spec = ObjectiveConstraintSpec(objectives=objectives[:objective_count])
+    candidates = tuple(
+        _candidate(name, 1, status).model_copy(
+            update={
+                "constraint_results": tuple(
+                    ConstraintResult(
+                        metric=f"constraint_{index}",
+                        evaluation_mode="point_estimate",
+                        evaluated_value=None,
+                        satisfied=value,
+                    )
+                    for index, value in enumerate(results)
+                )
+            }
+        )
+        for name, status, results in (
+            ("a", "failed", ()),
+            ("b", "infeasible", (None,)),
+            ("c", "infeasible", (False, False)),
+            ("d", "infeasible", (False,)),
+            ("e", "infeasible", (False,)),
+        )
+    )
+    for ordering in permutations(candidates):
+        assert _refinement_anchor(ordering, spec).candidate_id == "d"

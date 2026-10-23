@@ -34,7 +34,7 @@ from .models import (
     OptimizerRun,
     OptimizerSpec,
 )
-from .pareto import pareto_frontier
+from .pareto import pareto_frontier, select_refinement_anchor
 
 SEED_PHASE_FRACTION = 0.6
 
@@ -189,9 +189,9 @@ def _refinement_anchor(
     ranked = rank_feasible(candidates, spec)
     if ranked:
         return next(item for item in candidates if item.candidate_id == ranked[0])
-    frontier = pareto_frontier(candidates, spec.objectives)
-    if frontier:
-        return next(item for item in candidates if item.candidate_id == frontier[0])
+    anchor = select_refinement_anchor(candidates, spec.objectives)
+    if anchor is not None:
+        return next(item for item in candidates if item.candidate_id == anchor)
     return min(candidates, key=_constraint_penalty)
 
 

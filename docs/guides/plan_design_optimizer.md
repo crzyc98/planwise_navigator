@@ -62,6 +62,27 @@ Pareto frontier. The point-estimate metric vocabulary matches seed ensembles:
 headcount, compensation, match cost, total employer plan cost, participation,
 and average deferral rate. `irs_compliance_pass` is available as a constraint.
 
+## Refinement anchor selection
+
+For two objectives, refinement uses feasible, nonduplicate Pareto candidates
+with finite values for both objectives. Each objective is normalized to loss:
+`(value - min) / (max - min)` for minimization, or
+`(max - value) / (max - min)` for maximization. A constant dimension has zero loss.
+
+With at least three distinct normalized vectors and both dimensions varying,
+the anchor maximizes the knee score `(1 - x - y) / sqrt(2)`, provided the maximum
+exceeds the tolerance `1e-9`. Ties use smaller squared distance to the ideal,
+`x² + y²`, then candidate ID. Otherwise, including linear or outward-bulging
+fronts, refinement minimizes that squared distance, breaking ties by candidate
+ID. If neither dimension varies, the smallest candidate ID wins.
+
+Equal normalized weighting is an implicit preference between objectives.
+Selection is independent of candidate order and positive unit rescaling; the
+exported frontier retains its existing ordering. Single-objective ranking and
+the constraint-penalty fallback are unchanged. Identical seeds may refine
+differently than in prior versions because the anchor no longer uses the first
+frontier candidate.
+
 ## Budget and reporting guardrails
 
 The optimizer stops when the declared budget is exhausted, regardless of
