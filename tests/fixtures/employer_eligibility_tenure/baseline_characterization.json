@@ -1,58 +1,67 @@
 {
   "provenance": {
-    "source_revision": "8e4723a66911b09fd3851cbcd3d0f9889333cc8b",
+    "source_revision": "a16e53213a4e7ea6830a40933d2aff87fb109081",
     "irs_seed_sha256": "ddd9c565a1c0c3793a29fd365d99fd6867730ac32154e4baccc8f790133f932c",
-    "explanation": "docs/guides/employer_eligibility_characterization.md"
+    "explanation": "docs/guides/employer_eligibility_characterization.md",
+    "earned_compensation_reconciliation": {
+      "changes": [
+        "f3a8ca93ffca85d75acaa2daef771f8c5ed6b614 (#978)",
+        "c75ec3e517b2d83c54a3a9be0d9276d5d73d3f69 (#979)"
+      ],
+      "basis": "Core and employee deferrals (and resulting match) now use workforce prorated_annual_compensation: actual earned pay, time-weighted for compensation changes and employment, instead of pre-raise starting pay.",
+      "verification": "At pre-#978 revision 04bff1eb, the isolated characterization test passes and all stored aggregates match exactly. At source_revision, all core_paid and match_paid counts remain unchanged; only core_cost and match_cost increase, by 1.51-2.00%. IRS seed, census, wait configurations, and absolute $0.01 tolerance are unchanged.",
+      "historical_explanation": "The explanation document above describes the earlier #889 IRS-seed reconciliation; its pre-raise compensation-basis discussion predates #978/#979."
+    }
   },
   "opening_year": {
     "1": {
-      "core_cost": 725613.0,
+      "core_cost": 739210.17,
       "core_paid": 138,
-      "match_cost": 741315.5,
+      "match_cost": 754396.89,
       "match_paid": 107
     },
     "2": {
-      "core_cost": 501063.0,
+      "core_cost": 510624.4,
       "core_paid": 97,
-      "match_cost": 528229.0,
+      "match_cost": 537497.76,
       "match_paid": 77
     },
     "3": {
-      "core_cost": 444393.0,
+      "core_cost": 453300.61,
       "core_paid": 88,
-      "match_cost": 457098.0,
+      "match_cost": 465566.78,
       "match_paid": 68
     }
   },
   "zero_wait_all_years": {
     "2025": {
-      "core_cost": 800365.86,
+      "core_cost": 813963.03,
       "core_paid": 152,
-      "match_cost": 822949.9,
+      "match_cost": 836031.29,
       "match_paid": 116
     },
     "2026": {
-      "core_cost": 850386.54,
+      "core_cost": 863219.24,
       "core_paid": 155,
-      "match_cost": 950147.42,
+      "match_cost": 964600.16,
       "match_paid": 128
     },
     "2027": {
-      "core_cost": 900459.08,
+      "core_cost": 915330.32,
       "core_paid": 158,
-      "match_cost": 1039606.14,
+      "match_cost": 1057763.52,
       "match_paid": 137
     },
     "2028": {
-      "core_cost": 941650.99,
+      "core_cost": 958522.47,
       "core_paid": 161,
-      "match_cost": 1136987.7,
+      "match_cost": 1158766.92,
       "match_paid": 147
     },
     "2029": {
-      "core_cost": 988279.14,
+      "core_cost": 1006232.8,
       "core_paid": 164,
-      "match_cost": 1205015.43,
+      "match_cost": 1226197.57,
       "match_paid": 151
     }
   }
