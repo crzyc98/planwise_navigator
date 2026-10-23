@@ -50,7 +50,7 @@ class ContributionYearSummary(APIModel):
     )
     employer_cost_pct_of_capped_compensation: float = Field(
         default=0.0,
-        description="Employer cost as percentage of capped compensation",
+        description="Employer match plus core as percentage of IRS-capped prorated compensation for all employees, including ineligible and terminated employees",
     )
     # E066: Contribution rate percentages
     employee_contribution_rate: float = Field(
@@ -189,7 +189,7 @@ class DCPlanAnalytics(APIModel):
     )
     employer_cost_pct_of_capped_compensation: float = Field(
         default=0.0,
-        description="Aggregate employer cost as percentage of capped compensation",
+        description="Aggregate employer match plus core as percentage of IRS-capped prorated compensation for all employees, including ineligible and terminated employees",
     )
     # E066: Aggregate contribution rate percentages
     employee_contribution_rate: float = Field(

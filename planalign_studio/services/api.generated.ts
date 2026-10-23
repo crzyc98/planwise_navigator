@@ -4861,7 +4861,7 @@ export interface components {
             employee_contribution_rate: number;
             /**
              * Employer Cost Pct Of Capped Compensation
-             * @description Employer cost as percentage of capped compensation
+             * @description Employer match plus core as percentage of IRS-capped prorated compensation for all employees, including ineligible and terminated employees
              * @default 0
              */
             employer_cost_pct_of_capped_compensation: number;
@@ -5107,7 +5107,7 @@ export interface components {
             employee_contribution_rate: number;
             /**
              * Employer Cost Pct Of Capped Compensation
-             * @description Aggregate employer cost as percentage of capped compensation
+             * @description Aggregate employer match plus core as percentage of IRS-capped prorated compensation for all employees, including ineligible and terminated employees
              * @default 0
              */
             employer_cost_pct_of_capped_compensation: number;

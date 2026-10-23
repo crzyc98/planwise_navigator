@@ -2052,8 +2052,8 @@ export default function ScenarioCostComparison() {
 
                       const cappedCompensationRateRow = (
                         <tr className="bg-surface-subtle/20">
-                          <td className="px-6 py-2 whitespace-nowrap border-r border-border pl-12 text-xs font-medium text-ink-muted">
-                            Total cost as % of capped compensation
+                          <td title="Employer match + core (or selected net/cohort cost) divided by IRS-capped prorated compensation for all employees, including ineligible and terminated employees." className="px-6 py-2 whitespace-nowrap border-r border-border pl-12 text-xs font-medium text-ink-muted">
+                            Employer cost / capped pay (all employees)
                           </td>
                           {years.map(year => {
                             const yearData = analytics.contribution_by_year.find(y => y.year === year);
@@ -2342,7 +2342,8 @@ export default function ScenarioCostComparison() {
                   </p>
                   <p>
                     <span className="text-ink-inverse font-bold">Cost as % of capped compensation</span>{' '}
-                    divides that employer cost by the same population's prorated compensation,
+                    divides employer match plus core (or the selected net/cohort cost) by prorated
+                    compensation for all employees, including ineligible and terminated employees,
                     capped employee-by-employee at the applicable annual IRS 401(a)(17) limit.
                     The horizon percentage divides horizon cost by horizon capped compensation;
                     it is not an average of annual percentages.
