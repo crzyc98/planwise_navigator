@@ -1,5 +1,6 @@
 """Execute the contribution model against controlled earned-pay and window inputs."""
 
+from datetime import date
 from pathlib import Path
 
 import duckdb
@@ -20,12 +21,14 @@ ROOT = Path(__file__).resolve().parents[2]
         ("2025-07-01", "2025-09-30", 26000, True, 8760.87),
     ],
 )
+@pytest.mark.parametrize("new_rate", [None, 0.09, 0.03, 0.0])
 def test_earned_pay_and_enrollment_window(
     hire: str,
     termination: str | None,
     earned: int,
     window: bool,
     expected: float,
+    new_rate: float | None,
 ) -> None:
     source = ROOT / "dbt/models/intermediate/int_employee_contributions.sql"
     sql = (
@@ -36,6 +39,7 @@ def test_earned_pay_and_enrollment_window(
             var=lambda name, default=None: default,
             ref=lambda name: name,
             evt_enrollment=lambda: "'enrollment'",
+            evt_deferral_change=lambda: "'deferral_change'",
             evt_enrollment_change=lambda: "'enrollment_change'",
             is_enrollment_event=lambda column: f"{column} IN ('enrollment', 'enrollment_change')",
             is_incremental=lambda: False,
@@ -67,13 +71,27 @@ def test_earned_pay_and_enrollment_window(
         )
         conn.execute(
             "CREATE TABLE fct_yearly_events (employee_id VARCHAR, simulation_year INTEGER, "
-            "event_type VARCHAR, effective_date DATE, event_details VARCHAR)"
+            "event_type VARCHAR, effective_date DATE, event_details VARCHAR, "
+            "scenario_id VARCHAR DEFAULT 'default', plan_design_id VARCHAR DEFAULT 'p', "
+            "event_id VARCHAR, employee_deferral_rate DOUBLE, prev_employee_deferral_rate DOUBLE)"
         )
         if window:
             conn.execute(
-                "INSERT INTO fct_yearly_events VALUES "
+                "INSERT INTO fct_yearly_events "
+                "(employee_id, simulation_year, event_type, effective_date, event_details) VALUES "
                 "('e', 2025, 'enrollment', '2025-07-01', '6% deferral'), "
                 "('e', 2025, 'enrollment_change', '2025-07-31', 'opt-out')"
+            )
+        if new_rate is not None:
+            # Earlier and tied rows must not duplicate contributions or win selection.
+            conn.execute(
+                "INSERT INTO fct_yearly_events "
+                "(employee_id, simulation_year, event_type, effective_date, event_id, "
+                "employee_deferral_rate, prev_employee_deferral_rate) VALUES "
+                "('e', 2025, 'deferral_change', '2025-07-01', 'z', 0.15, 0.06), "
+                "('e', 2025, 'deferral_change', '2025-08-01', 'a', 0.12, 0.06), "
+                "('e', 2025, 'deferral_change', '2025-08-01', 'b', ?, 0.06)",
+                [new_rate],
             )
         conn.execute(f"CREATE TABLE result AS {sql}")
         row = conn.execute(
@@ -83,4 +101,11 @@ def test_earned_pay_and_enrollment_window(
     assert row[0] == 120000
     assert row[1] == earned
     assert float(row[2]) == pytest.approx(expected, abs=0.005)
-    assert float(row[3]) == pytest.approx(expected * 0.06, abs=0.005)
+    rate = 0.06
+    if new_rate is not None and not window:
+        start = max(date.fromisoformat(hire), date(2025, 1, 1))
+        end = date.fromisoformat(termination) if termination else date(2025, 12, 31)
+        employed = (end - start).days + 1
+        before = (date(2025, 8, 1) - start).days
+        rate = (0.06 * before + new_rate * (employed - before)) / employed
+    assert float(row[3]) == pytest.approx(expected * rate, abs=0.005)

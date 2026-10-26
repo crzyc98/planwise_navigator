@@ -242,7 +242,9 @@ previous_year_state AS (
         escalations_received as previous_escalations_received,
         original_deferral_rate,
         employee_enrollment_date,
-        is_enrolled_flag
+        is_enrolled_flag,
+        aip_participant,
+        last_nonzero_deferral_rate
     FROM {{ this }}
     WHERE simulation_year = {{ simulation_year - 1 }}
         AND employee_id IS NOT NULL
@@ -340,7 +342,7 @@ first_year_state AS (
                 br.fallback_rate,          -- Demographic fallback (only for enrolled)
                 0.03::DECIMAL(5,4)         -- Hard fallback (only for enrolled)
             )
-        END as current_deferral_rate,
+        END as rate_before_voluntary_change,
 
         -- Track escalations
         CASE WHEN ce.employee_id IS NOT NULL THEN 1 ELSE 0 END as escalations_received,
@@ -425,7 +427,7 @@ first_year_state AS (
     -- Non-enrolled employees get deferral_rate = 0 and is_enrolled_flag = false
     -- This ensures census employees without explicit enrollment data still appear
     WHERE COALESCE(w.employee_id, he.employee_id) IS NOT NULL
-)
+),
 
 {% else %}
 -- SUBSEQUENT YEARS: Temporal accumulation pattern
@@ -457,7 +459,7 @@ subsequent_year_state AS (
                 br.fallback_rate,                        -- Demographic fallback
                 0.03::DECIMAL(5,4)                       -- Hard fallback
             )
-        END as current_deferral_rate,
+        END as rate_before_voluntary_change,
 
         -- Track escalations cumulatively
         CASE
@@ -557,24 +559,113 @@ subsequent_year_state AS (
     -- state is unenrolled (false). Mirrors the is_enrolled_flag precedence above.
     WHERE (ps.employee_id IS NOT NULL OR ne.employee_id IS NOT NULL OR ce.employee_id IS NOT NULL OR mr.employee_id IS NOT NULL)
       AND (ne.employee_id IS NOT NULL OR COALESCE(ps.is_enrolled_flag, false) = true)
+),
+
+{% endif %}
+
+-- D2: one change per employee/year; latest date wins, with a stable tie-break.
+current_year_deferral_changes AS (
+  SELECT
+    employee_id,
+    plan_design_id,
+    employee_deferral_rate
+  FROM {{ ref('fct_yearly_events') }}
+  WHERE simulation_year = {{ simulation_year }}
+    AND scenario_id = '{{ scenario_id }}'
+    AND event_type = {{ evt_deferral_change() }}
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY scenario_id, plan_design_id, employee_id, simulation_year
+    ORDER BY effective_date DESC, event_id DESC
+  ) = 1
+),
+
+voluntary_change_state AS (
+  SELECT
+    s.employee_id,
+    s.simulation_year,
+    s.escalations_received,
+    s.last_escalation_date,
+    s.has_escalations,
+    s.escalation_source,
+    s.had_escalation_this_year,
+    s.escalation_events_this_year,
+    s.latest_escalation_details,
+    s.original_deferral_rate,
+    s.escalation_rate_change_pct,
+    s.total_escalation_amount,
+    s.years_since_first_escalation,
+    s.days_since_last_escalation,
+    s.is_enrolled_flag,
+    s.employee_enrollment_date,
+    s.created_at,
+    s.scenario_id,
+    s.plan_design_id,
+    s.data_quality_flag,
+    s.rate_before_voluntary_change,
+    CASE
+      WHEN s.rate_source = 'opt_out' THEN 0.00::DECIMAL(5,4)
+      WHEN dc.employee_id IS NOT NULL THEN dc.employee_deferral_rate
+      ELSE s.rate_before_voluntary_change
+    END AS current_deferral_rate,
+    CASE
+      WHEN s.rate_source = 'opt_out' THEN s.rate_source
+      WHEN dc.employee_id IS NOT NULL THEN 'deferral_change'
+      ELSE s.rate_source
+    END AS rate_source,
+    -- Easy Enroll membership hook (#987): combine new elections here in future.
+    {% if simulation_year == start_year %}
+    {{ aip_initial_membership(var('deferral_escalation_mode', 'automatic'), 'census.auto_escalation_opt_out') }} AS aip_participant,
+    NULL::DECIMAL(5,4) AS previous_nonzero_deferral_rate
+    {% else %}
+    COALESCE(ps.aip_participant,
+      {{ aip_initial_membership(var('deferral_escalation_mode', 'automatic'), 'census.auto_escalation_opt_out') }}) AS aip_participant,
+    ps.last_nonzero_deferral_rate AS previous_nonzero_deferral_rate
+    {% endif %}
+  FROM
+  {% if simulation_year == start_year %}
+    first_year_state s
+  {% else %}
+    subsequent_year_state s
+  LEFT JOIN previous_year_state ps ON s.employee_id = ps.employee_id
+  {% endif %}
+  LEFT JOIN {{ ref('stg_census_data') }} census ON s.employee_id = census.employee_id
+  LEFT JOIN current_year_deferral_changes dc
+    ON s.employee_id = dc.employee_id AND s.plan_design_id = dc.plan_design_id
 )
 
-{% endif %}
-
--- Final selection with temporal logic
-SELECT *
-FROM
-{% if simulation_year == start_year %}
-    first_year_state
-{% else %}
-    subsequent_year_state
-{% endif %}
+SELECT
+  employee_id,
+  simulation_year,
+  escalations_received,
+  last_escalation_date,
+  has_escalations,
+  escalation_source,
+  had_escalation_this_year,
+  escalation_events_this_year,
+  latest_escalation_details,
+  original_deferral_rate,
+  escalation_rate_change_pct,
+  total_escalation_amount,
+  years_since_first_escalation,
+  days_since_last_escalation,
+  is_enrolled_flag,
+  employee_enrollment_date,
+  created_at,
+  scenario_id,
+  plan_design_id,
+  data_quality_flag,
+  rate_before_voluntary_change,
+  current_deferral_rate,
+  rate_source,
+  aip_participant,
+  -- A stop (D1) carries the rate in effect just before it, so a restart resumes there.
+  CAST(CASE
+    WHEN current_deferral_rate > 0 THEN current_deferral_rate
+    WHEN rate_before_voluntary_change > 0 THEN rate_before_voluntary_change
+    ELSE previous_nonzero_deferral_rate
+  END AS DECIMAL(5,4)) AS last_nonzero_deferral_rate
+FROM voluntary_change_state
 WHERE employee_id IS NOT NULL
-
-{% if is_incremental() %}
-    -- Incremental processing - delete+insert strategy keyed by year
-    AND simulation_year = {{ simulation_year }}
-{% endif %}
 
 /*
   STORY S042-02 IMPLEMENTATION SUMMARY:

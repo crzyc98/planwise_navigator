@@ -688,7 +688,7 @@ models:
                 min_value: 0
                 max_value: 200000
       - name: effective_annual_deferral_rate
-        description: Time-weighted effective deferral rate for the year
+        description: Enrollment-window rate for same-year enroll to opt-out; otherwise the year-end rate, weighted over hire/termination-bounded employment days only when a deferral_change occurs. Match consumes this rate as an annual true-up.
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
@@ -826,7 +826,7 @@ models:
               config:
                 severity: error
       - name: current_deferral_rate
-        description: Current effective deferral rate after escalations
+        description: Year-end deferral rate after escalation and voluntary changes; enrollment opt-out takes precedence
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
@@ -835,6 +835,36 @@ models:
                 max_value: 0.5
               config:
                 severity: error
+      - name: rate_before_voluntary_change
+        description: Year-end rate from enrollment, match response, escalation and opt-out before a voluntary deferral_change override
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 1
+      - name: aip_participant
+        description: Automatic increase program membership; static census opt-out rule in year one, carried forward thereafter, new employees default in when escalation is enabled. Easy Enroll elections arrive in 987.
+        data_type: boolean
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: "= FALSE"
+              config:
+                enabled: "{{ not var('deferral_escalation_enabled', true) }}"
+      - name: last_nonzero_deferral_rate
+        description: Latest positive year-end current_deferral_rate, carried forward through zero-rate years; NULL until a positive year-end rate has been observed
+        data_type: decimal(5,4)
+        data_tests:
+          - not_null:
+              config:
+                where: current_deferral_rate > 0
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 1
+                inclusive: false
       - name: escalations_received
         description: Cumulative escalations received
         data_tests:
@@ -1946,6 +1976,8 @@ models:
       fct_workforce_snapshot. Implements configurable increment amounts (default 1%),
       maximum rate caps (default 10%), and demographic-based eligibility rules.
       Integrates with existing parameter system for job-level configuration.
+      AIP membership uses the static census opt-out rule initially, then prior-year
+      accumulator membership, with the initial rule for newly appearing employees.
     config:
       materialized: ephemeral
       tags: ["escalation", "deferral", "events", "epic_e035", "EVENT_GENERATION", "E068A_EPHEMERAL"]
