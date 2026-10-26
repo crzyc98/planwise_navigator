@@ -118,10 +118,11 @@ A stopped participant is enrolled but not contributing:
 
 ## 4. AIP membership (#985, #987)
 
+`deferral_auto_escalation.enabled` stays the only on/off switch, exactly as today. When it's false, no one is in AIP. When it's true, `mode` decides who is in:
+
 | Mode | Who is in AIP |
 |---|---|
-| `none` | No one. This is today's `enabled: false`. |
-| `automatic` | Today's rule exactly: `NOT census.auto_escalation_opt_out`, new hires in by default. This is today's `enabled: true` and the default. |
+| `automatic` (default) | Today's rule exactly: `NOT census.auto_escalation_opt_out`, new hires in by default. |
 | `participant_elected` | Participants whose stable per-employee draw (salt `-aip-elect-`, no year in it) falls below `participant_elected_signup_rate`, plus every Easy Enroll enrollee. |
 
 **Implementation:** a macro, `aip_initial_membership(mode, ...)`, holds the rule above. The escalation model uses it in **year 1**. For year 2+, it reads the prior-year accumulator's `aip_participant`, combined with this year's new Easy Enroll enrollees and the rule for new hires. That mirrors how escalation already reads rates, so there's no same-year dependency cycle.
@@ -129,7 +130,7 @@ A stopped participant is enrolled but not contributing:
 - The accumulator writes `aip_participant` using the same macro and carry-forward.
 - An `aip_response_decrease` does **not** clear it **[D7]**. The participant stays in AIP, and next year's step can trigger another decrease. The calibration report makes repeat decreases visible.
 - In `automatic` mode the macro's year-1 output equals today's inline expression, and the carry-forward reproduces it in later years. The census flag is static, so this can be checked in a test.
-- `enabled: false` stays as an accepted alias, mapping to `mode: none`. An explicit `enabled` overrides the default `mode`. The validator rejects a conflicting pair.
+- `mode` has no `none` value, so `enabled` and `mode` can't conflict. An earlier draft had `mode: none` as an alias for `enabled: false`. That broke dump→edit→validate round trips, which the optimizer uses to toggle `enabled`.
 
 **[D5]** AIP mode and the Easy Enroll offering are run-global in v1, not per-plan-design (#632), matching the magnet, spread and match response.
 
@@ -158,7 +159,8 @@ Defaults below are the **Phase 0–3 values (off, results unchanged)**. Comments
 
 ```yaml
 deferral_auto_escalation:            # existing
-  mode: automatic                    # none | automatic | participant_elected (`enabled` kept as alias)
+  enabled: true                      # unchanged: the only on/off switch
+  mode: automatic                    # automatic | participant_elected (used only when enabled)
   participant_elected_signup_rate: 0.0          # Phase 4: 0.01 [D8]
 
 easy_enroll:                         # new, #987
