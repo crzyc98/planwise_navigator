@@ -6,6 +6,14 @@ import math
 from datetime import date
 from typing import Any, Mapping, TypedDict
 
+from pydantic import TypeAdapter, ValidationError
+
+from .participant_behavior import (
+    BelowDefaultSettings,
+    DeferralRateChangesSettings,
+    EasyEnrollSettings,
+)
+
 
 class DbtVarProblem(TypedDict):
     section: str
@@ -26,6 +34,10 @@ DATE_VARS = frozenset(
 )
 BOOLEAN_VARS = frozenset(
     {
+        "easy_enroll_enabled",
+        "enrollment_match_magnet_downward_enabled",
+        "deferral_rate_changes_enabled",
+        "deferral_rate_changes_aip_response_opts_out",
         "auto_enrollment_enabled",
         "deferral_escalation_enabled",
         "deferral_escalation_require_enrollment",
@@ -44,6 +56,15 @@ BOOLEAN_VARS = frozenset(
 )
 RATE_VARS = frozenset(
     {
+        "deferral_escalation_participant_elected_signup_rate",
+        "easy_enroll_channel_share",
+        "easy_enroll_aip_cap",
+        "deferral_rate_changes_in_aip_increase_rate",
+        "deferral_rate_changes_in_aip_decrease_rate",
+        "deferral_rate_changes_not_in_aip_increase_rate",
+        "deferral_rate_changes_not_in_aip_decrease_rate",
+        "deferral_rate_changes_stop_rate",
+        "deferral_rate_changes_restart_rate",
         "auto_enrollment_default_deferral_rate",
         "deferral_escalation_increment",
         "deferral_escalation_cap",
@@ -75,6 +96,7 @@ RATE_PREFIXES = (
 )
 INTEGER_VARS = frozenset(
     {
+        "deferral_rate_changes_aip_response_window_days",
         "auto_enrollment_window_days",
         "auto_enrollment_opt_out_grace_period",
         "deferral_escalation_first_delay_years",
@@ -91,6 +113,7 @@ INTEGER_VARS = frozenset(
     }
 )
 ENUM_VARS = {
+    "deferral_escalation_mode": frozenset({"automatic", "participant_elected"}),
     "auto_enrollment_scope": frozenset({"all_eligible_employees", "new_hires_only"}),
     "promotion_distribution_type": frozenset({"uniform", "normal"}),
     "employer_match_status": frozenset(
@@ -110,6 +133,36 @@ ENUM_VARS = {
         {"ss_wage_base", "explicit", "percent_of_ss_wage_base", "fixed_dollar"}
     ),
 }
+
+
+# Reuse field validators so exported JSON and YAML follow the same constraints.
+_LIST_MODELS = {
+    "easy_enroll_packages": (EasyEnrollSettings, "packages"),
+    "below_default_share_tiers": (BelowDefaultSettings, "share_tiers"),
+    "below_default_step_weights": (BelowDefaultSettings, "step_weights"),
+    "deferral_rate_changes_increase_steps": (
+        DeferralRateChangesSettings,
+        "increase_steps",
+    ),
+    "deferral_rate_changes_decrease_steps": (
+        DeferralRateChangesSettings,
+        "decrease_steps",
+    ),
+}
+
+
+def _validate_list(field: str, value: Any) -> str | None:
+    model, key = _LIST_MODELS[field]
+    if not isinstance(value, list):
+        return "must be a JSON-compatible list"
+    try:
+        TypeAdapter(model.model_fields[key].annotation).validate_python(
+            value, strict=True
+        )
+        model.model_validate({key: value})
+    except ValidationError as exc:
+        return str(exc)
+    return None
 
 
 def _problem(field: str, message: str) -> DbtVarProblem:
@@ -151,7 +204,11 @@ def validate_dbt_vars(variables: Mapping[str, Any]) -> list[DbtVarProblem]:
     """Return field-level problems before exported vars reach a dbt command."""
     problems = []
     for field, value in variables.items():
-        message = _validate_scalar(field, value)
+        message = (
+            _validate_list(field, value)
+            if field in _LIST_MODELS
+            else _validate_scalar(field, value)
+        )
         if message:
             problems.append(_problem(field, message))
     match = variables.get("employer_match")

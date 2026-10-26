@@ -108,6 +108,12 @@ def test_known_field_wrong_type_is_rejected():
         )
 
 
+@pytest.mark.parametrize("mode", ["none", "invalid"])
+def test_invalid_aip_mode_is_rejected(mode: str) -> None:
+    with pytest.raises(ValidationError, match="aip_mode"):
+        ScenarioCreate(name="S", config_overrides={"dc_plan": {"aip_mode": mode}})
+
+
 def test_create_copy_and_template_paths_preserve_config(tmp_path, partial_config):
     storage = WorkspaceStorage(tmp_path / "workspaces")
     workspace = storage.create_workspace(

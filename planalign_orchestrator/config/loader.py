@@ -14,6 +14,11 @@ if TYPE_CHECKING:
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
+from .participant_behavior import (
+    DeferralAutoEscalationSettings,
+    DeferralRateChangesSettings,
+    EasyEnrollSettings,
+)
 from .simulation import SimulationSettings, CompensationSettings
 from .workforce import (
     WorkforceSettings,
@@ -110,6 +115,14 @@ class SimulationConfig(BaseModel):
     )
     employer_match: Optional[EmployerMatchSettings] = Field(
         default=None, description="Employer match configuration"
+    )
+
+    deferral_auto_escalation: DeferralAutoEscalationSettings = Field(
+        default_factory=DeferralAutoEscalationSettings
+    )
+    easy_enroll: EasyEnrollSettings = Field(default_factory=EasyEnrollSettings)
+    deferral_rate_changes: DeferralRateChangesSettings = Field(
+        default_factory=DeferralRateChangesSettings
     )
 
     # E058: Match-responsive deferral adjustments

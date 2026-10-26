@@ -1843,6 +1843,35 @@
         "title": "BatchScenario",
         "type": "object"
       },
+      "BelowDefaultTier": {
+        "properties": {
+          "ae_default_max": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ae Default Max"
+          },
+          "share": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Share",
+            "type": "number"
+          }
+        },
+        "required": [
+          "ae_default_max",
+          "share"
+        ],
+        "title": "BelowDefaultTier",
+        "type": "object"
+      },
       "Body_import_workspace_api_workspaces_import_post": {
         "properties": {
           "conflict_resolution": {
@@ -5671,6 +5700,27 @@
         "title": "DataQualityWarning",
         "type": "object"
       },
+      "DeferralChangeStep": {
+        "properties": {
+          "pp": {
+            "exclusiveMinimum": 0.0,
+            "title": "Pp",
+            "type": "integer"
+          },
+          "weight": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Weight",
+            "type": "number"
+          }
+        },
+        "required": [
+          "pp",
+          "weight"
+        ],
+        "title": "DeferralChangeStep",
+        "type": "object"
+      },
       "DeferralDistributionYear": {
         "description": "Deferral rate distribution for a specific simulation year.",
         "properties": {
@@ -6100,6 +6150,28 @@
           "target_rate"
         ],
         "title": "DriverContribution",
+        "type": "object"
+      },
+      "EasyEnrollPackage": {
+        "properties": {
+          "rate": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 1.0,
+            "title": "Rate",
+            "type": "number"
+          },
+          "share": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Share",
+            "type": "number"
+          }
+        },
+        "required": [
+          "rate",
+          "share"
+        ],
+        "title": "EasyEnrollPackage",
         "type": "object"
       },
       "EmployeeIdentity": {
@@ -14689,6 +14761,35 @@
       "StudioDCPlanConfig": {
         "additionalProperties": true,
         "properties": {
+          "aip_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "automatic",
+                  "participant_elected"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Escalation behavior when auto_escalation is enabled.",
+            "title": "Aip Mode"
+          },
+          "aip_participant_elected_signup_rate": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aip Participant Elected Signup Rate"
+          },
           "auto_enroll": {
             "anyOf": [
               {
@@ -14710,6 +14811,238 @@
               }
             ],
             "title": "Auto Escalation"
+          },
+          "below_default_share_tiers": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/BelowDefaultTier"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Below Default Share Tiers"
+          },
+          "below_default_step_weights": {
+            "anyOf": [
+              {
+                "items": {
+                  "maximum": 1.0,
+                  "minimum": 0.0,
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Below Default Step Weights"
+          },
+          "deferral_rate_changes_aip_response_opts_out": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deferral Rate Changes Aip Response Opts Out"
+          },
+          "deferral_rate_changes_aip_response_window_days": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deferral Rate Changes Aip Response Window Days"
+          },
+          "deferral_rate_changes_decrease_steps": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DeferralChangeStep"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deferral Rate Changes Decrease Steps"
+          },
+          "deferral_rate_changes_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deferral Rate Changes Enabled"
+          },
+          "deferral_rate_changes_in_aip_decrease_rate": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deferral Rate Changes In Aip Decrease Rate"
+          },
+          "deferral_rate_changes_in_aip_increase_rate": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deferral Rate Changes In Aip Increase Rate"
+          },
+          "deferral_rate_changes_increase_steps": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DeferralChangeStep"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deferral Rate Changes Increase Steps"
+          },
+          "deferral_rate_changes_not_in_aip_decrease_rate": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deferral Rate Changes Not In Aip Decrease Rate"
+          },
+          "deferral_rate_changes_not_in_aip_increase_rate": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deferral Rate Changes Not In Aip Increase Rate"
+          },
+          "deferral_rate_changes_restart_rate": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deferral Rate Changes Restart Rate"
+          },
+          "deferral_rate_changes_stop_rate": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deferral Rate Changes Stop Rate"
+          },
+          "easy_enroll_aip_cap": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Easy Enroll Aip Cap"
+          },
+          "easy_enroll_channel_share": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Easy Enroll Channel Share"
+          },
+          "easy_enroll_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Easy Enroll Enabled"
+          },
+          "easy_enroll_packages": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/EasyEnrollPackage"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Easy Enroll Packages"
+          },
+          "match_magnet_downward_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match Magnet Downward Enabled"
           },
           "match_status": {
             "anyOf": [

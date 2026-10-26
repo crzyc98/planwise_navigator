@@ -13,6 +13,8 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
+from .participant_behavior import BelowDefaultSettings
+
 
 class WorkforceSettings(BaseModel):
     """Workforce termination rate settings."""
@@ -194,6 +196,7 @@ class MatchMagnetSettings(BaseModel):
     """
 
     enabled: bool = True
+    downward_enabled: bool = False
     snap_probability: float = Field(
         default=0.45,
         ge=0.0,
@@ -232,6 +235,7 @@ class EnrollmentSettings(BaseModel):
     )
     timing: EnrollmentTimingSettings = Field(default_factory=EnrollmentTimingSettings)
     match_magnet: MatchMagnetSettings = Field(default_factory=MatchMagnetSettings)
+    below_default: BelowDefaultSettings = Field(default_factory=BelowDefaultSettings)
 
 
 # =============================================================================

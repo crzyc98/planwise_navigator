@@ -6,8 +6,17 @@ preserved at every level; omitted fields must never become null overrides.
 
 from typing import Annotated, Any
 
+from planalign_orchestrator.config.participant_behavior import (
+    AIPMode,
+    BelowDefaultTier,
+    DeferralChangeStep,
+    EasyEnrollPackage,
+    Rate,
+)
+
 from pydantic import (
     BaseModel,
+    Field,
     ConfigDict,
     GetJsonSchemaHandler,
     ValidateAs,
@@ -81,6 +90,31 @@ class StudioDCPlanConfig(PartialConfig):
     tenure_match_tiers: list[StudioTenureMatchTier] | None = None
     points_match_tiers: list[StudioPointsMatchTier] | None = None
     auto_escalation: bool | None = None
+
+    aip_mode: AIPMode | None = Field(
+        default=None, description="Escalation behavior when auto_escalation is enabled."
+    )
+    aip_participant_elected_signup_rate: Rate | None = None
+    easy_enroll_enabled: bool | None = None
+    easy_enroll_channel_share: Rate | None = None
+    easy_enroll_packages: list[EasyEnrollPackage] | None = None
+    easy_enroll_aip_cap: Rate | None = None
+    match_magnet_downward_enabled: bool | None = None
+    below_default_share_tiers: list[BelowDefaultTier] | None = None
+    below_default_step_weights: list[Rate] | None = None
+    deferral_rate_changes_enabled: bool | None = None
+    deferral_rate_changes_in_aip_increase_rate: Rate | None = None
+    deferral_rate_changes_in_aip_decrease_rate: Rate | None = None
+    deferral_rate_changes_not_in_aip_increase_rate: Rate | None = None
+    deferral_rate_changes_not_in_aip_decrease_rate: Rate | None = None
+    deferral_rate_changes_increase_steps: list[DeferralChangeStep] | None = None
+    deferral_rate_changes_decrease_steps: list[DeferralChangeStep] | None = None
+    deferral_rate_changes_aip_response_window_days: int | None = Field(
+        default=None, ge=0, strict=True
+    )
+    deferral_rate_changes_aip_response_opts_out: bool | None = None
+    deferral_rate_changes_stop_rate: Rate | None = None
+    deferral_rate_changes_restart_rate: Rate | None = None
 
 
 class StudioAgeMultiplier(PromotionHazardAgeMultiplier):

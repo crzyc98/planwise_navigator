@@ -28,6 +28,7 @@ from planalign_orchestrator.config import load_simulation_config
 from planalign_orchestrator.config.export import (
     DBT_VAR_DEFERRED,
     DBT_VAR_PER_DESIGN,
+    PARTICIPANT_BEHAVIOR_VARS,
     dbt_var_disposition,
     to_dbt_vars,
 )
@@ -189,6 +190,13 @@ def _all_exported_vars() -> set[str]:
 
 
 class TestDbtVarCoverage:
+    def test_participant_behavior_is_run_global(self):
+        assert len(PARTICIPANT_BEHAVIOR_VARS) == 20
+        assert PARTICIPANT_BEHAVIOR_VARS <= _all_exported_vars()
+        assert all(
+            dbt_var_disposition(name) == "global" for name in PARTICIPANT_BEHAVIOR_VARS
+        )
+
     def test_formula_family_payload_owns_age_and_points_core_schedules(self):
         from tests.fixtures.plan_design_formula_families import (
             relation_contract_payload,

@@ -3545,6 +3545,13 @@ export interface components {
              */
             status: "pending" | "running" | "completed" | "failed" | "cancelled";
         };
+        /** BelowDefaultTier */
+        BelowDefaultTier: {
+            /** Ae Default Max */
+            ae_default_max: number | null;
+            /** Share */
+            share: number;
+        };
         /** Body_import_workspace_api_workspaces_import_post */
         Body_import_workspace_api_workspaces_import_post: {
             /** Conflict Resolution */
@@ -5391,6 +5398,13 @@ export interface components {
              */
             total_count: number;
         };
+        /** DeferralChangeStep */
+        DeferralChangeStep: {
+            /** Pp */
+            pp: number;
+            /** Weight */
+            weight: number;
+        };
         /**
          * DeferralDistributionYear
          * @description Deferral rate distribution for a specific simulation year.
@@ -5650,6 +5664,13 @@ export interface components {
             population: components["schemas"]["PopulationEvidence"];
             share_of_change: components["schemas"]["EvidenceFigure"];
             target_rate: components["schemas"]["EvidenceFigure"] | null;
+        };
+        /** EasyEnrollPackage */
+        EasyEnrollPackage: {
+            /** Rate */
+            rate: number;
+            /** Share */
+            share: number;
         };
         /** EmployeeIdentity */
         EmployeeIdentity: {
@@ -9408,10 +9429,53 @@ export interface components {
         };
         /** StudioDCPlanConfig */
         StudioDCPlanConfig: {
+            /**
+             * Aip Mode
+             * @description Escalation behavior when auto_escalation is enabled.
+             */
+            aip_mode?: ("automatic" | "participant_elected") | null;
+            /** Aip Participant Elected Signup Rate */
+            aip_participant_elected_signup_rate?: number | null;
             /** Auto Enroll */
             auto_enroll?: boolean | null;
             /** Auto Escalation */
             auto_escalation?: boolean | null;
+            /** Below Default Share Tiers */
+            below_default_share_tiers?: components["schemas"]["BelowDefaultTier"][] | null;
+            /** Below Default Step Weights */
+            below_default_step_weights?: number[] | null;
+            /** Deferral Rate Changes Aip Response Opts Out */
+            deferral_rate_changes_aip_response_opts_out?: boolean | null;
+            /** Deferral Rate Changes Aip Response Window Days */
+            deferral_rate_changes_aip_response_window_days?: number | null;
+            /** Deferral Rate Changes Decrease Steps */
+            deferral_rate_changes_decrease_steps?: components["schemas"]["DeferralChangeStep"][] | null;
+            /** Deferral Rate Changes Enabled */
+            deferral_rate_changes_enabled?: boolean | null;
+            /** Deferral Rate Changes In Aip Decrease Rate */
+            deferral_rate_changes_in_aip_decrease_rate?: number | null;
+            /** Deferral Rate Changes In Aip Increase Rate */
+            deferral_rate_changes_in_aip_increase_rate?: number | null;
+            /** Deferral Rate Changes Increase Steps */
+            deferral_rate_changes_increase_steps?: components["schemas"]["DeferralChangeStep"][] | null;
+            /** Deferral Rate Changes Not In Aip Decrease Rate */
+            deferral_rate_changes_not_in_aip_decrease_rate?: number | null;
+            /** Deferral Rate Changes Not In Aip Increase Rate */
+            deferral_rate_changes_not_in_aip_increase_rate?: number | null;
+            /** Deferral Rate Changes Restart Rate */
+            deferral_rate_changes_restart_rate?: number | null;
+            /** Deferral Rate Changes Stop Rate */
+            deferral_rate_changes_stop_rate?: number | null;
+            /** Easy Enroll Aip Cap */
+            easy_enroll_aip_cap?: number | null;
+            /** Easy Enroll Channel Share */
+            easy_enroll_channel_share?: number | null;
+            /** Easy Enroll Enabled */
+            easy_enroll_enabled?: boolean | null;
+            /** Easy Enroll Packages */
+            easy_enroll_packages?: components["schemas"]["EasyEnrollPackage"][] | null;
+            /** Match Magnet Downward Enabled */
+            match_magnet_downward_enabled?: boolean | null;
             /** Match Status */
             match_status?: string | null;
             /** Match Template */

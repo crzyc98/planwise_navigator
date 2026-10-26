@@ -28,7 +28,7 @@ def _run_source_pipeline(
     config = load_simulation_config(fixture.with_suffix(".yaml"), env_overrides=False)
     config.simulation.end_year = 2027
     config.simulation.target_growth_rate = 0
-    config.deferral_auto_escalation["enabled"] = False
+    config.deferral_auto_escalation.enabled = False
     frame = pd.read_csv(fixture.with_suffix(".csv"))
     template = frame.iloc[0].to_dict()
     rows = []
