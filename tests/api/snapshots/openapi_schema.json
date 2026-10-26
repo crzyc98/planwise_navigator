@@ -14970,7 +14970,7 @@
             "description": "Probability per participant per year of increasing deferral without escalation, 0\u20131.",
             "title": "Deferral Rate Changes Without Escalation Increase Probability"
           },
-          "easy_enroll_channel_share": {
+          "easy_enroll_channel_share_with_auto_enrollment": {
             "anyOf": [
               {
                 "maximum": 1.0,
@@ -14981,8 +14981,22 @@
                 "type": "null"
               }
             ],
-            "description": "Share of self-directed enrollees using Easy Enroll packages, decimal 0\u20131.",
-            "title": "Easy Enroll Channel Share"
+            "description": "For plans with auto-enrollment, the share of employees who enroll on their own (before any auto-enrollment) who use Easy Enroll instead of choosing a rate themselves, decimal 0\u20131. The remainder enroll proactively online. Easy Enroll is only available before auto-enrollment happens; auto-enrolled participants never use it.",
+            "title": "Easy Enroll Channel Share With Auto Enrollment"
+          },
+          "easy_enroll_channel_share_without_auto_enrollment": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For plans without auto-enrollment, the share of employees who enroll on their own (before any auto-enrollment) who use Easy Enroll instead of choosing a rate themselves, decimal 0\u20131. The remainder enroll proactively online. Easy Enroll is only available before auto-enrollment happens; auto-enrolled participants never use it.",
+            "title": "Easy Enroll Channel Share Without Auto Enrollment"
           },
           "easy_enroll_enabled": {
             "anyOf": [

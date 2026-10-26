@@ -51,7 +51,7 @@ Wiring required, all part of PR 0a:
 
 ### 2.2 Enrollment channel
 
-No new column. `enrollment` events already record the channel in `event_category`. Easy Enroll is decided **after** the existing dedupe, as a channel among the people who enroll on their own (voluntary, proactive or YoY winners). It replaces that event's rate with the package rate and sets `event_category = 'easy_enroll'`. The original channel goes into `event_details`. That means no new precedence slot.
+No new column. `enrollment` events already record the channel in `event_category`. Easy Enroll is decided **after** the existing dedupe, as a channel among the people who enroll on their own (voluntary, proactive or YoY winners). It replaces that event's rate with the package rate and sets `event_category = 'easy_enroll'`. The original channel goes into `event_details`. That means no new precedence slot. Easy Enroll is only available before auto-enrollment happens; auto-enrolled participants never use it. Among employees who enroll on their own, `channel_share_without_auto_enrollment` (0.45) applies to plans without auto-enrollment and `channel_share_with_auto_enrollment` (0.57) applies to plans with auto-enrollment. The remainder enroll proactively online, choosing their rate themselves.
 
 ### 2.3 Timing and ordering **[D2, D3]**
 
@@ -165,7 +165,15 @@ deferral_auto_escalation:            # existing
 
 easy_enroll:                         # new, #987
   enabled: false                                # Phase 4: true
-  channel_share: 0.35
+  # Share of employees who enroll on their own (before any auto-enrollment) who use
+  # Easy Enroll instead of choosing a rate themselves; the remainder enroll proactively online.
+  # Use the share for whether the plan has auto-enrollment. Easy Enroll is only available
+  # before auto-enrollment happens; auto-enrolled participants never use it.
+  # Without auto-enrollment: ~45% Easy Enroll / 55% proactive.
+  # With auto-enrollment: ~20% Easy Enroll / 15% proactive / 65% auto-enrolled,
+  # so 20/35 ≈ 0.57 of employees who enroll on their own use Easy Enroll.
+  channel_share_without_auto_enrollment: 0.45
+  channel_share_with_auto_enrollment: 0.57
   packages:
     - {rate: 0.06, share: 0.30}
     - {rate: 0.08, share: 0.50}

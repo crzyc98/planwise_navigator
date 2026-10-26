@@ -27,7 +27,8 @@ DEFAULTS: dict[str, Any] = {
     "deferral_escalation_mode": "automatic",
     "deferral_escalation_participant_elected_signup_probability": 0.0,
     "easy_enroll_enabled": False,
-    "easy_enroll_channel_share": 0.35,
+    "easy_enroll_channel_share_without_auto_enrollment": 0.45,
+    "easy_enroll_channel_share_with_auto_enrollment": 0.57,
     "easy_enroll_packages": [
         {"rate": 0.06, "share": 0.30},
         {"rate": 0.08, "share": 0.50},
@@ -70,7 +71,8 @@ OVERRIDES: dict[str, Any] = {
     "escalation_mode": "participant_elected",
     "escalation_participant_elected_signup_probability": 0.01,
     "easy_enroll_enabled": True,
-    "easy_enroll_channel_share": 0.42,
+    "easy_enroll_channel_share_without_auto_enrollment": 0.42,
+    "easy_enroll_channel_share_with_auto_enrollment": 0.63,
     "easy_enroll_packages": [
         {"rate": 0.07, "share": 0.25},
         {"rate": 0.04, "share": 0.75},
@@ -100,6 +102,12 @@ OVERRIDES: dict[str, Any] = {
 }
 
 
+def test_easy_enroll_model_defaults() -> None:
+    settings = EasyEnrollSettings()
+    assert settings.channel_share_without_auto_enrollment == 0.45
+    assert settings.channel_share_with_auto_enrollment == 0.57
+
+
 def test_off_defaults_and_preexisting_vars_unchanged() -> None:
     exported = to_dbt_vars(load_simulation_config("config/simulation_config.yaml"))
     baseline = json.loads(
@@ -126,6 +134,9 @@ def test_each_dc_plan_override(key: str, value: Any) -> None:
     }.get(key, key)
     result = to_dbt_vars(cfg)
     assert result[target] == value
+    assert {name: result[name] for name in DEFAULTS if name != target} == {
+        name: default for name, default in DEFAULTS.items() if name != target
+    }
     assert not validate_dbt_vars(result)
 
 
@@ -180,7 +191,14 @@ def test_studio_escalation_mode_preserves_independent_toggle(
 @pytest.mark.parametrize(
     "model,data",
     [
-        (EasyEnrollSettings, {"channel_share": -0.1}),
+        *[
+            (EasyEnrollSettings, {field: value})
+            for field in (
+                "channel_share_without_auto_enrollment",
+                "channel_share_with_auto_enrollment",
+            )
+            for value in (-0.1, 1.1)
+        ],
         (EasyEnrollSettings, {"escalation_cap": 1.1}),
         (EasyEnrollSettings, {"packages": []}),
         (EasyEnrollSettings, {"packages": [{"rate": 0, "share": 1}]}),
@@ -293,6 +311,14 @@ def test_reject_invalid_settings(model: type[BaseModel], data: dict[str, Any]) -
 @pytest.mark.parametrize(
     "field,value",
     [
+        *[
+            (field, value)
+            for field in (
+                "easy_enroll_channel_share_without_auto_enrollment",
+                "easy_enroll_channel_share_with_auto_enrollment",
+            )
+            for value in (-0.1, 1.1, float("nan"), "0.45")
+        ],
         ("easy_enroll_packages", "[]"),
         ("easy_enroll_packages", [{"rate": 0.06, "share": 0.5}]),
         (
@@ -337,7 +363,8 @@ def test_all_yaml_settings_export_nondefault_values() -> None:
     )
     cfg.easy_enroll = EasyEnrollSettings(
         enabled=True,
-        channel_share=0.42,
+        channel_share_without_auto_enrollment=0.42,
+        channel_share_with_auto_enrollment=0.63,
         packages=OVERRIDES["easy_enroll_packages"],
         escalation_cap=0.12,
     )

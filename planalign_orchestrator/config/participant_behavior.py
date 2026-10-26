@@ -28,7 +28,8 @@ class EasyEnrollPackage(BaseModel):
 
 class EasyEnrollSettings(BaseModel):
     enabled: bool = False
-    channel_share: Rate = 0.35
+    channel_share_without_auto_enrollment: Rate = 0.45
+    channel_share_with_auto_enrollment: Rate = 0.57
     packages: list[EasyEnrollPackage] = Field(
         default_factory=lambda: [
             EasyEnrollPackage(rate=0.06, share=0.30),

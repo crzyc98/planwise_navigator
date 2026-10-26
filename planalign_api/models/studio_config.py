@@ -103,9 +103,13 @@ class StudioDCPlanConfig(PartialConfig):
         default=None,
         description="Enable enrollment through preset deferral packages; false leaves results unchanged.",
     )
-    easy_enroll_channel_share: Rate | None = Field(
+    easy_enroll_channel_share_without_auto_enrollment: Rate | None = Field(
         default=None,
-        description="Share of self-directed enrollees using Easy Enroll packages, decimal 0–1.",
+        description="For plans without auto-enrollment, the share of employees who enroll on their own (before any auto-enrollment) who use Easy Enroll instead of choosing a rate themselves, decimal 0–1. The remainder enroll proactively online. Easy Enroll is only available before auto-enrollment happens; auto-enrolled participants never use it.",
+    )
+    easy_enroll_channel_share_with_auto_enrollment: Rate | None = Field(
+        default=None,
+        description="For plans with auto-enrollment, the share of employees who enroll on their own (before any auto-enrollment) who use Easy Enroll instead of choosing a rate themselves, decimal 0–1. The remainder enroll proactively online. Easy Enroll is only available before auto-enrollment happens; auto-enrolled participants never use it.",
     )
     easy_enroll_packages: list[EasyEnrollPackage] | None = Field(
         default=None,

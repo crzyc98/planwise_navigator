@@ -94,7 +94,13 @@ _PARTICIPANT_BEHAVIOR_FIELDS = {
         "enrollment.below_default.steps",
     ),
 }
-for _field in ("enabled", "channel_share", "packages", "escalation_cap"):
+for _field in (
+    "enabled",
+    "channel_share_without_auto_enrollment",
+    "channel_share_with_auto_enrollment",
+    "packages",
+    "escalation_cap",
+):
     _PARTICIPANT_BEHAVIOR_FIELDS[f"easy_enroll_{_field}"] = (
         f"easy_enroll_{_field}",
         f"easy_enroll.{_field}",

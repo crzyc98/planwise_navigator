@@ -865,7 +865,15 @@ storage:
 # Rates are decimals (0.06 = 6%); shares are fractions, 0–1.
 easy_enroll:
   enabled: false
-  channel_share: 0.35  # Share of self-directed enrollment using packages
+  # Share of employees who enroll on their own (before any auto-enrollment) who use
+  # Easy Enroll instead of choosing a rate themselves; the remainder enroll proactively online.
+  # Use the share for whether the plan has auto-enrollment. Easy Enroll is only available
+  # before auto-enrollment happens; auto-enrolled participants never use it.
+  # Without auto-enrollment: ~45% Easy Enroll / 55% proactive.
+  # With auto-enrollment: ~20% Easy Enroll / 15% proactive / 65% auto-enrolled,
+  # so 20/35 ≈ 0.57 of employees who enroll on their own use Easy Enroll.
+  channel_share_without_auto_enrollment: 0.45
+  channel_share_with_auto_enrollment: 0.57
   packages:  # Ordered rate/share distribution; shares must sum to 1 (±1e-6)
     - {rate: 0.06, share: 0.30}
     - {rate: 0.08, share: 0.50}

@@ -9517,10 +9517,15 @@ export interface components {
              */
             deferral_rate_changes_without_escalation_increase_probability?: number | null;
             /**
-             * Easy Enroll Channel Share
-             * @description Share of self-directed enrollees using Easy Enroll packages, decimal 0–1.
+             * Easy Enroll Channel Share With Auto Enrollment
+             * @description For plans with auto-enrollment, the share of employees who enroll on their own (before any auto-enrollment) who use Easy Enroll instead of choosing a rate themselves, decimal 0–1. The remainder enroll proactively online. Easy Enroll is only available before auto-enrollment happens; auto-enrolled participants never use it.
              */
-            easy_enroll_channel_share?: number | null;
+            easy_enroll_channel_share_with_auto_enrollment?: number | null;
+            /**
+             * Easy Enroll Channel Share Without Auto Enrollment
+             * @description For plans without auto-enrollment, the share of employees who enroll on their own (before any auto-enrollment) who use Easy Enroll instead of choosing a rate themselves, decimal 0–1. The remainder enroll proactively online. Easy Enroll is only available before auto-enrollment happens; auto-enrolled participants never use it.
+             */
+            easy_enroll_channel_share_without_auto_enrollment?: number | null;
             /**
              * Easy Enroll Enabled
              * @description Enable enrollment through preset deferral packages; false leaves results unchanged.

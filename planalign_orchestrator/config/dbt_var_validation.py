@@ -57,7 +57,8 @@ BOOLEAN_VARS = frozenset(
 RATE_VARS = frozenset(
     {
         "deferral_escalation_participant_elected_signup_probability",
-        "easy_enroll_channel_share",
+        "easy_enroll_channel_share_without_auto_enrollment",
+        "easy_enroll_channel_share_with_auto_enrollment",
         "easy_enroll_escalation_cap",
         "deferral_rate_changes_with_escalation_increase_probability",
         "deferral_rate_changes_with_escalation_decrease_probability",
