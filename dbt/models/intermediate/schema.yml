@@ -773,19 +773,27 @@ models:
               WHERE escalations_received < COALESCE(prev_escalations, 0)) = 0
           config:
             severity: warn
-      # Deferral rate progression - generally non-decreasing, allow minor negative due to opt-outs (warn only)
+      # Deferral progression: a published voluntary decrease explains a downward year.
       - dbt_utils.expression_is_true:
           arguments:
             expression: >
               (SELECT COUNT(*) FROM (
                 SELECT
+                  scenario_id,
                   employee_id,
                   simulation_year,
                   current_deferral_rate,
                   LAG(current_deferral_rate) OVER (PARTITION BY scenario_id, plan_design_id, employee_id ORDER BY simulation_year) as prev_rate
                 FROM int_deferral_rate_state_accumulator
               ) t
-              WHERE current_deferral_rate < COALESCE(prev_rate, 0) - 0.001) = 0
+              WHERE current_deferral_rate < COALESCE(prev_rate, 0) - 0.001
+                AND NOT EXISTS (
+                  SELECT 1 FROM {{ ref('fct_yearly_events') }} e
+                  WHERE e.scenario_id = t.scenario_id AND e.employee_id = t.employee_id
+                    AND e.simulation_year = t.simulation_year
+                    AND e.event_type = 'deferral_change'
+                    AND e.employee_deferral_rate < e.prev_employee_deferral_rate
+                )) = 0
           config:
             severity: warn
             error_if: ">= 1"
@@ -836,7 +844,7 @@ models:
               config:
                 severity: error
       - name: rate_before_voluntary_change
-        description: Year-end rate from enrollment, match response, escalation and opt-out before a voluntary deferral_change override
+        description: Canonical pre-voluntary rate shared with event generation; includes enrollment, match response, escalation and opt-out precedence
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
@@ -934,11 +942,11 @@ models:
               config:
                 severity: error
       - name: escalation_rate_change_pct
-        description: Percentage change from original rate due to escalations
+        description: Legacy relative change from original rate, including carried voluntary changes in subsequent years.
         data_tests:
           - dbt_utils.accepted_range:
               arguments:
-                min_value: -0.1
+                min_value: "{{ -1.0 if var('deferral_rate_changes_enabled', false) else -0.1 }}"
                 max_value: 10.0
               config:
                 severity: warn
