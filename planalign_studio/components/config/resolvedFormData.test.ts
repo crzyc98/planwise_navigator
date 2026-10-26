@@ -157,3 +157,23 @@ describe('resolved engine inputs in configuration controls', () => {
     expect(resolved.jobLevelCompensation[0]).toEqual({ level: 1, name: 'Level 1', minComp: 12345, maxComp: 67890 });
   });
 });
+
+describe('resolved Easy Enroll inputs', () => {
+  it('projects all decimal engine values, preserves zero and false, and copies package rows', () => {
+    const variables = { easy_enroll_enabled: true, easy_enroll_channel_share_with_auto_enrollment: 0.57,
+      easy_enroll_channel_share_without_auto_enrollment: 0.45, easy_enroll_escalation_cap: 0.125,
+      easy_enroll_packages: [{ rate: 0.075, share: 1 }],
+    };
+    const form = applyResolvedFormData(variables, DEFAULT_FORM_DATA);
+    expect(form).toMatchObject({ dcEasyEnrollEnabled: true, dcEasyEnrollShareWithAutoEnrollment: 57,
+      dcEasyEnrollShareWithoutAutoEnrollment: 45, dcEasyEnrollEscalationCap: 12.5,
+      dcEasyEnrollPackages: [{ rate: 7.5, share: 100 }],
+    });
+    form.dcEasyEnrollPackages[0].rate = 8;
+    expect(variables.easy_enroll_packages[0].rate).toBe(0.075);
+    expect(applyResolvedFormData({ easy_enroll_enabled: false, easy_enroll_channel_share_with_auto_enrollment: 0,
+      easy_enroll_channel_share_without_auto_enrollment: 0, easy_enroll_escalation_cap: 0 }, form))
+      .toMatchObject({ dcEasyEnrollEnabled: false, dcEasyEnrollShareWithAutoEnrollment: 0,
+        dcEasyEnrollShareWithoutAutoEnrollment: 0, dcEasyEnrollEscalationCap: 0 });
+  });
+});

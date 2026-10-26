@@ -1,6 +1,6 @@
 import type { FormData, MatchTier } from './types';
 import { ELIGIBILITY_DEFAULTS } from './constants';
-import { stepsToPercent, tiersToPercent } from './participantBehaviorConfig';
+import { packagesToPercent, stepsToPercent, tiersToPercent } from './participantBehaviorConfig';
 
 type Variables = Record<string, unknown>;
 const asVariables = (value: unknown): Variables => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Variables : {};
@@ -40,6 +40,10 @@ const SCALARS: Mapping[] = [
   ['promoDistributionRange', 'promotion_distribution_range', 100],
   ['promoRateMultiplier', 'promotion_rate_multiplier'],
   ['dcAutoEnroll', 'auto_enrollment_enabled'],
+  ['dcEasyEnrollEnabled', 'easy_enroll_enabled'],
+  ['dcEasyEnrollShareWithoutAutoEnrollment', 'easy_enroll_channel_share_without_auto_enrollment', 100],
+  ['dcEasyEnrollShareWithAutoEnrollment', 'easy_enroll_channel_share_with_auto_enrollment', 100],
+  ['dcEasyEnrollEscalationCap', 'easy_enroll_escalation_cap', 100],
   ['dcDefaultDeferral', 'auto_enrollment_default_deferral_rate', 100],
   ['dcAutoEnrollWindowDays', 'auto_enrollment_window_days'],
   ['dcAutoEnrollOptOutGracePeriod', 'auto_enrollment_opt_out_grace_period'],
@@ -96,6 +100,8 @@ function applyEnrollment(variables: Variables, form: FormData): FormData {
     dcDeferralSpreadMaxLift: variables.deferral_spread_max_lift == null ? form.dcDeferralSpreadMaxLift : String(variables.deferral_spread_max_lift),
     dcEscalationHireDateCutoff: (variables.deferral_escalation_hire_date_cutoff ?? '') as string,
     dcVoluntaryDeferralBaseRates: rates,
+    ...(rows<FormData['dcEasyEnrollPackages'][number]>(variables.easy_enroll_packages)
+      ? { dcEasyEnrollPackages: packagesToPercent(variables.easy_enroll_packages as FormData['dcEasyEnrollPackages']) } : {}),
     ...(rows<FormData['dcBelowDefaultShareTiers'][number]>(variables.below_default_share_tiers)
       ? { dcBelowDefaultShareTiers: tiersToPercent(variables.below_default_share_tiers as FormData['dcBelowDefaultShareTiers']) } : {}),
     ...(rows<FormData['dcBelowDefaultSteps'][number]>(variables.below_default_steps)

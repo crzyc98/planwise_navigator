@@ -1,9 +1,11 @@
 import type { components } from '../../services/api.generated';
-import type { BelowDefaultStep, BelowDefaultTier, FormData } from './types';
+import type { BelowDefaultStep, BelowDefaultTier, EasyEnrollPackage, FormData } from './types';
 
 type BehaviorConfig = Pick<components['schemas']['StudioDCPlanConfig'],
   'escalation_mode' | 'escalation_participant_elected_signup_probability' |
-  'match_magnet_downward_enabled' | 'below_default_share_tiers' | 'below_default_steps'>;
+  'match_magnet_downward_enabled' | 'below_default_share_tiers' | 'below_default_steps' |
+  'easy_enroll_enabled' | 'easy_enroll_channel_share_without_auto_enrollment' |
+  'easy_enroll_channel_share_with_auto_enrollment' | 'easy_enroll_packages' | 'easy_enroll_escalation_cap'>;
 
 const percent = (value: number) => Number((value * 100).toFixed(10));
 
@@ -15,8 +17,21 @@ export const stepsToPercent = (steps: BelowDefaultStep[]): BelowDefaultStep[] =>
   pp: step.pp, weight: percent(step.weight),
 }));
 
+export const packagesToPercent = (packages: EasyEnrollPackage[]): EasyEnrollPackage[] => packages.map(pkg => ({
+  rate: percent(pkg.rate), share: percent(pkg.share),
+}));
+
 export function participantBehaviorFormFields(config: BehaviorConfig, form: FormData): Partial<FormData> {
   return {
+    dcEasyEnrollEnabled: config.easy_enroll_enabled ?? form.dcEasyEnrollEnabled,
+    dcEasyEnrollShareWithoutAutoEnrollment: config.easy_enroll_channel_share_without_auto_enrollment == null
+      ? form.dcEasyEnrollShareWithoutAutoEnrollment : percent(config.easy_enroll_channel_share_without_auto_enrollment),
+    dcEasyEnrollShareWithAutoEnrollment: config.easy_enroll_channel_share_with_auto_enrollment == null
+      ? form.dcEasyEnrollShareWithAutoEnrollment : percent(config.easy_enroll_channel_share_with_auto_enrollment),
+    dcEasyEnrollPackages: config.easy_enroll_packages == null
+      ? form.dcEasyEnrollPackages : packagesToPercent(config.easy_enroll_packages),
+    dcEasyEnrollEscalationCap: config.easy_enroll_escalation_cap == null
+      ? form.dcEasyEnrollEscalationCap : percent(config.easy_enroll_escalation_cap),
     dcEscalationMode: config.escalation_mode ?? form.dcEscalationMode,
     dcEscalationSignupProbability: config.escalation_participant_elected_signup_probability == null
       ? form.dcEscalationSignupProbability : percent(config.escalation_participant_elected_signup_probability),
@@ -82,4 +97,40 @@ export function belowDefaultSummary(form: FormData): string {
   const share = form.dcBelowDefaultShareTiers[index]?.share;
   if (share === 0) return `At the ${form.dcDefaultDeferral}% default, no one starts below it.`;
   return `At the ${form.dcDefaultDeferral}% default, ${share}% start below it (${form.dcBelowDefaultSteps.map(step => `${step.pp} pp: ${step.weight}%`).join(', ')}).`;
+}
+
+export const distributionTotal = (shares: number[]): number =>
+  Number(shares.reduce((sum, share) => sum + share, 0).toFixed(6));
+
+export const invalidDistribution = (shares: number[]): boolean =>
+  !shares.length || shares.some(share => !inRange(share))
+    || Math.abs(shares.reduce((sum, share) => sum + share, 0) - 100) > 0.0001;
+
+export function invalidEasyEnrollRate(packages: EasyEnrollPackage[], index: number): boolean {
+  const rate = packages[index].rate;
+  return !inRange(rate) || rate <= 0 || packages.some((pkg, row) => row !== index && pkg.rate === rate);
+}
+
+export function validateEasyEnrollSettings(form: FormData): string[] {
+  const packages = form.dcEasyEnrollPackages;
+  const errors: string[] = [];
+  if (!packages.length) errors.push('Add at least one Easy Enroll package.');
+  if (packages.some((_, index) => invalidEasyEnrollRate(packages, index))) {
+    errors.push('Package contribution rates must be unique and greater than 0%, up to 100%.');
+  }
+  if (invalidDistribution(packages.map(pkg => pkg.share))) {
+    errors.push(`Package shares must be between 0% and 100% and add up to 100% (now ${distributionTotal(packages.map(pkg => pkg.share))}%).`);
+  }
+  if (![form.dcEasyEnrollShareWithAutoEnrollment, form.dcEasyEnrollShareWithoutAutoEnrollment].every(value => inRange(Number(value)))) {
+    errors.push('Each share of self-enrollees must be between 0% and 100%.');
+  }
+  if (!inRange(Number(form.dcEasyEnrollEscalationCap))) errors.push('The Easy Enroll automatic increase limit must be between 0% and 100%.');
+  return errors;
+}
+
+export function easyEnrollSummary(form: FormData): string {
+  if (!form.dcEasyEnrollEnabled) return 'Easy Enroll off; package settings inactive and saved values retained.';
+  if (validateEasyEnrollSettings(form).length) return 'Easy Enroll settings need attention: check package rates, shares and automatic increase limit.';
+  const share = form.dcAutoEnroll ? form.dcEasyEnrollShareWithAutoEnrollment : form.dcEasyEnrollShareWithoutAutoEnrollment;
+  return `${share}% of self-enrollees use Easy Enroll; packages: ${form.dcEasyEnrollPackages.map(pkg => `${pkg.rate}% contribution chosen by ${pkg.share}%`).join(', ')}. Automatic increases stop at ${form.dcEasyEnrollEscalationCap}%, even when plan-wide automatic increases are off.`;
 }

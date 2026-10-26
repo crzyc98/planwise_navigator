@@ -101,6 +101,42 @@ describe('Effective configuration review', () => {
     expect(formatDraftValue('dc_plan.below_default_steps', behavior.below_default_steps)).toContain('1 percentage point below (75%)');
   });
 
+  it.each([true, false])('reviews Easy Enroll in percentage units with auto-enrollment=%s', async autoEnrollment => {
+    vi.mocked(previewConfiguration).mockReset();
+    const easyEnroll = { easy_enroll_enabled: true, easy_enroll_channel_share_with_auto_enrollment: 0.57,
+      easy_enroll_channel_share_without_auto_enrollment: 0.45, easy_enroll_escalation_cap: 0.125,
+      easy_enroll_packages: [{ rate: 0.065, share: 0.3 }, { rate: 0.1, share: 0.7 }],
+      auto_enrollment_enabled: autoEnrollment, deferral_escalation_enabled: false };
+    vi.mocked(previewConfiguration).mockResolvedValue({ ...baseline, engine_variables: easyEnroll });
+    render(); await settle();
+    const html = renderToStaticMarkup(render()).split('Other active custom settings')[0];
+    expect(html).toContain('Offer Easy Enroll packages');
+    expect(html).toContain('6.5% contribution, chosen by 30%; 10% contribution, chosen by 70%');
+    expect(html).toContain('12.5%');
+    expect(html).toContain('57%');
+    expect(html).toContain('45%');
+    expect(html).toContain('Easy Enroll members get automatic increases even when plan-wide automatic increases are off.');
+    const inactive: string[] = html.match(/<dt[^>]*>Easy Enroll share[^<]*<\/dt><dd[\s\S]*?<\/dd>/g) ?? [];
+    expect(inactive.find(row => row.includes('Inactive for this plan'))).toContain(autoEnrollment ? 'plans without auto-enrollment' : 'plans with auto-enrollment');
+    expect(formatDraftValue('dc_plan.easy_enroll_escalation_cap', 0.125)).toBe('12.5%');
+    expect(formatDraftValue('dc_plan.easy_enroll_channel_share_with_auto_enrollment', 0.57)).toBe('57%');
+    expect(formatDraftValue('dc_plan.easy_enroll_channel_share_without_auto_enrollment', 0.45)).toBe('45%');
+    expect(formatDraftValue('dc_plan.easy_enroll_packages', easyEnroll.easy_enroll_packages)).toContain('6.5% contribution, chosen by 30%');
+    expect(formatDraftValue('dc_plan.easy_enroll_enabled', false)).toBe('Off');
+  });
+
+  it('marks retained Easy Enroll fields inactive when packages are not offered', async () => {
+    vi.mocked(previewConfiguration).mockReset();
+    vi.mocked(previewConfiguration).mockResolvedValue({ ...baseline, engine_variables: {
+      easy_enroll_enabled: false, easy_enroll_channel_share_with_auto_enrollment: 0.57,
+      easy_enroll_channel_share_without_auto_enrollment: 0.45, easy_enroll_escalation_cap: 0.1,
+      easy_enroll_packages: [{ rate: 0.06, share: 1 }], auto_enrollment_enabled: true,
+    } });
+    render(); await settle();
+    const html = renderToStaticMarkup(render()).split('Other active custom settings')[0];
+    expect(html.match(/Inactive while Easy Enroll is off; saved value retained./g)).toHaveLength(4);
+  });
+
   it.each([false, true])('marks sign-up assumptions inactive for automatic enrollment in increases, enabled=%s', async enabled => {
     vi.mocked(previewConfiguration).mockReset();
     vi.mocked(previewConfiguration).mockResolvedValue({ ...baseline, engine_variables: {

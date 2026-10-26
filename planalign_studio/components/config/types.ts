@@ -8,6 +8,7 @@ export type EscalationMode = NonNullable<components['schemas']['StudioDCPlanConf
 // pp remains a whole number of percentage points in both the UI and API.
 export type BelowDefaultTier = components['schemas']['BelowDefaultTier'];
 export type BelowDefaultStep = components['schemas']['DeferralChangeStep'];
+export type EasyEnrollPackage = components['schemas']['EasyEnrollPackage'];
 
 export interface MatchTier {
   deferralMin: number;
@@ -173,6 +174,11 @@ export interface FormData {
   dcEscalationSignupProbability: number; // percent (0-100)
   dcBelowDefaultShareTiers: BelowDefaultTier[];
   dcBelowDefaultSteps: BelowDefaultStep[];
+  dcEasyEnrollEnabled: boolean;
+  dcEasyEnrollShareWithoutAutoEnrollment: number;
+  dcEasyEnrollShareWithAutoEnrollment: number;
+  dcEasyEnrollPackages: EasyEnrollPackage[];
+  dcEasyEnrollEscalationCap: number;
 
   // DC Plan - Auto-Enrollment Advanced
   dcAutoEnrollWindowDays: number;
