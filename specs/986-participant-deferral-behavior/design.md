@@ -203,16 +203,19 @@ deferral_rate_changes:               # new, #983
 
 ## 7. Calibration report
 
-`dbt/models/analysis/deferral_change_calibration.sql` is built in REPORTING. For each simulation year after the first, it reports **continuous participants** (enrolled and active at both year-ends), split by:
+`scripts/deferral_calibration_report.py` runs **on demand** against a finished run's database. It is **not** a pipeline model: the REPORTING stage is empty today, and a per-year model would add a dbt invocation to every year of every run. The script queries `fct_workforce_snapshot` and `fct_yearly_events` directly. For each simulation year after the first, it reports **continuous participants** (enrolled and active at both year-ends), split by:
 
 - `same` / `increase` / `decrease`, from year-end rates;
-- for increases: `aip` vs `proactive` (driven by `deferral_escalation` or `deferral_change`);
+- increases attributed to `proactive` (a `proactive_increase` or `restart` `deferral_change` that year), else `aip` (a `deferral_escalation` that year), else `other` (for example, match response);
 - `to_zero` / `from_zero`;
 - average increase, average decrease, and net change in pp.
 
-Each split is reported overall and by reporting-only age, income and tenure bands that match the calibration file. These use a local `CASE` and don't touch the seeded simulation bands.
+Each split is reported overall and by reporting-only bands that match the calibration file. These don't touch the seeded simulation bands:
+- age by decade, 20–29 through 70+;
+- income: <$25k, $25k, $40k, $50k, $60k, $75k, $100k, $125k, $150k, $200k, $250k+;
+- tenure: 1–2, 2–3, 3–4, 4–5, 5–10, then 5-year steps to 30+.
 
-`scripts/compare_deferral_calibration.py` diffs the report against an optional local targets file under git-ignored `data/calibration/`. CI uses synthetic fixtures with hand-computed expectations and never sees the targets.
+`--targets <csv>` takes an optional targets file kept under git-ignored `data/calibration/`, with columns `dimension,band,metric,value`, and prints the differences. CI never sees the targets. CI tests use a synthetic DuckDB fixture with hand-computed expectations.
 
 ---
 
@@ -222,7 +225,7 @@ Each split is reported overall and by reporting-only age, income and tenure band
 
 | PR | Content | Unchanged when off? |
 |---|---|---|
-| **0a** | Config models and exports (§6) at their off defaults; validation; coverage; `dc_plan` mappings. `evt_deferral_change` and the priority shift. The DQ allowlist, accepted values and invariant lists. The `int_deferral_change_events` skeleton, unioned only when enabled. The calibration report and comparator. | Yes |
+| **0a** | Config models and exports (§6) at their off defaults; validation; coverage; `dc_plan` mappings. `evt_deferral_change` and the priority shift. The DQ allowlist, accepted values and invariant lists. The `int_deferral_change_events` skeleton, unioned only when enabled. The on-demand calibration report script. | Yes |
 | **0b** | The `aip_initial_membership` macro and the `aip_participant` / `last_nonzero_deferral_rate` columns. Escalation reads membership from them. The `rate_before_voluntary_change` refactor. Contributions weighting hook (no-op without events). | Yes |
 | 1a | #985 AIP modes plus Studio controls | Yes (`automatic`) |
 | 1b | #984 below-default branch, downward magnet, YoY rate logic plus Studio controls | Yes (off) |
