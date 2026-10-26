@@ -5,9 +5,13 @@ import { DEFAULT_FORM_DATA } from './constants';
 import { DCPlanSection } from './DCPlanSection';
 import { EmployerEligibilityEditor, coreSummary, dcDisplayConfig, eligibilitySummary, matchSummary, tierSummary } from './DCPlanPanels';
 import { EnrollmentRateInput } from './EnrollmentRateInput';
+import { BelowDefaultEditor } from './BelowDefaultEditor';
+import { belowDefaultSummary, validateBelowDefaultSettings } from './participantBehaviorConfig';
 import type { FormData } from './types';
+import { buildConfigPayload } from './buildConfigPayload';
+import { applyConfigEdits } from './configEdits';
 
-const state = vi.hoisted(() => ({ formData: {} as FormData, savedFormData: null as FormData | null, config: {} as Record<string, any>, resolved: null as Record<string, any> | null, draftError: false, scenarioId: undefined as string | undefined }));
+const state = vi.hoisted(() => ({ formData: {} as FormData, savedFormData: null as FormData | null, config: {} as Record<string, unknown>, resolved: null as Record<string, unknown> | null, draftError: false, scenarioId: undefined as string | undefined }));
 vi.mock('./ConfigContext', () => ({
   useConfigContext: () => ({
     formData: state.formData,
@@ -31,18 +35,21 @@ vi.mock('./ConfigContext', () => ({
     inputProps: (name: keyof FormData) => ({ name, value: state.formData[name], onChange: vi.fn() }),
   }),
 }));
+const editorState = vi.hoisted(() => ({ rendering: false, showTiers: false }));
 vi.mock('react', async importOriginal => {
   const actual = await importOriginal<typeof import('react')>();
   return {
     ...actual,
     // No DOM package is required: inspect the component's control handlers and
     // render its real inputs with the existing server-rendering test convention.
-    useState: (initial: unknown) => [initial, vi.fn()],
+    useState: (initial: unknown) => editorState.rendering
+      ? [editorState.showTiers, (value: boolean) => { editorState.showTiers = value; }]
+      : [initial, vi.fn()],
     useEffect: vi.fn(),
   };
 });
 
-type ControlProps = { name?: string; id?: string; checked?: boolean; children?: ReactNode; control?: ReactNode; onChange?: (event: React.ChangeEvent<HTMLInputElement>) => void };
+type ControlProps = { name?: string; id?: string; checked?: boolean; children?: ReactNode; control?: ReactNode; 'aria-label'?: string; onClick?: () => void; onChange?: (event: React.ChangeEvent<HTMLInputElement>) => void };
 
 function elements(node: ReactNode): ReactElement<ControlProps>[] {
   return Children.toArray(node).flatMap(child => {
@@ -62,6 +69,7 @@ const render = () => renderToStaticMarkup(<DCPlanSection />);
 const input = (html: string, name: string) => html.match(new RegExp(`<input[^>]*(?:name|id)="${name}"[^>]*>`))?.[0] ?? '';
 
 beforeEach(() => {
+  editorState.showTiers = false;
   state.config = {};
   state.savedFormData = null;
   state.resolved = null;
@@ -75,6 +83,260 @@ beforeEach(() => {
     dcVoluntaryEnrollmentMode: 'specified',
     dcNewHireOptOutMode: 'specified',
   };
+});
+
+describe('participant behavior controls', () => {
+  const editor = () => {
+    editorState.rendering = true;
+    try {
+      return BelowDefaultEditor({ form: state.formData, onChange: changes => { state.formData = { ...state.formData, ...changes }; } });
+    } finally {
+      editorState.rendering = false;
+    }
+  };
+  const click = (label: string) => {
+    const button = elements(editor()).find(element => element.type === 'button'
+      && (element.props.children === label || element.props['aria-label'] === label));
+    expect(button).toBeDefined();
+    button!.props.onClick!();
+  };
+  const edit = (label: string, value: string) => {
+    const control = elements(editor()).find(element => element.props['aria-label'] === label);
+    expect(control).toBeDefined();
+    control!.props.onChange!({ target: { value } } as React.ChangeEvent<HTMLInputElement>);
+  };
+
+  it('edits the single open tier and expands its table without changing values or materializing keys', () => {
+    const original = structuredClone(state.formData);
+    const payload = () => buildConfigPayload(state.formData, null, null);
+    const saved = payload();
+    const single = renderToStaticMarkup(editor());
+    expect(single).toContain('aria-expanded="false" aria-controls="dcplan-below-default-shares"');
+    expect(single).toContain('Start below the default');
+    expect(single).toContain(`At the current ${state.formData.dcDefaultDeferral}% default.`);
+    expect(input(single, 'dcplan-below-default-share')).toContain('aria-describedby="dcplan-below-default-share-help"');
+    expect(single).not.toContain('Share choosing below the default by auto-enrollment default');
+    expect(single.match(/<table /g)).toHaveLength(1); // Only the reductions table has actions.
+    click('Vary by auto-enrollment default…');
+    const table = renderToStaticMarkup(editor());
+    expect(table).toContain('All auto-enrollment defaults');
+    expect(table).toContain('aria-expanded="true" aria-controls="dcplan-below-default-shares"');
+    expect(state.formData).toEqual(original);
+    expect(applyConfigEdits({}, saved, payload())).toEqual({});
+
+    click('Use one share for all defaults');
+    expect(renderToStaticMarkup(editor())).toContain('Start below the default');
+    expect(state.formData).toEqual(original);
+    edit('Start below the default', '12.5');
+    expect(state.formData.dcBelowDefaultShareTiers).toEqual([{ max_auto_enroll_default_rate: null, share: 12.5 }]);
+    const edited = structuredClone(state.formData);
+    click('Vary by auto-enrollment default…');
+    const expanded = renderToStaticMarkup(editor());
+    expect(expanded).toContain('aria-label="Tier 1 share choosing below"');
+    expect(expanded).toContain('value="12.5"');
+    expect(expanded).not.toContain('Start below the default');
+    expect(state.formData).toEqual(edited);
+    expect(applyConfigEdits({}, saved, payload())).toEqual({ dc_plan: {
+      below_default_share_tiers: [{ max_auto_enroll_default_rate: null, share: 0.125 }],
+    } });
+    click('Use one share for all defaults');
+    expect(input(renderToStaticMarkup(editor()), 'dcplan-below-default-share')).toContain('value="12.5"');
+    expect(state.formData).toEqual(edited);
+  });
+
+  it('orders base rates and spread before below-default adjustments and explains the population', () => {
+    const html = render();
+    const spread = html.indexOf('Deferral Rate Spread');
+    const below = html.indexOf('id="dcplan-below-default-title"');
+    expect(spread).toBeGreaterThan(html.indexOf('Starting Deferral Rates by Segment'));
+    expect(below).toBeGreaterThan(spread);
+    expect(html.slice(spread, below)).toContain('h-px bg-surface-disabled');
+    expect(html).toContain("Of employees who enroll on their own before automatic enrollment applies, the share who start below the plan&#x27;s default rate. Everyone else starts at the default or higher. Only the row that matches your plan&#x27;s default is used.");
+    expect(html).toContain('How far below the default they start');
+    expect(html).toContain('How far below the default those employees start. Rates never go below 1%.');
+    expect(html).toContain('Share of below-default starters');
+    expect(html).toContain('/> pp</td>');
+  });
+
+  it('summarizes a zero share without reductions', () => {
+    expect(belowDefaultSummary(state.formData)).toBe(`At the ${state.formData.dcDefaultDeferral}% default, no one starts below it.`);
+    state.formData.dcBelowDefaultShareTiers = [{ max_auto_enroll_default_rate: null, share: 15 }];
+    expect(belowDefaultSummary(state.formData)).toBe(`At the ${state.formData.dcDefaultDeferral}% default, 15% start below it (1 pp: 50%, 2 pp: 30%, 3 pp: 20%).`);
+  });
+
+  it.each([3, 2, -1, 101])('links an invalid default ceiling (%s) to the alert and clears it when corrected', ceiling => {
+    state.formData.dcBelowDefaultShareTiers = [
+      { max_auto_enroll_default_rate: 3, share: 10 },
+      { max_auto_enroll_default_rate: ceiling, share: 15 },
+      { max_auto_enroll_default_rate: null, share: 20 },
+    ];
+    const html = renderToStaticMarkup(editor());
+    const bad = html.match(/<input[^>]*aria-label="Tier 2 auto-enrollment default ceiling"[^>]*>/)?.[0];
+    expect(bad).toContain('aria-invalid="true"');
+    expect(bad).toContain('aria-describedby="dcplan-below-default-errors"');
+    expect(html).toContain('id="dcplan-below-default-errors" role="alert"');
+    expect(validateBelowDefaultSettings(state.formData)).toContain("Each 'default up to' value must be 0–100% and higher than the row above.");
+    edit('Tier 2 auto-enrollment default ceiling', '6');
+    expect(renderToStaticMarkup(editor())).not.toContain('aria-invalid="true"');
+    expect(renderToStaticMarkup(editor())).not.toContain('role="alert"');
+  });
+
+  it('links all weights to their total error and clears the wiring after correction', () => {
+    edit('Below-default reduction 1 weight', '40');
+    const html = renderToStaticMarkup(editor());
+    expect(html).toContain('Weights must add up to 100% (now 90%).');
+    const weights = html.match(/<input[^>]*aria-label="Below-default reduction \d weight"[^>]*>/g);
+    expect(weights).toHaveLength(3);
+    for (const weight of weights ?? []) {
+      expect(weight).toContain('aria-invalid="true"');
+      expect(weight).toContain('aria-describedby="dcplan-below-default-errors"');
+    }
+    edit('Below-default reduction 1 weight', '50');
+    const corrected = renderToStaticMarkup(editor());
+    expect(corrected).not.toContain('aria-invalid="true"');
+    expect(corrected).not.toContain('dcplan-below-default-errors');
+  });
+
+  it.each([false, true].flatMap(enabled => ['automatic', 'participant_elected'].map(mode => ({ enabled, mode }))))(
+    'disables the saved sign-up field unless participant-elected increases are enabled: %j', ({ enabled, mode }) => {
+      state.formData.dcAutoEscalation = enabled;
+      state.formData.dcEscalationMode = mode as FormData['dcEscalationMode'];
+      state.formData.dcEscalationSignupProbability = 1.25;
+      const html = render();
+      const signup = input(html, 'dcEscalationSignupProbability');
+      expect(signup).toContain('value="1.25"');
+      expect(signup.includes('disabled=""')).toBe(!(enabled && mode === 'participant_elected'));
+      const helpId = signup.match(/aria-describedby="[^"]*?([^ "]+-help)"/)?.[1];
+      expect(helpId).toBeDefined();
+      expect(html).toContain(`id="${helpId}"`);
+      expect(html).toContain(enabled && mode === 'participant_elected'
+        ? 'Share of enrolled participants who sign up.'
+        : 'Inactive unless employees sign up for increases. Saved value is retained.');
+      expect(html).toContain('Sign-up for automatic increases');
+      expect(html).toContain('Who Gets Increases');
+      expect(html).toContain('<div class="sm:col-span-3"><label for="dcplan-escalation-mode"');
+      if (enabled) expect(html).toContain('Automatic: everyone is enrolled and may opt out. Participant-elected: only employees who sign up get increases (set the sign-up rate under Employee behavior assumptions).');
+      expect(html).toContain('Automatic (everyone unless they opt out)');
+      expect(html).toContain('Participant-elected (employees sign up)');
+      const select = html.match(/<select[^>]*name="dcEscalationMode"[^>]*>/)?.[0] ?? '';
+      expect(select.includes('disabled=""')).toBe(!enabled);
+      if (enabled && mode === 'participant_elected') {
+        expect(input(html, 'dcEscalationSignupProbability')).toContain('value="1.25"');
+        expect(html.indexOf('Employees who sign up for automatic increases')).toBeGreaterThan(html.indexOf('id="dcplan-behavior"'));
+      }
+      expect(state.formData.dcEscalationSignupProbability).toBe(1.25);
+    },
+  );
+
+  it('preserves the sign-up assumption across mode and enabled changes', () => {
+    state.formData.dcAutoEscalation = true;
+    state.formData.dcEscalationSignupProbability = 2;
+    const select = elements(DCPlanSection()).find(element => element.props.name === 'dcEscalationMode');
+    select!.props.onChange!({ target: { name: 'dcEscalationMode', value: 'participant_elected' } } as React.ChangeEvent<HTMLInputElement>);
+    expect(render()).toContain('name="dcEscalationSignupProbability"');
+    toggle('dcAutoEscalation', false);
+    expect(input(render(), 'dcEscalationSignupProbability')).toContain('disabled=""');
+    expect(input(render(), 'dcEscalationSignupProbability')).toContain('value="2"');
+    toggle('dcAutoEscalation', true);
+    expect(input(render(), 'dcEscalationSignupProbability')).toContain('value="2"');
+  });
+
+  it('shows the current default and uses inclusive, ascending tier ceilings', () => {
+    state.formData.dcBelowDefaultShareTiers = [{ max_auto_enroll_default_rate: 3, share: 10 }, { max_auto_enroll_default_rate: null, share: 15 }];
+    state.formData.dcDefaultDeferral = 3;
+    expect(render()).toContain('At the 3% default, 10% start below it (1 pp: 50%, 2 pp: 30%, 3 pp: 20%).');
+    state.formData.dcDefaultDeferral = 6;
+    const html = render();
+    expect(html).toContain('Current plan auto-enrollment default: 6%');
+    expect(html).toContain('At the 6% default, 15% start below it (1 pp: 50%, 2 pp: 30%, 3 pp: 20%).');
+    expect(html).toContain('Default above 3%');
+    expect(html).toContain('How far below the default');
+    expect(html).not.toContain('Below-default choices need attention');
+    expect(validateBelowDefaultSettings(state.formData)).toEqual([]);
+  });
+
+  it('keeps below-default tables visible but inactive with saved values when auto-enrollment is off', () => {
+    state.formData.dcBelowDefaultShareTiers = [{ max_auto_enroll_default_rate: null, share: 15 }];
+    const original = structuredClone(state.formData);
+    toggle('dcAutoEnroll', false);
+    const html = render();
+    expect(html).toContain('<fieldset disabled="" aria-labelledby="dcplan-below-default-title"');
+    expect(html).toContain('Inactive while auto-enrollment is off. Saved values are retained.');
+    expect(html).toContain('Choosing a rate below the auto-enrollment default');
+    expect(html).toContain('Total weight: 100%');
+    toggle('dcAutoEnroll', true);
+    expect(state.formData).toEqual(original);
+  });
+
+  it('edits and adds/removes tiers while keeping the final open-ended row', () => {
+    click('Vary by auto-enrollment default…');
+    click('Add tier');
+    expect(state.formData.dcBelowDefaultShareTiers).toEqual([{ max_auto_enroll_default_rate: 3, share: 0 }, { max_auto_enroll_default_rate: null, share: 0 }]);
+    edit('Tier 1 share choosing below', '10');
+    click('Add tier');
+    edit('Tier 2 auto-enrollment default ceiling', '6');
+    edit('Tier 3 share choosing below', '15');
+    expect(validateBelowDefaultSettings(state.formData)).toEqual([]);
+    const html = renderToStaticMarkup(editor());
+    expect(html).not.toContain('Remove below-default tier 3');
+    click('Remove below-default tier 1');
+    expect(state.formData.dcBelowDefaultShareTiers).toEqual([{ max_auto_enroll_default_rate: 6, share: 0 }, { max_auto_enroll_default_rate: null, share: 15 }]);
+  });
+
+  it('edits step reductions and validates the weight total without silently normalizing it', () => {
+    click('Add reduction');
+    expect(state.formData.dcBelowDefaultSteps.at(-1)).toEqual({ pp: 4, weight: 0 });
+    edit('Below-default reduction 4 in percentage points', '5');
+    edit('Below-default reduction 4 weight', '10');
+    expect(render()).toContain('Weights must add up to 100% (now 110%).');
+    expect(render()).toContain('Total weight: 110%');
+    edit('Below-default reduction 1 weight', '40');
+    expect(validateBelowDefaultSettings(state.formData)).toEqual([]);
+    click('Remove below-default reduction 4');
+    expect(render()).toContain('Total weight: 90%');
+    expect(render()).toContain('role="alert"');
+  });
+
+  it.each([
+    [{ max_auto_enroll_default_rate: 6, share: 10 }, { max_auto_enroll_default_rate: 3, share: 15 }, { max_auto_enroll_default_rate: null, share: 15 }],
+    [{ max_auto_enroll_default_rate: 3, share: 10 }, { max_auto_enroll_default_rate: 3, share: 15 }, { max_auto_enroll_default_rate: null, share: 15 }],
+    [{ max_auto_enroll_default_rate: null, share: 10 }, { max_auto_enroll_default_rate: 6, share: 15 }],
+    [{ max_auto_enroll_default_rate: null, share: 10 }, { max_auto_enroll_default_rate: null, share: 15 }],
+    [],
+  ].map(tiers => ({ tiers })))('reports unordered, duplicate or missing open-ended tiers (%j)', ({ tiers }) => {
+    state.formData.dcBelowDefaultShareTiers = tiers;
+    expect(validateBelowDefaultSettings(state.formData).length).toBeGreaterThan(0);
+    expect(render()).toContain('role="alert"');
+    expect(render()).toContain('Below-default choices need attention');
+  });
+
+  it.each([{ pp: 1.5, weight: 100 }, { pp: 0, weight: 100 }, { pp: 1, weight: 101 }, { pp: 1, weight: -1 }])(
+    'rejects invalid reduction units or weights %j', step => {
+      state.formData.dcBelowDefaultSteps = [step];
+      expect(validateBelowDefaultSettings(state.formData).length).toBeGreaterThan(0);
+      expect(render()).toContain('role="alert"');
+    },
+  );
+
+  it('places downward match seeking with the upward pull and retains it while inactive', () => {
+    state.formData.dcMatchMagnetProbability = 37.5;
+    toggle('dcMatchMagnetDownwardEnabled', true);
+    const html = render();
+    expect(html).toContain('Also pull rates down to the full-match rate when it is below the auto-enrollment default');
+    expect(html).toContain('Uses the same 37.5% probability as the upward pull');
+    expect(html).toContain('Applies only to employees whose starting rate is between the full-match rate and the auto-enrollment default. Rates above the default are never lowered.');
+    expect(html).toContain('id="dcplan-match-magnet-downward-help"');
+    expect(input(html, 'dcMatchMagnetDownwardEnabled')).toContain('aria-describedby="dcplan-match-magnet-downward-help"');
+    expect(input(html, 'dcMatchMagnetDownwardEnabled')).toContain('disabled:opacity-50');
+    expect(html).toContain('downward pull on (same 37.5% probability)');
+    toggle('dcMatchMagnetEnabled', false);
+    expect(input(render(), 'dcMatchMagnetDownwardEnabled')).toContain('disabled=""');
+    expect(state.formData.dcMatchMagnetDownwardEnabled).toBe(true);
+    toggle('dcMatchMagnetEnabled', true);
+    toggle('dcAutoEnroll', false);
+    expect(input(render(), 'dcMatchMagnetDownwardEnabled')).toContain('disabled=""');
+    expect(state.formData.dcMatchMagnetDownwardEnabled).toBe(true);
+  });
 });
 
 describe('independent employer eligibility policies', () => {

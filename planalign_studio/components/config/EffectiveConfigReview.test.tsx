@@ -73,6 +73,47 @@ describe('Effective configuration review', () => {
     expect(onSave).toHaveBeenCalledOnce();
   });
 
+  it('reviews participant behavior with analyst labels, percentage units and inactive explanations', async () => {
+    vi.mocked(previewConfiguration).mockReset();
+    const behavior = {
+      deferral_escalation_enabled: true, deferral_escalation_mode: 'participant_elected',
+      deferral_escalation_participant_elected_signup_probability: 0.0125,
+      enrollment_match_magnet_downward_enabled: true, auto_enrollment_enabled: false,
+      below_default_share_tiers: [{ max_auto_enroll_default_rate: 0.03, share: 0.1 }, { max_auto_enroll_default_rate: null, share: 0.15 }],
+      below_default_steps: [{ pp: 1, weight: 0.75 }, { pp: 3, weight: 0.25 }],
+    };
+    vi.mocked(previewConfiguration).mockResolvedValue({ ...baseline, engine_variables: behavior });
+    render(); await settle();
+    const html = renderToStaticMarkup(render());
+    for (const label of ['Enrollment in automatic contribution increases', 'Employees who sign up for automatic increases',
+      'Pull starting rates down to the full-match rate', 'Choosing a rate below the auto-enrollment default', 'How far below the default']) {
+      expect(html).toContain(label);
+    }
+    expect(html).toContain('Participant-elected (employees sign up)');
+    expect(html).toContain('1.25%');
+    expect(html).toContain('Auto-enrollment default up to 3%: 10% choose below; Higher auto-enrollment defaults: 15% choose below');
+    expect(html).toContain('1 percentage point below (75%); 3 percentage points below (25%)');
+    expect(html).toContain('Inactive while automatic enrollment is off; saved value retained.');
+    // Saved-to-draft changes use the same units as resolved engine assumptions.
+    expect(formatDraftValue('dc_plan.escalation_mode', 'automatic')).toBe('Automatic (everyone unless they opt out)');
+    expect(formatDraftValue('dc_plan.escalation_participant_elected_signup_probability', 0.0125)).toBe('1.25%');
+    expect(formatDraftValue('dc_plan.below_default_share_tiers', behavior.below_default_share_tiers)).toContain('3%: 10%');
+    expect(formatDraftValue('dc_plan.below_default_steps', behavior.below_default_steps)).toContain('1 percentage point below (75%)');
+  });
+
+  it.each([false, true])('marks sign-up assumptions inactive for automatic enrollment in increases, enabled=%s', async enabled => {
+    vi.mocked(previewConfiguration).mockReset();
+    vi.mocked(previewConfiguration).mockResolvedValue({ ...baseline, engine_variables: {
+      deferral_escalation_enabled: enabled, deferral_escalation_mode: 'automatic',
+      deferral_escalation_participant_elected_signup_probability: 0.02,
+    } });
+    render(); await settle();
+    const html = renderToStaticMarkup(render());
+    expect(html).toContain(enabled ? 'Inactive when employees join automatic contribution increases automatically'
+      : 'Inactive while automatic contribution increases are off');
+    expect(html).toContain('2%');
+  });
+
   it('shows authoritative promotion values, demographic mode, custom schedules and inherited inactive values', async () => {
     render(); await settle();
     const html = renderToStaticMarkup(render());

@@ -44,7 +44,7 @@ describe('DC section unsaved marker', () => {
   );
 });
 
-function saveFromProvider() {
+function contextFromProvider() {
   hydration.slot = 0;
   let context!: ConfigContextType;
   function Probe() { context = useConfigContext(); return null; }
@@ -53,8 +53,10 @@ function saveFromProvider() {
       <Probe />
     </ConfigProvider>,
   );
-  return context.handleSaveConfig;
+  return context;
 }
+
+const saveFromProvider = () => contextFromProvider().handleSaveConfig;
 
 describe('Enrollment and escalation cutoff hydration', () => {
   it.each([false, true])('does not invent a cutoff with escalation enabled=%s', enabled => {
@@ -135,6 +137,18 @@ describe('Configuration save year validation', () => {
     DEFAULT_FORM_DATA.dcVoluntaryEnrollmentRate = '';
     expect(await saveFromProvider()()).toBe(false);
     expect(updateWorkspace).not.toHaveBeenCalled();
+  });
+
+  it('blocks persistence and draft review for invalid below-default weight totals', async () => {
+    const steps = DEFAULT_FORM_DATA.dcBelowDefaultSteps;
+    try {
+      DEFAULT_FORM_DATA.dcBelowDefaultSteps = [{ pp: 1, weight: 99 }];
+      expect(() => contextFromProvider().buildDraftConfig()).toThrow('Weights must add up to 100% (now 99%).');
+      expect(await saveFromProvider()()).toBe(false);
+      expect(updateWorkspace).not.toHaveBeenCalled();
+    } finally {
+      DEFAULT_FORM_DATA.dcBelowDefaultSteps = steps;
+    }
   });
 
   it('permits single-year simulations and persists the validated horizon', async () => {

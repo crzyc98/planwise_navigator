@@ -1,5 +1,6 @@
 import type { FormData, MatchTier } from './types';
 import { ELIGIBILITY_DEFAULTS } from './constants';
+import { stepsToPercent, tiersToPercent } from './participantBehaviorConfig';
 
 type Variables = Record<string, unknown>;
 const asVariables = (value: unknown): Variables => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Variables : {};
@@ -46,6 +47,7 @@ const SCALARS: Mapping[] = [
   ['dcOptOutRateTarget', 'opt_out_rate_moderate', 100],
   ['dcMatchMagnetEnabled', 'enrollment_match_magnet_enabled'],
   ['dcMatchMagnetProbability', 'enrollment_match_magnet_probability', 100],
+  ['dcMatchMagnetDownwardEnabled', 'enrollment_match_magnet_downward_enabled'],
   ['dcMaxVoluntaryDeferral', 'voluntary_max_deferral_rate', 100],
   ['dcMatchResponseEnabled', 'deferral_match_response_enabled'],
   ['dcMatchResponseUpwardParticipation', 'deferral_match_response_upward_participation_rate', 100],
@@ -58,6 +60,8 @@ const SCALARS: Mapping[] = [
   ['dcCoreIntegrationLevelMode', 'employer_core_integration_level_mode'],
   ['dcCoreIntegrationDisparityRate', 'employer_core_integration_disparity_rate', 100],
   ['dcAutoEscalation', 'deferral_escalation_enabled'],
+  ['dcEscalationMode', 'deferral_escalation_mode'],
+  ['dcEscalationSignupProbability', 'deferral_escalation_participant_elected_signup_probability', 100],
   ['dcEscalationRate', 'deferral_escalation_increment', 100],
   ['dcEscalationCap', 'deferral_escalation_cap', 100],
   ['dcEscalationEffectiveDay', 'deferral_escalation_effective_mmdd'],
@@ -92,6 +96,10 @@ function applyEnrollment(variables: Variables, form: FormData): FormData {
     dcDeferralSpreadMaxLift: variables.deferral_spread_max_lift == null ? form.dcDeferralSpreadMaxLift : String(variables.deferral_spread_max_lift),
     dcEscalationHireDateCutoff: (variables.deferral_escalation_hire_date_cutoff ?? '') as string,
     dcVoluntaryDeferralBaseRates: rates,
+    ...(rows<FormData['dcBelowDefaultShareTiers'][number]>(variables.below_default_share_tiers)
+      ? { dcBelowDefaultShareTiers: tiersToPercent(variables.below_default_share_tiers as FormData['dcBelowDefaultShareTiers']) } : {}),
+    ...(rows<FormData['dcBelowDefaultSteps'][number]>(variables.below_default_steps)
+      ? { dcBelowDefaultSteps: stepsToPercent(variables.below_default_steps as FormData['dcBelowDefaultSteps']) } : {}),
   };
 }
 

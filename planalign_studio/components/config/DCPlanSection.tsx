@@ -10,6 +10,8 @@ import { TenureGradedMatchEditor } from './TenureGradedMatchEditor';
 import { VoluntaryDeferralRatesEditor } from './VoluntaryDeferralRatesEditor';
 import { DCPlanPanel, EmployerEligibilityEditor, coreSummary, dcDisplayConfig, matchSummary, tierSummary } from './DCPlanPanels';
 import { EnrollmentRateInput } from './EnrollmentRateInput';
+import { BelowDefaultEditor } from './BelowDefaultEditor';
+import { belowDefaultSummary } from './participantBehaviorConfig';
 
 // A blank cutoff is removed from the export, so dbt applies its default (dbt_project.yml).
 const ENGINE_DEFAULT_HIRE_CUTOFF = '2020-01-01';
@@ -490,6 +492,9 @@ export function DCPlanSection() {
            )}
          </div>
 
+         <div className="sm:col-span-6 h-px bg-surface-disabled my-2" />
+         <BelowDefaultEditor form={formData} onChange={changes => setFormData(prev => ({ ...prev, ...changes }))} />
+
   </>;
 
   const responseFields = <>
@@ -514,6 +519,14 @@ export function DCPlanSection() {
            <p className="text-xs text-ink-muted mb-3">Models new voluntary enrollees who increase their contributions to the rate needed for the full employer match. The selected share applies only to those starting below that rate.</p>
            <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-6">
              <InputField label="Share seeking the full match" {...inputProps('dcMatchMagnetProbability')} type="number" step="1" suffix="%" disabled={!formData.dcMatchMagnetEnabled} helper={formData.dcMatchMagnetEnabled ? 'Share of below-ceiling voluntary enrollees who increase to the full-match rate (0–100%).' : 'Inactive while new-enrollee match seeking is off. Saved value is retained.'} min={0} max={100} />
+             <div className="sm:col-span-6">
+               <label htmlFor="dcplan-match-magnet-downward" className="flex items-start gap-2 text-sm text-ink-muted">
+                 <input id="dcplan-match-magnet-downward" type="checkbox" name="dcMatchMagnetDownwardEnabled" checked={formData.dcMatchMagnetDownwardEnabled} onChange={handleChange}
+                   disabled={!formData.dcMatchMagnetEnabled || !formData.dcAutoEnroll} aria-describedby="dcplan-match-magnet-downward-help" className="mt-1 h-4 w-4 text-fidelity-green rounded disabled:opacity-50" />
+                 Also pull rates down to the full-match rate when it is below the auto-enrollment default
+               </label>
+               <p id="dcplan-match-magnet-downward-help" className="mt-1 text-xs text-ink-muted">Applies only to employees whose starting rate is between the full-match rate and the auto-enrollment default. Rates above the default are never lowered. Uses the same {formData.dcMatchMagnetProbability}% probability as the upward pull. {!formData.dcAutoEnroll ? 'Inactive while auto-enrollment is off. Saved value is retained.' : !formData.dcMatchMagnetEnabled ? 'Inactive while new-enrollee match seeking is off. Saved value is retained.' : ''}</p>
+             </div>
            </div>
            </details>
            <div className="grid grid-cols-1 gap-4 sm:grid-cols-6 mt-4">
@@ -1266,6 +1279,15 @@ export function DCPlanSection() {
              </label>
          </div>;
   const escalationFields = <>
+         <div className="sm:col-span-3">
+           <label htmlFor="dcplan-escalation-mode" className="block text-sm font-medium text-ink-muted">Who Gets Increases</label>
+           <select id="dcplan-escalation-mode" name="dcEscalationMode" value={formData.dcEscalationMode} onChange={handleChange} disabled={!formData.dcAutoEscalation}
+             className="mt-1 block w-full p-2 border border-border-strong rounded-md text-sm disabled:bg-surface-disabled">
+             <option value="automatic">Automatic (everyone unless they opt out)</option>
+             <option value="participant_elected">Participant-elected (employees sign up)</option>
+           </select>
+           <p className="mt-1 text-xs text-ink-muted">{formData.dcAutoEscalation ? 'Automatic: everyone is enrolled and may opt out. Participant-elected: only employees who sign up get increases (set the sign-up rate under Employee behavior assumptions).' : 'Inactive while automatic contribution increases are off. Saved value is retained.'}</p>
+         </div>
          <InputField label="Escalation Cap" {...inputProps('dcEscalationCap')} type="number" suffix="%" disabled={!formData.dcAutoEscalation} helper="Ceiling for automatic annual increases only. Employees can contribute above this rate, including to receive the full employer match." />
          {formData.dcAutoEscalation && (
            <>
@@ -1312,12 +1334,17 @@ export function DCPlanSection() {
         <DCPlanPanel id="dcplan-eligibility-panel" title="Eligibility and enrollment" summary={`Shared waiting period: ${formData.dcEligibilityMonths} modeled months (${waitingPeriodDays} days); automatic enrollment ${formData.dcAutoEnroll ? 'on' : 'off'}; ${formData.dcAutoEnrollScope === 'new_hires_only' ? 'first year uses hire cutoff, later years use current-year hires' : 'all eligible employees, subject to hire cutoff every year'}; hire cutoff ${formData.dcAutoEnrollHireDateCutoff || 'inherited'}; shared hire-year delay ${formData.dcAutoEnrollWindowDays} days. New-hire voluntary enrollment: ${rateSource(voluntaryMode, formData.dcVoluntaryEnrollmentRate)}; ${formData.dcAutoEnroll ? `new-hire opt-out: ${rateSource(optOutMode, formData.dcNewHireOptOutRate)}; continuing opt-out target ${formData.dcOptOutRateTarget}%` : 'opt-out assumptions inactive'}.`}>{renderEligibilityFields()}</DCPlanPanel>
         <DCPlanPanel id="dcplan-match-panel" title="Employer match" summary={matchSummary(formData, displayConfig)} enabled={formData.dcMatchEnabled} control={matchControl}>{matchFields}</DCPlanPanel>
         <DCPlanPanel id="dcplan-core-panel" title="Employer core contribution" summary={coreSummary(formData, displayConfig)} enabled={formData.dcCoreEnabled} control={coreControl}>{coreFields}</DCPlanPanel>
-        <DCPlanPanel id="dcplan-escalation-panel" title="Automatic contribution increases" enabled={formData.dcAutoEscalation} control={escalationControl} summary={formData.dcAutoEscalation ? `${formData.dcEscalationRate} percentage points annually up to ${formData.dcEscalationCap}% on ${formData.dcEscalationEffectiveDay}; delay ${formData.dcEscalationDelayYears} enrollment years; hire cutoff ${formData.dcEscalationHireDateCutoff || 'none configured'}.` : 'Annual escalation off; saved settings retained.'}>{escalationFields}</DCPlanPanel>
+        <DCPlanPanel id="dcplan-escalation-panel" title="Automatic contribution increases" enabled={formData.dcAutoEscalation} control={escalationControl} summary={formData.dcAutoEscalation ? `${formData.dcEscalationMode === 'participant_elected' ? 'Participant-elected (employees sign up)' : 'Automatic (everyone unless they opt out)'}; ${formData.dcEscalationRate} percentage points annually up to ${formData.dcEscalationCap}% on ${formData.dcEscalationEffectiveDay}; delay ${formData.dcEscalationDelayYears} enrollment years; hire cutoff ${formData.dcEscalationHireDateCutoff || 'none configured'}.` : 'Automatic contribution increases off; saved settings retained.'}>{escalationFields}</DCPlanPanel>
       </section>
       <section aria-labelledby="dcplan-behavior" className="space-y-4">
         <h3 id="dcplan-behavior" className="font-bold text-ink">Employee behavior assumptions</h3>
-        <DCPlanPanel id="dcplan-starting-rates-panel" title="Starting employee contribution rates" summary={`Segment rates ${Math.min(...Object.values(formData.dcVoluntaryDeferralBaseRates))}–${Math.max(...Object.values(formData.dcVoluntaryDeferralBaseRates))}%; upward spread ${formData.dcDeferralSpreadMaxLift} percentage points; voluntary cap ${formData.dcMaxVoluntaryDeferral}%.${deferralSpreadClipping ? ` Warning: spread ceiling ${deferralSpreadClipping.spreadCeiling}% exceeds the cap; rates will be clipped.` : ''}`}>{startingRateFields}</DCPlanPanel>
-        <DCPlanPanel id="dcplan-response-panel" title="Response to the employer match" summary={`New enrollees seeking full match: ${formData.dcMatchMagnetEnabled ? `${formData.dcMatchMagnetProbability}% of below-ceiling voluntary enrollees` : 'off'}; first-year existing-participant response: ${formData.dcMatchResponseEnabled ? `upward ${formData.dcMatchResponseUpwardParticipation}%, downward ${formData.dcMatchResponseDownwardEnabled ? `${formData.dcMatchResponseDownwardParticipation}%` : 'off'}; ${responseMaximizers}% of upward responders seek full match, others close ${responsePartialGap}% of the gap` : 'off'}.`}>{responseFields}</DCPlanPanel>
+        <DCPlanPanel id="dcplan-increase-behavior-panel" title="Sign-up for automatic increases" enabled={formData.dcAutoEscalation} summary={!formData.dcAutoEscalation ? 'Inactive while automatic contribution increases are off; saved assumptions retained.' : formData.dcEscalationMode === 'participant_elected' ? `${formData.dcEscalationSignupProbability}% of participants sign up for automatic contribution increases.` : 'Employees join automatically unless they opt out; sign-up assumptions are inactive.'}>
+          <InputField label="Employees who sign up for automatic increases" {...inputProps('dcEscalationSignupProbability')} type="number" suffix="%" min={0} max={100}
+            disabled={!formData.dcAutoEscalation || formData.dcEscalationMode !== 'participant_elected'}
+            helper={formData.dcAutoEscalation && formData.dcEscalationMode === 'participant_elected' ? 'Share of enrolled participants who sign up.' : 'Inactive unless employees sign up for increases. Saved value is retained.'} width="col-span-6" />
+        </DCPlanPanel>
+        <DCPlanPanel id="dcplan-starting-rates-panel" title="Starting employee contribution rates" summary={`Segment rates ${Math.min(...Object.values(formData.dcVoluntaryDeferralBaseRates))}–${Math.max(...Object.values(formData.dcVoluntaryDeferralBaseRates))}%; upward spread ${formData.dcDeferralSpreadMaxLift} percentage points; voluntary cap ${formData.dcMaxVoluntaryDeferral}%. ${belowDefaultSummary(formData)}${deferralSpreadClipping ? ` Warning: spread ceiling ${deferralSpreadClipping.spreadCeiling}% exceeds the cap; rates will be clipped.` : ''}`}>{startingRateFields}</DCPlanPanel>
+        <DCPlanPanel id="dcplan-response-panel" title="Response to the employer match" summary={`New enrollees seeking full match: ${formData.dcMatchMagnetEnabled ? `${formData.dcMatchMagnetProbability}% of below-ceiling voluntary enrollees` : 'off'}; downward pull ${formData.dcAutoEnroll && formData.dcMatchMagnetEnabled ? formData.dcMatchMagnetDownwardEnabled ? `on (same ${formData.dcMatchMagnetProbability}% probability)` : 'off' : 'inactive'}; first-year existing-participant response: ${formData.dcMatchResponseEnabled ? `upward ${formData.dcMatchResponseUpwardParticipation}%, downward ${formData.dcMatchResponseDownwardEnabled ? `${formData.dcMatchResponseDownwardParticipation}%` : 'off'}; ${responseMaximizers}% of upward responders seek full match, others close ${responsePartialGap}% of the gap` : 'off'}.`}>{responseFields}</DCPlanPanel>
       </section>
     </div>
   );

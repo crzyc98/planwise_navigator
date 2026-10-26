@@ -6,6 +6,7 @@ import { DEFAULT_FORM_DATA } from './constants';
 import { buildConfigPayload } from './buildConfigPayload';
 import { applyConfigEdits, preserveDisplayedMatchEligibility, synchronizeCompensationAliases } from './configEdits';
 import { applyResolvedFormData } from './resolvedFormData';
+import { participantBehaviorFormFields, validateBelowDefaultSettings } from './participantBehaviorConfig';
 import { validateNumericInputs } from './NumericInput';
 import { extractCensusPath, resolveCensusFields } from './censusConfig';
 export { extractCensusPath } from './censusConfig';
@@ -365,6 +366,7 @@ export function applyConfigToFormData(cfg: any, prev: FormData): FormData {
     ...mapDCPlanMatchFields(cfg, prev),
     ...mapDCPlanCoreFields(cfg, prev),
     ...mapDCPlanEscalationFields(cfg, prev),
+    ...participantBehaviorFormFields(cfg.dc_plan ?? {}, prev),
     ...mapAdvancedFields(cfg, prev),
   };
 }
@@ -661,9 +663,13 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
   }), [formData, handleChange]);
 
   const buildDraftConfig = useCallback(() => {
+    const current = latestConfig.current;
+    if (current.formData.dcAutoEnroll) {
+      const errors = validateBelowDefaultSettings(current.formData);
+      if (errors.length) throw new Error(errors.join(' '));
+    }
     const target = { isScenario: !!scenarioId, workspacePath: extractCensusPath(freshBaseConfig) };
     const before = buildConfigPayload(savedFormData ?? formData, savedPromotionHazardConfig, savedBandConfig, target);
-    const current = latestConfig.current;
     const after = buildConfigPayload(current.formData, current.promotionHazardConfig, current.bandConfig, target);
     const edited = applyConfigEdits(originalConfig.current, before, after) as Record<string, any>;
     const withEligibility = preserveDisplayedMatchEligibility(edited, before, after, resolvedEngineVariables);
