@@ -97,6 +97,7 @@ current_year_escalations AS (
         employee_id,
         effective_date,
         employee_deferral_rate as new_deferral_rate,
+        prev_employee_deferral_rate as previous_deferral_rate,
         CAST(NULL AS DECIMAL(5,4)) as escalation_rate,
         CAST(NULL AS DECIMAL(5,4)) as max_escalation_rate,
         ROW_NUMBER() OVER (
@@ -114,6 +115,7 @@ current_year_escalations AS (
         employee_id,
         effective_date,
         new_deferral_rate,
+        previous_deferral_rate,
         escalation_rate,
         max_escalation_rate,
         ROW_NUMBER() OVER (
@@ -240,6 +242,7 @@ previous_year_state AS (
         plan_design_id,
         current_deferral_rate as previous_deferral_rate,
         escalations_received as previous_escalations_received,
+        total_escalation_amount as previous_total_escalation_amount,
         original_deferral_rate,
         employee_enrollment_date,
         is_enrolled_flag,
@@ -368,7 +371,7 @@ first_year_state AS (
             THEN {{ stable_decimal(initial_rate_change, 8, 4) }}
             ELSE NULL
         END as escalation_rate_change_pct,
-        CAST(COALESCE(ce.escalation_rate, 0.0000::DECIMAL(5,4)) AS DECIMAL(5,4)) as total_escalation_amount,
+        CAST(COALESCE(GREATEST(ce.new_deferral_rate - ce.previous_deferral_rate, 0), 0) AS DECIMAL(5,4)) as total_escalation_amount,
 
         -- Time metrics
         NULL::INTEGER as years_since_first_escalation,
@@ -486,14 +489,14 @@ subsequent_year_state AS (
             ELSE NULL
         END as escalation_rate_change_pct,
 
-        -- Total escalation amount calculation
-        CASE
-            WHEN ce.employee_id IS NOT NULL AND ps.original_deferral_rate IS NOT NULL
-            THEN (ce.new_deferral_rate - ps.original_deferral_rate)::DECIMAL(5,4)
-            WHEN ps.previous_deferral_rate IS NOT NULL AND ps.original_deferral_rate IS NOT NULL
-            THEN (ps.previous_deferral_rate - ps.original_deferral_rate)::DECIMAL(5,4)
-            ELSE 0.0000::DECIMAL(5,4)
-        END as total_escalation_amount,
+        -- Cumulative escalation increments (#997). Not current - original: match
+        -- responses and voluntary decreases also move the rate.
+        (
+            COALESCE(ps.previous_total_escalation_amount, 0)
+            + CASE WHEN ce.employee_id IS NOT NULL THEN COALESCE(
+                GREATEST(ce.new_deferral_rate - ce.previous_deferral_rate, 0), 0
+            ) ELSE 0 END
+        )::DECIMAL(5,4) as total_escalation_amount,
 
         -- Time metrics (simplified for now)
         NULL::INTEGER as years_since_first_escalation,

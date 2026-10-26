@@ -885,7 +885,7 @@ models:
         description: Last escalation effective date; TIMESTAMP in every simulation year
         data_type: timestamp
       - name: total_escalation_amount
-        description: Cumulative deferral rate increase from all escalations
+        description: Sum of the rate increases applied by escalation events; match responses and voluntary changes don't count
         data_type: decimal(5,4)
         data_tests:
           - not_null
