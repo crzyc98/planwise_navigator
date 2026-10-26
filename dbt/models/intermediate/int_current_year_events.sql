@@ -206,6 +206,33 @@ WITH all_events AS (
     event_category
   FROM {{ ref('int_deferral_rate_escalation_events') }}
   WHERE simulation_year = {{ simulation_year }}
+{%- if var('deferral_rate_changes_enabled', false) %}
+
+  UNION ALL
+
+  SELECT
+    '{{ sid }}' AS scenario_id,
+    employee_id,
+    employee_ssn,
+    event_type,
+    simulation_year,
+    effective_date,
+    event_details,
+    compensation_amount,
+    previous_compensation,
+    employee_deferral_rate,
+    prev_employee_deferral_rate,
+    employee_age,
+    employee_tenure,
+    level_id,
+    age_band,
+    tenure_band,
+    event_probability,
+    event_category
+  FROM {{ ref('int_deferral_change_events') }}
+  WHERE simulation_year = {{ simulation_year }}
+
+{%- endif %}
 
   UNION ALL
 

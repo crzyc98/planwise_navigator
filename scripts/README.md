@@ -40,3 +40,11 @@ entry with `git rm --cached -- .worktrees/<name>`. This preserves the local chec
 This directory once held ~30 scripts. In July 2026 the one-off migrations, epic-era diagnostics, benchmark tooling, and an abandoned Claude-hook experiment were removed (along with their two dead CI workflows). If you need one back, it's in git history prior to that cleanup.
 
 Compensation calibration scripts were superseded by the built-in `planalign calibrate` command (Feature 105).
+
+### Deferral calibration report
+
+Run `python scripts/deferral_calibration_report.py --database /tmp/codex986/iso.duckdb`
+against a finished run (opened read-only). Optional `--scenario-id`, `--targets`
+(CSV: dimension,band,metric,value), and `--output` (CSV) filter, compare, and export
+continuous-participant metrics. Percentages use 0–100; changes are percentage
+points, with negative decrease averages. Undefined conditional metrics are NULL.

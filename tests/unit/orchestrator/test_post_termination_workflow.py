@@ -52,6 +52,9 @@ def test_workflow_and_executor_event_model_lists_are_identical(
     executor_models = executor._get_event_generation_models(year)
     assert workflow_models == executor_models
     assert "int_eligibility_events" in executor_models
+    assert executor_models.index("int_deferral_change_events") == (
+        executor_models.index("int_deferral_rate_escalation_events") + 1
+    )
     assert "int_deferral_match_response_events" in executor_models
     assert "int_eligibility_determination" not in executor_models
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import inspect
 from pathlib import Path
 
+import pytest
 import yaml
 
 from planalign_core.constants import (
@@ -57,8 +58,9 @@ def test_event_executor_has_no_manual_model_exclusions():
     assert "tag:EVENT_GENERATION" in source
 
 
-def test_every_owned_stage_node_has_consumer_or_audit_sink():
-    manifest = load_production_manifest()
+@pytest.mark.parametrize("enabled", [False, True])
+def test_every_owned_stage_node_has_consumer_or_audit_sink(enabled: bool) -> None:
+    manifest = load_production_manifest(deferral_rate_changes_enabled=enabled)
     models = model_nodes(manifest)
     by_id = {node["unique_id"]: node for node in models.values()}
     staged = {name for members in _fixture_ownership().values() for name in members}
@@ -69,6 +71,10 @@ def test_every_owned_stage_node_has_consumer_or_audit_sink():
             for child in manifest["child_map"].get(models[model]["unique_id"], [])
             if child in by_id
         }
+        if model == "int_deferral_change_events":
+            assert ("int_current_year_events" in consumers) is enabled
+            if not enabled:
+                continue
         assert (
             consumers or model in STATE_PIPELINE_AUDIT_SINKS
         ), f"{model} has no model consumer and is not a checked audit sink"

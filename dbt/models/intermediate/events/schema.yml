@@ -171,3 +171,56 @@ models:
                 min_value: 0.0
                 max_value: 1.0
                 inclusive: true
+
+  - name: int_deferral_change_events
+    description: Zero-row participant rate-change skeleton for epic 986; generation arrives in PR 3a.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [employee_id, simulation_year]
+    columns:
+      - name: employee_id
+        data_type: VARCHAR
+        data_tests:
+          - not_null
+      - name: employee_ssn
+        data_type: VARCHAR
+      - name: event_type
+        data_type: VARCHAR
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['deferral_change']
+      - name: simulation_year
+        data_type: INTEGER
+        data_tests:
+          - not_null
+      - name: effective_date
+        data_type: DATE
+        data_tests:
+          - not_null
+      - name: event_details
+        data_type: VARCHAR
+      - name: compensation_amount
+        data_type: DECIMAL(15,2)
+      - name: previous_compensation
+        data_type: DECIMAL(15,2)
+      - name: employee_deferral_rate
+        data_type: DECIMAL(5,4)
+      - name: prev_employee_deferral_rate
+        data_type: DECIMAL(5,4)
+      - name: employee_age
+        data_type: SMALLINT
+      - name: employee_tenure
+        data_type: DECIMAL(10,2)
+      - name: level_id
+        data_type: SMALLINT
+      - name: age_band
+        data_type: VARCHAR
+      - name: tenure_band
+        data_type: VARCHAR
+      - name: event_probability
+        data_type: DECIMAL(5,4)
+      - name: event_category
+        data_type: VARCHAR
