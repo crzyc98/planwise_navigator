@@ -16,6 +16,10 @@ The explicit purposes in
   history in `planalign_api/services/timeline_service.py`.
 - `hazard_cache_metadata`: `HazardCacheManager` queries the materialization
   fingerprint to decide whether hazard caches are current.
+- `int_deferral_change_events`: participant-chosen deferral rate changes
+  (epic #986). `int_current_year_events` unions it only when
+  `deferral_rate_changes_enabled` is true, so it is unconsumed in the default
+  (disabled) manifest. Until #983 PR 3a it is a zero-row skeleton.
 - `dim_hazard_table`: supported combined hazard lookup for ad-hoc inspection,
   retained by the existing standalone-root contract.
 - `stg_config_age_bands` and `stg_config_tenure_bands`: Python event generators

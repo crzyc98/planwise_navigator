@@ -33,6 +33,7 @@ TERMINAL_OUTPUT_PURPOSES = {
     "fct_compensation_growth": "CalibrationRunner._read_year compensation metrics",
     "fct_employer_match_events": "TimelineService employer contribution history",
     "hazard_cache_metadata": "HazardCacheManager cache currency checks",
+    "int_deferral_change_events": "int_current_year_events when deferral_rate_changes_enabled (#986)",
     "stg_census_duplicates_audit": "standalone census deduplication audit",
     "stg_comp_targets": "compensation calibration target inspection",
     "stg_config_age_bands": "EventGenerator age-band lookup",
