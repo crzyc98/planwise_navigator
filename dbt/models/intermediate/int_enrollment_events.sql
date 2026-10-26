@@ -28,6 +28,30 @@ CASE
     END
 {%- endset -%}
 
+{# YoY has no upward magnet. Resolve its ceiling only for the new downward rule. #}
+{% set yoy_ceiling = namespace(rate=var('employer_match_max_deferral_rate', none)) %}
+{% if yoy_ceiling.rate is none %}
+  {% set yoy_ceiling.rate = 0.0 %}
+  {% for tier in var('match_tiers', [
+    {'employee_min': 0.00, 'employee_max': 0.03, 'match_rate': 1.00},
+    {'employee_min': 0.03, 'employee_max': 0.05, 'match_rate': 0.50}
+  ]) %}
+    {% if tier.employee_max is not none and tier.employee_max > yoy_ceiling.rate %}
+      {% set yoy_ceiling.rate = tier.employee_max %}
+    {% endif %}
+  {% endfor %}
+{% endif %}
+{%- set yoy_match_ceiling -%}
+  {{ resolve_match_magnet_ceiling(
+    var('employer_match_status', 'deferral_based'), 'FLOOR(aw.current_tenure)',
+    '(FLOOR(aw.current_age) + FLOOR(aw.current_tenure))',
+    yoy_ceiling.rate, 'aw.plan_design_id'
+  ) }}
+{%- endset -%}
+{%- set yoy_magnet_random -%}
+  {{ enrollment_behavior_draw('aw.employee_id', 'aw.simulation_year', '-match-magnet-') }}
+{%- endset -%}
+
 /*
   Enrollment Events Model with Temporal State Accumulator (Phase 2: Architecture Fix)
 
@@ -447,7 +471,11 @@ year_over_year_enrollment_events AS (
     NULL as previous_compensation,
 
     -- Conservative deferral rates for year-over-year conversions
-    {{ deferral_spread(yoy_base_deferral_rate, yoy_spread_random, deferral_spread_max_lift) }} as employee_deferral_rate,
+    {{ self_directed_enrollment_rate(
+      deferral_spread(yoy_base_deferral_rate, yoy_spread_random, deferral_spread_max_lift),
+      yoy_match_ceiling, yoy_magnet_random, 'aw.employee_id', 'aw.simulation_year',
+      upward_enabled=false
+    ) }} AS employee_deferral_rate,
 
     0.00 as prev_employee_deferral_rate,
     aw.current_age as employee_age,

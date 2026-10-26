@@ -141,6 +141,7 @@ A stopped participant is enrolled but not contributing:
 Reuse YoY conversion. Don't add a parallel draw, which would double-count. Changes:
 
 1. Route YoY's rate choice through the same below-default and two-way magnet logic as proactive enrollment.
+   The resolved below-default share is the total share across self-directed channels (proactive, voluntary, YoY), apart from downward match-ceiling snaps. With AE enabled and a positive share, non-choosers are floored at the AE default after grid + spread and before the magnet; deliberate below-default choosers bypass the magnet.
 2. Phase 4 retunes the YoY age rates so the **population-average** annual conversion is about 5%. The income and tenure multipliers (0.7–1.3) stay, which keeps realistic gradients. The calibration report verifies the average. If you want 5% exactly for everyone, the alternative is to set the multipliers to 1.0.
 
 ---
@@ -208,6 +209,7 @@ deferral_rate_changes:               # new, #983
   - steps are clamped to the 1% floor and to the plan and IRS max.
 - **Participant-level rates:** `with_escalation` / `without_escalation` apply per participant using `aip_participant`. That turns the with-AIP and without-AIP plan estimates into participant-level rates, and handles partial membership (participant-elected AIP, Easy Enroll) without assuming a plan mix.
 - Each draw has its own salt: `-deferral-change-`, `-deferral-change-step-`, `-deferral-change-timing-`, `-aip-elect-`, `-easy-enroll-channel-`, `-easy-enroll-package-`, `-below-default-`, `-below-default-step-`.
+- `below_default.share_tiers` specifies the total below-default share, rather than adding to low demographic-grid rates. A resolved share of zero or disabled AE preserves existing behavior without a floor. Downward magnet snaps to a full-match ceiling below the AE default are allowed and reported separately.
 
 ---
 

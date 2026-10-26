@@ -12,8 +12,6 @@
     {'employee_min': 0.00, 'employee_max': 0.03, 'match_rate': 1.00},
     {'employee_min': 0.03, 'employee_max': 0.05, 'match_rate': 0.50}
 ]) %}
-{% set enrollment_match_magnet_enabled = var('enrollment_match_magnet_enabled', true) %}
-{% set enrollment_match_magnet_probability = var('enrollment_match_magnet_probability', 0.45) %}
 {% set voluntary_max_deferral_rate = var('voluntary_max_deferral_rate', 0.15) %}
 
 {# Issue #652: flat new-hire voluntary enrollment rate.
@@ -298,15 +296,12 @@ match_optimization AS (
 ),
 
 match_snapped AS (
-  -- Snap a deterministic fraction of below-ceiling enrollees up to the ceiling
+  -- Apply deliberate below-default choices before the two-way match magnet
   SELECT
     *,
-    {{ match_magnet_snap(
-        'spread_deferral_rate',
-        'match_magnet_ceiling',
-        'deferral_random',
-        enrollment_match_magnet_enabled,
-        enrollment_match_magnet_probability
+    {{ self_directed_enrollment_rate(
+        'spread_deferral_rate', 'match_magnet_ceiling', 'deferral_random',
+        'employee_id', 'simulation_year'
     ) }} AS optimized_deferral_rate
   FROM match_optimization
 ),
@@ -379,6 +374,8 @@ enrollment_decisions AS (
     job_level_multiplier,
     enrollment_random,
     deferral_random,
+    spread_random,
+    spread_deferral_rate,
     selected_deferral_rate as raw_deferral_rate,
     optimized_deferral_rate as match_optimized_rate,
     match_magnet_ceiling
@@ -424,6 +421,8 @@ SELECT
   job_level_multiplier,
   enrollment_random,
   deferral_random,
+  spread_random,
+  spread_deferral_rate,
   raw_deferral_rate,
   match_optimized_rate,
   match_magnet_ceiling
