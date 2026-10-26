@@ -1,6 +1,6 @@
 {{ config(severity='error', tags=['data_quality']) }}
 
--- AIP elections persist across years and remain subject to census opt-out.
+-- AIP elections persist; a new Easy Enroll package can elect a nonmember.
 WITH membership_violations AS (
   SELECT
     current_state.employee_id,
@@ -13,6 +13,11 @@ WITH membership_violations AS (
     AND current_state.employee_id = previous_state.employee_id
     AND current_state.simulation_year = previous_state.simulation_year + 1
   WHERE current_state.aip_participant IS DISTINCT FROM previous_state.aip_participant
+    {% if var('easy_enroll_enabled', false) %}
+    AND NOT (current_state.aip_participant AND
+      {{ easy_enroll_member(ref('fct_yearly_events'), 'current_state.employee_id',
+        'current_state.simulation_year', 'current_state.scenario_id') }})
+    {% endif %}
 
   UNION ALL
 
@@ -25,6 +30,10 @@ WITH membership_violations AS (
     ON state.employee_id = census.employee_id
   WHERE census.auto_escalation_opt_out = TRUE
     AND state.aip_participant = TRUE
+    {% if var('easy_enroll_enabled', false) %}
+    AND NOT {{ easy_enroll_member(ref('fct_yearly_events'), 'state.employee_id',
+      'state.simulation_year', 'state.scenario_id') }}
+    {% endif %}
 ),
 
 -- Some published events have no accumulator row (also present on main).
@@ -50,6 +59,10 @@ escalation_violations AS (
   WHERE event.event_type = 'deferral_escalation'
     AND NOT COALESCE(state.aip_participant, previous_state.aip_participant,
       {{ aip_initial_membership(var('deferral_escalation_mode', 'automatic'), 'census.auto_escalation_opt_out', 'event.employee_id') }})
+    {% if var('easy_enroll_enabled', false) %}
+    AND NOT {{ easy_enroll_member(ref('fct_yearly_events'), 'event.employee_id',
+      'event.simulation_year', 'event.scenario_id') }}
+    {% endif %}
 )
 
 SELECT employee_id, simulation_year, violation_type FROM membership_violations

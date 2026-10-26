@@ -612,7 +612,11 @@ voluntary_change_state AS (
       WHEN dc.employee_id IS NOT NULL THEN 'deferral_change'
       ELSE s.rate_source
     END AS rate_source,
-    -- Easy Enroll membership hook (#987): combine new elections here in future.
+    -- Package enrollment elects AIP even when ordinary escalation is disabled.
+    {% if var('easy_enroll_enabled', false) %}
+    {{ easy_enroll_member(ref('fct_yearly_events'), 's.employee_id', 's.simulation_year',
+      's.scenario_id') }} OR
+    {% endif %}
     {% if simulation_year == start_year %}
     {{ aip_initial_membership(var('deferral_escalation_mode', 'automatic'), 'census.auto_escalation_opt_out', 's.employee_id') }} AS aip_participant,
     NULL::DECIMAL(5,4) AS previous_nonzero_deferral_rate

@@ -34,7 +34,15 @@ escalation_events AS (
     event.employee_deferral_rate,
     event.prev_employee_deferral_rate,
     event.event_details,
+    {% if var('easy_enroll_enabled', false) %}
+    CASE WHEN {{ easy_enroll_member(ref('fct_yearly_events'), 'event.employee_id',
+      'event.simulation_year', 'event.scenario_id') }}
+      THEN {{ var('easy_enroll_escalation_cap', 0.10) }}
+      ELSE parameters.deferral_escalation_cap
+    END AS deferral_escalation_cap
+    {% else %}
     parameters.deferral_escalation_cap
+    {% endif %}
   FROM {{ ref('fct_yearly_events') }} event
   INNER JOIN parameter_rows parameters
     ON event.plan_design_id = parameters.plan_design_id

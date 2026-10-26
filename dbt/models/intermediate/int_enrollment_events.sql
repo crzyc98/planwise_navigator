@@ -872,6 +872,20 @@ deduplicated_events AS (
     )
 )
 
+{% if var('easy_enroll_enabled', false) %}
+, easy_enroll_choices AS (
+  SELECT
+    employee_id,
+    simulation_year,
+    event_type,
+    {{ easy_enroll_package_rate('employee_id', 'simulation_year') }} AS package_rate
+  FROM deduplicated_events
+  WHERE priority_rank = 1
+    AND event_type = 'enrollment'
+    AND {{ easy_enroll_selected('event_category', 'employee_id', 'simulation_year') }}
+)
+{% endif %}
+
 -- Final selection compatible with fct_yearly_events schema with event sourcing metadata
 -- Phase 2 Fix: Restored all critical WHERE clauses to prevent duplicate enrollments
 -- Phase 3 Fix: Added deduplication to prevent multiple enrollments per employee per year
@@ -882,10 +896,23 @@ SELECT
   event_type,
   simulation_year,
   effective_date,
+  {% if var('easy_enroll_enabled', false) %}
+  CASE WHEN package_rate IS NOT NULL
+    THEN 'Easy Enroll: original_channel=' || event_category
+      || '; package_rate=' || CAST(package_rate AS VARCHAR)
+      || '; escalation_cap={{ var("easy_enroll_escalation_cap", 0.10) }}; ' || event_details
+    ELSE event_details
+  END AS event_details,
+  {% else %}
   event_details,
+  {% endif %}
   compensation_amount,
   previous_compensation,
+  {% if var('easy_enroll_enabled', false) %}
+  COALESCE(package_rate, employee_deferral_rate) AS employee_deferral_rate,
+  {% else %}
   employee_deferral_rate,
+  {% endif %}
   prev_employee_deferral_rate,
   employee_age,
   employee_tenure,
@@ -893,7 +920,11 @@ SELECT
   age_band,
   tenure_band,
   event_probability,
+  {% if var('easy_enroll_enabled', false) %}
+  CASE WHEN package_rate IS NOT NULL THEN 'easy_enroll' ELSE event_category END AS event_category,
+  {% else %}
   event_category,
+  {% endif %}
   -- Event sourcing metadata for audit trail
   ROW_NUMBER() OVER (PARTITION BY employee_id, simulation_year ORDER BY effective_date, event_type) as event_sequence,
   CURRENT_TIMESTAMP as created_at,
@@ -908,6 +939,9 @@ SELECT
     ELSE 'VALID'
   END as data_quality_flag
 FROM deduplicated_events
+{% if var('easy_enroll_enabled', false) %}
+LEFT JOIN easy_enroll_choices USING (employee_id, simulation_year, event_type)
+{% endif %}
 WHERE priority_rank = 1  -- Keep one per event_type per employee-year (enrollment + opt-out can coexist)
   AND employee_id IS NOT NULL
   AND simulation_year IS NOT NULL

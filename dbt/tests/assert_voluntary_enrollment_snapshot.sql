@@ -22,7 +22,8 @@ WITH voluntary_enrollments AS (
     AND event_category IN (
       'voluntary_enrollment',
       'proactive_voluntary',
-      'year_over_year_voluntary'
+      'year_over_year_voluntary',
+      'easy_enroll'
     )
 ),
 

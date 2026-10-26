@@ -33,7 +33,7 @@
   - Previous escalation history computed from prior years of this model (no circular deps)
 */
 
-{% if not esc_enabled %}
+{% if not esc_enabled and not var('easy_enroll_enabled', false) %}
 -- Escalation disabled via config; return no rows but preserve fused-events schema
 SELECT
     CAST(NULL AS VARCHAR)           AS employee_id,
@@ -193,7 +193,12 @@ workforce_with_status AS (
         COALESCE(e.is_enrolled, false) as is_enrolled,
         e.first_enrollment_date,
         -- Initialize membership in year 1; carry state thereafter.
-        -- Easy Enroll membership hook (#987): combine new elections here in future.
+        {% if var('easy_enroll_enabled', false) %}
+        {{ easy_enroll_member(ref('int_enrollment_events'), 'w.employee_id', simulation_year,
+          "'" ~ var('scenario_id', 'default') ~ "'") }} AS is_easy_enroll,
+        {{ easy_enroll_member(ref('int_enrollment_events'), 'w.employee_id', simulation_year,
+          "'" ~ var('scenario_id', 'default') ~ "'") }} OR
+        {% endif %}
         {% if simulation_year == start_year %}
         {{ aip_initial_membership(var('deferral_escalation_mode', 'automatic'), 'oo.auto_escalation_opt_out', 'w.employee_id') }}
         {% else %}
@@ -227,21 +232,24 @@ workforce_with_status AS (
     LEFT JOIN {{ ref('stg_census_data') }} oo ON w.employee_id = oo.employee_id
 ),
 
+{% set effective_cap = "CASE WHEN w.is_easy_enroll THEN " ~ var('easy_enroll_escalation_cap', 0.10) ~ " ELSE w.deferral_escalation_cap END"
+  if var('easy_enroll_enabled', false) else 'w.deferral_escalation_cap' %}
+
 -- Apply parameter-driven eligibility rules
 eligible_employees AS (
     SELECT
         w.*,
         w.deferral_escalation_increment as escalation_rate,
-        w.deferral_escalation_cap as max_escalation_rate,
+        ({{ effective_cap }}) as max_escalation_rate,
         0 as tenure_threshold,
         0 as age_threshold,
         1000 as max_escalations,
 
         -- Calculate new deferral rate (only if under cap)
         CASE
-            WHEN w.current_deferral_rate >= w.deferral_escalation_cap THEN w.current_deferral_rate
+            WHEN w.current_deferral_rate >= ({{ effective_cap }}) THEN w.current_deferral_rate
             ELSE LEAST(
-                w.deferral_escalation_cap,
+                ({{ effective_cap }}),
                 w.current_deferral_rate + w.deferral_escalation_increment
             )
         END as new_deferral_rate,
@@ -253,7 +261,7 @@ eligible_employees AS (
         (w.total_previous_escalations < 1000) as under_escalation_limit_check,
         -- FIX: Ensure employees already at/above maximum are NOT enrolled in escalation
         -- This prevents the bug where census rates of 15% would be reduced to 6%
-        (w.current_deferral_rate > 0 AND w.current_deferral_rate < w.deferral_escalation_cap) as under_rate_cap_check,
+        (w.current_deferral_rate > 0 AND w.current_deferral_rate < ({{ effective_cap }})) as under_rate_cap_check,
         -- Timing check: use calendar year (not days) so escalations happen on configured date each year
         (w.last_rate_change_date IS NULL OR EXTRACT('year' FROM w.last_rate_change_date) < {{ simulation_year }}) as timing_check,
         -- FEATURE: Configurable first escalation delay (default 1 year)
@@ -299,6 +307,9 @@ escalation_events AS (
         -- All eligibility criteria must be met
         -- Must be enrolled in program (registry) OR newly enrolling (baseline allows auto-escalate and no prior escalations)
         (e.in_auto_escalation_program = true)
+        {% if not esc_enabled %}
+        AND e.is_easy_enroll
+        {% endif %}
         AND (CASE WHEN {{ require_enrollment }} THEN e.is_enrolled_check ELSE TRUE END)
         AND e.meets_tenure_check
         AND e.meets_age_check

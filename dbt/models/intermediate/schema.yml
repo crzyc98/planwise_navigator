@@ -844,7 +844,7 @@ models:
                 min_value: 0
                 max_value: 1
       - name: aip_participant
-        description: Automatic increase program membership; initialized from census opt-out and run-global mode (automatic or a stable seeded participant election), carried forward thereafter, with the same rule for newcomers. Easy Enroll elections arrive in 987.
+        description: Automatic increase program membership; initialized from census opt-out and run-global mode (automatic or a stable seeded participant election), carried forward thereafter, with the same rule for newcomers. Easy Enroll enrollees always join, including when ordinary escalation is disabled.
         data_type: boolean
         data_tests:
           - not_null
@@ -852,13 +852,13 @@ models:
               arguments:
                 expression: "= FALSE"
               config:
-                enabled: "{{ not var('deferral_escalation_enabled', true) }}"
+                enabled: "{{ not var('deferral_escalation_enabled', true) and not var('easy_enroll_enabled', false) }}"
           - dbt_utils.expression_is_true:
               name: aip_participant_elected_zero_signup
               arguments:
                 expression: "= FALSE"
               config:
-                enabled: "{{ var('deferral_escalation_mode', 'automatic') == 'participant_elected' and var('deferral_escalation_participant_elected_signup_probability', 0.0) == 0.0 }}"
+                enabled: "{{ var('deferral_escalation_mode', 'automatic') == 'participant_elected' and var('deferral_escalation_participant_elected_signup_probability', 0.0) == 0.0 and not var('easy_enroll_enabled', false) }}"
       - name: last_nonzero_deferral_rate
         description: Latest positive year-end current_deferral_rate, carried forward through zero-rate years; NULL until a positive year-end rate has been observed
         data_type: decimal(5,4)
@@ -1653,7 +1653,7 @@ models:
             combination_of_columns: [scenario_id, employee_id, simulation_year, event_type]
     columns:
       - name: employee_deferral_rate
-        description: "Enrollment rate after self-directed choices; opt-outs remain zero."
+        description: "Enrollment rate after self-directed choices or Easy Enroll package selection; opt-outs remain zero. Easy Enroll package rates are checked by assert_easy_enroll_events."
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
@@ -1744,7 +1744,7 @@ models:
           - not_null
           - accepted_values:
               arguments:
-                values: ['proactive_enrollment', 'auto_enrollment', 'voluntary_enrollment', 'enrollment_opt_out', 'year_over_year_voluntary', 'proactive_voluntary']
+                values: ['proactive_enrollment', 'auto_enrollment', 'voluntary_enrollment', 'enrollment_opt_out', 'year_over_year_voluntary', 'proactive_voluntary', 'easy_enroll']
       - name: data_quality_flag
         description: Data quality validation flag
         data_tests:
@@ -1934,6 +1934,12 @@ models:
               arguments:
                 min_value: 0
                 max_value: 50
+      - name: enrollment_method
+        description: "Auto or voluntary; Easy Enroll is voluntary and retains that method in later years. Census enrollments may be NULL."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['auto', 'voluntary']
       - name: enrollment_source
         description: Source of enrollment (baseline, event_YYYY, or none)
         data_tests:
@@ -1998,6 +2004,8 @@ models:
       Integrates with existing parameter system for job-level configuration.
       AIP membership uses the static census opt-out rule initially, then prior-year
       accumulator membership, with the initial rule for newly appearing employees.
+      Easy Enroll always elects membership and uses its package cap, even with
+      ordinary escalation disabled (assert_easy_enroll_membership_and_cap).
     config:
       materialized: ephemeral
       tags: ["escalation", "deferral", "events", "epic_e035", "EVENT_GENERATION", "E068A_EPHEMERAL"]
