@@ -6,7 +6,7 @@ import math
 from datetime import date
 from typing import Any, Mapping, TypedDict
 
-from pydantic import TypeAdapter, ValidationError
+from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from .participant_behavior import (
     BelowDefaultSettings,
@@ -136,7 +136,7 @@ ENUM_VARS = {
 
 
 # Reuse field validators so exported JSON and YAML follow the same constraints.
-_LIST_MODELS = {
+_LIST_MODELS: dict[str, tuple[type[BaseModel], str]] = {
     "easy_enroll_packages": (EasyEnrollSettings, "packages"),
     "below_default_share_tiers": (BelowDefaultSettings, "share_tiers"),
     "below_default_steps": (BelowDefaultSettings, "steps"),
@@ -155,10 +155,11 @@ def _validate_list(field: str, value: Any) -> str | None:
     model, key = _LIST_MODELS[field]
     if not isinstance(value, list):
         return "must be a JSON-compatible list"
+    annotation = model.model_fields[key].annotation
+    if annotation is None:
+        raise TypeError(f"{model.__name__}.{key} has no type annotation")
     try:
-        TypeAdapter(model.model_fields[key].annotation).validate_python(
-            value, strict=True
-        )
+        TypeAdapter(annotation).validate_python(value, strict=True)
         model.model_validate({key: value})
     except ValidationError as exc:
         return str(exc)
