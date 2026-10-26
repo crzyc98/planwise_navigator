@@ -39,7 +39,9 @@ enrollment_events_after_optout AS (
     oo.event_details as opt_out_details,
     ee.simulation_year as enrollment_year,
     ee.effective_date as enrollment_date,
-    ee.event_category,
+    CASE WHEN ee.event_category = 'easy_enroll'
+      THEN REGEXP_EXTRACT(ee.event_details, 'original_channel=([^;]+)', 1)
+      ELSE ee.event_category END AS event_category,
     ee.event_details as enrollment_details,
     -- DuckDB FIX: Use DATE_DIFF instead of EXTRACT for day difference
     DATE_DIFF('day', oo.opt_out_date, ee.effective_date) as days_since_optout
