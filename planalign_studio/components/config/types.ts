@@ -1,6 +1,14 @@
 // Shared TypeScript types for ConfigStudio section components
 // Extracted from ConfigStudio.tsx lines 8-18 and formData shape
 
+import type { components } from '../../services/api.generated';
+
+export type EscalationMode = NonNullable<components['schemas']['StudioDCPlanConfig']['escalation_mode']>;
+// Same row contracts as the API, with rates/shares/weights displayed as percents.
+// pp remains a whole number of percentage points in both the UI and API.
+export type BelowDefaultTier = components['schemas']['BelowDefaultTier'];
+export type BelowDefaultStep = components['schemas']['DeferralChangeStep'];
+
 export interface MatchTier {
   deferralMin: number;
   deferralMax: number;
@@ -161,6 +169,10 @@ export interface FormData {
   dcAutoEscalation: boolean;
   dcEscalationRate: number;
   dcEscalationCap: number;
+  dcEscalationMode: EscalationMode;
+  dcEscalationSignupProbability: number; // percent (0-100)
+  dcBelowDefaultShareTiers: BelowDefaultTier[];
+  dcBelowDefaultSteps: BelowDefaultStep[];
 
   // DC Plan - Auto-Enrollment Advanced
   dcAutoEnrollWindowDays: number;
@@ -186,6 +198,7 @@ export interface FormData {
   // DC Plan - Match Magnet dial (Feature 102)
   dcMatchMagnetEnabled: boolean;
   dcMatchMagnetProbability: number; // percent (0-100)
+  dcMatchMagnetDownwardEnabled: boolean;
   dcMaxVoluntaryDeferral: number;   // percent (1-100)
 
   // DC Plan - Match-Responsive Deferral Adjustment

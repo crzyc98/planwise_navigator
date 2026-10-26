@@ -192,6 +192,10 @@ export const DEFAULT_FORM_DATA: FormData = {
   dcAutoEscalation: true,
   dcEscalationRate: 1.0,
   dcEscalationCap: 10.0,
+  dcEscalationMode: 'automatic',
+  dcEscalationSignupProbability: 0,
+  dcBelowDefaultShareTiers: [{ max_auto_enroll_default_rate: null, share: 0 }],
+  dcBelowDefaultSteps: [{ pp: 1, weight: 50 }, { pp: 2, weight: 30 }, { pp: 3, weight: 20 }],
 
   // DC Plan - Auto-Enrollment Advanced
   dcAutoEnrollWindowDays: 45,
@@ -220,6 +224,7 @@ export const DEFAULT_FORM_DATA: FormData = {
   // DC Plan - Match Magnet dial (Feature 102; defaults preserve prior behavior)
   dcMatchMagnetEnabled: true,
   dcMatchMagnetProbability: 45,
+  dcMatchMagnetDownwardEnabled: false,
   // 25% clears every segment at the maximum spread: the top segment
   // (senior_executive, 15%) plus the 10pp ceiling on the spread lands
   // exactly here, so no segment can be clipped at the default cap.

@@ -92,10 +92,43 @@ function formatEligibilityValue(key: string, value: unknown): string | undefined
   if (field === 'allow_new_hires') return value ? 'Exempt from service requirement' : 'Must meet service requirement';
   return value ? 'Allowed' : 'Excluded';
 }
-const labelFor = (key: string) => ({ 'dc_plan.match_template': 'Employer match template', 'dc_plan.match_tiers': 'Employer match formula', match_tiers: 'Employer match formula', 'compensation.promotion_compensation.base_increase_pct': 'Promotion pay increase', 'compensation.promotion_compensation.distribution_range': 'Promotion increase spread', promotion_base_increase_pct: 'Promotion pay increase', deferral_escalation_cap: 'Annual auto-escalation cap', target_growth_rate: 'Annual headcount growth', simulation_start_year: 'First projection year', end_year: 'Last projection year' }[key] ?? key.replaceAll('_', ' ').replaceAll('.', ' → '));
+const behaviorLabels: Record<string, string> = {
+  escalation_mode: 'Enrollment in automatic contribution increases',
+  deferral_escalation_mode: 'Enrollment in automatic contribution increases',
+  escalation_participant_elected_signup_probability: 'Employees who sign up for automatic increases',
+  deferral_escalation_participant_elected_signup_probability: 'Employees who sign up for automatic increases',
+  match_magnet_downward_enabled: 'Pull starting rates down to the full-match rate',
+  enrollment_match_magnet_downward_enabled: 'Pull starting rates down to the full-match rate',
+  below_default_share_tiers: 'Choosing a rate below the auto-enrollment default',
+  below_default_steps: 'How far below the default',
+};
+const labelFor = (key: string) => behaviorLabels[key.replace(/^dc_plan\./, '')] ?? ({ 'dc_plan.match_template': 'Employer match template', 'dc_plan.match_tiers': 'Employer match formula', match_tiers: 'Employer match formula', 'compensation.promotion_compensation.base_increase_pct': 'Promotion pay increase', 'compensation.promotion_compensation.distribution_range': 'Promotion increase spread', promotion_base_increase_pct: 'Promotion pay increase', deferral_escalation_cap: 'Annual auto-escalation cap', target_growth_rate: 'Annual headcount growth', simulation_start_year: 'First projection year', end_year: 'Last projection year' }[key] ?? key.replaceAll('_', ' ').replaceAll('.', ' → '));
+
+function formatBehaviorSetting(key: string, value: unknown): string | undefined {
+  key = key.replace(/^dc_plan\./, '');
+  if (!(key in behaviorLabels) || value == null) return undefined;
+  if (key.endsWith('escalation_mode')) return value === 'automatic' ? 'Automatic (everyone unless they opt out)'
+    : value === 'participant_elected' ? 'Participant-elected (employees sign up)' : showValue(value);
+  if (key.endsWith('signup_probability') && typeof value === 'number') return `${Number((value * 100).toFixed(3))}%`;
+  if (!Array.isArray(value)) return undefined;
+  const pct = (rate: unknown) => typeof rate === 'number' ? `${Number((rate * 100).toFixed(3))}%` : showValue(rate);
+  if (key === 'below_default_share_tiers') return value.map((row: unknown) => {
+    const tier = asConfig(row);
+    const ceiling = tier.max_auto_enroll_default_rate;
+    return `${ceiling === null ? 'Higher auto-enrollment defaults' : `Auto-enrollment default up to ${pct(ceiling)}`}: ${pct(tier.share)} choose below`;
+  }).join('; ');
+  if (key === 'below_default_steps') return value.map((row: unknown) => {
+    const step = asConfig(row);
+    return `${step.pp} percentage ${step.pp === 1 ? 'point' : 'points'} below (${pct(step.weight)})`;
+  }).join('; ');
+  return undefined;
+}
 const percentVariables = new Set(['target_growth_rate', 'total_termination_rate', 'new_hire_termination_rate', 'cola_rate', 'merit_budget', 'promotion_base_increase_pct', 'promotion_distribution_range', 'auto_enrollment_default_deferral_rate', 'voluntary_enrollment_rate', 'new_hire_opt_out_rate', 'deferral_escalation_increment', 'deferral_escalation_cap', 'match_cap_percent', 'employer_match_max_deferral_rate', 'employer_core_contribution_rate', 'new_hire_ineligible_pct']);
-const summaryVariables = ['simulation_start_year', 'end_year', 'random_seed', 'target_growth_rate', 'total_termination_rate', 'new_hire_termination_rate', 'cola_rate', 'merit_budget', 'promotion_base_increase_pct', 'promotion_distribution_range', 'promotion_rate_multiplier', 'auto_enrollment_enabled', 'auto_enrollment_scope', 'auto_enrollment_hire_date_cutoff', 'auto_enrollment_window_days', 'auto_enrollment_default_deferral_rate', 'voluntary_enrollment_rate', 'new_hire_opt_out_rate', 'deferral_escalation_enabled', 'deferral_escalation_increment', 'deferral_escalation_cap'];
+const summaryVariables = ['simulation_start_year', 'end_year', 'random_seed', 'target_growth_rate', 'total_termination_rate', 'new_hire_termination_rate', 'cola_rate', 'merit_budget', 'promotion_base_increase_pct', 'promotion_distribution_range', 'promotion_rate_multiplier', 'auto_enrollment_enabled', 'auto_enrollment_scope', 'auto_enrollment_hire_date_cutoff', 'auto_enrollment_window_days', 'auto_enrollment_default_deferral_rate', 'voluntary_enrollment_rate', 'new_hire_opt_out_rate', 'deferral_escalation_enabled', 'deferral_escalation_increment', 'deferral_escalation_cap',
+  'deferral_escalation_mode', 'deferral_escalation_participant_elected_signup_probability', 'enrollment_match_magnet_downward_enabled', 'below_default_share_tiers', 'below_default_steps'];
 const formatVariable = (key: string, value: unknown) => {
+  const behavior = formatBehaviorSetting(key, value);
+  if (behavior !== undefined) return behavior;
   const eligibility = formatEligibilityValue(key, value);
   if (eligibility !== undefined) return eligibility;
   if (key === 'match_tiers') return formatMatchTiers(value);
@@ -120,6 +153,8 @@ const decimalRatePaths = new Set([
   'dc_plan.deferral_match_response.upward_participation_rate', 'dc_plan.deferral_match_response.downward_participation_rate',
 ]);
 export function formatDraftValue(key: string, value: unknown) {
+  const behavior = formatBehaviorSetting(key, value);
+  if (behavior !== undefined) return behavior;
   const eligibility = formatEligibilityValue(key, value);
   if (eligibility !== undefined) return eligibility;
   if (key === 'dc_plan.match_tiers') return formatMatchTiers(value);
@@ -151,7 +186,16 @@ function formatMatchTiers(value: unknown): string {
   }).join('; then ');
 }
 function inactiveVariable(key: string, variables: Config): string | null {
-  return variables.auto_enrollment_enabled === false && ['auto_enrollment_default_deferral_rate', 'new_hire_opt_out_rate'].includes(key)
+  if (variables.deferral_escalation_enabled === false && ['deferral_escalation_mode', 'deferral_escalation_participant_elected_signup_probability'].includes(key)) {
+    return 'Inactive while automatic contribution increases are off; saved value retained.';
+  }
+  if (key === 'deferral_escalation_participant_elected_signup_probability' && variables.deferral_escalation_mode !== 'participant_elected') {
+    return 'Inactive when employees join automatic contribution increases automatically; saved value retained.';
+  }
+  if (key === 'enrollment_match_magnet_downward_enabled' && variables.enrollment_match_magnet_enabled === false) {
+    return 'Inactive while new-enrollee match seeking is off; uses the same probability as the upward pull.';
+  }
+  return variables.auto_enrollment_enabled === false && ['auto_enrollment_default_deferral_rate', 'new_hire_opt_out_rate', 'below_default_share_tiers', 'below_default_steps', 'enrollment_match_magnet_downward_enabled'].includes(key)
     ? 'Inactive while automatic enrollment is off; saved value retained.' : null;
 }
 

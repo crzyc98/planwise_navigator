@@ -115,6 +115,12 @@ export function buildConfigPayload(
       // Feature 102: match-magnet dial (UI percent → decimal)
       match_magnet_enabled: Boolean(formData.dcMatchMagnetEnabled),
       match_magnet_probability: Number(formData.dcMatchMagnetProbability) / 100,
+      match_magnet_downward_enabled: Boolean(formData.dcMatchMagnetDownwardEnabled),
+      below_default_share_tiers: formData.dcBelowDefaultShareTiers.map(tier => ({
+        max_auto_enroll_default_rate: tier.max_auto_enroll_default_rate === null ? null : Number(tier.max_auto_enroll_default_rate) / 100,
+        share: Number(tier.share) / 100,
+      })),
+      below_default_steps: formData.dcBelowDefaultSteps.map(step => ({ pp: step.pp, weight: Number(step.weight) / 100 })),
       max_voluntary_deferral_percent: Number(formData.dcMaxVoluntaryDeferral) / 100,
       deferral_match_response: {
         enabled: Boolean(formData.dcMatchResponseEnabled),
@@ -200,6 +206,8 @@ export function buildConfigPayload(
       core_allow_terminated_new_hires: Boolean(formData.dcCoreAllowTerminatedNewHires),
       core_allow_experienced_terminations: Boolean(formData.dcCoreAllowExperiencedTerminations),
       auto_escalation: Boolean(formData.dcAutoEscalation),
+      escalation_mode: formData.dcEscalationMode,
+      escalation_participant_elected_signup_probability: Number(formData.dcEscalationSignupProbability) / 100,
       escalation_rate_percent: Number(formData.dcEscalationRate),
       escalation_cap_percent: Number(formData.dcEscalationCap),
       escalation_effective_day: formData.dcEscalationEffectiveDay,

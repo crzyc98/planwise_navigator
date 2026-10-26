@@ -4,6 +4,28 @@ import { applyResolvedFormData } from './resolvedFormData';
 import exportedFixture from './fixtures/resolvedEngineInputs.json';
 
 describe('resolved engine inputs in configuration controls', () => {
+  it('resolves participant behavior from engine defaults/overrides with percentage units and independent arrays', () => {
+    const variables = {
+      deferral_escalation_mode: 'participant_elected', deferral_escalation_participant_elected_signup_probability: 0.0125,
+      enrollment_match_magnet_downward_enabled: true,
+      below_default_share_tiers: [{ max_auto_enroll_default_rate: 0.03, share: 0.1 }, { max_auto_enroll_default_rate: null, share: 0.15 }],
+      below_default_steps: [{ pp: 1, weight: 0.5 }, { pp: 2, weight: 0.5 }],
+    };
+    const resolved = applyResolvedFormData(variables, DEFAULT_FORM_DATA);
+    expect(resolved).toMatchObject({ dcEscalationMode: 'participant_elected', dcEscalationSignupProbability: 1.25,
+      dcMatchMagnetDownwardEnabled: true,
+      dcBelowDefaultShareTiers: [{ max_auto_enroll_default_rate: 3, share: 10 }, { max_auto_enroll_default_rate: null, share: 15 }],
+      dcBelowDefaultSteps: [{ pp: 1, weight: 50 }, { pp: 2, weight: 50 }],
+    });
+    resolved.dcBelowDefaultShareTiers[0].share = 20;
+    resolved.dcBelowDefaultSteps[0].weight = 60;
+    expect(variables.below_default_share_tiers[0].share).toBe(0.1);
+    expect(variables.below_default_steps[0].weight).toBe(0.5);
+    expect(applyResolvedFormData({ deferral_escalation_participant_elected_signup_probability: 0,
+      enrollment_match_magnet_downward_enabled: false }, resolved)).toMatchObject({
+      dcEscalationSignupProbability: 0, dcMatchMagnetDownwardEnabled: false,
+    });
+  });
   it('shows active legacy requirements instead of dormant detailed values', () => {
     const resolved = applyResolvedFormData({ employer_match: { apply_eligibility: false,
       eligibility: { minimum_tenure_years: 3, minimum_hours_annual: 500,
