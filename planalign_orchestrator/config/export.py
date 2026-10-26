@@ -76,10 +76,10 @@ def dbt_var_disposition(
 
 # Epic #986 D5: these behavior controls are run-global, including AIP mode.
 _PARTICIPANT_BEHAVIOR_FIELDS = {
-    "aip_mode": ("deferral_escalation_mode", "deferral_auto_escalation.mode"),
-    "aip_participant_elected_signup_rate": (
-        "deferral_escalation_participant_elected_signup_rate",
-        "deferral_auto_escalation.participant_elected_signup_rate",
+    "escalation_mode": ("deferral_escalation_mode", "deferral_auto_escalation.mode"),
+    "escalation_participant_elected_signup_probability": (
+        "deferral_escalation_participant_elected_signup_probability",
+        "deferral_auto_escalation.participant_elected_signup_probability",
     ),
     "match_magnet_downward_enabled": (
         "enrollment_match_magnet_downward_enabled",
@@ -89,28 +89,28 @@ _PARTICIPANT_BEHAVIOR_FIELDS = {
         "below_default_share_tiers",
         "enrollment.below_default.share_tiers",
     ),
-    "below_default_step_weights": (
-        "below_default_step_weights",
-        "enrollment.below_default.step_weights",
+    "below_default_steps": (
+        "below_default_steps",
+        "enrollment.below_default.steps",
     ),
 }
-for _field in ("enabled", "channel_share", "packages", "aip_cap"):
+for _field in ("enabled", "channel_share", "packages", "escalation_cap"):
     _PARTICIPANT_BEHAVIOR_FIELDS[f"easy_enroll_{_field}"] = (
         f"easy_enroll_{_field}",
         f"easy_enroll.{_field}",
     )
 for _field in (
     "enabled",
-    "in_aip.increase_rate",
-    "in_aip.decrease_rate",
-    "not_in_aip.increase_rate",
-    "not_in_aip.decrease_rate",
+    "with_escalation.increase_probability",
+    "with_escalation.decrease_probability",
+    "without_escalation.increase_probability",
+    "without_escalation.decrease_probability",
     "increase_steps",
     "decrease_steps",
-    "aip_response_window_days",
-    "aip_response_opts_out",
-    "stop_rate",
-    "restart_rate",
+    "post_escalation_decrease_window_days",
+    "post_escalation_decrease_leaves_escalation",
+    "stop_probability",
+    "restart_probability",
 ):
     _name = f"deferral_rate_changes_{_field.replace('.', '_')}"
     _PARTICIPANT_BEHAVIOR_FIELDS[_name] = (_name, f"deferral_rate_changes.{_field}")

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 from pydantic import BaseModel, ValidationError
 
 from planalign_api.models.studio_config import StudioConfig
@@ -24,7 +25,7 @@ ROOT = Path(__file__).resolve().parents[3]
 # Explicit expected values also keep the export/mapping tests independent of implementation.
 DEFAULTS: dict[str, Any] = {
     "deferral_escalation_mode": "automatic",
-    "deferral_escalation_participant_elected_signup_rate": 0.0,
+    "deferral_escalation_participant_elected_signup_probability": 0.0,
     "easy_enroll_enabled": False,
     "easy_enroll_channel_share": 0.35,
     "easy_enroll_packages": [
@@ -32,15 +33,19 @@ DEFAULTS: dict[str, Any] = {
         {"rate": 0.08, "share": 0.50},
         {"rate": 0.10, "share": 0.20},
     ],
-    "easy_enroll_aip_cap": 0.10,
+    "easy_enroll_escalation_cap": 0.10,
     "enrollment_match_magnet_downward_enabled": False,
-    "below_default_share_tiers": [{"ae_default_max": None, "share": 0.0}],
-    "below_default_step_weights": [0.50, 0.30, 0.20],
+    "below_default_share_tiers": [{"max_auto_enroll_default_rate": None, "share": 0.0}],
+    "below_default_steps": [
+        {"pp": 1, "weight": 0.50},
+        {"pp": 2, "weight": 0.30},
+        {"pp": 3, "weight": 0.20},
+    ],
     "deferral_rate_changes_enabled": False,
-    "deferral_rate_changes_in_aip_increase_rate": 0.03,
-    "deferral_rate_changes_in_aip_decrease_rate": 0.15,
-    "deferral_rate_changes_not_in_aip_increase_rate": 0.25,
-    "deferral_rate_changes_not_in_aip_decrease_rate": 0.075,
+    "deferral_rate_changes_with_escalation_increase_probability": 0.03,
+    "deferral_rate_changes_with_escalation_decrease_probability": 0.15,
+    "deferral_rate_changes_without_escalation_increase_probability": 0.25,
+    "deferral_rate_changes_without_escalation_decrease_probability": 0.075,
     "deferral_rate_changes_increase_steps": [
         {"pp": pp, "weight": weight}
         for pp, weight in [
@@ -56,38 +61,42 @@ DEFAULTS: dict[str, Any] = {
         {"pp": pp, "weight": weight}
         for pp, weight in [(1, 0.15), (2, 0.25), (3, 0.20), (5, 0.20), (8, 0.20)]
     ],
-    "deferral_rate_changes_aip_response_window_days": 90,
-    "deferral_rate_changes_aip_response_opts_out": False,
-    "deferral_rate_changes_stop_rate": 0.015,
-    "deferral_rate_changes_restart_rate": 0.0,
+    "deferral_rate_changes_post_escalation_decrease_window_days": 90,
+    "deferral_rate_changes_post_escalation_decrease_leaves_escalation": False,
+    "deferral_rate_changes_stop_probability": 0.015,
+    "deferral_rate_changes_restart_probability": 0.0,
 }
 OVERRIDES: dict[str, Any] = {
-    "aip_mode": "participant_elected",
-    "aip_participant_elected_signup_rate": 0.01,
+    "escalation_mode": "participant_elected",
+    "escalation_participant_elected_signup_probability": 0.01,
     "easy_enroll_enabled": True,
     "easy_enroll_channel_share": 0.42,
     "easy_enroll_packages": [
         {"rate": 0.07, "share": 0.25},
         {"rate": 0.04, "share": 0.75},
     ],
-    "easy_enroll_aip_cap": 0.12,
+    "easy_enroll_escalation_cap": 0.12,
     "match_magnet_downward_enabled": True,
     "below_default_share_tiers": [
-        {"ae_default_max": 0.03, "share": 0.10},
-        {"ae_default_max": None, "share": 0.15},
+        {"max_auto_enroll_default_rate": 0.03, "share": 0.10},
+        {"max_auto_enroll_default_rate": None, "share": 0.15},
     ],
-    "below_default_step_weights": [0.20, 0.30, 0.50],
+    "below_default_steps": [
+        {"pp": 1, "weight": 0.20},
+        {"pp": 2, "weight": 0.30},
+        {"pp": 3, "weight": 0.50},
+    ],
     "deferral_rate_changes_enabled": True,
-    "deferral_rate_changes_in_aip_increase_rate": 0.04,
-    "deferral_rate_changes_in_aip_decrease_rate": 0.16,
-    "deferral_rate_changes_not_in_aip_increase_rate": 0.26,
-    "deferral_rate_changes_not_in_aip_decrease_rate": 0.08,
+    "deferral_rate_changes_with_escalation_increase_probability": 0.04,
+    "deferral_rate_changes_with_escalation_decrease_probability": 0.16,
+    "deferral_rate_changes_without_escalation_increase_probability": 0.26,
+    "deferral_rate_changes_without_escalation_decrease_probability": 0.08,
     "deferral_rate_changes_increase_steps": [{"pp": 2, "weight": 1.0}],
     "deferral_rate_changes_decrease_steps": [{"pp": 4, "weight": 1.0}],
-    "deferral_rate_changes_aip_response_window_days": 0,
-    "deferral_rate_changes_aip_response_opts_out": True,
-    "deferral_rate_changes_stop_rate": 0.0,
-    "deferral_rate_changes_restart_rate": 0.05,
+    "deferral_rate_changes_post_escalation_decrease_window_days": 0,
+    "deferral_rate_changes_post_escalation_decrease_leaves_escalation": True,
+    "deferral_rate_changes_stop_probability": 0.0,
+    "deferral_rate_changes_restart_probability": 0.05,
 }
 
 
@@ -111,8 +120,8 @@ def test_each_dc_plan_override(key: str, value: Any) -> None:
         exclude_unset=True
     )["dc_plan"]
     target = {
-        "aip_mode": "deferral_escalation_mode",
-        "aip_participant_elected_signup_rate": "deferral_escalation_participant_elected_signup_rate",
+        "escalation_mode": "deferral_escalation_mode",
+        "escalation_participant_elected_signup_probability": "deferral_escalation_participant_elected_signup_probability",
         "match_magnet_downward_enabled": "enrollment_match_magnet_downward_enabled",
     }.get(key, key)
     result = to_dbt_vars(cfg)
@@ -157,7 +166,7 @@ def test_studio_escalation_mode_preserves_independent_toggle(
 ) -> None:
     cfg = load_simulation_config("config/simulation_config.yaml")
     cfg.deferral_auto_escalation.enabled = not enabled if override_toggle else enabled
-    overrides: dict[str, Any] = {"aip_mode": mode}
+    overrides: dict[str, Any] = {"escalation_mode": mode}
     if override_toggle:
         overrides["auto_escalation"] = enabled
     cfg.dc_plan = StudioConfig.model_validate({"dc_plan": overrides}).model_dump(
@@ -172,7 +181,7 @@ def test_studio_escalation_mode_preserves_independent_toggle(
     "model,data",
     [
         (EasyEnrollSettings, {"channel_share": -0.1}),
-        (EasyEnrollSettings, {"aip_cap": 1.1}),
+        (EasyEnrollSettings, {"escalation_cap": 1.1}),
         (EasyEnrollSettings, {"packages": []}),
         (EasyEnrollSettings, {"packages": [{"rate": 0, "share": 1}]}),
         (EasyEnrollSettings, {"packages": [{"rate": 1.1, "share": 1}]}),
@@ -180,14 +189,14 @@ def test_studio_escalation_mode_preserves_independent_toggle(
         (BelowDefaultSettings, {"share_tiers": []}),
         (
             BelowDefaultSettings,
-            {"share_tiers": [{"ae_default_max": 0.03, "share": 0.1}]},
+            {"share_tiers": [{"max_auto_enroll_default_rate": 0.03, "share": 0.1}]},
         ),
         (
             BelowDefaultSettings,
             {
                 "share_tiers": [
-                    {"ae_default_max": None, "share": 0.1},
-                    {"ae_default_max": None, "share": 0.1},
+                    {"max_auto_enroll_default_rate": None, "share": 0.1},
+                    {"max_auto_enroll_default_rate": None, "share": 0.1},
                 ]
             },
         ),
@@ -195,8 +204,8 @@ def test_studio_escalation_mode_preserves_independent_toggle(
             BelowDefaultSettings,
             {
                 "share_tiers": [
-                    {"ae_default_max": None, "share": 0.1},
-                    {"ae_default_max": 0.03, "share": 0.1},
+                    {"max_auto_enroll_default_rate": None, "share": 0.1},
+                    {"max_auto_enroll_default_rate": 0.03, "share": 0.1},
                 ]
             },
         ),
@@ -204,33 +213,64 @@ def test_studio_escalation_mode_preserves_independent_toggle(
             BelowDefaultSettings,
             {
                 "share_tiers": [
-                    {"ae_default_max": 0.06, "share": 0.1},
-                    {"ae_default_max": 0.03, "share": 0.1},
-                    {"ae_default_max": None, "share": 0.1},
+                    {"max_auto_enroll_default_rate": 0.06, "share": 0.1},
+                    {"max_auto_enroll_default_rate": 0.03, "share": 0.1},
+                    {"max_auto_enroll_default_rate": None, "share": 0.1},
                 ]
             },
         ),
         (
             BelowDefaultSettings,
-            {"share_tiers": [{"ae_default_max": None, "share": 1.1}]},
+            {"share_tiers": [{"max_auto_enroll_default_rate": None, "share": 1.1}]},
         ),
-        (BelowDefaultSettings, {"step_weights": [0.2, 0.2]}),
-        (BelowDefaultSettings, {"step_weights": [-0.2, 1.2]}),
-        (DeferralAutoEscalationSettings, {"participant_elected_signup_rate": 1.1}),
+        (
+            BelowDefaultSettings,
+            {"steps": [{"pp": 1, "weight": 0.2}, {"pp": 2, "weight": 0.2}]},
+        ),
+        (
+            BelowDefaultSettings,
+            {"steps": [{"pp": 1, "weight": -0.2}, {"pp": 2, "weight": 1.2}]},
+        ),
+        (
+            DeferralAutoEscalationSettings,
+            {"participant_elected_signup_probability": 1.1},
+        ),
         (DeferralAutoEscalationSettings, {"mode": "invalid"}),
         (DeferralAutoEscalationSettings, {"mode": "none"}),
-        (DeferralRateChangesSettings, {"aip_response_window_days": -1}),
-        (DeferralRateChangesSettings, {"aip_response_window_days": 1.5}),
-        (DeferralRateChangesSettings, {"stop_rate": -1}),
-        (DeferralRateChangesSettings, {"restart_rate": 1.1}),
+        (DeferralRateChangesSettings, {"post_escalation_decrease_window_days": -1}),
+        (DeferralRateChangesSettings, {"post_escalation_decrease_window_days": 1.5}),
+        (DeferralRateChangesSettings, {"stop_probability": -1}),
+        (DeferralRateChangesSettings, {"restart_probability": 1.1}),
         (
             DeferralRateChangesSettings,
-            {"in_aip": {"increase_rate": 1.1, "decrease_rate": 0.1}},
+            {
+                "with_escalation": {
+                    "increase_probability": 1.1,
+                    "decrease_probability": 0.1,
+                }
+            },
         ),
         (
             DeferralRateChangesSettings,
-            {"not_in_aip": {"increase_rate": 0.1, "decrease_rate": -0.1}},
+            {
+                "without_escalation": {
+                    "increase_probability": 0.1,
+                    "decrease_probability": -0.1,
+                }
+            },
         ),
+        *[
+            (BelowDefaultSettings, {"steps": value})
+            for value in (
+                [],
+                [0.5, 0.5],
+                [{"pp": 0, "weight": 1}],
+                [{"pp": 1.5, "weight": 1}],
+                [{"pp": True, "weight": 1}],
+                [{"pp": 1, "weight": 0.5}],
+                [{"pp": 1, "weight": 1.1}],
+            )
+        ],
         *[
             (DeferralRateChangesSettings, {key: value})
             for key in ("increase_steps", "decrease_steps")
@@ -255,15 +295,18 @@ def test_reject_invalid_settings(model: type[BaseModel], data: dict[str, Any]) -
     [
         ("easy_enroll_packages", "[]"),
         ("easy_enroll_packages", [{"rate": 0.06, "share": 0.5}]),
-        ("below_default_share_tiers", [{"ae_default_max": 0.03, "share": 0}]),
-        ("below_default_step_weights", [0.2, 0.2]),
+        (
+            "below_default_share_tiers",
+            [{"max_auto_enroll_default_rate": 0.03, "share": 0}],
+        ),
+        ("below_default_steps", [{"pp": 1, "weight": 0.2}, {"pp": 2, "weight": 0.2}]),
         ("deferral_rate_changes_increase_steps", [{"pp": 0, "weight": 1}]),
         ("deferral_rate_changes_decrease_steps", [{"pp": 1, "weight": 0.5}]),
         ("deferral_escalation_mode", "invalid"),
         ("deferral_escalation_mode", "none"),
         ("easy_enroll_enabled", "false"),
-        ("deferral_rate_changes_aip_response_window_days", -1),
-        ("deferral_rate_changes_restart_rate", float("nan")),
+        ("deferral_rate_changes_post_escalation_decrease_window_days", -1),
+        ("deferral_rate_changes_restart_probability", float("nan")),
     ],
 )
 def test_export_type_checks(field: str, value: Any) -> None:
@@ -273,7 +316,9 @@ def test_export_type_checks(field: str, value: Any) -> None:
 
 def test_distribution_tolerance() -> None:
     EasyEnrollSettings(packages=[{"rate": 0.06, "share": 0.9999999}])
-    BelowDefaultSettings(step_weights=[0.5, 0.5000001])
+    BelowDefaultSettings(
+        steps=[{"pp": 1, "weight": 0.5}, {"pp": 3, "weight": 0.5000001}]
+    )
     DeferralRateChangesSettings(increase_steps=[{"pp": 1, "weight": 0.9999999}])
 
 
@@ -288,28 +333,29 @@ def test_legacy_enabled_can_be_updated_on_loaded_config() -> None:
 def test_all_yaml_settings_export_nondefault_values() -> None:
     cfg = load_simulation_config("config/simulation_config.yaml")
     cfg.deferral_auto_escalation = DeferralAutoEscalationSettings(
-        mode="participant_elected", participant_elected_signup_rate=0.01
+        mode="participant_elected", participant_elected_signup_probability=0.01
     )
     cfg.easy_enroll = EasyEnrollSettings(
         enabled=True,
         channel_share=0.42,
         packages=OVERRIDES["easy_enroll_packages"],
-        aip_cap=0.12,
+        escalation_cap=0.12,
     )
     cfg.enrollment.match_magnet.downward_enabled = True
     cfg.enrollment.below_default = BelowDefaultSettings(
-        share_tiers=OVERRIDES["below_default_share_tiers"], step_weights=[0.2, 0.3, 0.5]
+        share_tiers=OVERRIDES["below_default_share_tiers"],
+        steps=OVERRIDES["below_default_steps"],
     )
     cfg.deferral_rate_changes = DeferralRateChangesSettings(
         enabled=True,
-        in_aip={"increase_rate": 0.04, "decrease_rate": 0.16},
-        not_in_aip={"increase_rate": 0.26, "decrease_rate": 0.08},
+        with_escalation={"increase_probability": 0.04, "decrease_probability": 0.16},
+        without_escalation={"increase_probability": 0.26, "decrease_probability": 0.08},
         increase_steps=[{"pp": 2, "weight": 1.0}],
         decrease_steps=[{"pp": 4, "weight": 1.0}],
-        aip_response_window_days=0,
-        aip_response_opts_out=True,
-        stop_rate=0.0,
-        restart_rate=0.05,
+        post_escalation_decrease_window_days=0,
+        post_escalation_decrease_leaves_escalation=True,
+        stop_probability=0.0,
+        restart_probability=0.05,
     )
     yaml_result = to_dbt_vars(cfg)
     cfg.dc_plan = OVERRIDES
@@ -317,3 +363,112 @@ def test_all_yaml_settings_export_nondefault_values() -> None:
     assert {key: yaml_result[key] for key in DEFAULTS} == {
         key: studio_result[key] for key in DEFAULTS
     }
+
+
+@pytest.mark.parametrize(
+    "yaml_value,expected",
+    [
+        ("2020-01-01", "2020-01-01"),
+        ("2020-01-01T12:34:56", "2020-01-01T12:34:56"),
+    ],
+)
+@pytest.mark.parametrize(
+    "field,target",
+    [
+        ("hire_date_cutoff", "deferral_escalation_hire_date_cutoff"),
+        ("effective_day", "deferral_escalation_effective_mmdd"),
+    ],
+)
+def test_unquoted_yaml_dates_load_and_export_as_iso_strings(
+    tmp_path: Path, yaml_value: str, expected: str, field: str, target: str
+) -> None:
+    raw = yaml.safe_load((ROOT / "config/simulation_config.yaml").read_text())
+    raw.pop("deferral_auto_escalation")
+    path = tmp_path / "dates.yaml"
+    path.write_text(
+        yaml.safe_dump(raw) + f"deferral_auto_escalation:\n  {field}: {yaml_value}\n"
+    )
+    cfg = load_simulation_config(path)
+    assert getattr(cfg.deferral_auto_escalation, field) == expected
+    assert to_dbt_vars(cfg)[target] == expected
+
+
+@pytest.mark.parametrize(
+    "overrides,expected_escalation_vars",
+    [
+        ({}, {}),
+        ({"auto_escalation": False}, {"deferral_escalation_enabled": False}),
+        (
+            {
+                "auto_escalation": True,
+                "escalation_rate_percent": 2,
+                "escalation_cap_percent": 12,
+                "escalation_effective_day": "07-01",
+                "escalation_delay_years": 0,
+                "escalation_hire_date_cutoff": "2021-01-01",
+            },
+            {
+                "deferral_escalation_enabled": True,
+                "deferral_escalation_increment": 0.02,
+                "deferral_escalation_cap": 0.12,
+                "deferral_escalation_effective_mmdd": "07-01",
+                "deferral_escalation_first_delay_years": 0,
+                "deferral_escalation_hire_date_cutoff": "2021-01-01",
+            },
+        ),
+    ],
+)
+def test_null_escalation_preserves_main_exports(
+    tmp_path: Path, overrides: dict[str, Any], expected_escalation_vars: dict[str, Any]
+) -> None:
+    raw = yaml.safe_load((ROOT / "config/simulation_config.yaml").read_text())
+    raw["deferral_auto_escalation"] = None
+    raw["dc_plan"] = StudioConfig.model_validate({"dc_plan": overrides}).model_dump(
+        exclude_unset=True
+    )["dc_plan"]
+    path = tmp_path / "null_escalation.yaml"
+    path.write_text(yaml.safe_dump(raw))
+    cfg = load_simulation_config(path)
+    assert cfg.deferral_auto_escalation.model_dump(exclude_unset=True) == {}
+    # The fixture records main's full export. A null legacy section skips all
+    # legacy escalation vars; explicit Studio settings are then applied.
+    baseline = json.loads(
+        (ROOT / "tests/fixtures/participant_behavior_legacy_vars.json").read_text()
+    )
+    expected = {
+        key: value
+        for key, value in baseline.items()
+        if not key.startswith("deferral_escalation_")
+    }
+    expected["census_parquet_path"] = str(ROOT / "data/census_preprocessed.parquet")
+    expected.update(expected_escalation_vars)
+    exported = to_dbt_vars(cfg)
+    assert {
+        key: value for key, value in exported.items() if key not in DEFAULTS
+    } == expected
+    assert {key: exported[key] for key in DEFAULTS} == DEFAULTS
+
+
+@pytest.mark.parametrize(
+    "field_path",
+    [
+        ("easy_enroll",),
+        ("deferral_rate_changes",),
+        ("enrollment", "below_default"),
+        ("enrollment", "match_magnet", "downward_enabled"),
+    ],
+)
+def test_null_new_behavior_settings_load_as_defaults(
+    tmp_path: Path, field_path: tuple[str, ...]
+) -> None:
+    raw = yaml.safe_load((ROOT / "config/simulation_config.yaml").read_text())
+    section = raw
+    for part in field_path[:-1]:
+        section = section[part]
+    section[field_path[-1]] = None
+    path = tmp_path / "null_behavior.yaml"
+    path.write_text(yaml.safe_dump(raw))
+    cfg = load_simulation_config(path)
+    assert to_dbt_vars(cfg) == to_dbt_vars(
+        load_simulation_config("config/simulation_config.yaml")
+    )

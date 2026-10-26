@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date, datetime
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -17,8 +18,12 @@ def validate_weights(weights: list[float]) -> None:
 
 
 class EasyEnrollPackage(BaseModel):
-    rate: float = Field(gt=0, le=1)
-    share: Rate
+    rate: float = Field(
+        gt=0, le=1, description="Decimal 0–1 (0.06 = 6%) of pay deferred."
+    )
+    share: Rate = Field(
+        description="Package share, decimal 0–1; package shares must sum to 1 (±1e-6)."
+    )
 
 
 class EasyEnrollSettings(BaseModel):
@@ -32,7 +37,7 @@ class EasyEnrollSettings(BaseModel):
         ],
         min_length=1,
     )
-    aip_cap: Rate = 0.10
+    escalation_cap: Rate = 0.10
 
     @field_validator("packages")
     @classmethod
@@ -44,57 +49,76 @@ class EasyEnrollSettings(BaseModel):
 
 
 class BelowDefaultTier(BaseModel):
-    ae_default_max: Rate | None
-    share: Rate
+    max_auto_enroll_default_rate: Rate | None = Field(
+        description="Inclusive auto-enrollment default rate ceiling, decimal 0–1 (0.06 = 6%); null is the final open-ended tier."
+    )
+    share: Rate = Field(
+        description="Share of enrollees choosing a rate below the default in this tier, decimal 0–1; tier shares are independent and need not sum to 1."
+    )
+
+
+class DeferralChangeStep(BaseModel):
+    pp: int = Field(
+        gt=0,
+        strict=True,
+        description="Whole percentage points; 1 means a one-percentage-point change.",
+    )
+    weight: Rate = Field(
+        description="Step probability weight, decimal 0–1; list weights must sum to 1 (±1e-6)."
+    )
 
 
 class BelowDefaultSettings(BaseModel):
     share_tiers: list[BelowDefaultTier] = Field(
-        default_factory=lambda: [BelowDefaultTier(ae_default_max=None, share=0.0)],
+        default_factory=lambda: [
+            BelowDefaultTier(max_auto_enroll_default_rate=None, share=0.0)
+        ],
         min_length=1,
     )
-    step_weights: list[Rate] = Field(default_factory=lambda: [0.50, 0.30, 0.20])
+    steps: list[DeferralChangeStep] = Field(
+        default_factory=lambda: [
+            DeferralChangeStep(pp=pp, weight=weight)
+            for pp, weight in [(1, 0.50), (2, 0.30), (3, 0.20)]
+        ]
+    )
 
     @field_validator("share_tiers")
     @classmethod
     def check_tiers(cls, tiers: list[BelowDefaultTier]) -> list[BelowDefaultTier]:
-        bounds = [tier.ae_default_max for tier in tiers]
+        bounds = [tier.max_auto_enroll_default_rate for tier in tiers]
         if bounds.count(None) != 1 or bounds[-1] is not None:
             raise ValueError(
                 "share_tiers must have exactly one open-ended (null) tier, last"
             )
         closed = [bound for bound in bounds if bound is not None]
         if any(left >= right for left, right in zip(closed, closed[1:])):
-            raise ValueError("share_tiers must be ordered by ae_default_max ascending")
+            raise ValueError(
+                "share_tiers must be ordered by max_auto_enroll_default_rate ascending"
+            )
         return tiers
 
-    @field_validator("step_weights")
+    @field_validator("steps")
     @classmethod
-    def check_weights(cls, weights: list[float]) -> list[float]:
-        validate_weights(weights)
-        return weights
-
-
-class DeferralChangeStep(BaseModel):
-    pp: int = Field(gt=0, strict=True)
-    weight: Rate
+    def check_steps(cls, steps: list[DeferralChangeStep]) -> list[DeferralChangeStep]:
+        validate_weights([step.weight for step in steps])
+        return steps
 
 
 class DeferralChangeRates(BaseModel):
-    increase_rate: Rate
-    decrease_rate: Rate
+    increase_probability: Rate
+    decrease_probability: Rate
 
 
 class DeferralRateChangesSettings(BaseModel):
     enabled: bool = False
-    in_aip: DeferralChangeRates = Field(
+    with_escalation: DeferralChangeRates = Field(
         default_factory=lambda: DeferralChangeRates(
-            increase_rate=0.03, decrease_rate=0.15
+            increase_probability=0.03, decrease_probability=0.15
         )
     )
-    not_in_aip: DeferralChangeRates = Field(
+    without_escalation: DeferralChangeRates = Field(
         default_factory=lambda: DeferralChangeRates(
-            increase_rate=0.25, decrease_rate=0.075
+            increase_probability=0.25, decrease_probability=0.075
         )
     )
     increase_steps: list[DeferralChangeStep] = Field(
@@ -116,10 +140,10 @@ class DeferralRateChangesSettings(BaseModel):
             for pp, weight in [(1, 0.15), (2, 0.25), (3, 0.20), (5, 0.20), (8, 0.20)]
         ]
     )
-    aip_response_window_days: int = Field(default=90, ge=0, strict=True)
-    aip_response_opts_out: bool = False
-    stop_rate: Rate = 0.015
-    restart_rate: Rate = 0.0
+    post_escalation_decrease_window_days: int = Field(default=90, ge=0, strict=True)
+    post_escalation_decrease_leaves_escalation: bool = False
+    stop_probability: Rate = 0.015
+    restart_probability: Rate = 0.0
 
     @field_validator("increase_steps", "decrease_steps")
     @classmethod
@@ -135,13 +159,19 @@ class DeferralAutoEscalationSettings(BaseModel):
 
     enabled: bool = True
     mode: AIPMode = "automatic"
-    participant_elected_signup_rate: Rate = 0.0
+    participant_elected_signup_probability: Rate = 0.0
     effective_day: str | None = None
     increment_amount: Rate | None = None
     maximum_rate: Rate | None = None
     hire_date_cutoff: str | None = None
     require_active_enrollment: bool = True
     first_escalation_delay_years: int | None = Field(default=None, ge=0)
+
+    @field_validator("effective_day", "hire_date_cutoff", mode="before")
+    @classmethod
+    def normalize_dates(cls, value: Any) -> Any:
+        """Preserve ISO strings for YAML's unquoted date/timestamp values."""
+        return value.isoformat() if isinstance(value, (date, datetime)) else value
 
 
 def escalation_settings(value: Any) -> DeferralAutoEscalationSettings:

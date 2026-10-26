@@ -305,11 +305,16 @@ enrollment:
   #   max_deferral_rate: 0.10  # Upper bound on voluntary deferral selection (incl. snapped rates)
 
   match_magnet:
-    downward_enabled: false  # Phase 4: true; shares snap_probability
+    # Optionally lower above-ceiling enrollment rates to the match ceiling; false leaves results unchanged.
+    # Uses the same probability as the upward match magnet (snap_probability), decimal 0–1.
+    downward_enabled: false
   below_default:
-    # Phase 4: [{ae_default_max: 0.03, share: 0.10}, {ae_default_max: null, share: 0.15}]
-    share_tiers: [{ae_default_max: null, share: 0.0}]
-    step_weights: [0.50, 0.30, 0.20]  # Weights for -1/-2/-3pp
+    # Let some enrollees choose a rate below the auto-enrollment default; zero shares leave results unchanged.
+    # Tier ceilings are decimals (0.06 = 6%); share is the fraction choosing below-default in that tier (0–1).
+    # Tiers are ordered by ceiling with one final null ceiling; tier shares are independent, not a distribution.
+    share_tiers: [{max_auto_enroll_default_rate: null, share: 0.0}]
+    # pp = whole percentage points below the default; weights must sum to 1 (±1e-6).
+    steps: [{pp: 1, weight: 0.50}, {pp: 2, weight: 0.30}, {pp: 3, weight: 0.20}]
 
   # Multi-year simulation considerations
   multi_year:
@@ -745,9 +750,12 @@ deferral_match_response:
 
 # Epic E035: Automatic Annual Deferral Rate Escalation Configuration (Simplified)
 deferral_auto_escalation:
-  mode: automatic               # automatic | participant_elected; only applies when enabled
-  participant_elected_signup_rate: 0.0  # Phase 4: 0.01
+  # Escalation is the auto-increase program (AIP).
+  # Increase enrolled participants' deferrals annually; automatic mode preserves existing behavior.
+  # Rates are decimals (0.06 = 6%); signup probability is per participant per year, 0–1.
   enabled: true                 # Master on/off switch
+  mode: automatic               # automatic | participant_elected; only applies when enabled
+  participant_elected_signup_probability: 0.0  # Shipped default leaves results unchanged
   effective_day: "01-01"        # MM-DD for escalation effective date
   increment_amount: 0.01        # Annual escalation rate (default 1%)
   maximum_rate: 0.10            # Cap for deferral rate (default 10%)
@@ -853,24 +861,27 @@ storage:
   max_runs_per_scenario: 3  # Maximum archived runs to keep per scenario (0 = unlimited)
   artifact_max_age_days: 14  # `planalign gc` reclaims var/ campaign DBs older than this
 
-# Epic #986: run-global behavior settings. Decimal rates, unchanged defaults.
+# Offer preset deferral packages during self-directed enrollment; disabled leaves results unchanged.
+# Rates are decimals (0.06 = 6%); shares are fractions, 0–1.
 easy_enroll:
-  enabled: false  # Phase 4: true
+  enabled: false
   channel_share: 0.35  # Share of self-directed enrollment using packages
-  packages:  # Ordered rate/share distribution, shares sum to 1
+  packages:  # Ordered rate/share distribution; shares must sum to 1 (±1e-6)
     - {rate: 0.06, share: 0.30}
     - {rate: 0.08, share: 0.50}
     - {rate: 0.10, share: 0.20}
-  aip_cap: 0.10  # Package AIP cap
+  escalation_cap: 0.10  # Maximum deferral rate under escalation for package participants (10%)
 
+# Model voluntary deferral increases, decreases, stops and restarts; disabled leaves results unchanged.
+# All probabilities are per participant per year, 0–1; 0.03 = 3%.
 deferral_rate_changes:
-  enabled: false  # Phase 4: true
-  in_aip: {increase_rate: 0.03, decrease_rate: 0.15}  # Annual participant probabilities
-  not_in_aip: {increase_rate: 0.25, decrease_rate: 0.075}  # Annual participant probabilities
-  # Ordered percentage-point distributions; placeholders, refit in PR 3e
+  enabled: false
+  with_escalation: {increase_probability: 0.03, decrease_probability: 0.15}  # Annual participant probabilities
+  without_escalation: {increase_probability: 0.25, decrease_probability: 0.075}  # Annual participant probabilities
+  # pp = whole percentage points of deferral change; each list's weights must sum to 1 (±1e-6).
   increase_steps: [{pp: 1, weight: 0.15}, {pp: 2, weight: 0.20}, {pp: 3, weight: 0.15}, {pp: 5, weight: 0.20}, {pp: 7, weight: 0.15}, {pp: 10, weight: 0.15}]
   decrease_steps: [{pp: 1, weight: 0.15}, {pp: 2, weight: 0.25}, {pp: 3, weight: 0.20}, {pp: 5, weight: 0.20}, {pp: 8, weight: 0.20}]
-  aip_response_window_days: 90  # Non-negative days after escalation
-  aip_response_opts_out: false  # D7: remain in AIP after a decrease
-  stop_rate: 0.015  # Annual probability of stopping contributions
-  restart_rate: 0.0  # Phase 4: 0.05
+  post_escalation_decrease_window_days: 90  # Non-negative days after escalation
+  post_escalation_decrease_leaves_escalation: false  # Remain in the auto-increase program after a decrease
+  stop_probability: 0.015  # Annual probability of stopping contributions
+  restart_probability: 0.0  # Shipped default does not restart contributions

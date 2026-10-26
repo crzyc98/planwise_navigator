@@ -11,7 +11,7 @@ import warnings
 from decimal import Decimal
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .participant_behavior import BelowDefaultSettings
 
@@ -197,6 +197,13 @@ class MatchMagnetSettings(BaseModel):
 
     enabled: bool = True
     downward_enabled: bool = False
+
+    @field_validator("downward_enabled", mode="before")
+    @classmethod
+    def normalize_null_downward_enabled(cls, value: Any) -> Any:
+        """A null opt-in retains the shipped disabled default."""
+        return False if value is None else value
+
     snap_probability: float = Field(
         default=0.45,
         ge=0.0,
@@ -236,6 +243,12 @@ class EnrollmentSettings(BaseModel):
     timing: EnrollmentTimingSettings = Field(default_factory=EnrollmentTimingSettings)
     match_magnet: MatchMagnetSettings = Field(default_factory=MatchMagnetSettings)
     below_default: BelowDefaultSettings = Field(default_factory=BelowDefaultSettings)
+
+    @field_validator("below_default", mode="before")
+    @classmethod
+    def normalize_null_below_default(cls, value: Any) -> Any:
+        """Treat a null optional behavior section as omitted."""
+        return {} if value is None else value
 
 
 # =============================================================================

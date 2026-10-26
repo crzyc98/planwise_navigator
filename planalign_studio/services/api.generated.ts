@@ -3547,9 +3547,15 @@ export interface components {
         };
         /** BelowDefaultTier */
         BelowDefaultTier: {
-            /** Ae Default Max */
-            ae_default_max: number | null;
-            /** Share */
+            /**
+             * Max Auto Enroll Default Rate
+             * @description Inclusive auto-enrollment default rate ceiling, decimal 0–1 (0.06 = 6%); null is the final open-ended tier.
+             */
+            max_auto_enroll_default_rate: number | null;
+            /**
+             * Share
+             * @description Share of enrollees choosing a rate below the default in this tier, decimal 0–1; tier shares are independent and need not sum to 1.
+             */
             share: number;
         };
         /** Body_import_workspace_api_workspaces_import_post */
@@ -5400,9 +5406,15 @@ export interface components {
         };
         /** DeferralChangeStep */
         DeferralChangeStep: {
-            /** Pp */
+            /**
+             * Pp
+             * @description Whole percentage points; 1 means a one-percentage-point change.
+             */
             pp: number;
-            /** Weight */
+            /**
+             * Weight
+             * @description Step probability weight, decimal 0–1; list weights must sum to 1 (±1e-6).
+             */
             weight: number;
         };
         /**
@@ -5667,9 +5679,15 @@ export interface components {
         };
         /** EasyEnrollPackage */
         EasyEnrollPackage: {
-            /** Rate */
+            /**
+             * Rate
+             * @description Decimal 0–1 (0.06 = 6%) of pay deferred.
+             */
             rate: number;
-            /** Share */
+            /**
+             * Share
+             * @description Package share, decimal 0–1; package shares must sum to 1 (±1e-6).
+             */
             share: number;
         };
         /** EmployeeIdentity */
@@ -9429,52 +9447,109 @@ export interface components {
         };
         /** StudioDCPlanConfig */
         StudioDCPlanConfig: {
-            /**
-             * Aip Mode
-             * @description Escalation behavior when auto_escalation is enabled.
-             */
-            aip_mode?: ("automatic" | "participant_elected") | null;
-            /** Aip Participant Elected Signup Rate */
-            aip_participant_elected_signup_rate?: number | null;
             /** Auto Enroll */
             auto_enroll?: boolean | null;
             /** Auto Escalation */
             auto_escalation?: boolean | null;
-            /** Below Default Share Tiers */
+            /**
+             * Below Default Share Tiers
+             * @description Ordered tiers by auto-enrollment default rate, decimal 0–1 (0.06 = 6%); one final null ceiling. Each tier's share is independent and need not sum to 1.
+             */
             below_default_share_tiers?: components["schemas"]["BelowDefaultTier"][] | null;
-            /** Below Default Step Weights */
-            below_default_step_weights?: number[] | null;
-            /** Deferral Rate Changes Aip Response Opts Out */
-            deferral_rate_changes_aip_response_opts_out?: boolean | null;
-            /** Deferral Rate Changes Aip Response Window Days */
-            deferral_rate_changes_aip_response_window_days?: number | null;
-            /** Deferral Rate Changes Decrease Steps */
+            /**
+             * Below Default Steps
+             * @description Ordered below-default reductions in whole percentage points (pp); list weights must sum to 1 (±1e-6).
+             */
+            below_default_steps?: components["schemas"]["DeferralChangeStep"][] | null;
+            /**
+             * Deferral Rate Changes Decrease Steps
+             * @description Ordered decreases in whole percentage points (pp); list weights must sum to 1 (±1e-6).
+             */
             deferral_rate_changes_decrease_steps?: components["schemas"]["DeferralChangeStep"][] | null;
-            /** Deferral Rate Changes Enabled */
+            /**
+             * Deferral Rate Changes Enabled
+             * @description Enable voluntary deferral increases, decreases, stops and restarts; false leaves results unchanged.
+             */
             deferral_rate_changes_enabled?: boolean | null;
-            /** Deferral Rate Changes In Aip Decrease Rate */
-            deferral_rate_changes_in_aip_decrease_rate?: number | null;
-            /** Deferral Rate Changes In Aip Increase Rate */
-            deferral_rate_changes_in_aip_increase_rate?: number | null;
-            /** Deferral Rate Changes Increase Steps */
+            /**
+             * Deferral Rate Changes Increase Steps
+             * @description Ordered increases in whole percentage points (pp); list weights must sum to 1 (±1e-6).
+             */
             deferral_rate_changes_increase_steps?: components["schemas"]["DeferralChangeStep"][] | null;
-            /** Deferral Rate Changes Not In Aip Decrease Rate */
-            deferral_rate_changes_not_in_aip_decrease_rate?: number | null;
-            /** Deferral Rate Changes Not In Aip Increase Rate */
-            deferral_rate_changes_not_in_aip_increase_rate?: number | null;
-            /** Deferral Rate Changes Restart Rate */
-            deferral_rate_changes_restart_rate?: number | null;
-            /** Deferral Rate Changes Stop Rate */
-            deferral_rate_changes_stop_rate?: number | null;
-            /** Easy Enroll Aip Cap */
-            easy_enroll_aip_cap?: number | null;
-            /** Easy Enroll Channel Share */
+            /**
+             * Deferral Rate Changes Post Escalation Decrease Leaves Escalation
+             * @description Whether a post-escalation decrease removes the participant from the auto-increase program; false retains membership.
+             */
+            deferral_rate_changes_post_escalation_decrease_leaves_escalation?: boolean | null;
+            /**
+             * Deferral Rate Changes Post Escalation Decrease Window Days
+             * @description Whole days after escalation during which a participant may decrease deferral; non-negative.
+             */
+            deferral_rate_changes_post_escalation_decrease_window_days?: number | null;
+            /**
+             * Deferral Rate Changes Restart Probability
+             * @description Probability per participant per year of restarting contributions, 0–1.
+             */
+            deferral_rate_changes_restart_probability?: number | null;
+            /**
+             * Deferral Rate Changes Stop Probability
+             * @description Probability per participant per year of stopping contributions, 0–1.
+             */
+            deferral_rate_changes_stop_probability?: number | null;
+            /**
+             * Deferral Rate Changes With Escalation Decrease Probability
+             * @description Probability per participant per year of decreasing deferral while in escalation, 0–1.
+             */
+            deferral_rate_changes_with_escalation_decrease_probability?: number | null;
+            /**
+             * Deferral Rate Changes With Escalation Increase Probability
+             * @description Probability per participant per year of increasing deferral while in escalation, 0–1.
+             */
+            deferral_rate_changes_with_escalation_increase_probability?: number | null;
+            /**
+             * Deferral Rate Changes Without Escalation Decrease Probability
+             * @description Probability per participant per year of decreasing deferral without escalation, 0–1.
+             */
+            deferral_rate_changes_without_escalation_decrease_probability?: number | null;
+            /**
+             * Deferral Rate Changes Without Escalation Increase Probability
+             * @description Probability per participant per year of increasing deferral without escalation, 0–1.
+             */
+            deferral_rate_changes_without_escalation_increase_probability?: number | null;
+            /**
+             * Easy Enroll Channel Share
+             * @description Share of self-directed enrollees using Easy Enroll packages, decimal 0–1.
+             */
             easy_enroll_channel_share?: number | null;
-            /** Easy Enroll Enabled */
+            /**
+             * Easy Enroll Enabled
+             * @description Enable enrollment through preset deferral packages; false leaves results unchanged.
+             */
             easy_enroll_enabled?: boolean | null;
-            /** Easy Enroll Packages */
+            /**
+             * Easy Enroll Escalation Cap
+             * @description Escalation cap for Easy Enroll participants, decimal 0–1 (0.06 = 6%).
+             */
+            easy_enroll_escalation_cap?: number | null;
+            /**
+             * Easy Enroll Packages
+             * @description Ordered deferral packages; rates are decimals (0.06 = 6%) and shares must sum to 1 (±1e-6).
+             */
             easy_enroll_packages?: components["schemas"]["EasyEnrollPackage"][] | null;
-            /** Match Magnet Downward Enabled */
+            /**
+             * Escalation Mode
+             * @description Auto-increase program (AIP) membership mode when auto_escalation is enabled: automatic or participant_elected.
+             */
+            escalation_mode?: ("automatic" | "participant_elected") | null;
+            /**
+             * Escalation Participant Elected Signup Probability
+             * @description Probability per participant per year of signing up for escalation, 0–1.
+             */
+            escalation_participant_elected_signup_probability?: number | null;
+            /**
+             * Match Magnet Downward Enabled
+             * @description Enable reducing above-ceiling enrollment rates to the match ceiling; uses the upward match magnet probability (snap_probability), 0–1.
+             */
             match_magnet_downward_enabled?: boolean | null;
             /** Match Status */
             match_status?: string | null;

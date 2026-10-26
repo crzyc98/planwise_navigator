@@ -37,7 +37,7 @@ BOOLEAN_VARS = frozenset(
         "easy_enroll_enabled",
         "enrollment_match_magnet_downward_enabled",
         "deferral_rate_changes_enabled",
-        "deferral_rate_changes_aip_response_opts_out",
+        "deferral_rate_changes_post_escalation_decrease_leaves_escalation",
         "auto_enrollment_enabled",
         "deferral_escalation_enabled",
         "deferral_escalation_require_enrollment",
@@ -56,15 +56,15 @@ BOOLEAN_VARS = frozenset(
 )
 RATE_VARS = frozenset(
     {
-        "deferral_escalation_participant_elected_signup_rate",
+        "deferral_escalation_participant_elected_signup_probability",
         "easy_enroll_channel_share",
-        "easy_enroll_aip_cap",
-        "deferral_rate_changes_in_aip_increase_rate",
-        "deferral_rate_changes_in_aip_decrease_rate",
-        "deferral_rate_changes_not_in_aip_increase_rate",
-        "deferral_rate_changes_not_in_aip_decrease_rate",
-        "deferral_rate_changes_stop_rate",
-        "deferral_rate_changes_restart_rate",
+        "easy_enroll_escalation_cap",
+        "deferral_rate_changes_with_escalation_increase_probability",
+        "deferral_rate_changes_with_escalation_decrease_probability",
+        "deferral_rate_changes_without_escalation_increase_probability",
+        "deferral_rate_changes_without_escalation_decrease_probability",
+        "deferral_rate_changes_stop_probability",
+        "deferral_rate_changes_restart_probability",
         "auto_enrollment_default_deferral_rate",
         "deferral_escalation_increment",
         "deferral_escalation_cap",
@@ -96,7 +96,7 @@ RATE_PREFIXES = (
 )
 INTEGER_VARS = frozenset(
     {
-        "deferral_rate_changes_aip_response_window_days",
+        "deferral_rate_changes_post_escalation_decrease_window_days",
         "auto_enrollment_window_days",
         "auto_enrollment_opt_out_grace_period",
         "deferral_escalation_first_delay_years",
@@ -139,7 +139,7 @@ ENUM_VARS = {
 _LIST_MODELS = {
     "easy_enroll_packages": (EasyEnrollSettings, "packages"),
     "below_default_share_tiers": (BelowDefaultSettings, "share_tiers"),
-    "below_default_step_weights": (BelowDefaultSettings, "step_weights"),
+    "below_default_steps": (BelowDefaultSettings, "steps"),
     "deferral_rate_changes_increase_steps": (
         DeferralRateChangesSettings,
         "increase_steps",

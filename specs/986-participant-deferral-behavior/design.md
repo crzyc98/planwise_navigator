@@ -59,7 +59,7 @@ No new column. `enrollment` events already record the channel in `event_category
 - **[D3] The `deferral_change` is the participant's last rate event of the year.** Its date is drawn uniformly within the window: from (1 + the latest of Jan 1, this year's escalation date, and the match-response date) to (the earlier of Dec 31 and the termination date). **If the window is empty, there's no change.** This covers, for example, a Dec 31 escalation or a termination before the window opens.
   - With the default 01-01 escalation, this is a uniform draw over the whole year.
   - A plan with a late escalation date gets its changes squeezed into the rest of the year. That's a documented v1 limitation.
-- `aip_response_decrease` is drawn within `aip_response_window_days` after this year's escalation date, using the same bounds.
+- `aip_response_decrease` is drawn within `post_escalation_decrease_window_days` after this year's escalation date, using the same bounds.
 
 ### 2.4 Who is eligible
 
@@ -123,7 +123,7 @@ A stopped participant is enrolled but not contributing:
 | Mode | Who is in AIP |
 |---|---|
 | `automatic` (default) | Today's rule exactly: `NOT census.auto_escalation_opt_out`, new hires in by default. |
-| `participant_elected` | Participants whose stable per-employee draw (salt `-aip-elect-`, no year in it) falls below `participant_elected_signup_rate`, plus every Easy Enroll enrollee. |
+| `participant_elected` | Participants whose stable per-employee draw (salt `-aip-elect-`, no year in it) falls below `participant_elected_signup_probability`, plus every Easy Enroll enrollee. |
 
 **Implementation:** a macro, `aip_initial_membership(mode, ...)`, holds the rule above. The escalation model uses it in **year 1**. For year 2+, it reads the prior-year accumulator's `aip_participant`, combined with this year's new Easy Enroll enrollees and the rule for new hires. That mirrors how escalation already reads rates, so there's no same-year dependency cycle.
 
@@ -161,7 +161,7 @@ Defaults below are the **Phase 0–3 values (off, results unchanged)**. Comments
 deferral_auto_escalation:            # existing
   enabled: true                      # unchanged: the only on/off switch
   mode: automatic                    # automatic | participant_elected (used only when enabled)
-  participant_elected_signup_rate: 0.0          # Phase 4: 0.01 [D8]
+  participant_elected_signup_probability: 0.0          # Phase 4: 0.01 [D8]
 
 easy_enroll:                         # new, #987
   enabled: false                                # Phase 4: true
@@ -170,27 +170,27 @@ easy_enroll:                         # new, #987
     - {rate: 0.06, share: 0.30}
     - {rate: 0.08, share: 0.50}
     - {rate: 0.10, share: 0.20}
-  aip_cap: 0.10
+  escalation_cap: 0.10
 
 enrollment:
   match_magnet:                      # existing
     downward_enabled: false                     # Phase 4: true (shares snap_probability)
   below_default:                     # new, #984
-    share_tiers:                                # Phase 4: [{ae_default_max: 0.03, share: 0.10}, {ae_default_max: null, share: 0.15}]
-      - {ae_default_max: null, share: 0.0}
-    step_weights: [0.50, 0.30, 0.20]            # −1/−2/−3pp
+    share_tiers:                                # Phase 4: [{max_auto_enroll_default_rate: 0.03, share: 0.10}, {max_auto_enroll_default_rate: null, share: 0.15}]
+      - {max_auto_enroll_default_rate: null, share: 0.0}
+    steps: [{pp: 1, weight: 0.50}, {pp: 2, weight: 0.30}, {pp: 3, weight: 0.20}]            # −1/−2/−3pp
   year_over_year_conversion: ...     # existing; Phase 4 retune to ~5% population average [D6]
 
 deferral_rate_changes:               # new, #983
   enabled: false                                # Phase 4: true
-  in_aip:     {increase_rate: 0.03,  decrease_rate: 0.15}
-  not_in_aip: {increase_rate: 0.25,  decrease_rate: 0.075}
+  with_escalation:     {increase_probability: 0.03,  decrease_probability: 0.15}
+  without_escalation: {increase_probability: 0.25,  decrease_probability: 0.075}
   increase_steps: [{pp: 1, weight: 0.15}, {pp: 2, weight: 0.20}, {pp: 3, weight: 0.15}, {pp: 5, weight: 0.20}, {pp: 7, weight: 0.15}, {pp: 10, weight: 0.15}]   # placeholder; refit in 3e
   decrease_steps: [{pp: 1, weight: 0.15}, {pp: 2, weight: 0.25}, {pp: 3, weight: 0.20}, {pp: 5, weight: 0.20}, {pp: 8, weight: 0.20}]                          # placeholder; refit in 3e
-  aip_response_window_days: 90
-  aip_response_opts_out: false                  # [D7]: stay in AIP
-  stop_rate: 0.015
-  restart_rate: 0.0                             # Phase 4: 0.05 [D9]
+  post_escalation_decrease_window_days: 90
+  post_escalation_decrease_leaves_escalation: false                  # [D7]: stay in AIP
+  stop_probability: 0.015
+  restart_probability: 0.0                             # Phase 4: 0.05 [D9]
 ```
 
 - Validators enforce:
@@ -198,7 +198,7 @@ deferral_rate_changes:               # new, #983
   - shares and rates lie in `[0, 1]`;
   - `share_tiers` is ordered with exactly one open-ended tier;
   - steps are clamped to the 1% floor and to the plan and IRS max.
-- **Participant-level rates:** `in_aip` / `not_in_aip` apply per participant using `aip_participant`. That turns the with-AIP and without-AIP plan estimates into participant-level rates, and handles partial membership (participant-elected AIP, Easy Enroll) without assuming a plan mix.
+- **Participant-level rates:** `with_escalation` / `without_escalation` apply per participant using `aip_participant`. That turns the with-AIP and without-AIP plan estimates into participant-level rates, and handles partial membership (participant-elected AIP, Easy Enroll) without assuming a plan mix.
 - Each draw has its own salt: `-deferral-change-`, `-deferral-change-step-`, `-deferral-change-timing-`, `-aip-elect-`, `-easy-enroll-channel-`, `-easy-enroll-package-`, `-below-default-`, `-below-default-step-`.
 
 ---
@@ -249,8 +249,8 @@ Every PR runs edge configs (AE `all_eligible_employees`, escalation off, match r
 | D4 | Only the new events are time-weighted. The existing mid-year enrollment and escalation approximation is filed separately. |
 | D5 | AIP mode and the Easy Enroll offering are run-global in v1. |
 | D6 | Existing non-participants reuse YoY conversion, retuned in Phase 4 to a ~5% population average with the income and tenure gradients kept. |
-| D7 | An `aip_response_decrease` does **not** remove the participant from AIP (`aip_response_opts_out: false`). |
+| D7 | An `aip_response_decrease` does **not** remove the participant from AIP (`post_escalation_decrease_leaves_escalation: false`). |
 | D8 | The participant-elected AIP sign-up rate outside Easy Enroll defaults to **1%** in Phase 4. |
-| D9 | `restart_rate` defaults to **5% a year** in Phase 4. Recheck it against the calibration report in 3e. |
+| D9 | `restart_probability` defaults to **5% a year** in Phase 4. Recheck it against the calibration report in 3e. |
 
 Still open, needed before PR 2: the #987 questions (which plans get Easy Enroll by default; whether auto-enrolled people can switch into a package; whether the 35% channel share is right).
