@@ -844,7 +844,7 @@ models:
                 min_value: 0
                 max_value: 1
       - name: aip_participant
-        description: Automatic increase program membership; static census opt-out rule in year one, carried forward thereafter, new employees default in when escalation is enabled. Easy Enroll elections arrive in 987.
+        description: Automatic increase program membership; initialized from census opt-out and run-global mode (automatic or a stable seeded participant election), carried forward thereafter, with the same rule for newcomers. Easy Enroll elections arrive in 987.
         data_type: boolean
         data_tests:
           - not_null
@@ -853,6 +853,12 @@ models:
                 expression: "= FALSE"
               config:
                 enabled: "{{ not var('deferral_escalation_enabled', true) }}"
+          - dbt_utils.expression_is_true:
+              name: aip_participant_elected_zero_signup
+              arguments:
+                expression: "= FALSE"
+              config:
+                enabled: "{{ var('deferral_escalation_mode', 'automatic') == 'participant_elected' and var('deferral_escalation_participant_elected_signup_probability', 0.0) == 0.0 }}"
       - name: last_nonzero_deferral_rate
         description: Latest positive year-end current_deferral_rate, carried forward through zero-rate years; NULL until a positive year-end rate has been observed
         data_type: decimal(5,4)

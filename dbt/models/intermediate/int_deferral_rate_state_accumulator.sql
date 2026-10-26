@@ -614,11 +614,11 @@ voluntary_change_state AS (
     END AS rate_source,
     -- Easy Enroll membership hook (#987): combine new elections here in future.
     {% if simulation_year == start_year %}
-    {{ aip_initial_membership(var('deferral_escalation_mode', 'automatic'), 'census.auto_escalation_opt_out') }} AS aip_participant,
+    {{ aip_initial_membership(var('deferral_escalation_mode', 'automatic'), 'census.auto_escalation_opt_out', 's.employee_id') }} AS aip_participant,
     NULL::DECIMAL(5,4) AS previous_nonzero_deferral_rate
     {% else %}
     COALESCE(ps.aip_participant,
-      {{ aip_initial_membership(var('deferral_escalation_mode', 'automatic'), 'census.auto_escalation_opt_out') }}) AS aip_participant,
+      {{ aip_initial_membership(var('deferral_escalation_mode', 'automatic'), 'census.auto_escalation_opt_out', 's.employee_id') }}) AS aip_participant,
     ps.last_nonzero_deferral_rate AS previous_nonzero_deferral_rate
     {% endif %}
   FROM
