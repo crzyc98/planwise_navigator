@@ -18,6 +18,8 @@ from planalign_orchestrator.config.tenure_graded_match import (
     migrate_legacy_tenure_based_config,
 )
 
+from .participant_behavior import escalation_settings
+
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
@@ -70,6 +72,90 @@ def dbt_var_disposition(
     if name in DBT_VAR_DEFERRED:
         return "deferred"
     return "global"
+
+
+# Epic #986 D5: these behavior controls are run-global, including AIP mode.
+_PARTICIPANT_BEHAVIOR_FIELDS = {
+    "escalation_mode": ("deferral_escalation_mode", "deferral_auto_escalation.mode"),
+    "escalation_participant_elected_signup_probability": (
+        "deferral_escalation_participant_elected_signup_probability",
+        "deferral_auto_escalation.participant_elected_signup_probability",
+    ),
+    "match_magnet_downward_enabled": (
+        "enrollment_match_magnet_downward_enabled",
+        "enrollment.match_magnet.downward_enabled",
+    ),
+    "below_default_share_tiers": (
+        "below_default_share_tiers",
+        "enrollment.below_default.share_tiers",
+    ),
+    "below_default_steps": (
+        "below_default_steps",
+        "enrollment.below_default.steps",
+    ),
+}
+for _field in (
+    "enabled",
+    "channel_share_without_auto_enrollment",
+    "channel_share_with_auto_enrollment",
+    "packages",
+    "escalation_cap",
+):
+    _PARTICIPANT_BEHAVIOR_FIELDS[f"easy_enroll_{_field}"] = (
+        f"easy_enroll_{_field}",
+        f"easy_enroll.{_field}",
+    )
+for _field in (
+    "enabled",
+    "with_escalation.increase_probability",
+    "with_escalation.decrease_probability",
+    "without_escalation.increase_probability",
+    "without_escalation.decrease_probability",
+    "increase_steps",
+    "decrease_steps",
+    "post_escalation_decrease_window_days",
+    "post_escalation_decrease_leaves_escalation",
+    "stop_probability",
+    "restart_probability",
+):
+    _name = f"deferral_rate_changes_{_field.replace('.', '_')}"
+    _PARTICIPANT_BEHAVIOR_FIELDS[_name] = (_name, f"deferral_rate_changes.{_field}")
+
+PARTICIPANT_BEHAVIOR_VARS = frozenset(
+    target for target, _path in _PARTICIPANT_BEHAVIOR_FIELDS.values()
+)
+
+
+def _export_participant_behavior_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
+    """Export ordered JSON lists and decimal rates, with Studio taking precedence."""
+    data = {
+        "deferral_auto_escalation": escalation_settings(
+            cfg.deferral_auto_escalation
+        ).model_dump(mode="json"),
+        "easy_enroll": cfg.easy_enroll.model_dump(mode="json"),
+        "deferral_rate_changes": cfg.deferral_rate_changes.model_dump(mode="json"),
+        "enrollment": {
+            "match_magnet": cfg.enrollment.match_magnet.model_dump(mode="json"),
+            "below_default": cfg.enrollment.below_default.model_dump(mode="json"),
+        },
+    }
+    result: Dict[str, Any] = {}
+    for target, path in _PARTICIPANT_BEHAVIOR_FIELDS.values():
+        value: Any = data
+        for part in path.split("."):
+            value = value[part]
+        result[target] = value
+    _apply_dc_plan_participant_behavior_overrides(_resolve_dc_plan_dict(cfg), result)
+    return result
+
+
+def _apply_dc_plan_participant_behavior_overrides(
+    overrides: Dict[str, Any], dbt_vars: Dict[str, Any]
+) -> None:
+    """Map new Studio keys without percent conversion."""
+    for source, (target, _path) in _PARTICIPANT_BEHAVIOR_FIELDS.items():
+        if overrides.get(source) is not None:
+            dbt_vars[target] = overrides[source]
 
 
 def _export_simulation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
@@ -541,44 +627,26 @@ def _export_enrollment_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
 def _export_legacy_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     """Export legacy extra-field configuration to dbt vars.
 
-    Handles: deferral_auto_escalation, deferral_baseline, setup.
-    These are optional dict-based configs from extra="allow".
+    Handles typed deferral_auto_escalation plus legacy deferral_baseline/setup extras.
     """
     dbt_vars: Dict[str, Any] = {}
 
-    # Deferral auto-escalation (E035)
-    try:
-        dae = getattr(cfg, "deferral_auto_escalation", None)
-        if isinstance(dae, dict):
-            if "enabled" in dae:
-                dbt_vars["deferral_escalation_enabled"] = bool(dae["enabled"])
-            if "effective_day" in dae and dae["effective_day"]:
-                dbt_vars["deferral_escalation_effective_mmdd"] = str(
-                    dae["effective_day"]
-                )
-            if "increment_amount" in dae and dae["increment_amount"] is not None:
-                dbt_vars["deferral_escalation_increment"] = float(
-                    dae["increment_amount"]
-                )
-            if "maximum_rate" in dae and dae["maximum_rate"] is not None:
-                dbt_vars["deferral_escalation_cap"] = float(dae["maximum_rate"])
-            if "hire_date_cutoff" in dae and dae["hire_date_cutoff"]:
-                dbt_vars["deferral_escalation_hire_date_cutoff"] = str(
-                    dae["hire_date_cutoff"]
-                )
-            if "require_active_enrollment" in dae:
-                dbt_vars["deferral_escalation_require_enrollment"] = bool(
-                    dae["require_active_enrollment"]
-                )
-            if (
-                "first_escalation_delay_years" in dae
-                and dae["first_escalation_delay_years"] is not None
-            ):
-                dbt_vars["deferral_escalation_first_delay_years"] = int(
-                    dae["first_escalation_delay_years"]
-                )
-    except Exception:
-        pass
+    dae = escalation_settings(cfg.deferral_auto_escalation)
+    legacy = dae.model_dump(exclude_unset=True)
+    for source, target, cast in (
+        ("enabled", "deferral_escalation_enabled", bool),
+        ("increment_amount", "deferral_escalation_increment", float),
+        ("maximum_rate", "deferral_escalation_cap", float),
+        ("require_active_enrollment", "deferral_escalation_require_enrollment", bool),
+        ("first_escalation_delay_years", "deferral_escalation_first_delay_years", int),
+    ):
+        _set_if_not_none(dbt_vars, target, legacy.get(source), cast)
+    for source, target in (
+        ("effective_day", "deferral_escalation_effective_mmdd"),
+        ("hire_date_cutoff", "deferral_escalation_hire_date_cutoff"),
+    ):
+        if legacy.get(source):
+            dbt_vars[target] = legacy[source]
 
     # Deferral baseline mode (Option A default: frozen)
     try:
@@ -1662,6 +1730,7 @@ def to_dbt_vars(
     dbt_vars.update(_export_core_contribution_vars(cfg))
     dbt_vars.update(_export_deferral_match_response_vars(cfg))
     dbt_vars.update(_export_ensemble_freeze_vars(cfg))
+    dbt_vars.update(_export_participant_behavior_vars(cfg))
     source = cfg.contribution_sources.model_dump(mode="json", exclude={"wage_evidence"})
     dbt_vars["contribution_sources"] = source
     dbt_vars["contribution_wage_evidence_path"] = ""

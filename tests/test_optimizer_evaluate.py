@@ -36,6 +36,24 @@ def test_config_overlay_changes_only_declared_exported_keys() -> None:
     assert "auto_enrollment_default_deferral_rate" in changed
 
 
+@pytest.mark.parametrize("enabled", [False, True])
+@pytest.mark.parametrize("mode", ["automatic", "participant_elected"])
+def test_auto_escalation_toggle_candidate_round_trip(enabled: bool, mode: str) -> None:
+    baseline = load_simulation_config(
+        "config/simulation_config.yaml", env_overrides=False
+    )
+    baseline.deferral_auto_escalation.mode = mode
+    baseline.deferral_auto_escalation.enabled = not enabled
+    candidate, delta = resolve_candidate_config(
+        baseline, {"auto_escalation.enabled": enabled}
+    )
+    assert candidate.deferral_auto_escalation.enabled is enabled
+    assert candidate.deferral_auto_escalation.mode == mode
+    assert to_dbt_vars(candidate)["deferral_escalation_enabled"] is enabled
+    assert delta == {"deferral_escalation_enabled": enabled}
+    assert baseline.deferral_auto_escalation.enabled is not enabled
+
+
 def test_tier_one_rate_overlays_flat_active_formula() -> None:
     baseline = load_simulation_config(
         "config/simulation_config.yaml", env_overrides=False

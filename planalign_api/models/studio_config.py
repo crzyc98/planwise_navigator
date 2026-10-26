@@ -6,8 +6,17 @@ preserved at every level; omitted fields must never become null overrides.
 
 from typing import Annotated, Any
 
+from planalign_orchestrator.config.participant_behavior import (
+    AIPMode,
+    BelowDefaultTier,
+    DeferralChangeStep,
+    EasyEnrollPackage,
+    Rate,
+)
+
 from pydantic import (
     BaseModel,
+    Field,
     ConfigDict,
     GetJsonSchemaHandler,
     ValidateAs,
@@ -81,6 +90,95 @@ class StudioDCPlanConfig(PartialConfig):
     tenure_match_tiers: list[StudioTenureMatchTier] | None = None
     points_match_tiers: list[StudioPointsMatchTier] | None = None
     auto_escalation: bool | None = None
+
+    escalation_mode: AIPMode | None = Field(
+        default=None,
+        description="Auto-increase program (AIP) membership mode when auto_escalation is enabled: automatic or participant_elected.",
+    )
+    escalation_participant_elected_signup_probability: Rate | None = Field(
+        default=None,
+        description="Probability per participant per year of signing up for escalation, 0–1.",
+    )
+    easy_enroll_enabled: bool | None = Field(
+        default=None,
+        description="Enable enrollment through preset deferral packages; false leaves results unchanged.",
+    )
+    easy_enroll_channel_share_without_auto_enrollment: Rate | None = Field(
+        default=None,
+        description="For plans without auto-enrollment, the share of employees who enroll on their own (before any auto-enrollment) who use Easy Enroll instead of choosing a rate themselves, decimal 0–1. The remainder enroll proactively online. Easy Enroll is only available before auto-enrollment happens; auto-enrolled participants never use it.",
+    )
+    easy_enroll_channel_share_with_auto_enrollment: Rate | None = Field(
+        default=None,
+        description="For plans with auto-enrollment, the share of employees who enroll on their own (before any auto-enrollment) who use Easy Enroll instead of choosing a rate themselves, decimal 0–1. The remainder enroll proactively online. Easy Enroll is only available before auto-enrollment happens; auto-enrolled participants never use it.",
+    )
+    easy_enroll_packages: list[EasyEnrollPackage] | None = Field(
+        default=None,
+        description="Ordered deferral packages; rates are decimals (0.06 = 6%) and shares must sum to 1 (±1e-6).",
+    )
+    easy_enroll_escalation_cap: Rate | None = Field(
+        default=None,
+        description="Escalation cap for Easy Enroll participants, decimal 0–1 (0.06 = 6%).",
+    )
+    match_magnet_downward_enabled: bool | None = Field(
+        default=None,
+        description="Enable reducing above-ceiling enrollment rates to the match ceiling; uses the upward match magnet probability (snap_probability), 0–1.",
+    )
+    below_default_share_tiers: list[BelowDefaultTier] | None = Field(
+        default=None,
+        description="Ordered tiers by auto-enrollment default rate, decimal 0–1 (0.06 = 6%); one final null ceiling. Each tier's share is independent and need not sum to 1.",
+    )
+    below_default_steps: list[DeferralChangeStep] | None = Field(
+        default=None,
+        description="Ordered below-default reductions in whole percentage points (pp); list weights must sum to 1 (±1e-6).",
+    )
+    deferral_rate_changes_enabled: bool | None = Field(
+        default=None,
+        description="Enable voluntary deferral increases, decreases, stops and restarts; false leaves results unchanged.",
+    )
+    deferral_rate_changes_with_escalation_increase_probability: Rate | None = Field(
+        default=None,
+        description="Probability per participant per year of increasing deferral while in escalation, 0–1.",
+    )
+    deferral_rate_changes_with_escalation_decrease_probability: Rate | None = Field(
+        default=None,
+        description="Probability per participant per year of decreasing deferral while in escalation, 0–1.",
+    )
+    deferral_rate_changes_without_escalation_increase_probability: Rate | None = Field(
+        default=None,
+        description="Probability per participant per year of increasing deferral without escalation, 0–1.",
+    )
+    deferral_rate_changes_without_escalation_decrease_probability: Rate | None = Field(
+        default=None,
+        description="Probability per participant per year of decreasing deferral without escalation, 0–1.",
+    )
+    deferral_rate_changes_increase_steps: list[DeferralChangeStep] | None = Field(
+        default=None,
+        description="Ordered increases in whole percentage points (pp); list weights must sum to 1 (±1e-6).",
+    )
+    deferral_rate_changes_decrease_steps: list[DeferralChangeStep] | None = Field(
+        default=None,
+        description="Ordered decreases in whole percentage points (pp); list weights must sum to 1 (±1e-6).",
+    )
+    deferral_rate_changes_post_escalation_decrease_window_days: int | None = Field(
+        default=None,
+        ge=0,
+        strict=True,
+        description="Whole days after escalation during which a participant may decrease deferral; non-negative.",
+    )
+    deferral_rate_changes_post_escalation_decrease_leaves_escalation: bool | None = (
+        Field(
+            default=None,
+            description="Whether a post-escalation decrease removes the participant from the auto-increase program; false retains membership.",
+        )
+    )
+    deferral_rate_changes_stop_probability: Rate | None = Field(
+        default=None,
+        description="Probability per participant per year of stopping contributions, 0–1.",
+    )
+    deferral_rate_changes_restart_probability: Rate | None = Field(
+        default=None,
+        description="Probability per participant per year of restarting contributions, 0–1.",
+    )
 
 
 class StudioAgeMultiplier(PromotionHazardAgeMultiplier):

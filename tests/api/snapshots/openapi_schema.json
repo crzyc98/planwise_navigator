@@ -1843,6 +1843,37 @@
         "title": "BatchScenario",
         "type": "object"
       },
+      "BelowDefaultTier": {
+        "properties": {
+          "max_auto_enroll_default_rate": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Inclusive auto-enrollment default rate ceiling, decimal 0\u20131 (0.06 = 6%); null is the final open-ended tier.",
+            "title": "Max Auto Enroll Default Rate"
+          },
+          "share": {
+            "description": "Share of enrollees choosing a rate below the default in this tier, decimal 0\u20131; tier shares are independent and need not sum to 1.",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Share",
+            "type": "number"
+          }
+        },
+        "required": [
+          "max_auto_enroll_default_rate",
+          "share"
+        ],
+        "title": "BelowDefaultTier",
+        "type": "object"
+      },
       "Body_import_workspace_api_workspaces_import_post": {
         "properties": {
           "conflict_resolution": {
@@ -5671,6 +5702,29 @@
         "title": "DataQualityWarning",
         "type": "object"
       },
+      "DeferralChangeStep": {
+        "properties": {
+          "pp": {
+            "description": "Whole percentage points; 1 means a one-percentage-point change.",
+            "exclusiveMinimum": 0.0,
+            "title": "Pp",
+            "type": "integer"
+          },
+          "weight": {
+            "description": "Step probability weight, decimal 0\u20131; list weights must sum to 1 (\u00b11e-6).",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Weight",
+            "type": "number"
+          }
+        },
+        "required": [
+          "pp",
+          "weight"
+        ],
+        "title": "DeferralChangeStep",
+        "type": "object"
+      },
       "DeferralDistributionYear": {
         "description": "Deferral rate distribution for a specific simulation year.",
         "properties": {
@@ -6100,6 +6154,30 @@
           "target_rate"
         ],
         "title": "DriverContribution",
+        "type": "object"
+      },
+      "EasyEnrollPackage": {
+        "properties": {
+          "rate": {
+            "description": "Decimal 0\u20131 (0.06 = 6%) of pay deferred.",
+            "exclusiveMinimum": 0.0,
+            "maximum": 1.0,
+            "title": "Rate",
+            "type": "number"
+          },
+          "share": {
+            "description": "Package share, decimal 0\u20131; package shares must sum to 1 (\u00b11e-6).",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Share",
+            "type": "number"
+          }
+        },
+        "required": [
+          "rate",
+          "share"
+        ],
+        "title": "EasyEnrollPackage",
         "type": "object"
       },
       "EmployeeIdentity": {
@@ -14710,6 +14788,298 @@
               }
             ],
             "title": "Auto Escalation"
+          },
+          "below_default_share_tiers": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/BelowDefaultTier"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Ordered tiers by auto-enrollment default rate, decimal 0\u20131 (0.06 = 6%); one final null ceiling. Each tier's share is independent and need not sum to 1.",
+            "title": "Below Default Share Tiers"
+          },
+          "below_default_steps": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DeferralChangeStep"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Ordered below-default reductions in whole percentage points (pp); list weights must sum to 1 (\u00b11e-6).",
+            "title": "Below Default Steps"
+          },
+          "deferral_rate_changes_decrease_steps": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DeferralChangeStep"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Ordered decreases in whole percentage points (pp); list weights must sum to 1 (\u00b11e-6).",
+            "title": "Deferral Rate Changes Decrease Steps"
+          },
+          "deferral_rate_changes_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Enable voluntary deferral increases, decreases, stops and restarts; false leaves results unchanged.",
+            "title": "Deferral Rate Changes Enabled"
+          },
+          "deferral_rate_changes_increase_steps": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DeferralChangeStep"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Ordered increases in whole percentage points (pp); list weights must sum to 1 (\u00b11e-6).",
+            "title": "Deferral Rate Changes Increase Steps"
+          },
+          "deferral_rate_changes_post_escalation_decrease_leaves_escalation": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whether a post-escalation decrease removes the participant from the auto-increase program; false retains membership.",
+            "title": "Deferral Rate Changes Post Escalation Decrease Leaves Escalation"
+          },
+          "deferral_rate_changes_post_escalation_decrease_window_days": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whole days after escalation during which a participant may decrease deferral; non-negative.",
+            "title": "Deferral Rate Changes Post Escalation Decrease Window Days"
+          },
+          "deferral_rate_changes_restart_probability": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Probability per participant per year of restarting contributions, 0\u20131.",
+            "title": "Deferral Rate Changes Restart Probability"
+          },
+          "deferral_rate_changes_stop_probability": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Probability per participant per year of stopping contributions, 0\u20131.",
+            "title": "Deferral Rate Changes Stop Probability"
+          },
+          "deferral_rate_changes_with_escalation_decrease_probability": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Probability per participant per year of decreasing deferral while in escalation, 0\u20131.",
+            "title": "Deferral Rate Changes With Escalation Decrease Probability"
+          },
+          "deferral_rate_changes_with_escalation_increase_probability": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Probability per participant per year of increasing deferral while in escalation, 0\u20131.",
+            "title": "Deferral Rate Changes With Escalation Increase Probability"
+          },
+          "deferral_rate_changes_without_escalation_decrease_probability": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Probability per participant per year of decreasing deferral without escalation, 0\u20131.",
+            "title": "Deferral Rate Changes Without Escalation Decrease Probability"
+          },
+          "deferral_rate_changes_without_escalation_increase_probability": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Probability per participant per year of increasing deferral without escalation, 0\u20131.",
+            "title": "Deferral Rate Changes Without Escalation Increase Probability"
+          },
+          "easy_enroll_channel_share_with_auto_enrollment": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For plans with auto-enrollment, the share of employees who enroll on their own (before any auto-enrollment) who use Easy Enroll instead of choosing a rate themselves, decimal 0\u20131. The remainder enroll proactively online. Easy Enroll is only available before auto-enrollment happens; auto-enrolled participants never use it.",
+            "title": "Easy Enroll Channel Share With Auto Enrollment"
+          },
+          "easy_enroll_channel_share_without_auto_enrollment": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For plans without auto-enrollment, the share of employees who enroll on their own (before any auto-enrollment) who use Easy Enroll instead of choosing a rate themselves, decimal 0\u20131. The remainder enroll proactively online. Easy Enroll is only available before auto-enrollment happens; auto-enrolled participants never use it.",
+            "title": "Easy Enroll Channel Share Without Auto Enrollment"
+          },
+          "easy_enroll_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Enable enrollment through preset deferral packages; false leaves results unchanged.",
+            "title": "Easy Enroll Enabled"
+          },
+          "easy_enroll_escalation_cap": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Escalation cap for Easy Enroll participants, decimal 0\u20131 (0.06 = 6%).",
+            "title": "Easy Enroll Escalation Cap"
+          },
+          "easy_enroll_packages": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/EasyEnrollPackage"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Ordered deferral packages; rates are decimals (0.06 = 6%) and shares must sum to 1 (\u00b11e-6).",
+            "title": "Easy Enroll Packages"
+          },
+          "escalation_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "automatic",
+                  "participant_elected"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Auto-increase program (AIP) membership mode when auto_escalation is enabled: automatic or participant_elected.",
+            "title": "Escalation Mode"
+          },
+          "escalation_participant_elected_signup_probability": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Probability per participant per year of signing up for escalation, 0\u20131.",
+            "title": "Escalation Participant Elected Signup Probability"
+          },
+          "match_magnet_downward_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Enable reducing above-ceiling enrollment rates to the match ceiling; uses the upward match magnet probability (snap_probability), 0\u20131.",
+            "title": "Match Magnet Downward Enabled"
           },
           "match_status": {
             "anyOf": [

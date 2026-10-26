@@ -54,6 +54,8 @@ models:
           +tags: ["EVENT_CANDIDATE"]
         int_deferral_rate_escalation_events:
           +tags: ["EVENT_CANDIDATE"]
+        int_deferral_change_events:
+          +tags: ["EVENT_CANDIDATE"]
         int_deferral_match_response_events:
           +tags: ["EVENT_CANDIDATE"]
 
@@ -173,6 +175,8 @@ data_tests:
 
 # Variables
 vars:
+  # Participant-chosen rate generation is introduced in #983 (PR 3a).
+  deferral_rate_changes_enabled: false
   plan_design_parameters: {}
   # File paths
   # Use an env-driven, repo-relative default so this works across machines

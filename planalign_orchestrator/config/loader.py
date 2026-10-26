@@ -12,8 +12,20 @@ if TYPE_CHECKING:
     from .safety import OrchestrationConfig
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
+from .participant_behavior import (
+    DeferralAutoEscalationSettings,
+    DeferralRateChangesSettings,
+    EasyEnrollSettings,
+)
 from .simulation import SimulationSettings, CompensationSettings
 from .workforce import (
     WorkforceSettings,
@@ -112,6 +124,14 @@ class SimulationConfig(BaseModel):
         default=None, description="Employer match configuration"
     )
 
+    deferral_auto_escalation: DeferralAutoEscalationSettings = Field(
+        default_factory=DeferralAutoEscalationSettings
+    )
+    easy_enroll: EasyEnrollSettings = Field(default_factory=EasyEnrollSettings)
+    deferral_rate_changes: DeferralRateChangesSettings = Field(
+        default_factory=DeferralRateChangesSettings
+    )
+
     # E058: Match-responsive deferral adjustments
     deferral_match_response: DeferralMatchResponseSettings = Field(
         default_factory=DeferralMatchResponseSettings,
@@ -134,6 +154,17 @@ class SimulationConfig(BaseModel):
     contribution_sources: ContributionSourceSettings = Field(
         default_factory=ContributionSourceSettings
     )
+
+    @field_validator(
+        "deferral_auto_escalation",
+        "easy_enroll",
+        "deferral_rate_changes",
+        mode="before",
+    )
+    @classmethod
+    def normalize_null_behavior_sections(cls, value: Any) -> Any:
+        """Treat legacy null sections as omitted, without setting legacy fields."""
+        return {} if value is None else value
 
     @model_validator(mode="after")
     def validate_core_schedules_and_integration(self) -> "SimulationConfig":

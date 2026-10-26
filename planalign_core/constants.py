@@ -72,6 +72,7 @@ EVENT_ENROLLMENT = "enrollment"
 EVENT_ELIGIBILITY = "eligibility"
 EVENT_SABBATICAL = "sabbatical"
 EVENT_DEFERRAL_ESCALATION = "deferral_escalation"
+EVENT_DEFERRAL_CHANGE = "deferral_change"
 
 # Uppercase event types (used in event payloads / fct_yearly_events)
 EVENT_TYPE_HIRE = "HIRE"
@@ -130,6 +131,7 @@ EVENT_CANDIDATE_MODELS = (
     "int_merit_events",
     "int_enrollment_events",
     "int_deferral_rate_escalation_events",
+    "int_deferral_change_events",
     "int_deferral_match_response_events",
 )
 EVENT_PUBLICATION_MODELS = (

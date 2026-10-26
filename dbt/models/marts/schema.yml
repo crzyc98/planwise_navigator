@@ -89,7 +89,7 @@ models:
           - not_null
           - accepted_values:
               arguments:
-                values: ['termination', 'promotion', 'hire', 'raise', 'enrollment', 'enrollment_change', 'deferral_escalation', 'deferral_match_response', 'eligibility']
+                values: ['termination', 'promotion', 'hire', 'raise', 'enrollment', 'enrollment_change', 'deferral_escalation', 'deferral_match_response', 'deferral_change', 'eligibility']
       - name: simulation_year
         description: "Year of simulation"
         data_type: integer

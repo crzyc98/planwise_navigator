@@ -199,7 +199,7 @@ WITH candidate_state AS (
    AND event.simulation_year <= snapshot.simulation_year
    AND event.event_type IN (
      'enrollment', 'enrollment_change', 'deferral_escalation',
-     'deferral_match_response'
+     'deferral_match_response', 'deferral_change'
    )
 ),
 expected_state AS (
@@ -320,7 +320,7 @@ WHERE rates.previous_deferral_rate IS NOT NULL
       AND event.simulation_year = rates.simulation_year
       AND event.event_type IN (
         'enrollment', 'enrollment_change', 'deferral_escalation',
-        'deferral_match_response'
+        'deferral_match_response', 'deferral_change'
       )
   )
 """

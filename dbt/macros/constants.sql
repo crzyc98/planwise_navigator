@@ -33,6 +33,7 @@
 {% macro evt_merit() %}'merit'{% endmacro %}
 {% macro evt_enrollment() %}'enrollment'{% endmacro %}
 {% macro evt_enrollment_change() %}'enrollment_change'{% endmacro %}
+{% macro evt_deferral_change() %}'deferral_change'{% endmacro %}
 {% macro evt_deferral_escalation() %}'deferral_escalation'{% endmacro %}
 {% macro evt_deferral_match_response() %}'deferral_match_response'{% endmacro %}
 {% macro evt_eligibility() %}'eligibility'{% endmacro %}
@@ -86,7 +87,7 @@
    Composite Helpers
    ============================================================ #}
 
-{# Event priority CASE – maps event_type to sort order (1-11).
+{# Event priority CASE – maps event_type to sort order (1-12).
    Used for conflict resolution when multiple events occur on the same day. #}
 {% macro event_priority(col) %}
 CASE {{ col }}
@@ -97,10 +98,11 @@ CASE {{ col }}
   WHEN {{ evt_enrollment_change() }} THEN 5
   WHEN {{ evt_deferral_match_response() }} THEN 6
   WHEN {{ evt_deferral_escalation() }} THEN 7
-  WHEN {{ evt_promotion() }} THEN 8
-  WHEN {{ evt_raise() }} THEN 9
-  WHEN {{ evt_merit() }} THEN 10
-  ELSE 11
+  WHEN {{ evt_deferral_change() }} THEN 8
+  WHEN {{ evt_promotion() }} THEN 9
+  WHEN {{ evt_raise() }} THEN 10
+  WHEN {{ evt_merit() }} THEN 11
+  ELSE 12
 END
 {% endmacro %}
 

@@ -108,6 +108,49 @@ def test_known_field_wrong_type_is_rejected():
         )
 
 
+@pytest.mark.parametrize("mode", ["none", "invalid"])
+def test_invalid_escalation_mode_is_rejected(mode: str) -> None:
+    with pytest.raises(ValidationError, match="escalation_mode"):
+        ScenarioCreate(
+            name="S", config_overrides={"dc_plan": {"escalation_mode": mode}}
+        )
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "easy_enroll_channel_share_without_auto_enrollment",
+        "easy_enroll_channel_share_with_auto_enrollment",
+    ],
+)
+@pytest.mark.parametrize("value", [-0.1, 1.1])
+def test_invalid_easy_enroll_channel_shares_are_rejected(
+    field: str, value: float
+) -> None:
+    with pytest.raises(ValidationError, match=field):
+        ScenarioCreate(name="S", config_overrides={"dc_plan": {field: value}})
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "easy_enroll_channel_share_without_auto_enrollment",
+        "easy_enroll_channel_share_with_auto_enrollment",
+    ],
+)
+@pytest.mark.parametrize("value", [None, 0.0, 0.42, 1.0])
+def test_easy_enroll_channel_share_partial_round_trip(
+    field: str, value: float | None
+) -> None:
+    config = {"dc_plan": {field: value}}
+    model = ScenarioCreate(name="S", config_overrides=config)
+    assert model.model_dump(mode="json")["config_overrides"] == config
+    assert (
+        ScenarioCreate.model_validate_json(model.model_dump_json()).config_overrides
+        == config
+    )
+
+
 def test_create_copy_and_template_paths_preserve_config(tmp_path, partial_config):
     storage = WorkspaceStorage(tmp_path / "workspaces")
     workspace = storage.create_workspace(
