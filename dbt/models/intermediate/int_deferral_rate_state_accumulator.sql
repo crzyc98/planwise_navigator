@@ -66,15 +66,7 @@ current_year_new_enrollments AS (
         employee_id,
         effective_date as enrollment_date,
         -- Use employee_deferral_rate if available, otherwise extract from event_details
-        COALESCE(
-            employee_deferral_rate,
-            CASE
-                WHEN REGEXP_EXTRACT(event_details, '([0-9]+\.?[0-9]*)%\s*deferral', 1) IS NOT NULL
-                     AND REGEXP_EXTRACT(event_details, '([0-9]+\.?[0-9]*)%\s*deferral', 1) != ''
-                THEN CAST(REGEXP_EXTRACT(event_details, '([0-9]+\.?[0-9]*)%\s*deferral', 1) AS DECIMAL(6,4)) / 100.0
-                ELSE 0.06
-            END
-        ) as initial_deferral_rate,
+        {{ enrollment_payload_deferral_rate() }} as initial_deferral_rate,
         simulation_year,
         'fct_yearly_events' as source,
         ROW_NUMBER() OVER (
@@ -167,15 +159,7 @@ historical_enrollments AS (
         employee_id,
         effective_date as enrollment_date,
         -- Use employee_deferral_rate if available, otherwise extract from event_details
-        COALESCE(
-            employee_deferral_rate,
-            CASE
-                WHEN REGEXP_EXTRACT(event_details, '([0-9]+\.?[0-9]*)%\s*deferral', 1) IS NOT NULL
-                     AND REGEXP_EXTRACT(event_details, '([0-9]+\.?[0-9]*)%\s*deferral', 1) != ''
-                THEN CAST(REGEXP_EXTRACT(event_details, '([0-9]+\.?[0-9]*)%\s*deferral', 1) AS DECIMAL(6,4)) / 100.0
-                ELSE 0.06
-            END
-        ) as initial_deferral_rate,
+        {{ enrollment_payload_deferral_rate() }} as initial_deferral_rate,
         simulation_year as enrollment_year,
         'fct_yearly_events' as source,
         ROW_NUMBER() OVER (
@@ -321,31 +305,13 @@ first_year_state AS (
 
         -- E058+E096: Calculate current deferral rate with match-response + escalation additive logic
         -- Priority: opt-out > (match-response + escalation additive) > escalation > match-response > enrollment
-        CASE
-            WHEN oo.employee_id IS NOT NULL THEN 0.00::DECIMAL(5,4)  -- Opted out
-            WHEN he.employee_id IS NULL THEN 0.00::DECIMAL(5,4)      -- Not enrolled (no enrollment event)
-            -- E058 D2: Additive case - both match-response and escalation in same year
-            -- Escalation may add up to its cap, but never lower the match response.
-            -- Only apply additive logic when compensation > 0 (IRS limit requires real comp)
-            WHEN mr.match_responsive_rate IS NOT NULL AND ce.new_deferral_rate IS NOT NULL
-                 AND COALESCE(cyw.employee_compensation, 0) > 0
-                THEN LEAST(
-                    mr.match_responsive_rate + ce.escalation_rate,
-                    GREATEST(mr.match_responsive_rate,
-                        COALESCE(ce.max_escalation_rate, {{ var('deferral_escalation_cap', 0.10) }})),
-                    FLOOR({{ irs_402g_limit_for_age('COALESCE(' ~ simulation_year ~ ' - YEAR(cyw.employee_birth_date), cyw.current_age)', 'il') }}::DECIMAL
-                        / cyw.employee_compensation * 10000) / 10000
-                )::DECIMAL(5,4)
-            -- Only escalation
-            WHEN ce.new_deferral_rate IS NOT NULL THEN ce.new_deferral_rate
-            -- Only match-response
-            WHEN mr.match_responsive_rate IS NOT NULL THEN mr.match_responsive_rate
-            ELSE COALESCE(
-                he.initial_deferral_rate,  -- Initial enrollment rate
-                br.fallback_rate,          -- Demographic fallback (only for enrolled)
-                0.03::DECIMAL(5,4)         -- Hard fallback (only for enrolled)
-            )
-        END as rate_before_voluntary_change,
+        {{ rate_before_voluntary_change(
+            'oo.employee_id IS NOT NULL', 'he.employee_id IS NOT NULL',
+            'he.initial_deferral_rate, br.fallback_rate, 0.03::DECIMAL(5,4)',
+            'ce.new_deferral_rate', 'mr.match_responsive_rate', 'ce.escalation_rate',
+            'ce.max_escalation_rate', 'cyw.employee_compensation',
+            'COALESCE(' ~ simulation_year ~ ' - YEAR(cyw.employee_birth_date), cyw.current_age)'
+        ) }} as rate_before_voluntary_change,
 
         -- Track escalations
         CASE WHEN ce.employee_id IS NOT NULL THEN 1 ELSE 0 END as escalations_received,
@@ -440,29 +406,13 @@ subsequent_year_state AS (
         {{ simulation_year }} as simulation_year,
 
         -- E058: TEMPORAL LOGIC with match-response + escalation additive handling
-        CASE
-            WHEN oo.employee_id IS NOT NULL THEN 0.00::DECIMAL(5,4)
-            -- E058 D2: Additive case - both match-response and escalation in same year
-            -- Escalation may add up to its cap, but never lower the match response.
-            -- Only apply additive logic when compensation > 0 (IRS limit requires real comp)
-            WHEN mr.match_responsive_rate IS NOT NULL AND ce.new_deferral_rate IS NOT NULL
-                 AND COALESCE(cyw.employee_compensation, 0) > 0
-                THEN LEAST(
-                    mr.match_responsive_rate + ce.escalation_rate,
-                    GREATEST(mr.match_responsive_rate,
-                        COALESCE(ce.max_escalation_rate, {{ var('deferral_escalation_cap', 0.10) }})),
-                    FLOOR({{ irs_402g_limit_for_age('COALESCE(' ~ simulation_year ~ ' - YEAR(cyw.employee_birth_date), cyw.current_age)', 'il') }}::DECIMAL
-                        / cyw.employee_compensation * 10000) / 10000
-                )::DECIMAL(5,4)
-            ELSE COALESCE(
-                ce.new_deferral_rate,                    -- Current year escalation overwrites all
-                mr.match_responsive_rate,                -- Match-response rate
-                ne.initial_deferral_rate,                -- New enrollment this year
-                ps.previous_deferral_rate,               -- Carry forward from previous year
-                br.fallback_rate,                        -- Demographic fallback
-                0.03::DECIMAL(5,4)                       -- Hard fallback
-            )
-        END as rate_before_voluntary_change,
+        {{ rate_before_voluntary_change(
+            'oo.employee_id IS NOT NULL', 'TRUE',
+            'ne.initial_deferral_rate, ps.previous_deferral_rate, br.fallback_rate, 0.03::DECIMAL(5,4)',
+            'ce.new_deferral_rate', 'mr.match_responsive_rate', 'ce.escalation_rate',
+            'ce.max_escalation_rate', 'cyw.employee_compensation',
+            'COALESCE(' ~ simulation_year ~ ' - YEAR(cyw.employee_birth_date), cyw.current_age)'
+        ) }} as rate_before_voluntary_change,
 
         -- Track escalations cumulatively
         CASE

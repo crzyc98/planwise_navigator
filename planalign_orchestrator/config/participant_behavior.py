@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 Rate = Annotated[float, Field(ge=0, le=1)]
 AIPMode = Literal["automatic", "participant_elected"]
@@ -108,6 +108,14 @@ class BelowDefaultSettings(BaseModel):
 class DeferralChangeRates(BaseModel):
     increase_probability: Rate
     decrease_probability: Rate
+
+    @model_validator(mode="after")
+    def check_total_probability(self) -> "DeferralChangeRates":
+        if self.increase_probability + self.decrease_probability > 1.0:
+            raise ValueError(
+                "increase and decrease probabilities must sum to at most 1"
+            )
+        return self
 
 
 class DeferralRateChangesSettings(BaseModel):

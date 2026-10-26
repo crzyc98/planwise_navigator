@@ -173,7 +173,7 @@ models:
                 inclusive: true
 
   - name: int_deferral_change_events
-    description: Zero-row participant rate-change skeleton for epic 986; generation arrives in PR 3a.
+    description: Continuous participants may proactively increase or decrease once per year, after other rate events.
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -224,3 +224,8 @@ models:
         data_type: DECIMAL(5,4)
       - name: event_category
         data_type: VARCHAR
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['proactive_increase', 'proactive_decrease']
