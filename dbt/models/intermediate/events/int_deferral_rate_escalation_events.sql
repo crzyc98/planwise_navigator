@@ -192,13 +192,13 @@ workforce_with_status AS (
         w.*,
         COALESCE(e.is_enrolled, false) as is_enrolled,
         e.first_enrollment_date,
-        -- Static census membership in year 1; carried state thereafter.
+        -- Initialize membership in year 1; carry state thereafter.
         -- Easy Enroll membership hook (#987): combine new elections here in future.
         {% if simulation_year == start_year %}
-        {{ aip_initial_membership(var('deferral_escalation_mode', 'automatic'), 'oo.auto_escalation_opt_out') }}
+        {{ aip_initial_membership(var('deferral_escalation_mode', 'automatic'), 'oo.auto_escalation_opt_out', 'w.employee_id') }}
         {% else %}
         COALESCE(pyr.aip_participant,
-          {{ aip_initial_membership(var('deferral_escalation_mode', 'automatic'), 'oo.auto_escalation_opt_out') }})
+          {{ aip_initial_membership(var('deferral_escalation_mode', 'automatic'), 'oo.auto_escalation_opt_out', 'w.employee_id') }})
         {% endif %} AS in_auto_escalation_program,
         -- Use previous year's rate (includes all prior escalations via accumulator)
         COALESCE(pyr.current_deferral_rate, ier.initial_deferral_rate, 0.0) as current_deferral_rate,
