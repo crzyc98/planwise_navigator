@@ -471,11 +471,12 @@ year_over_year_enrollment_events AS (
     NULL as previous_compensation,
 
     -- Conservative deferral rates for year-over-year conversions
+    GREATEST(0.01, LEAST({{ var('voluntary_max_deferral_rate', 0.15) }},
     {{ self_directed_enrollment_rate(
       deferral_spread(yoy_base_deferral_rate, yoy_spread_random, deferral_spread_max_lift),
       yoy_match_ceiling, yoy_magnet_random, 'aw.employee_id', 'aw.simulation_year',
-      upward_enabled=false
-    ) }} AS employee_deferral_rate,
+      upward_enabled=false, auto_default='aw.auto_enrollment_default_deferral_rate'
+    ) }})) AS employee_deferral_rate,
 
     0.00 as prev_employee_deferral_rate,
     aw.current_age as employee_age,

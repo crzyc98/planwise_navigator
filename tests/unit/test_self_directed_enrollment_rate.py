@@ -3,11 +3,10 @@
 from collections.abc import Iterator
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol, cast
 
 import duckdb
 from jinja2 import Environment, StrictUndefined
-from jinja2.environment import TemplateModule
 from jinja2.nativetypes import NativeEnvironment
 import pytest
 
@@ -19,7 +18,43 @@ TIERS = [
 ]
 
 
-def _macros(**variables: Any) -> TemplateModule:
+SQLExpression = str | float | int
+
+
+class EnrollmentMacros(Protocol):
+    def below_default_share(
+        self, auto_default: SQLExpression, tiers: Any = ...
+    ) -> str: ...
+    def below_default_rate(
+        self, auto_default: SQLExpression, step_random: SQLExpression
+    ) -> str: ...
+    def enrollment_behavior_draw(
+        self, employee_id: str, simulation_year: SQLExpression, salt: str
+    ) -> str: ...
+    def self_directed_enrollment_rate(
+        self,
+        selected_rate: SQLExpression,
+        ceiling: SQLExpression,
+        magnet_random: SQLExpression,
+        employee_id: str,
+        simulation_year: SQLExpression,
+        upward_enabled: bool = ...,
+        auto_default: SQLExpression | None = ...,
+    ) -> str: ...
+    def match_magnet_snap(
+        self,
+        selected_rate: SQLExpression,
+        ceiling: SQLExpression,
+        magnet_random: SQLExpression,
+        enabled: bool,
+        snap_prob: float,
+        downward_enabled: bool,
+        auto_default: SQLExpression,
+        upward_enabled: bool,
+    ) -> str: ...
+
+
+def _macros(**variables: Any) -> EnrollmentMacros:
     source = "\n".join(
         (MACROS / name).read_text()
         for name in (
@@ -28,7 +63,8 @@ def _macros(**variables: Any) -> TemplateModule:
             "self_directed_enrollment_rate.sql",
         )
     )
-    return (
+    return cast(
+        EnrollmentMacros,
         NativeEnvironment(undefined=StrictUndefined)
         .from_string(source)
         .make_module(
@@ -36,7 +72,7 @@ def _macros(**variables: Any) -> TemplateModule:
                 "var": lambda name, default=None: variables.get(name, default),
                 "return": lambda x: x,
             }
-        )
+        ),
     )
 
 
@@ -48,15 +84,22 @@ def connection() -> Iterator[duckdb.DuckDBPyConnection]:
             .from_string((MACROS / "utils/stable_hash.sql").read_text())
             .module
         )
-        conn.execute(module.install_stable_hash())
+        conn.execute(getattr(module, "install_stable_hash")())
         yield conn
 
 
 @pytest.mark.parametrize(
     "default,share", [(0.02, 0.10), (0.03, 0.10), (0.0301, 0.15), (0.06, 0.15)]
 )
-def test_tier_boundary_is_inclusive(default: float, share: float) -> None:
-    assert _macros().below_default_share(default, TIERS) == share
+def test_tier_boundary_is_inclusive(
+    connection: duckdb.DuckDBPyConnection, default: float, share: float
+) -> None:
+    sql = _macros().below_default_share("auto_default", TIERS)
+    result = connection.execute(
+        f"SELECT {sql} FROM (SELECT {default} AS auto_default)"
+    ).fetchone()
+    assert result is not None
+    assert float(result[0]) == share
 
 
 @pytest.mark.parametrize(
@@ -80,7 +123,9 @@ def test_weight_boundaries_and_floor(
     expected: float,
 ) -> None:
     sql = _macros().below_default_rate(default, draw)
-    assert connection.execute(f"SELECT {sql}").fetchone()[0] == Decimal(str(expected))
+    result = connection.execute(f"SELECT {sql}").fetchone()
+    assert result is not None
+    assert result[0] == Decimal(str(expected))
 
 
 @pytest.mark.parametrize(
@@ -119,7 +164,9 @@ def test_magnet_window_and_probability(
         0.06,
         upward,
     )
-    assert connection.execute(f"SELECT {sql}").fetchone()[0] == Decimal(str(expected))
+    result = connection.execute(f"SELECT {sql}").fetchone()
+    assert result is not None
+    assert result[0] == Decimal(str(expected))
 
 
 @pytest.mark.parametrize("upward", [True, False])
@@ -141,7 +188,9 @@ def test_deliberate_choices_bypass_both_magnet_directions(
     sql = module.self_directed_enrollment_rate(
         0.06, ceiling, 0.0, "'employee'", 2025, upward
     )
-    assert connection.execute(f"SELECT {sql}").fetchone()[0] == Decimal("0.05")
+    result = connection.execute(f"SELECT {sql}").fetchone()
+    assert result is not None
+    assert result[0] == Decimal("0.05")
 
 
 @pytest.mark.parametrize("upward,expected", [(True, 0.08), (False, 0.05)])
@@ -160,11 +209,15 @@ def test_ae_disabled_keeps_only_existing_upward_behavior(
     sql = module.self_directed_enrollment_rate(
         0.05, 0.08, 0.0, "'employee'", 2025, upward
     )
-    assert connection.execute(f"SELECT {sql}").fetchone()[0] == Decimal(str(expected))
+    result = connection.execute(f"SELECT {sql}").fetchone()
+    assert result is not None
+    assert result[0] == Decimal(str(expected))
     sql = module.self_directed_enrollment_rate(
         0.06, 0.04, 0.0, "'employee'", 2025, upward
     )
-    assert connection.execute(f"SELECT {sql}").fetchone()[0] == Decimal("0.06")
+    result = connection.execute(f"SELECT {sql}").fetchone()
+    assert result is not None
+    assert result[0] == Decimal("0.06")
 
 
 def test_draws_are_repeatable_independent_and_follow_subsystem_seed(
@@ -227,3 +280,42 @@ def test_non_chooser_floor_precedes_magnet_only_with_active_share(
         f"SELECT DISTINCT {sql} FROM employees WHERE {choice} >= 0.15"
     ).fetchall()
     assert rates == [(Decimal(str(expected)),)]
+
+
+@pytest.mark.parametrize("upward", [True, False])
+def test_per_row_defaults_resolve_all_four_decisions(
+    connection: duckdb.DuckDBPyConnection, upward: bool
+) -> None:
+    module = _macros(
+        auto_enrollment_default_deferral_rate=0.10,
+        below_default_share_tiers=TIERS,
+        enrollment_match_magnet_downward_enabled=True,
+        enrollment_match_magnet_probability=1.0,
+    )
+    sql = module.self_directed_enrollment_rate(
+        "0.01",
+        "0.04",
+        "magnet_draw",
+        "employee_id",
+        2025,
+        upward_enabled=upward,
+        auto_default="ae_default",
+    )
+    choice = module.enrollment_behavior_draw("employee_id", 2025, "-below-default-")
+    step = module.enrollment_behavior_draw("employee_id", 2025, "-below-default-step-")
+    rows = connection.execute(
+        "WITH employees AS (SELECT 'employee-' || i AS employee_id, ae_default, "
+        "magnet_draw FROM range(1000) t(i) CROSS JOIN (VALUES (0.03), (0.06)) d(ae_default) "
+        "CROSS JOIN (VALUES (0.0), (1.0)) m(magnet_draw)) "
+        f"SELECT ae_default, magnet_draw, {choice}, {step}, {sql} FROM employees"
+    ).fetchall()
+    for default, magnet_draw, choose_draw, step_draw, actual in rows:
+        share = 0.10 if default == Decimal("0.03") else 0.15
+        if choose_draw < share:
+            pp = 1 if step_draw < 0.5 else 2 if step_draw < 0.8 else 3
+            expected = max(Decimal("0.01"), default - Decimal("0.01") * pp)
+        elif magnet_draw == 0 and (upward or default == Decimal("0.06")):
+            expected = Decimal("0.04")
+        else:
+            expected = default
+        assert actual == expected

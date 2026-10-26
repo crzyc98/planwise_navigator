@@ -109,6 +109,7 @@ parameter_rows AS (
 {% else %}
   SELECT
     '{{ var('plan_design_id', 'default') }}'::VARCHAR AS plan_design_id,
+    {{ var('auto_enrollment_default_deferral_rate', 0.02) }}::DECIMAL(10,6) AS auto_enrollment_default_deferral_rate,
     {{ var('auto_enrollment_window_days', 45) }}::INTEGER AS auto_enrollment_window_days,
     '{{ var('auto_enrollment_scope', 'all_eligible_employees') }}'::VARCHAR AS auto_enrollment_scope
 {% endif %}
@@ -119,6 +120,7 @@ new_hire_population AS (
     source.*,
     assignment.plan_design_id,
     eligibility.plan_eligibility_date,
+    parameters.auto_enrollment_default_deferral_rate,
     parameters.auto_enrollment_window_days,
     parameters.auto_enrollment_scope
   FROM new_hire_source source
@@ -157,6 +159,7 @@ enrollment_status_check AS (
     nh.employee_compensation,
     nh.employment_status,
     nh.plan_eligibility_date,
+    nh.auto_enrollment_default_deferral_rate,
     nh.auto_enrollment_window_days,
     COALESCE(state.is_enrolled, false) AS is_already_enrolled,
     COALESCE(state.ever_opted_out, false) AS ever_opted_out
@@ -327,7 +330,8 @@ match_snapped AS (
     *,
     {{ self_directed_enrollment_rate(
         'spread_deferral_rate', 'match_magnet_ceiling', 'magnet_random',
-        'employee_id', 'simulation_year'
+        'employee_id', 'simulation_year',
+        auto_default='auto_enrollment_default_deferral_rate'
     ) }} AS optimized_deferral_rate
   FROM match_optimization
 ),

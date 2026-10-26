@@ -185,6 +185,14 @@ class SimulationConfig(BaseModel):
             )
         return self
 
+    @model_validator(mode="after")
+    def validate_voluntary_cap(self) -> "SimulationConfig":
+        """Validate AE floors after per-design and Studio settings are available."""
+        from .export import validate_enrollment_cap
+
+        validate_enrollment_cap(self)
+        return self
+
     def require_identifiers(self) -> None:
         """Raise if scenario_id/plan_design_id are missing."""
         if not self.scenario_id or not (

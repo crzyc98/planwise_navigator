@@ -3,7 +3,8 @@
    With AE enabled and a positive resolved share, floor non-choosers at the AE
    default after the demographic grid and spread, before applying the magnet.
    Below-default choosers bypass the magnet. A zero share or disabled AE adds
-   no floor. Preserve the existing channel's magnet draw and clamp. YoY opts
+   no floor. Preserve each channel's magnet draw; callers apply the voluntary
+   clamp. YoY opts
    out of the upward magnet, which it never had. All new draws follow the run's
    deferral_behavior seed; channel deduplication cannot change a person's draw. #}
 
@@ -11,15 +12,15 @@
   {%- set tiers = tiers if tiers is not none else var('below_default_share_tiers', [
     {'max_auto_enroll_default_rate': none, 'share': 0.0}
   ]) -%}
-  {%- set ns = namespace(share=0.0, found=false) -%}
-  {%- for tier in tiers -%}
-    {%- if not ns.found and (tier.max_auto_enroll_default_rate is none
-                            or auto_default <= tier.max_auto_enroll_default_rate) -%}
-      {%- set ns.share = tier.share -%}
-      {%- set ns.found = true -%}
-    {%- endif -%}
-  {%- endfor -%}
-  {{- return(ns.share) -}}
+CASE
+  {%- for tier in tiers %}
+    {%- if tier.max_auto_enroll_default_rate is not none %}
+  WHEN {{ auto_default }} <= {{ tier.max_auto_enroll_default_rate }} THEN {{ tier.share }}
+    {%- else %}
+  WHEN TRUE THEN {{ tier.share }}
+    {%- endif %}
+  {%- endfor %}
+END
 {% endmacro %}
 
 {% macro enrollment_behavior_draw(employee_id, simulation_year, salt) -%}
@@ -43,13 +44,16 @@ END)
 {% endmacro %}
 
 {% macro self_directed_enrollment_rate(selected_rate, ceiling, magnet_random,
-                                      employee_id, simulation_year, upward_enabled=true) %}
+                                      employee_id, simulation_year, upward_enabled=true,
+                                      auto_default=none) %}
   {%- set ae_enabled = var('auto_enrollment_enabled', true) -%}
-  {%- set auto_default = var('auto_enrollment_default_deferral_rate', 0.02) -%}
-  {%- set share = below_default_share(auto_default) if ae_enabled else 0.0 -%}
+  {%- set auto_default = auto_default if auto_default is not none else var('auto_enrollment_default_deferral_rate', 0.02) -%}
+  {%- set tiers = var('below_default_share_tiers', [{'max_auto_enroll_default_rate': none, 'share': 0.0}]) -%}
+  {%- set active = ae_enabled and tiers | selectattr('share', 'gt', 0) | list | length > 0 -%}
+  {%- set share = '(' ~ below_default_share(auto_default, tiers) ~ ')' -%}
   {%- set downward = ae_enabled and var('enrollment_match_magnet_downward_enabled', false) -%}
-  {%- set magnet_rate = 'GREATEST(' ~ auto_default ~ ', ' ~ selected_rate ~ ')' if share > 0 else selected_rate -%}
-  {%- if share > 0 %}
+  {%- set magnet_rate = '(CASE WHEN ' ~ share ~ ' > 0 THEN GREATEST(' ~ auto_default ~ ', ' ~ selected_rate ~ ') ELSE ' ~ selected_rate ~ ' END)' if active else selected_rate -%}
+  {%- if active %}
 CASE
   WHEN {{ enrollment_behavior_draw(employee_id, simulation_year, '-below-default-') }} < {{ share }}
   THEN {{ below_default_rate(auto_default,
@@ -63,7 +67,7 @@ CASE
   {%- else %}
   {{ magnet_rate }}
   {%- endif %}
-  {%- if share > 0 %}
+  {%- if active %}
 END
   {%- endif %}
 {% endmacro %}

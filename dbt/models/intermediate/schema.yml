@@ -1653,7 +1653,7 @@ models:
           - dbt_utils.accepted_range:
               arguments:
                 min_value: 0.01
-                max_value: 1.0
+                max_value: "{{ var('voluntary_max_deferral_rate', 0.15) }}"
               config:
                 where: "event_type = 'enrollment' AND event_category IN ('voluntary_enrollment', 'proactive_voluntary', 'year_over_year_voluntary')"
       - name: scenario_id
@@ -2024,7 +2024,7 @@ models:
   # =========================================================================
 
   - name: int_voluntary_enrollment_decision
-    description: "Voluntary enrollment decisions with demographic spread, total-share below-default choices (non-choosers floored at the AE default when the share is positive), and two-way match-magnet snapping."
+    description: "Voluntary enrollment decisions with demographic spread, total-share below-default choices (non-choosers floored at their per-design AE default when the share is positive), and two-way match-magnet snapping."
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -2046,7 +2046,7 @@ models:
           - dbt_utils.accepted_range:
               arguments:
                 min_value: 0.01
-                max_value: 1.0
+                max_value: "{{ var('voluntary_max_deferral_rate', 0.15) }}"
       - name: match_magnet_ceiling
         description: "Per-employee match ceiling the magnet snaps toward (0 when magnet inactive)."
         data_tests:
@@ -2078,7 +2078,7 @@ models:
                 max_value: 1
 
   - name: int_proactive_voluntary_enrollment
-    description: "Proactive voluntary enrollment with demographic spread, total-share below-default choices (non-choosers floored at the AE default when the share is positive), and two-way match-magnet snapping."
+    description: "Proactive voluntary enrollment with demographic spread, total-share below-default choices (non-choosers floored at their per-design AE default when the share is positive), and two-way match-magnet snapping."
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -2100,7 +2100,7 @@ models:
           - dbt_utils.accepted_range:
               arguments:
                 min_value: 0.01
-                max_value: 1.0
+                max_value: "{{ var('voluntary_max_deferral_rate', 0.15) }}"
       - name: match_magnet_ceiling
         description: "Per-employee match ceiling the magnet snaps toward (0 when magnet inactive)."
         data_tests:
