@@ -39,7 +39,6 @@ workforce_with_contributions AS (
         fw.simulation_year,
         fw.current_compensation,
         fw.prorated_annual_compensation,
-        fw.current_age,
         fw.is_enrolled_flag,
         fw.current_deferral_rate,
         fw.employment_status,
@@ -90,20 +89,6 @@ rate_consistency_violations AS (
     WHERE ABS(current_deferral_rate - COALESCE(effective_annual_deferral_rate, 0)) > 0.05
       AND is_enrolled_flag = true
       AND prorated_annual_contributions > 0
-),
-
--- Get dynamic IRS limits for validation year
-irs_limits_for_validation AS (
-    SELECT
-        limit_year,
-        base_limit,
-        catch_up_limit,
-        catch_up_age_threshold,
-        super_catch_up_limit,
-        super_catch_up_age_min,
-        super_catch_up_age_max
-    FROM {{ ref('config_irs_limits') }}
-    WHERE limit_year = (SELECT current_year FROM simulation_parameters)
 ),
 
 -- Validation 3: IRS 402(g) limit validation
@@ -200,7 +185,9 @@ excessive_contribution_rates AS (
       AND prorated_annual_compensation > 0
 ),
 
--- Validation 8: IRS limit flag accuracy (using dynamic limits from config_irs_limits seed)
+-- Validation 8: IRS limit flag accuracy
+-- Like Validation 3, use the model's applicable_irs_limit: catch-up eligibility depends
+-- on the age attained by Dec 31, which the snapshot's current_age can lag by a year (#998).
 irs_limit_flag_inaccuracy AS (
     SELECT
         w.employee_id,
@@ -213,11 +200,10 @@ irs_limit_flag_inaccuracy AS (
             'Amount: $', ROUND(w.prorated_annual_contributions, 2)
         ) AS validation_message
     FROM workforce_with_contributions w
-    CROSS JOIN irs_limits_for_validation il
-    WHERE w.irs_limit_reached != (
-        w.prorated_annual_contributions >=
-            CASE WHEN w.current_age BETWEEN il.super_catch_up_age_min AND il.super_catch_up_age_max THEN il.super_catch_up_limit WHEN w.current_age >= il.catch_up_age_threshold THEN il.catch_up_limit ELSE il.base_limit END
-    )
+    JOIN {{ ref('int_employee_contributions') }} ec
+        ON w.employee_id = ec.employee_id
+        AND w.simulation_year = ec.simulation_year
+    WHERE w.irs_limit_reached != (w.prorated_annual_contributions >= ec.applicable_irs_limit)
       AND w.prorated_annual_contributions > 0
 ),
 
