@@ -101,6 +101,11 @@ const behaviorLabels: Record<string, string> = {
   enrollment_match_magnet_downward_enabled: 'Pull starting rates down to the full-match rate',
   below_default_share_tiers: 'Choosing a rate below the auto-enrollment default',
   below_default_steps: 'How far below the default',
+  easy_enroll_enabled: 'Offer Easy Enroll packages',
+  easy_enroll_channel_share_with_auto_enrollment: 'Easy Enroll share — plans with auto-enrollment',
+  easy_enroll_channel_share_without_auto_enrollment: 'Easy Enroll share — plans without auto-enrollment',
+  easy_enroll_packages: 'Easy Enroll packages',
+  easy_enroll_escalation_cap: 'Automatic increases for Easy Enroll members stop at',
 };
 const labelFor = (key: string) => behaviorLabels[key.replace(/^dc_plan\./, '')] ?? ({ 'dc_plan.match_template': 'Employer match template', 'dc_plan.match_tiers': 'Employer match formula', match_tiers: 'Employer match formula', 'compensation.promotion_compensation.base_increase_pct': 'Promotion pay increase', 'compensation.promotion_compensation.distribution_range': 'Promotion increase spread', promotion_base_increase_pct: 'Promotion pay increase', deferral_escalation_cap: 'Annual auto-escalation cap', target_growth_rate: 'Annual headcount growth', simulation_start_year: 'First projection year', end_year: 'Last projection year' }[key] ?? key.replaceAll('_', ' ').replaceAll('.', ' → '));
 
@@ -110,8 +115,14 @@ function formatBehaviorSetting(key: string, value: unknown): string | undefined 
   if (key.endsWith('escalation_mode')) return value === 'automatic' ? 'Automatic (everyone unless they opt out)'
     : value === 'participant_elected' ? 'Participant-elected (employees sign up)' : showValue(value);
   if (key.endsWith('signup_probability') && typeof value === 'number') return `${Number((value * 100).toFixed(3))}%`;
+  if (key.startsWith('easy_enroll_') && typeof value === 'number') return `${Number((value * 100).toFixed(3))}%`;
+  if (key === 'easy_enroll_enabled' && typeof value === 'boolean') return value ? 'On' : 'Off';
   if (!Array.isArray(value)) return undefined;
   const pct = (rate: unknown) => typeof rate === 'number' ? `${Number((rate * 100).toFixed(3))}%` : showValue(rate);
+  if (key === 'easy_enroll_packages') return value.map((row: unknown) => {
+    const pkg = asConfig(row);
+    return `${pct(pkg.rate)} contribution, chosen by ${pct(pkg.share)}`;
+  }).join('; ');
   if (key === 'below_default_share_tiers') return value.map((row: unknown) => {
     const tier = asConfig(row);
     const ceiling = tier.max_auto_enroll_default_rate;
@@ -125,7 +136,8 @@ function formatBehaviorSetting(key: string, value: unknown): string | undefined 
 }
 const percentVariables = new Set(['target_growth_rate', 'total_termination_rate', 'new_hire_termination_rate', 'cola_rate', 'merit_budget', 'promotion_base_increase_pct', 'promotion_distribution_range', 'auto_enrollment_default_deferral_rate', 'voluntary_enrollment_rate', 'new_hire_opt_out_rate', 'deferral_escalation_increment', 'deferral_escalation_cap', 'match_cap_percent', 'employer_match_max_deferral_rate', 'employer_core_contribution_rate', 'new_hire_ineligible_pct']);
 const summaryVariables = ['simulation_start_year', 'end_year', 'random_seed', 'target_growth_rate', 'total_termination_rate', 'new_hire_termination_rate', 'cola_rate', 'merit_budget', 'promotion_base_increase_pct', 'promotion_distribution_range', 'promotion_rate_multiplier', 'auto_enrollment_enabled', 'auto_enrollment_scope', 'auto_enrollment_hire_date_cutoff', 'auto_enrollment_window_days', 'auto_enrollment_default_deferral_rate', 'voluntary_enrollment_rate', 'new_hire_opt_out_rate', 'deferral_escalation_enabled', 'deferral_escalation_increment', 'deferral_escalation_cap',
-  'deferral_escalation_mode', 'deferral_escalation_participant_elected_signup_probability', 'enrollment_match_magnet_downward_enabled', 'below_default_share_tiers', 'below_default_steps'];
+  'deferral_escalation_mode', 'deferral_escalation_participant_elected_signup_probability', 'enrollment_match_magnet_downward_enabled', 'below_default_share_tiers', 'below_default_steps',
+  'easy_enroll_enabled', 'easy_enroll_channel_share_with_auto_enrollment', 'easy_enroll_channel_share_without_auto_enrollment', 'easy_enroll_packages', 'easy_enroll_escalation_cap'];
 const formatVariable = (key: string, value: unknown) => {
   const behavior = formatBehaviorSetting(key, value);
   if (behavior !== undefined) return behavior;
@@ -186,6 +198,13 @@ function formatMatchTiers(value: unknown): string {
   }).join('; then ');
 }
 function inactiveVariable(key: string, variables: Config): string | null {
+  if (key.startsWith('easy_enroll_') && key !== 'easy_enroll_enabled') {
+    if (variables.easy_enroll_enabled === false) return 'Inactive while Easy Enroll is off; saved value retained.';
+    const applicable = variables.auto_enrollment_enabled === true ? 'with' : 'without';
+    if (key.includes('channel_share_') && key !== `easy_enroll_channel_share_${applicable}_auto_enrollment`) {
+      return 'Inactive for this plan; saved value retained.';
+    }
+  }
   if (variables.deferral_escalation_enabled === false && ['deferral_escalation_mode', 'deferral_escalation_participant_elected_signup_probability'].includes(key)) {
     return 'Inactive while automatic contribution increases are off; saved value retained.';
   }
@@ -334,6 +353,7 @@ export function EffectiveConfigReview({ review, stale, saving, onClose, onSave, 
         {resolved && <>
           <section><h3 className="font-semibold mb-2">Indirect effects in engine settings</h3><p className="text-xs text-ink-muted mb-2">Canonical engine variables after production configuration normalization. Rates are displayed as percentages.</p>{resolved.before ? <ChangesTable changes={engineChanges} engine /> : <p role="status" className="text-sm text-warning-ink">The saved configuration could not be resolved, so an engine comparison is unavailable. The corrected draft has been validated and can be saved. Saved-to-draft changes remain visible above.</p>}</section>
           <section><h3 className="font-semibold mb-2">Effective assumptions</h3><p className="text-xs text-ink-muted mb-3">Resolved by the same configuration loader and variable export used for simulation. {resolved.after.scope}</p>
+            {variables.easy_enroll_enabled === true && <p className="mb-3 text-xs text-ink-muted">Easy Enroll members get automatic increases even when plan-wide automatic increases are off.</p>}
             <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">{summaryVariables.filter(key => key in variables).map(key => <div key={key} className="border border-border rounded p-2"><dt className="text-ink-muted capitalize">{labelFor(key)}</dt><dd className="font-medium break-all">{formatVariable(key, variables[key])}{inactiveVariable(key, variables) && <span className="block mt-1 text-xs font-normal text-ink-muted">{inactiveVariable(key, variables)}</span>}</dd></div>)}</dl>
             <p className="text-sm mt-3">Voluntary enrollment: {'voluntary_enrollment_rate' in variables ? formatVariable('voluntary_enrollment_rate', variables.voluntary_enrollment_rate) : 'Demographic model'}. New-hire opt-out: {'new_hire_opt_out_rate' in variables ? formatVariable('new_hire_opt_out_rate', variables.new_hire_opt_out_rate) : 'Demographic model'}{variables.auto_enrollment_enabled === false ? ' (inactive while automatic enrollment is off)' : ''}.</p>
           </section>

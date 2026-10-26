@@ -5,8 +5,10 @@ import { DEFAULT_FORM_DATA } from './constants';
 import { DCPlanSection } from './DCPlanSection';
 import { EmployerEligibilityEditor, coreSummary, dcDisplayConfig, eligibilitySummary, matchSummary, tierSummary } from './DCPlanPanels';
 import { EnrollmentRateInput } from './EnrollmentRateInput';
+import { DistributionTable } from './DistributionTable';
+import { EasyEnrollEditor } from './EasyEnrollEditor';
 import { BelowDefaultEditor } from './BelowDefaultEditor';
-import { belowDefaultSummary, validateBelowDefaultSettings } from './participantBehaviorConfig';
+import { belowDefaultSummary, validateBelowDefaultSettings, easyEnrollSummary, validateEasyEnrollSettings } from './participantBehaviorConfig';
 import type { FormData } from './types';
 import { buildConfigPayload } from './buildConfigPayload';
 import { applyConfigEdits } from './configEdits';
@@ -54,6 +56,7 @@ type ControlProps = { name?: string; id?: string; checked?: boolean; children?: 
 function elements(node: ReactNode): ReactElement<ControlProps>[] {
   return Children.toArray(node).flatMap(child => {
     if (!isValidElement<ControlProps>(child)) return [];
+    if (child.type === DistributionTable) return elements(DistributionTable(child.props as unknown as React.ComponentProps<typeof DistributionTable>));
     return [child, ...elements(child.props.children), ...elements(child.props.control)];
   });
 }
@@ -746,5 +749,93 @@ describe('DC Plan enrollment presentation', () => {
     expect(input(render(), 'dcMatchResponseUpwardParticipation')).not.toContain('disabled=""');
     toggle('dcMatchResponseDownwardEnabled', false);
     expect(input(render(), 'dcMatchResponseDownwardParticipation')).toContain('disabled=""');
+  });
+});
+
+describe('Easy Enroll controls', () => {
+  const editor = () => EasyEnrollEditor({ form: state.formData, onChange: changes => { state.formData = { ...state.formData, ...changes }; } });
+  const click = (label: string) => {
+    const button = elements(editor()).find(element => element.type === 'button'
+      && (element.props.children === label || element.props['aria-label'] === label));
+    expect(button).toBeDefined();
+    button!.props.onClick!();
+  };
+  const edit = (label: string, value: string) => {
+    const control = elements(editor()).find(element => element.props['aria-label'] === label || element.props.name === label);
+    expect(control).toBeDefined();
+    control!.props.onChange!({ target: { value } } as React.ChangeEvent<HTMLInputElement>);
+  };
+
+  it('places the panel between starting rates and match response, with an accessible persistent toggle', () => {
+    const html = render();
+    expect(html.indexOf('id="dcplan-starting-rates-panel"')).toBeLessThan(html.indexOf('id="dcplan-easy-enroll-panel"'));
+    expect(html.indexOf('id="dcplan-easy-enroll-panel"')).toBeLessThan(html.indexOf('id="dcplan-response-panel"'));
+    expect(html).toContain('Offer Easy Enroll packages');
+    toggle('dcEasyEnrollEnabled', true);
+    expect(state.formData.dcEasyEnrollEnabled).toBe(true);
+    expect(render()).toContain('<details id="dcplan-easy-enroll-panel" open="">');
+    expect(easyEnrollSummary(state.formData)).toContain('57% of self-enrollees');
+  });
+
+  it.each([true, false])('highlights only the applicable share with auto-enrollment=%s', autoEnroll => {
+    state.formData = { ...state.formData, dcEasyEnrollEnabled: true, dcAutoEnroll: autoEnroll };
+    const html = renderToStaticMarkup(editor());
+    const highlighted = html.match(/<div class="rounded p-3 bg-info-surface">[\s\S]*?<\/div><p[\s\S]*?<\/div>/)?.[0] ?? '';
+    expect(highlighted).toContain(autoEnroll ? 'Plans with auto-enrollment' : 'Plans without auto-enrollment');
+    expect(highlighted).toContain('Applies to this plan');
+    expect(html).toContain('rounded p-3 opacity-60');
+    expect(html.match(/Applies to this plan/g)).toHaveLength(1);
+    expect(easyEnrollSummary(state.formData)).toContain(`${autoEnroll ? 57 : 45}% of self-enrollees`);
+  });
+
+  it('retains visible disabled fields and explains the population and independent automatic increases', () => {
+    const before = structuredClone(state.formData);
+    const html = renderToStaticMarkup(editor());
+    expect(html).toContain('<fieldset disabled="" aria-label="Easy Enroll settings"');
+    expect(html).toContain('Inactive while Easy Enroll is off. Saved values are retained.');
+    expect(html).toContain('Auto-enrolled employees never use Easy Enroll.');
+    expect(html).toContain('Easy Enroll members get automatic increases even when plan-wide automatic increases are off.');
+    expect(html).toContain('value="57"');
+    expect(html).toContain('value="45"');
+    expect(html).toContain('value="10"');
+    expect(state.formData).toEqual(before);
+    expect(html).not.toContain('role="alert"');
+    state.formData = { ...state.formData, dcEasyEnrollEnabled: true, dcAutoEscalation: false };
+    expect(renderToStaticMarkup(editor())).not.toContain('<fieldset disabled');
+  });
+
+  it('adds, edits and removes packages and validates rates and total shares without normalizing', () => {
+    state.formData = { ...state.formData, dcEasyEnrollEnabled: true };
+    click('Add package');
+    expect(state.formData.dcEasyEnrollPackages.at(-1)).toEqual({ rate: 11, share: 0 });
+    edit('Easy Enroll package 4 contribution rate', '6');
+    edit('Easy Enroll package 4 share', '10');
+    let html = renderToStaticMarkup(editor());
+    expect(html).toContain('rates must be unique');
+    expect(html).toContain('now 110%');
+    expect(html).toContain('aria-invalid="true" aria-describedby="dcplan-easy-enroll-errors"');
+    edit('Easy Enroll package 4 contribution rate', '12.5');
+    edit('Easy Enroll package 1 share', '20');
+    expect(validateEasyEnrollSettings(state.formData)).toEqual([]);
+    click('Remove Easy Enroll package 4');
+    expect(renderToStaticMarkup(editor())).toContain('Total share: 90%');
+    edit('Easy Enroll package 1 share', '30');
+    click('Remove Easy Enroll package 3');
+    click('Remove Easy Enroll package 2');
+    edit('Easy Enroll package 1 share', '100');
+    html = renderToStaticMarkup(editor());
+    expect(html.match(/<button[^>]*aria-label="Remove Easy Enroll package 1"[^>]*>/)?.[0]).toContain('disabled=""');
+    expect(validateEasyEnrollSettings(state.formData)).toEqual([]);
+    edit('dcEasyEnrollEscalationCap', '12.5');
+    edit('dcEasyEnrollShareWithAutoEnrollment', '62.5');
+    expect(state.formData).toMatchObject({ dcEasyEnrollEscalationCap: 12.5, dcEasyEnrollShareWithAutoEnrollment: 62.5 });
+  });
+
+  it.each([
+    [], [{ rate: 0, share: 100 }], [{ rate: -1, share: 100 }], [{ rate: 101, share: 100 }],
+    [{ rate: 6, share: 50 }, { rate: 6, share: 50 }], [{ rate: 6, share: 99 }],
+    [{ rate: 6, share: -10 }, { rate: 8, share: 110 }], [{ rate: Number.NaN, share: 100 }],
+  ].map(packages => ({ packages })))('rejects invalid packages: %j', ({ packages }) => {
+    expect(validateEasyEnrollSettings({ ...DEFAULT_FORM_DATA, dcEasyEnrollPackages: packages }).length).toBeGreaterThan(0);
   });
 });

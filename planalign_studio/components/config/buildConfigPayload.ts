@@ -116,6 +116,11 @@ export function buildConfigPayload(
       match_magnet_enabled: Boolean(formData.dcMatchMagnetEnabled),
       match_magnet_probability: Number(formData.dcMatchMagnetProbability) / 100,
       match_magnet_downward_enabled: Boolean(formData.dcMatchMagnetDownwardEnabled),
+      easy_enroll_enabled: Boolean(formData.dcEasyEnrollEnabled),
+      easy_enroll_channel_share_without_auto_enrollment: Number(formData.dcEasyEnrollShareWithoutAutoEnrollment) / 100,
+      easy_enroll_channel_share_with_auto_enrollment: Number(formData.dcEasyEnrollShareWithAutoEnrollment) / 100,
+      easy_enroll_packages: formData.dcEasyEnrollPackages.map(pkg => ({ rate: pkg.rate / 100, share: pkg.share / 100 })),
+      easy_enroll_escalation_cap: Number(formData.dcEasyEnrollEscalationCap) / 100,
       below_default_share_tiers: formData.dcBelowDefaultShareTiers.map(tier => ({
         max_auto_enroll_default_rate: tier.max_auto_enroll_default_rate === null ? null : Number(tier.max_auto_enroll_default_rate) / 100,
         share: Number(tier.share) / 100,

@@ -194,6 +194,11 @@ export const DEFAULT_FORM_DATA: FormData = {
   dcEscalationCap: 10.0,
   dcEscalationMode: 'automatic',
   dcEscalationSignupProbability: 0,
+  dcEasyEnrollEnabled: false,
+  dcEasyEnrollShareWithoutAutoEnrollment: 45,
+  dcEasyEnrollShareWithAutoEnrollment: 57,
+  dcEasyEnrollPackages: [{ rate: 6, share: 30 }, { rate: 8, share: 50 }, { rate: 10, share: 20 }],
+  dcEasyEnrollEscalationCap: 10,
   dcBelowDefaultShareTiers: [{ max_auto_enroll_default_rate: null, share: 0 }],
   dcBelowDefaultSteps: [{ pp: 1, weight: 50 }, { pp: 2, weight: 30 }, { pp: 3, weight: 20 }],
 

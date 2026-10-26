@@ -11,7 +11,8 @@ import { VoluntaryDeferralRatesEditor } from './VoluntaryDeferralRatesEditor';
 import { DCPlanPanel, EmployerEligibilityEditor, coreSummary, dcDisplayConfig, matchSummary, tierSummary } from './DCPlanPanels';
 import { EnrollmentRateInput } from './EnrollmentRateInput';
 import { BelowDefaultEditor } from './BelowDefaultEditor';
-import { belowDefaultSummary } from './participantBehaviorConfig';
+import { EasyEnrollEditor } from './EasyEnrollEditor';
+import { belowDefaultSummary, easyEnrollSummary } from './participantBehaviorConfig';
 
 // A blank cutoff is removed from the export, so dbt applies its default (dbt_project.yml).
 const ENGINE_DEFAULT_HIRE_CUTOFF = '2020-01-01';
@@ -1344,6 +1345,12 @@ export function DCPlanSection() {
             helper={formData.dcAutoEscalation && formData.dcEscalationMode === 'participant_elected' ? 'Share of enrolled participants who sign up.' : 'Inactive unless employees sign up for increases. Saved value is retained.'} width="col-span-6" />
         </DCPlanPanel>
         <DCPlanPanel id="dcplan-starting-rates-panel" title="Starting employee contribution rates" summary={`Segment rates ${Math.min(...Object.values(formData.dcVoluntaryDeferralBaseRates))}–${Math.max(...Object.values(formData.dcVoluntaryDeferralBaseRates))}%; upward spread ${formData.dcDeferralSpreadMaxLift} percentage points; voluntary cap ${formData.dcMaxVoluntaryDeferral}%. ${belowDefaultSummary(formData)}${deferralSpreadClipping ? ` Warning: spread ceiling ${deferralSpreadClipping.spreadCeiling}% exceeds the cap; rates will be clipped.` : ''}`}>{startingRateFields}</DCPlanPanel>
+        <DCPlanPanel id="dcplan-easy-enroll-panel" title="Easy Enroll" enabled={formData.dcEasyEnrollEnabled} summary={easyEnrollSummary(formData)} control={
+          <label htmlFor="dcplan-easy-enroll-enabled" className="flex items-center gap-2 text-sm font-medium text-ink-muted">
+            <input id="dcplan-easy-enroll-enabled" type="checkbox" name="dcEasyEnrollEnabled" checked={formData.dcEasyEnrollEnabled} onChange={handleChange} className="h-4 w-4 text-fidelity-green rounded" />
+            Offer Easy Enroll packages
+          </label>
+        }><EasyEnrollEditor form={formData} onChange={changes => setFormData(previous => ({ ...previous, ...changes }))} /></DCPlanPanel>
         <DCPlanPanel id="dcplan-response-panel" title="Response to the employer match" summary={`New enrollees seeking full match: ${formData.dcMatchMagnetEnabled ? `${formData.dcMatchMagnetProbability}% of below-ceiling voluntary enrollees` : 'off'}; downward pull ${formData.dcAutoEnroll && formData.dcMatchMagnetEnabled ? formData.dcMatchMagnetDownwardEnabled ? `on (same ${formData.dcMatchMagnetProbability}% probability)` : 'off' : 'inactive'}; first-year existing-participant response: ${formData.dcMatchResponseEnabled ? `upward ${formData.dcMatchResponseUpwardParticipation}%, downward ${formData.dcMatchResponseDownwardEnabled ? `${formData.dcMatchResponseDownwardParticipation}%` : 'off'}; ${responseMaximizers}% of upward responders seek full match, others close ${responsePartialGap}% of the gap` : 'off'}.`}>{responseFields}</DCPlanPanel>
       </section>
     </div>

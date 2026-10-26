@@ -65,3 +65,50 @@ describe('participant behavior payload and inheritance', () => {
     } });
   });
 });
+
+const easyEnroll = {
+  easy_enroll_enabled: true,
+  easy_enroll_channel_share_without_auto_enrollment: 0.4125,
+  easy_enroll_channel_share_with_auto_enrollment: 0.625,
+  easy_enroll_packages: [{ rate: 0.065, share: 0.25 }, { rate: 0.09, share: 0.75 }],
+  easy_enroll_escalation_cap: 0.125,
+};
+
+describe('Easy Enroll payload and inheritance', () => {
+  it('loads decimal overrides as percentages and exports all five keys exactly once', () => {
+    const form = applyConfigToFormData({ dc_plan: easyEnroll }, DEFAULT_FORM_DATA);
+    expect(form).toMatchObject({ dcEasyEnrollEnabled: true, dcEasyEnrollShareWithoutAutoEnrollment: 41.25,
+      dcEasyEnrollShareWithAutoEnrollment: 62.5, dcEasyEnrollEscalationCap: 12.5,
+      dcEasyEnrollPackages: [{ rate: 6.5, share: 25 }, { rate: 9, share: 75 }],
+    });
+    expect(payload(form).dc_plan).toMatchObject(easyEnroll);
+    expect(easyEnroll.easy_enroll_packages[0]).toEqual({ rate: 0.065, share: 0.25 });
+    const inherited = applyConfigToFormData({}, form);
+    expect(inherited).toEqual(form);
+    expect(applyConfigToFormData({ dc_plan: { easy_enroll_enabled: false,
+      easy_enroll_channel_share_with_auto_enrollment: 0, easy_enroll_escalation_cap: 0 } }, form))
+      .toMatchObject({ dcEasyEnrollEnabled: false, dcEasyEnrollShareWithAutoEnrollment: 0, dcEasyEnrollEscalationCap: 0 });
+  });
+
+  it('matches the shipped defaults', () => {
+    expect(payload(DEFAULT_FORM_DATA).dc_plan).toMatchObject({ easy_enroll_enabled: false,
+      easy_enroll_channel_share_without_auto_enrollment: 0.45, easy_enroll_channel_share_with_auto_enrollment: 0.57,
+      easy_enroll_packages: [{ rate: 0.06, share: 0.3 }, { rate: 0.08, share: 0.5 }, { rate: 0.1, share: 0.2 }],
+      easy_enroll_escalation_cap: 0.1,
+    });
+  });
+
+  it.each([{}, { dc_plan: easyEnroll }, { easy_enroll: { enabled: true, packages: easyEnroll.easy_enroll_packages } }])(
+    'preserves an untouched scenario and does not materialize inherited keys during unrelated edits: %j', original => {
+      const form = applyResolvedFormData(easyEnroll, applyConfigToFormData(original, DEFAULT_FORM_DATA));
+      expect(applyConfigEdits(original, payload(form), payload(structuredClone(form)))).toEqual(original);
+      expect(applyConfigEdits(original, payload(form), payload({ ...form, seed: form.seed + 1 })))
+        .toEqual({ ...original, simulation: { random_seed: form.seed + 1 } });
+    });
+
+  it('writes just edited Easy Enroll keys in a sparse scenario', () => {
+    const form = applyResolvedFormData(easyEnroll, DEFAULT_FORM_DATA);
+    expect(applyConfigEdits({}, payload(form), payload({ ...form, dcEasyEnrollEnabled: false, dcEasyEnrollEscalationCap: 15 })))
+      .toEqual({ dc_plan: { easy_enroll_enabled: false, easy_enroll_escalation_cap: 0.15 } });
+  });
+});

@@ -151,6 +151,23 @@ describe('Configuration save year validation', () => {
     }
   });
 
+  it('blocks draft review and saving invalid active Easy Enroll packages, while retaining inactive settings', async () => {
+    const packages = DEFAULT_FORM_DATA.dcEasyEnrollPackages;
+    const enabled = DEFAULT_FORM_DATA.dcEasyEnrollEnabled;
+    try {
+      DEFAULT_FORM_DATA.dcEasyEnrollEnabled = true;
+      DEFAULT_FORM_DATA.dcEasyEnrollPackages = [{ rate: 6, share: 99 }];
+      expect(() => contextFromProvider().buildDraftConfig()).toThrow('Package shares must');
+      expect(await saveFromProvider()()).toBe(false);
+      expect(updateWorkspace).not.toHaveBeenCalled();
+      DEFAULT_FORM_DATA.dcEasyEnrollEnabled = false;
+      expect(() => contextFromProvider().buildDraftConfig()).not.toThrow();
+    } finally {
+      DEFAULT_FORM_DATA.dcEasyEnrollPackages = packages;
+      DEFAULT_FORM_DATA.dcEasyEnrollEnabled = enabled;
+    }
+  });
+
   it('permits single-year simulations and persists the validated horizon', async () => {
     DEFAULT_FORM_DATA.endYear = 2025;
     expect(await saveFromProvider()()).toBe(true);

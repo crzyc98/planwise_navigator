@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { NumericInput } from './NumericInput';
-import { applicableBelowDefaultTier, belowDefaultSummary, belowDefaultWeightTotal, invalidBelowDefaultCeiling, invalidBelowDefaultWeights, validateBelowDefaultSettings } from './participantBehaviorConfig';
+import { DistributionTable } from './DistributionTable';
+import { applicableBelowDefaultTier, belowDefaultSummary, invalidBelowDefaultCeiling, validateBelowDefaultSettings } from './participantBehaviorConfig';
 import type { FormData } from './types';
 
 interface Props {
@@ -49,27 +50,17 @@ function renderShareTiers({ form, onChange, applicable }: Props & { applicable: 
 
 function renderSteps({ form, onChange }: Props) {
   const steps = form.dcBelowDefaultSteps;
-  const updateStep = (index: number, changes: Partial<FormData['dcBelowDefaultSteps'][number]>) =>
-    onChange({ dcBelowDefaultSteps: steps.map((step, row) => row === index ? { ...step, ...changes } : step) });
   return <>
-      <h5 id="dcplan-below-default-steps-title" className="text-sm font-semibold text-ink">How far below the default they start</h5>
-      <p className="text-xs text-ink-muted">How far below the default those employees start. Rates never go below 1%.</p>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm" aria-labelledby="dcplan-below-default-steps-title">
-          <thead><tr className="border-b border-border"><th scope="col" className="text-left p-2">Reduction</th><th scope="col" className="text-left p-2">Share of below-default starters</th><th scope="col" className="text-left p-2">Actions</th></tr></thead>
-          <tbody>{steps.map((step, index) => <tr key={index} className="border-b border-border">
-            <td className="p-2"><NumericInput aria-label={`Below-default reduction ${index + 1} in percentage points`} value={step.pp} integer min={1} className={inputClass}
-              onChange={event => updateStep(index, { pp: Number(event.target.value) })} /> pp</td>
-            <td className="p-2"><NumericInput aria-label={`Below-default reduction ${index + 1} weight`} value={step.weight} min={0} max={100} className={inputClass}
-              {...errorProps(invalidBelowDefaultWeights(steps), form.dcAutoEnroll)}
-              onChange={event => updateStep(index, { weight: Number(event.target.value) })} /> %</td>
-            <td className="p-2"><button type="button" className={buttonClass} disabled={steps.length === 1} aria-label={`Remove below-default reduction ${index + 1}`}
-              onClick={() => onChange({ dcBelowDefaultSteps: steps.filter((_, row) => row !== index) })}>Remove</button></td>
-          </tr>)}</tbody>
-        </table>
-      </div>
-      <p className="text-xs text-ink-muted">Total weight: {belowDefaultWeightTotal(steps)}%</p>
-      <button type="button" className={buttonClass} onClick={() => onChange({ dcBelowDefaultSteps: [...steps, { pp: Math.max(0, ...steps.map(step => step.pp)) + 1, weight: 0 }] })}>Add reduction</button>
+    <h5 id="dcplan-below-default-steps-title" className="text-sm font-semibold text-ink">How far below the default they start</h5>
+    <p className="text-xs text-ink-muted">How far below the default those employees start. Rates never go below 1%.</p>
+    <DistributionTable titleId="dcplan-below-default-steps-title" rows={steps.map(step => ({ value: step.pp, share: step.weight }))}
+      valueHeading="Reduction" shareHeading="Share of below-default starters" rowLabel="Below-default reduction" valueSuffix="pp" integer
+      active={form.dcAutoEnroll} errorId={errorId} invalidValue={index => !Number.isInteger(steps[index].pp) || steps[index].pp <= 0}
+      onChange={(index, changes) => onChange({ dcBelowDefaultSteps: steps.map((step, row) => row === index
+        ? { pp: changes.value ?? step.pp, weight: changes.share ?? step.weight } : step) })}
+      onRemove={index => onChange({ dcBelowDefaultSteps: steps.filter((_, row) => row !== index) })}
+      onAdd={() => onChange({ dcBelowDefaultSteps: [...steps, { pp: Math.max(0, ...steps.map(step => step.pp)) + 1, weight: 0 }] })}
+      addLabel="Add reduction" />
   </>;
 }
 
