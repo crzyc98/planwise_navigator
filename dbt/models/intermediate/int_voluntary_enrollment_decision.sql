@@ -12,8 +12,6 @@
     {'employee_min': 0.00, 'employee_max': 0.03, 'match_rate': 1.00},
     {'employee_min': 0.03, 'employee_max': 0.05, 'match_rate': 0.50}
 ]) %}
-{% set enrollment_match_magnet_enabled = var('enrollment_match_magnet_enabled', true) %}
-{% set enrollment_match_magnet_probability = var('enrollment_match_magnet_probability', 0.45) %}
 {% set voluntary_max_deferral_rate = var('voluntary_max_deferral_rate', 0.15) %}
 
 {# Issue #652: flat new-hire voluntary enrollment rate.
@@ -64,7 +62,17 @@
   - Event-ready data for int_enrollment_events integration
 */
 
-WITH active_workforce_base AS (
+WITH parameter_rows AS (
+{% if var('plan_design_parameters', none) %}
+  {{ get_plan_design_parameters(var('plan_design_parameters')) }}
+{% else %}
+  SELECT
+    '{{ var('plan_design_id', 'default') }}'::VARCHAR AS plan_design_id,
+    {{ var('auto_enrollment_default_deferral_rate', 0.02) }}::DECIMAL(10,6) AS auto_enrollment_default_deferral_rate
+{% endif %}
+),
+
+active_workforce_base AS (
   -- Active continuing employees with current demographics
   -- NOTE: int_employee_compensation_by_year does NOT include a new hire in their hire year
   -- (new hires first appear here the following year), so hire-year new hires are added below.
@@ -126,6 +134,8 @@ eligible_employees AS (
   SELECT
     aw.*,
     assignment.plan_design_id,
+    COALESCE(parameters.auto_enrollment_default_deferral_rate,
+      {{ var('auto_enrollment_default_deferral_rate', 0.02) }}) AS auto_enrollment_default_deferral_rate,
     eligibility.plan_eligibility_date,
     COALESCE(ces.is_currently_enrolled, false) as is_currently_enrolled,
     COALESCE(ces.ever_opted_out, false) as ever_opted_out
@@ -135,6 +145,8 @@ eligible_employees AS (
     ON aw.employee_id = assignment.employee_id
    AND aw.simulation_year = assignment.simulation_year
    AND assignment.scenario_id = '{{ var('scenario_id', 'default') }}'
+  LEFT JOIN parameter_rows parameters
+    ON assignment.plan_design_id = parameters.plan_design_id
   INNER JOIN {{ ref('int_plan_eligibility_determination') }} eligibility
     ON aw.employee_id = eligibility.employee_id
    AND aw.simulation_year = eligibility.simulation_year
@@ -298,15 +310,13 @@ match_optimization AS (
 ),
 
 match_snapped AS (
-  -- Snap a deterministic fraction of below-ceiling enrollees up to the ceiling
+  -- Apply deliberate below-default choices before the two-way match magnet
   SELECT
     *,
-    {{ match_magnet_snap(
-        'spread_deferral_rate',
-        'match_magnet_ceiling',
-        'deferral_random',
-        enrollment_match_magnet_enabled,
-        enrollment_match_magnet_probability
+    {{ self_directed_enrollment_rate(
+        'spread_deferral_rate', 'match_magnet_ceiling', 'deferral_random',
+        'employee_id', 'simulation_year',
+        auto_default='auto_enrollment_default_deferral_rate'
     ) }} AS optimized_deferral_rate
   FROM match_optimization
 ),
@@ -379,6 +389,8 @@ enrollment_decisions AS (
     job_level_multiplier,
     enrollment_random,
     deferral_random,
+    spread_random,
+    spread_deferral_rate,
     selected_deferral_rate as raw_deferral_rate,
     optimized_deferral_rate as match_optimized_rate,
     match_magnet_ceiling
@@ -424,6 +436,8 @@ SELECT
   job_level_multiplier,
   enrollment_random,
   deferral_random,
+  spread_random,
+  spread_deferral_rate,
   raw_deferral_rate,
   match_optimized_rate,
   match_magnet_ceiling

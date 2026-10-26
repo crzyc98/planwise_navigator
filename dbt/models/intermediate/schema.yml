@@ -1647,7 +1647,21 @@ models:
       - Maintains compatibility with existing event model structure
     config:
       tags: ["enrollment", "dc_plan", "epic_e023", "event_sourcing"]
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [scenario_id, employee_id, simulation_year, event_type]
     columns:
+      - name: employee_deferral_rate
+        description: "Enrollment rate after self-directed choices; opt-outs remain zero."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0.01
+                max_value: "{{ var('voluntary_max_deferral_rate', 0.15) }}"
+              config:
+                where: "event_type = 'enrollment' AND event_category IN ('voluntary_enrollment', 'proactive_voluntary', 'year_over_year_voluntary')"
       - name: scenario_id
         description: Scenario partition key
         data_tests:
@@ -2016,8 +2030,21 @@ models:
   # =========================================================================
 
   - name: int_voluntary_enrollment_decision
-    description: "Voluntary enrollment decisions with demographic deferral selection and match-magnet snapping (Feature 102)."
+    description: "Voluntary enrollment decisions with demographic spread, total-share below-default choices (non-choosers floored at their per-design AE default when the share is positive), and two-way match-magnet snapping."
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [employee_id, plan_design_id, simulation_year]
     columns:
+      - name: employee_id
+        data_tests:
+          - not_null
+      - name: plan_design_id
+        data_tests:
+          - not_null
+      - name: simulation_year
+        data_tests:
+          - not_null
       - name: selected_deferral_rate
         description: "Final voluntary deferral rate, bounded by [0.01, voluntary_max_deferral_rate]."
         data_tests:
@@ -2025,7 +2052,7 @@ models:
           - dbt_utils.accepted_range:
               arguments:
                 min_value: 0.01
-                max_value: 1.0
+                max_value: "{{ var('voluntary_max_deferral_rate', 0.15) }}"
       - name: match_magnet_ceiling
         description: "Per-employee match ceiling the magnet snaps toward (0 when magnet inactive)."
         data_tests:
@@ -2041,7 +2068,7 @@ models:
                 min_value: 0
                 max_value: 1
       - name: spread_deferral_rate
-        description: "Issue #652: table value after the upward spread, before match-magnet snapping. Equals selected_deferral_rate when deferral_spread_max_lift is 0."
+        description: "Issue #652: demographic grid rate after the upward spread, before below-default choices, the conditional AE floor, and match-magnet snapping."
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
@@ -2057,8 +2084,21 @@ models:
                 max_value: 1
 
   - name: int_proactive_voluntary_enrollment
-    description: "Proactive (within auto-enrollment window) voluntary enrollment with match-magnet snapping (Feature 102)."
+    description: "Proactive voluntary enrollment with demographic spread, total-share below-default choices (non-choosers floored at their per-design AE default when the share is positive), and two-way match-magnet snapping."
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [employee_id, plan_design_id, simulation_year]
     columns:
+      - name: employee_id
+        data_tests:
+          - not_null
+      - name: plan_design_id
+        data_tests:
+          - not_null
+      - name: simulation_year
+        data_tests:
+          - not_null
       - name: proactive_deferral_rate
         description: "Final proactive voluntary deferral rate, bounded by [0.01, voluntary_max_deferral_rate]."
         data_tests:
@@ -2066,7 +2106,7 @@ models:
           - dbt_utils.accepted_range:
               arguments:
                 min_value: 0.01
-                max_value: 1.0
+                max_value: "{{ var('voluntary_max_deferral_rate', 0.15) }}"
       - name: match_magnet_ceiling
         description: "Per-employee match ceiling the magnet snaps toward (0 when magnet inactive)."
         data_tests:

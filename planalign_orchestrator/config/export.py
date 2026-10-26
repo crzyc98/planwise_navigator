@@ -1703,6 +1703,38 @@ def _export_ensemble_freeze_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     }
 
 
+def validate_enrollment_cap(cfg: "SimulationConfig") -> None:
+    """Reject an effective voluntary cap that contradicts an active AE floor."""
+    enrollment = _export_enrollment_vars(cfg)
+    if not enrollment.get("auto_enrollment_enabled", True):
+        return
+    behavior = _export_participant_behavior_vars(cfg)
+    tiers = behavior["below_default_share_tiers"]
+    cap = enrollment["voluntary_max_deferral_rate"]
+    defaults = [("global", enrollment["auto_enrollment_default_deferral_rate"])]
+    if cfg.plan_design_parameters is not None:
+        from .plan_design import PlanDesignParametersMap
+
+        parameters = PlanDesignParametersMap.model_validate(cfg.plan_design_parameters)
+        defaults.extend(
+            (design, terms.auto_enrollment.default_deferral_rate)
+            for design, terms in parameters.root.items()
+        )
+    for design, default in defaults:
+        share = next(
+            tier["share"]
+            for tier in tiers
+            if tier["max_auto_enroll_default_rate"] is None
+            or default <= tier["max_auto_enroll_default_rate"]
+        )
+        if share > 0 and cap < default:
+            raise ValueError(
+                f"voluntary_max_deferral_rate ({cap:g}) must be >= "
+                f"auto_enrollment_default_deferral_rate ({default:g}) for {design} "
+                "when below-default share is positive"
+            )
+
+
 def to_dbt_vars(
     cfg: "SimulationConfig", *, database_path: Path | None = None
 ) -> Dict[str, Any]:
@@ -1714,6 +1746,7 @@ def to_dbt_vars(
     maintainability (E073 Config Refactoring). Each helper handles a specific
     domain of configuration export.
     """
+    validate_enrollment_cap(cfg)
     # Compose dbt_vars from focused helper functions
     # E101: Order matters! Later exports override earlier ones.
     # Legacy YAML (deferral_auto_escalation) runs first, then UI (dc_plan) settings
