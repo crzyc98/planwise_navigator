@@ -137,6 +137,24 @@ enroll_optout_window AS (
     GROUP BY employee_id
 ),
 
+-- D2: use the same deterministic event selection as the rate accumulator.
+current_year_deferral_changes AS (
+  SELECT
+    employee_id,
+    plan_design_id,
+    effective_date::DATE AS effective_date,
+    prev_employee_deferral_rate,
+    employee_deferral_rate
+  FROM {{ ref('fct_yearly_events') }}
+  WHERE simulation_year = {{ simulation_year }}
+    AND scenario_id = '{{ scenario_id }}'
+    AND event_type = {{ evt_deferral_change() }}
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY scenario_id, plan_design_id, employee_id, simulation_year
+    ORDER BY effective_date DESC, event_id DESC
+  ) = 1
+),
+
 -- Canonical state owns actual earned pay and the year-end annual rate.
 workforce_proration AS (
     SELECT
@@ -145,6 +163,8 @@ workforce_proration AS (
         {{ simulation_year }} AS simulation_year,
         workforce.current_compensation,
         workforce.prorated_annual_compensation,
+        GREATEST(workforce.employee_hire_date::DATE, '{{ simulation_year }}-01-01'::DATE)
+          AS employment_start_date,
         GREATEST(0, DATEDIFF(
             'day',
             GREATEST(workforce.employee_hire_date::DATE, '{{ simulation_year }}-01-01'::DATE),
@@ -173,6 +193,11 @@ workforce_windowed AS (
             AND eo.opt_out_date IS NOT NULL
             AND eo.opt_out_date >= eo.enroll_date) AS is_same_year_enroll_optout,
         eo.enrollment_window_deferral_rate,
+        dc.employee_id IS NOT NULL AS has_deferral_change,
+        dc.prev_employee_deferral_rate AS rate_before_change,
+        dc.employee_deferral_rate AS rate_after_change,
+        LEAST(wf.days_employed_in_year, GREATEST(0,
+          DATEDIFF('day', wf.employment_start_date, dc.effective_date))) AS days_before_change,
         -- Active-enrollment days, bounded by termination / year-end (FR-003, FR-007)
         CASE
             WHEN eo.enroll_date IS NOT NULL
@@ -189,6 +214,8 @@ workforce_windowed AS (
     LEFT JOIN enrollment_state enrollment
       ON wf.employee_id = enrollment.employee_id
     LEFT JOIN enroll_optout_window eo ON wf.employee_id = eo.employee_id
+    LEFT JOIN current_year_deferral_changes dc
+      ON wf.employee_id = dc.employee_id AND wf.plan_design_id = dc.plan_design_id
 ),
 
 contribution_inputs AS (
@@ -200,6 +227,13 @@ contribution_inputs AS (
         -- Effective rate: window rate for enroll→opt-out, else the (carried) rate
         CASE WHEN is_same_year_enroll_optout
              THEN enrollment_window_deferral_rate
+             WHEN has_deferral_change THEN
+               -- Fixed-point numerator; divide once and retain twelve fractional digits.
+               -- The surrounding CASE retains the existing DOUBLE output type.
+               CAST((rate_before_change::DECIMAL(18,12) * days_before_change
+                 + rate_after_change::DECIMAL(18,12)
+                   * (days_employed_in_year - days_before_change))
+                 / NULLIF(days_employed_in_year, 0) AS DECIMAL(18,12))
              ELSE year_end_deferral_rate
         END AS effective_deferral_rate,
         -- Contribution base: earned pay scaled to the enrolled share of employed days

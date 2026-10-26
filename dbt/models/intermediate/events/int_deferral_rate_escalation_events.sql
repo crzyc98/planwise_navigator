@@ -175,6 +175,7 @@ previous_year_rates AS (
     SELECT
         employee_id,
         current_deferral_rate,
+        aip_participant,
         employee_enrollment_date,
         -- For employees with no prior escalations, use enrollment date as baseline for timing
         -- This ensures the 365-day check measures from when they first enrolled, not end of previous year
@@ -191,12 +192,14 @@ workforce_with_status AS (
         w.*,
         COALESCE(e.is_enrolled, false) as is_enrolled,
         e.first_enrollment_date,
-        -- Program participation flags (issue #316): an employee participates unless
-        -- they carry the per-employee census opt-out flag. Resolved from the static
-        -- census attribute so it holds across all simulation years (new hires absent
-        -- from census default to FALSE → participating). Existing behavior is
-        -- unchanged for employees without the flag set.
-        NOT COALESCE(oo.auto_escalation_opt_out, FALSE) as in_auto_escalation_program,
+        -- Static census membership in year 1; carried state thereafter.
+        -- Easy Enroll membership hook (#987): combine new elections here in future.
+        {% if simulation_year == start_year %}
+        {{ aip_initial_membership(var('deferral_escalation_mode', 'automatic'), 'oo.auto_escalation_opt_out') }}
+        {% else %}
+        COALESCE(pyr.aip_participant,
+          {{ aip_initial_membership(var('deferral_escalation_mode', 'automatic'), 'oo.auto_escalation_opt_out') }})
+        {% endif %} AS in_auto_escalation_program,
         -- Use previous year's rate (includes all prior escalations via accumulator)
         COALESCE(pyr.current_deferral_rate, ier.initial_deferral_rate, 0.0) as current_deferral_rate,
         -- Escalation timing
