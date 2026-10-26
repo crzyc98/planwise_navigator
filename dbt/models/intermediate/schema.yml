@@ -2027,6 +2027,10 @@ models:
       accumulator membership, with the initial rule for newly appearing employees.
       Easy Enroll always elects membership and uses its package cap, even with
       ordinary escalation disabled (assert_easy_enroll_membership_and_cap).
+      Candidates require enrolled, positive-rate prior-year state or a current-year
+      enrollment; a latest opt-out blocks historical rate fallback. Year-end enrolled
+      state is enforced by the singular test assert_escalation_enrolled_state,
+      including missing accumulator rows.
     config:
       materialized: ephemeral
       tags: ["escalation", "deferral", "events", "epic_e035", "EVENT_GENERATION", "E068A_EPHEMERAL"]

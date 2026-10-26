@@ -218,6 +218,7 @@ def escalation_inputs(
         CREATE OR REPLACE TABLE int_deferral_rate_state_accumulator AS
         SELECT employee_id, scenario_id, 'default' AS plan_design_id, simulation_year,
           employee_deferral_rate AS current_deferral_rate,
+          TRUE AS is_enrolled_flag,
           event_category = 'easy_enroll' AS aip_participant,
           effective_date AS employee_enrollment_date, NULL::DATE AS last_escalation_date
         FROM int_enrollment_events;
@@ -261,6 +262,125 @@ def _plan_parameters(increment: float) -> dict[str, Any]:
         "deferral_escalation": {"increment": increment, "cap": 0.15},
         "eligibility": {"waiting_period_days": 0},
     }
+
+
+def _set_escalation_enrollment(
+    connection: duckdb.DuckDBPyConnection, state: str
+) -> None:
+    connection.execute(
+        "UPDATE int_deferral_rate_state_accumulator SET aip_participant = TRUE"
+    )
+    if state in {
+        "missing_after_optout",
+        "missing_without_new_enrollment",
+        "new_enrollment",
+        "reenrollment_after_optout",
+    }:
+        connection.execute(
+            "DELETE FROM int_deferral_rate_state_accumulator WHERE employee_id = 'member'"
+        )
+    elif state == "unenrolled_positive_rate":
+        connection.execute(
+            "UPDATE int_deferral_rate_state_accumulator SET is_enrolled_flag = FALSE "
+            "WHERE employee_id = 'member'"
+        )
+    elif state == "enrolled_zero_rate":
+        connection.execute(
+            "UPDATE int_deferral_rate_state_accumulator SET current_deferral_rate = 0 "
+            "WHERE employee_id = 'member'"
+        )
+    if state in {"missing_after_optout", "latest_optout", "reenrollment_after_optout"}:
+        connection.execute("""
+            INSERT INTO int_enrollment_events VALUES ('member', 'default', 2025,
+              'enrollment_change', 'enrollment_opt_out', 0, DATE '2025-08-01')
+        """)
+    if state in {"new_enrollment", "reenrollment_after_optout"}:
+        connection.execute("""
+            INSERT INTO int_enrollment_events VALUES ('member', 'default', 2026,
+              'enrollment', 'voluntary_enrollment', 0.06, DATE '2026-01-01')
+        """)
+
+
+@pytest.mark.parametrize("require_enrollment", [True, False])
+@pytest.mark.parametrize(
+    "state,expected_rate",
+    [
+        ("missing_after_optout", None),
+        ("missing_without_new_enrollment", None),
+        ("unenrolled_positive_rate", None),
+        ("enrolled_zero_rate", None),
+        ("latest_optout", None),
+        ("new_enrollment", 0.07),
+        ("reenrollment_after_optout", 0.07),
+    ],
+)
+def test_escalation_requires_contributing_enrollment(
+    escalation_inputs: duckdb.DuckDBPyConnection,
+    require_enrollment: bool,
+    state: str,
+    expected_rate: float | None,
+) -> None:
+    connection = escalation_inputs
+    _set_escalation_enrollment(connection, state)
+    rows = connection.execute(
+        _escalation_sql(
+            True,
+            deferral_escalation_require_enrollment=require_enrollment,
+            deferral_escalation_first_delay_years=0,
+        )
+    ).fetchall()
+    events = {row[0]: row for row in rows}
+    assert len(rows) == len(events)
+    assert events.keys() == {"nonmember"} | (
+        {"member"} if expected_rate is not None else set()
+    )
+    assert float(events["nonmember"][6]) == pytest.approx(0.105)
+    if expected_rate is not None:
+        assert float(events["member"][6]) == pytest.approx(expected_rate)
+
+
+@pytest.mark.parametrize(
+    "state,enrolled,rate,source,violations",
+    [
+        (True, True, 0.07, "escalation_event", 0),
+        (True, False, 0.07, "carried_forward", 1),
+        (True, True, 0.0, "opt_out", 1),
+        (False, False, 0.0, "opt_out", 1),
+        (True, True, 0.0, "voluntary_change", 0),
+    ],
+)
+def test_singular_escalation_guard_checks_year_end_state(
+    state: bool, enrolled: bool, rate: float, source: str, violations: int
+) -> None:
+    sql = _render_sql(
+        (DBT / "tests/assert_escalation_enrolled_state.sql").read_text(),
+        simulation_year=2026,
+    )
+    with duckdb.connect() as connection:
+        connection.execute("""
+            CREATE TABLE fct_yearly_events AS
+            SELECT 'member' AS employee_id, 'default' AS scenario_id,
+              'default' AS plan_design_id, 2026 AS simulation_year,
+              'deferral_escalation' AS event_type;
+            CREATE TABLE int_deferral_rate_state_accumulator (
+              employee_id VARCHAR, scenario_id VARCHAR, plan_design_id VARCHAR,
+              simulation_year INTEGER, is_enrolled_flag BOOLEAN,
+              current_deferral_rate DOUBLE, rate_source VARCHAR
+            )
+        """)
+        if state:
+            connection.execute(
+                "INSERT INTO int_deferral_rate_state_accumulator VALUES "
+                "('member', 'default', 'default', 2026, ?, ?, ?)",
+                [enrolled, rate, source],
+            )
+        assert len(connection.execute(sql).fetchall()) == violations
+        connection.execute("UPDATE fct_yearly_events SET scenario_id = 'other'")
+        assert connection.execute(sql).fetchall() == []
+        connection.execute(
+            "UPDATE fct_yearly_events SET scenario_id = 'default', simulation_year = 2025"
+        )
+        assert connection.execute(sql).fetchall() == []
 
 
 @pytest.mark.parametrize("plan_enabled", [True, False])

@@ -138,17 +138,21 @@ initial_enrollment_rates AS (
         AND employee_deferral_rate > 0
 ),
 
--- Use enrollment status from compensation model (is_enrolled_flag)
-employee_enrollment_status AS (
-    SELECT DISTINCT
+-- The latest decision must win over an older enrollment, even if state is missing.
+latest_enrollment_decisions AS (
+    SELECT
         employee_id,
-        is_enrolled_flag as is_enrolled,
-        employee_enrollment_date as first_enrollment_date
-    FROM {{ ref('int_employee_compensation_by_year') }}
-    WHERE simulation_year = {{ simulation_year }}
-        {%- if require_enrollment %}
-        AND is_enrolled_flag = true
-        {%- endif %}
+        event_type,
+        simulation_year,
+        employee_deferral_rate
+    FROM {{ ref('int_enrollment_events') }}
+    WHERE simulation_year <= {{ simulation_year }}
+        AND scenario_id = '{{ var('scenario_id', 'default') }}'
+        AND event_type IN ('enrollment', 'enrollment_change')
+    QUALIFY ROW_NUMBER() OVER (
+        PARTITION BY employee_id
+        ORDER BY effective_date DESC, simulation_year DESC, event_type DESC
+    ) = 1
 ),
 
 -- No external registry gating in simplified mode
@@ -163,6 +167,7 @@ previous_year_rates AS (
     SELECT
         employee_id,
         initial_deferral_rate as current_deferral_rate,
+        initial_deferral_rate > 0 AS is_enrolled_flag,
         enrollment_date as last_rate_change_date
     FROM initial_enrollment_rates
     WHERE rn = 1
@@ -175,6 +180,7 @@ previous_year_rates AS (
     SELECT
         employee_id,
         current_deferral_rate,
+        is_enrolled_flag,
         aip_participant,
         employee_enrollment_date,
         -- For employees with no prior escalations, use enrollment date as baseline for timing
@@ -183,6 +189,7 @@ previous_year_rates AS (
     FROM {{ target.schema }}.int_deferral_rate_state_accumulator
     WHERE simulation_year = {{ prev_year }}
       AND employee_id IS NOT NULL
+      AND scenario_id = '{{ var('scenario_id', 'default') }}'
 ),
 {% endif %}
 
@@ -190,8 +197,10 @@ previous_year_rates AS (
 workforce_with_status AS (
     SELECT
         w.*,
-        COALESCE(e.is_enrolled, false) as is_enrolled,
-        e.first_enrollment_date,
+        (COALESCE(pyr.is_enrolled_flag, false)
+          OR (decision.event_type = 'enrollment'
+            AND decision.simulation_year = {{ simulation_year }}
+            AND decision.employee_deferral_rate > 0)) AS is_enrolled,
         -- Initialize membership in year 1; carry state thereafter.
         {% if var('easy_enroll_enabled', false) %}
         {{ easy_enroll_member(ref('int_enrollment_events'), 'w.employee_id', simulation_year,
@@ -205,8 +214,17 @@ workforce_with_status AS (
         COALESCE(pyr.aip_participant,
           {{ aip_initial_membership(var('deferral_escalation_mode', 'automatic'), 'oo.auto_escalation_opt_out', 'w.employee_id') }})
         {% endif %} AS in_auto_escalation_program,
-        -- Use previous year's rate (includes all prior escalations via accumulator)
-        COALESCE(pyr.current_deferral_rate, ier.initial_deferral_rate, 0.0) as current_deferral_rate,
+        -- Only contributing prior state or a new enrollment can supply a rate.
+        -- Never resurrect a historical rate after the latest decision is an opt-out.
+        CASE
+            WHEN decision.event_type = 'enrollment_change' THEN 0.0
+            WHEN pyr.is_enrolled_flag AND pyr.current_deferral_rate > 0
+                THEN pyr.current_deferral_rate
+            WHEN decision.event_type = 'enrollment'
+                AND decision.simulation_year = {{ simulation_year }}
+                THEN COALESCE(decision.employee_deferral_rate, 0.0)
+            ELSE 0.0
+        END AS current_deferral_rate,
         -- Escalation timing
         0 as total_previous_escalations,  -- Tracked via accumulator, not needed here
         pyr.last_rate_change_date,
@@ -225,7 +243,7 @@ workforce_with_status AS (
         END as years_since_enrollment
     FROM active_workforce w
     LEFT JOIN initial_enrollment_rates ier ON w.employee_id = ier.employee_id AND ier.rn = 1
-    LEFT JOIN employee_enrollment_status e ON w.employee_id = e.employee_id
+    LEFT JOIN latest_enrollment_decisions decision ON w.employee_id = decision.employee_id
     LEFT JOIN previous_year_rates pyr ON w.employee_id = pyr.employee_id
     LEFT JOIN deferral_escalation_registry r ON w.employee_id = r.employee_id
     -- Issue #316: static per-employee auto-escalation opt-out from census
