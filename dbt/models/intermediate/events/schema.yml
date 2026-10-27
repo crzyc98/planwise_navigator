@@ -227,7 +227,15 @@ models:
       - name: tenure_band
         data_type: VARCHAR
       - name: event_probability
+        description: Direction probability after age, income and tenure multipliers and proportional rescaling; stop and restart retain their own probabilities.
         data_type: DECIMAL(5,4)
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 1
+                inclusive: true
       - name: event_category
         data_type: VARCHAR
         data_tests:

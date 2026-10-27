@@ -907,3 +907,110 @@ def test_contributor_sweep_elects_aip_only_when_accepted(
     ).fetchdf()
     assert set(state.aip_participant) == {accepted}
     assert set(state.current_deferral_rate) == {0.06 if accepted else 0.09}
+
+
+@pytest.mark.parametrize("direction", ["increase", "decrease"])
+@pytest.mark.parametrize("dimension", ["age", "income", "tenure"])
+def test_multiplier_lower_bounds(
+    conn: duckdb.DuckDBPyConnection, direction: str, dimension: str
+) -> None:
+    bands = [
+        {"min": 0, "multiplier": 1.0},
+        {"min": 30, "multiplier": 0.0},
+        {"min": 70, "multiplier": 2.0},
+    ]
+    variable = f"deferral_rate_changes_multipliers_{direction}_{dimension}"
+    sql = "SELECT {{ deferral_change_multiplier('v', var('" + variable + "')) }} "
+    sql += "FROM (VALUES (NULL), (-1), (0), (29.999), (30), (69.999), (70), (1000000)) t(v)"
+    assert [
+        row[0] for row in conn.execute(render(sql, **{variable: bands})).fetchall()
+    ] == [1, 1, 1, 1, 0, 0, 2, 2]
+
+
+def test_probability_product(conn: duckdb.DuckDBPyConnection) -> None:
+    sql = "SELECT {{ deferral_change_probability_product('0.2', 'increase', '40', '125000', '10') }}"
+    variables = {
+        f"deferral_rate_changes_multipliers_increase_{dimension}": [
+            {"min": 0, "multiplier": 1},
+            {"min": bound, "multiplier": factor},
+        ]
+        for dimension, bound, factor in [
+            ("age", 40, 2),
+            ("income", 125000, 3),
+            ("tenure", 10, 0.5),
+        ]
+    }
+    assert conn.execute(render(sql, **variables)).fetchone()[0] == pytest.approx(0.6)
+
+
+@pytest.mark.parametrize(
+    "increase,decrease,stop,expected",
+    [
+        (0.2, 0.3, 0.1, (0.2, 0.3)),
+        (2.0, 1.0, 0.1, (0.6, 0.3)),
+        (0.0, 0.0, 1.0, (0.0, 0.0)),
+        (1.0, 0.0, 1.0, (0.0, 0.0)),
+        (0.0, 3.0, 0.2, (0.0, 0.8)),
+        (0.4, 0.5, 0.1, (0.4, 0.5)),
+    ],
+)
+def test_proportional_probability_rescale(
+    conn: duckdb.DuckDBPyConnection,
+    increase: float,
+    decrease: float,
+    stop: float,
+    expected: tuple[float, float],
+) -> None:
+    sql = """SELECT
+      {{ deferral_change_rescaled_probability('i', 'd', 's') }},
+      {{ deferral_change_rescaled_probability('d', 'i', 's') }}
+      FROM (VALUES ({{ var('i') }}, {{ var('d') }}, {{ var('s') }})) t(i, d, s)"""
+    actual = conn.execute(render(sql, i=increase, d=decrease, s=stop)).fetchone()
+    assert tuple(map(float, actual)) == pytest.approx(expected)
+    assert sum(map(float, actual)) + stop <= 1
+
+
+@pytest.mark.parametrize(
+    "increase,decrease,stop", [(0.2, 0.3, 0.1), (2.0, 1.0, 0.1), (0.0, 0.0, 1.0)]
+)
+def test_rendered_model_uses_multiplied_probabilities(
+    conn: duckdb.DuckDBPyConnection,
+    increase: float,
+    decrease: float,
+    stop: float,
+) -> None:
+    fixture_inputs(conn)
+    # Inputs are age 40, annual compensation 50,000 and tenure 5: exercise all boundaries.
+    variables = {"deferral_rate_changes_stop_probability": stop}
+    for direction, raw in [("increase", increase), ("decrease", decrease)]:
+        for dimension, bound, factor in [
+            ("age", 40, 2),
+            ("income", 50000, 3),
+            ("tenure", 5, raw / 3),
+        ]:
+            variables[f"deferral_rate_changes_multipliers_{direction}_{dimension}"] = [
+                {"min": 0, "multiplier": 0},
+                {"min": bound, "multiplier": factor},
+            ]
+    sql = event_sql(**variables)
+    # The CTE output checks probabilities even for participants drawing no event.
+    prefix = sql[: sql.rindex("\nSELECT\n  employee_id::VARCHAR")]
+    probabilities = conn.execute(
+        prefix + " SELECT increase_probability, decrease_probability FROM probabilities"
+    ).fetchall()
+    scale = min(1, (1 - stop) / (increase + decrease)) if increase + decrease else 1
+    assert all(
+        tuple(map(float, row)) == pytest.approx((increase * scale, decrease * scale))
+        for row in probabilities
+    )
+    assert all(sum(map(float, row)) + stop <= 1 for row in probabilities)
+    rows = conn.execute(sql).fetchall()
+    expected = {
+        "proactive_increase": increase * scale,
+        "aip_response_decrease": decrease * scale,
+        "stop": stop,
+    }
+    assert rows
+    assert all(
+        float(row[-2]) == pytest.approx(expected[row[-1]], abs=0.00005) for row in rows
+    )

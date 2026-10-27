@@ -74,6 +74,20 @@ DEFAULTS: dict[str, Any] = {
     "deferral_rate_changes_post_escalation_decrease_leaves_escalation": False,
     "deferral_rate_changes_stop_probability": 0.015,
     "deferral_rate_changes_restart_probability": 0.0,
+    "deferral_rate_changes_multipliers_increase_age": [{"min": 0, "multiplier": 1.0}],
+    "deferral_rate_changes_multipliers_increase_income": [
+        {"min": 0, "multiplier": 1.0}
+    ],
+    "deferral_rate_changes_multipliers_increase_tenure": [
+        {"min": 0, "multiplier": 1.0}
+    ],
+    "deferral_rate_changes_multipliers_decrease_age": [{"min": 0, "multiplier": 1.0}],
+    "deferral_rate_changes_multipliers_decrease_income": [
+        {"min": 0, "multiplier": 1.0}
+    ],
+    "deferral_rate_changes_multipliers_decrease_tenure": [
+        {"min": 0, "multiplier": 1.0}
+    ],
 }
 OVERRIDES: dict[str, Any] = {
     "escalation_mode": "participant_elected",
@@ -107,6 +121,30 @@ OVERRIDES: dict[str, Any] = {
     "deferral_rate_changes_post_escalation_decrease_leaves_escalation": True,
     "deferral_rate_changes_stop_probability": 0.0,
     "deferral_rate_changes_restart_probability": 0.05,
+    "deferral_rate_changes_multipliers_increase_age": [
+        {"min": 0, "multiplier": 0.5},
+        {"min": 30, "multiplier": 2.0},
+    ],
+    "deferral_rate_changes_multipliers_increase_income": [
+        {"min": 0, "multiplier": 0.5},
+        {"min": 30, "multiplier": 2.0},
+    ],
+    "deferral_rate_changes_multipliers_increase_tenure": [
+        {"min": 0, "multiplier": 0.5},
+        {"min": 30, "multiplier": 2.0},
+    ],
+    "deferral_rate_changes_multipliers_decrease_age": [
+        {"min": 0, "multiplier": 0.5},
+        {"min": 30, "multiplier": 2.0},
+    ],
+    "deferral_rate_changes_multipliers_decrease_income": [
+        {"min": 0, "multiplier": 0.5},
+        {"min": 30, "multiplier": 2.0},
+    ],
+    "deferral_rate_changes_multipliers_decrease_tenure": [
+        {"min": 0, "multiplier": 0.5},
+        {"min": 30, "multiplier": 2.0},
+    ],
 }
 
 
@@ -391,6 +429,15 @@ def test_all_yaml_settings_export_nondefault_values() -> None:
         post_escalation_decrease_leaves_escalation=True,
         stop_probability=0.0,
         restart_probability=0.05,
+        multipliers={
+            direction: {
+                dimension: OVERRIDES[
+                    f"deferral_rate_changes_multipliers_{direction}_{dimension}"
+                ]
+                for dimension in ("age", "income", "tenure")
+            }
+            for direction in ("increase", "decrease")
+        },
     )
     yaml_result = to_dbt_vars(cfg)
     cfg.dc_plan = OVERRIDES
@@ -507,3 +554,46 @@ def test_null_new_behavior_settings_load_as_defaults(
     assert to_dbt_vars(cfg) == to_dbt_vars(
         load_simulation_config("config/simulation_config.yaml")
     )
+
+
+@pytest.mark.parametrize("direction", ["increase", "decrease"])
+@pytest.mark.parametrize("dimension", ["age", "income", "tenure"])
+@pytest.mark.parametrize(
+    "bands",
+    [
+        [],
+        [{"min": 1, "multiplier": 1}],
+        [{"min": -1, "multiplier": 1}],
+        [{"min": 0, "multiplier": -1}],
+        [{"min": 0, "multiplier": float("inf")}],
+        [{"min": 0, "multiplier": float("nan")}],
+        [{"min": 0, "multiplier": 1}, {"min": 0, "multiplier": 2}],
+        [
+            {"min": 0, "multiplier": 1},
+            {"min": 10, "multiplier": 1},
+            {"min": 5, "multiplier": 1},
+        ],
+        [{"min": 0, "multiplier": 1}, {"min": float("inf"), "multiplier": 1}],
+    ],
+)
+def test_invalid_multiplier_bands_rejected_through_all_config_paths(
+    direction: str,
+    dimension: str,
+    bands: list[dict[str, float]],
+) -> None:
+    key = f"deferral_rate_changes_multipliers_{direction}_{dimension}"
+    with pytest.raises(ValidationError):
+        DeferralRateChangesSettings(multipliers={direction: {dimension: bands}})
+    with pytest.raises(ValidationError):
+        StudioConfig.model_validate({"dc_plan": {key: bands}})
+    assert validate_dbt_vars({key: bands})
+
+
+def test_multiplier_defaults_are_independent_and_accept_zero() -> None:
+    settings = DeferralRateChangesSettings(
+        multipliers={"increase": {"age": [{"min": 0, "multiplier": 0}]}}
+    )
+    settings.multipliers.decrease.age[0].multiplier = 2
+    assert settings.multipliers.increase.age[0].multiplier == 0
+    assert settings.multipliers.decrease.tenure[0].multiplier == 1
+    assert DeferralRateChangesSettings().multipliers.decrease.age[0].multiplier == 1

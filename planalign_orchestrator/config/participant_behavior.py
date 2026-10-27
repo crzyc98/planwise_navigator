@@ -5,7 +5,14 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 Rate = Annotated[float, Field(ge=0, le=1)]
 AIPMode = Literal["automatic", "participant_elected"]
@@ -118,8 +125,65 @@ class DeferralChangeRates(BaseModel):
         return self
 
 
+class DeferralChangeMultiplierBand(BaseModel):
+    min: float = Field(
+        ge=0,
+        allow_inf_nan=False,
+        description="Inclusive lower bound: age/tenure in years or annual compensation in dollars. The final band is open-ended.",
+    )
+    multiplier: float = Field(
+        ge=0,
+        allow_inf_nan=False,
+        description="Non-negative probability multiplier; 1 preserves the base probability.",
+    )
+
+
+def validate_multiplier_bands(
+    bands: list[DeferralChangeMultiplierBand],
+) -> list[DeferralChangeMultiplierBand]:
+    """Require complete, ordered lower-bound coverage for demographic lookup."""
+    if not bands or bands[0].min != 0:
+        raise ValueError("multiplier bands must start at min 0")
+    if any(left.min >= right.min for left, right in zip(bands, bands[1:])):
+        raise ValueError("multiplier band min values must be strictly ascending")
+    return bands
+
+
+DeferralChangeMultiplierBands = Annotated[
+    list[DeferralChangeMultiplierBand],
+    Field(min_length=1),
+    AfterValidator(validate_multiplier_bands),
+]
+
+
+def neutral_multiplier_bands() -> list[DeferralChangeMultiplierBand]:
+    return [DeferralChangeMultiplierBand(min=0, multiplier=1.0)]
+
+
+class DeferralChangeDirectionMultipliers(BaseModel):
+    age: DeferralChangeMultiplierBands = Field(default_factory=neutral_multiplier_bands)
+    income: DeferralChangeMultiplierBands = Field(
+        default_factory=neutral_multiplier_bands
+    )
+    tenure: DeferralChangeMultiplierBands = Field(
+        default_factory=neutral_multiplier_bands
+    )
+
+
+class DeferralChangeMultipliers(BaseModel):
+    increase: DeferralChangeDirectionMultipliers = Field(
+        default_factory=DeferralChangeDirectionMultipliers
+    )
+    decrease: DeferralChangeDirectionMultipliers = Field(
+        default_factory=DeferralChangeDirectionMultipliers
+    )
+
+
 class DeferralRateChangesSettings(BaseModel):
     enabled: bool = False
+    multipliers: DeferralChangeMultipliers = Field(
+        default_factory=DeferralChangeMultipliers
+    )
     with_escalation: DeferralChangeRates = Field(
         default_factory=lambda: DeferralChangeRates(
             increase_probability=0.03, decrease_probability=0.15
