@@ -15,11 +15,19 @@ from planalign_orchestrator.dbt_executable import find_dbt_executable
 ROOT = Path(__file__).parents[2]
 
 
-@lru_cache(maxsize=None)
 def load_production_manifest(
     simulation_year: int = 2025, *, deferral_rate_changes_enabled: bool = False
 ) -> dict[str, Any]:
     """Return a freshly parsed manifest so tests never trust stale target state."""
+    # Normalize the arguments: lru_cache keys `f()`, `f(2025)` and
+    # `f(deferral_rate_changes_enabled=False)` separately, which re-ran the parse.
+    return _parse_manifest(simulation_year, deferral_rate_changes_enabled)
+
+
+@lru_cache(maxsize=None)
+def _parse_manifest(
+    simulation_year: int, deferral_rate_changes_enabled: bool
+) -> dict[str, Any]:
     dbt = find_dbt_executable()
     if dbt is None:
         raise AssertionError("dbt executable is required for graph-contract tests")
@@ -61,6 +69,11 @@ def load_production_manifest(
         if result.returncode != 0:
             raise AssertionError(f"dbt parse failed:\n{result.stdout}\n{result.stderr}")
         return json.loads((target / "manifest.json").read_text())
+
+
+def clear_manifest_cache() -> None:
+    """Forget parsed manifests (for tests that stub the parse)."""
+    _parse_manifest.cache_clear()
 
 
 def model_nodes(manifest: dict[str, Any]) -> dict[str, dict[str, Any]]:

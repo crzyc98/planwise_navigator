@@ -10,7 +10,7 @@ import pytest
 
 from planalign_orchestrator.dbt_executable import find_dbt_executable
 from planalign_orchestrator.dbt_runner import DbtExecutionError, DbtRunner
-from tests.helpers.dbt_manifest import load_production_manifest
+from tests.helpers.dbt_manifest import clear_manifest_cache, load_production_manifest
 
 pytestmark = pytest.mark.fast
 
@@ -93,7 +93,7 @@ def test_invalid_sibling_fails_clearly(
     assert find_dbt_executable() is None
     with pytest.raises(DbtExecutionError, match="not found on PATH or beside"):
         DbtRunner()._build_command(["run"])
-    load_production_manifest.cache_clear()
+    clear_manifest_cache()
     with pytest.raises(AssertionError, match="dbt executable is required"):
         load_production_manifest()
 
@@ -118,8 +118,8 @@ def test_explicit_override_is_preserved(unactivated_environment: Path) -> None:
 
 
 def test_manifest_helper_parses_with_sibling(unactivated_environment: Path) -> None:
-    load_production_manifest.cache_clear()
+    clear_manifest_cache()
     try:
         assert load_production_manifest() == {"nodes": {}}
     finally:
-        load_production_manifest.cache_clear()
+        clear_manifest_cache()
