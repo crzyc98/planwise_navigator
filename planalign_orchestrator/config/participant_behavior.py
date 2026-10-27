@@ -285,7 +285,7 @@ class DeferralRateChangesSettings(BaseModel):
     )
     with_escalation: DeferralChangeRates = Field(
         default_factory=lambda: DeferralChangeRates(
-            increase_probability=0.03, decrease_probability=0.15
+            increase_probability=0.03, decrease_probability=0.03
         )
     )
     without_escalation: DeferralChangeRates = Field(

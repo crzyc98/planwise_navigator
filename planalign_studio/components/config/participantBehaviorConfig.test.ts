@@ -55,7 +55,7 @@ describe('contribution rate change validation', () => {
 
   it('summarizes inactive, active, invalid and automatic-increase-off states in plain language', () => {
     expect(deferralRateChangesSummary({ ...DEFAULT_FORM_DATA, dcDeferralRateChangesEnabled: false })).toBe('Contribution rate changes off; settings inactive and saved values retained.');
-    expect(deferralRateChangesSummary(form)).toBe('In automatic increases: 3% raise, 15% lower; Not in automatic increases: 25% raise, 7.5% lower; 1.5% stop, 5% restart each year. Notice responses within 90 days; stay in automatic increases.');
+    expect(deferralRateChangesSummary(form)).toBe('In automatic increases: 3% raise, 3% lower; Not in automatic increases: 25% raise, 7.5% lower; 1.5% stop, 5% restart each year. Notice responses within 90 days; stay in automatic increases.');
     expect(deferralRateChangesSummary({ ...form, dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation: true })).toContain('leave automatic increases');
     expect(deferralRateChangesSummary({ ...form, dcAutoEscalation: false })).toContain('Notice responses inactive while automatic increases are off; saved settings retained.');
     expect(deferralRateChangesSummary({ ...form, dcDeferralRateChangesStopProbability: 100 })).toContain('settings need attention');

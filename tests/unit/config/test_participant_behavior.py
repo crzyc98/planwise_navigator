@@ -55,7 +55,7 @@ DEFAULTS: dict[str, Any] = {
     ],
     "deferral_rate_changes_enabled": True,
     "deferral_rate_changes_with_escalation_increase_probability": 0.03,
-    "deferral_rate_changes_with_escalation_decrease_probability": 0.15,
+    "deferral_rate_changes_with_escalation_decrease_probability": 0.03,
     "deferral_rate_changes_without_escalation_increase_probability": 0.25,
     "deferral_rate_changes_without_escalation_decrease_probability": 0.075,
     "deferral_rate_changes_increase_steps": [

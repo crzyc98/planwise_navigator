@@ -205,7 +205,7 @@ describe('contribution rate change payload and inheritance', () => {
     expect(payload(DEFAULT_FORM_DATA).dc_plan).toMatchObject({
       deferral_rate_changes_enabled: true,
       deferral_rate_changes_with_escalation_increase_probability: 0.03,
-      deferral_rate_changes_with_escalation_decrease_probability: 0.15,
+      deferral_rate_changes_with_escalation_decrease_probability: 0.03,
       deferral_rate_changes_without_escalation_increase_probability: 0.25,
       deferral_rate_changes_without_escalation_decrease_probability: 0.075,
       deferral_rate_changes_increase_steps: [{ pp: 1, weight: 0.1 }, { pp: 2, weight: 0.1 }, { pp: 3, weight: 0.15 }, { pp: 5, weight: 0.2 }, { pp: 7, weight: 0.2 }, { pp: 10, weight: 0.25 }],

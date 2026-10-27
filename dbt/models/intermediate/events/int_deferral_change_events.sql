@@ -118,7 +118,7 @@ rate_inputs AS (
       ELSE {{ var('deferral_rate_changes_without_escalation_increase_probability', 0.25) }}
     END AS base_increase_probability,
     CASE WHEN p.aip_participant
-      THEN {{ var('deferral_rate_changes_with_escalation_decrease_probability', 0.15) }}
+      THEN {{ var('deferral_rate_changes_with_escalation_decrease_probability', 0.03) }}
       ELSE {{ var('deferral_rate_changes_without_escalation_decrease_probability', 0.075) }}
     END AS base_decrease_probability,
     {{ enrollment_behavior_draw('w.employee_id', simulation_year, '-deferral-change-') }} AS choice_draw,

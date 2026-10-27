@@ -192,7 +192,7 @@ enrollment:
 
 deferral_rate_changes:               # new, #983
   enabled: false                                # Phase 4: true
-  with_escalation:     {increase_probability: 0.03,  decrease_probability: 0.15}
+  with_escalation:     {increase_probability: 0.03,  decrease_probability: 0.03}   # owner set 3% on 2026-10-27 (was 0.15); see Phase 4 PR
   without_escalation: {increase_probability: 0.25,  decrease_probability: 0.075}
   increase_steps: [{pp: 1, weight: 0.10}, {pp: 2, weight: 0.10}, {pp: 3, weight: 0.15}, {pp: 5, weight: 0.20}, {pp: 7, weight: 0.20}, {pp: 10, weight: 0.25}]  # fitted in PR 3e
   decrease_steps: [{pp: 1, weight: 0.10}, {pp: 2, weight: 0.15}, {pp: 3, weight: 0.15}, {pp: 5, weight: 0.20}, {pp: 8, weight: 0.20}, {pp: 12, weight: 0.20}]  # fitted in PR 3e

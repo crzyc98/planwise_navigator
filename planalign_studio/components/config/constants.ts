@@ -212,7 +212,7 @@ export const DEFAULT_FORM_DATA: FormData = {
   dcEasyEnrollEscalationCap: 10,
   dcDeferralRateChangesEnabled: true,
   dcDeferralRateChangesWithEscalationIncreaseProbability: 3,
-  dcDeferralRateChangesWithEscalationDecreaseProbability: 15,
+  dcDeferralRateChangesWithEscalationDecreaseProbability: 3,
   dcDeferralRateChangesWithoutEscalationIncreaseProbability: 25,
   dcDeferralRateChangesWithoutEscalationDecreaseProbability: 7.5,
   dcDeferralRateChangesIncreaseSteps: [{ pp: 1, weight: 10 }, { pp: 2, weight: 10 }, { pp: 3, weight: 15 }, { pp: 5, weight: 20 }, { pp: 7, weight: 20 }, { pp: 10, weight: 25 }],

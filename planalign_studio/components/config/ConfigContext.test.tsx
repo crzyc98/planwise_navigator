@@ -172,7 +172,7 @@ describe('Configuration save year validation', () => {
     const saved = structuredClone(DEFAULT_FORM_DATA);
     try {
       DEFAULT_FORM_DATA.dcDeferralRateChangesEnabled = true;
-      DEFAULT_FORM_DATA.dcDeferralRateChangesWithEscalationIncreaseProbability = 90;
+      DEFAULT_FORM_DATA.dcDeferralRateChangesWithEscalationIncreaseProbability = 97;
       expect(() => contextFromProvider().buildDraftConfig()).toThrow('raise, lower and stop chances together');
       expect(await saveFromProvider()()).toBe(false);
       expect(updateWorkspace).not.toHaveBeenCalled();
