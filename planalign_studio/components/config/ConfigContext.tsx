@@ -6,7 +6,7 @@ import { DEFAULT_FORM_DATA } from './constants';
 import { buildConfigPayload } from './buildConfigPayload';
 import { applyConfigEdits, preserveDisplayedMatchEligibility, synchronizeCompensationAliases } from './configEdits';
 import { applyResolvedFormData } from './resolvedFormData';
-import { participantBehaviorFormFields, validateBelowDefaultSettings, validateEasyEnrollSettings } from './participantBehaviorConfig';
+import { participantBehaviorFormFields, validateBelowDefaultSettings, validateEasyEnrollSettings, validateDeferralRateChangeSettings } from './participantBehaviorConfig';
 import { validateNumericInputs } from './NumericInput';
 import { extractCensusPath, resolveCensusFields } from './censusConfig';
 export { extractCensusPath } from './censusConfig';
@@ -685,6 +685,10 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
     }
     if (current.formData.dcEasyEnrollEnabled) {
       const errors = validateEasyEnrollSettings(current.formData);
+      if (errors.length) throw new Error(errors.join(' '));
+    }
+    if (current.formData.dcDeferralRateChangesEnabled) {
+      const errors = validateDeferralRateChangeSettings(current.formData);
       if (errors.length) throw new Error(errors.join(' '));
     }
     const target = { isScenario: !!scenarioId, workspacePath: extractCensusPath(freshBaseConfig) };

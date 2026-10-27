@@ -156,3 +156,80 @@ it('retains an existing method without adding omitted sweep options', () => {
   expect(payload(form).dc_plan).not.toHaveProperty('reenrollment_sweep_decline_probability');
   expect(payload(form).dc_plan).not.toHaveProperty('reenrollment_sweep_include_below_default');
 });
+
+const rateChanges = {
+  deferral_rate_changes_enabled: true,
+  deferral_rate_changes_with_escalation_increase_probability: 0.0325,
+  deferral_rate_changes_with_escalation_decrease_probability: 0.15,
+  deferral_rate_changes_without_escalation_increase_probability: 0.25,
+  deferral_rate_changes_without_escalation_decrease_probability: 0.075,
+  deferral_rate_changes_increase_steps: [{ pp: 2, weight: 0.625 }, { pp: 5, weight: 0.375 }],
+  deferral_rate_changes_decrease_steps: [{ pp: 1, weight: 0.25 }, { pp: 8, weight: 0.75 }],
+  deferral_rate_changes_post_escalation_decrease_window_days: 123,
+  deferral_rate_changes_post_escalation_decrease_leaves_escalation: true,
+  deferral_rate_changes_stop_probability: 0.015,
+  deferral_rate_changes_restart_probability: 0.0125,
+};
+
+describe('contribution rate change payload and inheritance', () => {
+  it('loads all decimal overrides and round trips without scaling points or days', () => {
+    const form = applyConfigToFormData({ dc_plan: rateChanges }, DEFAULT_FORM_DATA);
+    expect(form).toMatchObject({
+      dcDeferralRateChangesEnabled: true,
+      dcDeferralRateChangesWithEscalationIncreaseProbability: 3.25,
+      dcDeferralRateChangesWithEscalationDecreaseProbability: 15,
+      dcDeferralRateChangesWithoutEscalationIncreaseProbability: 25,
+      dcDeferralRateChangesWithoutEscalationDecreaseProbability: 7.5,
+      dcDeferralRateChangesIncreaseSteps: [{ pp: 2, weight: 62.5 }, { pp: 5, weight: 37.5 }],
+      dcDeferralRateChangesDecreaseSteps: [{ pp: 1, weight: 25 }, { pp: 8, weight: 75 }],
+      dcDeferralRateChangesPostEscalationDecreaseWindowDays: 123,
+      dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation: true,
+      dcDeferralRateChangesStopProbability: 1.5,
+      dcDeferralRateChangesRestartProbability: 1.25,
+    });
+    expect(payload(form).dc_plan).toMatchObject(rateChanges);
+    expect(payload(applyResolvedFormData(rateChanges, DEFAULT_FORM_DATA)).dc_plan).toMatchObject(rateChanges);
+    expect(applyConfigToFormData({}, form)).toEqual(form);
+    expect(rateChanges.deferral_rate_changes_increase_steps[0]).toEqual({ pp: 2, weight: 0.625 });
+    const off = applyConfigToFormData({ dc_plan: { deferral_rate_changes_enabled: false,
+      deferral_rate_changes_post_escalation_decrease_leaves_escalation: false,
+      deferral_rate_changes_with_escalation_increase_probability: 0, deferral_rate_changes_restart_probability: 0,
+    } }, form);
+    expect(off).toMatchObject({ dcDeferralRateChangesEnabled: false,
+      dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation: false,
+      dcDeferralRateChangesWithEscalationIncreaseProbability: 0, dcDeferralRateChangesRestartProbability: 0,
+      dcDeferralRateChangesIncreaseSteps: form.dcDeferralRateChangesIncreaseSteps });
+  });
+
+  it('matches every shipped default', () => {
+    expect(payload(DEFAULT_FORM_DATA).dc_plan).toMatchObject({
+      deferral_rate_changes_enabled: false,
+      deferral_rate_changes_with_escalation_increase_probability: 0.03,
+      deferral_rate_changes_with_escalation_decrease_probability: 0.15,
+      deferral_rate_changes_without_escalation_increase_probability: 0.25,
+      deferral_rate_changes_without_escalation_decrease_probability: 0.075,
+      deferral_rate_changes_increase_steps: [{ pp: 1, weight: 0.15 }, { pp: 2, weight: 0.2 }, { pp: 3, weight: 0.15 }, { pp: 5, weight: 0.2 }, { pp: 7, weight: 0.15 }, { pp: 10, weight: 0.15 }],
+      deferral_rate_changes_decrease_steps: [{ pp: 1, weight: 0.15 }, { pp: 2, weight: 0.25 }, { pp: 3, weight: 0.2 }, { pp: 5, weight: 0.2 }, { pp: 8, weight: 0.2 }],
+      deferral_rate_changes_post_escalation_decrease_window_days: 90,
+      deferral_rate_changes_post_escalation_decrease_leaves_escalation: false,
+      deferral_rate_changes_stop_probability: 0.015, deferral_rate_changes_restart_probability: 0,
+    });
+  });
+
+  it.each([{}, { dc_plan: rateChanges }, { deferral_rate_changes: {
+    enabled: true, increase_steps: rateChanges.deferral_rate_changes_increase_steps,
+  } }])('sends no new keys on untouched or unrelated scenario edits: %j', original => {
+    const form = applyResolvedFormData(rateChanges, applyConfigToFormData(original, DEFAULT_FORM_DATA));
+    expect(applyConfigEdits(original, payload(form), payload(structuredClone(form)))).toEqual(original);
+    expect(applyConfigEdits(original, payload(form), payload({ ...form, seed: form.seed + 1 })))
+      .toEqual({ ...original, simulation: { random_seed: form.seed + 1 } });
+  });
+
+  it('persists only edited keys, retaining saved inactive values', () => {
+    const form = applyResolvedFormData(rateChanges, DEFAULT_FORM_DATA);
+    expect(applyConfigEdits({}, payload(form), payload({ ...form, dcDeferralRateChangesEnabled: false,
+      dcDeferralRateChangesStopProbability: 2.25, dcDeferralRateChangesIncreaseSteps: [{ pp: 3, weight: 100 }],
+    }))).toEqual({ dc_plan: { deferral_rate_changes_enabled: false,
+      deferral_rate_changes_stop_probability: 0.0225, deferral_rate_changes_increase_steps: [{ pp: 3, weight: 1 }] } });
+  });
+});

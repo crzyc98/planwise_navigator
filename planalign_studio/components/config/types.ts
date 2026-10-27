@@ -7,7 +7,8 @@ export type EscalationMode = NonNullable<components['schemas']['StudioDCPlanConf
 // Same row contracts as the API, with rates/shares/weights displayed as percents.
 // pp remains a whole number of percentage points in both the UI and API.
 export type BelowDefaultTier = components['schemas']['BelowDefaultTier'];
-export type BelowDefaultStep = components['schemas']['DeferralChangeStep'];
+export type DeferralChangeStep = components['schemas']['DeferralChangeStep'];
+export type BelowDefaultStep = DeferralChangeStep;
 export type EasyEnrollPackage = components['schemas']['EasyEnrollPackage'];
 
 export interface MatchTier {
@@ -190,6 +191,17 @@ export interface FormData {
   dcEasyEnrollShareWithAutoEnrollment: number;
   dcEasyEnrollPackages: EasyEnrollPackage[];
   dcEasyEnrollEscalationCap: number;
+  dcDeferralRateChangesEnabled: boolean;
+  dcDeferralRateChangesWithEscalationIncreaseProbability: number;
+  dcDeferralRateChangesWithEscalationDecreaseProbability: number;
+  dcDeferralRateChangesWithoutEscalationIncreaseProbability: number;
+  dcDeferralRateChangesWithoutEscalationDecreaseProbability: number;
+  dcDeferralRateChangesIncreaseSteps: DeferralChangeStep[];
+  dcDeferralRateChangesDecreaseSteps: DeferralChangeStep[];
+  dcDeferralRateChangesPostEscalationDecreaseWindowDays: number;
+  dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation: boolean;
+  dcDeferralRateChangesStopProbability: number;
+  dcDeferralRateChangesRestartProbability: number;
 
   // DC Plan - Auto-Enrollment Advanced
   dcAutoEnrollWindowDays: number;
