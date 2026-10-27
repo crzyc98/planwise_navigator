@@ -17,3 +17,4 @@ enrollment: {auto_enrollment: {enabled: false}, proactive_enrollment: {enabled: 
 deferral_rates: {use_census_rates: true, plan_deferral_cap: 0.75, generate_synthetic_events: true}
 deferral_auto_escalation: {enabled: false}
 optimization: {max_workers: 1}
+deferral_rate_changes: {enabled: false}
