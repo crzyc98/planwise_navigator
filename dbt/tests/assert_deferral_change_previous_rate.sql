@@ -1,5 +1,6 @@
 -- D2/D3 and canonical state contract. Rates above the voluntary/IRS cap may
 -- decrease toward it; an increase must never breach it or reverse direction.
+{{ config(severity='error') }}
 WITH changes AS (
   SELECT employee_id, scenario_id, plan_design_id, simulation_year, effective_date,
     event_category, employee_deferral_rate, prev_employee_deferral_rate,
@@ -27,13 +28,43 @@ LEFT JOIN {{ ref('int_deferral_rate_state_accumulator') }} state
   AND events.simulation_year = state.simulation_year
 LEFT JOIN {{ ref('int_employee_compensation_by_year') }} w
   ON events.employee_id = w.employee_id AND events.simulation_year = w.simulation_year
+LEFT JOIN {{ ref('int_deferral_rate_state_accumulator') }} previous_state
+  ON events.scenario_id = previous_state.scenario_id
+  AND events.employee_id = previous_state.employee_id
+  AND events.simulation_year - 1 = previous_state.simulation_year
 CROSS JOIN irs_limits il
 WHERE state.employee_id IS NULL
   OR events.prev_employee_deferral_rate IS DISTINCT FROM state.rate_before_voluntary_change
   OR events.employee_deferral_rate IS DISTINCT FROM state.current_deferral_rate
   OR events.change_count <> 1
+  OR EXISTS (
+    SELECT 1 FROM {{ ref('fct_yearly_events') }} opted_out
+    WHERE opted_out.scenario_id = events.scenario_id
+      AND opted_out.employee_id = events.employee_id
+      AND opted_out.simulation_year = events.simulation_year
+      AND opted_out.event_type = 'enrollment_change'
+      AND COALESCE(opted_out.employee_deferral_rate, 0) = 0
+  )
   OR events.employee_deferral_rate IS NULL
-  OR events.employee_deferral_rate <= 0
+  OR events.employee_deferral_rate < 0
+  OR (events.event_category <> 'stop' AND events.employee_deferral_rate = 0)
+  OR (events.event_category = 'stop' AND (
+    events.employee_deferral_rate <> 0 OR events.prev_employee_deferral_rate <= 0
+    OR state.is_enrolled_flag IS DISTINCT FROM TRUE
+    OR state.last_nonzero_deferral_rate IS DISTINCT FROM events.prev_employee_deferral_rate))
+  OR (events.event_category = 'restart' AND (
+    previous_state.is_enrolled_flag IS DISTINCT FROM TRUE
+    OR previous_state.current_deferral_rate IS DISTINCT FROM 0
+    OR previous_state.last_nonzero_deferral_rate IS NULL
+    OR events.prev_employee_deferral_rate <> 0
+    OR state.is_enrolled_flag IS DISTINCT FROM TRUE
+    OR NOT {{ has_unreversed_stop(ref('fct_yearly_events'), 'events.employee_id',
+      'events.scenario_id', 'events.simulation_year') }}
+    OR events.employee_deferral_rate IS DISTINCT FROM CAST(LEAST(
+      previous_state.last_nonzero_deferral_rate,
+      {{ deferral_change_cap('w.employee_compensation',
+        'COALESCE(' ~ var('simulation_year') ~ ' - YEAR(w.employee_birth_date), w.current_age)') }}
+    ) AS DECIMAL(5,4))))
   OR (events.event_category IN ('proactive_decrease', 'aip_response_decrease') AND (
     events.employee_deferral_rate >= events.prev_employee_deferral_rate
     OR events.employee_deferral_rate < LEAST(0.01, events.prev_employee_deferral_rate)))
@@ -41,7 +72,7 @@ WHERE state.employee_id IS NULL
     events.employee_deferral_rate <= events.prev_employee_deferral_rate
     OR events.employee_deferral_rate > {{ deferral_change_cap('w.employee_compensation',
       'COALESCE(' ~ var('simulation_year') ~ ' - YEAR(w.employee_birth_date), w.current_age)') }}))
-  OR events.event_category NOT IN ('proactive_increase', 'proactive_decrease', 'aip_response_decrease')
+  OR events.event_category NOT IN ('proactive_increase', 'proactive_decrease', 'aip_response_decrease', 'stop', 'restart')
   OR events.effective_date IS NULL
   OR events.effective_date <= MAKE_DATE(events.simulation_year, 1, 1)
   OR events.effective_date > MAKE_DATE(events.simulation_year, 12, 31)

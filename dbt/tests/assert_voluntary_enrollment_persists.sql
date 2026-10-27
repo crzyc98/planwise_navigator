@@ -11,6 +11,7 @@
 -- For each employee who is a participating voluntary enrollee in year Y and remains
 -- active in year Y+1 with no opt-out event in Y+1, the year Y+1 snapshot must still
 -- show them participating with a non-zero deferral rate.
+-- D1: an explicit stop may instead leave them enrolled at zero, with stopped status.
 -- Returns offending rows (build fails on any).
 
 WITH voluntary_years AS (
@@ -58,3 +59,16 @@ LEFT JOIN opt_outs oo
 WHERE nxt.employment_status <> 'terminated'
   AND oo.employee_id IS NULL
   AND (nxt.participation_status <> 'participating' OR COALESCE(nxt.current_deferral_rate, 0) <= 0)
+{% if var('deferral_rate_changes_enabled', false) %}
+  AND NOT EXISTS (
+    SELECT 1 FROM {{ ref('fct_yearly_events') }} stopped
+    WHERE stopped.employee_id = nxt.employee_id
+      AND stopped.scenario_id = nxt.scenario_id
+      AND stopped.simulation_year = nxt.simulation_year
+      AND stopped.event_type = 'deferral_change' AND stopped.event_category = 'stop'
+      AND nxt.is_enrolled_flag
+      AND nxt.current_deferral_rate = 0
+      AND nxt.participation_status = 'not_participating'
+      AND nxt.participation_status_detail = 'not_participating - stopped contributions'
+  )
+{% endif %}

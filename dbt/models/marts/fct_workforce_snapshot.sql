@@ -83,6 +83,9 @@ deferral AS (
     SELECT
       employee_id,
       current_deferral_rate,
+{% if var('deferral_rate_changes_enabled', false) %}
+      is_enrolled_flag,
+{% endif %}
       escalations_received,
       last_escalation_date,
       has_escalations,
@@ -343,6 +346,12 @@ composed AS (
             THEN 'participating - unknown source'
           ELSE 'participating - voluntary enrollment'
         END
+{% if var('deferral_rate_changes_enabled', false) %}
+      WHEN deferral.current_deferral_rate = 0 AND deferral.is_enrolled_flag
+        AND {{ has_unreversed_stop(ref('fct_yearly_events'), 'workforce.employee_id',
+          "'" ~ scenario_id ~ "'", simulation_year + 1) }}
+        THEN 'not_participating - stopped contributions'
+{% endif %}
       WHEN COALESCE(enrollment.ever_opted_out, FALSE)
         THEN 'not_participating - opted out of AE'
       WHEN COALESCE(enrollment.ever_unenrolled, FALSE)

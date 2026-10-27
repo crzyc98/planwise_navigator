@@ -172,6 +172,9 @@ models:
     config:
       tags: ["critical", "foundation", "contract"]
     data_tests:
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "participation_status_detail <> 'not_participating - stopped contributions' OR (participation_status = 'not_participating' AND current_deferral_rate = 0 AND is_enrolled_flag)"
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:

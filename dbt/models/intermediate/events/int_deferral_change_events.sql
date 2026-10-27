@@ -36,6 +36,7 @@ WITH irs_limits AS (
 continuous_participants AS (
   {% if simulation_year == start_year %}
   SELECT b.employee_id, b.employee_deferral_rate AS previous_deferral_rate,
+    b.employee_deferral_rate AS last_nonzero_deferral_rate,
     {{ aip_initial_membership(var('deferral_escalation_mode', 'automatic'),
       'census.auto_escalation_opt_out', 'b.employee_id') }} AS aip_participant
   FROM {{ ref('int_baseline_workforce') }} b
@@ -45,11 +46,18 @@ continuous_participants AS (
     AND b.employee_deferral_rate > 0
   {% else %}
   -- Temporal read, like escalation: ref() would create a dependency cycle.
-  SELECT employee_id, current_deferral_rate AS previous_deferral_rate, aip_participant
-  FROM {{ target.schema }}.int_deferral_rate_state_accumulator
-  WHERE simulation_year = {{ simulation_year - 1 }}
-    AND scenario_id = '{{ scenario_id }}'
-    AND is_enrolled_flag AND current_deferral_rate > 0
+  SELECT p.employee_id, p.current_deferral_rate AS previous_deferral_rate,
+    p.last_nonzero_deferral_rate, p.aip_participant
+  FROM {{ target.schema }}.int_deferral_rate_state_accumulator p
+  WHERE p.simulation_year = {{ simulation_year - 1 }}
+    AND p.scenario_id = '{{ scenario_id }}'
+    AND p.is_enrolled_flag
+    AND (p.current_deferral_rate > 0 OR (
+      p.current_deferral_rate = 0 AND p.last_nonzero_deferral_rate > 0
+      -- Prior-year published facts only: do not depend on this year's event union.
+      AND {{ has_unreversed_stop(target.schema ~ '.fct_yearly_events',
+        'p.employee_id', 'p.scenario_id', simulation_year) }}
+    ))
   {% endif %}
 ),
 enrollments AS (
@@ -83,6 +91,7 @@ match_responses AS (
 rate_inputs AS (
   SELECT w.employee_id, w.employee_ssn, w.employee_compensation,
     w.current_age, w.current_tenure, w.level_id, p.aip_participant,
+    p.previous_deferral_rate, p.last_nonzero_deferral_rate,
     notice.effective_date AS escalation_date,
     {{ rate_before_voluntary_change(
       'oo.employee_id IS NOT NULL', 'TRUE',
@@ -106,6 +115,7 @@ rate_inputs AS (
       ELSE {{ var('deferral_rate_changes_without_escalation_decrease_probability', 0.075) }}
     END AS decrease_probability,
     {{ enrollment_behavior_draw('w.employee_id', simulation_year, '-deferral-change-') }} AS choice_draw,
+    {{ enrollment_behavior_draw('w.employee_id', simulation_year, '-deferral-restart-') }} AS restart_draw,
     {{ enrollment_behavior_draw('w.employee_id', simulation_year, '-deferral-change-step-') }} AS step_draw,
     {{ enrollment_behavior_draw('w.employee_id', simulation_year, '-deferral-change-timing-') }} AS timing_draw
   FROM continuous_participants p
@@ -130,22 +140,28 @@ rate_inputs AS (
 choices AS (
   SELECT employee_id, employee_ssn, employee_compensation, current_age,
     current_tenure, level_id, previous_rate, rate_cap, increase_probability,
-    decrease_probability, step_draw,
-    {{ deferral_change_category('choice_draw', 'increase_probability', 'decrease_probability',
-      'escalation_date IS NOT NULL') }} AS category,
+    decrease_probability, step_draw, last_nonzero_deferral_rate,
+    CASE WHEN previous_deferral_rate = 0 THEN
+      CASE WHEN previous_rate = 0
+        AND restart_draw < {{ var('deferral_rate_changes_restart_probability', 0.0) }}
+        THEN 'restart' END
+      ELSE {{ deferral_change_category('choice_draw', 'increase_probability', 'decrease_probability',
+        'escalation_date IS NOT NULL', var('deferral_rate_changes_stop_probability', 0.015)) }}
+    END AS category,
     window_start, window_end, escalation_date, timing_draw
   FROM rate_inputs
-  WHERE previous_rate > 0
+  WHERE previous_rate > 0 OR previous_deferral_rate = 0
 ),
 steps AS (
   SELECT employee_id, employee_ssn, employee_compensation, current_age,
     current_tenure, level_id, previous_rate, rate_cap, increase_probability,
-    decrease_probability, category,
+    decrease_probability, category, last_nonzero_deferral_rate,
     {{ deferral_change_date('window_start',
       "CASE WHEN category = 'aip_response_decrease' THEN LEAST(window_end, escalation_date + "
       ~ var('deferral_rate_changes_post_escalation_decrease_window_days', 90)
       ~ ') ELSE window_end END', 'timing_draw') }} AS change_date,
-    CASE WHEN category = 'proactive_increase'
+    CASE WHEN category IN ('stop', 'restart') THEN 0
+      WHEN category = 'proactive_increase'
       THEN {{ deferral_change_step('step_draw', 'increase') }}
       ELSE {{ deferral_change_step('step_draw', 'decrease') }} END AS step_pp
   FROM choices
@@ -155,7 +171,8 @@ changes AS (
   SELECT employee_id, employee_ssn, employee_compensation, current_age,
     current_tenure, level_id, previous_rate, increase_probability,
     decrease_probability, category, change_date, step_pp,
-    {{ deferral_change_rate('previous_rate', 'category', 'step_pp', 'rate_cap') }} AS new_rate
+    {{ deferral_change_rate('previous_rate', 'category', 'step_pp', 'rate_cap',
+      'last_nonzero_deferral_rate') }} AS new_rate
   FROM steps
 )
 SELECT
@@ -165,7 +182,9 @@ SELECT
   {{ simulation_year }}::INTEGER AS simulation_year,
   change_date::DATE AS effective_date,
   (REPLACE(category, '_', ' ') || ': ' || ROUND(previous_rate * 100, 2)
-    || '% -> ' || ROUND(new_rate * 100, 2) || '% (drawn step ' || step_pp || 'pp)')::VARCHAR AS event_details,
+    || '% -> ' || ROUND(new_rate * 100, 2) || '%'
+    || CASE WHEN category IN ('stop', 'restart') THEN ''
+      ELSE ' (drawn step ' || step_pp || 'pp)' END)::VARCHAR AS event_details,
   employee_compensation::DECIMAL(15,2) AS compensation_amount,
   employee_compensation::DECIMAL(15,2) AS previous_compensation,
   new_rate::DECIMAL(5,4) AS employee_deferral_rate,
@@ -176,6 +195,8 @@ SELECT
   {{ assign_age_band('current_age') }}::VARCHAR AS age_band,
   {{ assign_tenure_band('current_tenure') }}::VARCHAR AS tenure_band,
   (CASE WHEN category = 'proactive_increase' THEN increase_probability
+    WHEN category = 'stop' THEN {{ var('deferral_rate_changes_stop_probability', 0.015) }}
+    WHEN category = 'restart' THEN {{ var('deferral_rate_changes_restart_probability', 0.0) }}
     ELSE decrease_probability END)::DECIMAL(5,4) AS event_probability,
   category::VARCHAR AS event_category
 FROM changes

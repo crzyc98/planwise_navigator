@@ -173,7 +173,7 @@ models:
                 inclusive: true
 
   - name: int_deferral_change_events
-    description: Continuous participants may increase or decrease once per year, after other rate events; decreases following an escalation respond within the configured notice window.
+    description: Continuous participants may increase, decrease, or stop once per year; enrolled prior stoppers may restart. Changes follow all other rate events.
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -215,7 +215,7 @@ models:
           - not_null
           - dbt_utils.expression_is_true:
               arguments:
-                expression: "> 0"
+                expression: ">= 0"
       - name: employee_age
         data_type: SMALLINT
       - name: employee_tenure
@@ -234,4 +234,4 @@ models:
           - not_null
           - accepted_values:
               arguments:
-                values: ['proactive_increase', 'proactive_decrease', 'aip_response_decrease']
+                values: ['proactive_increase', 'proactive_decrease', 'aip_response_decrease', 'stop', 'restart']

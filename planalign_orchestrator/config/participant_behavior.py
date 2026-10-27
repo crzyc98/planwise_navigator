@@ -154,6 +154,21 @@ class DeferralRateChangesSettings(BaseModel):
     stop_probability: Rate = 0.015
     restart_probability: Rate = 0.0
 
+    @model_validator(mode="after")
+    def check_stop_probability_mass(self) -> "DeferralRateChangesSettings":
+        if self.enabled:
+            for rates in (self.with_escalation, self.without_escalation):
+                if (
+                    rates.increase_probability
+                    + rates.decrease_probability
+                    + self.stop_probability
+                    > 1.0
+                ):
+                    raise ValueError(
+                        "increase, decrease and stop probabilities must sum to at most 1"
+                    )
+        return self
+
     @field_validator("increase_steps", "decrease_steps")
     @classmethod
     def check_steps(cls, steps: list[DeferralChangeStep]) -> list[DeferralChangeStep]:

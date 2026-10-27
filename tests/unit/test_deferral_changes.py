@@ -41,6 +41,7 @@ def render(source: str, **variables: Any) -> str:
             var=lambda name, default=None: variables.get(name, default),
             ref=lambda name: name,
             config=lambda **kwargs: "",
+            is_incremental=lambda: False,
             this="int_deferral_rate_state_accumulator",
             target={"schema": "main"},
             assign_age_band=lambda column: "'35-44'",
@@ -248,6 +249,7 @@ def event_sql(year: int = 2025, **variables: Any) -> str:
     defaults = {
         "simulation_year": year,
         "deferral_rate_changes_enabled": True,
+        "deferral_rate_changes_stop_probability": 0.0,
         "deferral_rate_changes_with_escalation_increase_probability": 0.5,
         "deferral_rate_changes_with_escalation_decrease_probability": 0.5,
         "deferral_rate_changes_increase_steps": [{"pp": 2, "weight": 1}],
@@ -508,11 +510,16 @@ def test_prior_year_stopped_and_unenrolled_are_ineligible(
       CREATE TABLE int_deferral_rate_state_accumulator AS
       SELECT employee_id, 'default' AS scenario_id, 2025 AS simulation_year,
         CASE WHEN employee_id = 'employee-0' THEN .06 ELSE 0 END AS current_deferral_rate,
-        employee_id <> 'employee-0' AS is_enrolled_flag, TRUE AS aip_participant
+        employee_id <> 'employee-0' AS is_enrolled_flag, TRUE AS aip_participant,
+        .06::DECIMAL(5,4) AS last_nonzero_deferral_rate
       FROM int_baseline_workforce;
       UPDATE int_employee_compensation_by_year SET simulation_year = 2026;
       UPDATE int_plan_design_assignment_accumulator SET simulation_year = 2026
     """)
+    conn.execute(
+        "CREATE TABLE fct_yearly_events AS SELECT *, 'default' AS scenario_id "
+        "FROM (" + event_sql() + ") WHERE FALSE"
+    )
     assert conn.execute(event_sql(2026)).fetchall() == []
 
 
