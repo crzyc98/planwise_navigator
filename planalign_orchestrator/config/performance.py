@@ -5,7 +5,7 @@ E073: Config Module Refactoring - performance module.
 
 from __future__ import annotations
 
-from typing import Any, List, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -140,7 +140,6 @@ class CPUMonitoringThresholds(BaseModel):
 class CPUMonitoringSettings(BaseModel):
     """CPU monitoring configuration for Story S067-03."""
 
-    enabled: bool = Field(default=True, description="Enable CPU monitoring")
     monitoring_interval_seconds: float = Field(
         default=1.0, ge=0.1, le=60.0, description="CPU monitoring interval in seconds"
     )
@@ -161,10 +160,6 @@ class CPUMonitoringSettings(BaseModel):
 class ResourceManagerSettings(BaseModel):
     """Advanced resource management configuration for Story S067-03."""
 
-    enabled: bool = Field(
-        default=False, description="Enable advanced resource management"
-    )
-
     memory_monitoring: AdaptiveMemorySettings = Field(
         default_factory=AdaptiveMemorySettings,
         description="Memory monitoring configuration",
@@ -176,31 +171,19 @@ class ResourceManagerSettings(BaseModel):
     )
 
     adaptive_scaling_enabled: bool = Field(
-        default=True, description="Enable adaptive thread count scaling"
+        default=True, description="Ignored; no engine consumer"
     )
-    min_threads: int = Field(default=1, ge=1, le=16, description="Minimum thread count")
-    max_threads: int = Field(default=8, ge=1, le=16, description="Maximum thread count")
-    adjustment_cooldown_seconds: float = Field(
-        default=30.0,
-        ge=5.0,
-        le=300.0,
-        description="Cooldown period between thread adjustments",
+    min_threads: int = Field(
+        default=1, ge=1, le=16, description="Ignored; no engine consumer"
+    )
+    max_threads: int = Field(
+        default=8, ge=1, le=16, description="Ignored; no engine consumer"
     )
 
-    benchmarking_enabled: bool = Field(
-        default=False, description="Enable performance benchmarking"
-    )
-    benchmark_thread_counts: List[int] = Field(
-        default=[1, 2, 4, 6, 8], description="Thread counts to benchmark"
-    )
-
-    auto_cleanup_enabled: bool = Field(
-        default=True, description="Enable automatic resource cleanup"
-    )
     cleanup_threshold_mb: float = Field(
         default=2500.0,
         ge=1000.0,
-        description="Memory threshold for triggering cleanup in MB",
+        description="Ignored; no engine consumer",
     )
 
 
@@ -221,35 +204,18 @@ class ModelParallelizationSettings(BaseModel):
         le=16,
         description="Maximum parallel workers for model execution",
     )
-    memory_limit_mb: float = Field(
-        default=4000.0,
-        ge=1000.0,
-        description="Memory limit for parallel execution in MB",
-    )
     enable_conditional_parallelization: bool = Field(
         default=False, description="Allow parallelization of conditional models"
     )
     deterministic_execution: bool = Field(
-        default=True, description="Ensure deterministic execution order"
-    )
-    resource_monitoring: bool = Field(
-        default=True, description="Enable resource monitoring during execution"
+        default=True, description="Ignored; no engine consumer"
     )
 
     class SafetySettings(BaseModel):
         """Safety settings for model parallelization."""
 
-        fallback_on_resource_pressure: bool = Field(
-            default=True, description="Fall back to sequential on resource pressure"
-        )
         validate_execution_safety: bool = Field(
             default=True, description="Validate execution safety before parallelization"
-        )
-        abort_on_dependency_conflict: bool = Field(
-            default=True, description="Abort if dependency conflicts detected"
-        )
-        max_retries_per_model: int = Field(
-            default=2, ge=1, le=5, description="Maximum retries per failed model"
         )
 
     safety: SafetySettings = Field(
@@ -273,10 +239,10 @@ class ThreadingSettings(BaseModel):
     )
     mode: str = Field(
         default="selective",
-        description="Threading mode: selective, aggressive, sequential",
+        description="Ignored; no engine consumer",
     )
     memory_per_thread_gb: float = Field(
-        default=1.0, ge=0.25, le=8.0, description="Memory allocation per thread in GB"
+        default=1.0, ge=0.25, le=8.0, description="Ignored; no engine consumer"
     )
 
     parallelization: ModelParallelizationSettings = Field(
@@ -325,39 +291,19 @@ class PolarsEventSettings(BaseModel):
     to prevent config parsing errors from existing configuration files.
     """
 
-    enabled: bool = Field(default=False, description="[DEPRECATED] Polars mode removed")
-    max_threads: int = Field(default=16, ge=1, le=32, description="[DEPRECATED]")
-    batch_size: int = Field(
-        default=10000, ge=1000, le=50000, description="[DEPRECATED]"
-    )
-    output_path: str = Field(default="data/parquet/events", description="[DEPRECATED]")
-    enable_compression: bool = Field(default=True, description="[DEPRECATED]")
     compression_level: int = Field(default=6, ge=1, le=22, description="[DEPRECATED]")
-    enable_profiling: bool = Field(default=False, description="[DEPRECATED]")
     max_memory_gb: float = Field(
         default=8.0, ge=1.0, le=64.0, description="[DEPRECATED]"
     )
     lazy_evaluation: bool = Field(default=True, description="[DEPRECATED]")
     streaming: bool = Field(default=True, description="[DEPRECATED]")
     parallel_io: bool = Field(default=True, description="[DEPRECATED]")
-    fallback_on_error: bool = Field(default=True, description="[DEPRECATED]")
-    use_cohort_engine: bool = Field(default=False, description="[DEPRECATED]")
-    cohort_output_dir: str = Field(
-        default="outputs/polars_cohorts", description="[DEPRECATED]"
-    )
-    state_accumulation_enabled: bool = Field(default=False, description="[DEPRECATED]")
-    state_accumulation_fallback_on_error: bool = Field(
-        default=True, description="[DEPRECATED]"
-    )
-    state_accumulation_validate_results: bool = Field(
-        default=False, description="[DEPRECATED]"
-    )
 
 
 class EventGenerationSettings(BaseModel):
     """Event generation configuration. All simulations use SQL mode."""
 
-    mode: str = Field(default="sql", description="Event generation mode (always 'sql')")
+    mode: str = Field(default="sql", description="Ignored; no engine consumer")
     polars: PolarsEventSettings = Field(
         default_factory=PolarsEventSettings,
         description="[DEPRECATED] Legacy Polars settings",
@@ -446,19 +392,6 @@ class OptimizationSettings(BaseModel):
                 f"received {value!r}"
             )
         return value
-
-    level: str = Field(
-        default="high", description="Optimization level: low, medium, high, fallback"
-    )
-    max_workers: int = Field(
-        default=4, ge=1, le=16, description="Maximum concurrent workers"
-    )
-    batch_size: int = Field(
-        default=1000, ge=50, le=10000, description="Default processing batch size"
-    )
-    memory_limit_gb: Optional[float] = Field(
-        default=8.0, ge=1.0, description="Memory limit in GB"
-    )
 
     event_generation: EventGenerationSettings = Field(
         default_factory=EventGenerationSettings,

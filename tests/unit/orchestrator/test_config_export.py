@@ -230,27 +230,22 @@ class TestExportEnrollmentVars:
     def test_proactive_enrollment(self):
         cfg = _make_config()
         pro = cfg.enrollment.proactive_enrollment
-        pro.enabled = True
         pro.timing_window.min_days = 5
         pro.timing_window.max_days = 40
-        pro.probability_by_demographics = {
-            "young": 0.25,
-            "mid_career": 0.45,
-            "mature": 0.65,
-            "senior": 0.75,
-        }
         result = _export_enrollment_vars(cfg)
-        assert result["proactive_enrollment_enabled"] is True
+        assert "proactive_enrollment_enabled" not in result
         assert result["proactive_enrollment_min_days"] == 5
         assert result["proactive_enrollment_max_days"] == 40
-        assert result["proactive_enrollment_rate_young"] == 0.25
-        assert result["proactive_enrollment_rate_senior"] == 0.75
+        assert "proactive_enrollment_rate_young" not in result
+        assert "proactive_enrollment_rate_senior" not in result
 
     def test_enrollment_timing(self):
         cfg = _make_config()
-        cfg.enrollment.timing.business_day_adjustment = False
+        cfg.enrollment.timing = type(cfg.enrollment.timing).model_validate(
+            {"business_day_adjustment": False}
+        )
         result = _export_enrollment_vars(cfg)
-        assert result["enrollment_business_day_adjustment"] is False
+        assert "enrollment_business_day_adjustment" not in result
 
     def test_dc_plan_auto_enrollment_overrides(self):
         """dc_plan dict overrides enrollment settings (UI path)."""
@@ -677,8 +672,8 @@ class TestExportLegacyVars:
     def test_deferral_auto_escalation_missing(self):
         cfg = _make_config()
         result = _export_legacy_vars(cfg)
-        # Should still set deferral_baseline_mode default
-        assert result["deferral_baseline_mode"] == "frozen"
+        # Legacy baseline mode is accepted but has no dbt export.
+        assert "deferral_baseline_mode" not in result
 
     def test_deferral_auto_escalation_partial(self):
         cfg = _make_config()
@@ -703,23 +698,23 @@ class TestExportLegacyVars:
         assert "deferral_escalation_cap" not in result
         assert "deferral_escalation_hire_date_cutoff" not in result
 
-    def test_deferral_baseline_mode_from_config(self):
+    def test_legacy_deferral_baseline_mode_ignored(self):
         cfg = _make_config()
         cfg.deferral_baseline = {"mode": "CENSUS"}
         result = _export_legacy_vars(cfg)
-        assert result["deferral_baseline_mode"] == "census"
+        assert "deferral_baseline_mode" not in result
 
-    def test_deferral_baseline_default_frozen(self):
+    def test_legacy_deferral_baseline_empty_ignored(self):
         cfg = _make_config()
         cfg.deferral_baseline = {"mode": ""}
         result = _export_legacy_vars(cfg)
-        assert result["deferral_baseline_mode"] == "frozen"
+        assert "deferral_baseline_mode" not in result
 
-    def test_deferral_baseline_not_dict(self):
+    def test_legacy_deferral_baseline_non_dict_ignored(self):
         cfg = _make_config()
         cfg.deferral_baseline = "invalid"
         result = _export_legacy_vars(cfg)
-        assert result["deferral_baseline_mode"] == "frozen"
+        assert "deferral_baseline_mode" not in result
 
     def test_setup_census_parquet_path_absolute(self):
         cfg = _make_config()
@@ -1174,7 +1169,7 @@ class TestExportCompensationVars:
         cfg = _make_config()
         cfg.new_hire = {"level_market_adjustments": {"1": 5, "2": 10}}
         result = _export_compensation_vars(cfg)
-        assert result["level_market_adjustments"] == {"1": 5, "2": 10}
+        assert "level_market_adjustments" not in result
 
 
 # ===========================================================================
@@ -1336,10 +1331,19 @@ class TestExportCoreContributionVars:
         result = _export_core_contribution_vars(cfg)
         assert result["employer_core_enabled"] is True
         assert result["employer_core_contribution_rate"] == 0.03
-        assert result["core_minimum_tenure_years"] == 1
+        assert (
+            result["employer_core_contribution"]["eligibility"]["minimum_tenure_years"]
+            == 1
+        )
         assert result["core_require_active_eoy"] is True
-        assert result["core_minimum_hours"] == 1000
-        assert result["core_allow_new_hires"] is False
+        assert (
+            result["employer_core_contribution"]["eligibility"]["minimum_hours_annual"]
+            == 1000
+        )
+        assert (
+            result["employer_core_contribution"]["eligibility"]["allow_new_hires"]
+            is False
+        )
 
     def test_core_contribution_nested_structure(self):
         cfg = _make_config()
@@ -1603,7 +1607,7 @@ class TestToDbtVars:
         # Compensation
         assert "promotion_base_increase_pct" in result
         # Legacy
-        assert "deferral_baseline_mode" in result
+        assert "deferral_baseline_mode" not in result
         # Match response
         assert "deferral_match_response_enabled" in result
 

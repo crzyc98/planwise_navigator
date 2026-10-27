@@ -126,14 +126,11 @@ class AutoEnrollmentSettings(BaseModel):
 class ProactiveEnrollmentSettings(BaseModel):
     """Proactive enrollment configuration."""
 
-    enabled: bool = True
-
     class TimingWindow(BaseModel):
         min_days: int = 7
         max_days: int = 35
 
     timing_window: TimingWindow = Field(default_factory=TimingWindow)
-    probability_by_demographics: Dict[str, float] = Field(default_factory=dict)
 
 
 class VoluntaryEnrollmentDeferralRatesSettings(BaseModel):
@@ -199,9 +196,7 @@ class YearOverYearConversionSettings(BaseModel):
 
 
 class EnrollmentTimingSettings(BaseModel):
-    """Enrollment timing configuration."""
-
-    business_day_adjustment: bool = True
+    """Legacy timing block; extra keys are accepted and ignored."""
 
 
 class MatchMagnetSettings(BaseModel):

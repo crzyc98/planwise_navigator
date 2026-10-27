@@ -45,15 +45,15 @@ def single_threaded_config(minimal_config) -> SimulationConfig:
         @pytest.mark.integration
         def test_sequential_execution(single_threaded_config):
             result = build_orchestrator(ConstructionSpec(config=single_threaded_config, ...))
-            assert orchestrator.config.optimization.max_workers == 1
+            assert orchestrator.config.optimization.e068c_threading.dbt_threads == 1
     """
     from planalign_orchestrator.config import OptimizationSettings
 
     # Use typed OptimizationSettings (top-level attribute, not inside multi_year)
     if minimal_config.optimization is None:
         minimal_config.optimization = OptimizationSettings()
-    minimal_config.optimization.max_workers = 1
-    minimal_config.optimization.level = "medium"
+    minimal_config.orchestrator.threading.enabled = False
+    minimal_config.optimization.e068c_threading.dbt_threads = 1
     return minimal_config
 
 
@@ -69,15 +69,15 @@ def multi_threaded_config(minimal_config) -> SimulationConfig:
         @pytest.mark.performance
         def test_parallel_speedup(multi_threaded_config):
             result = build_orchestrator(ConstructionSpec(config=multi_threaded_config, ...))
-            assert orchestrator.config.optimization.max_workers == 4
+            assert orchestrator.config.optimization.e068c_threading.dbt_threads == 4
     """
     from planalign_orchestrator.config import OptimizationSettings
 
     # Use typed OptimizationSettings (top-level attribute, not inside multi_year)
     if minimal_config.optimization is None:
         minimal_config.optimization = OptimizationSettings()
-    minimal_config.optimization.max_workers = 4
-    minimal_config.optimization.level = "high"
+    minimal_config.orchestrator.threading.enabled = True
+    minimal_config.optimization.e068c_threading.dbt_threads = 4
     return minimal_config
 
 
@@ -124,11 +124,6 @@ GOLDEN_DBT_VARS_KEYS = [
     # Eligibility settings
     "plan_eligibility_waiting_period_days",
     "minimum_age",
-    # Proactive enrollment rates
-    "proactive_enrollment_rate_young",
-    "proactive_enrollment_rate_mid_career",
-    "proactive_enrollment_rate_mature",
-    "proactive_enrollment_rate_senior",
 ]
 
 
