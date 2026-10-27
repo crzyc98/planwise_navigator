@@ -34,7 +34,7 @@ class EasyEnrollPackage(BaseModel):
 
 
 class EasyEnrollSettings(BaseModel):
-    enabled: bool = False
+    enabled: bool = True
     channel_share_without_auto_enrollment: Rate = 0.45
     channel_share_with_auto_enrollment: Rate = 0.57
     packages: list[EasyEnrollPackage] = Field(
@@ -79,7 +79,8 @@ class DeferralChangeStep(BaseModel):
 class BelowDefaultSettings(BaseModel):
     share_tiers: list[BelowDefaultTier] = Field(
         default_factory=lambda: [
-            BelowDefaultTier(max_auto_enroll_default_rate=None, share=0.0)
+            BelowDefaultTier(max_auto_enroll_default_rate=0.03, share=0.10),
+            BelowDefaultTier(max_auto_enroll_default_rate=None, share=0.15),
         ],
         min_length=1,
     )
@@ -278,7 +279,7 @@ class DeferralChangeMultipliers(BaseModel):
 
 
 class DeferralRateChangesSettings(BaseModel):
-    enabled: bool = False
+    enabled: bool = True
     multipliers: DeferralChangeMultipliers = Field(
         default_factory=DeferralChangeMultipliers
     )
@@ -321,7 +322,7 @@ class DeferralRateChangesSettings(BaseModel):
     post_escalation_decrease_window_days: int = Field(default=90, ge=0, strict=True)
     post_escalation_decrease_leaves_escalation: bool = False
     stop_probability: Rate = 0.015
-    restart_probability: Rate = 0.0
+    restart_probability: Rate = 0.05
 
     @model_validator(mode="after")
     def check_stop_probability_mass(self) -> "DeferralRateChangesSettings":
@@ -352,7 +353,7 @@ class DeferralAutoEscalationSettings(BaseModel):
 
     enabled: bool = True
     mode: AIPMode = "automatic"
-    participant_elected_signup_probability: Rate = 0.0
+    participant_elected_signup_probability: Rate = 0.01
     effective_day: str | None = None
     increment_amount: Rate | None = None
     maximum_rate: Rate | None = None

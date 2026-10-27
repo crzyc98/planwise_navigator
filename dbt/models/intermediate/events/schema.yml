@@ -173,7 +173,7 @@ models:
                 inclusive: true
 
   - name: int_deferral_change_events
-    description: Continuous participants may increase, decrease, or stop once per year; enrolled prior stoppers may restart. Changes follow all other rate events.
+    description: Enabled by default. Continuous participants may increase, decrease, or stop once per year; enrolled prior stoppers may restart with 5% annual probability. Changes follow all other rate events.
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:

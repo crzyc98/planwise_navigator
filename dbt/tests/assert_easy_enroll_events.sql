@@ -6,7 +6,7 @@ SELECT e.employee_id, e.simulation_year
 FROM {{ ref('fct_yearly_events') }} e
 WHERE e.event_category = 'easy_enroll'
   AND (
-    NOT {{ var('easy_enroll_enabled', false) }}
+    NOT {{ var('easy_enroll_enabled', true) }}
     OR e.event_type != 'enrollment'
     OR REGEXP_EXTRACT(e.event_details, 'original_channel=([^;]+)', 1) NOT IN (
       'voluntary_enrollment', 'proactive_voluntary',
@@ -34,7 +34,7 @@ WHERE e.event_category = 'easy_enroll'
 {% set channel_share = var('easy_enroll_channel_share_with_auto_enrollment', 0.57)
   if var('auto_enrollment_enabled', true)
   else var('easy_enroll_channel_share_without_auto_enrollment', 0.45) %}
-{% if var('easy_enroll_enabled', false) and channel_share > 0 %}
+{% if var('easy_enroll_enabled', true) and channel_share > 0 %}
 UNION ALL
 
 -- Inspect the source population too, so losing every EE selection cannot pass.

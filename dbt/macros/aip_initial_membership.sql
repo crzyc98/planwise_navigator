@@ -10,7 +10,7 @@
       -- No simulation year: membership is a stable, seeded employee election.
       AND (PLANALIGN_HASH(CAST({{ employee_id }} AS VARCHAR) || '-aip-elect-'
         || '{{ subsystem_seed("deferral_behavior") }}') % 1000000) / 1000000.0
-        < {{ var('deferral_escalation_participant_elected_signup_probability', 0.0) }}
+        < {{ var('deferral_escalation_participant_elected_signup_probability', 0.01) }}
     )
   {%- else -%}
     NOT COALESCE({{ census_opt_out }}, FALSE)

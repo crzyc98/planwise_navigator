@@ -31,7 +31,7 @@ function StepTable({ form, onChange, direction }: Props & { direction: 'raise' |
 export function DeferralRateChangesEditor({ form, onChange }: Props) {
   const errors = validateDeferralRateChangeSettings(form);
   return <div className="sm:col-span-6 space-y-4">
-    <p className="text-xs text-ink-muted">Each year, some participants raise or lower their rate, stop contributing, or restart. At most one change per person per year.</p>
+    <p className="text-xs text-ink-muted">On by default. Each year, some participants raise or lower their rate, stop contributing, or restart. At most one change per person per year.</p>
     {!form.dcDeferralRateChangesEnabled && <p className="text-xs text-ink-muted">Inactive while contribution rate changes are off. Saved values are retained.</p>}
     {form.dcDeferralRateChangesEnabled && errors.length > 0 && <div id={errorId} role="alert" className="rounded border border-danger-border bg-danger-surface p-3 text-xs text-danger-ink">
       {errors.map(error => <p key={error}>{error}</p>)}

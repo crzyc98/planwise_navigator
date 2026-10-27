@@ -10,7 +10,7 @@
 
 {% macro below_default_share(auto_default, tiers=none) %}
   {%- set tiers = tiers if tiers is not none else var('below_default_share_tiers', [
-    {'max_auto_enroll_default_rate': none, 'share': 0.0}
+    {'max_auto_enroll_default_rate': 0.03, 'share': 0.10}, {'max_auto_enroll_default_rate': none, 'share': 0.15}
   ]) -%}
 CASE
   {%- for tier in tiers %}
@@ -48,10 +48,10 @@ END)
                                       auto_default=none) %}
   {%- set ae_enabled = var('auto_enrollment_enabled', true) -%}
   {%- set auto_default = auto_default if auto_default is not none else var('auto_enrollment_default_deferral_rate', 0.02) -%}
-  {%- set tiers = var('below_default_share_tiers', [{'max_auto_enroll_default_rate': none, 'share': 0.0}]) -%}
+  {%- set tiers = var('below_default_share_tiers', [{'max_auto_enroll_default_rate': 0.03, 'share': 0.10}, {'max_auto_enroll_default_rate': none, 'share': 0.15}]) -%}
   {%- set active = ae_enabled and tiers | selectattr('share', 'gt', 0) | list | length > 0 -%}
   {%- set share = '(' ~ below_default_share(auto_default, tiers) ~ ')' -%}
-  {%- set downward = ae_enabled and var('enrollment_match_magnet_downward_enabled', false) -%}
+  {%- set downward = ae_enabled and var('enrollment_match_magnet_downward_enabled', true) -%}
   {%- set magnet_rate = '(CASE WHEN ' ~ share ~ ' > 0 THEN GREATEST(' ~ auto_default ~ ', ' ~ selected_rate ~ ') ELSE ' ~ selected_rate ~ ' END)' if active else selected_rate -%}
   {%- if active %}
 CASE

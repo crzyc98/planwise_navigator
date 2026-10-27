@@ -147,7 +147,7 @@ def winning_enrollments(
 
 def _enrollment_sql(ae: bool, share: float) -> str:
     source = (DBT / "models/intermediate/int_enrollment_events.sql").read_text()
-    tail = source[source.index("{% if var('easy_enroll_enabled', false) %}") :]
+    tail = source[source.index("{% if var('easy_enroll_enabled', true) %}") :]
     return _render_sql(
         "{% set flat_new_hire_opt_out_rate = none %}WITH opt_out_candidates AS (SELECT employee_id, simulation_year FROM deduplicated_events WHERE FALSE), fixture_boundary AS (SELECT 1)\n"
         + tail,
@@ -634,6 +634,7 @@ def test_disabled_escalation_keeps_empty_schema_without_dependencies() -> None:
             var=lambda name, default=None: {
                 "simulation_year": 2025,
                 "deferral_escalation_enabled": False,
+                "easy_enroll_enabled": False,
             }.get(name, default),
             config=lambda **kwargs: "",
         )

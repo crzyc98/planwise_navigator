@@ -1,6 +1,6 @@
 -- D1: enrolled at zero because of a stop, including years waiting to restart.
 {{ config(severity='error') }}
-{% if var('deferral_rate_changes_enabled', false) %}
+{% if var('deferral_rate_changes_enabled', true) %}
 WITH expected AS (
   SELECT s.employee_id, s.scenario_id, s.plan_design_id, s.simulation_year,
     s.current_deferral_rate = 0 AND s.is_enrolled_flag

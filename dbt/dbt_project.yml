@@ -177,8 +177,8 @@ data_tests:
 
 # Variables
 vars:
-  # Participant-chosen rate generation is introduced in #983 (PR 3a).
-  deferral_rate_changes_enabled: false
+  # Participant-chosen rate increases, decreases, stops and restarts are on by default.
+  deferral_rate_changes_enabled: true
   plan_design_parameters: {}
   # File paths
   # Use an env-driven, repo-relative default so this works across machines

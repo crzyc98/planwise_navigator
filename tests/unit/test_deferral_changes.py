@@ -559,7 +559,7 @@ def test_prechange_double_roundoff_is_canonical_only_when_enabled(
       '0.06::DOUBLE + 0.01::DOUBLE', 'NULL', '0.01', '0.10', '50000', '40') }} AS rate
       FROM (SELECT 23500 base_limit, 31000 catch_up_limit, 50 catch_up_age_threshold,
         34750 super_catch_up_limit, 60 super_catch_up_age_min, 63 super_catch_up_age_max) il"""
-    off = conn.execute(render(sql)).fetchone()[0]
+    off = conn.execute(render(sql, deferral_rate_changes_enabled=False)).fetchone()[0]
     on = conn.execute(render(sql, deferral_rate_changes_enabled=True)).fetchone()[0]
     assert off == 0.06 + 0.01 and off != 0.07
     assert float(on) == 0.07

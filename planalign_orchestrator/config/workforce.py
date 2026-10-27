@@ -191,11 +191,19 @@ class YearOverYearConversionSettings(BaseModel):
     ``base_rates_by_age * income_multipliers * tenure_multipliers`` to decide
     whether a non-enrolled employee converts, and separately reads
     ``deferral_rates`` for the rate a converter selects. Each mapping is
-    optional: an omitted segment keeps the model's own default.
+    optional: an omitted segment keeps the model's own default. Age defaults
+    target about 5% population-average probability with income/tenure gradients.
     """
 
     enabled: Optional[bool] = None
-    base_rates_by_age: Dict[str, float] = Field(default_factory=dict)
+    base_rates_by_age: Dict[str, float] = Field(
+        default_factory=lambda: {
+            "young": 0.0275848,
+            "mid_career": 0.04597466,
+            "mature": 0.06436453,
+            "senior": 0.07355946,
+        }
+    )
     income_multipliers: Dict[str, float] = Field(default_factory=dict)
     tenure_multipliers: Dict[str, float] = Field(default_factory=dict)
     deferral_rates: YearOverYearConversionDeferralRatesSettings = Field(
@@ -210,18 +218,17 @@ class EnrollmentTimingSettings(BaseModel):
 class MatchMagnetSettings(BaseModel):
     """Voluntary 'defer-to-the-match' behavior controls (Feature 102).
 
-    Defaults reproduce prior behavior, so scenarios that omit this block are
-    unchanged.
+    Defaults let self-directed enrollees seek the full match from either direction.
     """
 
     enabled: bool = True
-    downward_enabled: bool = False
+    downward_enabled: bool = True
 
     @field_validator("downward_enabled", mode="before")
     @classmethod
     def normalize_null_downward_enabled(cls, value: Any) -> Any:
-        """A null opt-in retains the shipped disabled default."""
-        return False if value is None else value
+        """An omitted or null setting uses the shipped enabled default."""
+        return True if value is None else value
 
     snap_probability: float = Field(
         default=0.45,

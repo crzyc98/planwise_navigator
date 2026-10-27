@@ -14,15 +14,15 @@ WITH membership_violations AS (
     AND current_state.simulation_year = previous_state.simulation_year + 1
   WHERE current_state.aip_participant IS DISTINCT FROM previous_state.aip_participant
     AND NOT (current_state.aip_participant AND {{ reenrollment_aip_member(ref('fct_yearly_events'), 'current_state.employee_id', 'current_state.simulation_year', 'current_state.scenario_id') }})
-    {% if var('easy_enroll_enabled', false) %}
+    {% if var('easy_enroll_enabled', true) %}
     AND NOT (current_state.aip_participant AND
       {{ easy_enroll_member(ref('fct_yearly_events'), 'current_state.employee_id',
         'current_state.simulation_year', 'current_state.scenario_id',
-        current_year_only=var('deferral_rate_changes_enabled', false)
+        current_year_only=var('deferral_rate_changes_enabled', true)
           and var('deferral_rate_changes_post_escalation_decrease_leaves_escalation', false)) }})
     {% endif %}
 
-    {% if var('deferral_rate_changes_enabled', false) and var('deferral_rate_changes_post_escalation_decrease_leaves_escalation', false) %}
+    {% if var('deferral_rate_changes_enabled', true) and var('deferral_rate_changes_post_escalation_decrease_leaves_escalation', false) %}
     AND NOT (NOT current_state.aip_participant AND EXISTS (
       SELECT 1 FROM {{ ref('fct_yearly_events') }} response
       WHERE response.scenario_id = current_state.scenario_id
@@ -46,7 +46,7 @@ WITH membership_violations AS (
   WHERE census.auto_escalation_opt_out = TRUE
     AND state.aip_participant = TRUE
     AND NOT {{ reenrollment_aip_member(ref('fct_yearly_events'), 'state.employee_id', 'state.simulation_year', 'state.scenario_id', historical=true) }}
-    {% if var('easy_enroll_enabled', false) %}
+    {% if var('easy_enroll_enabled', true) %}
     AND NOT {{ easy_enroll_member(ref('fct_yearly_events'), 'state.employee_id',
       'state.simulation_year', 'state.scenario_id') }}
     {% endif %}
@@ -75,15 +75,15 @@ escalation_violations AS (
   WHERE event.event_type = 'deferral_escalation'
     -- A year-end exit must not invalidate the escalation that prompted it.
     AND NOT COALESCE(
-      {% if not (var('deferral_rate_changes_enabled', false) and var('deferral_rate_changes_post_escalation_decrease_leaves_escalation', false)) %}
+      {% if not (var('deferral_rate_changes_enabled', true) and var('deferral_rate_changes_post_escalation_decrease_leaves_escalation', false)) %}
       state.aip_participant,
       {% endif %}
       previous_state.aip_participant,
       {{ aip_initial_membership(var('deferral_escalation_mode', 'automatic'), 'census.auto_escalation_opt_out', 'event.employee_id') }})
-    {% if var('easy_enroll_enabled', false) %}
+    {% if var('easy_enroll_enabled', true) %}
     AND NOT {{ easy_enroll_member(ref('fct_yearly_events'), 'event.employee_id',
       'event.simulation_year', 'event.scenario_id',
-      current_year_only=var('deferral_rate_changes_enabled', false)
+      current_year_only=var('deferral_rate_changes_enabled', true)
         and var('deferral_rate_changes_post_escalation_decrease_leaves_escalation', false)) }}
     {% endif %}
 )

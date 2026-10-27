@@ -83,7 +83,7 @@ deferral AS (
     SELECT
       employee_id,
       current_deferral_rate,
-{% if var('deferral_rate_changes_enabled', false) %}
+{% if var('deferral_rate_changes_enabled', true) %}
       is_enrolled_flag,
 {% endif %}
       escalations_received,
@@ -346,7 +346,7 @@ composed AS (
             THEN 'participating - unknown source'
           ELSE 'participating - voluntary enrollment'
         END
-{% if var('deferral_rate_changes_enabled', false) %}
+{% if var('deferral_rate_changes_enabled', true) %}
       WHEN deferral.current_deferral_rate = 0 AND deferral.is_enrolled_flag
         AND {{ has_unreversed_stop(ref('fct_yearly_events'), 'workforce.employee_id',
           "'" ~ scenario_id ~ "'", simulation_year + 1) }}

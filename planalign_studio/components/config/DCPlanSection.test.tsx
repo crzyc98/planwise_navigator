@@ -112,6 +112,7 @@ describe('participant behavior controls', () => {
   };
 
   it('edits the single open tier and expands its table without changing values or materializing keys', () => {
+    state.formData.dcBelowDefaultShareTiers = [{ max_auto_enroll_default_rate: null, share: 0 }];
     const original = structuredClone(state.formData);
     const payload = () => buildConfigPayload(state.formData, null, null);
     const saved = payload();
@@ -164,6 +165,7 @@ describe('participant behavior controls', () => {
   });
 
   it('summarizes a zero share without reductions', () => {
+    state.formData.dcBelowDefaultShareTiers = [{ max_auto_enroll_default_rate: null, share: 0 }];
     expect(belowDefaultSummary(state.formData)).toBe(`At the ${state.formData.dcDefaultDeferral}% default, no one starts below it.`);
     state.formData.dcBelowDefaultShareTiers = [{ max_auto_enroll_default_rate: null, share: 15 }];
     expect(belowDefaultSummary(state.formData)).toBe(`At the ${state.formData.dcDefaultDeferral}% default, 15% start below it (1 pp: 50%, 2 pp: 30%, 3 pp: 20%).`);
@@ -274,6 +276,7 @@ describe('participant behavior controls', () => {
   });
 
   it('edits and adds/removes tiers while keeping the final open-ended row', () => {
+    state.formData.dcBelowDefaultShareTiers = [{ max_auto_enroll_default_rate: null, share: 0 }];
     click('Vary by auto-enrollment default…');
     click('Add tier');
     expect(state.formData.dcBelowDefaultShareTiers).toEqual([{ max_auto_enroll_default_rate: 3, share: 0 }, { max_auto_enroll_default_rate: null, share: 0 }]);
@@ -791,6 +794,7 @@ describe('Easy Enroll controls', () => {
   });
 
   it('retains visible disabled fields and explains the population and independent automatic increases', () => {
+    state.formData.dcEasyEnrollEnabled = false;
     const before = structuredClone(state.formData);
     const html = renderToStaticMarkup(editor());
     expect(html).toContain('<fieldset disabled="" aria-label="Easy Enroll settings"');
@@ -906,6 +910,7 @@ describe('contribution rate change controls', () => {
   };
 
   it('places the panel after Easy Enroll and before match response with a persistent toggle', () => {
+    state.formData.dcDeferralRateChangesEnabled = false;
     const html = render();
     expect(html.indexOf('id="dcplan-easy-enroll-panel"')).toBeLessThan(html.indexOf('id="dcplan-rate-changes-panel"'));
     expect(html.indexOf('id="dcplan-rate-changes-panel"')).toBeLessThan(html.indexOf('id="dcplan-response-panel"'));
@@ -921,6 +926,7 @@ describe('contribution rate change controls', () => {
   });
 
   it('retains visible dimmed fields when off and suppresses inactive validation', () => {
+    state.formData.dcDeferralRateChangesEnabled = false;
     state.formData.dcDeferralRateChangesIncreaseSteps = [{ pp: 2, weight: 99 }];
     const original = structuredClone(state.formData);
     const html = renderToStaticMarkup(editor());

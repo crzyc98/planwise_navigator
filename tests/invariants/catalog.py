@@ -75,7 +75,7 @@ CATALOG = (
     ),
     Invariant(
         "deferral-cap-respected",
-        "Escalation events never exceed the configured cap.",
+        "Escalation events respect the plan cap or the separate Easy Enroll cap.",
         None,
         queries.DEFERRAL_CAP_RESPECTED,
     ),

@@ -33,7 +33,7 @@ INNER JOIN package_enrollments ee
   ON s.scenario_id = ee.scenario_id AND s.employee_id = ee.employee_id
   AND s.simulation_year >= ee.enrollment_year
 WHERE (NOT s.aip_participant OR s.aip_participant IS NULL)
-  {% if var('deferral_rate_changes_enabled', false) and var('deferral_rate_changes_post_escalation_decrease_leaves_escalation', false) %}
+  {% if var('deferral_rate_changes_enabled', true) and var('deferral_rate_changes_post_escalation_decrease_leaves_escalation', false) %}
   AND NOT EXISTS (
     SELECT 1 FROM {{ ref('fct_yearly_events') }} response
     WHERE response.scenario_id = s.scenario_id AND response.employee_id = s.employee_id
@@ -61,10 +61,10 @@ WHERE s.aip_participant AND ee.employee_id IS NULL
   AND (
     NOT {{ var('deferral_escalation_enabled', true) }}
     OR ('{{ var('deferral_escalation_mode', 'automatic') }}' = 'participant_elected'
-      AND {{ var('deferral_escalation_participant_elected_signup_probability', 0.0) }} = 0)
+      AND {{ var('deferral_escalation_participant_elected_signup_probability', 0.01) }} = 0)
   )
 
-{% if var('easy_enroll_enabled', false) %}
+{% if var('easy_enroll_enabled', true) %}
 UNION ALL
 
 -- Start from prior-year members eligible on the escalation date, rather than

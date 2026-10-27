@@ -26,11 +26,11 @@ describe('participant behavior payload and inheritance', () => {
     expect(behavior.below_default_steps[0].weight).toBe(0.75);
   });
 
-  it('keeps shipped defaults neutral, including explicit false and zero overrides', () => {
+  it('enables shipped defaults and preserves explicit false and zero overrides', () => {
     expect(payload(DEFAULT_FORM_DATA).dc_plan).toMatchObject({
-      escalation_mode: 'automatic', escalation_participant_elected_signup_probability: 0,
-      match_magnet_downward_enabled: false,
-      below_default_share_tiers: [{ max_auto_enroll_default_rate: null, share: 0 }],
+      escalation_mode: 'automatic', escalation_participant_elected_signup_probability: 0.01,
+      match_magnet_downward_enabled: true,
+      below_default_share_tiers: [{ max_auto_enroll_default_rate: 0.03, share: 0.10 }, { max_auto_enroll_default_rate: null, share: 0.15 }],
       below_default_steps: [{ pp: 1, weight: 0.5 }, { pp: 2, weight: 0.3 }, { pp: 3, weight: 0.2 }],
     });
     const inherited = applyConfigToFormData({ dc_plan: behavior }, DEFAULT_FORM_DATA);
@@ -59,9 +59,9 @@ describe('participant behavior payload and inheritance', () => {
 
   it('persists just the edited behavior keys in a sparse scenario', () => {
     const loaded = applyResolvedFormData({}, DEFAULT_FORM_DATA);
-    const after = { ...loaded, dcEscalationSignupProbability: 1.25, dcMatchMagnetDownwardEnabled: true };
+    const after = { ...loaded, dcEscalationSignupProbability: 1.25, dcMatchMagnetDownwardEnabled: false };
     expect(applyConfigEdits({}, payload(loaded), payload(after))).toEqual({ dc_plan: {
-      escalation_participant_elected_signup_probability: 0.0125, match_magnet_downward_enabled: true,
+      escalation_participant_elected_signup_probability: 0.0125, match_magnet_downward_enabled: false,
     } });
   });
 });
@@ -91,7 +91,7 @@ describe('Easy Enroll payload and inheritance', () => {
   });
 
   it('matches the shipped defaults', () => {
-    expect(payload(DEFAULT_FORM_DATA).dc_plan).toMatchObject({ easy_enroll_enabled: false,
+    expect(payload(DEFAULT_FORM_DATA).dc_plan).toMatchObject({ easy_enroll_enabled: true,
       easy_enroll_channel_share_without_auto_enrollment: 0.45, easy_enroll_channel_share_with_auto_enrollment: 0.57,
       easy_enroll_packages: [{ rate: 0.06, share: 0.3 }, { rate: 0.08, share: 0.5 }, { rate: 0.1, share: 0.2 }],
       easy_enroll_escalation_cap: 0.1,
@@ -203,7 +203,7 @@ describe('contribution rate change payload and inheritance', () => {
 
   it('matches every shipped default', () => {
     expect(payload(DEFAULT_FORM_DATA).dc_plan).toMatchObject({
-      deferral_rate_changes_enabled: false,
+      deferral_rate_changes_enabled: true,
       deferral_rate_changes_with_escalation_increase_probability: 0.03,
       deferral_rate_changes_with_escalation_decrease_probability: 0.15,
       deferral_rate_changes_without_escalation_increase_probability: 0.25,
@@ -212,7 +212,7 @@ describe('contribution rate change payload and inheritance', () => {
       deferral_rate_changes_decrease_steps: [{ pp: 1, weight: 0.1 }, { pp: 2, weight: 0.15 }, { pp: 3, weight: 0.15 }, { pp: 5, weight: 0.2 }, { pp: 8, weight: 0.2 }, { pp: 12, weight: 0.2 }],
       deferral_rate_changes_post_escalation_decrease_window_days: 90,
       deferral_rate_changes_post_escalation_decrease_leaves_escalation: false,
-      deferral_rate_changes_stop_probability: 0.015, deferral_rate_changes_restart_probability: 0,
+      deferral_rate_changes_stop_probability: 0.015, deferral_rate_changes_restart_probability: 0.05,
     });
   });
 

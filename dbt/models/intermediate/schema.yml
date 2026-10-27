@@ -869,20 +869,20 @@ models:
               arguments:
                 expression: "= FALSE"
               config:
-                enabled: "{{ not var('deferral_escalation_enabled', true) and not var('easy_enroll_enabled', false) }}"
+                enabled: "{{ not var('deferral_escalation_enabled', true) and not var('easy_enroll_enabled', true) }}"
           - dbt_utils.expression_is_true:
               name: aip_response_decrease_exits_program
               arguments:
                 expression: "= FALSE"
               config:
-                enabled: "{{ var('deferral_rate_changes_enabled', false) and var('deferral_rate_changes_post_escalation_decrease_leaves_escalation', false) }}"
+                enabled: "{{ var('deferral_rate_changes_enabled', true) and var('deferral_rate_changes_post_escalation_decrease_leaves_escalation', false) }}"
                 where: "rate_source = 'deferral_change' AND current_deferral_rate > 0 AND current_deferral_rate < rate_before_voluntary_change AND had_escalation_this_year"
           - dbt_utils.expression_is_true:
               name: aip_participant_elected_zero_signup
               arguments:
                 expression: "= FALSE"
               config:
-                enabled: "{{ var('deferral_escalation_mode', 'automatic') == 'participant_elected' and var('deferral_escalation_participant_elected_signup_probability', 0.0) == 0.0 and not var('easy_enroll_enabled', false) }}"
+                enabled: "{{ var('deferral_escalation_mode', 'automatic') == 'participant_elected' and var('deferral_escalation_participant_elected_signup_probability', 0.01) == 0.0 and not var('easy_enroll_enabled', true) }}"
       - name: last_nonzero_deferral_rate
         description: Latest positive year-end current_deferral_rate, carried forward through zero-rate years; NULL until a positive year-end rate has been observed
         data_type: decimal(5,4)
@@ -962,7 +962,7 @@ models:
         data_tests:
           - dbt_utils.accepted_range:
               arguments:
-                min_value: "{{ -1.0 if var('deferral_rate_changes_enabled', false) else -0.1 }}"
+                min_value: "{{ -1.0 if var('deferral_rate_changes_enabled', true) else -0.1 }}"
                 max_value: 10.0
               config:
                 severity: warn

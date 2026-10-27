@@ -1,4 +1,4 @@
-"""Config-only contract for epic #986; no simulation behavior is enabled."""
+"""Default and explicit-off configuration contracts for epic #986."""
 
 import json
 from pathlib import Path
@@ -33,8 +33,8 @@ DEFAULTS: dict[str, Any] = {
     "reenrollment_sweep_include_below_aip_cap": False,
     "reenrollment_sweep_decline_probability": 0.10,
     "deferral_escalation_mode": "automatic",
-    "deferral_escalation_participant_elected_signup_probability": 0.0,
-    "easy_enroll_enabled": False,
+    "deferral_escalation_participant_elected_signup_probability": 0.01,
+    "easy_enroll_enabled": True,
     "easy_enroll_channel_share_without_auto_enrollment": 0.45,
     "easy_enroll_channel_share_with_auto_enrollment": 0.57,
     "easy_enroll_packages": [
@@ -43,14 +43,17 @@ DEFAULTS: dict[str, Any] = {
         {"rate": 0.10, "share": 0.20},
     ],
     "easy_enroll_escalation_cap": 0.10,
-    "enrollment_match_magnet_downward_enabled": False,
-    "below_default_share_tiers": [{"max_auto_enroll_default_rate": None, "share": 0.0}],
+    "enrollment_match_magnet_downward_enabled": True,
+    "below_default_share_tiers": [
+        {"max_auto_enroll_default_rate": 0.03, "share": 0.10},
+        {"max_auto_enroll_default_rate": None, "share": 0.15},
+    ],
     "below_default_steps": [
         {"pp": 1, "weight": 0.50},
         {"pp": 2, "weight": 0.30},
         {"pp": 3, "weight": 0.20},
     ],
-    "deferral_rate_changes_enabled": False,
+    "deferral_rate_changes_enabled": True,
     "deferral_rate_changes_with_escalation_increase_probability": 0.03,
     "deferral_rate_changes_with_escalation_decrease_probability": 0.15,
     "deferral_rate_changes_without_escalation_increase_probability": 0.25,
@@ -80,7 +83,7 @@ DEFAULTS: dict[str, Any] = {
     "deferral_rate_changes_post_escalation_decrease_window_days": 90,
     "deferral_rate_changes_post_escalation_decrease_leaves_escalation": False,
     "deferral_rate_changes_stop_probability": 0.015,
-    "deferral_rate_changes_restart_probability": 0.0,
+    "deferral_rate_changes_restart_probability": 0.05,
     "deferral_rate_changes_multipliers_increase_age": [
         {"min": lower, "multiplier": factor}
         for lower, factor in [
@@ -227,15 +230,58 @@ def test_easy_enroll_model_defaults() -> None:
     assert settings.channel_share_with_auto_enrollment == 0.57
 
 
-def test_off_defaults_and_preexisting_vars_unchanged() -> None:
-    exported = to_dbt_vars(load_simulation_config("config/simulation_config.yaml"))
+def test_explicit_off_and_preexisting_vars_unchanged() -> None:
+    cfg = load_simulation_config("config/simulation_config.yaml")
+    cfg.easy_enroll.enabled = False
+    cfg.deferral_auto_escalation.participant_elected_signup_probability = 0.0
+    cfg.enrollment.match_magnet.downward_enabled = False
+    cfg.enrollment.below_default = BelowDefaultSettings(
+        share_tiers=[{"max_auto_enroll_default_rate": None, "share": 0.0}]
+    )
+    cfg.enrollment.year_over_year_conversion.base_rates_by_age = {
+        "young": 0.03,
+        "mid_career": 0.05,
+        "mature": 0.07,
+        "senior": 0.08,
+    }
+    cfg.deferral_rate_changes.enabled = False
+    cfg.deferral_rate_changes.restart_probability = 0.0
+    exported = to_dbt_vars(cfg)
     baseline = json.loads(
         (ROOT / "tests/fixtures/participant_behavior_legacy_vars.json").read_text()
     )
     baseline["census_parquet_path"] = str(ROOT / "data/census_preprocessed.parquet")
     assert {key: exported[key] for key in baseline} == baseline
     assert exported.keys() - baseline.keys() == DEFAULTS.keys()
+    expected = {
+        **DEFAULTS,
+        "easy_enroll_enabled": False,
+        "deferral_escalation_participant_elected_signup_probability": 0.0,
+        "enrollment_match_magnet_downward_enabled": False,
+        "below_default_share_tiers": [
+            {"max_auto_enroll_default_rate": None, "share": 0.0}
+        ],
+        "deferral_rate_changes_enabled": False,
+        "deferral_rate_changes_restart_probability": 0.0,
+    }
+    assert {key: exported[key] for key in DEFAULTS} == expected
+    assert not validate_dbt_vars(exported)
+
+
+def test_phase_four_defaults_match_yaml_and_omitted_settings() -> None:
+    cfg = load_simulation_config("config/simulation_config.yaml")
+    exported = to_dbt_vars(cfg)
     assert {key: exported[key] for key in DEFAULTS} == DEFAULTS
+    raw = cfg.model_dump()
+    for key in ("easy_enroll", "deferral_rate_changes", "deferral_auto_escalation"):
+        raw.pop(key)
+    for key in ("below_default", "match_magnet", "year_over_year_conversion"):
+        raw["enrollment"].pop(key)
+    omitted = to_dbt_vars(type(cfg).model_validate(raw))
+    assert {key: omitted[key] for key in DEFAULTS} == DEFAULTS
+    for age in ("young", "mid_career", "mature", "senior"):
+        key = f"year_over_year_conversion_base_rates_by_age_{age}"
+        assert omitted[key] == exported[key]
     assert not validate_dbt_vars(exported)
 
 
@@ -578,6 +624,12 @@ def test_null_escalation_preserves_main_exports(
 ) -> None:
     raw = yaml.safe_load((ROOT / "config/simulation_config.yaml").read_text())
     raw["deferral_auto_escalation"] = None
+    raw["enrollment"]["year_over_year_conversion"]["base_rates_by_age"] = {
+        "young": 0.03,
+        "mid_career": 0.05,
+        "mature": 0.07,
+        "senior": 0.08,
+    }
     raw["dc_plan"] = (
         raw.get("dc_plan", {})
         | StudioConfig.model_validate({"dc_plan": overrides}).model_dump(

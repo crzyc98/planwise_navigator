@@ -22,7 +22,7 @@ COALESCE(
     match_rate, increment, escalation_cap, compensation, age, irs_alias='il') -%}
 {# Event payloads are DECIMAL(5,4). Canonicalize only in enabled runs so that
    inherited DOUBLE rates (e.g. 0.06 + 0.01) compare exactly with their payload. #}
-{% if var('deferral_rate_changes_enabled', false) %}CAST({% endif %}
+{% if var('deferral_rate_changes_enabled', true) %}CAST({% endif %}
 CASE
   WHEN {{ opt_out }} THEN 0.00::DECIMAL(5,4)
   WHEN NOT ({{ enrolled }}) THEN 0.00::DECIMAL(5,4)
@@ -37,7 +37,7 @@ CASE
   )::DECIMAL(5,4)
   ELSE COALESCE({{ escalation }}, {{ match_rate }}, {{ fallback }})
 END
-{% if var('deferral_rate_changes_enabled', false) %}AS DECIMAL(5,4)){% endif %}
+{% if var('deferral_rate_changes_enabled', true) %}AS DECIMAL(5,4)){% endif %}
 {%- endmacro %}
 
 {# A zero rate alone is not stop provenance. A later opt-out cancels that stop. #}

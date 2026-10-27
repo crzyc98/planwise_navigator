@@ -326,14 +326,29 @@ WHERE rates.previous_deferral_rate IS NOT NULL
 """
 
 DEFERRAL_CAP_RESPECTED = """
+WITH escalation_caps AS (
+  SELECT
+    event.employee_id,
+    event.simulation_year,
+    event.employee_deferral_rate,
+    CASE WHEN EXISTS (
+      SELECT 1 FROM fct_yearly_events enrollment
+      WHERE enrollment.employee_id = event.employee_id
+        AND enrollment.scenario_id = event.scenario_id
+        AND enrollment.simulation_year <= event.simulation_year
+        AND enrollment.event_type = 'enrollment'
+        AND enrollment.event_category = 'easy_enroll'
+    ) THEN 0.10 ELSE 0.06 END AS configured_escalation_cap
+  FROM fct_yearly_events event
+  WHERE event.event_type = 'deferral_escalation'
+)
 SELECT
   employee_id,
   simulation_year,
   employee_deferral_rate,
-  0.06 AS configured_escalation_cap
-FROM fct_yearly_events
-WHERE event_type = 'deferral_escalation'
-  AND employee_deferral_rate > 0.06 + 0.000001
+  configured_escalation_cap
+FROM escalation_caps
+WHERE employee_deferral_rate > configured_escalation_cap + 0.000001
 """
 
 DEFERRAL_OPTOUT_NOT_ESCALATED = """
