@@ -7,10 +7,13 @@ Root conftest.py - delegates to tests/utils/ for reusable components.
 
 import gc
 import hashlib
+import os
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 import warnings
 
+import duckdb
 import pytest
 
 # Register fixtures here for pytest auto-discovery so individual test modules
@@ -60,7 +63,26 @@ def shared_dev_database_guard() -> Iterator[FileSignature]:
 def pytest_configure(config):
     """Configure pytest with custom markers."""
     # Markers are defined in pyproject.toml
-    pass
+    if os.environ.get("PYTEST_XDIST_WORKER"):
+        _default_duckdb_to_one_thread()
+
+
+def _default_duckdb_to_one_thread() -> None:
+    """Stop xdist workers oversubscribing the CPU.
+
+    DuckDB uses every core per connection by default, so four workers ran
+    sixteen query threads on a four-vCPU runner. An explicit setting wins.
+    """
+    connect = duckdb.connect
+
+    def single_threaded(
+        database: object = ":memory:",
+        read_only: bool = False,
+        config: dict[str, Any] | None = None,
+    ) -> duckdb.DuckDBPyConnection:
+        return connect(database, read_only, {"threads": 1, **(config or {})})
+
+    duckdb.connect = single_threaded
 
 
 def pytest_collection_modifyitems(config, items):

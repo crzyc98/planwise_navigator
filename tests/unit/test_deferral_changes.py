@@ -106,16 +106,21 @@ def test_draws_probabilities_weights_and_seed(conn: duckdb.DuckDBPyConnection) -
         SELECT {{ enrollment_behavior_draw('CAST(i AS VARCHAR)', 2025, '-deferral-change-') }} AS u,
           {{ enrollment_behavior_draw('CAST(i AS VARCHAR)', 2025, '-deferral-change-step-') }} AS s,
           {{ enrollment_behavior_draw('CAST(i AS VARCHAR)', 2025, '-deferral-change-timing-') }} AS t
-        FROM range(20000) r(i)
+        FROM range({{ var('draws', 20000) }}) r(i)
       )
       SELECT {{ deferral_change_category('u', '0.25', '0.075', var('escalated', false)) }} AS category,
         {{ deferral_change_step('s', 'increase') }} AS step, COUNT(*), AVG(t)
       FROM draws GROUP BY ALL ORDER BY ALL
     """
     rows = conn.execute(render(sql)).fetchall()
-    assert rows == conn.execute(render(sql)).fetchall()
+    # The hash draws are costly in SQL; a smaller sample proves determinism.
+    sample = conn.execute(render(sql, draws=2000)).fetchall()
+    assert sample == conn.execute(render(sql, draws=2000)).fetchall()
     assert (
-        rows != conn.execute(render(sql, random_seed_deferral_behavior=43)).fetchall()
+        sample
+        != conn.execute(
+            render(sql, draws=2000, random_seed_deferral_behavior=43)
+        ).fetchall()
     )
     for category, expected in [
         ("proactive_increase", 0.25),

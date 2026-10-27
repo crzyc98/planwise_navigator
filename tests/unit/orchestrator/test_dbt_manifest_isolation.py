@@ -17,9 +17,9 @@ def isolated_helper(tmp_path: Path, monkeypatch):
     (shared_target / "manifest.json").write_text("incomplete concurrent manifest")
     monkeypatch.setattr(dbt_manifest, "ROOT", root)
     monkeypatch.setattr(dbt_manifest, "find_dbt_executable", lambda: "dbt")
-    dbt_manifest.load_production_manifest.cache_clear()
+    dbt_manifest.clear_manifest_cache()
     yield shared_target
-    dbt_manifest.load_production_manifest.cache_clear()
+    dbt_manifest.clear_manifest_cache()
 
 
 def test_parse_reads_owned_manifest_and_cleans_artifacts(
@@ -43,7 +43,7 @@ def test_parse_reads_owned_manifest_and_cleans_artifacts(
         isolated_helper / "manifest.json"
     ).read_text() == "incomplete concurrent manifest"
     assert not targets[0].parent.exists()
-    dbt_manifest.load_production_manifest.cache_clear()
+    dbt_manifest.clear_manifest_cache()
     dbt_manifest.load_production_manifest()
     assert targets[0] != targets[1]
 
