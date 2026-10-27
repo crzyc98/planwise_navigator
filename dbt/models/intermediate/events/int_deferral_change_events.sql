@@ -116,11 +116,11 @@ rate_inputs AS (
     CASE WHEN p.aip_participant
       THEN {{ var('deferral_rate_changes_with_escalation_increase_probability', 0.03) }}
       ELSE {{ var('deferral_rate_changes_without_escalation_increase_probability', 0.25) }}
-    END AS increase_probability,
+    END AS base_increase_probability,
     CASE WHEN p.aip_participant
       THEN {{ var('deferral_rate_changes_with_escalation_decrease_probability', 0.15) }}
       ELSE {{ var('deferral_rate_changes_without_escalation_decrease_probability', 0.075) }}
-    END AS decrease_probability,
+    END AS base_decrease_probability,
     {{ enrollment_behavior_draw('w.employee_id', simulation_year, '-deferral-change-') }} AS choice_draw,
     {{ enrollment_behavior_draw('w.employee_id', simulation_year, '-deferral-restart-') }} AS restart_draw,
     {{ enrollment_behavior_draw('w.employee_id', simulation_year, '-deferral-change-step-') }} AS step_draw,
@@ -144,6 +144,31 @@ rate_inputs AS (
   CROSS JOIN irs_limits il
   WHERE oo.employee_id IS NULL
 ),
+multiplied_probabilities AS (
+  SELECT employee_id, employee_ssn, employee_compensation, current_age,
+    current_tenure, level_id, previous_rate, previous_deferral_rate,
+    last_nonzero_deferral_rate, rate_cap, window_start, window_end, escalation_date,
+    choice_draw, restart_draw, step_draw, timing_draw,
+    {{ deferral_change_probability_product('base_increase_probability', 'increase',
+      'current_age', 'employee_compensation', 'current_tenure') }} AS raw_increase_probability,
+    {{ deferral_change_probability_product('base_decrease_probability', 'decrease',
+      'current_age', 'employee_compensation', 'current_tenure') }} AS raw_decrease_probability
+  FROM rate_inputs
+),
+probabilities AS (
+  SELECT employee_id, employee_ssn, employee_compensation, current_age,
+    current_tenure, level_id, previous_rate, previous_deferral_rate,
+    last_nonzero_deferral_rate, rate_cap, window_start, window_end, escalation_date,
+    choice_draw, restart_draw, step_draw, timing_draw,
+    {{ deferral_change_rescaled_probability('raw_increase_probability', 'raw_decrease_probability',
+      var('deferral_rate_changes_stop_probability', 0.015)) }} AS increase_probability,
+    -- Bound the second band by the remaining mass, including floating-point roundoff.
+    LEAST({{ deferral_change_rescaled_probability('raw_decrease_probability', 'raw_increase_probability',
+      var('deferral_rate_changes_stop_probability', 0.015)) }},
+      GREATEST(0.0, 1.0 - {{ var('deferral_rate_changes_stop_probability', 0.015) }}
+        - increase_probability)) AS decrease_probability
+  FROM multiplied_probabilities
+),
 choices AS (
   SELECT employee_id, employee_ssn, employee_compensation, current_age,
     current_tenure, level_id, previous_rate, rate_cap, increase_probability,
@@ -156,7 +181,7 @@ choices AS (
         'escalation_date IS NOT NULL', var('deferral_rate_changes_stop_probability', 0.015)) }}
     END AS category,
     window_start, window_end, escalation_date, timing_draw
-  FROM rate_inputs
+  FROM probabilities
   WHERE previous_rate > 0 OR previous_deferral_rate = 0
 ),
 steps AS (

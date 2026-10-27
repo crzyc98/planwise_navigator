@@ -5702,6 +5702,28 @@
         "title": "DataQualityWarning",
         "type": "object"
       },
+      "DeferralChangeMultiplierBand": {
+        "properties": {
+          "min": {
+            "description": "Inclusive lower bound: age/tenure in years or annual compensation in dollars. The final band is open-ended.",
+            "minimum": 0.0,
+            "title": "Min",
+            "type": "number"
+          },
+          "multiplier": {
+            "description": "Non-negative probability multiplier; 1 preserves the base probability.",
+            "minimum": 0.0,
+            "title": "Multiplier",
+            "type": "number"
+          }
+        },
+        "required": [
+          "min",
+          "multiplier"
+        ],
+        "title": "DeferralChangeMultiplierBand",
+        "type": "object"
+      },
       "DeferralChangeStep": {
         "properties": {
           "pp": {
@@ -14860,6 +14882,102 @@
             ],
             "description": "Ordered increases in whole percentage points (pp); list weights must sum to 1 (\u00b11e-6).",
             "title": "Deferral Rate Changes Increase Steps"
+          },
+          "deferral_rate_changes_multipliers_decrease_age": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DeferralChangeMultiplierBand"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Decrease probability multipliers by age (years); ordered inclusive min bounds starting at 0, final band open-ended. Multiplied across age, income and tenure before proportional rescaling; stop probability is preserved.",
+            "title": "Deferral Rate Changes Multipliers Decrease Age"
+          },
+          "deferral_rate_changes_multipliers_decrease_income": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DeferralChangeMultiplierBand"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Decrease probability multipliers by income (annual compensation dollars); ordered inclusive min bounds starting at 0, final band open-ended. Multiplied across age, income and tenure before proportional rescaling; stop probability is preserved.",
+            "title": "Deferral Rate Changes Multipliers Decrease Income"
+          },
+          "deferral_rate_changes_multipliers_decrease_tenure": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DeferralChangeMultiplierBand"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Decrease probability multipliers by tenure (years); ordered inclusive min bounds starting at 0, final band open-ended. Multiplied across age, income and tenure before proportional rescaling; stop probability is preserved.",
+            "title": "Deferral Rate Changes Multipliers Decrease Tenure"
+          },
+          "deferral_rate_changes_multipliers_increase_age": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DeferralChangeMultiplierBand"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Increase probability multipliers by age (years); ordered inclusive min bounds starting at 0, final band open-ended. Multiplied across age, income and tenure before proportional rescaling; stop probability is preserved.",
+            "title": "Deferral Rate Changes Multipliers Increase Age"
+          },
+          "deferral_rate_changes_multipliers_increase_income": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DeferralChangeMultiplierBand"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Increase probability multipliers by income (annual compensation dollars); ordered inclusive min bounds starting at 0, final band open-ended. Multiplied across age, income and tenure before proportional rescaling; stop probability is preserved.",
+            "title": "Deferral Rate Changes Multipliers Increase Income"
+          },
+          "deferral_rate_changes_multipliers_increase_tenure": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DeferralChangeMultiplierBand"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Increase probability multipliers by tenure (years); ordered inclusive min bounds starting at 0, final band open-ended. Multiplied across age, income and tenure before proportional rescaling; stop probability is preserved.",
+            "title": "Deferral Rate Changes Multipliers Increase Tenure"
           },
           "deferral_rate_changes_post_escalation_decrease_leaves_escalation": {
             "anyOf": [

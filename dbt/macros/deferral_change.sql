@@ -114,3 +114,30 @@ CASE WHEN {{ window_start }} <= {{ window_end }}
   ELSE NULL::DATE
 END
 {%- endmacro %}
+
+{# Like YoY conversion, multiply independent demographic CASE lookups.
+   Lower bounds are inclusive; NULL/negative inputs use the first band. #}
+{% macro deferral_change_multiplier(value, bands) -%}
+CASE
+  {%- for band in bands | reverse %}
+  WHEN {{ value }} >= {{ band.min }} THEN {{ band.multiplier }}::DOUBLE
+  {%- endfor %}
+  ELSE {{ bands[0].multiplier }}::DOUBLE
+END
+{%- endmacro %}
+
+{% macro deferral_change_probability_product(base, direction, age, income, tenure) -%}
+({{ base }})
+{%- for dimension, value in [('age', age), ('income', income), ('tenure', tenure)] %}
+  * ({{ deferral_change_multiplier(value,
+    var('deferral_rate_changes_multipliers_' ~ direction ~ '_' ~ dimension,
+      [{'min': 0, 'multiplier': 1.0}])) }})
+{%- endfor %}
+{%- endmacro %}
+
+{# Stop retains its mass; the two directional probabilities share the remainder. #}
+{% macro deferral_change_rescaled_probability(probability, other, stop) -%}
+CASE WHEN {{ probability }} + {{ other }} + {{ stop }} > 1.0
+  THEN {{ probability }} / ({{ probability }} + {{ other }}) * (1.0 - {{ stop }})
+  ELSE {{ probability }} END
+{%- endmacro %}

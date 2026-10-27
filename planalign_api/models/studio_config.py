@@ -10,6 +10,7 @@ from planalign_orchestrator.config.participant_behavior import (
     AIPMode,
     BelowDefaultTier,
     DeferralChangeStep,
+    DeferralChangeMultiplierBands,
     EasyEnrollPackage,
     Rate,
 )
@@ -163,6 +164,42 @@ class StudioDCPlanConfig(PartialConfig):
     deferral_rate_changes_without_escalation_decrease_probability: Rate | None = Field(
         default=None,
         description="Probability per participant per year of decreasing deferral without escalation, 0–1.",
+    )
+    deferral_rate_changes_multipliers_increase_age: (
+        DeferralChangeMultiplierBands | None
+    ) = Field(
+        default=None,
+        description="Increase probability multipliers by age (years); ordered inclusive min bounds starting at 0, final band open-ended. Multiplied across age, income and tenure before proportional rescaling; stop probability is preserved.",
+    )
+    deferral_rate_changes_multipliers_increase_income: (
+        DeferralChangeMultiplierBands | None
+    ) = Field(
+        default=None,
+        description="Increase probability multipliers by income (annual compensation dollars); ordered inclusive min bounds starting at 0, final band open-ended. Multiplied across age, income and tenure before proportional rescaling; stop probability is preserved.",
+    )
+    deferral_rate_changes_multipliers_increase_tenure: (
+        DeferralChangeMultiplierBands | None
+    ) = Field(
+        default=None,
+        description="Increase probability multipliers by tenure (years); ordered inclusive min bounds starting at 0, final band open-ended. Multiplied across age, income and tenure before proportional rescaling; stop probability is preserved.",
+    )
+    deferral_rate_changes_multipliers_decrease_age: (
+        DeferralChangeMultiplierBands | None
+    ) = Field(
+        default=None,
+        description="Decrease probability multipliers by age (years); ordered inclusive min bounds starting at 0, final band open-ended. Multiplied across age, income and tenure before proportional rescaling; stop probability is preserved.",
+    )
+    deferral_rate_changes_multipliers_decrease_income: (
+        DeferralChangeMultiplierBands | None
+    ) = Field(
+        default=None,
+        description="Decrease probability multipliers by income (annual compensation dollars); ordered inclusive min bounds starting at 0, final band open-ended. Multiplied across age, income and tenure before proportional rescaling; stop probability is preserved.",
+    )
+    deferral_rate_changes_multipliers_decrease_tenure: (
+        DeferralChangeMultiplierBands | None
+    ) = Field(
+        default=None,
+        description="Decrease probability multipliers by tenure (years); ordered inclusive min bounds starting at 0, final band open-ended. Multiplied across age, income and tenure before proportional rescaling; stop probability is preserved.",
     )
     deferral_rate_changes_increase_steps: list[DeferralChangeStep] | None = Field(
         default=None,

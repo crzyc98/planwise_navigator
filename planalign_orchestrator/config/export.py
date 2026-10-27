@@ -125,6 +125,12 @@ for _field in (
     "post_escalation_decrease_leaves_escalation",
     "stop_probability",
     "restart_probability",
+    "multipliers.increase.age",
+    "multipliers.increase.income",
+    "multipliers.increase.tenure",
+    "multipliers.decrease.age",
+    "multipliers.decrease.income",
+    "multipliers.decrease.tenure",
 ):
     _name = f"deferral_rate_changes_{_field.replace('.', '_')}"
     _PARTICIPANT_BEHAVIOR_FIELDS[_name] = (_name, f"deferral_rate_changes.{_field}")

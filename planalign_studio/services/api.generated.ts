@@ -5404,6 +5404,19 @@ export interface components {
              */
             total_count: number;
         };
+        /** DeferralChangeMultiplierBand */
+        DeferralChangeMultiplierBand: {
+            /**
+             * Min
+             * @description Inclusive lower bound: age/tenure in years or annual compensation in dollars. The final band is open-ended.
+             */
+            min: number;
+            /**
+             * Multiplier
+             * @description Non-negative probability multiplier; 1 preserves the base probability.
+             */
+            multiplier: number;
+        };
         /** DeferralChangeStep */
         DeferralChangeStep: {
             /**
@@ -9476,6 +9489,36 @@ export interface components {
              * @description Ordered increases in whole percentage points (pp); list weights must sum to 1 (±1e-6).
              */
             deferral_rate_changes_increase_steps?: components["schemas"]["DeferralChangeStep"][] | null;
+            /**
+             * Deferral Rate Changes Multipliers Decrease Age
+             * @description Decrease probability multipliers by age (years); ordered inclusive min bounds starting at 0, final band open-ended. Multiplied across age, income and tenure before proportional rescaling; stop probability is preserved.
+             */
+            deferral_rate_changes_multipliers_decrease_age?: components["schemas"]["DeferralChangeMultiplierBand"][] | null;
+            /**
+             * Deferral Rate Changes Multipliers Decrease Income
+             * @description Decrease probability multipliers by income (annual compensation dollars); ordered inclusive min bounds starting at 0, final band open-ended. Multiplied across age, income and tenure before proportional rescaling; stop probability is preserved.
+             */
+            deferral_rate_changes_multipliers_decrease_income?: components["schemas"]["DeferralChangeMultiplierBand"][] | null;
+            /**
+             * Deferral Rate Changes Multipliers Decrease Tenure
+             * @description Decrease probability multipliers by tenure (years); ordered inclusive min bounds starting at 0, final band open-ended. Multiplied across age, income and tenure before proportional rescaling; stop probability is preserved.
+             */
+            deferral_rate_changes_multipliers_decrease_tenure?: components["schemas"]["DeferralChangeMultiplierBand"][] | null;
+            /**
+             * Deferral Rate Changes Multipliers Increase Age
+             * @description Increase probability multipliers by age (years); ordered inclusive min bounds starting at 0, final band open-ended. Multiplied across age, income and tenure before proportional rescaling; stop probability is preserved.
+             */
+            deferral_rate_changes_multipliers_increase_age?: components["schemas"]["DeferralChangeMultiplierBand"][] | null;
+            /**
+             * Deferral Rate Changes Multipliers Increase Income
+             * @description Increase probability multipliers by income (annual compensation dollars); ordered inclusive min bounds starting at 0, final band open-ended. Multiplied across age, income and tenure before proportional rescaling; stop probability is preserved.
+             */
+            deferral_rate_changes_multipliers_increase_income?: components["schemas"]["DeferralChangeMultiplierBand"][] | null;
+            /**
+             * Deferral Rate Changes Multipliers Increase Tenure
+             * @description Increase probability multipliers by tenure (years); ordered inclusive min bounds starting at 0, final band open-ended. Multiplied across age, income and tenure before proportional rescaling; stop probability is preserved.
+             */
+            deferral_rate_changes_multipliers_increase_tenure?: components["schemas"]["DeferralChangeMultiplierBand"][] | null;
             /**
              * Deferral Rate Changes Post Escalation Decrease Leaves Escalation
              * @description Whether a post-escalation decrease removes the participant from the auto-increase program; false retains membership.

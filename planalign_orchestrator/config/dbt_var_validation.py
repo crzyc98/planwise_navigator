@@ -11,6 +11,7 @@ from pydantic import BaseModel, TypeAdapter, ValidationError
 from .participant_behavior import (
     BelowDefaultSettings,
     DeferralRateChangesSettings,
+    DeferralChangeDirectionMultipliers,
     EasyEnrollSettings,
 )
 
@@ -156,6 +157,13 @@ _LIST_MODELS: dict[str, tuple[type[BaseModel], str]] = {
         "decrease_steps",
     ),
 }
+
+for _direction in ("increase", "decrease"):
+    for _dimension in ("age", "income", "tenure"):
+        _LIST_MODELS[f"deferral_rate_changes_multipliers_{_direction}_{_dimension}"] = (
+            DeferralChangeDirectionMultipliers,
+            _dimension,
+        )
 
 
 def _validate_list(field: str, value: Any) -> str | None:
