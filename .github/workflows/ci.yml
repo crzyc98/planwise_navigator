@@ -204,7 +204,7 @@ jobs:
           FAST_SUITE_BUDGET_SECONDS=540
           FAST_SUITE_WARNING_SECONDS=450
           start=$(date +%s)
-          pytest -m fast -q -n 4 --dist load
+          pytest -m fast -q -n 4 --dist load --durations=40
           status=$?
           elapsed=$(( $(date +%s) - start ))
           echo "Fast suite took ${elapsed}s (budget: ${FAST_SUITE_BUDGET_SECONDS}s)"
