@@ -212,7 +212,7 @@ describe('contribution rate change payload and inheritance', () => {
       deferral_rate_changes_decrease_steps: [{ pp: 1, weight: 0.1 }, { pp: 2, weight: 0.15 }, { pp: 3, weight: 0.15 }, { pp: 5, weight: 0.2 }, { pp: 8, weight: 0.2 }, { pp: 12, weight: 0.2 }],
       deferral_rate_changes_post_escalation_decrease_window_days: 90,
       deferral_rate_changes_post_escalation_decrease_leaves_escalation: false,
-      deferral_rate_changes_stop_probability: 0.015, deferral_rate_changes_restart_probability: 0.05,
+      deferral_rate_changes_stop_probability: 0.015, deferral_rate_changes_restart_probability: 0.4,
     });
   });
 

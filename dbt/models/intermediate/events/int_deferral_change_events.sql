@@ -3,6 +3,11 @@
 {% set simulation_year = var('simulation_year') | int %}
 {% set start_year = var('start_year', 2025) | int %}
 {% set scenario_id = var('scenario_id', 'default') %}
+{% set esc_hire_cutoff = var('deferral_escalation_hire_date_cutoff', none) %}
+{# AIP rates apply only to members the escalation model can reach (its hire-date scope). #}
+{% set aip_in_scope = 'p.aip_participant' if esc_hire_cutoff is none else
+  "(p.aip_participant AND (w.employee_hire_date >= DATE '" ~ esc_hire_cutoff
+  ~ "' OR " ~ prior_reenrollment_aip_member('w.employee_id') ~ "))" %}
 
 {% if not var('deferral_rate_changes_enabled', true) %}
 SELECT
@@ -113,11 +118,11 @@ rate_inputs AS (
     CAST(GREATEST(DATE '{{ simulation_year }}-01-01', notice.effective_date,
       mr.effective_date, ne.effective_date) AS DATE) + 1 AS window_start,
     LEAST(DATE '{{ simulation_year }}-12-31', t.termination_date) AS window_end,
-    CASE WHEN p.aip_participant
+    CASE WHEN {{ aip_in_scope }}
       THEN {{ var('deferral_rate_changes_with_escalation_increase_probability', 0.03) }}
       ELSE {{ var('deferral_rate_changes_without_escalation_increase_probability', 0.25) }}
     END AS base_increase_probability,
-    CASE WHEN p.aip_participant
+    CASE WHEN {{ aip_in_scope }}
       THEN {{ var('deferral_rate_changes_with_escalation_decrease_probability', 0.03) }}
       ELSE {{ var('deferral_rate_changes_without_escalation_decrease_probability', 0.075) }}
     END AS base_decrease_probability,
@@ -175,7 +180,7 @@ choices AS (
     decrease_probability, step_draw, last_nonzero_deferral_rate,
     CASE WHEN previous_deferral_rate = 0 THEN
       CASE WHEN previous_rate = 0
-        AND restart_draw < {{ var('deferral_rate_changes_restart_probability', 0.05) }}
+        AND restart_draw < {{ var('deferral_rate_changes_restart_probability', 0.40) }}
         THEN 'restart' END
       ELSE {{ deferral_change_category('choice_draw', 'increase_probability', 'decrease_probability',
         'escalation_date IS NOT NULL', var('deferral_rate_changes_stop_probability', 0.015)) }}
@@ -228,7 +233,7 @@ SELECT
   {{ assign_tenure_band('current_tenure') }}::VARCHAR AS tenure_band,
   (CASE WHEN category = 'proactive_increase' THEN increase_probability
     WHEN category = 'stop' THEN {{ var('deferral_rate_changes_stop_probability', 0.015) }}
-    WHEN category = 'restart' THEN {{ var('deferral_rate_changes_restart_probability', 0.05) }}
+    WHEN category = 'restart' THEN {{ var('deferral_rate_changes_restart_probability', 0.40) }}
     ELSE decrease_probability END)::DECIMAL(5,4) AS event_probability,
   category::VARCHAR AS event_category
 FROM changes

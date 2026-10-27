@@ -83,7 +83,7 @@ DEFAULTS: dict[str, Any] = {
     "deferral_rate_changes_post_escalation_decrease_window_days": 90,
     "deferral_rate_changes_post_escalation_decrease_leaves_escalation": False,
     "deferral_rate_changes_stop_probability": 0.015,
-    "deferral_rate_changes_restart_probability": 0.05,
+    "deferral_rate_changes_restart_probability": 0.40,
     "deferral_rate_changes_multipliers_increase_age": [
         {"min": lower, "multiplier": factor}
         for lower, factor in [

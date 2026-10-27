@@ -220,7 +220,7 @@ export const DEFAULT_FORM_DATA: FormData = {
   dcDeferralRateChangesPostEscalationDecreaseWindowDays: 90,
   dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation: false,
   dcDeferralRateChangesStopProbability: 1.5,
-  dcDeferralRateChangesRestartProbability: 5,
+  dcDeferralRateChangesRestartProbability: 40,
   dcBelowDefaultShareTiers: [{ max_auto_enroll_default_rate: 3, share: 10 }, { max_auto_enroll_default_rate: null, share: 15 }],
   dcBelowDefaultSteps: [{ pp: 1, weight: 50 }, { pp: 2, weight: 30 }, { pp: 3, weight: 20 }],
 

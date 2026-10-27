@@ -516,6 +516,29 @@ def test_membership_selects_probability_group(
     )
 
 
+def test_hires_outside_escalation_scope_use_nonmember_rates(
+    conn: duckdb.DuckDBPyConnection,
+) -> None:
+    fixture_inputs(conn)
+    conn.execute("""
+      ALTER TABLE int_employee_compensation_by_year ADD COLUMN employee_hire_date DATE;
+      UPDATE int_employee_compensation_by_year SET employee_hire_date =
+        CASE WHEN employee_id IN ('employee-0', 'employee-1') THEN DATE '2015-06-01'
+          ELSE DATE '2022-06-01' END;
+    """)
+    rows = conn.execute(
+        event_sql(
+            deferral_escalation_hire_date_cutoff="2020-01-01",
+            deferral_rate_changes_with_escalation_increase_probability=0.0,
+            deferral_rate_changes_with_escalation_decrease_probability=0.0,
+            deferral_rate_changes_without_escalation_increase_probability=1.0,
+            deferral_rate_changes_without_escalation_decrease_probability=0.0,
+        )
+    ).fetchall()
+    # Pre-cutoff hires are never escalated, so they take non-member rates.
+    assert sorted(row[0] for row in rows) == ["employee-0", "employee-1"]
+
+
 def test_prior_year_stopped_and_unenrolled_are_ineligible(
     conn: duckdb.DuckDBPyConnection,
 ) -> None:

@@ -459,4 +459,4 @@ deferral_rate_changes:
   post_escalation_decrease_window_days: 90  # Non-negative days after escalation
   post_escalation_decrease_leaves_escalation: false  # Remain in the auto-increase program after a decrease
   stop_probability: 0.015  # Annual probability of stopping contributions
-  restart_probability: 0.05  # 5% annual chance of restarting stopped contributions
+  restart_probability: 0.40  # Annual chance a stopped participant restarts; ~2/3 of stops restart, net of turnover

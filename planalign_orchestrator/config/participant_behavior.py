@@ -322,7 +322,7 @@ class DeferralRateChangesSettings(BaseModel):
     post_escalation_decrease_window_days: int = Field(default=90, ge=0, strict=True)
     post_escalation_decrease_leaves_escalation: bool = False
     stop_probability: Rate = 0.015
-    restart_probability: Rate = 0.05
+    restart_probability: Rate = 0.40
 
     @model_validator(mode="after")
     def check_stop_probability_mass(self) -> "DeferralRateChangesSettings":
