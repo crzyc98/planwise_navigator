@@ -5732,6 +5732,28 @@
         "title": "DeferralChangeMultiplierBand",
         "type": "object"
       },
+      "DeferralChangeShare": {
+        "properties": {
+          "share": {
+            "exclusiveMaximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Share",
+            "type": "number"
+          },
+          "weight": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Weight",
+            "type": "number"
+          }
+        },
+        "required": [
+          "share",
+          "weight"
+        ],
+        "title": "DeferralChangeShare",
+        "type": "object"
+      },
       "DeferralChangeStep": {
         "properties": {
           "pp": {
@@ -14920,11 +14942,11 @@
             "description": "Ordered below-default reductions in whole percentage points (pp); list weights must sum to 1 (\u00b11e-6).",
             "title": "Below Default Steps"
           },
-          "deferral_rate_changes_decrease_steps": {
+          "deferral_rate_changes_decrease_shares": {
             "anyOf": [
               {
                 "items": {
-                  "$ref": "#/components/schemas/DeferralChangeStep"
+                  "$ref": "#/components/schemas/DeferralChangeShare"
                 },
                 "type": "array"
               },
@@ -14932,8 +14954,8 @@
                 "type": "null"
               }
             ],
-            "description": "Ordered decreases in whole percentage points (pp); list weights must sum to 1 (\u00b11e-6).",
-            "title": "Deferral Rate Changes Decrease Steps"
+            "description": "Shares of the current rate cut, strictly between 0 and 1; list weights must sum to 1 (\u00b11e-6).",
+            "title": "Deferral Rate Changes Decrease Shares"
           },
           "deferral_rate_changes_enabled": {
             "anyOf": [
@@ -14993,6 +15015,22 @@
             ],
             "description": "Decrease probability multipliers by income (annual compensation dollars); ordered inclusive min bounds starting at 0, final band open-ended. Multiplied across age, income and tenure before proportional rescaling; stop probability is preserved.",
             "title": "Deferral Rate Changes Multipliers Decrease Income"
+          },
+          "deferral_rate_changes_multipliers_decrease_rate": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DeferralChangeMultiplierBand"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Decrease probability multipliers by current decimal deferral rate; inclusive lower bounds starting at 0.",
+            "title": "Deferral Rate Changes Multipliers Decrease Rate"
           },
           "deferral_rate_changes_multipliers_decrease_tenure": {
             "anyOf": [

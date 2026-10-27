@@ -1,5 +1,5 @@
 import type { components } from '../../services/api.generated';
-import type { BelowDefaultStep, BelowDefaultTier, DeferralChangeStep, EasyEnrollPackage, FormData } from './types';
+import type { BelowDefaultStep, BelowDefaultTier, DeferralChangeStep, DeferralChangeShare, EasyEnrollPackage, FormData } from './types';
 
 type BehaviorConfig = Pick<components['schemas']['StudioDCPlanConfig'],
   'escalation_mode' | 'escalation_participant_elected_signup_probability' |
@@ -12,7 +12,7 @@ type BehaviorConfig = Pick<components['schemas']['StudioDCPlanConfig'],
   'deferral_rate_changes_without_escalation_increase_probability' |
   'deferral_rate_changes_without_escalation_decrease_probability' |
   'deferral_rate_changes_increase_steps' |
-  'deferral_rate_changes_decrease_steps' |
+  'deferral_rate_changes_decrease_shares' |
   'deferral_rate_changes_post_escalation_decrease_window_days' |
   'deferral_rate_changes_post_escalation_decrease_leaves_escalation' |
   'deferral_rate_changes_stop_probability' |
@@ -26,6 +26,10 @@ export const tiersToPercent = (tiers: BelowDefaultTier[]): BelowDefaultTier[] =>
 }));
 export const stepsToPercent = (steps: BelowDefaultStep[]): BelowDefaultStep[] => steps.map(step => ({
   pp: step.pp, weight: percent(step.weight),
+}));
+
+export const sharesToPercent = (shares: DeferralChangeShare[]): DeferralChangeShare[] => shares.map(row => ({
+  share: percent(row.share), weight: percent(row.weight),
 }));
 
 export const packagesToPercent = (packages: EasyEnrollPackage[]): EasyEnrollPackage[] => packages.map(pkg => ({
@@ -45,8 +49,8 @@ export function participantBehaviorFormFields(config: BehaviorConfig, form: Form
       ? form.dcDeferralRateChangesWithoutEscalationDecreaseProbability : percent(config.deferral_rate_changes_without_escalation_decrease_probability),
     dcDeferralRateChangesIncreaseSteps: config.deferral_rate_changes_increase_steps == null
       ? form.dcDeferralRateChangesIncreaseSteps : stepsToPercent(config.deferral_rate_changes_increase_steps),
-    dcDeferralRateChangesDecreaseSteps: config.deferral_rate_changes_decrease_steps == null
-      ? form.dcDeferralRateChangesDecreaseSteps : stepsToPercent(config.deferral_rate_changes_decrease_steps),
+    dcDeferralRateChangesDecreaseShares: config.deferral_rate_changes_decrease_shares == null
+      ? form.dcDeferralRateChangesDecreaseShares : sharesToPercent(config.deferral_rate_changes_decrease_shares),
     dcDeferralRateChangesPostEscalationDecreaseWindowDays: config.deferral_rate_changes_post_escalation_decrease_window_days ?? form.dcDeferralRateChangesPostEscalationDecreaseWindowDays,
     dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation: config.deferral_rate_changes_post_escalation_decrease_leaves_escalation ?? form.dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation,
     dcDeferralRateChangesStopProbability: config.deferral_rate_changes_stop_probability == null
@@ -186,7 +190,7 @@ export function validateDeferralRateChangeSettings(form: FormData): string[] {
       errors.push(`${label}: raise, lower and stop chances together must be no more than 100%.`);
     }
   }
-  for (const [label, steps] of [['Raise', form.dcDeferralRateChangesIncreaseSteps], ['Lower', form.dcDeferralRateChangesDecreaseSteps]] as const) {
+  for (const [label, steps] of [['Raise', form.dcDeferralRateChangesIncreaseSteps]] as const) {
     if (!steps.length || steps.some((_, index) => invalidRateChangeStep(steps, index))) {
       errors.push(`${label} steps must be unique positive whole percentage points.`);
     }
@@ -194,6 +198,11 @@ export function validateDeferralRateChangeSettings(form: FormData): string[] {
       errors.push(`${label} weights must be between 0% and 100% and add up to 100% (now ${distributionTotal(steps.map(step => step.weight))}%).`);
     }
   }
+  const shares = form.dcDeferralRateChangesDecreaseShares;
+  if (!shares.length || shares.some(row => !Number.isFinite(row.share) || row.share <= 0 || row.share >= 100)) {
+    errors.push('Lower shares must be greater than 0% and less than 100%.');
+  }
+  if (invalidDistribution(shares.map(row => row.weight))) errors.push('Lower weights must be between 0% and 100% and add up to 100%.');
   const days = form.dcDeferralRateChangesPostEscalationDecreaseWindowDays;
   if (form.dcAutoEscalation && (!Number.isInteger(days) || days < 1 || days > 365)) {
     errors.push('The notice response window must be a whole number from 1 to 365 days.');
@@ -208,5 +217,5 @@ export function deferralRateChangesSummary(form: FormData): string {
   const response = form.dcAutoEscalation
     ? `Notice responses within ${form.dcDeferralRateChangesPostEscalationDecreaseWindowDays} days; ${form.dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation ? 'leave' : 'stay in'} automatic increases.`
     : 'Notice responses inactive while automatic increases are off; saved settings retained.';
-  return `${groups}; ${form.dcDeferralRateChangesStopProbability}% stop, ${form.dcDeferralRateChangesRestartProbability}% restart each year. ${response}`;
+  return `${groups}; ${form.dcDeferralRateChangesStopProbability}% stop, ${form.dcDeferralRateChangesRestartProbability}% restart each year. ${response} Lower cuts: ${form.dcDeferralRateChangesDecreaseShares.map(row => `${row.share}% of current rate: ${row.weight}%`).join(', ')}.`;
 }

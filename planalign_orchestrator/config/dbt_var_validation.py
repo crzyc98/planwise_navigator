@@ -13,6 +13,7 @@ from .participant_behavior import (
     BelowDefaultMultipliers,
     DeferralRateChangesSettings,
     DeferralChangeDirectionMultipliers,
+    DeferralChangeDecreaseMultipliers,
     EasyEnrollSettings,
 )
 
@@ -154,11 +155,16 @@ _LIST_MODELS: dict[str, tuple[type[BaseModel], str]] = {
         DeferralRateChangesSettings,
         "increase_steps",
     ),
-    "deferral_rate_changes_decrease_steps": (
+    "deferral_rate_changes_decrease_shares": (
         DeferralRateChangesSettings,
-        "decrease_steps",
+        "decrease_shares",
     ),
 }
+
+_LIST_MODELS["deferral_rate_changes_multipliers_decrease_rate"] = (
+    DeferralChangeDecreaseMultipliers,
+    "rate",
+)
 
 for _dimension in ("age", "income"):
     _LIST_MODELS[f"opt_out_multipliers_{_dimension}"] = (

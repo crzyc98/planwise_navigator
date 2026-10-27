@@ -250,6 +250,18 @@ class DeferralChangeIncreaseMultipliers(DeferralChangeDirectionMultipliers):
 
 
 class DeferralChangeDecreaseMultipliers(DeferralChangeDirectionMultipliers):
+    rate: DeferralChangeMultiplierBands = Field(
+        default_factory=lambda: [
+            DeferralChangeMultiplierBand(min=lower, multiplier=factor)
+            for lower, factor in [
+                (0, 0.5),
+                (0.04, 0.8),
+                (0.07, 1.0),
+                (0.10, 1.3),
+                (0.15, 1.6),
+            ]
+        ]
+    )
     age: DeferralChangeMultiplierBands = Field(
         default_factory=lambda: [
             DeferralChangeMultiplierBand(min=lower, multiplier=factor)
@@ -308,6 +320,11 @@ class DeferralChangeMultipliers(BaseModel):
     )
 
 
+class DeferralChangeShare(BaseModel):
+    share: float = Field(gt=0, lt=1)
+    weight: Rate
+
+
 class DeferralRateChangesSettings(BaseModel):
     enabled: bool = True
     multipliers: DeferralChangeMultipliers = Field(
@@ -315,12 +332,12 @@ class DeferralRateChangesSettings(BaseModel):
     )
     with_escalation: DeferralChangeRates = Field(
         default_factory=lambda: DeferralChangeRates(
-            increase_probability=0.085, decrease_probability=0.082
+            increase_probability=0.085, decrease_probability=0.067
         )
     )
     without_escalation: DeferralChangeRates = Field(
         default_factory=lambda: DeferralChangeRates(
-            increase_probability=0.085, decrease_probability=0.082
+            increase_probability=0.085, decrease_probability=0.067
         )
     )
     increase_steps: list[DeferralChangeStep] = Field(
@@ -336,23 +353,24 @@ class DeferralRateChangesSettings(BaseModel):
             ]
         ]
     )
-    decrease_steps: list[DeferralChangeStep] = Field(
+    decrease_shares: list[DeferralChangeShare] = Field(
         default_factory=lambda: [
-            DeferralChangeStep(pp=pp, weight=weight)
-            for pp, weight in [
-                (1, 0.1),
-                (2, 0.15),
-                (3, 0.15),
-                (5, 0.2),
-                (8, 0.2),
-                (12, 0.2),
-            ]
+            DeferralChangeShare(share=share, weight=weight)
+            for share, weight in [(0.25, 0.2), (0.5, 0.25), (0.75, 0.35), (0.9, 0.2)]
         ]
     )
     post_escalation_decrease_window_days: int = Field(default=90, ge=0, strict=True)
     post_escalation_decrease_leaves_escalation: bool = False
     stop_probability: Rate = 0.015
     restart_probability: Rate = 0.40
+
+    @field_validator("decrease_shares")
+    @classmethod
+    def check_shares(
+        cls, shares: list[DeferralChangeShare]
+    ) -> list[DeferralChangeShare]:
+        validate_weights([row.weight for row in shares])
+        return shares
 
     @model_validator(mode="after")
     def check_stop_probability_mass(self) -> "DeferralRateChangesSettings":
@@ -369,7 +387,7 @@ class DeferralRateChangesSettings(BaseModel):
                     )
         return self
 
-    @field_validator("increase_steps", "decrease_steps")
+    @field_validator("increase_steps")
     @classmethod
     def check_steps(cls, steps: list[DeferralChangeStep]) -> list[DeferralChangeStep]:
         validate_weights([step.weight for step in steps])

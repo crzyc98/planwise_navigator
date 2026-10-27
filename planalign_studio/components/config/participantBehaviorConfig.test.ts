@@ -32,7 +32,7 @@ describe('contribution rate change validation', () => {
     expect(validateDeferralRateChangeSettings({ ...atLimit, dcDeferralRateChangesRestartProbability: 100 })).toEqual([]);
   });
 
-  it.each(['dcDeferralRateChangesIncreaseSteps', 'dcDeferralRateChangesDecreaseSteps'] as const)(
+  it.each(['dcDeferralRateChangesIncreaseSteps'] as const)(
     'rejects empty, duplicate, nonpositive, fractional and invalid-weight steps for %s', key => {
       for (const steps of [[], [{ pp: 0, weight: 100 }], [{ pp: -1, weight: 100 }],
         [{ pp: 1.5, weight: 100 }], [{ pp: Infinity, weight: 100 }],
@@ -55,9 +55,17 @@ describe('contribution rate change validation', () => {
 
   it('summarizes inactive, active, invalid and automatic-increase-off states in plain language', () => {
     expect(deferralRateChangesSummary({ ...DEFAULT_FORM_DATA, dcDeferralRateChangesEnabled: false })).toBe('Contribution rate changes off; settings inactive and saved values retained.');
-    expect(deferralRateChangesSummary(form)).toBe('In automatic increases: 8.5% raise, 8.2% lower; Not in automatic increases: 8.5% raise, 8.2% lower; 1.5% stop, 40% restart each year. Notice responses within 90 days; stay in automatic increases.');
+    expect(deferralRateChangesSummary(form)).toBe('In automatic increases: 8.5% raise, 6.7% lower; Not in automatic increases: 8.5% raise, 6.7% lower; 1.5% stop, 40% restart each year. Notice responses within 90 days; stay in automatic increases. Lower cuts: 25% of current rate: 20%, 50% of current rate: 25%, 75% of current rate: 35%, 90% of current rate: 20%.');
     expect(deferralRateChangesSummary({ ...form, dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation: true })).toContain('leave automatic increases');
     expect(deferralRateChangesSummary({ ...form, dcAutoEscalation: false })).toContain('Notice responses inactive while automatic increases are off; saved settings retained.');
     expect(deferralRateChangesSummary({ ...form, dcDeferralRateChangesStopProbability: 100 })).toContain('settings need attention');
   });
+});
+
+
+it.each([0, 100, -1, 101, Number.NaN])('rejects invalid cut share %s', share => {
+  expect(validateDeferralRateChangeSettings({ ...form, dcDeferralRateChangesDecreaseShares: [{ share, weight: 100 }] })).toContain('Lower shares must be greater than 0% and less than 100%.');
+});
+it('rejects cut weights that do not sum to 100%', () => {
+  expect(validateDeferralRateChangeSettings({ ...form, dcDeferralRateChangesDecreaseShares: [{ share: 50, weight: 99 }] })).toContain('Lower weights must be between 0% and 100% and add up to 100%.');
 });

@@ -69,9 +69,9 @@ DEFAULTS: dict[str, Any] = {
     ],
     "deferral_rate_changes_enabled": True,
     "deferral_rate_changes_with_escalation_increase_probability": 0.085,
-    "deferral_rate_changes_with_escalation_decrease_probability": 0.082,
+    "deferral_rate_changes_with_escalation_decrease_probability": 0.067,
     "deferral_rate_changes_without_escalation_increase_probability": 0.085,
-    "deferral_rate_changes_without_escalation_decrease_probability": 0.082,
+    "deferral_rate_changes_without_escalation_decrease_probability": 0.067,
     "deferral_rate_changes_increase_steps": [
         {"pp": pp, "weight": weight}
         for pp, weight in [
@@ -83,15 +83,18 @@ DEFAULTS: dict[str, Any] = {
             (10, 0.25),
         ]
     ],
-    "deferral_rate_changes_decrease_steps": [
-        {"pp": pp, "weight": weight}
-        for pp, weight in [
-            (1, 0.1),
-            (2, 0.15),
-            (3, 0.15),
-            (5, 0.2),
-            (8, 0.2),
-            (12, 0.2),
+    "deferral_rate_changes_decrease_shares": [
+        {"share": share, "weight": weight}
+        for share, weight in [(0.25, 0.2), (0.5, 0.25), (0.75, 0.35), (0.9, 0.2)]
+    ],
+    "deferral_rate_changes_multipliers_decrease_rate": [
+        {"min": lower, "multiplier": factor}
+        for lower, factor in [
+            (0, 0.5),
+            (0.04, 0.8),
+            (0.07, 1.0),
+            (0.10, 1.3),
+            (0.15, 1.6),
         ]
     ],
     "deferral_rate_changes_post_escalation_decrease_window_days": 90,
@@ -206,7 +209,7 @@ OVERRIDES: dict[str, Any] = {
     "deferral_rate_changes_without_escalation_increase_probability": 0.26,
     "deferral_rate_changes_without_escalation_decrease_probability": 0.08,
     "deferral_rate_changes_increase_steps": [{"pp": 2, "weight": 1.0}],
-    "deferral_rate_changes_decrease_steps": [{"pp": 4, "weight": 1.0}],
+    "deferral_rate_changes_decrease_shares": [{"share": 0.5, "weight": 1.0}],
     "deferral_rate_changes_post_escalation_decrease_window_days": 0,
     "deferral_rate_changes_post_escalation_decrease_leaves_escalation": True,
     "deferral_rate_changes_stop_probability": 0.0,
@@ -470,7 +473,7 @@ def test_studio_escalation_mode_preserves_independent_toggle(
         ],
         *[
             (DeferralRateChangesSettings, {key: value})
-            for key in ("increase_steps", "decrease_steps")
+            for key in ("increase_steps",)
             for value in (
                 [],
                 [{"pp": 0, "weight": 1}],
@@ -506,7 +509,7 @@ def test_reject_invalid_settings(model: type[BaseModel], data: dict[str, Any]) -
         ),
         ("below_default_steps", [{"pp": 1, "weight": 0.2}, {"pp": 2, "weight": 0.2}]),
         ("deferral_rate_changes_increase_steps", [{"pp": 0, "weight": 1}]),
-        ("deferral_rate_changes_decrease_steps", [{"pp": 1, "weight": 0.5}]),
+        ("deferral_rate_changes_decrease_shares", [{"share": 0.5, "weight": 0.5}]),
         ("deferral_escalation_mode", "invalid"),
         ("deferral_escalation_mode", "none"),
         ("easy_enroll_enabled", "false"),
@@ -557,7 +560,7 @@ def test_all_yaml_settings_export_nondefault_values() -> None:
         with_escalation={"increase_probability": 0.04, "decrease_probability": 0.16},
         without_escalation={"increase_probability": 0.26, "decrease_probability": 0.08},
         increase_steps=[{"pp": 2, "weight": 1.0}],
-        decrease_steps=[{"pp": 4, "weight": 1.0}],
+        decrease_shares=[{"share": 0.5, "weight": 1.0}],
         post_escalation_decrease_window_days=0,
         post_escalation_decrease_leaves_escalation=True,
         stop_probability=0.0,
@@ -698,8 +701,15 @@ def test_null_new_behavior_settings_load_as_defaults(
     )
 
 
-@pytest.mark.parametrize("direction", ["increase", "decrease"])
-@pytest.mark.parametrize("dimension", ["age", "income", "tenure"])
+@pytest.mark.parametrize(
+    "direction,dimension",
+    [
+        (direction, dimension)
+        for direction in ("increase", "decrease")
+        for dimension in ("age", "income", "tenure")
+    ]
+    + [("decrease", "rate")],
+)
 @pytest.mark.parametrize(
     "bands",
     [
@@ -793,3 +803,29 @@ def test_below_default_multipliers_api_round_trip(dimension: str) -> None:
         exclude_unset=True
     )["dc_plan"]
     assert to_dbt_vars(cfg)[key] == value
+
+
+@pytest.mark.parametrize(
+    "share,weight", [(0, 1), (1, 1), (-0.1, 1), (1.1, 1), (0.5, 0.9), (0.5, 1.1)]
+)
+def test_invalid_decrease_shares(share: float, weight: float) -> None:
+    with pytest.raises(ValidationError):
+        DeferralRateChangesSettings(
+            decrease_shares=[{"share": share, "weight": weight}]
+        )
+
+
+def test_decrease_rate_multiplier_api_round_trip() -> None:
+    key = "deferral_rate_changes_multipliers_decrease_rate"
+    value = [{"min": 0, "multiplier": 0.2}, {"min": 0.1, "multiplier": 2.0}]
+    cfg = load_simulation_config("config/simulation_config.yaml")
+    cfg.dc_plan = StudioConfig.model_validate({"dc_plan": {key: value}}).model_dump(
+        exclude_unset=True
+    )["dc_plan"]
+    assert to_dbt_vars(cfg)[key] == value
+    assert validate_dbt_vars({key: value}) == []
+
+
+def test_empty_decrease_shares_rejected() -> None:
+    with pytest.raises(ValidationError):
+        DeferralRateChangesSettings(decrease_shares=[])

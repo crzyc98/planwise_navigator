@@ -920,7 +920,7 @@ describe('contribution rate change controls', () => {
     const original = structuredClone(state.formData);
     toggle('dcDeferralRateChangesEnabled', true);
     expect(render()).toContain('<details id="dcplan-rate-changes-panel" open="">');
-    expect(render()).toContain('8.5% raise, 8.2% lower');
+    expect(render()).toContain('8.5% raise, 6.7% lower');
     toggle('dcDeferralRateChangesEnabled', false);
     expect(state.formData).toEqual(original);
   });
@@ -933,7 +933,7 @@ describe('contribution rate change controls', () => {
     expect(html).toContain('<fieldset disabled="" aria-label="Contribution rate change settings" class="min-w-0 space-y-4 disabled:opacity-60"');
     expect(html).toContain('Inactive while contribution rate changes are off. Saved values are retained.');
     expect(html).toContain('Chance each year');
-    expect(html).toContain('value="8.2"');
+    expect(html).toContain('value="6.7"');
     expect(html).toContain('How much people raise');
     expect(html).toContain('How much people lower');
     expect(html).toContain('At most one change per person per year.');
@@ -979,14 +979,14 @@ describe('contribution rate change controls', () => {
       dcDeferralRateChangesWithoutEscalationDecreaseProbability: 8.25, dcDeferralRateChangesStopProbability: 2.25,
       dcDeferralRateChangesRestartProbability: 1.25, dcDeferralRateChangesPostEscalationDecreaseWindowDays: 120,
       dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation: true });
-    for (const [direction, count] of [['raise', 7], ['lower', 7]] as const) {
+    for (const [direction, count] of [['raise', 7], ['lower', 5]] as const) {
       const title = direction === 'raise' ? 'Raise' : 'Lower';
       click(`Add ${direction} step`);
-      edit(`${title} step ${count} in percentage points`, '1');
+      edit(`${title} step ${count} ${direction === 'raise' ? 'in percentage points' : 'share of current rate cut'}`, direction === 'raise' ? '1' : '100');
       edit(`${title} step ${count} weight`, '10');
       const html = renderToStaticMarkup(editor());
-      expect(html).toContain('must be unique positive whole percentage points');
-      expect(html).toContain('now 110%');
+      expect(html).toContain(direction === 'raise' ? 'must be unique positive whole percentage points' : 'Lower shares must be greater than 0% and less than 100%');
+      expect(html).toContain(direction === 'raise' ? 'now 110%' : 'Lower weights must');
       expect(html).toContain('aria-invalid="true" aria-describedby="dcplan-rate-changes-errors"');
       click(`Remove ${direction} step ${count}`);
     }

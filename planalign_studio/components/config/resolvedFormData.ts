@@ -1,6 +1,6 @@
 import type { FormData, MatchTier } from './types';
 import { ELIGIBILITY_DEFAULTS } from './constants';
-import { packagesToPercent, stepsToPercent, tiersToPercent } from './participantBehaviorConfig';
+import { sharesToPercent, packagesToPercent, stepsToPercent, tiersToPercent } from './participantBehaviorConfig';
 
 type Variables = Record<string, unknown>;
 const asVariables = (value: unknown): Variables => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Variables : {};
@@ -120,8 +120,8 @@ function applyEnrollment(variables: Variables, form: FormData): FormData {
     dcOptOutMultipliersIncome: rows<FormData['dcOptOutMultipliersIncome'][number]>(variables.opt_out_multipliers_income) ?? form.dcOptOutMultipliersIncome,
     ...(rows<FormData['dcDeferralRateChangesIncreaseSteps'][number]>(variables.deferral_rate_changes_increase_steps)
       ? { dcDeferralRateChangesIncreaseSteps: stepsToPercent(variables.deferral_rate_changes_increase_steps as FormData['dcDeferralRateChangesIncreaseSteps']) } : {}),
-    ...(rows<FormData['dcDeferralRateChangesDecreaseSteps'][number]>(variables.deferral_rate_changes_decrease_steps)
-      ? { dcDeferralRateChangesDecreaseSteps: stepsToPercent(variables.deferral_rate_changes_decrease_steps as FormData['dcDeferralRateChangesDecreaseSteps']) } : {}),
+    ...(rows<FormData['dcDeferralRateChangesDecreaseShares'][number]>(variables.deferral_rate_changes_decrease_shares)
+      ? { dcDeferralRateChangesDecreaseShares: sharesToPercent(variables.deferral_rate_changes_decrease_shares as FormData['dcDeferralRateChangesDecreaseShares']) } : {}),
     ...(rows<FormData['dcEasyEnrollPackages'][number]>(variables.easy_enroll_packages)
       ? { dcEasyEnrollPackages: packagesToPercent(variables.easy_enroll_packages as FormData['dcEasyEnrollPackages']) } : {}),
     dcReenrollmentSweepFirstYear: String(variables.reenrollment_sweep_first_year ?? ''),

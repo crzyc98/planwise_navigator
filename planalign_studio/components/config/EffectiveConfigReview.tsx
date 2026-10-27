@@ -99,7 +99,7 @@ const behaviorLabels: Record<string, string> = {
   deferral_rate_changes_without_escalation_increase_probability: 'Not in automatic increases: raise their rate',
   deferral_rate_changes_without_escalation_decrease_probability: 'Not in automatic increases: lower their rate',
   deferral_rate_changes_increase_steps: 'How much people raise',
-  deferral_rate_changes_decrease_steps: 'How much people lower',
+  deferral_rate_changes_decrease_shares: 'How much people lower',
   deferral_rate_changes_post_escalation_decrease_window_days: 'Days after an automatic increase for notice responses',
   deferral_rate_changes_post_escalation_decrease_leaves_escalation: 'These people also leave automatic increases',
   deferral_rate_changes_stop_probability: 'Stop contributing',
@@ -141,7 +141,11 @@ function formatBehaviorSetting(key: string, value: unknown): string | undefined 
   if (key === 'easy_enroll_enabled' && typeof value === 'boolean') return value ? 'On' : 'Off';
   if (!Array.isArray(value)) return undefined;
   const pct = (rate: unknown) => typeof rate === 'number' ? `${Number((rate * 100).toFixed(3))}%` : showValue(rate);
-  if (key === 'deferral_rate_changes_increase_steps' || key === 'deferral_rate_changes_decrease_steps') return value.map((row: unknown) => {
+  if (key === 'deferral_rate_changes_decrease_shares') return value.map(row => {
+    const share = asConfig(row);
+    return `${pct(share.share)} of current rate (${pct(share.weight)})`;
+  }).join('; ');
+  if (key === 'deferral_rate_changes_increase_steps') return value.map((row: unknown) => {
     const step = asConfig(row);
     return `${step.pp} percentage ${step.pp === 1 ? 'point' : 'points'} (${pct(step.weight)})`;
   }).join('; ');

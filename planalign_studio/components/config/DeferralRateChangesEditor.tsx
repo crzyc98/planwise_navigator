@@ -12,18 +12,26 @@ const inputClass = 'w-20 px-2 py-1 border border-border-strong rounded text-sm d
 const errorId = 'dcplan-rate-changes-errors';
 
 function StepTable({ form, onChange, direction }: Props & { direction: 'raise' | 'lower' }) {
-  const key = direction === 'raise' ? 'dcDeferralRateChangesIncreaseSteps' : 'dcDeferralRateChangesDecreaseSteps';
-  const steps = form[key];
+  const lower = direction === 'lower';
+  const rows = lower
+    ? form.dcDeferralRateChangesDecreaseShares.map(row => ({ value: row.share, share: row.weight }))
+    : form.dcDeferralRateChangesIncreaseSteps.map(row => ({ value: row.pp, share: row.weight }));
+  const update = (next: typeof rows) => onChange(lower
+    ? { dcDeferralRateChangesDecreaseShares: next.map(row => ({ share: row.value, weight: row.share })) }
+    : { dcDeferralRateChangesIncreaseSteps: next.map(row => ({ pp: row.value, weight: row.share })) });
   const titleId = `dcplan-rate-changes-${direction}`;
   return <div className="min-w-0 space-y-2">
     <h4 id={titleId} className="text-sm font-semibold text-ink">How much people {direction}</h4>
-    <DistributionTable titleId={titleId} rows={steps.map(step => ({ value: step.pp, share: step.weight }))}
-      valueHeading="Percentage points" shareHeading="Weight" rowLabel={`${direction === 'raise' ? 'Raise' : 'Lower'} step`} valueSuffix="percentage points" integer
-      active={form.dcDeferralRateChangesEnabled} errorId={errorId} invalidValue={index => invalidRateChangeStep(steps, index)}
-      onChange={(index, changes) => onChange({ [key]: steps.map((step, row) => row === index
-        ? { pp: changes.value ?? step.pp, weight: changes.share ?? step.weight } : step) })}
-      onRemove={index => onChange({ [key]: steps.filter((_, row) => row !== index) })}
-      onAdd={() => onChange({ [key]: [...steps, { pp: Math.max(0, ...steps.map(step => step.pp)) + 1, weight: 0 }] })}
+    {lower && <p className="text-xs text-ink-muted">People who lower their rate cut this share of it; rates never go below 1%.</p>}
+    <DistributionTable titleId={titleId} rows={rows}
+      valueLabel={lower ? 'share of current rate cut' : undefined} weightLabel="weight"
+      valueHeading={lower ? 'Share of current rate cut' : 'Percentage points'} shareHeading="Weight" rowLabel={`${lower ? 'Lower' : 'Raise'} step`} valueSuffix={lower ? '%' : 'percentage points'} integer={!lower}
+      active={form.dcDeferralRateChangesEnabled} errorId={errorId} invalidValue={index => lower
+        ? !Number.isFinite(rows[index].value) || rows[index].value <= 0 || rows[index].value >= 100
+        : invalidRateChangeStep(form.dcDeferralRateChangesIncreaseSteps, index)}
+      onChange={(index, changes) => update(rows.map((row, i) => i === index ? { ...row, ...changes } : row))}
+      onRemove={index => update(rows.filter((_, i) => i !== index))}
+      onAdd={() => update([...rows, { value: lower ? 50 : Math.max(0, ...rows.map(row => row.value)) + 1, share: 0 }])}
       addLabel={`Add ${direction} step`} />
   </div>;
 }

@@ -192,10 +192,10 @@ enrollment:
 
 deferral_rate_changes:               # new, #983
   enabled: false                                # Phase 4: true
-  with_escalation:     {increase_probability: 0.085, decrease_probability: 0.082}  # 2026-10-27: one all-plans rate for both groups
-  without_escalation: {increase_probability: 0.085, decrease_probability: 0.082}
+  with_escalation:     {increase_probability: 0.085, decrease_probability: 0.067}  # 2026-10-27: one all-plans rate for both groups
+  without_escalation: {increase_probability: 0.085, decrease_probability: 0.067}
   increase_steps: [{pp: 1, weight: 0.10}, {pp: 2, weight: 0.10}, {pp: 3, weight: 0.15}, {pp: 5, weight: 0.20}, {pp: 7, weight: 0.20}, {pp: 10, weight: 0.25}]  # fitted in PR 3e
-  decrease_steps: [{pp: 1, weight: 0.10}, {pp: 2, weight: 0.15}, {pp: 3, weight: 0.15}, {pp: 5, weight: 0.20}, {pp: 8, weight: 0.20}, {pp: 12, weight: 0.20}]  # fitted in PR 3e
+  decrease_shares: [{share: 0.25, weight: 0.2}, {share: 0.5, weight: 0.25}, {share: 0.75, weight: 0.35}, {share: 0.9, weight: 0.2}]  # Fraction of the current rate cut; minimum resulting rate is 1%.
   post_escalation_decrease_window_days: 90
   post_escalation_decrease_leaves_escalation: false                  # [D7]: stay in AIP
   stop_probability: 0.015

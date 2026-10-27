@@ -123,8 +123,8 @@ rate_inputs AS (
       ELSE {{ var('deferral_rate_changes_without_escalation_increase_probability', 0.085) }}
     END AS base_increase_probability,
     CASE WHEN {{ aip_in_scope }}
-      THEN {{ var('deferral_rate_changes_with_escalation_decrease_probability', 0.082) }}
-      ELSE {{ var('deferral_rate_changes_without_escalation_decrease_probability', 0.082) }}
+      THEN {{ var('deferral_rate_changes_with_escalation_decrease_probability', 0.067) }}
+      ELSE {{ var('deferral_rate_changes_without_escalation_decrease_probability', 0.067) }}
     END AS base_decrease_probability,
     {{ enrollment_behavior_draw('w.employee_id', simulation_year, '-deferral-change-') }} AS choice_draw,
     {{ enrollment_behavior_draw('w.employee_id', simulation_year, '-deferral-restart-') }} AS restart_draw,
@@ -157,7 +157,8 @@ multiplied_probabilities AS (
     {{ deferral_change_probability_product('base_increase_probability', 'increase',
       'current_age', 'employee_compensation', 'current_tenure') }} AS raw_increase_probability,
     {{ deferral_change_probability_product('base_decrease_probability', 'decrease',
-      'current_age', 'employee_compensation', 'current_tenure') }} AS raw_decrease_probability
+      'current_age', 'employee_compensation', 'current_tenure') }}
+      * ({{ deferral_change_rate_multiplier('previous_rate') }}) AS raw_decrease_probability
   FROM rate_inputs
 ),
 probabilities AS (
@@ -221,6 +222,8 @@ SELECT
   (REPLACE(category, '_', ' ') || ': ' || ROUND(previous_rate * 100, 2)
     || '% -> ' || ROUND(new_rate * 100, 2) || '%'
     || CASE WHEN category IN ('stop', 'restart') THEN ''
+      WHEN category IN ('proactive_decrease', 'aip_response_decrease')
+        THEN ' (drawn share ' || ROUND(step_pp * 100, 2) || '%)'
       ELSE ' (drawn step ' || step_pp || 'pp)' END)::VARCHAR AS event_details,
   employee_compensation::DECIMAL(15,2) AS compensation_amount,
   employee_compensation::DECIMAL(15,2) AS previous_compensation,
