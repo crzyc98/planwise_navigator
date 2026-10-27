@@ -206,7 +206,9 @@ workforce_with_status AS (
         {{ easy_enroll_member(ref('int_enrollment_events'), 'w.employee_id', simulation_year,
           "'" ~ var('scenario_id', 'default') ~ "'") }} AS is_easy_enroll,
         {{ easy_enroll_member(ref('int_enrollment_events'), 'w.employee_id', simulation_year,
-          "'" ~ var('scenario_id', 'default') ~ "'") }} OR
+          "'" ~ var('scenario_id', 'default') ~ "'",
+          current_year_only=var('deferral_rate_changes_enabled', false)
+            and var('deferral_rate_changes_post_escalation_decrease_leaves_escalation', false)) }} OR
         {% endif %}
         {% if simulation_year == start_year %}
         {{ aip_initial_membership(var('deferral_escalation_mode', 'automatic'), 'oo.auto_escalation_opt_out', 'w.employee_id') }}

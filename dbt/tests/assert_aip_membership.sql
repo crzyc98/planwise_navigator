@@ -1,6 +1,6 @@
 {{ config(severity='error', tags=['data_quality']) }}
 
--- AIP elections persist; a new Easy Enroll package can elect a nonmember.
+-- AIP elections persist unless a notice response elects exit; a new package can rejoin.
 WITH membership_violations AS (
   SELECT
     current_state.employee_id,
@@ -16,7 +16,21 @@ WITH membership_violations AS (
     {% if var('easy_enroll_enabled', false) %}
     AND NOT (current_state.aip_participant AND
       {{ easy_enroll_member(ref('fct_yearly_events'), 'current_state.employee_id',
-        'current_state.simulation_year', 'current_state.scenario_id') }})
+        'current_state.simulation_year', 'current_state.scenario_id',
+        current_year_only=var('deferral_rate_changes_enabled', false)
+          and var('deferral_rate_changes_post_escalation_decrease_leaves_escalation', false)) }})
+    {% endif %}
+
+    {% if var('deferral_rate_changes_enabled', false) and var('deferral_rate_changes_post_escalation_decrease_leaves_escalation', false) %}
+    AND NOT (NOT current_state.aip_participant AND EXISTS (
+      SELECT 1 FROM {{ ref('fct_yearly_events') }} response
+      WHERE response.scenario_id = current_state.scenario_id
+        AND response.plan_design_id = current_state.plan_design_id
+        AND response.employee_id = current_state.employee_id
+        AND response.simulation_year = current_state.simulation_year
+        AND response.event_type = 'deferral_change'
+        AND response.event_category = 'aip_response_decrease'
+    ))
     {% endif %}
 
   UNION ALL
@@ -57,11 +71,18 @@ escalation_violations AS (
   LEFT JOIN {{ ref('stg_census_data') }} census
     ON event.employee_id = census.employee_id
   WHERE event.event_type = 'deferral_escalation'
-    AND NOT COALESCE(state.aip_participant, previous_state.aip_participant,
+    -- A year-end exit must not invalidate the escalation that prompted it.
+    AND NOT COALESCE(
+      {% if not (var('deferral_rate_changes_enabled', false) and var('deferral_rate_changes_post_escalation_decrease_leaves_escalation', false)) %}
+      state.aip_participant,
+      {% endif %}
+      previous_state.aip_participant,
       {{ aip_initial_membership(var('deferral_escalation_mode', 'automatic'), 'census.auto_escalation_opt_out', 'event.employee_id') }})
     {% if var('easy_enroll_enabled', false) %}
     AND NOT {{ easy_enroll_member(ref('fct_yearly_events'), 'event.employee_id',
-      'event.simulation_year', 'event.scenario_id') }}
+      'event.simulation_year', 'event.scenario_id',
+      current_year_only=var('deferral_rate_changes_enabled', false)
+        and var('deferral_rate_changes_post_escalation_decrease_leaves_escalation', false)) }}
     {% endif %}
 )
 

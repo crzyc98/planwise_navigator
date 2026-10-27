@@ -1,4 +1,4 @@
--- D2/D3: one proactive choice, strictly after every earlier rate event.
+-- D2/D3: one voluntary choice, strictly after every earlier rate event.
 {{ config(materialized='ephemeral', tags=['EVENT_GENERATION']) }}
 {% set simulation_year = var('simulation_year') | int %}
 {% set start_year = var('start_year', 2025) | int %}
@@ -83,6 +83,7 @@ match_responses AS (
 rate_inputs AS (
   SELECT w.employee_id, w.employee_ssn, w.employee_compensation,
     w.current_age, w.current_tenure, w.level_id, p.aip_participant,
+    notice.effective_date AS escalation_date,
     {{ rate_before_voluntary_change(
       'oo.employee_id IS NOT NULL', 'TRUE',
       'ne.initial_deferral_rate, p.previous_deferral_rate, 0.03::DECIMAL(5,4)',
@@ -93,7 +94,7 @@ rate_inputs AS (
     {{ deferral_change_cap('w.employee_compensation',
       'COALESCE(' ~ simulation_year ~ ' - YEAR(w.employee_birth_date), w.current_age)') }} AS rate_cap,
     -- Include enrollment defensively: opt-outs retain precedence and are excluded.
-    CAST(GREATEST(DATE '{{ simulation_year }}-01-01', ce.effective_date,
+    CAST(GREATEST(DATE '{{ simulation_year }}-01-01', notice.effective_date,
       mr.effective_date, ne.effective_date) AS DATE) + 1 AS window_start,
     LEAST(DATE '{{ simulation_year }}-12-31', t.termination_date) AS window_end,
     CASE WHEN p.aip_participant
@@ -114,6 +115,8 @@ rate_inputs AS (
     ON w.employee_id = assignment.employee_id AND assignment.simulation_year = {{ simulation_year }}
     AND assignment.scenario_id = '{{ scenario_id }}'
   LEFT JOIN enrollments ne ON w.employee_id = ne.employee_id
+  -- A sweep can replace the rate effect without erasing the escalation notice.
+  LEFT JOIN escalations notice ON w.employee_id = notice.employee_id
   LEFT JOIN escalations ce ON w.employee_id = ce.employee_id
     AND {{ rate_event_survives_sweep('ne.is_reenrollment_sweep', 'ne.effective_date', 'ce.effective_date') }}
   LEFT JOIN match_responses mr ON w.employee_id = mr.employee_id
@@ -128,20 +131,25 @@ choices AS (
   SELECT employee_id, employee_ssn, employee_compensation, current_age,
     current_tenure, level_id, previous_rate, rate_cap, increase_probability,
     decrease_probability, step_draw,
-    {{ deferral_change_category('choice_draw', 'increase_probability', 'decrease_probability') }} AS category,
-    {{ deferral_change_date('window_start', 'window_end', 'timing_draw') }} AS change_date
+    {{ deferral_change_category('choice_draw', 'increase_probability', 'decrease_probability',
+      'escalation_date IS NOT NULL') }} AS category,
+    window_start, window_end, escalation_date, timing_draw
   FROM rate_inputs
   WHERE previous_rate > 0
 ),
 steps AS (
   SELECT employee_id, employee_ssn, employee_compensation, current_age,
     current_tenure, level_id, previous_rate, rate_cap, increase_probability,
-    decrease_probability, category, change_date,
+    decrease_probability, category,
+    {{ deferral_change_date('window_start',
+      "CASE WHEN category = 'aip_response_decrease' THEN LEAST(window_end, escalation_date + "
+      ~ var('deferral_rate_changes_post_escalation_decrease_window_days', 90)
+      ~ ') ELSE window_end END', 'timing_draw') }} AS change_date,
     CASE WHEN category = 'proactive_increase'
       THEN {{ deferral_change_step('step_draw', 'increase') }}
       ELSE {{ deferral_change_step('step_draw', 'decrease') }} END AS step_pp
   FROM choices
-  WHERE category IS NOT NULL AND change_date IS NOT NULL
+  WHERE category IS NOT NULL
 ),
 changes AS (
   SELECT employee_id, employee_ssn, employee_compensation, current_age,
@@ -171,5 +179,5 @@ SELECT
     ELSE decrease_probability END)::DECIMAL(5,4) AS event_probability,
   category::VARCHAR AS event_category
 FROM changes
-WHERE new_rate <> previous_rate
+WHERE new_rate <> previous_rate AND change_date IS NOT NULL
 {% endif %}

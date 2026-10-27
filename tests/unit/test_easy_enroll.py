@@ -636,3 +636,54 @@ def test_disabled_escalation_keeps_empty_schema_without_dependencies() -> None:
     )
     assert "WHERE FALSE" in sql
     assert "WITH parameter_rows" not in sql
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+@pytest.mark.parametrize("leaves", [False, True])
+def test_historical_package_does_not_override_notice_exit(
+    escalation_inputs: duckdb.DuckDBPyConnection, enabled: bool, leaves: bool
+) -> None:
+    connection = escalation_inputs
+    connection.execute(
+        "UPDATE int_deferral_rate_state_accumulator SET aip_participant = FALSE"
+    )
+    variables = {
+        "deferral_rate_changes_enabled": enabled,
+        "deferral_rate_changes_post_escalation_decrease_leaves_escalation": leaves,
+    }
+    rows = connection.execute(_escalation_sql(False, **variables)).fetchall()
+    assert len(rows) == (0 if enabled and leaves else 1)
+    # A new package election may explicitly rejoin AIP.
+    connection.execute("""INSERT INTO int_enrollment_events
+      SELECT employee_id, scenario_id, 2026, event_type, event_category,
+        employee_deferral_rate, DATE '2026-01-01'
+      FROM int_enrollment_events WHERE employee_id = 'member'""")
+    assert len(connection.execute(_escalation_sql(False, **variables)).fetchall()) == 1
+
+
+def test_package_membership_guard_allows_documented_notice_exit(
+    published_events: duckdb.DuckDBPyConnection,
+) -> None:
+    connection = published_events
+    connection.execute("""
+      UPDATE int_deferral_rate_state_accumulator SET aip_participant = FALSE;
+      INSERT INTO fct_yearly_events
+        SELECT employee_id, scenario_id, simulation_year, 'deferral_change',
+          'aip_response_decrease', 0.06, DATE '2025-08-01', 'response'
+        FROM int_enrollment_events WHERE employee_id = 'member'
+    """)
+    source = (DBT / "tests/assert_easy_enroll_membership_and_cap.sql").read_text()
+    variables = {
+        "simulation_year": 2026,
+        "easy_enroll_enabled": True,
+        "deferral_escalation_enabled": False,
+        "deferral_rate_changes_enabled": True,
+        "deferral_rate_changes_post_escalation_decrease_leaves_escalation": True,
+    }
+    assert connection.execute(_render_sql(source, **variables)).fetchall() == []
+    connection.execute(
+        "DELETE FROM fct_yearly_events WHERE event_type = 'deferral_change'"
+    )
+    assert connection.execute(_render_sql(source, **variables)).fetchall() == [
+        ("member", 2025, "missing_membership")
+    ]

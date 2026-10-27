@@ -40,11 +40,12 @@ END
 {% if var('deferral_rate_changes_enabled', false) %}AS DECIMAL(5,4)){% endif %}
 {%- endmacro %}
 
-{% macro deferral_change_category(draw, increase_probability, decrease_probability) -%}
+{% macro deferral_change_category(draw, increase_probability, decrease_probability, has_escalation='FALSE') -%}
 CASE
   WHEN {{ draw }} < {{ increase_probability }} THEN 'proactive_increase'
   WHEN {{ draw }} < {{ increase_probability }} + {{ decrease_probability }}
-    THEN 'proactive_decrease'
+    THEN CASE WHEN {{ has_escalation }} THEN 'aip_response_decrease'
+      ELSE 'proactive_decrease' END
   ELSE NULL
 END
 {%- endmacro %}

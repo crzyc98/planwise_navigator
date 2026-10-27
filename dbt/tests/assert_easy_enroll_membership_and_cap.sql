@@ -32,7 +32,23 @@ FROM {{ ref('int_deferral_rate_state_accumulator') }} s
 INNER JOIN package_enrollments ee
   ON s.scenario_id = ee.scenario_id AND s.employee_id = ee.employee_id
   AND s.simulation_year >= ee.enrollment_year
-WHERE NOT s.aip_participant OR s.aip_participant IS NULL
+WHERE (NOT s.aip_participant OR s.aip_participant IS NULL)
+  {% if var('deferral_rate_changes_enabled', false) and var('deferral_rate_changes_post_escalation_decrease_leaves_escalation', false) %}
+  AND NOT EXISTS (
+    SELECT 1 FROM {{ ref('fct_yearly_events') }} response
+    WHERE response.scenario_id = s.scenario_id AND response.employee_id = s.employee_id
+      AND response.simulation_year <= s.simulation_year
+      AND response.event_type = 'deferral_change'
+      AND response.event_category = 'aip_response_decrease'
+      AND NOT EXISTS (
+        SELECT 1 FROM {{ ref('fct_yearly_events') }} rejoin
+        WHERE rejoin.scenario_id = s.scenario_id AND rejoin.employee_id = s.employee_id
+          AND rejoin.simulation_year > response.simulation_year
+          AND rejoin.simulation_year <= s.simulation_year
+          AND rejoin.event_type = 'enrollment' AND rejoin.event_category = 'easy_enroll'
+      )
+  )
+  {% endif %}
 
 UNION ALL
 
@@ -68,6 +84,7 @@ INNER JOIN escalation_parameters parameters
   ON parameters.plan_design_id = assignment.plan_design_id
 WHERE w.simulation_year = {{ var('simulation_year') }}
   AND p.scenario_id = '{{ var('scenario_id', 'default') }}'
+  AND p.aip_participant
   AND w.employment_status = 'active'
   {% if var('deferral_escalation_require_enrollment', true) %}
   AND w.is_enrolled_flag

@@ -30,13 +30,13 @@ END
 
 {# Enrollment history is immutable and survives year boundaries and plan transfers.
    Event generation reads intermediate enrollments; state reads published facts. #}
-{% macro easy_enroll_member(relation, employee_id, simulation_year, scenario_id) -%}
+{% macro easy_enroll_member(relation, employee_id, simulation_year, scenario_id, current_year_only=false) -%}
 EXISTS (
   SELECT 1
   FROM {{ relation }} ee
   WHERE ee.employee_id = {{ employee_id }}
     AND ee.scenario_id = {{ scenario_id }}
-    AND ee.simulation_year <= {{ simulation_year }}
+    AND ee.simulation_year {{ '=' if current_year_only else '<=' }} {{ simulation_year }}
     AND ee.event_type = 'enrollment'
     AND ee.event_category = 'easy_enroll'
 )
