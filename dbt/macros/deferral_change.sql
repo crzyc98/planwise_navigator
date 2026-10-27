@@ -40,12 +40,33 @@ END
 {% if var('deferral_rate_changes_enabled', false) %}AS DECIMAL(5,4)){% endif %}
 {%- endmacro %}
 
-{% macro deferral_change_category(draw, increase_probability, decrease_probability, has_escalation='FALSE') -%}
+{# A zero rate alone is not stop provenance. A later opt-out cancels that stop. #}
+{% macro has_unreversed_stop(events, employee, scenario, before_year) -%}
+EXISTS (
+  SELECT 1 FROM {{ events }} stopped
+  WHERE stopped.employee_id = {{ employee }} AND stopped.scenario_id = {{ scenario }}
+    AND stopped.simulation_year < {{ before_year }}
+    AND stopped.event_type = 'deferral_change' AND stopped.event_category = 'stop'
+    AND NOT EXISTS (
+      SELECT 1 FROM {{ events }} opted_out
+      WHERE opted_out.employee_id = stopped.employee_id
+        AND opted_out.scenario_id = stopped.scenario_id
+        AND opted_out.simulation_year < {{ before_year }}
+        AND opted_out.event_type = 'enrollment_change'
+        AND COALESCE(opted_out.employee_deferral_rate, 0) = 0
+        AND opted_out.effective_date >= stopped.effective_date
+    )
+)
+{%- endmacro %}
+
+{% macro deferral_change_category(draw, increase_probability, decrease_probability, has_escalation='FALSE', stop_probability='0') -%}
 CASE
   WHEN {{ draw }} < {{ increase_probability }} THEN 'proactive_increase'
   WHEN {{ draw }} < {{ increase_probability }} + {{ decrease_probability }}
     THEN CASE WHEN {{ has_escalation }} THEN 'aip_response_decrease'
       ELSE 'proactive_decrease' END
+  WHEN {{ draw }} < {{ increase_probability }} + {{ decrease_probability }} + {{ stop_probability }}
+    THEN 'stop'
   ELSE NULL
 END
 {%- endmacro %}
@@ -76,8 +97,11 @@ LEAST({{ plan_deferral_cap() }}, {{ var('voluntary_max_deferral_rate', 0.15) }},
     ELSE {{ var('voluntary_max_deferral_rate', 0.15) }} END)
 {%- endmacro %}
 
-{% macro deferral_change_rate(previous_rate, category, step_pp, cap) -%}
-CAST(CASE WHEN {{ category }} = 'proactive_increase'
+{% macro deferral_change_rate(previous_rate, category, step_pp, cap, last_nonzero='NULL') -%}
+CAST(CASE
+  WHEN {{ category }} = 'stop' THEN 0
+  WHEN {{ category }} = 'restart' THEN LEAST({{ last_nonzero }}, {{ cap }})
+  WHEN {{ category }} = 'proactive_increase'
   THEN GREATEST({{ previous_rate }}, LEAST({{ cap }}, {{ previous_rate }} + {{ step_pp }} / 100.0))
   ELSE LEAST({{ previous_rate }}, GREATEST(0.01, {{ previous_rate }} - {{ step_pp }} / 100.0))
 END AS DECIMAL(5,4))
