@@ -101,6 +101,45 @@ describe('Effective configuration review', () => {
     expect(formatDraftValue('dc_plan.below_default_steps', behavior.below_default_steps)).toContain('1 percentage point below (75%)');
   });
 
+  it.each([true, false])('reviews contribution rate changes with inactive explanations, enabled=%s', async enabled => {
+    vi.mocked(previewConfiguration).mockReset();
+    const settings = {
+      deferral_rate_changes_enabled: enabled,
+      deferral_rate_changes_with_escalation_increase_probability: 0.0325,
+      deferral_rate_changes_with_escalation_decrease_probability: 0.15,
+      deferral_rate_changes_without_escalation_increase_probability: 0.25,
+      deferral_rate_changes_without_escalation_decrease_probability: 0.075,
+      deferral_rate_changes_increase_steps: [{ pp: 1, weight: 0.375 }, { pp: 3, weight: 0.625 }],
+      deferral_rate_changes_decrease_steps: [{ pp: 2, weight: 1 }],
+      deferral_rate_changes_post_escalation_decrease_window_days: 90,
+      deferral_rate_changes_post_escalation_decrease_leaves_escalation: false,
+      deferral_rate_changes_stop_probability: 0.015,
+      deferral_rate_changes_restart_probability: 0,
+    };
+    vi.mocked(previewConfiguration).mockResolvedValue({ ...baseline, engine_variables: { ...settings, deferral_escalation_enabled: false } });
+    review.draft = { dc_plan: settings };
+    render(); await settle();
+    const html = renderToStaticMarkup(render()).split('Other active custom settings')[0];
+    for (const label of ['Model employees changing their own contribution rate', 'In automatic increases: raise their rate',
+      'In automatic increases: lower their rate', 'Not in automatic increases: raise their rate',
+      'Not in automatic increases: lower their rate', 'How much people raise', 'How much people lower',
+      'Stop contributing', 'Restart after stopping', 'These people also leave automatic increases']) expect(html).toContain(label);
+    for (const value of ['3.25%', '15%', '25%', '7.5%', '1.5%', '0%', '90 days',
+      '1 percentage point (37.5%); 3 percentage points (62.5%)', '2 percentage points (100%)']) expect(html).toContain(value);
+    expect(html.match(/Inactive while contribution rate changes are off; saved value retained./g) ?? []).toHaveLength(enabled ? 0 : 10);
+    expect(html.match(/Inactive while automatic increases are off; saved value retained./g) ?? []).toHaveLength(enabled ? 2 : 0);
+    if (enabled) expect(html).toContain('Stopped employees stay enrolled at 0%; a restart returns them to their earlier rate.');
+    expect(html).not.toMatch(/\b(?:AIP|D7|PR|Phase)\b/);
+    for (const [key, value] of Object.entries(settings)) {
+      const formatted = formatDraftValue(`dc_plan.${key}`, value);
+      expect(formatted).not.toContain('weight');
+      if (key.endsWith('probability')) expect(formatted).toContain('%');
+    }
+    expect(formatDraftValue('dc_plan.deferral_rate_changes_post_escalation_decrease_window_days', 90)).toBe('90 days');
+    expect(formatDraftValue('dc_plan.deferral_rate_changes_enabled', false)).toBe('Off');
+    expect(formatDraftValue('dc_plan.deferral_rate_changes_post_escalation_decrease_leaves_escalation', true)).toBe('On');
+  });
+
   it.each([true, false])('reviews Easy Enroll in percentage units with auto-enrollment=%s', async autoEnrollment => {
     vi.mocked(previewConfiguration).mockReset();
     const easyEnroll = { easy_enroll_enabled: true, easy_enroll_channel_share_with_auto_enrollment: 0.57,

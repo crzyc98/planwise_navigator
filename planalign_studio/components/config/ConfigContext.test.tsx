@@ -168,6 +168,21 @@ describe('Configuration save year validation', () => {
     }
   });
 
+  it('blocks invalid active rate changes before review or save and retains inactive settings', async () => {
+    const saved = structuredClone(DEFAULT_FORM_DATA);
+    try {
+      DEFAULT_FORM_DATA.dcDeferralRateChangesEnabled = true;
+      DEFAULT_FORM_DATA.dcDeferralRateChangesWithEscalationIncreaseProbability = 90;
+      expect(() => contextFromProvider().buildDraftConfig()).toThrow('raise, lower and stop chances together');
+      expect(await saveFromProvider()()).toBe(false);
+      expect(updateWorkspace).not.toHaveBeenCalled();
+      DEFAULT_FORM_DATA.dcDeferralRateChangesEnabled = false;
+      expect(() => contextFromProvider().buildDraftConfig()).not.toThrow();
+    } finally {
+      Object.assign(DEFAULT_FORM_DATA, saved);
+    }
+  });
+
   it('permits single-year simulations and persists the validated horizon', async () => {
     DEFAULT_FORM_DATA.endYear = 2025;
     expect(await saveFromProvider()()).toBe(true);

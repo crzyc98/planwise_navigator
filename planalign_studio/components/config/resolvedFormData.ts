@@ -40,6 +40,15 @@ const SCALARS: Mapping[] = [
   ['promoDistributionRange', 'promotion_distribution_range', 100],
   ['promoRateMultiplier', 'promotion_rate_multiplier'],
   ['dcAutoEnroll', 'auto_enrollment_enabled'],
+  ['dcDeferralRateChangesEnabled', 'deferral_rate_changes_enabled'],
+  ['dcDeferralRateChangesWithEscalationIncreaseProbability', 'deferral_rate_changes_with_escalation_increase_probability', 100],
+  ['dcDeferralRateChangesWithEscalationDecreaseProbability', 'deferral_rate_changes_with_escalation_decrease_probability', 100],
+  ['dcDeferralRateChangesWithoutEscalationIncreaseProbability', 'deferral_rate_changes_without_escalation_increase_probability', 100],
+  ['dcDeferralRateChangesWithoutEscalationDecreaseProbability', 'deferral_rate_changes_without_escalation_decrease_probability', 100],
+  ['dcDeferralRateChangesPostEscalationDecreaseWindowDays', 'deferral_rate_changes_post_escalation_decrease_window_days'],
+  ['dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation', 'deferral_rate_changes_post_escalation_decrease_leaves_escalation'],
+  ['dcDeferralRateChangesStopProbability', 'deferral_rate_changes_stop_probability', 100],
+  ['dcDeferralRateChangesRestartProbability', 'deferral_rate_changes_restart_probability', 100],
   ['dcEasyEnrollEnabled', 'easy_enroll_enabled'],
   ['dcEasyEnrollShareWithoutAutoEnrollment', 'easy_enroll_channel_share_without_auto_enrollment', 100],
   ['dcEasyEnrollShareWithAutoEnrollment', 'easy_enroll_channel_share_with_auto_enrollment', 100],
@@ -107,6 +116,10 @@ function applyEnrollment(variables: Variables, form: FormData): FormData {
     dcDeferralSpreadMaxLift: variables.deferral_spread_max_lift == null ? form.dcDeferralSpreadMaxLift : String(variables.deferral_spread_max_lift),
     dcEscalationHireDateCutoff: (variables.deferral_escalation_hire_date_cutoff ?? '') as string,
     dcVoluntaryDeferralBaseRates: rates,
+    ...(rows<FormData['dcDeferralRateChangesIncreaseSteps'][number]>(variables.deferral_rate_changes_increase_steps)
+      ? { dcDeferralRateChangesIncreaseSteps: stepsToPercent(variables.deferral_rate_changes_increase_steps as FormData['dcDeferralRateChangesIncreaseSteps']) } : {}),
+    ...(rows<FormData['dcDeferralRateChangesDecreaseSteps'][number]>(variables.deferral_rate_changes_decrease_steps)
+      ? { dcDeferralRateChangesDecreaseSteps: stepsToPercent(variables.deferral_rate_changes_decrease_steps as FormData['dcDeferralRateChangesDecreaseSteps']) } : {}),
     ...(rows<FormData['dcEasyEnrollPackages'][number]>(variables.easy_enroll_packages)
       ? { dcEasyEnrollPackages: packagesToPercent(variables.easy_enroll_packages as FormData['dcEasyEnrollPackages']) } : {}),
     dcReenrollmentSweepFirstYear: String(variables.reenrollment_sweep_first_year ?? ''),

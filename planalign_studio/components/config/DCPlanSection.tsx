@@ -12,7 +12,8 @@ import { DCPlanPanel, EmployerEligibilityEditor, coreSummary, dcDisplayConfig, m
 import { EnrollmentRateInput } from './EnrollmentRateInput';
 import { BelowDefaultEditor } from './BelowDefaultEditor';
 import { EasyEnrollEditor } from './EasyEnrollEditor';
-import { belowDefaultSummary, easyEnrollSummary } from './participantBehaviorConfig';
+import { DeferralRateChangesEditor } from './DeferralRateChangesEditor';
+import { belowDefaultSummary, easyEnrollSummary, deferralRateChangesSummary } from './participantBehaviorConfig';
 
 // A blank cutoff is removed from the export, so dbt applies its default (dbt_project.yml).
 const ENGINE_DEFAULT_HIRE_CUTOFF = '2020-01-01';
@@ -1391,6 +1392,12 @@ export function DCPlanSection() {
             Offer Easy Enroll packages
           </label>
         }><EasyEnrollEditor form={formData} onChange={changes => setFormData(previous => ({ ...previous, ...changes }))} /></DCPlanPanel>
+        <DCPlanPanel id="dcplan-rate-changes-panel" title="Changes to contribution rates over time" enabled={formData.dcDeferralRateChangesEnabled} summary={deferralRateChangesSummary(formData)} control={
+          <label htmlFor="dcplan-rate-changes-enabled" className="flex items-center gap-2 text-sm font-medium text-ink-muted">
+            <input id="dcplan-rate-changes-enabled" type="checkbox" name="dcDeferralRateChangesEnabled" checked={formData.dcDeferralRateChangesEnabled} onChange={handleChange} className="h-4 w-4 text-fidelity-green rounded" />
+            Model employees changing their own contribution rate
+          </label>
+        }><DeferralRateChangesEditor form={formData} onChange={changes => setFormData(previous => ({ ...previous, ...changes }))} /></DCPlanPanel>
         <DCPlanPanel id="dcplan-response-panel" title="Response to the employer match" summary={`New enrollees seeking full match: ${formData.dcMatchMagnetEnabled ? `${formData.dcMatchMagnetProbability}% of below-ceiling voluntary enrollees` : 'off'}; downward pull ${formData.dcAutoEnroll && formData.dcMatchMagnetEnabled ? formData.dcMatchMagnetDownwardEnabled ? `on (same ${formData.dcMatchMagnetProbability}% probability)` : 'off' : 'inactive'}; first-year existing-participant response: ${formData.dcMatchResponseEnabled ? `upward ${formData.dcMatchResponseUpwardParticipation}%, downward ${formData.dcMatchResponseDownwardEnabled ? `${formData.dcMatchResponseDownwardParticipation}%` : 'off'}; ${responseMaximizers}% of upward responders seek full match, others close ${responsePartialGap}% of the gap` : 'off'}.`}>{responseFields}</DCPlanPanel>
       </section>
     </div>

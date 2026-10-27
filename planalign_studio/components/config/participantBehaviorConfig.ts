@@ -1,11 +1,22 @@
 import type { components } from '../../services/api.generated';
-import type { BelowDefaultStep, BelowDefaultTier, EasyEnrollPackage, FormData } from './types';
+import type { BelowDefaultStep, BelowDefaultTier, DeferralChangeStep, EasyEnrollPackage, FormData } from './types';
 
 type BehaviorConfig = Pick<components['schemas']['StudioDCPlanConfig'],
   'escalation_mode' | 'escalation_participant_elected_signup_probability' |
   'match_magnet_downward_enabled' | 'below_default_share_tiers' | 'below_default_steps' |
   'easy_enroll_enabled' | 'easy_enroll_channel_share_without_auto_enrollment' |
-  'easy_enroll_channel_share_with_auto_enrollment' | 'easy_enroll_packages' | 'easy_enroll_escalation_cap'>;
+  'easy_enroll_channel_share_with_auto_enrollment' | 'easy_enroll_packages' | 'easy_enroll_escalation_cap' |
+  'deferral_rate_changes_enabled' |
+  'deferral_rate_changes_with_escalation_increase_probability' |
+  'deferral_rate_changes_with_escalation_decrease_probability' |
+  'deferral_rate_changes_without_escalation_increase_probability' |
+  'deferral_rate_changes_without_escalation_decrease_probability' |
+  'deferral_rate_changes_increase_steps' |
+  'deferral_rate_changes_decrease_steps' |
+  'deferral_rate_changes_post_escalation_decrease_window_days' |
+  'deferral_rate_changes_post_escalation_decrease_leaves_escalation' |
+  'deferral_rate_changes_stop_probability' |
+  'deferral_rate_changes_restart_probability'>;
 
 const percent = (value: number) => Number((value * 100).toFixed(10));
 
@@ -23,6 +34,25 @@ export const packagesToPercent = (packages: EasyEnrollPackage[]): EasyEnrollPack
 
 export function participantBehaviorFormFields(config: BehaviorConfig, form: FormData): Partial<FormData> {
   return {
+    dcDeferralRateChangesEnabled: config.deferral_rate_changes_enabled ?? form.dcDeferralRateChangesEnabled,
+    dcDeferralRateChangesWithEscalationIncreaseProbability: config.deferral_rate_changes_with_escalation_increase_probability == null
+      ? form.dcDeferralRateChangesWithEscalationIncreaseProbability : percent(config.deferral_rate_changes_with_escalation_increase_probability),
+    dcDeferralRateChangesWithEscalationDecreaseProbability: config.deferral_rate_changes_with_escalation_decrease_probability == null
+      ? form.dcDeferralRateChangesWithEscalationDecreaseProbability : percent(config.deferral_rate_changes_with_escalation_decrease_probability),
+    dcDeferralRateChangesWithoutEscalationIncreaseProbability: config.deferral_rate_changes_without_escalation_increase_probability == null
+      ? form.dcDeferralRateChangesWithoutEscalationIncreaseProbability : percent(config.deferral_rate_changes_without_escalation_increase_probability),
+    dcDeferralRateChangesWithoutEscalationDecreaseProbability: config.deferral_rate_changes_without_escalation_decrease_probability == null
+      ? form.dcDeferralRateChangesWithoutEscalationDecreaseProbability : percent(config.deferral_rate_changes_without_escalation_decrease_probability),
+    dcDeferralRateChangesIncreaseSteps: config.deferral_rate_changes_increase_steps == null
+      ? form.dcDeferralRateChangesIncreaseSteps : stepsToPercent(config.deferral_rate_changes_increase_steps),
+    dcDeferralRateChangesDecreaseSteps: config.deferral_rate_changes_decrease_steps == null
+      ? form.dcDeferralRateChangesDecreaseSteps : stepsToPercent(config.deferral_rate_changes_decrease_steps),
+    dcDeferralRateChangesPostEscalationDecreaseWindowDays: config.deferral_rate_changes_post_escalation_decrease_window_days ?? form.dcDeferralRateChangesPostEscalationDecreaseWindowDays,
+    dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation: config.deferral_rate_changes_post_escalation_decrease_leaves_escalation ?? form.dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation,
+    dcDeferralRateChangesStopProbability: config.deferral_rate_changes_stop_probability == null
+      ? form.dcDeferralRateChangesStopProbability : percent(config.deferral_rate_changes_stop_probability),
+    dcDeferralRateChangesRestartProbability: config.deferral_rate_changes_restart_probability == null
+      ? form.dcDeferralRateChangesRestartProbability : percent(config.deferral_rate_changes_restart_probability),
     dcEasyEnrollEnabled: config.easy_enroll_enabled ?? form.dcEasyEnrollEnabled,
     dcEasyEnrollShareWithoutAutoEnrollment: config.easy_enroll_channel_share_without_auto_enrollment == null
       ? form.dcEasyEnrollShareWithoutAutoEnrollment : percent(config.easy_enroll_channel_share_without_auto_enrollment),
@@ -133,4 +163,50 @@ export function easyEnrollSummary(form: FormData): string {
   if (validateEasyEnrollSettings(form).length) return 'Easy Enroll settings need attention: check package rates, shares and automatic increase limit.';
   const share = form.dcAutoEnroll ? form.dcEasyEnrollShareWithAutoEnrollment : form.dcEasyEnrollShareWithoutAutoEnrollment;
   return `${share}% of self-enrollees use Easy Enroll; packages: ${form.dcEasyEnrollPackages.map(pkg => `${pkg.rate}% contribution chosen by ${pkg.share}%`).join(', ')}. Automatic increases stop at ${form.dcEasyEnrollEscalationCap}%, even when plan-wide automatic increases are off.`;
+}
+
+export const rateChangeGroups = [
+  ['In automatic increases', 'dcDeferralRateChangesWithEscalationIncreaseProbability', 'dcDeferralRateChangesWithEscalationDecreaseProbability'],
+  ['Not in automatic increases', 'dcDeferralRateChangesWithoutEscalationIncreaseProbability', 'dcDeferralRateChangesWithoutEscalationDecreaseProbability'],
+] as const;
+
+export function invalidRateChangeStep(steps: DeferralChangeStep[], index: number): boolean {
+  const pp = steps[index].pp;
+  return !Number.isInteger(pp) || pp <= 0 || steps.some((step, row) => row !== index && step.pp === pp);
+}
+
+export function validateDeferralRateChangeSettings(form: FormData): string[] {
+  const errors: string[] = [];
+  const probabilities = rateChangeGroups.flatMap(([, raise, lower]) => [form[raise], form[lower]]);
+  if (![...probabilities, form.dcDeferralRateChangesStopProbability, form.dcDeferralRateChangesRestartProbability].every(inRange)) {
+    errors.push('Each annual chance must be between 0% and 100%.');
+  }
+  for (const [label, raise, lower] of rateChangeGroups) {
+    if (form[raise] + form[lower] + form.dcDeferralRateChangesStopProbability > 100 + 1e-8) {
+      errors.push(`${label}: raise, lower and stop chances together must be no more than 100%.`);
+    }
+  }
+  for (const [label, steps] of [['Raise', form.dcDeferralRateChangesIncreaseSteps], ['Lower', form.dcDeferralRateChangesDecreaseSteps]] as const) {
+    if (!steps.length || steps.some((_, index) => invalidRateChangeStep(steps, index))) {
+      errors.push(`${label} steps must be unique positive whole percentage points.`);
+    }
+    if (invalidDistribution(steps.map(step => step.weight))) {
+      errors.push(`${label} weights must be between 0% and 100% and add up to 100% (now ${distributionTotal(steps.map(step => step.weight))}%).`);
+    }
+  }
+  const days = form.dcDeferralRateChangesPostEscalationDecreaseWindowDays;
+  if (form.dcAutoEscalation && (!Number.isInteger(days) || days < 1 || days > 365)) {
+    errors.push('The notice response window must be a whole number from 1 to 365 days.');
+  }
+  return errors;
+}
+
+export function deferralRateChangesSummary(form: FormData): string {
+  if (!form.dcDeferralRateChangesEnabled) return 'Contribution rate changes off; settings inactive and saved values retained.';
+  if (validateDeferralRateChangeSettings(form).length) return 'Contribution rate change settings need attention: check annual chances, steps and notice response window.';
+  const groups = rateChangeGroups.map(([label, raise, lower]) => `${label}: ${form[raise]}% raise, ${form[lower]}% lower`).join('; ');
+  const response = form.dcAutoEscalation
+    ? `Notice responses within ${form.dcDeferralRateChangesPostEscalationDecreaseWindowDays} days; ${form.dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation ? 'leave' : 'stay in'} automatic increases.`
+    : 'Notice responses inactive while automatic increases are off; saved settings retained.';
+  return `${groups}; ${form.dcDeferralRateChangesStopProbability}% stop, ${form.dcDeferralRateChangesRestartProbability}% restart each year. ${response}`;
 }

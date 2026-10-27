@@ -7,6 +7,7 @@ import { EmployerEligibilityEditor, coreSummary, dcDisplayConfig, eligibilitySum
 import { EnrollmentRateInput } from './EnrollmentRateInput';
 import { DistributionTable } from './DistributionTable';
 import { EasyEnrollEditor } from './EasyEnrollEditor';
+import { DeferralRateChangesEditor } from './DeferralRateChangesEditor';
 import { BelowDefaultEditor } from './BelowDefaultEditor';
 import { belowDefaultSummary, validateBelowDefaultSettings, easyEnrollSummary, validateEasyEnrollSettings } from './participantBehaviorConfig';
 import type { FormData } from './types';
@@ -56,6 +57,7 @@ type ControlProps = { name?: string; id?: string; checked?: boolean; children?: 
 function elements(node: ReactNode): ReactElement<ControlProps>[] {
   return Children.toArray(node).flatMap(child => {
     if (!isValidElement<ControlProps>(child)) return [];
+    if (typeof child.type === 'function' && child.type.name === 'StepTable') return elements((child.type as (props: ControlProps) => ReactNode)(child.props));
     if (child.type === DistributionTable) return elements(DistributionTable(child.props as unknown as React.ComponentProps<typeof DistributionTable>));
     return [child, ...elements(child.props.children), ...elements(child.props.control)];
   });
@@ -886,5 +888,102 @@ describe('sweep target groups and method', () => {
     expect(render().includes(notice)).toBe(expected);
     toggle('dcReenrollmentSweepEnabled', false);
     expect(render()).not.toContain(notice);
+  });
+});
+
+describe('contribution rate change controls', () => {
+  const editor = () => DeferralRateChangesEditor({ form: state.formData, onChange: changes => { state.formData = { ...state.formData, ...changes }; } });
+  const click = (label: string) => {
+    const button = elements(editor()).find(element => element.type === 'button'
+      && (element.props.children === label || element.props['aria-label'] === label));
+    expect(button).toBeDefined();
+    button!.props.onClick!();
+  };
+  const edit = (label: string, value: string) => {
+    const control = elements(editor()).find(element => element.props['aria-label'] === label || element.props.name === label);
+    expect(control).toBeDefined();
+    control!.props.onChange!({ target: { value } } as React.ChangeEvent<HTMLInputElement>);
+  };
+
+  it('places the panel after Easy Enroll and before match response with a persistent toggle', () => {
+    const html = render();
+    expect(html.indexOf('id="dcplan-easy-enroll-panel"')).toBeLessThan(html.indexOf('id="dcplan-rate-changes-panel"'));
+    expect(html.indexOf('id="dcplan-rate-changes-panel"')).toBeLessThan(html.indexOf('id="dcplan-response-panel"'));
+    expect(html).toContain('Changes to contribution rates over time');
+    expect(html).toContain('Model employees changing their own contribution rate');
+    expect(html).toContain('settings inactive and saved values retained');
+    const original = structuredClone(state.formData);
+    toggle('dcDeferralRateChangesEnabled', true);
+    expect(render()).toContain('<details id="dcplan-rate-changes-panel" open="">');
+    expect(render()).toContain('25% raise, 7.5% lower');
+    toggle('dcDeferralRateChangesEnabled', false);
+    expect(state.formData).toEqual(original);
+  });
+
+  it('retains visible dimmed fields when off and suppresses inactive validation', () => {
+    state.formData.dcDeferralRateChangesIncreaseSteps = [{ pp: 2, weight: 99 }];
+    const original = structuredClone(state.formData);
+    const html = renderToStaticMarkup(editor());
+    expect(html).toContain('<fieldset disabled="" aria-label="Contribution rate change settings" class="min-w-0 space-y-4 disabled:opacity-60"');
+    expect(html).toContain('Inactive while contribution rate changes are off. Saved values are retained.');
+    expect(html).toContain('Chance each year');
+    expect(html).toContain('value="7.5"');
+    expect(html).toContain('How much people raise');
+    expect(html).toContain('How much people lower');
+    expect(html).toContain('At most one change per person per year.');
+    expect(html).toContain('Stopped employees stay enrolled at 0%; a restart returns them to their earlier rate.');
+    expect(html).toContain('Decreases never go below 1%.');
+    expect(html).not.toContain('role="alert"');
+    expect(state.formData).toEqual(original);
+    toggle('dcDeferralRateChangesEnabled', true);
+    expect(renderToStaticMarkup(editor())).toContain('now 99%');
+  });
+
+  it('disables only notice responses when automatic increases are off, retaining settings', () => {
+    state.formData = { ...state.formData, dcDeferralRateChangesEnabled: true, dcAutoEscalation: false,
+      dcDeferralRateChangesPostEscalationDecreaseWindowDays: 123,
+      dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation: true };
+    const original = structuredClone(state.formData);
+    const html = renderToStaticMarkup(editor());
+    expect(html).toContain('<fieldset aria-label="Contribution rate change settings"');
+    expect(html).toContain('<fieldset disabled="" aria-label="Automatic-increase notice responses" class="min-w-0 space-y-3 disabled:opacity-60"');
+    expect(html).toContain('Inactive while automatic increases are off. Saved values are retained.');
+    expect(html).toContain('These people also leave automatic increases');
+    expect(input(html, 'dcDeferralRateChangesPostEscalationDecreaseWindowDays')).toContain('value="123"');
+    expect(input(html, 'dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation')).toContain('checked=""');
+    expect(state.formData).toEqual(original);
+    toggle('dcAutoEscalation', true);
+    expect(renderToStaticMarkup(editor())).not.toContain('<fieldset disabled');
+    toggle('dcAutoEscalation', false);
+    expect(state.formData).toEqual(original);
+  });
+
+  it('edits annual chances, notices and both distributions without normalizing', () => {
+    state.formData.dcDeferralRateChangesEnabled = true;
+    edit('In automatic increases: Raise their rate', '90');
+    expect(renderToStaticMarkup(editor())).toContain('raise, lower and stop chances together must be no more than 100%');
+    edit('In automatic increases: Raise their rate', '3.25');
+    edit('Not in automatic increases: Lower their rate', '8.25');
+    edit('dcDeferralRateChangesStopProbability', '2.25');
+    edit('dcDeferralRateChangesRestartProbability', '1.25');
+    edit('dcDeferralRateChangesPostEscalationDecreaseWindowDays', '120');
+    const leaves = elements(editor()).find(element => element.props.name === 'dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation');
+    leaves!.props.onChange!({ target: { checked: true } } as React.ChangeEvent<HTMLInputElement>);
+    expect(state.formData).toMatchObject({ dcDeferralRateChangesWithEscalationIncreaseProbability: 3.25,
+      dcDeferralRateChangesWithoutEscalationDecreaseProbability: 8.25, dcDeferralRateChangesStopProbability: 2.25,
+      dcDeferralRateChangesRestartProbability: 1.25, dcDeferralRateChangesPostEscalationDecreaseWindowDays: 120,
+      dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation: true });
+    for (const [direction, count] of [['raise', 7], ['lower', 6]] as const) {
+      const title = direction === 'raise' ? 'Raise' : 'Lower';
+      click(`Add ${direction} step`);
+      edit(`${title} step ${count} in percentage points`, '1');
+      edit(`${title} step ${count} weight`, '10');
+      const html = renderToStaticMarkup(editor());
+      expect(html).toContain('must be unique positive whole percentage points');
+      expect(html).toContain('now 110%');
+      expect(html).toContain('aria-invalid="true" aria-describedby="dcplan-rate-changes-errors"');
+      click(`Remove ${direction} step ${count}`);
+    }
+    expect(renderToStaticMarkup(editor())).not.toContain('role="alert"');
   });
 });

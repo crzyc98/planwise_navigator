@@ -93,6 +93,17 @@ function formatEligibilityValue(key: string, value: unknown): string | undefined
   return value ? 'Allowed' : 'Excluded';
 }
 const behaviorLabels: Record<string, string> = {
+  deferral_rate_changes_enabled: 'Model employees changing their own contribution rate',
+  deferral_rate_changes_with_escalation_increase_probability: 'In automatic increases: raise their rate',
+  deferral_rate_changes_with_escalation_decrease_probability: 'In automatic increases: lower their rate',
+  deferral_rate_changes_without_escalation_increase_probability: 'Not in automatic increases: raise their rate',
+  deferral_rate_changes_without_escalation_decrease_probability: 'Not in automatic increases: lower their rate',
+  deferral_rate_changes_increase_steps: 'How much people raise',
+  deferral_rate_changes_decrease_steps: 'How much people lower',
+  deferral_rate_changes_post_escalation_decrease_window_days: 'Days after an automatic increase for notice responses',
+  deferral_rate_changes_post_escalation_decrease_leaves_escalation: 'These people also leave automatic increases',
+  deferral_rate_changes_stop_probability: 'Stop contributing',
+  deferral_rate_changes_restart_probability: 'Restart after stopping',
   reenrollment_sweep_enabled: 'Periodic re-enrollment sweep',
   reenrollment_sweep_interval_years: 'Sweep interval (years)',
   reenrollment_sweep_first_year: 'First sweep year',
@@ -120,6 +131,9 @@ const labelFor = (key: string) => behaviorLabels[key.replace(/^dc_plan\./, '')] 
 function formatBehaviorSetting(key: string, value: unknown): string | undefined {
   key = key.replace(/^dc_plan\./, '');
   if (!(key in behaviorLabels) || value == null) return undefined;
+  if (key.startsWith('deferral_rate_changes_') && typeof value === 'boolean') return value ? 'On' : 'Off';
+  if (key === 'deferral_rate_changes_post_escalation_decrease_window_days') return `${value} days`;
+  if (key.startsWith('deferral_rate_changes_') && key.endsWith('_probability') && typeof value === 'number') return `${Number((value * 100).toFixed(3))}%`;
   if (key.endsWith('escalation_mode')) return value === 'automatic' ? 'Automatic (everyone unless they opt out)'
     : value === 'participant_elected' ? 'Participant-elected (employees sign up)' : showValue(value);
   if (key.endsWith('signup_probability') && typeof value === 'number') return `${Number((value * 100).toFixed(3))}%`;
@@ -127,6 +141,10 @@ function formatBehaviorSetting(key: string, value: unknown): string | undefined 
   if (key === 'easy_enroll_enabled' && typeof value === 'boolean') return value ? 'On' : 'Off';
   if (!Array.isArray(value)) return undefined;
   const pct = (rate: unknown) => typeof rate === 'number' ? `${Number((rate * 100).toFixed(3))}%` : showValue(rate);
+  if (key === 'deferral_rate_changes_increase_steps' || key === 'deferral_rate_changes_decrease_steps') return value.map((row: unknown) => {
+    const step = asConfig(row);
+    return `${step.pp} percentage ${step.pp === 1 ? 'point' : 'points'} (${pct(step.weight)})`;
+  }).join('; ');
   if (key === 'easy_enroll_packages') return value.map((row: unknown) => {
     const pkg = asConfig(row);
     return `${pct(pkg.rate)} contribution, chosen by ${pct(pkg.share)}`;
@@ -145,6 +163,7 @@ function formatBehaviorSetting(key: string, value: unknown): string | undefined 
 const percentVariables = new Set(['reenrollment_sweep_decline_probability', 'target_growth_rate', 'total_termination_rate', 'new_hire_termination_rate', 'cola_rate', 'merit_budget', 'promotion_base_increase_pct', 'promotion_distribution_range', 'auto_enrollment_default_deferral_rate', 'voluntary_enrollment_rate', 'new_hire_opt_out_rate', 'deferral_escalation_increment', 'deferral_escalation_cap', 'match_cap_percent', 'employer_match_max_deferral_rate', 'employer_core_contribution_rate', 'new_hire_ineligible_pct']);
 const summaryVariables = ['reenrollment_sweep_method', 'reenrollment_sweep_include_non_contributors', 'reenrollment_sweep_include_below_default', 'reenrollment_sweep_include_below_aip_cap', 'reenrollment_sweep_decline_probability', 'reenrollment_sweep_enabled', 'reenrollment_sweep_interval_years', 'reenrollment_sweep_first_year', 'simulation_start_year', 'end_year', 'random_seed', 'target_growth_rate', 'total_termination_rate', 'new_hire_termination_rate', 'cola_rate', 'merit_budget', 'promotion_base_increase_pct', 'promotion_distribution_range', 'promotion_rate_multiplier', 'auto_enrollment_enabled', 'auto_enrollment_scope', 'auto_enrollment_hire_date_cutoff', 'auto_enrollment_window_days', 'auto_enrollment_default_deferral_rate', 'voluntary_enrollment_rate', 'new_hire_opt_out_rate', 'deferral_escalation_enabled', 'deferral_escalation_increment', 'deferral_escalation_cap',
   'deferral_escalation_mode', 'deferral_escalation_participant_elected_signup_probability', 'enrollment_match_magnet_downward_enabled', 'below_default_share_tiers', 'below_default_steps',
+  ...Object.keys(behaviorLabels).filter(key => key.startsWith('deferral_rate_changes_')),
   'easy_enroll_enabled', 'easy_enroll_channel_share_with_auto_enrollment', 'easy_enroll_channel_share_without_auto_enrollment', 'easy_enroll_packages', 'easy_enroll_escalation_cap'];
 const formatVariable = (key: string, value: unknown) => {
   if (key.replace(/^dc_plan\./, '') === 'reenrollment_sweep_method') return value === 'into_aip' ? 'Sweep into automatic increases' : 'Enroll at the default rate';
@@ -211,6 +230,12 @@ function formatMatchTiers(value: unknown): string {
   }).join('; then ');
 }
 function inactiveVariable(key: string, variables: Config): string | null {
+  if (key.startsWith('deferral_rate_changes_') && key !== 'deferral_rate_changes_enabled') {
+    if (variables.deferral_rate_changes_enabled === false) return 'Inactive while contribution rate changes are off; saved value retained.';
+    if (key.startsWith('deferral_rate_changes_post_escalation_') && variables.deferral_escalation_enabled === false) {
+      return 'Inactive while automatic increases are off; saved value retained.';
+    }
+  }
   if (key.startsWith('easy_enroll_') && key !== 'easy_enroll_enabled') {
     if (variables.easy_enroll_enabled === false) return 'Inactive while Easy Enroll is off; saved value retained.';
     const applicable = variables.auto_enrollment_enabled === true ? 'with' : 'without';
@@ -369,6 +394,7 @@ export function EffectiveConfigReview({ review, stale, saving, onClose, onSave, 
         {resolved && <>
           <section><h3 className="font-semibold mb-2">Indirect effects in engine settings</h3><p className="text-xs text-ink-muted mb-2">Canonical engine variables after production configuration normalization. Rates are displayed as percentages.</p>{resolved.before ? <ChangesTable changes={engineChanges} engine /> : <p role="status" className="text-sm text-warning-ink">The saved configuration could not be resolved, so an engine comparison is unavailable. The corrected draft has been validated and can be saved. Saved-to-draft changes remain visible above.</p>}</section>
           <section><h3 className="font-semibold mb-2">Effective assumptions</h3><p className="text-xs text-ink-muted mb-3">Resolved by the same configuration loader and variable export used for simulation. {resolved.after.scope}</p>
+            {variables.deferral_rate_changes_enabled === true && <p className="mb-3 text-xs text-ink-muted">At most one change per person per year. Decreases never go below 1%. Stopped employees stay enrolled at 0%; a restart returns them to their earlier rate.</p>}
             {variables.easy_enroll_enabled === true && <p className="mb-3 text-xs text-ink-muted">Easy Enroll members get automatic increases even when plan-wide automatic increases are off.</p>}
             <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">{summaryVariables.filter(key => key in variables).map(key => <div key={key} className="border border-border rounded p-2"><dt className="text-ink-muted capitalize">{labelFor(key)}</dt><dd className="font-medium break-all">{formatVariable(key, variables[key])}{inactiveVariable(key, variables) && <span className="block mt-1 text-xs font-normal text-ink-muted">{inactiveVariable(key, variables)}</span>}</dd></div>)}</dl>
             <p className="text-sm mt-3">Voluntary enrollment: {'voluntary_enrollment_rate' in variables ? formatVariable('voluntary_enrollment_rate', variables.voluntary_enrollment_rate) : 'Demographic model'}. New-hire opt-out: {'new_hire_opt_out_rate' in variables ? formatVariable('new_hire_opt_out_rate', variables.new_hire_opt_out_rate) : 'Demographic model'}{variables.auto_enrollment_enabled === false ? ' (inactive while automatic enrollment is off)' : ''}.</p>
