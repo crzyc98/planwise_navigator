@@ -33,7 +33,10 @@ def test_earned_pay_and_enrollment_window(
     source = ROOT / "dbt/models/intermediate/int_employee_contributions.sql"
     sql = (
         Environment()
-        .from_string(source.read_text())
+        .from_string(
+            (ROOT / "dbt/macros/irs_402g_limit_for_age.sql").read_text()
+            + source.read_text()
+        )
         .render(
             config=lambda **kwargs: "",
             var=lambda name, default=None: default,
