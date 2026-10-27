@@ -10,6 +10,9 @@ import yaml
 from planalign_orchestrator.pipeline.workflow import WorkflowBuilder
 from tests.helpers.dbt_manifest import load_production_manifest, model_nodes
 
+# One worker parses each manifest variant once (CI runs --dist loadgroup).
+pytestmark = pytest.mark.xdist_group("dbt_manifest")
+
 ROOT = Path(__file__).parents[3]
 GRAPH = yaml.safe_load(
     (ROOT / "tests/fixtures/state_pipeline_graph_contract.yaml").read_text()

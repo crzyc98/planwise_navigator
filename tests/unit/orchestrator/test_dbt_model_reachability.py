@@ -9,7 +9,11 @@ from planalign_orchestrator.hazard_cache_manager import HazardCacheManager
 from planalign_orchestrator.pipeline.workflow import WorkflowBuilder
 from tests.helpers.dbt_manifest import load_production_manifest, model_nodes
 
-pytestmark = [pytest.mark.fast, pytest.mark.config]
+pytestmark = [
+    pytest.mark.fast,
+    pytest.mark.config,
+    pytest.mark.xdist_group("dbt_manifest"),
+]
 
 # These directories contain opt-in diagnostics, not production pipeline models.
 NON_PRODUCTION_PATH_PARTS = {

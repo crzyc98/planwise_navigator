@@ -199,12 +199,14 @@ jobs:
           # Constitution III caps the fast suite's wall-clock time (see #648).
           # Warn above 450s to track drift; fail above 540s to allow for runner
           # variance observed on GitHub-hosted runners (see #928).
-          # --dist load: tests must not depend on sharing a worker with their
+          # --dist loadgroup: tests must not depend on sharing a worker with their
           # file-mates; keep collection deterministic (no uuid4() in IDs).
+          # The xdist_group("dbt_manifest") tests share one worker so each
+          # `dbt parse` variant (~22s on CI) runs once, not once per worker.
           FAST_SUITE_BUDGET_SECONDS=540
           FAST_SUITE_WARNING_SECONDS=450
           start=$(date +%s)
-          pytest -m fast -q -n 4 --dist load --durations=40
+          pytest -m fast -q -n 4 --dist loadgroup --durations=40
           status=$?
           elapsed=$(( $(date +%s) - start ))
           echo "Fast suite took ${elapsed}s (budget: ${FAST_SUITE_BUDGET_SECONDS}s)"
