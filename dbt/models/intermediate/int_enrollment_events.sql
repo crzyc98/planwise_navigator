@@ -394,10 +394,10 @@ year_over_year_enrollment_events AS (
 
     -- Conversion probability calculation
     (CASE
-      WHEN aw.current_age < 31 THEN {{ var('year_over_year_conversion_base_rates_by_age_young', 0.0275848) }}
-      WHEN aw.current_age < 46 THEN {{ var('year_over_year_conversion_base_rates_by_age_mid_career', 0.04597466) }}
-      WHEN aw.current_age < 56 THEN {{ var('year_over_year_conversion_base_rates_by_age_mature', 0.06436453) }}
-      ELSE {{ var('year_over_year_conversion_base_rates_by_age_senior', 0.07355946) }}
+      WHEN aw.current_age < 31 THEN {{ var('year_over_year_conversion_base_rates_by_age_young', 0.028) }}
+      WHEN aw.current_age < 46 THEN {{ var('year_over_year_conversion_base_rates_by_age_mid_career', 0.046) }}
+      WHEN aw.current_age < 56 THEN {{ var('year_over_year_conversion_base_rates_by_age_mature', 0.064) }}
+      ELSE {{ var('year_over_year_conversion_base_rates_by_age_senior', 0.074) }}
     END *
     CASE
       WHEN aw.current_compensation < 50000 THEN {{ var('year_over_year_conversion_income_multipliers_low_income', 0.8) }}
@@ -428,10 +428,10 @@ year_over_year_enrollment_events AS (
     AND {{ var('year_over_year_conversion_enabled', true) }}
     AND (ABS(PLANALIGN_HASH(aw.employee_id || '-yoy-conversion-' || CAST(aw.simulation_year AS VARCHAR))) % 1000) / 1000.0 < (
       CASE
-        WHEN aw.current_age < 31 THEN {{ var('year_over_year_conversion_base_rates_by_age_young', 0.0275848) }}
-        WHEN aw.current_age < 46 THEN {{ var('year_over_year_conversion_base_rates_by_age_mid_career', 0.04597466) }}
-        WHEN aw.current_age < 56 THEN {{ var('year_over_year_conversion_base_rates_by_age_mature', 0.06436453) }}
-        ELSE {{ var('year_over_year_conversion_base_rates_by_age_senior', 0.07355946) }}
+        WHEN aw.current_age < 31 THEN {{ var('year_over_year_conversion_base_rates_by_age_young', 0.028) }}
+        WHEN aw.current_age < 46 THEN {{ var('year_over_year_conversion_base_rates_by_age_mid_career', 0.046) }}
+        WHEN aw.current_age < 56 THEN {{ var('year_over_year_conversion_base_rates_by_age_mature', 0.064) }}
+        ELSE {{ var('year_over_year_conversion_base_rates_by_age_senior', 0.074) }}
       END *
       CASE
         WHEN aw.current_compensation < 50000 THEN {{ var('year_over_year_conversion_income_multipliers_low_income', 0.8) }}

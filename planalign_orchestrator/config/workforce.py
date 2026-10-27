@@ -198,10 +198,10 @@ class YearOverYearConversionSettings(BaseModel):
     enabled: Optional[bool] = None
     base_rates_by_age: Dict[str, float] = Field(
         default_factory=lambda: {
-            "young": 0.0275848,
-            "mid_career": 0.04597466,
-            "mature": 0.06436453,
-            "senior": 0.07355946,
+            "young": 0.028,
+            "mid_career": 0.046,
+            "mature": 0.064,
+            "senior": 0.074,
         }
     )
     income_multipliers: Dict[str, float] = Field(default_factory=dict)
