@@ -187,7 +187,7 @@ def test_promote_stale_candidate_returns_422(client, storage_and_source) -> None
     _, workspace, source = storage_and_source
     candidate = Candidate(
         candidate_id="candidate-1",
-        lever_values={"employer_match.tier_2_rate": 0.1},
+        lever_values={"employer_match.tier_3_rate": 0.1},
         status="feasible",
     )
     _seed_completed_job(candidate)

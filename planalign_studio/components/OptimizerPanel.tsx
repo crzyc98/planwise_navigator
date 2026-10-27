@@ -64,7 +64,6 @@ const LEVER_NAMES = [
   'auto_escalation.maximum_rate',
   'eligibility.waiting_period_days',
   'eligibility.minimum_age',
-  'vesting_schedule',
 ] as const;
 
 const MAX_LEVERS = 8;
@@ -389,7 +388,7 @@ export default function OptimizerPanel() {
         <h1 className="text-xl font-bold text-ink">Plan-Design Optimizer</h1>
         <p className="text-sm text-ink-muted">
           State objectives and constraints; PlanAlign searches match, auto-enrollment, escalation,
-          eligibility, and vesting design and returns the best candidates found within your run budget.
+          and eligibility design and returns the best candidates found within your run budget.
         </p>
       </div>
 

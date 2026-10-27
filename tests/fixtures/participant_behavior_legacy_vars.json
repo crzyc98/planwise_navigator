@@ -1,5 +1,4 @@
 {
-  "active_match_formula": "simple_match",
   "auto_enrollment_default_deferral_rate": 0.02,
   "auto_enrollment_enabled": true,
   "auto_enrollment_hire_date_cutoff": "2020-01-01",
@@ -42,7 +41,6 @@
   "deferral_match_response_upward_partial_factor": 0.5,
   "deferral_match_response_upward_participation_rate": 0.4,
   "deferral_spread_max_lift": 4,
-  "eligibility_waiting_days": 0,
   "eligibility_waiting_period_days": 30,
   "employer_core_contribution": {
     "contribution_rate": 0.01,
@@ -91,7 +89,7 @@
       "require_active_at_year_end": true
     }
   },
-  "employer_match_max_deferral_rate": 0.06,
+  "employer_match_max_deferral_rate": 0.05,
   "employer_match_status": "deferral_based",
   "end_year": 2029,
   "enrollment_business_day_adjustment": true,
@@ -99,109 +97,23 @@
   "enrollment_match_magnet_probability": 0.45,
   "event_generation_mode": "sql",
   "event_shards": 1,
-  "match_formulas": {
-    "enhanced_tiered": {
-      "max_match_percentage": 0.04,
-      "name": "Enhanced Tiered Match",
-      "tiers": [
-        {
-          "employee_max": 0.03,
-          "employee_min": 0.0,
-          "match_rate": 1.0,
-          "tier": 1
-        },
-        {
-          "employee_max": 0.05,
-          "employee_min": 0.03,
-          "match_rate": 0.5,
-          "tier": 2
-        }
-      ],
-      "type": "tiered"
+  "match_cap_percent": 0.04,
+  "match_template": "tiered",
+  "match_tiers": [
+    {
+      "employee_min": 0.0,
+      "employee_max": 0.03,
+      "match_rate": 1.0
     },
-    "qaca_safe_harbor": {
-      "max_match_percentage": 0.035,
-      "name": "QACA Safe Harbor Match",
-      "tiers": [
-        {
-          "employee_max": 0.01,
-          "employee_min": 0.0,
-          "match_rate": 1.0,
-          "tier": 1
-        },
-        {
-          "employee_max": 0.06,
-          "employee_min": 0.01,
-          "match_rate": 0.5,
-          "tier": 2
-        }
-      ],
-      "type": "qaca",
-      "vesting_schedule": "qaca_2_year"
-    },
-    "safe_harbor_basic": {
-      "immediate_vesting": true,
-      "max_match_percentage": 0.04,
-      "name": "Safe Harbor Basic Match",
-      "tiers": [
-        {
-          "employee_max": 0.03,
-          "employee_min": 0.0,
-          "match_rate": 1.0,
-          "tier": 1
-        },
-        {
-          "employee_max": 0.05,
-          "employee_min": 0.03,
-          "match_rate": 0.5,
-          "tier": 2
-        }
-      ],
-      "type": "safe_harbor"
-    },
-    "simple_match": {
-      "match_rate": 0.5,
-      "max_match_percentage": 0.06,
-      "name": "Simple Match",
-      "type": "simple"
-    },
-    "stretch_match": {
-      "max_match_percentage": 0.03,
-      "name": "Stretch Match (Encourages Higher Deferrals)",
-      "tiers": [
-        {
-          "employee_max": 0.12,
-          "employee_min": 0.0,
-          "match_rate": 0.25,
-          "tier": 1
-        }
-      ],
-      "type": "tiered"
-    },
-    "tiered_match": {
-      "max_match_percentage": 0.04,
-      "name": "Tiered Match",
-      "tiers": [
-        {
-          "employee_max": 0.03,
-          "employee_min": 0.0,
-          "match_rate": 1.0,
-          "tier": 1
-        },
-        {
-          "employee_max": 0.05,
-          "employee_min": 0.03,
-          "match_rate": 0.5,
-          "tier": 2
-        }
-      ],
-      "type": "tiered"
+    {
+      "employee_min": 0.03,
+      "employee_max": 0.05,
+      "match_rate": 0.5
     }
-  },
+  ],
   "max_parallel_years": 1,
   "merit_budget": 0.035,
   "minimum_age": 21,
-  "minimum_service_days": 0,
   "new_hire_eligibility_match_census": false,
   "new_hire_ineligible_pct": 0.0,
   "new_hire_termination_rate": 0.25,
@@ -215,6 +127,7 @@
   "opt_out_rate_young": 0.162,
   "parameter_scenario_id": "default",
   "plan_design_id": "default",
+  "plan_eligibility_waiting_period_days": 0,
   "plan_year_end_date": "2024-12-31",
   "plan_year_start_date": "2024-01-01",
   "proactive_enrollment_enabled": true,

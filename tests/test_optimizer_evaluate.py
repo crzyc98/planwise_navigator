@@ -54,16 +54,16 @@ def test_auto_escalation_toggle_candidate_round_trip(enabled: bool, mode: str) -
     assert baseline.deferral_auto_escalation.enabled is not enabled
 
 
-def test_tier_one_rate_overlays_flat_active_formula() -> None:
+def test_tier_one_rate_updates_paid_match() -> None:
     baseline = load_simulation_config(
         "config/simulation_config.yaml", env_overrides=False
     )
     candidate, delta = resolve_candidate_config(
         baseline, {"employer_match.tier_1_rate": 0.75}
     )
-    assert candidate.employer_match is not None
-    assert candidate.employer_match.formulas["simple_match"]["match_rate"] == 0.75
-    assert "match_formulas" in delta
+    assert to_dbt_vars(candidate)["match_tiers"][0]["match_rate"] == 0.75
+    assert delta["match_cap_percent"] == pytest.approx(0.0325)
+    assert to_dbt_vars(baseline)["match_tiers"][0]["match_rate"] == 1.0
 
 
 def test_constraint_classification_and_missing_metric() -> None:
@@ -89,22 +89,14 @@ def test_constraint_classification_and_missing_metric() -> None:
     assert missing.status == "non_evaluable"
 
 
-def test_tier_two_rate_against_flat_default_baseline_fails_validation_not_a_run() -> (
-    None
-):
-    """The shipped default baseline's active formula (simple_match) is flat.
-
-    A ``tier_2_rate`` lever is a plausible, registry-valid choice that cannot
-    resolve against that shape. It must be caught here, before any scenario
-    runs, rather than raising deep inside a candidate's config resolution.
-    """
+def test_missing_tier_fails_before_a_run() -> None:
     baseline = load_simulation_config(
         "config/simulation_config.yaml", env_overrides=False
     )
     lever = LeverSpec(
-        name="employer_match.tier_2_rate", kind="continuous", bounds=(0.1, 0.9)
+        name="employer_match.tier_3_rate", kind="continuous", bounds=(0.1, 0.9)
     )
-    with pytest.raises(ValueError, match="tier_2_rate"):
+    with pytest.raises(ValueError, match="tier_3_rate"):
         validate_levers_against_baseline(baseline, [lever])
 
 
@@ -127,3 +119,60 @@ def test_failed_candidate_is_distinct() -> None:
     )
     assert failed.status == "failed"
     assert failed.duration_seconds == 1.2
+
+
+@pytest.mark.parametrize("missing", [False, True])
+def test_cap_levers_and_contiguous_tiers(missing: bool) -> None:
+    baseline = load_simulation_config(
+        "config/simulation_config.yaml", env_overrides=False
+    )
+    if missing:
+        baseline.dc_plan = {}
+    candidate, _ = resolve_candidate_config(
+        baseline, {"employer_match.tier_1_cap": 0.04}
+    )
+    result = to_dbt_vars(candidate)
+    assert result["match_tiers"][0]["employee_max"] == 0.04
+    assert result["match_tiers"][1]["employee_min"] == 0.04
+    assert result["match_cap_percent"] == pytest.approx(0.045)
+    candidate, _ = resolve_candidate_config(
+        baseline,
+        {
+            "employer_match.tier_1_rate": 2.0,
+            "employer_match.max_match_percentage": 0.02,
+        },
+    )
+    assert to_dbt_vars(candidate)["match_cap_percent"] == 0.02
+
+
+def test_vesting_lever_is_rejected() -> None:
+    baseline = load_simulation_config(
+        "config/simulation_config.yaml", env_overrides=False
+    )
+    with pytest.raises(ValueError, match="unknown optimizer lever 'vesting_schedule'"):
+        resolve_candidate_config(baseline, {"vesting_schedule": "immediate"})
+
+
+def test_saved_vesting_design_space_is_rejected() -> None:
+    from planalign_optimizer.models import BaselineSpec, DesignSpaceSpec, OptimizerSpec
+    from planalign_optimizer.spec_io import OptimizerSpecError, validate_spec
+
+    spec = OptimizerSpec(
+        baseline=BaselineSpec(config_path=Path("config/simulation_config.yaml")),
+        design_space=DesignSpaceSpec(
+            levers=(
+                LeverSpec(
+                    name="vesting_schedule", kind="discrete", choices=("immediate",)
+                ),
+            )
+        ),
+        objective=ObjectiveConstraintSpec(
+            objectives=(
+                ObjectiveTerm(metric="participation_rate", direction="maximize"),
+            )
+        ),
+    )
+    with pytest.raises(
+        OptimizerSpecError, match="unknown optimizer lever 'vesting_schedule'"
+    ):
+        validate_spec(spec)

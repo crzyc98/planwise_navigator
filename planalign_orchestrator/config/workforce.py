@@ -567,7 +567,8 @@ class EmployerMatchSettings(BaseModel):
     """Employer match configuration with eligibility requirements."""
 
     active_formula: str = Field(
-        default="simple_match", description="Active match formula name"
+        default="simple_match",
+        description="Ignored legacy field; use dc_plan.match_tiers",
     )
     apply_eligibility: bool = Field(
         default=False, description="Apply eligibility filtering to match calculations"
@@ -576,7 +577,7 @@ class EmployerMatchSettings(BaseModel):
         default_factory=EmployerMatchEligibilitySettings
     )
     formulas: Optional[Dict[str, Any]] = Field(
-        default=None, description="Match formula definitions"
+        default=None, description="Ignored legacy field; use dc_plan.match_tiers"
     )
     # E046: New match mode fields
     employer_match_status: str = Field(

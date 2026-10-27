@@ -63,7 +63,6 @@ DBT_VAR_PER_DESIGN = frozenset(
         "reenrollment_sweep_decline_probability",
         "deferral_escalation_increment",
         "deferral_escalation_cap",
-        "eligibility_waiting_days",
         "eligibility_waiting_period_days",
         "plan_eligibility_waiting_period_days",
     }
@@ -217,8 +216,10 @@ def _export_simulation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
 
     # Eligibility and plan eligibility
     if cfg.eligibility.waiting_period_days is not None:
-        dbt_vars["eligibility_waiting_days"] = cfg.eligibility.waiting_period_days
-        dbt_vars["minimum_service_days"] = cfg.eligibility.waiting_period_days
+        # Ongoing plan eligibility; setup.eligibility_waiting_period_days stages census.
+        dbt_vars["plan_eligibility_waiting_period_days"] = (
+            cfg.eligibility.waiting_period_days
+        )
     if cfg.plan_eligibility.minimum_age is not None:
         dbt_vars["minimum_age"] = cfg.plan_eligibility.minimum_age
     # Feature 103: configurable new-hire plan ineligibility (no-op defaults).
@@ -725,16 +726,7 @@ def _export_legacy_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
 
 
 def _compute_match_max_deferral_rate(emv: Dict[str, Any]) -> Optional[float]:
-    """Match-maximizing employee deferral rate from the active formula / tiers.
-
-    Feature 102: the voluntary-enrollment match magnet snaps enrollees toward this
-    ceiling. It MUST reflect the active employer-match formula independent of whether
-    `deferral_match_response` is enabled, so it is computed here and exported by
-    `_export_employer_match_vars` whenever a match is configured.
-
-    Returns None when no formula/tiers are configured (caller leaves the var unset,
-    and the SQL falls back to its own default).
-    """
+    """Return the highest configured dc_plan match tier boundary."""
     try:
         # UI-driven tiers (dc_plan.match_tiers) take precedence when present.
         tiers = emv.get("match_tiers")
@@ -747,17 +739,6 @@ def _compute_match_max_deferral_rate(emv: Dict[str, Any]) -> Optional[float]:
             if maxes:
                 return max(maxes)
 
-        formulas = emv.get("match_formulas", {})
-        active_key = emv.get("active_match_formula", "")
-        if active_key and active_key in formulas:
-            formula = formulas[active_key]
-            formula_type = formula.get("type", "simple")
-            if formula_type == "simple":
-                return float(formula.get("max_match_percentage", 0.06))
-            if formula_type in ("tiered", "safe_harbor", "qaca"):
-                ftiers = formula.get("tiers", [])
-                if ftiers:
-                    return max(float(t.get("employee_max", 0)) for t in ftiers)
     except (KeyError, TypeError, ValueError) as e:
         logger.warning("Could not compute match-max deferral rate: %s", e)
     return None
@@ -881,13 +862,6 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                     for t in points_tiers
                 ]
 
-            # Backward compatibility
-            active_formula = employer_data.get("active_formula")
-            formulas = employer_data.get("formulas")
-            if active_formula is not None:
-                dbt_vars["active_match_formula"] = str(active_formula)
-            if formulas is not None:
-                dbt_vars["match_formulas"] = formulas
         else:
             # Try legacy configuration from extra fields
             employer_legacy = getattr(cfg, "employer_match", None)
@@ -919,12 +893,6 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                 }
                 dbt_vars["employer_match"] = dbt_employer_match
 
-                if "active_formula" in employer_legacy:
-                    dbt_vars["active_match_formula"] = str(
-                        employer_legacy["active_formula"]
-                    )
-                if "formulas" in employer_legacy:
-                    dbt_vars["match_formulas"] = employer_legacy["formulas"]
             else:
                 dbt_vars["employer_match"] = employer_match_defaults
 
@@ -1172,14 +1140,14 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
             "Error processing dc_plan match configuration: %s", e, exc_info=True
         )
 
-    # dc_plan.match_template is the source of truth for the active formula.
-    # Override the legacy active_match_formula var (set from employer_match.active_formula
-    # earlier) so dbt vars stay consistent with what's actually being calculated.
-    if "match_template" in dbt_vars:
-        dbt_vars["active_match_formula"] = dbt_vars["match_template"]
+    employer = cfg.employer_match
+    legacy_fields = employer.model_fields_set if employer is not None else set()
+    if "match_tiers" not in dbt_vars and legacy_fields & {"active_formula", "formulas"}:
+        logger.warning(
+            "Legacy employer_match formulas are ignored; the match uses "
+            "dc_plan.match_tiers (default 100% of first 3% + 50% of next 2%)."
+        )
 
-    # Feature 102: always-on match-magnet ceiling — exported whenever a match
-    # formula/tiers are configured, regardless of deferral_match_response.
     match_max = _compute_match_max_deferral_rate(dbt_vars)
     if match_max is not None:
         dbt_vars["employer_match_max_deferral_rate"] = match_max

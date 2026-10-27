@@ -33,26 +33,16 @@ def _make_config():
 
 
 class TestAlwaysOnMatchCeiling:
-    def test_compute_simple_formula_uses_max_match_percentage(self):
-        emv = {
-            "active_match_formula": "simple_match",
-            "match_formulas": {
-                "simple_match": {"type": "simple", "max_match_percentage": 0.06}
-            },
-        }
-        assert _compute_match_max_deferral_rate(emv) == pytest.approx(0.06)
-
-    def test_compute_tiered_formula_uses_top_tier_employee_max(self):
-        emv = {
-            "active_match_formula": "stretch_match",
-            "match_formulas": {
-                "stretch_match": {
-                    "type": "tiered",
-                    "tiers": [{"employee_min": 0.0, "employee_max": 0.10}],
+    def test_legacy_formula_is_ignored(self):
+        assert (
+            _compute_match_max_deferral_rate(
+                {
+                    "active_match_formula": "simple",
+                    "match_formulas": {"simple": {"max_match_percentage": 0.06}},
                 }
-            },
-        }
-        assert _compute_match_max_deferral_rate(emv) == pytest.approx(0.10)
+            )
+            is None
+        )
 
     def test_compute_returns_none_when_no_formula(self):
         assert _compute_match_max_deferral_rate({}) is None
@@ -81,21 +71,19 @@ class TestAlwaysOnMatchCeiling:
         }
         result = _export_employer_match_vars(cfg)
         assert "employer_match_max_deferral_rate" in result
-        assert result["employer_match_max_deferral_rate"] == pytest.approx(0.06)
+        assert result["employer_match_max_deferral_rate"] == pytest.approx(0.05)
 
     def test_ceiling_changes_with_configured_ceiling(self):
         """FR-002: 6% vs 10% ceiling must yield different exported values."""
         cfg = _make_config()
-        cfg.employer_match.active_formula = "stretch_match"
-        cfg.employer_match.formulas = {
-            "stretch_match": {
-                "type": "tiered",
-                "tiers": [{"employee_min": 0.0, "employee_max": 0.06}],
-            }
+        cfg.dc_plan = {
+            "match_tiers": [
+                {"employee_min": 0.0, "employee_max": 0.06, "match_rate": 0.5}
+            ]
         }
         six = _export_employer_match_vars(cfg)["employer_match_max_deferral_rate"]
 
-        cfg.employer_match.formulas["stretch_match"]["tiers"][0]["employee_max"] = 0.10
+        cfg.dc_plan["match_tiers"][0]["employee_max"] = 0.10
         ten = _export_employer_match_vars(cfg)["employer_match_max_deferral_rate"]
 
         assert six == pytest.approx(0.06)
@@ -161,3 +149,29 @@ class TestVoluntaryMaxDeferralExport:
         cfg.dc_plan = {"max_voluntary_deferral_percent": 0.15}
         result = _export_enrollment_vars(cfg)
         assert result["voluntary_max_deferral_rate"] == pytest.approx(0.15)
+
+
+def test_default_yaml_match_design() -> None:
+    from planalign_orchestrator.config import to_dbt_vars
+
+    result = to_dbt_vars(_make_config())
+    assert result["match_tiers"] == [
+        {"employee_min": 0.0, "employee_max": 0.03, "match_rate": 1.0},
+        {"employee_min": 0.03, "employee_max": 0.05, "match_rate": 0.5},
+    ]
+    assert result["match_cap_percent"] == 0.04
+    assert result["employer_match_max_deferral_rate"] == 0.05
+
+
+def test_legacy_formulas_do_not_change_export(caplog: pytest.LogCaptureFixture) -> None:
+    from planalign_orchestrator.config import to_dbt_vars
+
+    cfg = _make_config()
+    cfg.dc_plan = {}
+    before = to_dbt_vars(cfg)
+    cfg.employer_match.active_formula = "old"
+    cfg.employer_match.formulas = {"old": {"max_match_percentage": 0.12}}
+    caplog.clear()
+    assert to_dbt_vars(cfg) == before
+    warnings = [r for r in caplog.records if "Legacy employer_match" in r.message]
+    assert len(warnings) == 1

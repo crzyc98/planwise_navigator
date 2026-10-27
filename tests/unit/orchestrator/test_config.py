@@ -208,7 +208,7 @@ enrollment:
     cfg = load_simulation_config(p)
     vars_dict = to_dbt_vars(cfg)
     # Spot-check a few keys
-    assert vars_dict["eligibility_waiting_days"] == 30
+    assert vars_dict["plan_eligibility_waiting_period_days"] == 30
     assert vars_dict["random_seed"] == 99
     assert vars_dict["proactive_enrollment_rate_senior"] == 0.75
 
@@ -236,7 +236,7 @@ def test_to_dbt_vars_golden_output(golden_config):
     # Enrollment settings from production config
     assert result["auto_enrollment_enabled"] is True
     # Note: Production config uses 0 waiting days (immediate eligibility)
-    assert result["eligibility_waiting_days"] == 0
+    assert result["plan_eligibility_waiting_period_days"] == 0
 
     # Verify proactive enrollment rates exist and are reasonable (0-1 range)
     for rate_key in [
@@ -263,7 +263,7 @@ def test_to_dbt_vars_contains_all_required_keys(minimal_config):
         "cola_rate",
         "merit_budget",
         # Eligibility
-        "eligibility_waiting_days",
+        "plan_eligibility_waiting_period_days",
         "minimum_age",
         # Enrollment
         "auto_enrollment_enabled",
@@ -286,7 +286,7 @@ def test_to_dbt_vars_output_types(minimal_config):
 
     # Integer types
     assert isinstance(result["random_seed"], int)
-    assert isinstance(result["eligibility_waiting_days"], int)
+    assert isinstance(result["plan_eligibility_waiting_period_days"], int)
     assert isinstance(result["minimum_age"], int)
 
     # Float types (rates, percentages)

@@ -349,11 +349,16 @@ employee_id_generation:
   migration_mode: false  # Support for transitioning from legacy formats
   batch_generation: true  # Use batch generation for performance optimization
 
+# Decimals; match design for YAML/CLI runs. Studio scenarios set their own.
+dc_plan:
+  match_template: tiered
+  match_tiers:
+    - {employee_min: 0.00, employee_max: 0.03, match_rate: 1.00}
+    - {employee_min: 0.03, employee_max: 0.05, match_rate: 0.50}
+  match_cap_percent: 0.04
+
 # Employer match configuration
 employer_match:
-  # Active match formula selection
-  active_formula: 'simple_match'  # Options: 'simple_match', 'tiered_match', 'stretch_match', 'safe_harbor_basic', 'qaca_safe_harbor'
-
   # Epic E058: Employer match eligibility configuration
   # Epic E061: Enable eligibility enforcement to fix new hire termination match issue
   apply_eligibility: true  # Enable sophisticated eligibility enforcement (was false for backward compatibility)
@@ -368,88 +373,9 @@ employer_match:
     allow_terminated_new_hires: false  # Exclude new-hire terminations from match eligibility
     allow_experienced_terminations: false  # Exclude experienced terminations from match eligibility
 
-  # Match formula definitions
-  formulas:
-    simple_match:
-      name: 'Simple Match'
-      type: 'simple'
-      match_rate: 0.50  # 50% match on all deferrals
-      max_match_percentage: 0.06  # Cap at 3% of compensation
-
-    tiered_match:
-      name: 'Tiered Match'
-      type: 'tiered'
-      tiers:
-        - tier: 1
-          employee_min: 0.00
-          employee_max: 0.03
-          match_rate: 1.00    # 100% match on first 3%
-        - tier: 2
-          employee_min: 0.03
-          employee_max: 0.05
-          match_rate: 0.50    # 50% match on next 2%
-      max_match_percentage: 0.04  # Cap at 4% of compensation
-
-    stretch_match:
-      name: 'Stretch Match (Encourages Higher Deferrals)'
-      type: 'tiered'
-      tiers:
-        - tier: 1
-          employee_min: 0.00
-          employee_max: 0.12
-          match_rate: 0.25     # 25% match on first 12%
-      max_match_percentage: 0.03  # Cap at 3% of compensation
-
-    # Alternative tiered formula (for testing)
-    enhanced_tiered:
-      name: 'Enhanced Tiered Match'
-      type: 'tiered'
-      tiers:
-        - tier: 1
-          employee_min: 0.00
-          employee_max: 0.03
-          match_rate: 1.00    # 100% on first 3%
-        - tier: 2
-          employee_min: 0.03
-          employee_max: 0.05
-          match_rate: 0.50    # 50% on next 2%
-      max_match_percentage: 0.04  # Cap at 4% of compensation
-
-    # Epic E084: Safe Harbor Basic Match (IRS compliant - 100% on 3% + 50% on next 2%)
-    safe_harbor_basic:
-      name: 'Safe Harbor Basic Match'
-      type: 'safe_harbor'
-      tiers:
-        - tier: 1
-          employee_min: 0.00
-          employee_max: 0.03
-          match_rate: 1.00    # 100% match on first 3%
-        - tier: 2
-          employee_min: 0.03
-          employee_max: 0.05
-          match_rate: 0.50    # 50% match on next 2%
-      max_match_percentage: 0.04  # 4% of compensation (3% + 1%)
-      immediate_vesting: true  # Safe Harbor requires immediate vesting
-
-    # Epic E084: QACA Safe Harbor Match (Qualified Automatic Contribution Arrangement)
-    qaca_safe_harbor:
-      name: 'QACA Safe Harbor Match'
-      type: 'qaca'
-      tiers:
-        - tier: 1
-          employee_min: 0.00
-          employee_max: 0.01
-          match_rate: 1.00    # 100% match on first 1%
-        - tier: 2
-          employee_min: 0.01
-          employee_max: 0.06
-          match_rate: 0.50    # 50% match on next 5%
-      max_match_percentage: 0.035  # 3.5% of compensation (1% + 2.5%)
-      vesting_schedule: 'qaca_2_year'  # QACA allows 2-year cliff vesting
-
-  # E046: Match calculation mode (overrides deferral-based formula system above)
+  # E046: Match calculation mode (overrides deferral-based dc_plan match tiers)
   # Set employer_match_status to switch modes:
-  #   'deferral_based' (default) - uses formulas/tiers above
+  #   'deferral_based' (default) - uses dc_plan.match_tiers
   #   'graded_by_service' - uses employer_match_graded_schedule
   #   'tenure_based' - uses tenure_match_tiers below
   #   'points_based' - uses points_match_tiers below (points = FLOOR(age) + FLOOR(tenure))

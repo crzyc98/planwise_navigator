@@ -578,9 +578,12 @@ def test_null_escalation_preserves_main_exports(
 ) -> None:
     raw = yaml.safe_load((ROOT / "config/simulation_config.yaml").read_text())
     raw["deferral_auto_escalation"] = None
-    raw["dc_plan"] = StudioConfig.model_validate({"dc_plan": overrides}).model_dump(
-        exclude_unset=True
-    )["dc_plan"]
+    raw["dc_plan"] = (
+        raw.get("dc_plan", {})
+        | StudioConfig.model_validate({"dc_plan": overrides}).model_dump(
+            exclude_unset=True
+        )["dc_plan"]
+    )
     path = tmp_path / "null_escalation.yaml"
     path.write_text(yaml.safe_dump(raw))
     cfg = load_simulation_config(path)
