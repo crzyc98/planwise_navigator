@@ -25,6 +25,9 @@ class EnrollmentMacros(Protocol):
     def below_default_share(
         self, auto_default: SQLExpression, tiers: Any = ...
     ) -> str: ...
+    def below_default_effective_share(
+        self, auto_default: SQLExpression, age: SQLExpression, income: SQLExpression
+    ) -> str: ...
     def below_default_rate(
         self, auto_default: SQLExpression, step_random: SQLExpression
     ) -> str: ...
@@ -40,6 +43,8 @@ class EnrollmentMacros(Protocol):
         simulation_year: SQLExpression,
         upward_enabled: bool = ...,
         auto_default: SQLExpression | None = ...,
+        age: SQLExpression = ...,
+        income: SQLExpression = ...,
     ) -> str: ...
     def match_magnet_snap(
         self,
@@ -54,15 +59,23 @@ class EnrollmentMacros(Protocol):
     ) -> str: ...
 
 
-def _macros(**variables: Any) -> EnrollmentMacros:
+def _macros(neutral: bool = True, **variables: Any) -> EnrollmentMacros:
     source = "\n".join(
         (MACROS / name).read_text()
         for name in (
             "utils/subsystem_seed.sql",
             "match_magnet_snap.sql",
+            "deferral_change.sql",
             "self_directed_enrollment_rate.sql",
         )
     )
+    if neutral:
+        bands = [{"min": 0, "multiplier": 1}]
+        variables = {
+            "below_default_multipliers_age": bands,
+            "below_default_multipliers_income": bands,
+            **variables,
+        }
     return cast(
         EnrollmentMacros,
         NativeEnvironment(undefined=StrictUndefined)
@@ -319,3 +332,94 @@ def test_per_row_defaults_resolve_all_four_decisions(
         else:
             expected = default
         assert actual == expected
+
+
+@pytest.mark.parametrize(
+    "age,income,share,expected",
+    [
+        (25, 30000, 0.15, 0.336),
+        (65, 200000, 0.15, 0.04875),
+        (30, 40000, 0.15, 0.198),
+        (25, 30000, 0.9, 1.0),
+    ],
+)
+def test_below_default_demographic_share_and_cap(
+    connection: duckdb.DuckDBPyConnection,
+    age: int,
+    income: int,
+    share: float,
+    expected: float,
+) -> None:
+    from planalign_orchestrator.config.participant_behavior import BelowDefaultSettings
+
+    multipliers = BelowDefaultSettings().multipliers.model_dump()
+    module = _macros(
+        **{
+            f"below_default_multipliers_{key}": value
+            for key, value in multipliers.items()
+        },
+        below_default_share_tiers=[
+            {"max_auto_enroll_default_rate": None, "share": share}
+        ],
+    )
+    sql = module.below_default_effective_share(0.06, age, income)
+    result = connection.execute(f"SELECT {sql}").fetchone()
+    assert result is not None
+    assert result[0] == pytest.approx(expected)
+    fallback = _macros(
+        neutral=False,
+        below_default_share_tiers=[
+            {"max_auto_enroll_default_rate": None, "share": share}
+        ],
+    ).below_default_effective_share(0.06, age, income)
+    assert connection.execute(f"SELECT {fallback}").fetchone() == result
+
+
+def test_below_default_neutral_choices_equal_legacy_sql(
+    connection: duckdb.DuckDBPyConnection,
+) -> None:
+    module = _macros(auto_enrollment_default_deferral_rate=0.06)
+    actual = module.self_directed_enrollment_rate(
+        0.06, 0.06, 1.0, "employee_id", 2025, False
+    )
+    draw = module.enrollment_behavior_draw("employee_id", 2025, "-below-default-")
+    step = module.enrollment_behavior_draw("employee_id", 2025, "-below-default-step-")
+    legacy = f"CASE WHEN {draw} < 0.15 THEN {module.below_default_rate(0.06, step)} ELSE 0.06 END"
+    rows = connection.execute(
+        f"SELECT {actual} = ({legacy}) FROM "
+        "(SELECT 'employee-' || i AS employee_id FROM range(10000) t(i))"
+    ).fetchall()
+    assert all(row[0] for row in rows)
+
+
+def test_below_default_demographics_drive_seeded_rate_choices(
+    connection: duckdb.DuckDBPyConnection,
+) -> None:
+    module = _macros(neutral=False, auto_enrollment_default_deferral_rate=0.06)
+    rate = module.self_directed_enrollment_rate(
+        0.06,
+        0.06,
+        1.0,
+        "employee_id",
+        2025,
+        age="age",
+        income="income",
+    )
+    draw = module.enrollment_behavior_draw("employee_id", 2025, "-below-default-")
+    rows = connection.execute(
+        f"SELECT age, {draw}, {rate} FROM "
+        "(SELECT 'employee-' || i AS employee_id, age, income "
+        "FROM range(10000) t(i) CROSS JOIN "
+        "(VALUES (25, 30000), (65, 200000)) d(age, income))"
+    ).fetchall()
+    young = old = 0
+    for age, choice, actual in rows:
+        assert (actual < Decimal("0.06")) == (
+            choice < (0.336 if age == 25 else 0.04875)
+        )
+        if actual < Decimal("0.06"):
+            if age == 25:
+                young += 1
+            else:
+                old += 1
+    assert young > old > 0

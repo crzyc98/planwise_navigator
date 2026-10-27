@@ -144,6 +144,8 @@ class StudioDCPlanConfig(PartialConfig):
         default=None,
         description="Ordered tiers by auto-enrollment default rate, decimal 0–1 (0.06 = 6%); one final null ceiling. Each tier's share is independent and need not sum to 1.",
     )
+    below_default_multipliers_age: DeferralChangeMultiplierBands | None = None
+    below_default_multipliers_income: DeferralChangeMultiplierBands | None = None
     below_default_steps: list[DeferralChangeStep] | None = Field(
         default=None,
         description="Ordered below-default reductions in whole percentage points (pp); list weights must sum to 1 (±1e-6).",

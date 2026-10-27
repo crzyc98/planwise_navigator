@@ -48,6 +48,20 @@ DEFAULTS: dict[str, Any] = {
         {"max_auto_enroll_default_rate": 0.03, "share": 0.10},
         {"max_auto_enroll_default_rate": None, "share": 0.15},
     ],
+    "below_default_multipliers_age": [
+        {"min": 0, "multiplier": 1.4},
+        {"min": 30, "multiplier": 1.1},
+        {"min": 40, "multiplier": 0.9},
+        {"min": 50, "multiplier": 0.75},
+        {"min": 60, "multiplier": 0.65},
+    ],
+    "below_default_multipliers_income": [
+        {"min": 0, "multiplier": 1.6},
+        {"min": 40000, "multiplier": 1.2},
+        {"min": 60000, "multiplier": 1.0},
+        {"min": 100000, "multiplier": 0.7},
+        {"min": 150000, "multiplier": 0.5},
+    ],
     "below_default_steps": [
         {"pp": 1, "weight": 0.50},
         {"pp": 2, "weight": 0.30},
@@ -738,3 +752,44 @@ def test_fitted_deferral_defaults_match_yaml_and_partial_overrides() -> None:
         expected = defaults["multipliers"][direction]
         assert settings["multipliers"][direction]["income"] == expected["income"]
         assert settings["multipliers"][direction]["tenure"] == expected["tenure"]
+
+
+@pytest.mark.parametrize("dimension", ["age", "income"])
+@pytest.mark.parametrize(
+    "bands",
+    [
+        [],
+        [{"min": 1, "multiplier": 1}],
+        [{"min": 0, "multiplier": 1}, {"min": 0, "multiplier": 2}],
+        [
+            {"min": 0, "multiplier": 1},
+            {"min": 10, "multiplier": 1},
+            {"min": 5, "multiplier": 1},
+        ],
+        [{"min": -1, "multiplier": 1}],
+        [{"min": 0, "multiplier": -1}],
+        [{"min": 0, "multiplier": float("nan")}],
+        [{"min": float("inf"), "multiplier": 1}],
+    ],
+)
+def test_below_default_multiplier_validation(
+    dimension: str, bands: list[dict[str, float]]
+) -> None:
+    with pytest.raises(ValidationError):
+        BelowDefaultSettings.model_validate({"multipliers": {dimension: bands}})
+    problems = validate_dbt_vars({f"below_default_multipliers_{dimension}": bands})
+    assert any(
+        problem["field"] == f"below_default_multipliers_{dimension}"
+        for problem in problems
+    )
+
+
+@pytest.mark.parametrize("dimension", ["age", "income"])
+def test_below_default_multipliers_api_round_trip(dimension: str) -> None:
+    key = f"below_default_multipliers_{dimension}"
+    value = [{"min": 0, "multiplier": 0}, {"min": 20, "multiplier": 2}]
+    cfg = load_simulation_config("config/simulation_config.yaml")
+    cfg.dc_plan = StudioConfig.model_validate({"dc_plan": {key: value}}).model_dump(
+        exclude_unset=True
+    )["dc_plan"]
+    assert to_dbt_vars(cfg)[key] == value

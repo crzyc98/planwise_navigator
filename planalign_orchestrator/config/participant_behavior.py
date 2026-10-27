@@ -76,43 +76,6 @@ class DeferralChangeStep(BaseModel):
     )
 
 
-class BelowDefaultSettings(BaseModel):
-    share_tiers: list[BelowDefaultTier] = Field(
-        default_factory=lambda: [
-            BelowDefaultTier(max_auto_enroll_default_rate=0.03, share=0.10),
-            BelowDefaultTier(max_auto_enroll_default_rate=None, share=0.15),
-        ],
-        min_length=1,
-    )
-    steps: list[DeferralChangeStep] = Field(
-        default_factory=lambda: [
-            DeferralChangeStep(pp=pp, weight=weight)
-            for pp, weight in [(1, 0.50), (2, 0.30), (3, 0.20)]
-        ]
-    )
-
-    @field_validator("share_tiers")
-    @classmethod
-    def check_tiers(cls, tiers: list[BelowDefaultTier]) -> list[BelowDefaultTier]:
-        bounds = [tier.max_auto_enroll_default_rate for tier in tiers]
-        if bounds.count(None) != 1 or bounds[-1] is not None:
-            raise ValueError(
-                "share_tiers must have exactly one open-ended (null) tier, last"
-            )
-        closed = [bound for bound in bounds if bound is not None]
-        if any(left >= right for left, right in zip(closed, closed[1:])):
-            raise ValueError(
-                "share_tiers must be ordered by max_auto_enroll_default_rate ascending"
-            )
-        return tiers
-
-    @field_validator("steps")
-    @classmethod
-    def check_steps(cls, steps: list[DeferralChangeStep]) -> list[DeferralChangeStep]:
-        validate_weights([step.weight for step in steps])
-        return steps
-
-
 class DeferralChangeRates(BaseModel):
     increase_probability: Rate
     decrease_probability: Rate
@@ -155,6 +118,73 @@ DeferralChangeMultiplierBands = Annotated[
     Field(min_length=1),
     AfterValidator(validate_multiplier_bands),
 ]
+
+
+class BelowDefaultMultipliers(BaseModel):
+    age: DeferralChangeMultiplierBands = Field(
+        default_factory=lambda: [
+            DeferralChangeMultiplierBand(min=lower, multiplier=factor)
+            for lower, factor in [
+                (0, 1.4),
+                (30, 1.1),
+                (40, 0.9),
+                (50, 0.75),
+                (60, 0.65),
+            ]
+        ]
+    )
+    income: DeferralChangeMultiplierBands = Field(
+        default_factory=lambda: [
+            DeferralChangeMultiplierBand(min=lower, multiplier=factor)
+            for lower, factor in [
+                (0, 1.6),
+                (40000, 1.2),
+                (60000, 1.0),
+                (100000, 0.7),
+                (150000, 0.5),
+            ]
+        ]
+    )
+
+
+class BelowDefaultSettings(BaseModel):
+    multipliers: BelowDefaultMultipliers = Field(
+        default_factory=BelowDefaultMultipliers
+    )
+    share_tiers: list[BelowDefaultTier] = Field(
+        default_factory=lambda: [
+            BelowDefaultTier(max_auto_enroll_default_rate=0.03, share=0.10),
+            BelowDefaultTier(max_auto_enroll_default_rate=None, share=0.15),
+        ],
+        min_length=1,
+    )
+    steps: list[DeferralChangeStep] = Field(
+        default_factory=lambda: [
+            DeferralChangeStep(pp=pp, weight=weight)
+            for pp, weight in [(1, 0.50), (2, 0.30), (3, 0.20)]
+        ]
+    )
+
+    @field_validator("share_tiers")
+    @classmethod
+    def check_tiers(cls, tiers: list[BelowDefaultTier]) -> list[BelowDefaultTier]:
+        bounds = [tier.max_auto_enroll_default_rate for tier in tiers]
+        if bounds.count(None) != 1 or bounds[-1] is not None:
+            raise ValueError(
+                "share_tiers must have exactly one open-ended (null) tier, last"
+            )
+        closed = [bound for bound in bounds if bound is not None]
+        if any(left >= right for left, right in zip(closed, closed[1:])):
+            raise ValueError(
+                "share_tiers must be ordered by max_auto_enroll_default_rate ascending"
+            )
+        return tiers
+
+    @field_validator("steps")
+    @classmethod
+    def check_steps(cls, steps: list[DeferralChangeStep]) -> list[DeferralChangeStep]:
+        validate_weights([step.weight for step in steps])
+        return steps
 
 
 def neutral_multiplier_bands() -> list[DeferralChangeMultiplierBand]:

@@ -14860,6 +14860,36 @@
             ],
             "title": "Auto Escalation"
           },
+          "below_default_multipliers_age": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DeferralChangeMultiplierBand"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Below Default Multipliers Age"
+          },
+          "below_default_multipliers_income": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DeferralChangeMultiplierBand"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Below Default Multipliers Income"
+          },
           "below_default_share_tiers": {
             "anyOf": [
               {

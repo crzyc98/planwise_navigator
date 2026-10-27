@@ -379,7 +379,8 @@ year_over_year_enrollment_events AS (
     {{ self_directed_enrollment_rate(
       deferral_spread(yoy_base_deferral_rate, yoy_spread_random, deferral_spread_max_lift),
       yoy_match_ceiling, yoy_magnet_random, 'aw.employee_id', 'aw.simulation_year',
-      upward_enabled=false, auto_default='aw.auto_enrollment_default_deferral_rate'
+      upward_enabled=false, auto_default='aw.auto_enrollment_default_deferral_rate',
+      age='aw.current_age', income='aw.current_compensation'
     ) }})) AS employee_deferral_rate,
 
     0.00 as prev_employee_deferral_rate,

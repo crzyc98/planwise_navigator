@@ -331,7 +331,8 @@ match_snapped AS (
     {{ self_directed_enrollment_rate(
         'spread_deferral_rate', 'match_magnet_ceiling', 'magnet_random',
         'employee_id', 'simulation_year',
-        auto_default='auto_enrollment_default_deferral_rate'
+        auto_default='auto_enrollment_default_deferral_rate',
+        age='current_age', income='employee_compensation'
     ) }} AS optimized_deferral_rate
   FROM match_optimization
 ),

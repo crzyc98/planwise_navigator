@@ -9482,6 +9482,10 @@ export interface components {
             auto_enroll?: boolean | null;
             /** Auto Escalation */
             auto_escalation?: boolean | null;
+            /** Below Default Multipliers Age */
+            below_default_multipliers_age?: components["schemas"]["DeferralChangeMultiplierBand"][] | null;
+            /** Below Default Multipliers Income */
+            below_default_multipliers_income?: components["schemas"]["DeferralChangeMultiplierBand"][] | null;
             /**
              * Below Default Share Tiers
              * @description Ordered tiers by auto-enrollment default rate, decimal 0–1 (0.06 = 6%); one final null ceiling. Each tier's share is independent and need not sum to 1.

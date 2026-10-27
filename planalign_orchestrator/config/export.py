@@ -101,6 +101,11 @@ _PARTICIPANT_BEHAVIOR_FIELDS = {
         "enrollment.below_default.steps",
     ),
 }
+for _dimension in ("age", "income"):
+    _PARTICIPANT_BEHAVIOR_FIELDS[f"below_default_multipliers_{_dimension}"] = (
+        f"below_default_multipliers_{_dimension}",
+        f"enrollment.below_default.multipliers.{_dimension}",
+    )
 for _field in (
     "enabled",
     "channel_share_without_auto_enrollment",

@@ -201,6 +201,11 @@ enrollment:
     # Tier ceilings are decimals (0.06 = 6%); share is the fraction choosing below-default in that tier (0–1).
     # Tiers are ordered by ceiling with one final null ceiling; tier shares are independent, not a distribution.
     share_tiers: [{max_auto_enroll_default_rate: 0.03, share: 0.10}, {max_auto_enroll_default_rate: null, share: 0.15}]
+    # Multipliers scale tier share; age in years, income in annual dollars.
+    # Ordered inclusive lower bounds; first min is 0.
+    multipliers:
+      age: [{min: 0, multiplier: 1.4}, {min: 30, multiplier: 1.1}, {min: 40, multiplier: 0.9}, {min: 50, multiplier: 0.75}, {min: 60, multiplier: 0.65}]
+      income: [{min: 0, multiplier: 1.6}, {min: 40000, multiplier: 1.2}, {min: 60000, multiplier: 1.0}, {min: 100000, multiplier: 0.7}, {min: 150000, multiplier: 0.5}]
     # pp = whole percentage points below the default; weights must sum to 1 (±1e-6).
     steps: [{pp: 1, weight: 0.50}, {pp: 2, weight: 0.30}, {pp: 3, weight: 0.20}]
 

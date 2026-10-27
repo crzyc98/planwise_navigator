@@ -43,9 +43,22 @@ GREATEST(0.01, {{ auto_default }} - 0.01 * CASE
 END)
 {% endmacro %}
 
+{% macro below_default_effective_share(auto_default, age, income, tiers=none) -%}
+  {%- set defaults = {
+    'age': [{'min': 0, 'multiplier': 1.4}, {'min': 30, 'multiplier': 1.1}, {'min': 40, 'multiplier': 0.9}, {'min': 50, 'multiplier': 0.75}, {'min': 60, 'multiplier': 0.65}],
+    'income': [{'min': 0, 'multiplier': 1.6}, {'min': 40000, 'multiplier': 1.2}, {'min': 60000, 'multiplier': 1.0}, {'min': 100000, 'multiplier': 0.7}, {'min': 150000, 'multiplier': 0.5}]
+  } -%}
+LEAST(1.0, ({{ below_default_share(auto_default, tiers) }})
+{%- for dimension, value in [('age', age), ('income', income)] %}
+  * ({{ deferral_change_multiplier(value,
+    var('below_default_multipliers_' ~ dimension, defaults[dimension])) }})
+{%- endfor %}
+)
+{%- endmacro %}
+
 {% macro self_directed_enrollment_rate(selected_rate, ceiling, magnet_random,
                                       employee_id, simulation_year, upward_enabled=true,
-                                      auto_default=none) %}
+                                      auto_default=none, age='NULL', income='NULL') %}
   {%- set ae_enabled = var('auto_enrollment_enabled', true) -%}
   {%- set auto_default = auto_default if auto_default is not none else var('auto_enrollment_default_deferral_rate', 0.02) -%}
   {%- set tiers = var('below_default_share_tiers', [{'max_auto_enroll_default_rate': 0.03, 'share': 0.10}, {'max_auto_enroll_default_rate': none, 'share': 0.15}]) -%}
@@ -55,7 +68,7 @@ END)
   {%- set magnet_rate = '(CASE WHEN ' ~ share ~ ' > 0 THEN GREATEST(' ~ auto_default ~ ', ' ~ selected_rate ~ ') ELSE ' ~ selected_rate ~ ' END)' if active else selected_rate -%}
   {%- if active %}
 CASE
-  WHEN {{ enrollment_behavior_draw(employee_id, simulation_year, '-below-default-') }} < {{ share }}
+  WHEN {{ enrollment_behavior_draw(employee_id, simulation_year, '-below-default-') }} < {{ below_default_effective_share(auto_default, age, income, tiers) }}
   THEN {{ below_default_rate(auto_default,
     enrollment_behavior_draw(employee_id, simulation_year, '-below-default-step-')) }}
   ELSE
