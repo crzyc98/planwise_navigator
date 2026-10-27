@@ -272,49 +272,25 @@ employee_contributions AS (
         ci.contribution_base_compensation * ci.effective_deferral_rate AS requested_contribution_amount,
 
         -- Determine applicable IRS limit based on age (SECURE 2.0: super catch-up for ages 60-63)
-        CASE
-            WHEN ci.contribution_limit_age >= il.super_catch_up_age_min AND ci.contribution_limit_age <= il.super_catch_up_age_max
-                THEN il.super_catch_up_limit
-            WHEN ci.contribution_limit_age >= il.catch_up_age_threshold
-                THEN il.catch_up_limit
-            ELSE il.base_limit
-        END AS applicable_irs_limit,
+        {{ irs_402g_limit_for_age('ci.contribution_limit_age', 'il') }} AS applicable_irs_limit,
 
         -- Calculate IRS-compliant contribution amount using LEAST()
         LEAST(
             (ci.contribution_base_compensation * ci.effective_deferral_rate),
-            CASE
-                WHEN ci.contribution_limit_age >= il.super_catch_up_age_min AND ci.contribution_limit_age <= il.super_catch_up_age_max
-                    THEN il.super_catch_up_limit
-                WHEN ci.contribution_limit_age >= il.catch_up_age_threshold
-                    THEN il.catch_up_limit
-                ELSE il.base_limit
-            END
+            {{ irs_402g_limit_for_age('ci.contribution_limit_age', 'il') }}
         ) AS annual_contribution_amount,
 
         -- Transparency and audit fields
         CASE
             WHEN (ci.contribution_base_compensation * ci.effective_deferral_rate) >
-                 CASE
-                     WHEN ci.contribution_limit_age >= il.super_catch_up_age_min AND ci.contribution_limit_age <= il.super_catch_up_age_max
-                         THEN il.super_catch_up_limit
-                     WHEN ci.contribution_limit_age >= il.catch_up_age_threshold
-                         THEN il.catch_up_limit
-                     ELSE il.base_limit
-                 END
+                 {{ irs_402g_limit_for_age('ci.contribution_limit_age', 'il') }}
             THEN true ELSE false
         END AS irs_limit_applied,
 
         -- Amount that was capped off due to IRS limits
         GREATEST(0,
             (ci.contribution_base_compensation * ci.effective_deferral_rate) -
-            CASE
-                WHEN ci.contribution_limit_age >= il.super_catch_up_age_min AND ci.contribution_limit_age <= il.super_catch_up_age_max
-                    THEN il.super_catch_up_limit
-                WHEN ci.contribution_limit_age >= il.catch_up_age_threshold
-                    THEN il.catch_up_limit
-                ELSE il.base_limit
-            END
+            {{ irs_402g_limit_for_age('ci.contribution_limit_age', 'il') }}
         ) AS amount_capped_by_irs_limit,
 
         -- Age-based limit type for reporting (SECURE 2.0: super catch-up for ages 60-63)
@@ -350,13 +326,7 @@ employee_contributions AS (
         END AS contribution_duration_category,
         CASE
             WHEN (ci.contribution_base_compensation * ci.effective_deferral_rate) >
-                 CASE
-                     WHEN ci.contribution_limit_age >= il.super_catch_up_age_min AND ci.contribution_limit_age <= il.super_catch_up_age_max
-                         THEN il.super_catch_up_limit
-                     WHEN ci.contribution_limit_age >= il.catch_up_age_threshold
-                         THEN il.catch_up_limit
-                     ELSE il.base_limit
-                 END
+                 {{ irs_402g_limit_for_age('ci.contribution_limit_age', 'il') }}
             THEN 'IRS_LIMITED'
             ELSE 'NORMAL'
         END AS contribution_quality_flag,
