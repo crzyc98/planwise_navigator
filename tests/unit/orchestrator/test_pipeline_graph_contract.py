@@ -4,7 +4,6 @@ import json
 import re
 from pathlib import Path
 
-import pytest
 import yaml
 
 from planalign_core.constants import (
@@ -14,9 +13,6 @@ from planalign_core.constants import (
 )
 from planalign_orchestrator.pipeline.workflow import WorkflowBuilder, WorkflowStage
 from tests.helpers.dbt_manifest import load_production_manifest, model_nodes
-
-# One worker parses each manifest variant once (CI runs --dist loadgroup).
-pytestmark = pytest.mark.xdist_group("dbt_manifest")
 
 ROOT = Path(__file__).parents[3]
 GRAPH = yaml.safe_load(
