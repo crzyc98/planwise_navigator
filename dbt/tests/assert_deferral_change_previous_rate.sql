@@ -34,14 +34,43 @@ WHERE state.employee_id IS NULL
   OR events.change_count <> 1
   OR events.employee_deferral_rate IS NULL
   OR events.employee_deferral_rate <= 0
-  OR (events.event_category = 'proactive_decrease' AND (
+  OR (events.event_category IN ('proactive_decrease', 'aip_response_decrease') AND (
     events.employee_deferral_rate >= events.prev_employee_deferral_rate
     OR events.employee_deferral_rate < LEAST(0.01, events.prev_employee_deferral_rate)))
   OR (events.event_category = 'proactive_increase' AND (
     events.employee_deferral_rate <= events.prev_employee_deferral_rate
     OR events.employee_deferral_rate > {{ deferral_change_cap('w.employee_compensation',
       'COALESCE(' ~ var('simulation_year') ~ ' - YEAR(w.employee_birth_date), w.current_age)') }}))
-  OR events.event_category NOT IN ('proactive_increase', 'proactive_decrease')
+  OR events.event_category NOT IN ('proactive_increase', 'proactive_decrease', 'aip_response_decrease')
+  OR events.effective_date IS NULL
+  OR events.effective_date <= MAKE_DATE(events.simulation_year, 1, 1)
+  OR events.effective_date > MAKE_DATE(events.simulation_year, 12, 31)
+  OR EXISTS (
+    SELECT 1 FROM {{ ref('int_employee_termination_dates') }} termination
+    WHERE termination.employee_id = events.employee_id
+      AND termination.simulation_year = events.simulation_year
+      AND events.effective_date > termination.termination_date
+  )
+  OR (events.event_category = 'aip_response_decrease' AND NOT EXISTS (
+    SELECT 1 FROM {{ ref('fct_yearly_events') }} escalation
+    WHERE escalation.scenario_id = events.scenario_id
+      AND escalation.employee_id = events.employee_id
+      AND escalation.simulation_year = events.simulation_year
+      AND escalation.event_type = 'deferral_escalation'
+      AND events.effective_date > escalation.effective_date
+      AND events.effective_date <= CAST(escalation.effective_date AS DATE)
+        + {{ var('deferral_rate_changes_post_escalation_decrease_window_days', 90) }}
+  ))
+  OR (events.event_category = 'proactive_decrease' AND EXISTS (
+    SELECT 1 FROM {{ ref('fct_yearly_events') }} escalation
+    WHERE escalation.scenario_id = events.scenario_id
+      AND escalation.employee_id = events.employee_id
+      AND escalation.simulation_year = events.simulation_year
+      AND escalation.event_type = 'deferral_escalation'
+  ))
+  {% if var('deferral_rate_changes_enabled', false) and var('deferral_rate_changes_post_escalation_decrease_leaves_escalation', false) %}
+  OR (events.event_category = 'aip_response_decrease' AND state.aip_participant)
+  {% endif %}
   OR EXISTS (
     SELECT 1 FROM {{ ref('fct_yearly_events') }} later
     WHERE later.scenario_id = events.scenario_id
@@ -49,5 +78,5 @@ WHERE state.employee_id IS NULL
       AND later.simulation_year = events.simulation_year
       AND later.event_type IN ('enrollment', 'benefit_enrollment', 'enrollment_change',
         'deferral_escalation', 'deferral_match_response')
-      AND later.effective_date > events.effective_date
+      AND later.effective_date >= events.effective_date
   )

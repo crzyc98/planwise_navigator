@@ -1,4 +1,4 @@
-"""Execute proactive change macros and the real event/accumulator SQL in DuckDB."""
+"""Execute voluntary change macros and the real event/accumulator SQL in DuckDB."""
 
 from collections.abc import Iterator
 from pathlib import Path
@@ -23,6 +23,8 @@ MACROS = (
     "constants.sql",
     "self_directed_enrollment_rate.sql",
     "aip_initial_membership.sql",
+    "easy_enroll.sql",
+    "get_plan_design_parameters.sql",
     "irs_402g_limit_for_age.sql",
     "deferral_rate_macros.sql",
     "deferral_change.sql",
@@ -59,17 +61,25 @@ def conn() -> Iterator[duckdb.DuckDBPyConnection]:
         yield connection
 
 
-def test_probability_boundaries(conn: duckdb.DuckDBPyConnection) -> None:
-    rows = conn.execute(render("""
-      SELECT u, {{ deferral_change_category('u', '0.25', '0.075') }}
+@pytest.mark.parametrize("escalated", [False, True])
+def test_probability_boundaries(
+    conn: duckdb.DuckDBPyConnection, escalated: bool
+) -> None:
+    rows = conn.execute(
+        render(
+            """
+      SELECT u, {{ deferral_change_category('u', '0.25', '0.075', var('escalated', false)) }}
       FROM (VALUES (0.0), (0.249999), (0.25), (0.324999), (0.325), (0.999999)) t(u)
       ORDER BY u
-    """)).fetchall()
+    """,
+            escalated=escalated,
+        )
+    ).fetchall()
     assert [row[1] for row in rows] == [
         "proactive_increase",
         "proactive_increase",
-        "proactive_decrease",
-        "proactive_decrease",
+        "aip_response_decrease" if escalated else "proactive_decrease",
+        "aip_response_decrease" if escalated else "proactive_decrease",
         None,
         None,
     ]
@@ -96,7 +106,7 @@ def test_draws_probabilities_weights_and_seed(conn: duckdb.DuckDBPyConnection) -
           {{ enrollment_behavior_draw('CAST(i AS VARCHAR)', 2025, '-deferral-change-timing-') }} AS t
         FROM range(20000) r(i)
       )
-      SELECT {{ deferral_change_category('u', '0.25', '0.075') }} AS category,
+      SELECT {{ deferral_change_category('u', '0.25', '0.075', var('escalated', false)) }} AS category,
         {{ deferral_change_step('s', 'increase') }} AS step, COUNT(*), AVG(t)
       FROM draws GROUP BY ALL ORDER BY ALL
     """
@@ -131,6 +141,8 @@ def test_draws_probabilities_weights_and_seed(conn: duckdb.DuckDBPyConnection) -
         (0.01, "proactive_decrease", 8, 0.15, 0.01),
         (0.03, "proactive_decrease", 8, 0.15, 0.01),
         (0.07, "proactive_decrease", 2, 0.15, 0.05),
+        (0.03, "aip_response_decrease", 8, 0.15, 0.01),
+        (0.07, "aip_response_decrease", 2, 0.15, 0.05),
         (0.14, "proactive_increase", 3, 0.15, 0.15),
         (0.16, "proactive_increase", 3, 0.15, 0.16),
         (0.005, "proactive_increase", 1, 0.15, 0.015),
@@ -244,11 +256,20 @@ def event_sql(year: int = 2025, **variables: Any) -> str:
     return render((DBT / EVENT_MODEL).read_text(), **(defaults | variables))
 
 
+@pytest.mark.parametrize("leaves", [False, True])
+@pytest.mark.parametrize("easy_enroll", [False, True])
 def test_real_accumulator_two_year_carry_and_escalation(
     conn: duckdb.DuckDBPyConnection,
+    leaves: bool,
+    easy_enroll: bool,
 ) -> None:
     """#983 acceptance: real generated changes -> real state -> next-year state."""
     fixture_inputs(conn)
+    variables = {
+        "deferral_rate_changes_enabled": True,
+        "deferral_rate_changes_post_escalation_decrease_leaves_escalation": leaves,
+        "easy_enroll_enabled": easy_enroll,
+    }
     conn.execute("CREATE TABLE changes AS " + event_sql())
     conn.execute("""
       CREATE TABLE fct_yearly_events AS
@@ -259,12 +280,18 @@ def test_real_accumulator_two_year_carry_and_escalation(
         new_deferral_rate AS employee_deferral_rate, 'default' AS scenario_id,
         'default' AS plan_design_id FROM int_deferral_rate_escalation_events
     """)
+    if easy_enroll:
+        conn.execute("""INSERT INTO fct_yearly_events BY NAME
+          SELECT employee_id, 'default' AS scenario_id, 'default' AS plan_design_id,
+            2024 AS simulation_year, 'enrollment' AS event_type,
+            'easy_enroll' AS event_category, DATE '2020-01-01' AS effective_date,
+            .06 AS employee_deferral_rate FROM int_baseline_workforce""")
     conn.execute(
         "CREATE TABLE int_deferral_rate_state_accumulator AS "
         + render(
             (DBT / STATE_MODEL).read_text(),
             simulation_year=2025,
-            deferral_rate_changes_enabled=True,
+            **variables,
         )
     )
     rows = conn.execute("""
@@ -274,6 +301,7 @@ def test_real_accumulator_two_year_carry_and_escalation(
       FROM changes e JOIN int_deferral_rate_state_accumulator s USING (employee_id)
       GROUP BY 1 ORDER BY 1
     """).fetchall()
+    assert {r[0] for r in rows} == {"aip_response_decrease", "proactive_increase"}
     assert len(rows) == 2 and sum(r[1] for r in rows) == 100
     for category, _, before, after, last_nonzero, ordered in rows:
         assert float(before) == 0.09  # match .08 + escalation .01, NOT escalation .07
@@ -284,6 +312,7 @@ def test_real_accumulator_two_year_carry_and_escalation(
             render(
                 (DBT / "tests/assert_deferral_change_previous_rate.sql").read_text(),
                 simulation_year=2025,
+                **variables,
             )
         ).fetchall()
         == []
@@ -299,7 +328,7 @@ def test_real_accumulator_two_year_carry_and_escalation(
         + render(
             (DBT / STATE_MODEL).read_text(),
             simulation_year=2026,
-            deferral_rate_changes_enabled=True,
+            **variables,
         )
     )
     assert conn.execute("""
@@ -310,8 +339,65 @@ def test_real_accumulator_two_year_carry_and_escalation(
         AND b.rate_before_voluntary_change = a.current_deferral_rate
         AND b.rate_source = 'carried_forward'
     """).fetchone()[0] == 100
+    assert (
+        conn.execute(
+            """
+      SELECT COUNT(*) FROM int_deferral_rate_state_accumulator s
+      JOIN changes e USING (employee_id)
+      WHERE s.aip_participant IS DISTINCT FROM
+        (NOT (? AND e.event_category = 'aip_response_decrease'))
+    """,
+            [leaves],
+        ).fetchone()[0]
+        == 0
+    )
+    assert (
+        conn.execute(
+            render(
+                (DBT / "tests/assert_aip_membership.sql").read_text(),
+                simulation_year=2026,
+                **variables,
+            )
+        ).fetchall()
+        == []
+    )
+    # Real escalation SQL consumes the persisted membership, including historical EE.
+    conn.execute("""
+      ALTER TABLE int_employee_compensation_by_year ADD COLUMN employee_hire_date DATE
+        DEFAULT DATE '2020-01-01';
+      CREATE TABLE int_synthetic_baseline_enrollment_events AS
+        SELECT employee_id, employee_deferral_rate,
+          employee_enrollment_date AS effective_date FROM int_baseline_workforce
+        WHERE employee_id NOT IN (SELECT employee_id FROM fct_yearly_events
+          WHERE event_type = 'enrollment');
+      ALTER TABLE int_enrollment_events ADD COLUMN event_category VARCHAR;
+      INSERT INTO int_enrollment_events BY NAME SELECT employee_id, scenario_id,
+        simulation_year, event_type, effective_date, employee_deferral_rate,
+        event_category, event_details FROM fct_yearly_events WHERE event_type = 'enrollment'
+    """)
+    escalation_source = (
+        "models/intermediate/events/int_deferral_rate_escalation_events.sql"
+    )
+    conn.execute(
+        "CREATE TABLE next_escalations AS "
+        + render(
+            (DBT / escalation_source).read_text(), simulation_year=2026, **variables
+        )
+    )
+    responders = next(row[1] for row in rows if row[0] == "aip_response_decrease")
+    assert conn.execute("""SELECT COUNT(*) FROM next_escalations e
+      JOIN changes c USING (employee_id)
+      WHERE c.event_category = 'aip_response_decrease'
+    """).fetchone()[0] == (0 if leaves else responders)
     # Generator must also start from carried state, not original census rates.
-    conn.execute("CREATE TABLE changes_2026 AS " + event_sql(2026))
+    conn.execute(
+        "CREATE TABLE changes_2026 AS "
+        + event_sql(
+            2026,
+            deferral_rate_changes_without_escalation_increase_probability=1.0,
+            deferral_rate_changes_without_escalation_decrease_probability=0.0,
+        )
+    )
     assert conn.execute("""
       SELECT COUNT(*) FROM changes_2026 e JOIN int_deferral_rate_state_accumulator s
       ON e.employee_id = s.employee_id AND s.simulation_year = 2025
@@ -558,3 +644,208 @@ def test_proactive_change_after_sweep_matches_accumulator(
     assert rows is not None and rows[0] == 100 and rows[4]
     assert float(rows[1]) == float(rows[2]) == expected
     assert float(rows[3]) == pytest.approx(expected + 0.02)
+
+
+@pytest.mark.parametrize(
+    "escalation,match,termination,days,lower,upper",
+    [
+        ("2025-01-01", "2025-01-01", None, 90, "2025-01-02", "2025-04-01"),
+        ("2025-07-01", "2025-07-10", None, 90, "2025-07-11", "2025-09-29"),
+        ("2025-12-01", "2025-01-01", None, 90, "2025-12-02", "2025-12-31"),
+        ("2025-07-01", "2025-01-01", "2025-07-15", 90, "2025-07-02", "2025-07-15"),
+        ("2025-07-01", "2025-01-01", None, 1, "2025-07-02", "2025-07-02"),
+        ("2025-07-01", "2025-07-02", None, 1, None, None),
+        ("2025-07-01", "2025-09-29", None, 90, None, None),
+        ("2025-07-01", "2025-01-01", None, 0, None, None),
+        ("2025-12-31", "2025-01-01", None, 90, None, None),
+        ("2025-07-01", "2025-01-01", "2025-07-01", 90, None, None),
+        (None, "2025-01-01", None, 0, "2025-01-02", "2025-12-31"),
+        ("2024-07-01", "2025-01-01", None, 0, "2025-01-02", "2025-12-31"),
+    ],
+)
+def test_response_event_window(
+    conn: duckdb.DuckDBPyConnection,
+    escalation: str | None,
+    match: str,
+    termination: str | None,
+    days: int,
+    lower: str | None,
+    upper: str | None,
+) -> None:
+    fixture_inputs(conn)
+    if escalation:
+        conn.execute(
+            "UPDATE int_deferral_rate_escalation_events SET effective_date = ?::DATE, "
+            "simulation_year = YEAR(?::DATE)",
+            [escalation, escalation],
+        )
+    else:
+        conn.execute("DELETE FROM int_deferral_rate_escalation_events")
+    conn.execute(
+        "UPDATE int_deferral_match_response_events SET effective_date = ?::DATE",
+        [match],
+    )
+    conn.execute(
+        "UPDATE int_employee_termination_dates SET termination_date = ?::DATE",
+        [termination],
+    )
+    rows = conn.execute(
+        event_sql(
+            deferral_rate_changes_with_escalation_increase_probability=0.0,
+            deferral_rate_changes_with_escalation_decrease_probability=1.0,
+            deferral_rate_changes_post_escalation_decrease_window_days=days,
+        )
+    ).fetchall()
+    if lower is None:
+        assert rows == []
+        return
+    category = (
+        "aip_response_decrease"
+        if escalation and escalation.startswith("2025")
+        else "proactive_decrease"
+    )
+    assert len(rows) == 100 and {row[-1] for row in rows} == {category}
+    assert all(lower <= row[4].isoformat() <= upper for row in rows)
+    if lower != upper:
+        assert len({row[4] for row in rows}) > 10
+
+
+@pytest.mark.parametrize("year", [2025, 2026])
+def test_sweep_keeps_notice_but_replaces_rate(
+    conn: duckdb.DuckDBPyConnection, year: int
+) -> None:
+    sweep_rate_inputs(conn, year, "01-01", "01-01")
+    rows = conn.execute(
+        event_sql(
+            year,
+            deferral_rate_changes_with_escalation_increase_probability=0.0,
+            deferral_rate_changes_with_escalation_decrease_probability=1.0,
+        )
+    ).fetchall()
+    assert len(rows) == 100
+    assert {row[-1] for row in rows} == {"aip_response_decrease"}
+    assert all(float(row[9]) == 0.02 and float(row[8]) == 0.01 for row in rows)
+    assert all(f"{year}-01-16" <= row[4].isoformat() <= f"{year}-04-01" for row in rows)
+
+
+def response_state_fixture(conn: duckdb.DuckDBPyConnection) -> None:
+    fixture_inputs(conn)
+    conn.execute(
+        "CREATE TABLE fct_yearly_events AS "
+        "SELECT *, 'default' AS scenario_id, 'default' AS plan_design_id, "
+        "employee_id || '-change' AS event_id FROM ("
+        + event_sql(
+            deferral_rate_changes_with_escalation_increase_probability=0.0,
+            deferral_rate_changes_with_escalation_decrease_probability=1.0,
+        )
+        + ")"
+    )
+    # Published facts use TIMESTAMP even though the event model emits DATE.
+    conn.execute(
+        "ALTER TABLE fct_yearly_events ALTER COLUMN effective_date TYPE TIMESTAMP"
+    )
+    conn.execute(
+        """INSERT INTO fct_yearly_events BY NAME
+      SELECT employee_id, simulation_year, effective_date, 'deferral_escalation' AS event_type,
+        'default' AS scenario_id, 'default' AS plan_design_id,
+        new_deferral_rate AS employee_deferral_rate FROM int_deferral_rate_escalation_events"""
+    )
+    conn.execute(
+        "CREATE TABLE int_deferral_rate_state_accumulator AS "
+        + render(
+            (DBT / STATE_MODEL).read_text(),
+            simulation_year=2025,
+            deferral_rate_changes_enabled=True,
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "missing",
+        "prior_year",
+        "other_scenario",
+        "same_day",
+        "too_late",
+        "terminated",
+        "later_match",
+        "wrong_rate",
+        "wrong_category",
+        "duplicate",
+        "null_date",
+    ],
+)
+def test_singular_response_guard_rejects_invalid_events(
+    conn: duckdb.DuckDBPyConnection, mutation: str
+) -> None:
+    response_state_fixture(conn)
+    sql = render(
+        (DBT / "tests/assert_deferral_change_previous_rate.sql").read_text(),
+        simulation_year=2025,
+    )
+    assert conn.execute(sql).fetchall() == []
+    mutations = {
+        "missing": "DELETE FROM fct_yearly_events WHERE event_type = 'deferral_escalation'",
+        "prior_year": "UPDATE fct_yearly_events SET simulation_year = 2024 WHERE event_type = 'deferral_escalation'",
+        "other_scenario": "UPDATE fct_yearly_events SET scenario_id = 'other' WHERE event_type = 'deferral_escalation'",
+        "same_day": "UPDATE fct_yearly_events SET effective_date = DATE '2025-07-01' WHERE event_type = 'deferral_change'",
+        "too_late": "UPDATE fct_yearly_events SET effective_date = DATE '2025-09-30' WHERE event_type = 'deferral_change'",
+        "terminated": "UPDATE int_employee_termination_dates SET termination_date = DATE '2025-07-01'",
+        "later_match": "INSERT INTO fct_yearly_events BY NAME SELECT employee_id, simulation_year, scenario_id, 'deferral_match_response' AS event_type, effective_date FROM fct_yearly_events WHERE event_type = 'deferral_change'",
+        "wrong_rate": "UPDATE fct_yearly_events SET prev_employee_deferral_rate = .01 WHERE event_type = 'deferral_change'",
+        "wrong_category": "UPDATE fct_yearly_events SET event_category = 'proactive_decrease' WHERE event_type = 'deferral_change'",
+        "duplicate": "INSERT INTO fct_yearly_events SELECT * FROM fct_yearly_events WHERE event_type = 'deferral_change'",
+        "null_date": "UPDATE fct_yearly_events SET effective_date = NULL WHERE event_type = 'deferral_change'",
+    }
+    conn.execute(mutations[mutation])
+    assert len(conn.execute(sql).fetchall()) == (
+        200 if mutation == "duplicate" else 100
+    )
+
+
+def test_response_settings_leave_increases_and_disabled_events_unchanged(
+    conn: duckdb.DuckDBPyConnection,
+) -> None:
+    fixture_inputs(conn)
+    variables = {
+        "deferral_rate_changes_with_escalation_increase_probability": 1.0,
+        "deferral_rate_changes_with_escalation_decrease_probability": 0.0,
+    }
+    baseline = conn.execute(event_sql(**variables)).fetchall()
+    assert len(baseline) == 100
+    assert (
+        conn.execute(
+            event_sql(
+                **variables,
+                deferral_rate_changes_post_escalation_decrease_window_days=0,
+                deferral_rate_changes_post_escalation_decrease_leaves_escalation=True,
+            )
+        ).fetchall()
+        == baseline
+    )
+    assert (
+        conn.execute(
+            event_sql(
+                deferral_rate_changes_enabled=False,
+                deferral_rate_changes_post_escalation_decrease_leaves_escalation=True,
+            )
+        ).fetchall()
+        == []
+    )
+
+
+def test_nonmember_without_escalation_decreases_proactively(
+    conn: duckdb.DuckDBPyConnection,
+) -> None:
+    fixture_inputs(conn)
+    conn.execute("DELETE FROM int_deferral_rate_escalation_events")
+    conn.execute("UPDATE stg_census_data SET auto_escalation_opt_out = TRUE")
+    rows = conn.execute(
+        event_sql(
+            deferral_rate_changes_without_escalation_increase_probability=0.0,
+            deferral_rate_changes_without_escalation_decrease_probability=1.0,
+            deferral_rate_changes_post_escalation_decrease_window_days=0,
+        )
+    ).fetchall()
+    assert len(rows) == 100 and {row[-1] for row in rows} == {"proactive_decrease"}

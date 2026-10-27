@@ -861,7 +861,7 @@ models:
                 min_value: 0
                 max_value: 1
       - name: aip_participant
-        description: Automatic increase program membership; initialized from census opt-out and run-global mode (automatic or a stable seeded participant election), carried forward thereafter, with the same rule for newcomers. Easy Enroll enrollees always join, including when ordinary escalation is disabled.
+        description: Automatic increase program membership; initialized from census opt-out and run-global mode (automatic or a stable seeded participant election), carried forward thereafter, with the same rule for newcomers. Easy Enroll enrollees join, including when ordinary escalation is disabled. When enabled, an AIP response decrease can clear year-end membership for next year; historical Easy Enroll enrollment does not re-elect a participant who left.
         data_type: boolean
         data_tests:
           - not_null
@@ -870,6 +870,13 @@ models:
                 expression: "= FALSE"
               config:
                 enabled: "{{ not var('deferral_escalation_enabled', true) and not var('easy_enroll_enabled', false) }}"
+          - dbt_utils.expression_is_true:
+              name: aip_response_decrease_exits_program
+              arguments:
+                expression: "= FALSE"
+              config:
+                enabled: "{{ var('deferral_rate_changes_enabled', false) and var('deferral_rate_changes_post_escalation_decrease_leaves_escalation', false) }}"
+                where: "rate_source = 'deferral_change' AND current_deferral_rate > 0 AND current_deferral_rate < rate_before_voluntary_change AND had_escalation_this_year"
           - dbt_utils.expression_is_true:
               name: aip_participant_elected_zero_signup
               arguments:
@@ -2025,8 +2032,9 @@ models:
       Integrates with existing parameter system for job-level configuration.
       AIP membership uses the static census opt-out rule initially, then prior-year
       accumulator membership, with the initial rule for newly appearing employees.
-      Easy Enroll always elects membership and uses its package cap, even with
+      Easy Enroll elects membership and uses its package cap, even with
       ordinary escalation disabled (assert_easy_enroll_membership_and_cap).
+      Historical package elections do not override a carried AIP exit after a notice.
       Candidates require enrolled, positive-rate prior-year state or a current-year
       enrollment; a latest opt-out blocks historical rate fallback. Year-end enrolled
       state is enforced by the singular test assert_escalation_enrolled_state,
@@ -2057,6 +2065,11 @@ models:
         description: Human-readable description of the escalation change
       - name: event_category
         description: "Always 'deferral_escalation' for this model"
+        data_tests:
+          - accepted_values:
+              name: escalation_event_category_contract
+              arguments:
+                values: ['deferral_escalation']
 
   # =========================================================================
   # Epic E063: ERISA 1,000-Hour Eligibility Rules

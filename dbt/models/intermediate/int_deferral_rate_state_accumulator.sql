@@ -534,7 +534,8 @@ current_year_deferral_changes AS (
   SELECT
     employee_id,
     plan_design_id,
-    employee_deferral_rate
+    employee_deferral_rate,
+    event_category
   FROM {{ ref('fct_yearly_events') }}
   WHERE simulation_year = {{ simulation_year }}
     AND scenario_id = '{{ scenario_id }}'
@@ -578,17 +579,25 @@ voluntary_change_state AS (
       WHEN dc.employee_id IS NOT NULL THEN 'deferral_change'
       ELSE s.rate_source
     END AS rate_source,
+    -- Year-end membership is consumed by next year's generators; this year's
+    -- escalation and probability group have already been determined.
+    {% if var('deferral_rate_changes_enabled', false) and var('deferral_rate_changes_post_escalation_decrease_leaves_escalation', false) %}
+    CASE WHEN dc.event_category = 'aip_response_decrease' THEN FALSE ELSE
+    {% endif %}
     -- Package enrollment elects AIP even when ordinary escalation is disabled.
     {% if var('easy_enroll_enabled', false) %}
     {{ easy_enroll_member(ref('fct_yearly_events'), 's.employee_id', 's.simulation_year',
-      's.scenario_id') }} OR
+      's.scenario_id', current_year_only=var('deferral_rate_changes_enabled', false)
+        and var('deferral_rate_changes_post_escalation_decrease_leaves_escalation', false)) }} OR
     {% endif %}
     {% if simulation_year == start_year %}
-    {{ aip_initial_membership(var('deferral_escalation_mode', 'automatic'), 'census.auto_escalation_opt_out', 's.employee_id') }} AS aip_participant,
+    {{ aip_initial_membership(var('deferral_escalation_mode', 'automatic'), 'census.auto_escalation_opt_out', 's.employee_id') }}
+    {% if var('deferral_rate_changes_enabled', false) and var('deferral_rate_changes_post_escalation_decrease_leaves_escalation', false) %}END{% endif %} AS aip_participant,
     NULL::DECIMAL(5,4) AS previous_nonzero_deferral_rate
     {% else %}
     COALESCE(ps.aip_participant,
-      {{ aip_initial_membership(var('deferral_escalation_mode', 'automatic'), 'census.auto_escalation_opt_out', 's.employee_id') }}) AS aip_participant,
+      {{ aip_initial_membership(var('deferral_escalation_mode', 'automatic'), 'census.auto_escalation_opt_out', 's.employee_id') }})
+    {% if var('deferral_rate_changes_enabled', false) and var('deferral_rate_changes_post_escalation_decrease_leaves_escalation', false) %}END{% endif %} AS aip_participant,
     ps.last_nonzero_deferral_rate AS previous_nonzero_deferral_rate
     {% endif %}
   FROM
