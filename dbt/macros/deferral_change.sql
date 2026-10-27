@@ -72,12 +72,14 @@ END
 {%- endmacro %}
 
 {% macro deferral_change_step(draw, direction) -%}
-  {%- set defaults = [{'pp': 1, 'weight': 0.15}, {'pp': 2, 'weight': 0.20},
-    {'pp': 3, 'weight': 0.15}, {'pp': 5, 'weight': 0.20},
-    {'pp': 7, 'weight': 0.15}, {'pp': 10, 'weight': 0.15}]
+  {%- set defaults = [
+    {'pp': 1, 'weight': 0.1}, {'pp': 2, 'weight': 0.1},
+    {'pp': 3, 'weight': 0.15}, {'pp': 5, 'weight': 0.2},
+    {'pp': 7, 'weight': 0.2}, {'pp': 10, 'weight': 0.25}]
     if direction == 'increase' else [
-    {'pp': 1, 'weight': 0.15}, {'pp': 2, 'weight': 0.25},
-    {'pp': 3, 'weight': 0.20}, {'pp': 5, 'weight': 0.20}, {'pp': 8, 'weight': 0.20}] -%}
+    {'pp': 1, 'weight': 0.1}, {'pp': 2, 'weight': 0.15},
+    {'pp': 3, 'weight': 0.15}, {'pp': 5, 'weight': 0.2},
+    {'pp': 8, 'weight': 0.2}, {'pp': 12, 'weight': 0.2}] -%}
   {%- set steps = var('deferral_rate_changes_' ~ direction ~ '_steps', defaults) -%}
   {%- set ns = namespace(cumulative=0.0) -%}
 CASE
@@ -127,11 +129,49 @@ END
 {%- endmacro %}
 
 {% macro deferral_change_probability_product(base, direction, age, income, tenure) -%}
+  {%- set defaults = {
+    'increase': {
+      'age': [
+        {'min': 0, 'multiplier': 0.8}, {'min': 30, 'multiplier': 0.95},
+        {'min': 40, 'multiplier': 1.05}, {'min': 50, 'multiplier': 1.25},
+        {'min': 60, 'multiplier': 1.3}, {'min': 70, 'multiplier': 0.8}],
+      'income': [
+        {'min': 0, 'multiplier': 0.5}, {'min': 25000, 'multiplier': 0.65},
+        {'min': 50000, 'multiplier': 0.75}, {'min': 60000, 'multiplier': 0.9},
+        {'min': 75000, 'multiplier': 1.0}, {'min': 100000, 'multiplier': 1.15},
+        {'min': 125000, 'multiplier': 1.2}, {'min': 150000, 'multiplier': 1.35},
+        {'min': 200000, 'multiplier': 1.3}, {'min': 250000, 'multiplier': 1.2}],
+      'tenure': [
+        {'min': 0, 'multiplier': 1.05}, {'min': 2, 'multiplier': 0.9},
+        {'min': 5, 'multiplier': 0.95}, {'min': 10, 'multiplier': 1.1},
+        {'min': 15, 'multiplier': 1.15}, {'min': 20, 'multiplier': 1.2},
+        {'min': 25, 'multiplier': 1.25}, {'min': 30, 'multiplier': 1.15}],
+    },
+    'decrease': {
+      'age': [
+        {'min': 0, 'multiplier': 0.95}, {'min': 30, 'multiplier': 1.1},
+        {'min': 40, 'multiplier': 1.0}, {'min': 50, 'multiplier': 0.85},
+        {'min': 60, 'multiplier': 0.75}, {'min': 70, 'multiplier': 0.5}],
+      'income': [
+        {'min': 0, 'multiplier': 0.5}, {'min': 25000, 'multiplier': 0.65},
+        {'min': 40000, 'multiplier': 0.6}, {'min': 50000, 'multiplier': 0.75},
+        {'min': 60000, 'multiplier': 0.85}, {'min': 75000, 'multiplier': 0.95},
+        {'min': 100000, 'multiplier': 1.05}, {'min': 125000, 'multiplier': 1.25},
+        {'min': 150000, 'multiplier': 1.4}, {'min': 200000, 'multiplier': 1.55},
+        {'min': 250000, 'multiplier': 1.25}],
+      'tenure': [
+        {'min': 0, 'multiplier': 0.9}, {'min': 2, 'multiplier': 0.95},
+        {'min': 3, 'multiplier': 1.05}, {'min': 4, 'multiplier': 1.1},
+        {'min': 5, 'multiplier': 1.05}, {'min': 15, 'multiplier': 1.0},
+        {'min': 20, 'multiplier': 0.9}, {'min': 25, 'multiplier': 0.85},
+        {'min': 30, 'multiplier': 0.75}],
+    },
+  } -%}
 ({{ base }})
 {%- for dimension, value in [('age', age), ('income', income), ('tenure', tenure)] %}
   * ({{ deferral_change_multiplier(value,
     var('deferral_rate_changes_multipliers_' ~ direction ~ '_' ~ dimension,
-      [{'min': 0, 'multiplier': 1.0}])) }})
+      defaults[direction][dimension])) }})
 {%- endfor %}
 {%- endmacro %}
 

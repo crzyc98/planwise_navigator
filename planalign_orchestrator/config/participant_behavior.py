@@ -170,12 +170,110 @@ class DeferralChangeDirectionMultipliers(BaseModel):
     )
 
 
-class DeferralChangeMultipliers(BaseModel):
-    increase: DeferralChangeDirectionMultipliers = Field(
-        default_factory=DeferralChangeDirectionMultipliers
+class DeferralChangeIncreaseMultipliers(DeferralChangeDirectionMultipliers):
+    age: DeferralChangeMultiplierBands = Field(
+        default_factory=lambda: [
+            DeferralChangeMultiplierBand(min=lower, multiplier=factor)
+            for lower, factor in [
+                (0, 0.8),
+                (30, 0.95),
+                (40, 1.05),
+                (50, 1.25),
+                (60, 1.3),
+                (70, 0.8),
+            ]
+        ]
     )
-    decrease: DeferralChangeDirectionMultipliers = Field(
-        default_factory=DeferralChangeDirectionMultipliers
+    income: DeferralChangeMultiplierBands = Field(
+        default_factory=lambda: [
+            DeferralChangeMultiplierBand(min=lower, multiplier=factor)
+            for lower, factor in [
+                (0, 0.5),
+                (25000, 0.65),
+                (50000, 0.75),
+                (60000, 0.9),
+                (75000, 1.0),
+                (100000, 1.15),
+                (125000, 1.2),
+                (150000, 1.35),
+                (200000, 1.3),
+                (250000, 1.2),
+            ]
+        ]
+    )
+    tenure: DeferralChangeMultiplierBands = Field(
+        default_factory=lambda: [
+            DeferralChangeMultiplierBand(min=lower, multiplier=factor)
+            for lower, factor in [
+                (0, 1.05),
+                (2, 0.9),
+                (5, 0.95),
+                (10, 1.1),
+                (15, 1.15),
+                (20, 1.2),
+                (25, 1.25),
+                (30, 1.15),
+            ]
+        ]
+    )
+
+
+class DeferralChangeDecreaseMultipliers(DeferralChangeDirectionMultipliers):
+    age: DeferralChangeMultiplierBands = Field(
+        default_factory=lambda: [
+            DeferralChangeMultiplierBand(min=lower, multiplier=factor)
+            for lower, factor in [
+                (0, 0.95),
+                (30, 1.1),
+                (40, 1.0),
+                (50, 0.85),
+                (60, 0.75),
+                (70, 0.5),
+            ]
+        ]
+    )
+    income: DeferralChangeMultiplierBands = Field(
+        default_factory=lambda: [
+            DeferralChangeMultiplierBand(min=lower, multiplier=factor)
+            for lower, factor in [
+                (0, 0.5),
+                (25000, 0.65),
+                (40000, 0.6),
+                (50000, 0.75),
+                (60000, 0.85),
+                (75000, 0.95),
+                (100000, 1.05),
+                (125000, 1.25),
+                (150000, 1.4),
+                (200000, 1.55),
+                (250000, 1.25),
+            ]
+        ]
+    )
+    tenure: DeferralChangeMultiplierBands = Field(
+        default_factory=lambda: [
+            DeferralChangeMultiplierBand(min=lower, multiplier=factor)
+            for lower, factor in [
+                (0, 0.9),
+                (2, 0.95),
+                (3, 1.05),
+                (4, 1.1),
+                (5, 1.05),
+                (15, 1.0),
+                (20, 0.9),
+                (25, 0.85),
+                (30, 0.75),
+            ]
+        ]
+    )
+
+
+class DeferralChangeMultipliers(BaseModel):
+    increase: DeferralChangeIncreaseMultipliers = Field(
+        default_factory=DeferralChangeIncreaseMultipliers
+    )
+    decrease: DeferralChangeDecreaseMultipliers = Field(
+        default_factory=DeferralChangeDecreaseMultipliers
     )
 
 
@@ -198,19 +296,26 @@ class DeferralRateChangesSettings(BaseModel):
         default_factory=lambda: [
             DeferralChangeStep(pp=pp, weight=weight)
             for pp, weight in [
-                (1, 0.15),
-                (2, 0.20),
+                (1, 0.1),
+                (2, 0.1),
                 (3, 0.15),
-                (5, 0.20),
-                (7, 0.15),
-                (10, 0.15),
+                (5, 0.2),
+                (7, 0.2),
+                (10, 0.25),
             ]
         ]
     )
     decrease_steps: list[DeferralChangeStep] = Field(
         default_factory=lambda: [
             DeferralChangeStep(pp=pp, weight=weight)
-            for pp, weight in [(1, 0.15), (2, 0.25), (3, 0.20), (5, 0.20), (8, 0.20)]
+            for pp, weight in [
+                (1, 0.1),
+                (2, 0.15),
+                (3, 0.15),
+                (5, 0.2),
+                (8, 0.2),
+                (12, 0.2),
+            ]
         ]
     )
     post_escalation_decrease_window_days: int = Field(default=90, ge=0, strict=True)
