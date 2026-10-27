@@ -10,3 +10,5 @@ enrollment: {auto_enrollment: {enabled: false}, proactive_enrollment: {enabled: 
 deferral_rates: {use_census_rates: true, plan_deferral_cap: 0.75, generate_synthetic_events: true}
 deferral_auto_escalation: {enabled: true, effective_day: "01-01", increment_amount: 0.01, maximum_rate: 0.06, hire_date_cutoff: "2000-01-01", require_active_enrollment: false, first_escalation_delay_years: 0}
 optimization: {max_workers: 1}
+# Isolates the escalation cap: voluntary rate changes would move the cap-bound rate.
+deferral_rate_changes: {enabled: false}
