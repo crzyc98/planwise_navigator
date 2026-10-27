@@ -68,10 +68,10 @@ DEFAULTS: dict[str, Any] = {
         {"pp": 3, "weight": 0.20},
     ],
     "deferral_rate_changes_enabled": True,
-    "deferral_rate_changes_with_escalation_increase_probability": 0.03,
-    "deferral_rate_changes_with_escalation_decrease_probability": 0.03,
-    "deferral_rate_changes_without_escalation_increase_probability": 0.25,
-    "deferral_rate_changes_without_escalation_decrease_probability": 0.075,
+    "deferral_rate_changes_with_escalation_increase_probability": 0.085,
+    "deferral_rate_changes_with_escalation_decrease_probability": 0.082,
+    "deferral_rate_changes_without_escalation_increase_probability": 0.085,
+    "deferral_rate_changes_without_escalation_decrease_probability": 0.082,
     "deferral_rate_changes_increase_steps": [
         {"pp": pp, "weight": weight}
         for pp, weight in [

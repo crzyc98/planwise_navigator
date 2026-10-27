@@ -920,7 +920,7 @@ describe('contribution rate change controls', () => {
     const original = structuredClone(state.formData);
     toggle('dcDeferralRateChangesEnabled', true);
     expect(render()).toContain('<details id="dcplan-rate-changes-panel" open="">');
-    expect(render()).toContain('25% raise, 7.5% lower');
+    expect(render()).toContain('8.5% raise, 8.2% lower');
     toggle('dcDeferralRateChangesEnabled', false);
     expect(state.formData).toEqual(original);
   });
@@ -933,7 +933,7 @@ describe('contribution rate change controls', () => {
     expect(html).toContain('<fieldset disabled="" aria-label="Contribution rate change settings" class="min-w-0 space-y-4 disabled:opacity-60"');
     expect(html).toContain('Inactive while contribution rate changes are off. Saved values are retained.');
     expect(html).toContain('Chance each year');
-    expect(html).toContain('value="7.5"');
+    expect(html).toContain('value="8.2"');
     expect(html).toContain('How much people raise');
     expect(html).toContain('How much people lower');
     expect(html).toContain('At most one change per person per year.');

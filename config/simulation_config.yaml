@@ -442,8 +442,8 @@ easy_enroll:
 # All probabilities are per participant per year, 0–1; 0.03 = 3%.
 deferral_rate_changes:
   enabled: true
-  with_escalation: {increase_probability: 0.03, decrease_probability: 0.03}  # Annual participant probabilities; decrease set to 3% by the plan owner (2026-10-27)
-  without_escalation: {increase_probability: 0.25, decrease_probability: 0.075}  # Annual participant probabilities
+  with_escalation: {increase_probability: 0.085, decrease_probability: 0.082}  # Annual participant probabilities (in AIP)
+  without_escalation: {increase_probability: 0.085, decrease_probability: 0.082}  # Annual participant probabilities (not in AIP)
   # Probability = base x age x income x tenure for each direction. Stop is unchanged.
   # If increase + decrease + stop > 1, scale increase/decrease proportionally to 1 - stop.
   # Ordered inclusive lower bounds: age/tenure in years, income in annual dollars.

@@ -119,12 +119,12 @@ rate_inputs AS (
       mr.effective_date, ne.effective_date) AS DATE) + 1 AS window_start,
     LEAST(DATE '{{ simulation_year }}-12-31', t.termination_date) AS window_end,
     CASE WHEN {{ aip_in_scope }}
-      THEN {{ var('deferral_rate_changes_with_escalation_increase_probability', 0.03) }}
-      ELSE {{ var('deferral_rate_changes_without_escalation_increase_probability', 0.25) }}
+      THEN {{ var('deferral_rate_changes_with_escalation_increase_probability', 0.085) }}
+      ELSE {{ var('deferral_rate_changes_without_escalation_increase_probability', 0.085) }}
     END AS base_increase_probability,
     CASE WHEN {{ aip_in_scope }}
-      THEN {{ var('deferral_rate_changes_with_escalation_decrease_probability', 0.03) }}
-      ELSE {{ var('deferral_rate_changes_without_escalation_decrease_probability', 0.075) }}
+      THEN {{ var('deferral_rate_changes_with_escalation_decrease_probability', 0.082) }}
+      ELSE {{ var('deferral_rate_changes_without_escalation_decrease_probability', 0.082) }}
     END AS base_decrease_probability,
     {{ enrollment_behavior_draw('w.employee_id', simulation_year, '-deferral-change-') }} AS choice_draw,
     {{ enrollment_behavior_draw('w.employee_id', simulation_year, '-deferral-restart-') }} AS restart_draw,
