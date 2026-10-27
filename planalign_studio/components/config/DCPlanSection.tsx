@@ -220,8 +220,14 @@ export function DCPlanSection() {
             </div>
          </div>;
 
+  const sweepGroups = [
+    formData.dcReenrollmentSweepIncludeNonContributors && '0% contributors',
+    formData.dcReenrollmentSweepIncludeBelowDefault && 'below the default',
+    formData.dcReenrollmentSweepIncludeBelowAipCap && 'below the automatic-increase cap',
+  ].filter(Boolean).join(', ') || 'no groups selected';
+
   const renderEligibilityFields = () => <>
-      <DCPlanPanel id="dcplan-auto-enrollment-settings" title="Automatic enrollment" summary={formData.dcAutoEnroll ? `Enabled; periodic re-enrollment sweep ${formData.dcReenrollmentSweepEnabled ? `every ${formData.dcReenrollmentSweepIntervalYears} years, first ${formData.dcReenrollmentSweepFirstYear || Number(formData.startYear) + Number(formData.dcReenrollmentSweepIntervalYears)}` : 'off'}.` : 'Off; sweep, default deferral and opt-out assumptions retained.'} enabled={formData.dcAutoEnroll} control={autoEnrollmentControl}>
+      <DCPlanPanel id="dcplan-auto-enrollment-settings" title="Automatic enrollment" summary={formData.dcAutoEnroll ? `Enabled; periodic re-enrollment sweep ${formData.dcReenrollmentSweepEnabled ? `${formData.dcReenrollmentSweepMethod === 'into_aip' ? 'into automatic increases' : 'at the default rate'}, every ${formData.dcReenrollmentSweepIntervalYears} years, first ${formData.dcReenrollmentSweepFirstYear || Number(formData.startYear) + Number(formData.dcReenrollmentSweepIntervalYears)}; ${sweepGroups}; ${formData.dcReenrollmentSweepDeclineProbability}% of contributors decline` : 'off'}.` : 'Off; sweep, default deferral and opt-out assumptions retained.'} enabled={formData.dcAutoEnroll} control={autoEnrollmentControl}>
          <p className="sm:col-span-6 text-xs font-medium text-ink-muted">Plan rules</p>
          <InputField label="Default Deferral Rate" {...inputProps('dcDefaultDeferral')} type="number" step="0.5" suffix="%" disabled={!formData.dcAutoEnroll} helper={formData.dcAutoEnroll ? 'Initial contribution for auto-enrolled employees.' : 'Inactive while auto-enrollment is off. Saved value is retained.'} />
          <InputField label="Modeled opt-out delay" {...inputProps('dcAutoEnrollOptOutGracePeriod')} type="number" suffix="Days" disabled={!formData.dcAutoEnroll} helper={formData.dcAutoEnroll ? 'Hire-year opt-out date: eligibility + enrollment delay + this delay. Continuing-employee branch: June 15.' : 'Inactive while auto-enrollment is off. Saved value is retained.'} min={0} />
@@ -230,11 +236,33 @@ export function DCPlanSection() {
              <input id="dcReenrollmentSweepEnabled" name="dcReenrollmentSweepEnabled" type="checkbox" checked={formData.dcReenrollmentSweepEnabled} onChange={handleChange} aria-describedby="reenrollment-sweep-help" className="h-4 w-4 text-fidelity-green rounded" />
              Periodic re-enrollment sweep
            </label>
-           <p id="reenrollment-sweep-help" className="mt-1 text-xs text-ink-muted">Every N years, re-enroll eligible employees who aren't contributing — including those who opted out — at the default rate. They can opt out again.</p>
+           <p id="reenrollment-sweep-help" className="mt-1 text-xs text-ink-muted">Choose who to include and how their contributions start. Employees at 0% can opt out again; contributors can decline. Automatic increases continue in later years.</p>
            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-6">
              <InputField label="Every" {...inputProps('dcReenrollmentSweepIntervalYears')} type="number" min={1} step="1" suffix="years" disabled={!formData.dcAutoEnroll || !formData.dcReenrollmentSweepEnabled} />
              <InputField label="First sweep year" {...inputProps('dcReenrollmentSweepFirstYear')} type="number" step="1" disabled={!formData.dcAutoEnroll || !formData.dcReenrollmentSweepEnabled} helper={`Optional; blank starts in ${Number(formData.startYear) + Number(formData.dcReenrollmentSweepIntervalYears)} (start year + interval).`} />
            </div>
+           <fieldset disabled={!formData.dcAutoEnroll || !formData.dcReenrollmentSweepEnabled} className="mt-3 space-y-3">
+             <label className="block text-sm text-ink" htmlFor="dcReenrollmentSweepMethod">Sweep method</label>
+             <select id="dcReenrollmentSweepMethod" name="dcReenrollmentSweepMethod" value={formData.dcReenrollmentSweepMethod} onChange={handleChange} className="rounded border border-border bg-surface p-2 text-sm">
+               <option value="enroll_at_default">Enroll at the default rate</option>
+               <option value="into_aip">Sweep into automatic increases</option>
+             </select>
+             <p className="text-xs text-ink-muted">Sweeping into automatic increases keeps contributors at their current rate. Employees at 0% start with one annual increase.</p>
+             <label htmlFor="dcReenrollmentSweepIncludeNonContributors" className="flex items-center gap-2 text-sm text-ink">
+               <input id="dcReenrollmentSweepIncludeNonContributors" name="dcReenrollmentSweepIncludeNonContributors" type="checkbox" checked={formData.dcReenrollmentSweepIncludeNonContributors} onChange={handleChange} />
+               Not contributing (0%)
+             </label>
+             <label htmlFor="dcReenrollmentSweepIncludeBelowDefault" className="flex items-center gap-2 text-sm text-ink">
+               <input id="dcReenrollmentSweepIncludeBelowDefault" name="dcReenrollmentSweepIncludeBelowDefault" type="checkbox" checked={formData.dcReenrollmentSweepIncludeBelowDefault} onChange={handleChange} />
+               Contributing below the default rate
+             </label>
+             <label htmlFor="dcReenrollmentSweepIncludeBelowAipCap" className="flex items-center gap-2 text-sm text-ink">
+               <input id="dcReenrollmentSweepIncludeBelowAipCap" name="dcReenrollmentSweepIncludeBelowAipCap" type="checkbox" checked={formData.dcReenrollmentSweepIncludeBelowAipCap} onChange={handleChange} />
+               Contributing below the automatic-increase cap
+             </label>
+             <InputField label="Share of contributors who decline" {...inputProps('dcReenrollmentSweepDeclineProbability')} type="number" min={0} max={100} step="1" suffix="%" disabled={!formData.dcAutoEnroll || !formData.dcReenrollmentSweepEnabled} />
+           </fieldset>
+           {formData.dcAutoEnroll && formData.dcReenrollmentSweepEnabled && (formData.dcAutoEnrollScope === 'new_hires_only' || Boolean(formData.dcAutoEnrollHireDateCutoff)) && <p role="note" className="mt-3 text-sm text-warning-ink">This sweep includes all legacy hires, not only employees hired after the auto-enrollment cutoff.</p>}
            {(!formData.dcAutoEnroll || !formData.dcReenrollmentSweepEnabled) && <p className="mt-2 text-xs text-ink-muted">Sweep settings inactive; saved values are retained.</p>}
          </fieldset>
          {optOutFields}

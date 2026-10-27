@@ -56,6 +56,11 @@ DBT_VAR_PER_DESIGN = frozenset(
         "reenrollment_sweep_enabled",
         "reenrollment_sweep_interval_years",
         "reenrollment_sweep_first_year",
+        "reenrollment_sweep_method",
+        "reenrollment_sweep_include_non_contributors",
+        "reenrollment_sweep_include_below_default",
+        "reenrollment_sweep_include_below_aip_cap",
+        "reenrollment_sweep_decline_probability",
         "deferral_escalation_increment",
         "deferral_escalation_cap",
         "eligibility_waiting_days",
@@ -545,7 +550,16 @@ def _apply_dc_plan_enrollment_overrides(
     for field in _DC_PLAN_OPT_OUT_DEMOGRAPHIC_FIELDS:
         _set_if_not_none(dbt_vars, field, dc_plan_dict.get(field), float)
 
-    for field in ("enabled", "interval_years", "first_year"):
+    for field in (
+        "enabled",
+        "interval_years",
+        "first_year",
+        "method",
+        "include_non_contributors",
+        "include_below_default",
+        "include_below_aip_cap",
+        "decline_probability",
+    ):
         key = f"reenrollment_sweep_{field}"
         if key in dc_plan_dict and (
             field == "first_year" or dc_plan_dict[key] is not None

@@ -164,6 +164,13 @@ export interface FormData {
   dcReenrollmentSweepIntervalYears: number;
   dcReenrollmentSweepFirstYear: string;
   dcReenrollmentSweepEdited: boolean;
+  dcReenrollmentSweepOptionsEdited: boolean;
+  dcReenrollmentSweepOptionsPresent: string[];
+  dcReenrollmentSweepMethod: 'enroll_at_default' | 'into_aip';
+  dcReenrollmentSweepIncludeNonContributors: boolean;
+  dcReenrollmentSweepIncludeBelowDefault: boolean;
+  dcReenrollmentSweepIncludeBelowAipCap: boolean;
+  dcReenrollmentSweepDeclineProbability: number;
   dcDefaultDeferral: number;
   dcMatchTemplate: string;
   dcMatchTiers: MatchTier[];

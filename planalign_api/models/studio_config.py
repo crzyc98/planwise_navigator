@@ -4,7 +4,7 @@ Only fields read directly by Studio are declared. Unknown engine settings are
 preserved at every level; omitted fields must never become null overrides.
 """
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from planalign_orchestrator.config.participant_behavior import (
     AIPMode,
@@ -89,6 +89,14 @@ class StudioDCPlanConfig(PartialConfig):
         default=None, ge=1, strict=True
     )
     reenrollment_sweep_first_year: int | None = Field(default=None, strict=True)
+    reenrollment_sweep_method: Literal["enroll_at_default", "into_aip"] | None = None
+    reenrollment_sweep_include_non_contributors: bool | None = None
+    reenrollment_sweep_include_below_default: bool | None = None
+    reenrollment_sweep_include_below_aip_cap: bool | None = None
+    reenrollment_sweep_decline_probability: float | None = Field(
+        default=None, ge=0, le=1
+    )
+
     match_template: str | None = None
     match_status: str | None = None
     match_tiers: list[StudioMatchTier] | None = None

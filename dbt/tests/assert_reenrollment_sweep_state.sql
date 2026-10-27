@@ -4,7 +4,7 @@
 WITH swept AS (
   SELECT employee_id, scenario_id, simulation_year, effective_date
   FROM {{ ref('fct_yearly_events') }}
-  WHERE event_type = 'enrollment'
+  WHERE (event_type = 'enrollment' OR event_category = 'reenrollment_sweep')
     AND event_details LIKE 'Re-enrollment sweep - %'
     AND simulation_year = {{ var('simulation_year') }}
     AND scenario_id = '{{ var("scenario_id", "default") }}'

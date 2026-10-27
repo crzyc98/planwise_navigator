@@ -132,3 +132,27 @@ describe('re-enrollment sweep payload', () => {
     expect(payload({ ...DEFAULT_FORM_DATA, dcReenrollmentSweepEdited: true, dcReenrollmentSweepEnabled: true }).dc_plan).toMatchObject({ reenrollment_sweep_enabled: true, reenrollment_sweep_interval_years: 3, reenrollment_sweep_first_year: null });
   });
 });
+
+
+describe('sweep options inheritance', () => {
+  it('omits new options in an untouched scenario with an existing sweep', () => {
+    const loaded = applyConfigToFormData({ dc_plan: { reenrollment_sweep_enabled: true } }, DEFAULT_FORM_DATA);
+    expect(payload(loaded).dc_plan).not.toHaveProperty('reenrollment_sweep_method');
+  });
+  it('exports edited options and converts the decline percent to a rate', () => {
+    expect(payload({ ...DEFAULT_FORM_DATA, dcReenrollmentSweepOptionsEdited: true,
+      dcReenrollmentSweepMethod: 'into_aip', dcReenrollmentSweepIncludeBelowDefault: true,
+      dcReenrollmentSweepIncludeBelowAipCap: true, dcReenrollmentSweepDeclineProbability: 15 }).dc_plan)
+      .toMatchObject({ reenrollment_sweep_method: 'into_aip', reenrollment_sweep_include_non_contributors: true,
+        reenrollment_sweep_include_below_default: true, reenrollment_sweep_include_below_aip_cap: true,
+        reenrollment_sweep_decline_probability: 0.15 });
+  });
+});
+
+
+it('retains an existing method without adding omitted sweep options', () => {
+  const form = applyConfigToFormData({ dc_plan: { reenrollment_sweep_method: 'into_aip' } }, DEFAULT_FORM_DATA);
+  expect(payload(form).dc_plan.reenrollment_sweep_method).toBe('into_aip');
+  expect(payload(form).dc_plan).not.toHaveProperty('reenrollment_sweep_decline_probability');
+  expect(payload(form).dc_plan).not.toHaveProperty('reenrollment_sweep_include_below_default');
+});

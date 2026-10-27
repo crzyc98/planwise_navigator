@@ -9,6 +9,7 @@ WITH changes AS (
   WHERE simulation_year = {{ var('simulation_year') }}
     AND scenario_id = '{{ var("scenario_id", "default") }}'
     AND event_type = {{ evt_deferral_change() }}
+    AND event_category <> 'reenrollment_sweep'
 ),
 irs_limits AS (
   SELECT base_limit, catch_up_limit, catch_up_age_threshold,

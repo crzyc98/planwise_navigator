@@ -60,14 +60,21 @@ continuous_participants AS (
     ))
   {% endif %}
 ),
+rate_elections AS (
+  SELECT scenario_id, employee_id, employee_deferral_rate, effective_date, event_details, event_type, simulation_year, event_category
+  FROM {{ ref('int_enrollment_events') }}
+  UNION ALL
+  SELECT '{{ scenario_id }}' AS scenario_id, employee_id, employee_deferral_rate, effective_date, event_details, event_type, simulation_year, event_category
+  FROM {{ ref('int_reenrollment_sweep_events') }}
+),
 enrollments AS (
   SELECT employee_id, {{ enrollment_payload_deferral_rate() }} AS initial_deferral_rate, effective_date,
     event_details LIKE 'Re-enrollment sweep - %' AS is_reenrollment_sweep
-  FROM {{ ref('int_enrollment_events') }}
+  FROM rate_elections
   WHERE scenario_id = '{{ scenario_id }}'
-    AND LOWER(event_type) IN ('enrollment', 'benefit_enrollment')
+    AND (LOWER(event_type) IN ('enrollment', 'benefit_enrollment') OR event_category = 'reenrollment_sweep')
     AND simulation_year {{ '<=' if simulation_year == start_year else '=' }} {{ simulation_year }}
-  QUALIFY ROW_NUMBER() OVER (PARTITION BY employee_id ORDER BY effective_date) = 1
+  QUALIFY ROW_NUMBER() OVER (PARTITION BY employee_id ORDER BY CASE WHEN event_category = 'reenrollment_sweep' THEN 0 ELSE 1 END, effective_date) = 1
 ),
 opt_outs AS (
   SELECT DISTINCT employee_id

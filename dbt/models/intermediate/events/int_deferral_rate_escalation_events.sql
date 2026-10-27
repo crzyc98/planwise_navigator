@@ -33,7 +33,7 @@
   - Previous escalation history computed from prior years of this model (no circular deps)
 */
 
-{% if not esc_enabled and not var('easy_enroll_enabled', false) %}
+{% if not esc_enabled and not var('easy_enroll_enabled', false) and not var('reenrollment_sweep_enabled', false) and not plan_design_parameters_config %}
 -- Escalation disabled via config; return no rows but preserve fused-events schema
 SELECT
     CAST(NULL AS VARCHAR)           AS employee_id,
@@ -100,7 +100,8 @@ active_workforce AS (
         AND w.employment_status = 'active'
         AND w.employee_id IS NOT NULL
     {%- if esc_hire_cutoff is not none %}
-        AND w.employee_hire_date >= '{{ esc_hire_cutoff }}'::DATE
+        AND (w.employee_hire_date >= '{{ esc_hire_cutoff }}'::DATE
+          OR {{ prior_reenrollment_aip_member('w.employee_id') }})
     {%- endif %}
 ),
 
@@ -201,6 +202,7 @@ workforce_with_status AS (
           OR (decision.event_type = 'enrollment'
             AND decision.simulation_year = {{ simulation_year }}
             AND decision.employee_deferral_rate > 0)) AS is_enrolled,
+        {{ prior_reenrollment_aip_member('w.employee_id') }} AS is_sweep_aip,
         -- Initialize membership in year 1; carry state thereafter.
         {% if var('easy_enroll_enabled', false) %}
         {{ easy_enroll_member(ref('int_enrollment_events'), 'w.employee_id', simulation_year,
@@ -328,7 +330,7 @@ escalation_events AS (
         -- Must be enrolled in program (registry) OR newly enrolling (baseline allows auto-escalate and no prior escalations)
         (e.in_auto_escalation_program = true)
         {% if not esc_enabled %}
-        AND e.is_easy_enroll
+        AND (e.is_sweep_aip{% if var('easy_enroll_enabled', false) %} OR e.is_easy_enroll{% endif %})
         {% endif %}
         AND (CASE WHEN {{ require_enrollment }} THEN e.is_enrolled_check ELSE TRUE END)
         AND e.meets_tenure_check

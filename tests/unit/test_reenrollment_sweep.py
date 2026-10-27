@@ -85,12 +85,26 @@ def test_default_and_yaml_export() -> None:
         "reenrollment_sweep_enabled": True,
         "reenrollment_sweep_interval_years": 2,
         "reenrollment_sweep_first_year": 2027,
+        "reenrollment_sweep_method": "enroll_at_default",
+        "reenrollment_sweep_include_non_contributors": True,
+        "reenrollment_sweep_include_below_default": False,
+        "reenrollment_sweep_include_below_aip_cap": False,
+        "reenrollment_sweep_decline_probability": 0.10,
     }
     assert not validate_dbt_vars(variables)
 
 
-def candidate_sql(year: int) -> str:
+def enrollment_source() -> str:
     source = (DBT / "models/intermediate/int_enrollment_events.sql").read_text()
+    inputs = (DBT / "macros/reenrollment_sweep_inputs.sql").read_text()
+    body = inputs[
+        inputs.index("parameter_rows AS (") : inputs.rindex("{% endmacro %}")
+    ].strip()
+    return source.replace("{{ reenrollment_sweep_inputs() }}", body)
+
+
+def candidate_sql(year: int) -> str:
+    source = enrollment_source()
     # Execute the actual candidate-selection CTE, supplying its two input relations.
     start = source.index("auto_enrollment_eligible_population AS (")
     end = source.index("eligible_for_enrollment AS (", start)
@@ -104,10 +118,11 @@ def candidate_sql(year: int) -> str:
     )
 
 
+@pytest.mark.parametrize("include_zero", [False, True])
 @pytest.mark.parametrize("scope", ["new_hires_only", "all_eligible_employees"])
 @pytest.mark.parametrize("enabled", [False, True])
 @pytest.mark.parametrize("year", [2026, 2027, 2028, 2029])
-def test_candidates(scope: str, enabled: bool, year: int) -> None:
+def test_candidates(scope: str, enabled: bool, year: int, include_zero: bool) -> None:
     with duckdb.connect() as conn:
         conn.execute(
             """CREATE TABLE active_workforce AS
@@ -117,7 +132,7 @@ def test_candidates(scope: str, enabled: bool, year: int) -> None:
             FALSE AS is_plan_ineligible_override, DATE '2021-02-01' AS plan_eligibility_date,
             45 AS auto_enrollment_window_days,
             ?::BOOLEAN AS reenrollment_sweep_enabled, 2 AS reenrollment_sweep_interval_years,
-            2027 AS reenrollment_sweep_first_year
+            2027 AS reenrollment_sweep_first_year, TRUE AS reenrollment_sweep_include_non_contributors
           FROM (VALUES ('optout'), ('zero'), ('never'), ('contributor'), ('ineligible'), ('cutoff'), ('inactive'), ('late')) t(employee_id)""",
             [year, scope, enabled],
         )
@@ -133,10 +148,14 @@ def test_candidates(scope: str, enabled: bool, year: int) -> None:
           UPDATE active_workforce SET employment_status = 'terminated' WHERE employee_id = 'inactive';
           UPDATE active_workforce SET is_plan_eligible = FALSE, plan_eligibility_date = DATE '2035-01-01' WHERE employee_id = 'late';"""
         )
+        conn.execute(
+            "UPDATE active_workforce SET reenrollment_sweep_include_non_contributors = ?",
+            [include_zero],
+        )
         ids = {row[0] for row in conn.execute(candidate_sql(year)).fetchall()}
-        sweep_year = enabled and year in (2027, 2029)
+        sweep_year = enabled and include_zero and year in (2027, 2029)
         expected = (
-            {"optout", "zero", "never"}
+            {"optout", "zero", "never", "cutoff"}
             if sweep_year
             else ({"never"} if scope == "all_eligible_employees" else set())
         )
@@ -149,7 +168,7 @@ def test_candidates(scope: str, enabled: bool, year: int) -> None:
             )
         ).fetchall()
         assert {row[0] for row in sweep_ids} == (
-            {"optout", "zero", "never"} if sweep_year else set()
+            {"optout", "zero", "never", "cutoff"} if sweep_year else set()
         )
 
 
@@ -212,11 +231,13 @@ def render_events(source: str, **variables: Any) -> str:
     )
 
 
+@pytest.mark.parametrize("method", ["enroll_at_default", "into_aip"])
 @pytest.mark.parametrize("opt_out_rate", [0.0, 1.0])
 def test_sweep_election_and_repeat_optout_survive_final_deduplication(
     opt_out_rate: float,
+    method: str,
 ) -> None:
-    source = (DBT / "models/intermediate/int_enrollment_events.sql").read_text()
+    source = enrollment_source()
     candidates = source[
         source.index("eligible_for_enrollment AS (") : source.index(
             "-- Epic E053: Voluntary Enrollment Events Integration"
@@ -254,10 +275,11 @@ def test_sweep_election_and_repeat_optout_survive_final_deduplication(
           'new_hires_only' AS auto_enrollment_scope, TRUE AS is_plan_eligible,
           FALSE AS is_plan_ineligible_override, DATE '2021-02-01' AS plan_eligibility_date,
           TRUE AS reenrollment_sweep_enabled, 2 AS reenrollment_sweep_interval_years,
-          2027 AS reenrollment_sweep_first_year, 40 AS current_age, 6 AS current_tenure,
+          2027 AS reenrollment_sweep_first_year, TRUE AS reenrollment_sweep_include_non_contributors, 40 AS current_age, 6 AS current_tenure,
           75000 AS current_compensation, 1 AS level_id, '35-44' AS age_band,
           '5-9' AS tenure_band, 0.06 AS auto_enrollment_default_deferral_rate,
-          45 AS auto_enrollment_window_days
+          45 AS auto_enrollment_window_days, 'enroll_at_default' AS reenrollment_sweep_method,
+          0.01 AS deferral_escalation_increment
           FROM (VALUES ('optout'), ('zero'), ('never')) t(employee_id);
           CREATE TABLE previous_enrollment_state AS SELECT employee_id,
             employee_id = 'zero' AS was_enrolled_previously,
@@ -267,6 +289,9 @@ def test_sweep_election_and_repeat_optout_survive_final_deduplication(
             2 AS years_since_first_enrollment FROM active_workforce;
           CREATE TABLE int_employee_termination_dates AS SELECT employee_id,
             simulation_year, NULL::DATE AS termination_date FROM active_workforce;""")
+        conn.execute(
+            "UPDATE active_workforce SET reenrollment_sweep_method = ?", [method]
+        )
         # Empty employee-initiated channels: those retain their existing priority.
         schema = render_events(
             "WITH "
@@ -284,7 +309,9 @@ def test_sweep_election_and_repeat_optout_survive_final_deduplication(
         enrollments = result[result.event_type == "enrollment"]
         assert set(enrollments.employee_id) == {"optout", "zero", "never"}
         assert set(enrollments.event_category) == {"auto_enrollment"}
-        assert set(enrollments.employee_deferral_rate) == {0.06}
+        assert set(enrollments.employee_deferral_rate) == {
+            0.01 if method == "into_aip" else 0.06
+        }
         assert enrollments.event_details.str.startswith("Re-enrollment sweep - ").all()
         assert len(result[result.event_type == "enrollment_change"]) == int(
             3 * opt_out_rate
@@ -295,6 +322,8 @@ def test_sweep_election_and_repeat_optout_survive_final_deduplication(
             .drop(columns="created_at")
             .equals(result.drop(columns="created_at"))
         )
+        if method == "into_aip" and opt_out_rate == 0:
+            assert_zero_sweep_escalates_next_year(conn, sql)
 
 
 @pytest.mark.parametrize(
@@ -446,7 +475,7 @@ def sweep_candidate_inputs(
       TRUE AS is_plan_eligible, FALSE AS is_plan_ineligible_override,
       DATE '2025-12-27' AS plan_eligibility_date, 45 AS auto_enrollment_window_days,
       TRUE AS reenrollment_sweep_enabled, 1 AS reenrollment_sweep_interval_years,
-      NULL::INTEGER AS reenrollment_sweep_first_year;
+      NULL::INTEGER AS reenrollment_sweep_first_year, TRUE AS reenrollment_sweep_include_non_contributors;
       CREATE TABLE stg_prior_enrollment_state AS SELECT employee_id,
         DATE '2026-02-10' AS enrollment_date, FALSE AS is_enrolled, TRUE AS ever_opted_out,
         0 AS current_deferral_rate, 'fct_yearly_events' AS enrollment_source FROM active_workforce;
@@ -463,7 +492,8 @@ def sweep_candidate_inputs(
     conn.execute(
         """CREATE TABLE int_deferral_rate_state_accumulator AS
       SELECT employee_id, 'default' AS scenario_id, 2025 AS simulation_year,
-        ?::DECIMAL(5,4) AS current_deferral_rate FROM active_workforce""",
+        ?::DECIMAL(5,4) AS current_deferral_rate, FALSE AS aip_participant
+      FROM active_workforce""",
         [prior_rate],
     )
     conn.execute("UPDATE active_workforce SET simulation_year = ?", [year])
@@ -517,7 +547,7 @@ def test_sweep_uses_effective_optout_and_deferral_state(
     pending_date: str | None,
     expected: bool,
 ) -> None:
-    source = (DBT / "models/intermediate/int_enrollment_events.sql").read_text()
+    source = enrollment_source()
     ctes = source[
         source.index("prior_sweep_events AS (") : source.index(
             "eligible_for_enrollment AS ("
@@ -532,3 +562,221 @@ def test_sweep_uses_effective_optout_and_deferral_state(
     with duckdb.connect() as conn:
         sweep_candidate_inputs(conn, year, optout_date, prior_rate, pending_date)
         assert conn.execute(sql).fetchall() == ([("late_hire",)] if expected else [])
+
+
+def contributor_inputs(conn: duckdb.DuckDBPyConnection) -> None:
+    """Boundary rates and an earlier escalation that reaches the cap."""
+    conn.execute("""CREATE TABLE active_workforce AS
+      SELECT employee_id, 'synthetic' AS employee_ssn, 'default' AS plan_design_id,
+        2027 AS simulation_year, DATE '2010-01-01' AS employee_hire_date,
+        'active' AS employment_status, TRUE AS is_plan_eligible,
+        FALSE AS is_plan_ineligible_override, DATE '2010-01-01' AS plan_eligibility_date,
+        45 AS auto_enrollment_window_days, TRUE AS reenrollment_sweep_enabled,
+        1 AS reenrollment_sweep_interval_years, 2027 AS reenrollment_sweep_first_year,
+        TRUE AS reenrollment_sweep_include_below_default,
+        TRUE AS reenrollment_sweep_include_below_aip_cap,
+        'enroll_at_default' AS reenrollment_sweep_method,
+        0.10 AS reenrollment_sweep_decline_probability,
+        .06 AS auto_enrollment_default_deferral_rate, .10 AS deferral_escalation_cap,
+        75000 AS current_compensation, 40 AS current_age, 10 AS current_tenure,
+        1 AS level_id, '35-44' AS age_band, '10+' AS tenure_band
+      FROM (VALUES ('zero'), ('below_default'), ('at_default'), ('below_cap'),
+        ('at_cap'), ('above_cap'), ('escalated_to_cap')) t(employee_id);
+      CREATE TABLE previous_enrollment_state AS
+      SELECT employee_id, NULL::DATE AS latest_opt_out_date,
+        CASE employee_id WHEN 'zero' THEN 0 WHEN 'below_default' THEN .05
+          WHEN 'at_default' THEN .06 WHEN 'below_cap' THEN .09
+          WHEN 'at_cap' THEN .10 WHEN 'above_cap' THEN .11 ELSE .09 END AS sweep_deferral_rate,
+        FALSE AS prior_aip_participant
+      FROM active_workforce;
+      CREATE TABLE int_deferral_rate_escalation_events AS
+      SELECT employee_id, simulation_year, DATE '2027-01-01' AS effective_date,
+        .10 AS new_deferral_rate, .01 AS escalation_rate, .10 AS max_escalation_rate
+      FROM active_workforce WHERE employee_id = 'escalated_to_cap';
+      CREATE TABLE int_deferral_match_response_events AS
+      SELECT employee_id, simulation_year, DATE '2027-01-01' AS effective_date,
+        .08 AS employee_deferral_rate FROM active_workforce WHERE FALSE;
+      CREATE TABLE int_employee_termination_dates AS
+      SELECT employee_id, simulation_year, NULL::DATE AS termination_date FROM active_workforce;
+      CREATE TABLE config_irs_limits AS SELECT 2027 AS limit_year, 23500 AS base_limit,
+        7500 AS catch_up_limit, 50 AS catch_up_age_threshold, 11250 AS super_catch_up_limit,
+        60 AS super_catch_up_age_min, 63 AS super_catch_up_age_max;
+    """)
+    module = (
+        Environment()
+        .from_string((DBT / "macros/utils/stable_hash.sql").read_text())
+        .module
+    )
+    conn.execute(getattr(module, "install_stable_hash")())
+
+
+def contributor_sql(**variables: Any) -> str:
+    from tests.unit.test_deferral_changes import render as render_model
+
+    source = (
+        DBT / "models/intermediate/events/int_reenrollment_sweep_candidates.sql"
+    ).read_text()
+    source = source.replace("{{ reenrollment_sweep_inputs() }},", "")
+    return render_model(source, simulation_year=2027, **variables)
+
+
+@pytest.mark.parametrize("method", ["enroll_at_default", "into_aip"])
+@pytest.mark.parametrize(
+    "below_default,below_cap,expected",
+    [
+        (True, False, {"below_default"}),
+        (False, True, {"below_default", "at_default", "below_cap"}),
+        (True, True, {"below_default", "at_default", "below_cap"}),
+        (False, False, set()),
+    ],
+)
+def test_contributor_groups_methods_and_boundaries(
+    method: str, below_default: bool, below_cap: bool, expected: set[str]
+) -> None:
+    from tests.unit.test_deferral_changes import render as render_model
+
+    with duckdb.connect() as conn:
+        contributor_inputs(conn)
+        conn.execute(
+            """UPDATE active_workforce SET reenrollment_sweep_method = ?,
+          reenrollment_sweep_include_below_default = ?, reenrollment_sweep_include_below_aip_cap = ?,
+          reenrollment_sweep_decline_probability = 0""",
+            [method, below_default, below_cap],
+        )
+        conn.execute(
+            "CREATE TABLE int_reenrollment_sweep_candidates AS " + contributor_sql()
+        )
+        events = conn.execute(
+            render_model(
+                (
+                    DBT / "models/intermediate/events/int_reenrollment_sweep_events.sql"
+                ).read_text(),
+                simulation_year=2027,
+            )
+        ).fetchdf()
+        assert set(events.employee_id) == expected
+        for row in events.itertuples():
+            assert row.event_category == "reenrollment_sweep"
+            assert row.event_type == "deferral_change"
+            assert str(row.effective_date.date()) == "2027-01-15"
+            old = float(row.prev_employee_deferral_rate)
+            assert float(row.employee_deferral_rate) == (
+                old if method == "into_aip" else max(old, 0.06)
+            )
+
+
+@pytest.mark.parametrize("probability", [0.0, 0.10, 1.0])
+def test_contributor_declines_are_seeded_and_emit_no_event(probability: float) -> None:
+    from tests.unit.test_deferral_changes import render as render_model
+
+    with duckdb.connect() as conn:
+        contributor_inputs(conn)
+        conn.execute(
+            "UPDATE active_workforce SET reenrollment_sweep_decline_probability = ?",
+            [probability],
+        )
+        sql = contributor_sql(random_seed=42)
+        first = conn.execute(sql).fetchdf()
+        assert first.equals(conn.execute(sql).fetchdf())
+        assert not first.decline_draw.equals(
+            conn.execute(contributor_sql(random_seed=99)).fetchdf().decline_draw
+        )
+        assert (first.declined == (first.decline_draw < probability)).all()
+        conn.execute("CREATE TABLE int_reenrollment_sweep_candidates AS " + sql)
+        events = conn.execute(
+            render_model(
+                (
+                    DBT / "models/intermediate/events/int_reenrollment_sweep_events.sql"
+                ).read_text(),
+                simulation_year=2027,
+            )
+        ).fetchdf()
+        assert set(events.employee_id) == set(first.loc[~first.declined, "employee_id"])
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("method", "unknown"),
+        ("decline_probability", -0.1),
+        ("decline_probability", 1.1),
+        ("decline_probability", float("nan")),
+    ],
+)
+def test_invalid_sweep_options(field: str, value: Any) -> None:
+    with pytest.raises(ValidationError):
+        ReenrollmentSweepSettings.model_validate({field: value})
+    assert validate_dbt_vars({f"reenrollment_sweep_{field}": value})
+
+
+def assert_zero_sweep_escalates_next_year(
+    conn: duckdb.DuckDBPyConnection, election_sql: str
+) -> None:
+    from tests.unit.test_easy_enroll import _render_sql
+
+    conn.execute("CREATE TABLE int_enrollment_events AS " + election_sql)
+    conn.execute(
+        "CREATE TABLE fct_yearly_events AS SELECT * FROM int_enrollment_events"
+    )
+    conn.execute("""CREATE TABLE int_employee_compensation_by_year AS
+      SELECT employee_id, employee_ssn, employee_hire_date, current_compensation AS employee_compensation,
+        current_age, current_tenure, level_id, employment_status, 2028 AS simulation_year
+      FROM active_workforce;
+      CREATE TABLE int_plan_design_assignment_accumulator AS SELECT employee_id,
+        'default' AS plan_design_id, 'default' AS scenario_id, 2028 AS simulation_year FROM active_workforce;
+      CREATE TABLE int_synthetic_baseline_enrollment_events AS SELECT employee_id,
+        employee_deferral_rate, effective_date FROM int_enrollment_events WHERE FALSE;
+      CREATE TABLE stg_census_data AS SELECT employee_id, TRUE AS auto_escalation_opt_out FROM active_workforce;
+      UPDATE int_employee_termination_dates SET simulation_year = 2028;
+    """)
+    conn.execute(
+        _render_sql(
+            """CREATE TABLE int_deferral_rate_state_accumulator AS
+      SELECT employee_id, scenario_id, simulation_year, employee_deferral_rate AS current_deferral_rate,
+        TRUE AS is_enrolled_flag, effective_date AS employee_enrollment_date,
+        effective_date AS last_escalation_date,
+        {{ reenrollment_aip_member('fct_yearly_events', 'e.employee_id', 'e.simulation_year', 'e.scenario_id') }} AS aip_participant
+      FROM int_enrollment_events e""",
+            deferral_escalation_enabled=False,
+        )
+    )
+    events = conn.execute(
+        _render_sql(
+            (
+                DBT
+                / "models/intermediate/events/int_deferral_rate_escalation_events.sql"
+            ).read_text(),
+            simulation_year=2028,
+            start_year=2025,
+            reenrollment_sweep_enabled=True,
+            deferral_escalation_enabled=False,
+            deferral_escalation_hire_date_cutoff="2025-01-01",
+        )
+    ).fetchdf()
+    assert set(events.employee_id) == {"optout", "zero", "never"}
+    assert set(events.previous_deferral_rate) == {0.01}
+    assert set(events.employee_deferral_rate) == {0.02}
+
+
+@pytest.mark.parametrize("method", ["enroll_at_default", "into_aip"])
+def test_existing_aip_members_are_swept_only_when_their_rate_rises(method: str) -> None:
+    """Already in automatic increases: a sweep that changes nothing emits nothing."""
+    with duckdb.connect() as conn:
+        contributor_inputs(conn)
+        conn.execute(
+            """UPDATE active_workforce SET reenrollment_sweep_method = ?,
+          reenrollment_sweep_decline_probability = 0""",
+            [method],
+        )
+        conn.execute(
+            "UPDATE previous_enrollment_state SET prior_aip_participant = TRUE"
+        )
+        swept = {
+            row[0]
+            for row in conn.execute(
+                "SELECT employee_id FROM (" + contributor_sql() + ")"
+            ).fetchall()
+        }
+    # Only enroll_at_default raises anyone (below the 6% default); into_aip
+    # keeps rates, so members already in automatic increases are left alone.
+    assert swept == ({"below_default"} if method == "enroll_at_default" else set())

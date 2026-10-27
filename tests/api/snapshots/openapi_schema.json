@@ -15131,6 +15131,19 @@
             ],
             "title": "Points Match Tiers"
           },
+          "reenrollment_sweep_decline_probability": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reenrollment Sweep Decline Probability"
+          },
           "reenrollment_sweep_enabled": {
             "anyOf": [
               {
@@ -15153,6 +15166,39 @@
             ],
             "title": "Reenrollment Sweep First Year"
           },
+          "reenrollment_sweep_include_below_aip_cap": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reenrollment Sweep Include Below Aip Cap"
+          },
+          "reenrollment_sweep_include_below_default": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reenrollment Sweep Include Below Default"
+          },
+          "reenrollment_sweep_include_non_contributors": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reenrollment Sweep Include Non Contributors"
+          },
           "reenrollment_sweep_interval_years": {
             "anyOf": [
               {
@@ -15164,6 +15210,21 @@
               }
             ],
             "title": "Reenrollment Sweep Interval Years"
+          },
+          "reenrollment_sweep_method": {
+            "anyOf": [
+              {
+                "enum": [
+                  "enroll_at_default",
+                  "into_aip"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reenrollment Sweep Method"
           },
           "tenure_match_tiers": {
             "anyOf": [

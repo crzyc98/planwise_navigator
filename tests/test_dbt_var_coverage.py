@@ -96,6 +96,11 @@ def _maximal_config():
         "reenrollment_sweep_enabled": True,
         "reenrollment_sweep_interval_years": 2,
         "reenrollment_sweep_first_year": 2027,
+        "reenrollment_sweep_method": "into_aip",
+        "reenrollment_sweep_include_non_contributors": False,
+        "reenrollment_sweep_include_below_default": True,
+        "reenrollment_sweep_include_below_aip_cap": True,
+        "reenrollment_sweep_decline_probability": 0.25,
         "auto_enroll_hire_date_cutoff": "2025-01-01",
         "auto_enroll_window_days": 45,
         "auto_enroll_opt_out_grace_period": 30,
@@ -196,7 +201,16 @@ class TestDbtVarCoverage:
     def test_reenrollment_sweep_is_exported_per_design(self):
         names = {
             f"reenrollment_sweep_{field}"
-            for field in ("enabled", "interval_years", "first_year")
+            for field in (
+                "enabled",
+                "interval_years",
+                "first_year",
+                "method",
+                "include_non_contributors",
+                "include_below_default",
+                "include_below_aip_cap",
+                "decline_probability",
+            )
         }
         assert names <= _all_exported_vars()
         assert names <= DBT_VAR_PER_DESIGN
@@ -204,6 +218,11 @@ class TestDbtVarCoverage:
         assert variables["reenrollment_sweep_enabled"] is True
         assert variables["reenrollment_sweep_interval_years"] == 2
         assert variables["reenrollment_sweep_first_year"] == 2027
+        assert variables["reenrollment_sweep_method"] == "into_aip"
+        assert variables["reenrollment_sweep_include_non_contributors"] is False
+        assert variables["reenrollment_sweep_include_below_default"] is True
+        assert variables["reenrollment_sweep_include_below_aip_cap"] is True
+        assert variables["reenrollment_sweep_decline_probability"] == 0.25
 
     def test_participant_behavior_is_run_global(self):
         assert len(PARTICIPANT_BEHAVIOR_VARS) == 21

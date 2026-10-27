@@ -34,6 +34,7 @@ def _macro_source() -> str:
             "self_directed_enrollment_rate.sql",
             "easy_enroll.sql",
             "aip_initial_membership.sql",
+            "reenrollment_sweep.sql",
             "get_plan_design_parameters.sql",
         )
     )
@@ -231,6 +232,8 @@ def escalation_inputs(
         SELECT employee_id, 2026 AS simulation_year, NULL::DATE AS termination_date
         FROM int_enrollment_events
     """)
+    connection.execute("""CREATE OR REPLACE TABLE fct_yearly_events AS
+      SELECT *, '' AS event_details FROM int_enrollment_events WHERE FALSE""")
     return connection
 
 

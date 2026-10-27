@@ -61,10 +61,9 @@ def publish(connection: duckdb.DuckDBPyConnection, year: int, **variables: Any) 
 
 def stopped_fixture(connection: duckdb.DuckDBPyConnection) -> None:
     fixture_inputs(connection)
-    connection.execute(
-        """INSERT INTO int_enrollment_events
-      VALUES ('employee-0', 'default', 2025, 'enrollment_change', DATE '2025-08-01', 0, 'opt-out')"""
-    )
+    connection.execute("""INSERT INTO int_enrollment_events
+      VALUES ('employee-0', 'default', 2025, 'enrollment_change', DATE '2025-08-01', 0, 'opt-out',
+        'enrollment_opt_out')""")
     publish(connection, 2025, **stop_settings())
     connection.execute("""
       ALTER TABLE fct_yearly_events ALTER COLUMN effective_date TYPE TIMESTAMP;
@@ -235,7 +234,7 @@ def test_stopped_participants_cannot_increase_decrease_stop_or_escalate(
       CREATE TABLE int_synthetic_baseline_enrollment_events AS
         SELECT employee_id, employee_deferral_rate, employee_enrollment_date AS effective_date
         FROM int_baseline_workforce;
-      ALTER TABLE int_enrollment_events ADD COLUMN event_category VARCHAR"""
+      ALTER TABLE int_enrollment_events ADD COLUMN IF NOT EXISTS event_category VARCHAR"""
     )
     assert (
         conn.execute(
@@ -358,7 +357,8 @@ def test_stop_restart_obey_empty_d3_window(
         advance(conn, 2026)
         # A current-year zero-rate enrollment election still bounds restart timing.
         conn.execute("""INSERT INTO int_enrollment_events
-          SELECT employee_id, 'default', 2026, 'enrollment', DATE '2026-12-31', 0, ''
+          SELECT employee_id, 'default', 2026, 'enrollment', DATE '2026-12-31', 0, '',
+            'voluntary_enrollment'
           FROM int_baseline_workforce""")
         year = 2026
     assert conn.execute(event_sql(year, **stop_settings())).fetchall() == []

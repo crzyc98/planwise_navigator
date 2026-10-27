@@ -63,11 +63,16 @@ class OptOutRatesSettings(BaseModel):
 
 
 class ReenrollmentSweepSettings(BaseModel):
-    """Optional periodic default election for eligible noncontributors."""
+    """Optional periodic rate and AIP elections for selected eligible employees."""
 
     enabled: bool = False
     interval_years: int = Field(default=3, ge=1, strict=True)
     first_year: int | None = Field(default=None, strict=True)
+    method: Literal["enroll_at_default", "into_aip"] = "enroll_at_default"
+    include_non_contributors: bool = True
+    include_below_default: bool = False
+    include_below_aip_cap: bool = False
+    decline_probability: float = Field(default=0.10, ge=0, le=1)
 
 
 class AutoEnrollmentSettings(BaseModel):

@@ -18,6 +18,7 @@ DBT = Path(__file__).resolve().parents[2] / "dbt"
 EVENT_MODEL = "models/intermediate/events/int_deferral_change_events.sql"
 STATE_MODEL = "models/intermediate/int_deferral_rate_state_accumulator.sql"
 MACROS = (
+    "reenrollment_sweep.sql",
     "utils/subsystem_seed.sql",
     "utils/stable_decimal.sql",
     "constants.sql",
@@ -240,8 +241,9 @@ def fixture_inputs(conn: duckdb.DuckDBPyConnection) -> None:
       CREATE TABLE int_enrollment_events AS
       SELECT employee_id, 'default' AS scenario_id, 2025 AS simulation_year,
         'enrollment' AS event_type, DATE '2025-02-01' AS effective_date,
-        .06::DECIMAL(5,4) AS employee_deferral_rate, '' AS event_details
+        .06::DECIMAL(5,4) AS employee_deferral_rate, '' AS event_details, 'auto_enrollment' AS event_category
       FROM int_baseline_workforce WHERE FALSE;
+      CREATE TABLE int_reenrollment_sweep_events AS SELECT * FROM int_enrollment_events;
     """)
 
 
@@ -372,7 +374,7 @@ def test_real_accumulator_two_year_carry_and_escalation(
           employee_enrollment_date AS effective_date FROM int_baseline_workforce
         WHERE employee_id NOT IN (SELECT employee_id FROM fct_yearly_events
           WHERE event_type = 'enrollment');
-      ALTER TABLE int_enrollment_events ADD COLUMN event_category VARCHAR;
+
       INSERT INTO int_enrollment_events BY NAME SELECT employee_id, scenario_id,
         simulation_year, event_type, effective_date, employee_deferral_rate,
         event_category, event_details FROM fct_yearly_events WHERE event_type = 'enrollment'
@@ -432,7 +434,7 @@ def test_event_eligibility_and_noops(
         )
     elif reason == "optout":
         conn.execute("""INSERT INTO int_enrollment_events
-          SELECT employee_id, 'default', 2025, 'enrollment_change', DATE '2025-08-01', 0, ''
+          SELECT employee_id, 'default', 2025, 'enrollment_change', DATE '2025-08-01', 0, '', 'enrollment_opt_out'
           FROM int_baseline_workforce""")
     elif reason in ("floor", "cap"):
         conn.execute("DELETE FROM int_deferral_match_response_events")
@@ -585,7 +587,7 @@ def sweep_rate_inputs(
         conn.execute(f"UPDATE {table} SET effective_date = ?::DATE", [f"{year}-{date}"])
     conn.execute(
         """INSERT INTO int_enrollment_events SELECT employee_id, 'default', ?, 'enrollment',
-      ?::DATE, .02, 'Re-enrollment sweep - 2% default deferral' FROM int_baseline_workforce""",
+      ?::DATE, .02, 'Re-enrollment sweep - 2% default deferral', 'auto_enrollment' FROM int_baseline_workforce""",
         [year, f"{year}-01-15"],
     )
 
@@ -603,6 +605,7 @@ def publish_sweep_changes(conn: duckdb.DuckDBPyConnection, year: int) -> None:
         """INSERT INTO fct_yearly_events BY NAME SELECT *, 'default' AS scenario_id,
       'default' AS plan_design_id, employee_id || '-change' AS event_id FROM changes;
       INSERT INTO fct_yearly_events BY NAME SELECT * FROM int_enrollment_events;
+      INSERT INTO fct_yearly_events BY NAME SELECT * FROM int_reenrollment_sweep_events;
       INSERT INTO fct_yearly_events BY NAME SELECT employee_id, simulation_year, effective_date,
         'deferral_escalation' AS event_type, new_deferral_rate AS employee_deferral_rate,
         previous_deferral_rate AS prev_employee_deferral_rate FROM int_deferral_rate_escalation_events;
@@ -856,3 +859,51 @@ def test_nonmember_without_escalation_decreases_proactively(
         )
     ).fetchall()
     assert len(rows) == 100 and {row[-1] for row in rows} == {"proactive_decrease"}
+
+
+@pytest.mark.parametrize("year", [2025, 2026])
+def test_contributor_sweep_precedes_separate_voluntary_change(
+    conn: duckdb.DuckDBPyConnection, year: int
+) -> None:
+    sweep_rate_inputs(conn, year, "01-01", "01-01")
+    conn.execute("""INSERT INTO int_reenrollment_sweep_events
+      SELECT employee_id, scenario_id, simulation_year, 'deferral_change', effective_date,
+        .09, 'Re-enrollment sweep - 9% deferral; method=enroll_at_default', 'reenrollment_sweep'
+      FROM int_enrollment_events;
+      DELETE FROM int_enrollment_events;
+    """)
+    publish_sweep_changes(conn, year)
+    row = conn.execute("""SELECT COUNT(*), MIN(c.prev_employee_deferral_rate),
+      MIN(s.current_deferral_rate), BOOL_AND(c.effective_date > DATE '2025-01-15'),
+      BOOL_AND(s.aip_participant)
+      FROM changes c JOIN resulting_state s USING (employee_id)""").fetchone()
+    assert row is not None and row[0] == 100
+    assert float(row[1]) == 0.09 and float(row[2]) == 0.11
+    assert row[3] and row[4]
+    assert (
+        conn.execute("""SELECT MAX(n) FROM (SELECT employee_id, COUNT(*) n
+      FROM fct_yearly_events WHERE event_type = 'deferral_change'
+      AND event_category <> 'reenrollment_sweep' GROUP BY employee_id)""").fetchone()[0]
+        == 1
+    )
+
+
+@pytest.mark.parametrize("accepted", [True, False])
+def test_contributor_sweep_elects_aip_only_when_accepted(
+    conn: duckdb.DuckDBPyConnection, accepted: bool
+) -> None:
+    sweep_rate_inputs(conn, 2025, "01-01", "01-01")
+    conn.execute("DELETE FROM int_enrollment_events")
+    conn.execute("UPDATE stg_census_data SET auto_escalation_opt_out = TRUE")
+    if accepted:
+        conn.execute("""INSERT INTO fct_yearly_events BY NAME
+          SELECT employee_id, 'default' AS scenario_id, 'default' AS plan_design_id,
+            2025 AS simulation_year, DATE '2025-01-15' AS effective_date,
+            'deferral_change' AS event_type, 'reenrollment_sweep' AS event_category,
+            'Re-enrollment sweep - 6% deferral; method=into_aip' AS event_details,
+            .06 AS employee_deferral_rate FROM int_baseline_workforce""")
+    state = conn.execute(
+        render((DBT / STATE_MODEL).read_text(), simulation_year=2025)
+    ).fetchdf()
+    assert set(state.aip_participant) == {accepted}
+    assert set(state.current_deferral_rate) == {0.06 if accepted else 0.09}

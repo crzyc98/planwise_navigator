@@ -183,6 +183,13 @@ export const DEFAULT_FORM_DATA: FormData = {
   dcReenrollmentSweepIntervalYears: 3,
   dcReenrollmentSweepFirstYear: '',
   dcReenrollmentSweepEdited: false,
+  dcReenrollmentSweepOptionsEdited: false,
+  dcReenrollmentSweepOptionsPresent: [],
+  dcReenrollmentSweepMethod: 'enroll_at_default',
+  dcReenrollmentSweepIncludeNonContributors: true,
+  dcReenrollmentSweepIncludeBelowDefault: false,
+  dcReenrollmentSweepIncludeBelowAipCap: false,
+  dcReenrollmentSweepDeclineProbability: 10,
   dcDefaultDeferral: 3.0,
   dcMatchTemplate: 'tiered',
   dcMatchTiers: [
