@@ -249,6 +249,13 @@ function mapDCPlanEnrollmentFields(cfg: any, prev: FormData): Partial<FormData> 
     dcEligibilityMonths: cfg.dc_plan?.eligibility_months ?? prev.dcEligibilityMonths,
     dcAutoEnroll: cfg.dc_plan?.auto_enroll ?? prev.dcAutoEnroll,
     dcReenrollmentSweepEnabled: cfg.dc_plan?.reenrollment_sweep_enabled ?? prev.dcReenrollmentSweepEnabled,
+    dcReenrollmentSweepMethod: cfg.dc_plan?.reenrollment_sweep_method ?? prev.dcReenrollmentSweepMethod,
+    dcReenrollmentSweepIncludeNonContributors: cfg.dc_plan?.reenrollment_sweep_include_non_contributors ?? prev.dcReenrollmentSweepIncludeNonContributors,
+    dcReenrollmentSweepIncludeBelowDefault: cfg.dc_plan?.reenrollment_sweep_include_below_default ?? prev.dcReenrollmentSweepIncludeBelowDefault,
+    dcReenrollmentSweepIncludeBelowAipCap: cfg.dc_plan?.reenrollment_sweep_include_below_aip_cap ?? prev.dcReenrollmentSweepIncludeBelowAipCap,
+    dcReenrollmentSweepDeclineProbability: cfg.dc_plan?.reenrollment_sweep_decline_probability === undefined || cfg.dc_plan.reenrollment_sweep_decline_probability === null ? prev.dcReenrollmentSweepDeclineProbability : cfg.dc_plan.reenrollment_sweep_decline_probability * 100,
+    dcReenrollmentSweepOptionsEdited: false,
+    dcReenrollmentSweepOptionsPresent: Object.keys(cfg.dc_plan ?? {}).filter(key => key.startsWith('reenrollment_sweep_')),
     dcReenrollmentSweepIntervalYears: cfg.dc_plan?.reenrollment_sweep_interval_years ?? prev.dcReenrollmentSweepIntervalYears,
     dcReenrollmentSweepFirstYear: cfg.dc_plan && 'reenrollment_sweep_first_year' in cfg.dc_plan
       ? String(cfg.dc_plan.reenrollment_sweep_first_year ?? '') : prev.dcReenrollmentSweepFirstYear,
@@ -659,6 +666,7 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
     setFormData(prev => ({
       ...prev,
       ...(name.startsWith('dcReenrollmentSweep') ? { dcReenrollmentSweepEdited: true } : {}),
+      ...(['dcReenrollmentSweepMethod', 'dcReenrollmentSweepIncludeNonContributors', 'dcReenrollmentSweepIncludeBelowDefault', 'dcReenrollmentSweepIncludeBelowAipCap', 'dcReenrollmentSweepDeclineProbability'].includes(name) ? { dcReenrollmentSweepOptionsEdited: true } : {}),
       [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
     }));
   }, []);

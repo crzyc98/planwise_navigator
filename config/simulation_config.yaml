@@ -157,7 +157,13 @@ enrollment:
   auto_enrollment:
     # Optional plan provision: re-default eligible noncontributors, including opt-outs.
     # Applies in first_year and every interval_years thereafter; normal opt-out applies again.
+    # Sweeps include eligible legacy hires regardless of AE scope or cutoff.
     reenrollment_sweep:
+      method: enroll_at_default # Or into_aip: 0% starts at one escalation increment
+      include_non_contributors: true
+      include_below_default: false # Positive rates strictly below the AE default
+      include_below_aip_cap: false # Positive rates strictly below the plan AIP cap
+      decline_probability: 0.10 # Contributors only; 0% uses the AE opt-out model
       enabled: false
       interval_years: 3  # Integer >= 1
       first_year: null  # Omitted/null means simulation.start_year + interval_years

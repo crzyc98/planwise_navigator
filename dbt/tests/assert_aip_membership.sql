@@ -13,6 +13,7 @@ WITH membership_violations AS (
     AND current_state.employee_id = previous_state.employee_id
     AND current_state.simulation_year = previous_state.simulation_year + 1
   WHERE current_state.aip_participant IS DISTINCT FROM previous_state.aip_participant
+    AND NOT (current_state.aip_participant AND {{ reenrollment_aip_member(ref('fct_yearly_events'), 'current_state.employee_id', 'current_state.simulation_year', 'current_state.scenario_id') }})
     {% if var('easy_enroll_enabled', false) %}
     AND NOT (current_state.aip_participant AND
       {{ easy_enroll_member(ref('fct_yearly_events'), 'current_state.employee_id',
@@ -44,6 +45,7 @@ WITH membership_violations AS (
     ON state.employee_id = census.employee_id
   WHERE census.auto_escalation_opt_out = TRUE
     AND state.aip_participant = TRUE
+    AND NOT {{ reenrollment_aip_member(ref('fct_yearly_events'), 'state.employee_id', 'state.simulation_year', 'state.scenario_id', historical=true) }}
     {% if var('easy_enroll_enabled', false) %}
     AND NOT {{ easy_enroll_member(ref('fct_yearly_events'), 'state.employee_id',
       'state.simulation_year', 'state.scenario_id') }}

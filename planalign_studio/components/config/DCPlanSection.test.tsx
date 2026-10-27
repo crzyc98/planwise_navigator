@@ -843,7 +843,7 @@ describe('Easy Enroll controls', () => {
 describe('periodic re-enrollment sweep controls', () => {
   it('shows the default-off provision and enables the schedule with its toggle', () => {
     expect(render()).toContain('Periodic re-enrollment sweep');
-    expect(render()).toContain('including those who opted out');
+    expect(render()).toContain('Employees at 0% can opt out again');
     expect(input(render(), 'dcReenrollmentSweepIntervalYears')).toContain('disabled=""');
     toggle('dcReenrollmentSweepEnabled', true);
     expect(state.formData.dcReenrollmentSweepEnabled).toBe(true);
@@ -857,5 +857,34 @@ describe('periodic re-enrollment sweep controls', () => {
     expect(input(render(), 'dcReenrollmentSweepIntervalYears')).toContain('disabled=""');
     expect(input(render(), 'dcReenrollmentSweepFirstYear')).toContain('value="2027"');
     expect(render()).toContain('Sweep settings inactive; saved values are retained.');
+  });
+});
+
+
+describe('sweep target groups and method', () => {
+  it('renders both methods, three groups and contributor decline percentage', () => {
+    toggle('dcReenrollmentSweepEnabled', true);
+    const html = render();
+    for (const label of ['Enroll at the default rate', 'Sweep into automatic increases',
+      'Not contributing (0%)', 'Contributing below the default rate',
+      'Contributing below the automatic-increase cap', 'Share of contributors who decline']) {
+      expect(html).toContain(label);
+    }
+    toggle('dcReenrollmentSweepIncludeBelowDefault', true);
+    toggle('dcReenrollmentSweepIncludeBelowAipCap', true);
+    expect(state.formData.dcReenrollmentSweepIncludeBelowDefault).toBe(true);
+    expect(state.formData.dcReenrollmentSweepIncludeBelowAipCap).toBe(true);
+    expect(input(render(), 'dcReenrollmentSweepDeclineProbability')).toContain('value="10"');
+  });
+  it.each([
+    ['new_hires_only', '', true], ['all_eligible', '2020-01-01', true],
+    ['all_eligible', '', false],
+  ])('shows legacy-hire notice for scope %s and cutoff %s', (scope, cutoff, expected) => {
+    state.formData = { ...state.formData, dcAutoEnroll: true, dcReenrollmentSweepEnabled: true,
+      dcAutoEnrollScope: scope, dcAutoEnrollHireDateCutoff: cutoff };
+    const notice = 'This sweep includes all legacy hires, not only employees hired after the auto-enrollment cutoff.';
+    expect(render().includes(notice)).toBe(expected);
+    toggle('dcReenrollmentSweepEnabled', false);
+    expect(render()).not.toContain(notice);
   });
 });

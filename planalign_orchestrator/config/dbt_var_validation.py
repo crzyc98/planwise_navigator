@@ -40,6 +40,9 @@ BOOLEAN_VARS = frozenset(
         "deferral_rate_changes_post_escalation_decrease_leaves_escalation",
         "auto_enrollment_enabled",
         "reenrollment_sweep_enabled",
+        "reenrollment_sweep_include_non_contributors",
+        "reenrollment_sweep_include_below_default",
+        "reenrollment_sweep_include_below_aip_cap",
         "deferral_escalation_enabled",
         "deferral_escalation_require_enrollment",
         "deferral_match_response_enabled",
@@ -57,6 +60,7 @@ BOOLEAN_VARS = frozenset(
 )
 RATE_VARS = frozenset(
     {
+        "reenrollment_sweep_decline_probability",
         "deferral_escalation_participant_elected_signup_probability",
         "easy_enroll_channel_share_without_auto_enrollment",
         "easy_enroll_channel_share_with_auto_enrollment",
@@ -115,6 +119,7 @@ INTEGER_VARS = frozenset(
     }
 )
 ENUM_VARS = {
+    "reenrollment_sweep_method": {"enroll_at_default", "into_aip"},
     "deferral_escalation_mode": frozenset({"automatic", "participant_elected"}),
     "auto_enrollment_scope": frozenset({"all_eligible_employees", "new_hires_only"}),
     "promotion_distribution_type": frozenset({"uniform", "normal"}),

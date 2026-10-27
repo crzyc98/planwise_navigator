@@ -69,14 +69,15 @@ current_year_new_enrollments AS (
         -- Use employee_deferral_rate if available, otherwise extract from event_details
         {{ enrollment_payload_deferral_rate() }} as initial_deferral_rate,
         simulation_year,
-        'fct_yearly_events' as source,
+        CASE WHEN event_category = 'reenrollment_sweep' THEN 'reenrollment_sweep'
+          ELSE 'fct_yearly_events' END as source,
         ROW_NUMBER() OVER (
             PARTITION BY employee_id
-            ORDER BY effective_date
+            ORDER BY CASE WHEN event_category = 'reenrollment_sweep' THEN 0 ELSE 1 END, effective_date
         ) as rn
     FROM {{ ref('fct_yearly_events') }}
     -- E096 FIX: Match both 'enrollment' (from int_enrollment_events) and 'benefit_enrollment' (legacy)
-    WHERE LOWER(event_type) IN ('enrollment', 'benefit_enrollment')
+    WHERE (LOWER(event_type) IN ('enrollment', 'benefit_enrollment') OR event_category = 'reenrollment_sweep')
       AND employee_id IS NOT NULL
       AND simulation_year = {{ simulation_year }}
 ),
@@ -163,14 +164,15 @@ historical_enrollments AS (
         -- Use employee_deferral_rate if available, otherwise extract from event_details
         {{ enrollment_payload_deferral_rate() }} as initial_deferral_rate,
         simulation_year as enrollment_year,
-        'fct_yearly_events' as source,
+        CASE WHEN event_category = 'reenrollment_sweep' THEN 'reenrollment_sweep'
+          ELSE 'fct_yearly_events' END as source,
         ROW_NUMBER() OVER (
             PARTITION BY employee_id
-            ORDER BY simulation_year, effective_date
+            ORDER BY CASE WHEN event_category = 'reenrollment_sweep' THEN 0 ELSE 1 END, simulation_year, effective_date
         ) as rn
     FROM {{ ref('fct_yearly_events') }}
     -- E096 FIX: Match both 'enrollment' (from int_enrollment_events) and 'benefit_enrollment' (legacy)
-    WHERE LOWER(event_type) IN ('enrollment', 'benefit_enrollment')
+    WHERE (LOWER(event_type) IN ('enrollment', 'benefit_enrollment') OR event_category = 'reenrollment_sweep')
       AND employee_id IS NOT NULL
       AND simulation_year <= {{ simulation_year }}
 ),
@@ -357,7 +359,10 @@ first_year_state AS (
             WHEN oo.employee_id IS NOT NULL THEN false
             ELSE (he.employee_id IS NOT NULL)
         END as is_enrolled_flag,
-        he.enrollment_date as employee_enrollment_date,
+        CASE WHEN he.source = 'reenrollment_sweep' THEN
+          (SELECT b.employee_enrollment_date FROM {{ ref('int_baseline_workforce') }} b
+            WHERE b.employee_id = he.employee_id LIMIT 1)
+          ELSE he.enrollment_date END as employee_enrollment_date,
 
         -- Metadata
         CURRENT_TIMESTAMP as created_at,
@@ -378,6 +383,7 @@ first_year_state AS (
             WHEN mr.employee_id IS NOT NULL AND ce.employee_id IS NOT NULL THEN 'match_response_plus_escalation'
             WHEN mr.employee_id IS NOT NULL THEN 'match_response'
             WHEN ce.employee_id IS NOT NULL THEN 'escalation_event'
+            WHEN he.source = 'reenrollment_sweep' THEN 'reenrollment_sweep'
             WHEN he.source = 'synthetic_baseline' THEN 'census_rate'
             WHEN he.source = 'fct_yearly_events' THEN 'enrollment_event'
             WHEN br.employee_id IS NOT NULL THEN 'demographic_fallback'
@@ -475,7 +481,8 @@ subsequent_year_state AS (
             WHEN ne.employee_id IS NOT NULL THEN true
             ELSE COALESCE(ps.is_enrolled_flag, false)
         END as is_enrolled_flag,
-        COALESCE(ne.enrollment_date, ps.employee_enrollment_date) as employee_enrollment_date,
+        CASE WHEN ne.source = 'reenrollment_sweep' THEN ps.employee_enrollment_date
+          ELSE COALESCE(ne.enrollment_date, ps.employee_enrollment_date) END as employee_enrollment_date,
 
         -- Metadata
         CURRENT_TIMESTAMP as created_at,
@@ -495,6 +502,7 @@ subsequent_year_state AS (
             WHEN mr.employee_id IS NOT NULL AND ce.employee_id IS NOT NULL THEN 'match_response_plus_escalation'
             WHEN mr.employee_id IS NOT NULL THEN 'match_response'
             WHEN ce.employee_id IS NOT NULL THEN 'escalation_event'
+            WHEN ne.source = 'reenrollment_sweep' THEN 'reenrollment_sweep'
             WHEN ne.source = 'synthetic_baseline' THEN 'census_rate'
             WHEN ne.source = 'fct_yearly_events' THEN 'enrollment_event'
             WHEN ps.employee_id IS NOT NULL THEN 'carried_forward'
@@ -540,6 +548,7 @@ current_year_deferral_changes AS (
   WHERE simulation_year = {{ simulation_year }}
     AND scenario_id = '{{ scenario_id }}'
     AND event_type = {{ evt_deferral_change() }}
+    AND event_category <> 'reenrollment_sweep'
   QUALIFY ROW_NUMBER() OVER (
     PARTITION BY scenario_id, plan_design_id, employee_id, simulation_year
     ORDER BY effective_date DESC, event_id DESC
@@ -584,6 +593,7 @@ voluntary_change_state AS (
     {% if var('deferral_rate_changes_enabled', false) and var('deferral_rate_changes_post_escalation_decrease_leaves_escalation', false) %}
     CASE WHEN dc.event_category = 'aip_response_decrease' THEN FALSE ELSE
     {% endif %}
+    {{ reenrollment_aip_member(ref('fct_yearly_events'), 's.employee_id', 's.simulation_year', 's.scenario_id') }} OR
     -- Package enrollment elects AIP even when ordinary escalation is disabled.
     {% if var('easy_enroll_enabled', false) %}
     {{ easy_enroll_member(ref('fct_yearly_events'), 's.employee_id', 's.simulation_year',

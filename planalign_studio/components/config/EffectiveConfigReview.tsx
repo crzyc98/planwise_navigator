@@ -96,6 +96,11 @@ const behaviorLabels: Record<string, string> = {
   reenrollment_sweep_enabled: 'Periodic re-enrollment sweep',
   reenrollment_sweep_interval_years: 'Sweep interval (years)',
   reenrollment_sweep_first_year: 'First sweep year',
+  reenrollment_sweep_method: 'Sweep method',
+  reenrollment_sweep_include_non_contributors: 'Not contributing (0%)',
+  reenrollment_sweep_include_below_default: 'Contributing below the default rate',
+  reenrollment_sweep_include_below_aip_cap: 'Contributing below the automatic-increase cap',
+  reenrollment_sweep_decline_probability: 'Share of contributors who decline',
   escalation_mode: 'Enrollment in automatic contribution increases',
   deferral_escalation_mode: 'Enrollment in automatic contribution increases',
   escalation_participant_elected_signup_probability: 'Employees who sign up for automatic increases',
@@ -137,11 +142,12 @@ function formatBehaviorSetting(key: string, value: unknown): string | undefined 
   }).join('; ');
   return undefined;
 }
-const percentVariables = new Set(['target_growth_rate', 'total_termination_rate', 'new_hire_termination_rate', 'cola_rate', 'merit_budget', 'promotion_base_increase_pct', 'promotion_distribution_range', 'auto_enrollment_default_deferral_rate', 'voluntary_enrollment_rate', 'new_hire_opt_out_rate', 'deferral_escalation_increment', 'deferral_escalation_cap', 'match_cap_percent', 'employer_match_max_deferral_rate', 'employer_core_contribution_rate', 'new_hire_ineligible_pct']);
-const summaryVariables = ['reenrollment_sweep_enabled', 'reenrollment_sweep_interval_years', 'reenrollment_sweep_first_year', 'simulation_start_year', 'end_year', 'random_seed', 'target_growth_rate', 'total_termination_rate', 'new_hire_termination_rate', 'cola_rate', 'merit_budget', 'promotion_base_increase_pct', 'promotion_distribution_range', 'promotion_rate_multiplier', 'auto_enrollment_enabled', 'auto_enrollment_scope', 'auto_enrollment_hire_date_cutoff', 'auto_enrollment_window_days', 'auto_enrollment_default_deferral_rate', 'voluntary_enrollment_rate', 'new_hire_opt_out_rate', 'deferral_escalation_enabled', 'deferral_escalation_increment', 'deferral_escalation_cap',
+const percentVariables = new Set(['reenrollment_sweep_decline_probability', 'target_growth_rate', 'total_termination_rate', 'new_hire_termination_rate', 'cola_rate', 'merit_budget', 'promotion_base_increase_pct', 'promotion_distribution_range', 'auto_enrollment_default_deferral_rate', 'voluntary_enrollment_rate', 'new_hire_opt_out_rate', 'deferral_escalation_increment', 'deferral_escalation_cap', 'match_cap_percent', 'employer_match_max_deferral_rate', 'employer_core_contribution_rate', 'new_hire_ineligible_pct']);
+const summaryVariables = ['reenrollment_sweep_method', 'reenrollment_sweep_include_non_contributors', 'reenrollment_sweep_include_below_default', 'reenrollment_sweep_include_below_aip_cap', 'reenrollment_sweep_decline_probability', 'reenrollment_sweep_enabled', 'reenrollment_sweep_interval_years', 'reenrollment_sweep_first_year', 'simulation_start_year', 'end_year', 'random_seed', 'target_growth_rate', 'total_termination_rate', 'new_hire_termination_rate', 'cola_rate', 'merit_budget', 'promotion_base_increase_pct', 'promotion_distribution_range', 'promotion_rate_multiplier', 'auto_enrollment_enabled', 'auto_enrollment_scope', 'auto_enrollment_hire_date_cutoff', 'auto_enrollment_window_days', 'auto_enrollment_default_deferral_rate', 'voluntary_enrollment_rate', 'new_hire_opt_out_rate', 'deferral_escalation_enabled', 'deferral_escalation_increment', 'deferral_escalation_cap',
   'deferral_escalation_mode', 'deferral_escalation_participant_elected_signup_probability', 'enrollment_match_magnet_downward_enabled', 'below_default_share_tiers', 'below_default_steps',
   'easy_enroll_enabled', 'easy_enroll_channel_share_with_auto_enrollment', 'easy_enroll_channel_share_without_auto_enrollment', 'easy_enroll_packages', 'easy_enroll_escalation_cap'];
 const formatVariable = (key: string, value: unknown) => {
+  if (key.replace(/^dc_plan\./, '') === 'reenrollment_sweep_method') return value === 'into_aip' ? 'Sweep into automatic increases' : 'Enroll at the default rate';
   if (key.replace(/^dc_plan\./, '') === 'reenrollment_sweep_first_year' && value === null) return 'Start year + sweep interval';
   const behavior = formatBehaviorSetting(key, value);
   if (behavior !== undefined) return behavior;
@@ -160,6 +166,7 @@ const percentagePointPaths = new Set([
   'dc_plan.escalation_rate_percent', 'dc_plan.escalation_cap_percent',
 ]);
 const decimalRatePaths = new Set([
+  'dc_plan.reenrollment_sweep_decline_probability',
   'simulation.target_growth_rate', 'workforce.total_termination_rate', 'workforce.new_hire_termination_rate', 'workforce.part_time_new_hire_pct',
   ...['cola_rate', 'merit_budget', 'promotion_increase', 'promotion_distribution_range', 'promotion_budget'].map(key => `compensation.${key}`),
   'compensation.promotion_compensation.base_increase_pct', 'compensation.promotion_compensation.distribution_range',
@@ -169,6 +176,7 @@ const decimalRatePaths = new Set([
   'dc_plan.deferral_match_response.upward_participation_rate', 'dc_plan.deferral_match_response.downward_participation_rate',
 ]);
 export function formatDraftValue(key: string, value: unknown) {
+  if (key.replace(/^dc_plan\./, '') === 'reenrollment_sweep_method') return value === 'into_aip' ? 'Sweep into automatic increases' : 'Enroll at the default rate';
   if (key.replace(/^dc_plan\./, '') === 'reenrollment_sweep_first_year' && value === null) return 'Start year + sweep interval';
   const behavior = formatBehaviorSetting(key, value);
   if (behavior !== undefined) return behavior;

@@ -97,6 +97,21 @@ export function buildConfigPayload(
     dc_plan: {
       eligibility_months: Number(formData.dcEligibilityMonths),
       auto_enroll: Boolean(formData.dcAutoEnroll),
+      ...(formData.dcReenrollmentSweepOptionsEdited || formData.dcReenrollmentSweepOptionsPresent.includes('reenrollment_sweep_method') ? {
+        reenrollment_sweep_method: formData.dcReenrollmentSweepMethod,
+      } : {}),
+      ...(formData.dcReenrollmentSweepOptionsEdited || formData.dcReenrollmentSweepOptionsPresent.includes('reenrollment_sweep_include_non_contributors') ? {
+        reenrollment_sweep_include_non_contributors: formData.dcReenrollmentSweepIncludeNonContributors,
+      } : {}),
+      ...(formData.dcReenrollmentSweepOptionsEdited || formData.dcReenrollmentSweepOptionsPresent.includes('reenrollment_sweep_include_below_default') ? {
+        reenrollment_sweep_include_below_default: formData.dcReenrollmentSweepIncludeBelowDefault,
+      } : {}),
+      ...(formData.dcReenrollmentSweepOptionsEdited || formData.dcReenrollmentSweepOptionsPresent.includes('reenrollment_sweep_include_below_aip_cap') ? {
+        reenrollment_sweep_include_below_aip_cap: formData.dcReenrollmentSweepIncludeBelowAipCap,
+      } : {}),
+      ...(formData.dcReenrollmentSweepOptionsEdited || formData.dcReenrollmentSweepOptionsPresent.includes('reenrollment_sweep_decline_probability') ? {
+        reenrollment_sweep_decline_probability: formData.dcReenrollmentSweepDeclineProbability / 100,
+      } : {}),
       ...(formData.dcReenrollmentSweepEdited ? {
         reenrollment_sweep_enabled: formData.dcReenrollmentSweepEnabled,
         reenrollment_sweep_interval_years: Number(formData.dcReenrollmentSweepIntervalYears),

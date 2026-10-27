@@ -210,6 +210,8 @@ class WorkflowBuilder:
                     MODEL_INT_ENROLLMENT_EVENTS,
                     "int_deferral_match_response_events",
                     "int_deferral_rate_escalation_events",
+                    "int_reenrollment_sweep_candidates",
+                    "int_reenrollment_sweep_events",
                     "int_deferral_change_events",
                 ],
                 validation_rules=["hire_termination_ratio", "event_sequence"],
