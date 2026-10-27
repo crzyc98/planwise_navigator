@@ -65,6 +65,7 @@ current_year_new_enrollments AS (
     SELECT
         employee_id,
         effective_date as enrollment_date,
+        event_details LIKE 'Re-enrollment sweep - %' AS is_reenrollment_sweep,
         -- Use employee_deferral_rate if available, otherwise extract from event_details
         {{ enrollment_payload_deferral_rate() }} as initial_deferral_rate,
         simulation_year,
@@ -158,6 +159,7 @@ historical_enrollments AS (
     SELECT
         employee_id,
         effective_date as enrollment_date,
+        event_details LIKE 'Re-enrollment sweep - %' AS is_reenrollment_sweep,
         -- Use employee_deferral_rate if available, otherwise extract from event_details
         {{ enrollment_payload_deferral_rate() }} as initial_deferral_rate,
         simulation_year as enrollment_year,
@@ -180,6 +182,7 @@ synthetic_baseline_enrollments AS (
     SELECT
         employee_id,
         employee_enrollment_date as enrollment_date,
+        false AS is_reenrollment_sweep,
         employee_deferral_rate as initial_deferral_rate,  -- Use actual census rates
         EXTRACT(YEAR FROM COALESCE(employee_enrollment_date, '{{ simulation_year }}-01-01'::DATE)) as enrollment_year,
         'synthetic_baseline' as source,
@@ -201,6 +204,7 @@ first_year_enrolled_employees AS (
     SELECT
         employee_id,
         enrollment_date,
+        is_reenrollment_sweep,
         initial_deferral_rate,
         enrollment_year,
         source
@@ -212,6 +216,7 @@ first_year_enrolled_employees AS (
     SELECT
         employee_id,
         enrollment_date,
+        is_reenrollment_sweep,
         initial_deferral_rate,
         enrollment_year,
         source
@@ -386,7 +391,11 @@ first_year_state AS (
        AND assignment.simulation_year = {{ simulation_year }}
     FULL OUTER JOIN first_year_enrolled_employees he ON w.employee_id = he.employee_id
     LEFT JOIN current_year_escalations ce ON COALESCE(w.employee_id, he.employee_id) = ce.employee_id AND ce.rn = 1
+        -- A sweep replaces earlier rate decisions; later changes still apply.
+        AND {{ rate_event_survives_sweep('he.is_reenrollment_sweep', 'he.enrollment_date', 'ce.effective_date') }}
     LEFT JOIN current_year_match_response mr ON COALESCE(w.employee_id, he.employee_id) = mr.employee_id AND mr.rn = 1
+        -- A sweep replaces earlier rate decisions; later changes still apply.
+        AND {{ rate_event_survives_sweep('he.is_reenrollment_sweep', 'he.enrollment_date', 'mr.effective_date') }}
     LEFT JOIN current_year_opt_outs oo ON COALESCE(w.employee_id, he.employee_id) = oo.employee_id
     LEFT JOIN baseline_deferral_rates br ON COALESCE(w.employee_id, he.employee_id) = br.employee_id
     -- E058: Join workforce for compensation (needed for IRS limit calculation in additive case)
@@ -420,7 +429,7 @@ subsequent_year_state AS (
             ELSE COALESCE(ps.previous_escalations_received, 0)
         END as escalations_received,
 
-        CAST(COALESCE(ce.effective_date, ps.employee_enrollment_date) AS TIMESTAMP) as last_escalation_date,
+        CAST(COALESCE(ce.effective_date, CASE WHEN ne.is_reenrollment_sweep THEN ne.enrollment_date END, ps.employee_enrollment_date) AS TIMESTAMP) as last_escalation_date,
         (COALESCE(ps.previous_escalations_received, 0) > 0 OR ce.employee_id IS NOT NULL) as has_escalations,
         'int_deferral_rate_escalation_events'::VARCHAR as escalation_source,
 
@@ -501,7 +510,11 @@ subsequent_year_state AS (
     FULL OUTER JOIN previous_year_state ps ON w.employee_id = ps.employee_id
     LEFT JOIN current_year_new_enrollments ne ON COALESCE(w.employee_id, ps.employee_id) = ne.employee_id AND ne.rn = 1
     LEFT JOIN current_year_escalations ce ON COALESCE(w.employee_id, ps.employee_id) = ce.employee_id AND ce.rn = 1
+        -- A sweep replaces earlier rate decisions; later changes still apply.
+        AND {{ rate_event_survives_sweep('ne.is_reenrollment_sweep', 'ne.enrollment_date', 'ce.effective_date') }}
     LEFT JOIN current_year_match_response mr ON COALESCE(w.employee_id, ps.employee_id) = mr.employee_id AND mr.rn = 1
+        -- A sweep replaces earlier rate decisions; later changes still apply.
+        AND {{ rate_event_survives_sweep('ne.is_reenrollment_sweep', 'ne.enrollment_date', 'mr.effective_date') }}
     LEFT JOIN current_year_opt_outs oo ON COALESCE(w.employee_id, ps.employee_id) = oo.employee_id
     LEFT JOIN baseline_deferral_rates br ON COALESCE(w.employee_id, ps.employee_id) = br.employee_id
     -- E058: Join workforce for compensation (needed for IRS limit calculation in additive case)

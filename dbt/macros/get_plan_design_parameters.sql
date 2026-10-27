@@ -10,6 +10,9 @@ SELECT
   CAST(NULL AS DECIMAL(10,6)) AS auto_enrollment_default_deferral_rate,
   CAST(NULL AS INTEGER) AS auto_enrollment_window_days,
   CAST(NULL AS VARCHAR) AS auto_enrollment_scope,
+  CAST(NULL AS BOOLEAN) AS reenrollment_sweep_enabled,
+  CAST(NULL AS INTEGER) AS reenrollment_sweep_interval_years,
+  CAST(NULL AS INTEGER) AS reenrollment_sweep_first_year,
   CAST(NULL AS DECIMAL(10,6)) AS deferral_escalation_increment,
   CAST(NULL AS DECIMAL(10,6)) AS deferral_escalation_cap,
   CAST(NULL AS INTEGER) AS eligibility_waiting_period_days,
@@ -21,6 +24,7 @@ SELECT
 WHERE FALSE
 {%- else -%}
 {%- for design_id, parameters in plan_design_parameters | dictsort %}
+{% set sweep = parameters['auto_enrollment'].get('reenrollment_sweep', {}) %}
 SELECT
   '{{ design_id | replace("'", "''") }}'::VARCHAR AS plan_design_id,
   '{{ parameters['match'].get('family', 'deferral_based') }}'::VARCHAR AS match_formula_family,
@@ -30,6 +34,9 @@ SELECT
   {{ parameters['auto_enrollment']['default_deferral_rate'] }}::DECIMAL(10,6) AS auto_enrollment_default_deferral_rate,
   {{ parameters['auto_enrollment']['window_days'] }}::INTEGER AS auto_enrollment_window_days,
   '{{ parameters['auto_enrollment']['scope'] }}'::VARCHAR AS auto_enrollment_scope,
+  {{ sweep.get('enabled', false) | lower }}::BOOLEAN AS reenrollment_sweep_enabled,
+  {{ sweep.get('interval_years', 3) }}::INTEGER AS reenrollment_sweep_interval_years,
+  {{ sweep.get('first_year') if sweep.get('first_year') is not none else 'NULL' }}::INTEGER AS reenrollment_sweep_first_year,
   {{ parameters['deferral_escalation']['increment'] }}::DECIMAL(10,6) AS deferral_escalation_increment,
   {{ parameters['deferral_escalation']['cap'] }}::DECIMAL(10,6) AS deferral_escalation_cap,
   {{ parameters['eligibility']['waiting_period_days'] }}::INTEGER AS eligibility_waiting_period_days,

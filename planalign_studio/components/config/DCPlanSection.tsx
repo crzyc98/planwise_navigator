@@ -221,10 +221,22 @@ export function DCPlanSection() {
          </div>;
 
   const renderEligibilityFields = () => <>
-      <DCPlanPanel id="dcplan-auto-enrollment-settings" title="Automatic enrollment" summary={formData.dcAutoEnroll ? 'Enabled; plan rules and opt-out assumptions.' : 'Off; default deferral and opt-out assumptions retained.'} enabled={formData.dcAutoEnroll} control={autoEnrollmentControl}>
+      <DCPlanPanel id="dcplan-auto-enrollment-settings" title="Automatic enrollment" summary={formData.dcAutoEnroll ? `Enabled; periodic re-enrollment sweep ${formData.dcReenrollmentSweepEnabled ? `every ${formData.dcReenrollmentSweepIntervalYears} years, first ${formData.dcReenrollmentSweepFirstYear || Number(formData.startYear) + Number(formData.dcReenrollmentSweepIntervalYears)}` : 'off'}.` : 'Off; sweep, default deferral and opt-out assumptions retained.'} enabled={formData.dcAutoEnroll} control={autoEnrollmentControl}>
          <p className="sm:col-span-6 text-xs font-medium text-ink-muted">Plan rules</p>
          <InputField label="Default Deferral Rate" {...inputProps('dcDefaultDeferral')} type="number" step="0.5" suffix="%" disabled={!formData.dcAutoEnroll} helper={formData.dcAutoEnroll ? 'Initial contribution for auto-enrolled employees.' : 'Inactive while auto-enrollment is off. Saved value is retained.'} />
          <InputField label="Modeled opt-out delay" {...inputProps('dcAutoEnrollOptOutGracePeriod')} type="number" suffix="Days" disabled={!formData.dcAutoEnroll} helper={formData.dcAutoEnroll ? 'Hire-year opt-out date: eligibility + enrollment delay + this delay. Continuing-employee branch: June 15.' : 'Inactive while auto-enrollment is off. Saved value is retained.'} min={0} />
+         <fieldset disabled={!formData.dcAutoEnroll} className="sm:col-span-6 disabled:opacity-60">
+           <label htmlFor="dcReenrollmentSweepEnabled" className="flex items-center gap-2 text-sm font-medium text-ink">
+             <input id="dcReenrollmentSweepEnabled" name="dcReenrollmentSweepEnabled" type="checkbox" checked={formData.dcReenrollmentSweepEnabled} onChange={handleChange} aria-describedby="reenrollment-sweep-help" className="h-4 w-4 text-fidelity-green rounded" />
+             Periodic re-enrollment sweep
+           </label>
+           <p id="reenrollment-sweep-help" className="mt-1 text-xs text-ink-muted">Every N years, re-enroll eligible employees who aren't contributing — including those who opted out — at the default rate. They can opt out again.</p>
+           <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-6">
+             <InputField label="Every" {...inputProps('dcReenrollmentSweepIntervalYears')} type="number" min={1} step="1" suffix="years" disabled={!formData.dcAutoEnroll || !formData.dcReenrollmentSweepEnabled} />
+             <InputField label="First sweep year" {...inputProps('dcReenrollmentSweepFirstYear')} type="number" step="1" disabled={!formData.dcAutoEnroll || !formData.dcReenrollmentSweepEnabled} helper={`Optional; blank starts in ${Number(formData.startYear) + Number(formData.dcReenrollmentSweepIntervalYears)} (start year + interval).`} />
+           </div>
+           {(!formData.dcAutoEnroll || !formData.dcReenrollmentSweepEnabled) && <p className="mt-2 text-xs text-ink-muted">Sweep settings inactive; saved values are retained.</p>}
+         </fieldset>
          {optOutFields}
       </DCPlanPanel>
 

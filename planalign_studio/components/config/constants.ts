@@ -179,6 +179,10 @@ export const DEFAULT_FORM_DATA: FormData = {
   // DC Plan - Basic
   dcEligibilityMonths: 3,
   dcAutoEnroll: true,
+  dcReenrollmentSweepEnabled: false,
+  dcReenrollmentSweepIntervalYears: 3,
+  dcReenrollmentSweepFirstYear: '',
+  dcReenrollmentSweepEdited: false,
   dcDefaultDeferral: 3.0,
   dcMatchTemplate: 'tiered',
   dcMatchTiers: [

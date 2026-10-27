@@ -150,6 +150,21 @@ describe('Effective configuration review', () => {
     expect(html).toContain('2%');
   });
 
+  it('reviews the sweep schedule and retained inactive settings', async () => {
+    vi.mocked(previewConfiguration).mockReset();
+    vi.mocked(previewConfiguration).mockResolvedValue({ ...baseline, engine_variables: {
+      auto_enrollment_enabled: false, reenrollment_sweep_enabled: true,
+      reenrollment_sweep_interval_years: 3, reenrollment_sweep_first_year: null,
+    } });
+    render(); await settle();
+    const html = renderToStaticMarkup(render());
+    expect(html).toContain('Periodic re-enrollment sweep');
+    expect(html).toContain('Sweep interval (years)');
+    expect(html).toContain('Start year + sweep interval');
+    expect(formatDraftValue('dc_plan.reenrollment_sweep_first_year', null)).toBe('Start year + sweep interval');
+    expect(html).toContain('Sweep settings inactive; saved values retained.');
+  });
+
   it('shows authoritative promotion values, demographic mode, custom schedules and inherited inactive values', async () => {
     render(); await settle();
     const html = renderToStaticMarkup(render());

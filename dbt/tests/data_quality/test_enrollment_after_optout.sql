@@ -1,119 +1,55 @@
-{{
-  config(
-    severity='error',
-    tags=['data_quality', 'enrollment_validation', 'opt_out']
-  )
-}}
+{{ config(severity='error', tags=['data_quality', 'enrollment_validation', 'opt_out']) }}
 
-/*
-  Data Quality Test: Enrollment After Opt-Out Detection
-
-  Detects employees who have enrollment events AFTER opt-out events
-  without an explicit voluntary enrollment decision between the opt-out and re-enrollment.
-
-  Business Rule:
-  - Once an employee opts out, they should remain opted-out unless they make a new voluntary enrollment decision
-  - Automatic re-enrollment (auto-enrollment, year-over-year) should NOT occur for employees who opted out
-
-  Expected Result: 0 rows (no invalid re-enrollments)
-*/
-
-WITH opt_out_events AS (
+-- Employee elections remain allowed. Automatic re-enrollment after ANY prior
+-- opt-out is allowed only in an enabled sweep year for the employee's plan.
+-- Looking for the latest opt-out before each election also catches employees
+-- who opt out again after an invalid re-enrollment.
+WITH parameter_rows AS (
+{% if var('plan_design_parameters', none) %}
+  {{ get_plan_design_parameters(var('plan_design_parameters')) }}
+{% else %}
   SELECT
-    employee_id,
-    simulation_year as opt_out_year,
-    effective_date as opt_out_date,
-    event_details,
-    ROW_NUMBER() OVER (PARTITION BY employee_id ORDER BY effective_date DESC) as opt_out_rank
-  FROM {{ ref('fct_yearly_events') }}
-  WHERE event_type = 'enrollment_change'
-    AND LOWER(event_details) LIKE '%opt-out%'
-    AND employee_id IS NOT NULL
-),
-
-enrollment_events_after_optout AS (
+    '{{ var("plan_design_id", "default") }}'::VARCHAR AS plan_design_id,
+    {{ var('reenrollment_sweep_enabled', false) }}::BOOLEAN AS reenrollment_sweep_enabled,
+    {{ var('reenrollment_sweep_interval_years', 3) }}::INTEGER AS reenrollment_sweep_interval_years,
+    {{ var('reenrollment_sweep_first_year', none) if var('reenrollment_sweep_first_year', none) is not none else 'NULL' }}::INTEGER AS reenrollment_sweep_first_year
+{% endif %}
+), enrollments AS (
   SELECT
     ee.employee_id,
-    oo.opt_out_year,
-    oo.opt_out_date,
-    oo.event_details as opt_out_details,
-    ee.simulation_year as enrollment_year,
-    ee.effective_date as enrollment_date,
+    ee.scenario_id,
+    ee.simulation_year,
+    ee.effective_date,
     CASE WHEN ee.event_category = 'easy_enroll'
       THEN REGEXP_EXTRACT(ee.event_details, 'original_channel=([^;]+)', 1)
       ELSE ee.event_category END AS event_category,
-    ee.event_details as enrollment_details,
-    -- DuckDB FIX: Use DATE_DIFF instead of EXTRACT for day difference
-    DATE_DIFF('day', oo.opt_out_date, ee.effective_date) as days_since_optout
+    MAX(oo.effective_date) AS opt_out_date
   FROM {{ ref('fct_yearly_events') }} ee
-  INNER JOIN opt_out_events oo
+  INNER JOIN {{ ref('fct_yearly_events') }} oo
     ON ee.employee_id = oo.employee_id
-    AND oo.opt_out_rank = 1
-    AND ee.effective_date > oo.opt_out_date
+    AND ee.scenario_id = oo.scenario_id
+    AND oo.event_type = 'enrollment_change'
+    AND LOWER(oo.event_details) LIKE '%opt-out%'
+    AND oo.effective_date < ee.effective_date
   WHERE ee.event_type = 'enrollment'
-    AND ee.employee_id IS NOT NULL
-),
-
-invalid_reenrollments AS (
-  SELECT
-    employee_id,
-    opt_out_year,
-    opt_out_date,
-    opt_out_details,
-    enrollment_year,
-    enrollment_date,
-    event_category,
-    enrollment_details,
-    days_since_optout,
-    CASE
-      WHEN event_category IN ('voluntary_enrollment', 'proactive_voluntary', 'proactive_voluntary_enrollment') THEN 'VALID'
-      WHEN event_category IN ('auto_enrollment', 'year_over_year_voluntary') THEN 'INVALID'
-      ELSE 'UNKNOWN'
-    END as validation_status,
-    CASE
-      WHEN event_category = 'auto_enrollment'
-        THEN 'ISSUE: Auto-enrollment should not re-enroll employees who opted out'
-      WHEN event_category = 'year_over_year_voluntary'
-        THEN 'ISSUE: Year-over-year enrollment should not re-enroll employees who opted out'
-      ELSE 'ISSUE: Unknown enrollment category - needs investigation'
-    END as validation_message,
-    CASE
-      WHEN validation_status = 'INVALID' THEN 'HIGH'
-      WHEN validation_status = 'UNKNOWN' THEN 'MEDIUM'
-      ELSE 'LOW'
-    END as severity
-  FROM (
-    SELECT
-      employee_id,
-      opt_out_year,
-      opt_out_date,
-      opt_out_details,
-      enrollment_year,
-      enrollment_date,
-      event_category,
-      enrollment_details,
-      days_since_optout,
-      CASE
-        WHEN event_category IN ('voluntary_enrollment', 'proactive_voluntary', 'proactive_voluntary_enrollment') THEN 'VALID'
-        WHEN event_category IN ('auto_enrollment', 'year_over_year_voluntary') THEN 'INVALID'
-        ELSE 'UNKNOWN'
-      END as validation_status
-    FROM enrollment_events_after_optout
-  ) sub
+    AND ee.simulation_year = {{ var('simulation_year') }}
+    AND ee.scenario_id = '{{ var("scenario_id", "default") }}'
+  GROUP BY ALL
 )
-
--- Return only INVALID and UNKNOWN cases
 SELECT
-  employee_id,
-  opt_out_year,
-  opt_out_date,
-  enrollment_year,
-  enrollment_date,
-  event_category,
-  days_since_optout,
-  validation_status,
-  validation_message,
-  severity
-FROM invalid_reenrollments
-WHERE validation_status != 'VALID'
-ORDER BY enrollment_year, employee_id
+  ee.employee_id,
+  ee.simulation_year AS enrollment_year,
+  ee.effective_date AS enrollment_date,
+  ee.opt_out_date,
+  ee.event_category
+FROM enrollments ee
+LEFT JOIN {{ ref('int_plan_design_assignment_accumulator') }} assignment
+  ON ee.employee_id = assignment.employee_id
+  AND ee.scenario_id = assignment.scenario_id
+  AND ee.simulation_year = assignment.simulation_year
+LEFT JOIN parameter_rows parameters
+  ON assignment.plan_design_id = parameters.plan_design_id
+WHERE ee.event_category NOT IN ('voluntary_enrollment', 'proactive_voluntary', 'proactive_voluntary_enrollment')
+  AND NOT COALESCE((ee.event_category = 'auto_enrollment'
+    AND {{ var('auto_enrollment_enabled', true) }}
+    AND {{ is_reenrollment_sweep_year('ee.simulation_year', 'parameters.reenrollment_sweep_enabled', 'parameters.reenrollment_sweep_interval_years', 'parameters.reenrollment_sweep_first_year') }}), false)

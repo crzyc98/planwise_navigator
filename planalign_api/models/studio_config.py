@@ -84,6 +84,11 @@ class StudioPointsMatchTier(PartialConfig):
 
 class StudioDCPlanConfig(PartialConfig):
     auto_enroll: bool | None = None
+    reenrollment_sweep_enabled: bool | None = None
+    reenrollment_sweep_interval_years: int | None = Field(
+        default=None, ge=1, strict=True
+    )
+    reenrollment_sweep_first_year: int | None = Field(default=None, strict=True)
     match_template: str | None = None
     match_status: str | None = None
     match_tiers: list[StudioMatchTier] | None = None

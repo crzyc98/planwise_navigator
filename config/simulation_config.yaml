@@ -155,6 +155,12 @@ plan_eligibility:
 enrollment:
   # Auto-enrollment configuration
   auto_enrollment:
+    # Optional plan provision: re-default eligible noncontributors, including opt-outs.
+    # Applies in first_year and every interval_years thereafter; normal opt-out applies again.
+    reenrollment_sweep:
+      enabled: false
+      interval_years: 3  # Integer >= 1
+      first_year: null  # Omitted/null means simulation.start_year + interval_years
     enabled: true  # Global auto-enrollment enable/disable toggle
     window_days: 45  # Configurable auto-enrollment window (default 45 days after hire)
     default_deferral_rate: 0.02  # 2% default deferral rate for auto-enrolled participants

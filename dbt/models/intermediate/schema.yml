@@ -748,6 +748,10 @@ models:
     config:
       tags: ["state_accumulator", "critical", "e036", "v2"]
     data_tests:
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "rate_source != 'opt_out' OR (current_deferral_rate = 0 AND NOT is_enrolled_flag)"
+
       # Uniqueness at the scenario/plan/employee/year grain
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -844,9 +848,14 @@ models:
               config:
                 severity: error
       - name: rate_before_voluntary_change
-        description: Canonical pre-voluntary rate shared with event generation; includes enrollment, match response, escalation and opt-out precedence
+        description: Canonical pre-voluntary rate shared with event generation; sweep elections replace earlier match responses and escalations, while opt-outs retain precedence
         data_tests:
           - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: "= current_deferral_rate"
+              config:
+                where: "rate_source <> 'deferral_change'"
           - dbt_utils.accepted_range:
               arguments:
                 min_value: 0
@@ -1656,9 +1665,13 @@ models:
     config:
       tags: ["enrollment", "dc_plan", "epic_e023", "event_sourcing"]
     data_tests:
+      - reenrollment_sweep_eligibility
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns: [scenario_id, employee_id, simulation_year, event_type]
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "event_details NOT LIKE 'Re-enrollment sweep - %' OR (event_type = 'enrollment' AND event_category = 'auto_enrollment')"
     columns:
       - name: employee_deferral_rate
         description: "Enrollment rate after self-directed choices or Easy Enroll package selection; opt-outs remain zero. Easy Enroll package rates are checked by assert_easy_enroll_events."

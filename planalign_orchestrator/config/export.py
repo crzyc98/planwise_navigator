@@ -53,6 +53,9 @@ DBT_VAR_PER_DESIGN = frozenset(
         "auto_enrollment_default_deferral_rate",
         "auto_enrollment_window_days",
         "auto_enrollment_scope",
+        "reenrollment_sweep_enabled",
+        "reenrollment_sweep_interval_years",
+        "reenrollment_sweep_first_year",
         "deferral_escalation_increment",
         "deferral_escalation_cap",
         "eligibility_waiting_days",
@@ -261,6 +264,8 @@ def _set_if_not_none(
 
 def _export_auto_enrollment_fields(auto: Any, dbt_vars: Dict[str, Any]) -> None:
     """Export typed auto-enrollment config fields to dbt vars."""
+    for field, value in auto.reenrollment_sweep.model_dump().items():
+        dbt_vars[f"reenrollment_sweep_{field}"] = value
     _set_if_not_none(dbt_vars, "auto_enrollment_enabled", auto.enabled, bool)
     _set_if_not_none(dbt_vars, "auto_enrollment_scope", auto.scope, str)
     if auto.hire_date_cutoff:
@@ -539,6 +544,13 @@ def _apply_dc_plan_enrollment_overrides(
     # Also accept pre-derived demographic rates (sent alongside target by frontend).
     for field in _DC_PLAN_OPT_OUT_DEMOGRAPHIC_FIELDS:
         _set_if_not_none(dbt_vars, field, dc_plan_dict.get(field), float)
+
+    for field in ("enabled", "interval_years", "first_year"):
+        key = f"reenrollment_sweep_{field}"
+        if key in dc_plan_dict and (
+            field == "first_year" or dc_plan_dict[key] is not None
+        ):
+            dbt_vars[key] = dc_plan_dict[key]
 
     _apply_escalation_overrides(dc_plan_dict, dbt_vars)
 

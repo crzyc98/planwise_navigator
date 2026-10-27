@@ -53,7 +53,8 @@ continuous_participants AS (
   {% endif %}
 ),
 enrollments AS (
-  SELECT employee_id, {{ enrollment_payload_deferral_rate() }} AS initial_deferral_rate, effective_date
+  SELECT employee_id, {{ enrollment_payload_deferral_rate() }} AS initial_deferral_rate, effective_date,
+    event_details LIKE 'Re-enrollment sweep - %' AS is_reenrollment_sweep
   FROM {{ ref('int_enrollment_events') }}
   WHERE scenario_id = '{{ scenario_id }}'
     AND LOWER(event_type) IN ('enrollment', 'benefit_enrollment')
@@ -114,7 +115,9 @@ rate_inputs AS (
     AND assignment.scenario_id = '{{ scenario_id }}'
   LEFT JOIN enrollments ne ON w.employee_id = ne.employee_id
   LEFT JOIN escalations ce ON w.employee_id = ce.employee_id
+    AND {{ rate_event_survives_sweep('ne.is_reenrollment_sweep', 'ne.effective_date', 'ce.effective_date') }}
   LEFT JOIN match_responses mr ON w.employee_id = mr.employee_id
+    AND {{ rate_event_survives_sweep('ne.is_reenrollment_sweep', 'ne.effective_date', 'mr.effective_date') }}
   LEFT JOIN opt_outs oo ON w.employee_id = oo.employee_id
   LEFT JOIN {{ ref('int_employee_termination_dates') }} t ON w.employee_id = t.employee_id
     AND t.simulation_year = {{ simulation_year }}

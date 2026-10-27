@@ -62,6 +62,14 @@ class OptOutRatesSettings(BaseModel):
 # =============================================================================
 
 
+class ReenrollmentSweepSettings(BaseModel):
+    """Optional periodic default election for eligible noncontributors."""
+
+    enabled: bool = False
+    interval_years: int = Field(default=3, ge=1, strict=True)
+    first_year: int | None = Field(default=None, strict=True)
+
+
 class AutoEnrollmentSettings(BaseModel):
     """Auto-enrollment configuration."""
 
@@ -70,6 +78,9 @@ class AutoEnrollmentSettings(BaseModel):
     hire_date_cutoff: Optional[str] = None
     window_days: int = 45
     default_deferral_rate: float = Field(default=0.06, ge=0, le=1)
+    reenrollment_sweep: ReenrollmentSweepSettings = Field(
+        default_factory=ReenrollmentSweepSettings
+    )
     opt_out_grace_period: int = 30
     opt_out_rates: OptOutRatesSettings = Field(default_factory=OptOutRatesSettings)
     voluntary_enrollment_rate: Optional[float] = Field(
