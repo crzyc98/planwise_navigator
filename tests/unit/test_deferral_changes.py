@@ -124,12 +124,12 @@ def test_draws_probabilities_weights_and_seed(conn: duckdb.DuckDBPyConnection) -
         total = sum(n for c, _, n, _ in rows if c == category)
         assert total / 20000 == pytest.approx(expected, abs=0.01)
         for step, weight in [
-            (1, 0.15),
-            (2, 0.20),
+            (1, 0.10),
+            (2, 0.10),
             (3, 0.15),
             (5, 0.20),
-            (7, 0.15),
-            (10, 0.15),
+            (7, 0.20),
+            (10, 0.25),
         ]:
             n = next(n for c, pp, n, _ in rows if c == category and pp == step)
             assert n / total == pytest.approx(weight, abs=0.04)
@@ -256,6 +256,13 @@ def event_sql(year: int = 2025, **variables: Any) -> str:
         "deferral_rate_changes_with_escalation_decrease_probability": 0.5,
         "deferral_rate_changes_increase_steps": [{"pp": 2, "weight": 1}],
         "deferral_rate_changes_decrease_steps": [{"pp": 2, "weight": 1}],
+        **{
+            f"deferral_rate_changes_multipliers_{direction}_{dimension}": [
+                {"min": 0, "multiplier": 1.0}
+            ]
+            for direction in ("increase", "decrease")
+            for dimension in ("age", "income", "tenure")
+        },
     }
     return render((DBT / EVENT_MODEL).read_text(), **(defaults | variables))
 
@@ -1014,3 +1021,57 @@ def test_rendered_model_uses_multiplied_probabilities(
     assert all(
         float(row[-2]) == pytest.approx(expected[row[-1]], abs=0.00005) for row in rows
     )
+
+
+@pytest.mark.parametrize("direction", ["increase", "decrease"])
+def test_dbt_step_fallback_matches_fitted_defaults(
+    conn: duckdb.DuckDBPyConnection, direction: str
+) -> None:
+    steps = getattr(DeferralRateChangesSettings(), f"{direction}_steps")
+    cumulative = 0.0
+    for step in steps:
+        midpoint = cumulative + step.weight / 2
+        sql = (
+            "SELECT {{ deferral_change_step('"
+            + str(midpoint)
+            + "', '"
+            + direction
+            + "') }}"
+        )
+        assert conn.execute(render(sql)).fetchone()[0] == step.pp
+        cumulative += step.weight
+
+
+@pytest.mark.parametrize("direction", ["increase", "decrease"])
+@pytest.mark.parametrize("dimension", ["age", "income", "tenure"])
+def test_dbt_multiplier_fallback_matches_fitted_defaults(
+    conn: duckdb.DuckDBPyConnection, direction: str, dimension: str
+) -> None:
+    defaults = getattr(DeferralRateChangesSettings().multipliers, direction)
+    bands = getattr(defaults, dimension)
+    variables = {
+        f"deferral_rate_changes_multipliers_{direction}_{other}": [
+            {"min": 0, "multiplier": 1.0}
+        ]
+        for other in ("age", "income", "tenure")
+        if other != dimension
+    }
+    inputs = [
+        "v" if other == dimension else "0" for other in ("age", "income", "tenure")
+    ]
+    macro = "{{ deferral_change_probability_product('1', '" + direction + "', "
+    macro += ", ".join(repr(value) for value in inputs) + ") }}"
+    values = [
+        -1,
+        0,
+        *[band.min + offset for band in bands for offset in (-0.001, 0)],
+        1e9,
+    ]
+    sql = f"SELECT v, {macro} FROM (VALUES "
+    sql += ", ".join(f"({value})" for value in values) + ") t(v)"
+    for value, multiplier in conn.execute(render(sql, **variables)).fetchall():
+        expected = next(
+            (band.multiplier for band in reversed(bands) if value >= band.min),
+            bands[0].multiplier,
+        )
+        assert multiplier == pytest.approx(expected)

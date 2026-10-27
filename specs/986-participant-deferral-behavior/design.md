@@ -194,8 +194,8 @@ deferral_rate_changes:               # new, #983
   enabled: false                                # Phase 4: true
   with_escalation:     {increase_probability: 0.03,  decrease_probability: 0.15}
   without_escalation: {increase_probability: 0.25,  decrease_probability: 0.075}
-  increase_steps: [{pp: 1, weight: 0.15}, {pp: 2, weight: 0.20}, {pp: 3, weight: 0.15}, {pp: 5, weight: 0.20}, {pp: 7, weight: 0.15}, {pp: 10, weight: 0.15}]   # placeholder; refit in 3e
-  decrease_steps: [{pp: 1, weight: 0.15}, {pp: 2, weight: 0.25}, {pp: 3, weight: 0.20}, {pp: 5, weight: 0.20}, {pp: 8, weight: 0.20}]                          # placeholder; refit in 3e
+  increase_steps: [{pp: 1, weight: 0.10}, {pp: 2, weight: 0.10}, {pp: 3, weight: 0.15}, {pp: 5, weight: 0.20}, {pp: 7, weight: 0.20}, {pp: 10, weight: 0.25}]  # fitted in PR 3e
+  decrease_steps: [{pp: 1, weight: 0.10}, {pp: 2, weight: 0.15}, {pp: 3, weight: 0.15}, {pp: 5, weight: 0.20}, {pp: 8, weight: 0.20}, {pp: 12, weight: 0.20}]  # fitted in PR 3e
   post_escalation_decrease_window_days: 90
   post_escalation_decrease_leaves_escalation: false                  # [D7]: stay in AIP
   stop_probability: 0.015

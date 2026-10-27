@@ -58,35 +58,108 @@ DEFAULTS: dict[str, Any] = {
     "deferral_rate_changes_increase_steps": [
         {"pp": pp, "weight": weight}
         for pp, weight in [
-            (1, 0.15),
-            (2, 0.20),
+            (1, 0.1),
+            (2, 0.1),
             (3, 0.15),
-            (5, 0.20),
-            (7, 0.15),
-            (10, 0.15),
+            (5, 0.2),
+            (7, 0.2),
+            (10, 0.25),
         ]
     ],
     "deferral_rate_changes_decrease_steps": [
         {"pp": pp, "weight": weight}
-        for pp, weight in [(1, 0.15), (2, 0.25), (3, 0.20), (5, 0.20), (8, 0.20)]
+        for pp, weight in [
+            (1, 0.1),
+            (2, 0.15),
+            (3, 0.15),
+            (5, 0.2),
+            (8, 0.2),
+            (12, 0.2),
+        ]
     ],
     "deferral_rate_changes_post_escalation_decrease_window_days": 90,
     "deferral_rate_changes_post_escalation_decrease_leaves_escalation": False,
     "deferral_rate_changes_stop_probability": 0.015,
     "deferral_rate_changes_restart_probability": 0.0,
-    "deferral_rate_changes_multipliers_increase_age": [{"min": 0, "multiplier": 1.0}],
+    "deferral_rate_changes_multipliers_increase_age": [
+        {"min": lower, "multiplier": factor}
+        for lower, factor in [
+            (0, 0.8),
+            (30, 0.95),
+            (40, 1.05),
+            (50, 1.25),
+            (60, 1.3),
+            (70, 0.8),
+        ]
+    ],
     "deferral_rate_changes_multipliers_increase_income": [
-        {"min": 0, "multiplier": 1.0}
+        {"min": lower, "multiplier": factor}
+        for lower, factor in [
+            (0, 0.5),
+            (25000, 0.65),
+            (50000, 0.75),
+            (60000, 0.9),
+            (75000, 1.0),
+            (100000, 1.15),
+            (125000, 1.2),
+            (150000, 1.35),
+            (200000, 1.3),
+            (250000, 1.2),
+        ]
     ],
     "deferral_rate_changes_multipliers_increase_tenure": [
-        {"min": 0, "multiplier": 1.0}
+        {"min": lower, "multiplier": factor}
+        for lower, factor in [
+            (0, 1.05),
+            (2, 0.9),
+            (5, 0.95),
+            (10, 1.1),
+            (15, 1.15),
+            (20, 1.2),
+            (25, 1.25),
+            (30, 1.15),
+        ]
     ],
-    "deferral_rate_changes_multipliers_decrease_age": [{"min": 0, "multiplier": 1.0}],
+    "deferral_rate_changes_multipliers_decrease_age": [
+        {"min": lower, "multiplier": factor}
+        for lower, factor in [
+            (0, 0.95),
+            (30, 1.1),
+            (40, 1.0),
+            (50, 0.85),
+            (60, 0.75),
+            (70, 0.5),
+        ]
+    ],
     "deferral_rate_changes_multipliers_decrease_income": [
-        {"min": 0, "multiplier": 1.0}
+        {"min": lower, "multiplier": factor}
+        for lower, factor in [
+            (0, 0.5),
+            (25000, 0.65),
+            (40000, 0.6),
+            (50000, 0.75),
+            (60000, 0.85),
+            (75000, 0.95),
+            (100000, 1.05),
+            (125000, 1.25),
+            (150000, 1.4),
+            (200000, 1.55),
+            (250000, 1.25),
+        ]
     ],
     "deferral_rate_changes_multipliers_decrease_tenure": [
-        {"min": 0, "multiplier": 1.0}
+        {"min": lower, "multiplier": factor}
+        for lower, factor in [
+            (0, 0.9),
+            (2, 0.95),
+            (3, 1.05),
+            (4, 1.1),
+            (5, 1.05),
+            (15, 1.0),
+            (20, 0.9),
+            (25, 0.85),
+            (30, 0.75),
+        ]
     ],
 }
 OVERRIDES: dict[str, Any] = {
@@ -595,5 +668,18 @@ def test_multiplier_defaults_are_independent_and_accept_zero() -> None:
     )
     settings.multipliers.decrease.age[0].multiplier = 2
     assert settings.multipliers.increase.age[0].multiplier == 0
-    assert settings.multipliers.decrease.tenure[0].multiplier == 1
-    assert DeferralRateChangesSettings().multipliers.decrease.age[0].multiplier == 1
+    assert settings.multipliers.decrease.tenure[0].multiplier == 0.9
+    assert DeferralRateChangesSettings().multipliers.decrease.age[0].multiplier == 0.95
+
+
+def test_fitted_deferral_defaults_match_yaml_and_partial_overrides() -> None:
+    raw = yaml.safe_load((ROOT / "config/simulation_config.yaml").read_text())
+    defaults = DeferralRateChangesSettings().model_dump()
+    assert raw["deferral_rate_changes"] == defaults
+    for direction in ("increase", "decrease"):
+        settings = DeferralRateChangesSettings.model_validate(
+            {"multipliers": {direction: {"age": [{"min": 0, "multiplier": 0}]}}}
+        ).model_dump()
+        expected = defaults["multipliers"][direction]
+        assert settings["multipliers"][direction]["income"] == expected["income"]
+        assert settings["multipliers"][direction]["tenure"] == expected["tenure"]

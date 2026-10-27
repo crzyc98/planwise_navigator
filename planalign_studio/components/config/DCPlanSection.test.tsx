@@ -973,7 +973,7 @@ describe('contribution rate change controls', () => {
       dcDeferralRateChangesWithoutEscalationDecreaseProbability: 8.25, dcDeferralRateChangesStopProbability: 2.25,
       dcDeferralRateChangesRestartProbability: 1.25, dcDeferralRateChangesPostEscalationDecreaseWindowDays: 120,
       dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation: true });
-    for (const [direction, count] of [['raise', 7], ['lower', 6]] as const) {
+    for (const [direction, count] of [['raise', 7], ['lower', 7]] as const) {
       const title = direction === 'raise' ? 'Raise' : 'Lower';
       click(`Add ${direction} step`);
       edit(`${title} step ${count} in percentage points`, '1');
