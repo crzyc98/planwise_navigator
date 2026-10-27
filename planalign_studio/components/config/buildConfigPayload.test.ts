@@ -112,3 +112,23 @@ describe('Easy Enroll payload and inheritance', () => {
       .toEqual({ dc_plan: { easy_enroll_enabled: false, easy_enroll_escalation_cap: 0.15 } });
   });
 });
+
+describe('re-enrollment sweep payload', () => {
+  it('omits new keys for an untouched scenario even when inherited values are displayed', () => {
+    const form = applyResolvedFormData({ reenrollment_sweep_enabled: true, reenrollment_sweep_interval_years: 2, reenrollment_sweep_first_year: 2027 }, DEFAULT_FORM_DATA);
+    expect(form.dcReenrollmentSweepEnabled).toBe(true);
+    expect(form.dcReenrollmentSweepFirstYear).toBe('2027');
+    expect(Object.keys(payload(form).dc_plan).filter(key => key.startsWith('reenrollment_sweep_'))).toEqual([]);
+  });
+  it('loads, saves and clears an explicit schedule without coercing null to zero', () => {
+    const settings = { reenrollment_sweep_enabled: true, reenrollment_sweep_interval_years: 2, reenrollment_sweep_first_year: 2027 };
+    const loaded = applyConfigToFormData({ dc_plan: settings }, DEFAULT_FORM_DATA);
+    expect(payload(loaded).dc_plan).toMatchObject(settings);
+    const cleared = { ...loaded, dcReenrollmentSweepFirstYear: '', dcReenrollmentSweepEnabled: false };
+    expect(payload(cleared).dc_plan).toMatchObject({ ...settings, reenrollment_sweep_enabled: false, reenrollment_sweep_first_year: null });
+    expect(applyConfigEdits({ dc_plan: settings }, payload(loaded), payload(cleared))).toEqual({ dc_plan: { ...settings, reenrollment_sweep_enabled: false, reenrollment_sweep_first_year: null } });
+  });
+  it('exports an edited toggle with its default interval and optional first year', () => {
+    expect(payload({ ...DEFAULT_FORM_DATA, dcReenrollmentSweepEdited: true, dcReenrollmentSweepEnabled: true }).dc_plan).toMatchObject({ reenrollment_sweep_enabled: true, reenrollment_sweep_interval_years: 3, reenrollment_sweep_first_year: null });
+  });
+});

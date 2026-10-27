@@ -97,6 +97,11 @@ export function buildConfigPayload(
     dc_plan: {
       eligibility_months: Number(formData.dcEligibilityMonths),
       auto_enroll: Boolean(formData.dcAutoEnroll),
+      ...(formData.dcReenrollmentSweepEdited ? {
+        reenrollment_sweep_enabled: formData.dcReenrollmentSweepEnabled,
+        reenrollment_sweep_interval_years: Number(formData.dcReenrollmentSweepIntervalYears),
+        reenrollment_sweep_first_year: formData.dcReenrollmentSweepFirstYear === '' ? null : Number(formData.dcReenrollmentSweepFirstYear),
+      } : {}),
       default_deferral_percent: Number(formData.dcDefaultDeferral),
       auto_enroll_window_days: Number(formData.dcAutoEnrollWindowDays),
       auto_enroll_opt_out_grace_period: Number(formData.dcAutoEnrollOptOutGracePeriod),

@@ -9564,6 +9564,12 @@ export interface components {
             match_tiers?: components["schemas"]["StudioMatchTier"][] | null;
             /** Points Match Tiers */
             points_match_tiers?: components["schemas"]["StudioPointsMatchTier"][] | null;
+            /** Reenrollment Sweep Enabled */
+            reenrollment_sweep_enabled?: boolean | null;
+            /** Reenrollment Sweep First Year */
+            reenrollment_sweep_first_year?: number | null;
+            /** Reenrollment Sweep Interval Years */
+            reenrollment_sweep_interval_years?: number | null;
             /** Tenure Match Tiers */
             tenure_match_tiers?: components["schemas"]["StudioTenureMatchTier"][] | null;
         } & {

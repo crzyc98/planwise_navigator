@@ -39,6 +39,7 @@ BOOLEAN_VARS = frozenset(
         "deferral_rate_changes_enabled",
         "deferral_rate_changes_post_escalation_decrease_leaves_escalation",
         "auto_enrollment_enabled",
+        "reenrollment_sweep_enabled",
         "deferral_escalation_enabled",
         "deferral_escalation_require_enrollment",
         "deferral_match_response_enabled",
@@ -172,6 +173,13 @@ def _problem(field: str, message: str) -> DbtVarProblem:
 
 
 def _validate_scalar(field: str, value: Any) -> str | None:
+    if field in {"reenrollment_sweep_interval_years", "reenrollment_sweep_first_year"}:
+        if field == "reenrollment_sweep_first_year" and value is None:
+            return None
+        if not isinstance(value, int) or isinstance(value, bool):
+            return "must be an integer"
+        if field == "reenrollment_sweep_interval_years" and value < 1:
+            return "must be at least 1"
     if field in DATE_VARS:
         if not isinstance(value, str) or not value or value != value.strip():
             return "must be an ISO date (YYYY-MM-DD); omit it to use the default"

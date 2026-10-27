@@ -456,3 +456,105 @@ def test_prechange_double_roundoff_is_canonical_only_when_enabled(
     on = conn.execute(render(sql, deferral_rate_changes_enabled=True)).fetchone()[0]
     assert off == 0.06 + 0.01 and off != 0.07
     assert float(on) == 0.07
+
+
+def sweep_rate_inputs(
+    conn: duckdb.DuckDBPyConnection, year: int, escalation_date: str, match_date: str
+) -> None:
+    fixture_inputs(conn)
+    conn.execute(
+        "CREATE TABLE fct_yearly_events AS SELECT *, 'default' AS scenario_id, "
+        "'default' AS plan_design_id, employee_id AS event_id FROM ("
+        + event_sql()
+        + ") WHERE FALSE"
+    )
+    if year == 2026:
+        conn.execute(
+            "CREATE TABLE int_deferral_rate_state_accumulator AS "
+            + render(
+                (DBT / STATE_MODEL).read_text(),
+                simulation_year=2025,
+                deferral_rate_changes_enabled=True,
+            )
+        )
+    for table in (
+        "int_employee_compensation_by_year",
+        "int_plan_design_assignment_accumulator",
+        "int_employee_termination_dates",
+        "int_deferral_rate_escalation_events",
+        "int_deferral_match_response_events",
+    ):
+        conn.execute(f"UPDATE {table} SET simulation_year = ?", [year])
+    for table, date in (
+        ("int_deferral_rate_escalation_events", escalation_date),
+        ("int_deferral_match_response_events", match_date),
+    ):
+        conn.execute(f"UPDATE {table} SET effective_date = ?::DATE", [f"{year}-{date}"])
+    conn.execute(
+        """INSERT INTO int_enrollment_events SELECT employee_id, 'default', ?, 'enrollment',
+      ?::DATE, .02, 'Re-enrollment sweep - 2% default deferral' FROM int_baseline_workforce""",
+        [year, f"{year}-01-15"],
+    )
+
+
+def publish_sweep_changes(conn: duckdb.DuckDBPyConnection, year: int) -> None:
+    conn.execute(
+        "CREATE TABLE changes AS "
+        + event_sql(
+            year,
+            deferral_rate_changes_with_escalation_increase_probability=1.0,
+            deferral_rate_changes_with_escalation_decrease_probability=0.0,
+        )
+    )
+    conn.execute(
+        """INSERT INTO fct_yearly_events BY NAME SELECT *, 'default' AS scenario_id,
+      'default' AS plan_design_id, employee_id || '-change' AS event_id FROM changes;
+      INSERT INTO fct_yearly_events BY NAME SELECT * FROM int_enrollment_events;
+      INSERT INTO fct_yearly_events BY NAME SELECT employee_id, simulation_year, effective_date,
+        'deferral_escalation' AS event_type, new_deferral_rate AS employee_deferral_rate,
+        previous_deferral_rate AS prev_employee_deferral_rate FROM int_deferral_rate_escalation_events;
+      INSERT INTO fct_yearly_events BY NAME SELECT employee_id, simulation_year, effective_date,
+        'deferral_match_response' AS event_type, employee_deferral_rate, prev_employee_deferral_rate
+        FROM int_deferral_match_response_events;
+    """
+    )
+    conn.execute(
+        "CREATE TABLE resulting_state AS "
+        + render(
+            (DBT / STATE_MODEL).read_text(),
+            simulation_year=year,
+            deferral_rate_changes_enabled=True,
+        )
+    )
+
+
+@pytest.mark.parametrize("year", [2025, 2026])
+@pytest.mark.parametrize(
+    "escalation_date,match_date,expected",
+    [
+        ("01-01", "01-01", 0.02),
+        ("01-15", "01-15", 0.02),
+        ("02-01", "02-01", 0.09),
+        ("01-01", "02-01", 0.08),
+        ("02-01", "01-01", 0.07),
+    ],
+)
+def test_proactive_change_after_sweep_matches_accumulator(
+    conn: duckdb.DuckDBPyConnection,
+    year: int,
+    escalation_date: str,
+    match_date: str,
+    expected: float,
+) -> None:
+    sweep_rate_inputs(conn, year, escalation_date, match_date)
+    publish_sweep_changes(conn, year)
+    rows = conn.execute(
+        """SELECT COUNT(*), MIN(e.prev_employee_deferral_rate),
+      MIN(s.rate_before_voluntary_change), MIN(s.current_deferral_rate),
+      BOOL_AND(e.effective_date > GREATEST(?::DATE, ?::DATE))
+      FROM changes e JOIN resulting_state s USING (employee_id)""",
+        [f"{year}-{max(escalation_date, match_date)}", f"{year}-01-15"],
+    ).fetchone()
+    assert rows is not None and rows[0] == 100 and rows[4]
+    assert float(rows[1]) == float(rows[2]) == expected
+    assert float(rows[3]) == pytest.approx(expected + 0.02)

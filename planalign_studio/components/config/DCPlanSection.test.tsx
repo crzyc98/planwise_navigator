@@ -839,3 +839,23 @@ describe('Easy Enroll controls', () => {
     expect(validateEasyEnrollSettings({ ...DEFAULT_FORM_DATA, dcEasyEnrollPackages: packages }).length).toBeGreaterThan(0);
   });
 });
+
+describe('periodic re-enrollment sweep controls', () => {
+  it('shows the default-off provision and enables the schedule with its toggle', () => {
+    expect(render()).toContain('Periodic re-enrollment sweep');
+    expect(render()).toContain('including those who opted out');
+    expect(input(render(), 'dcReenrollmentSweepIntervalYears')).toContain('disabled=""');
+    toggle('dcReenrollmentSweepEnabled', true);
+    expect(state.formData.dcReenrollmentSweepEnabled).toBe(true);
+    expect(input(render(), 'dcReenrollmentSweepIntervalYears')).not.toContain('disabled=""');
+    expect(input(render(), 'dcReenrollmentSweepIntervalYears')).toContain('min="1"');
+    expect(input(render(), 'dcReenrollmentSweepFirstYear')).not.toContain('disabled=""');
+    expect(render()).toContain(`first ${Number(state.formData.startYear) + 3}`);
+  });
+  it('retains and displays an inactive schedule when auto-enrollment is off', () => {
+    state.formData = { ...state.formData, dcAutoEnroll: false, dcReenrollmentSweepEnabled: true, dcReenrollmentSweepIntervalYears: 2, dcReenrollmentSweepFirstYear: '2027' };
+    expect(input(render(), 'dcReenrollmentSweepIntervalYears')).toContain('disabled=""');
+    expect(input(render(), 'dcReenrollmentSweepFirstYear')).toContain('value="2027"');
+    expect(render()).toContain('Sweep settings inactive; saved values are retained.');
+  });
+});

@@ -248,6 +248,12 @@ function mapDCPlanEnrollmentFields(cfg: any, prev: FormData): Partial<FormData> 
   return {
     dcEligibilityMonths: cfg.dc_plan?.eligibility_months ?? prev.dcEligibilityMonths,
     dcAutoEnroll: cfg.dc_plan?.auto_enroll ?? prev.dcAutoEnroll,
+    dcReenrollmentSweepEnabled: cfg.dc_plan?.reenrollment_sweep_enabled ?? prev.dcReenrollmentSweepEnabled,
+    dcReenrollmentSweepIntervalYears: cfg.dc_plan?.reenrollment_sweep_interval_years ?? prev.dcReenrollmentSweepIntervalYears,
+    dcReenrollmentSweepFirstYear: cfg.dc_plan && 'reenrollment_sweep_first_year' in cfg.dc_plan
+      ? String(cfg.dc_plan.reenrollment_sweep_first_year ?? '') : prev.dcReenrollmentSweepFirstYear,
+    dcReenrollmentSweepEdited: Object.keys(cfg.dc_plan ?? {}).some(key => key.startsWith('reenrollment_sweep_')),
+
     dcDefaultDeferral: cfg.dc_plan?.default_deferral_percent ?? prev.dcDefaultDeferral,
     dcAutoEnrollWindowDays: cfg.dc_plan?.auto_enroll_window_days ?? prev.dcAutoEnrollWindowDays,
     dcAutoEnrollOptOutGracePeriod: cfg.dc_plan?.auto_enroll_opt_out_grace_period ?? prev.dcAutoEnrollOptOutGracePeriod,
@@ -652,6 +658,7 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
     const { name, value, type } = e.target;
     setFormData(prev => ({
       ...prev,
+      ...(name.startsWith('dcReenrollmentSweep') ? { dcReenrollmentSweepEdited: true } : {}),
       [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
     }));
   }, []);

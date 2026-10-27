@@ -160,6 +160,10 @@ export interface FormData {
   // DC Plan - Basic
   dcEligibilityMonths: number;
   dcAutoEnroll: boolean;
+  dcReenrollmentSweepEnabled: boolean;
+  dcReenrollmentSweepIntervalYears: number;
+  dcReenrollmentSweepFirstYear: string;
+  dcReenrollmentSweepEdited: boolean;
   dcDefaultDeferral: number;
   dcMatchTemplate: string;
   dcMatchTiers: MatchTier[];

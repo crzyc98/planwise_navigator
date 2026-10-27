@@ -176,3 +176,16 @@ def test_create_copy_and_template_paths_preserve_config(tmp_path, partial_config
         assert (
             storage.get_scenario(workspace.id, created.id).config_overrides == payload
         )
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("reenrollment_sweep_interval_years", 0),
+        ("reenrollment_sweep_interval_years", 1.5),
+        ("reenrollment_sweep_first_year", 2027.5),
+    ],
+)
+def test_sweep_api_rejects_invalid_schedule(field: str, value: object) -> None:
+    with pytest.raises(ValidationError):
+        ScenarioCreate(name="S", config_overrides={"dc_plan": {field: value}})

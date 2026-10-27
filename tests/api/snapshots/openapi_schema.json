@@ -15131,6 +15131,40 @@
             ],
             "title": "Points Match Tiers"
           },
+          "reenrollment_sweep_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reenrollment Sweep Enabled"
+          },
+          "reenrollment_sweep_first_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reenrollment Sweep First Year"
+          },
+          "reenrollment_sweep_interval_years": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reenrollment Sweep Interval Years"
+          },
           "tenure_match_tiers": {
             "anyOf": [
               {

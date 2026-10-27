@@ -7,6 +7,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, RootModel, field_validator, model_validator
 
+from .workforce import ReenrollmentSweepSettings
+
 MatchFormulaFamily = Literal[
     "deferral_based", "graded_by_service", "tenure_graded", "points_based"
 ]
@@ -197,6 +199,9 @@ class AutoEnrollmentParameterSet(BaseModel):
     default_deferral_rate: float = Field(ge=0.0, le=1.0)
     window_days: int = Field(ge=0)
     scope: Literal["all_eligible_employees", "new_hires_only"]
+    reenrollment_sweep: ReenrollmentSweepSettings = Field(
+        default_factory=ReenrollmentSweepSettings
+    )
 
 
 class EscalationParameterSet(BaseModel):

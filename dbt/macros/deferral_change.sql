@@ -1,3 +1,8 @@
+{# A sweep election replaces rate decisions on or before its effective date. #}
+{% macro rate_event_survives_sweep(sweep_flag, enrollment_date, event_date) -%}
+(NOT COALESCE({{ sweep_flag }}, false) OR {{ event_date }} > {{ enrollment_date }})
+{%- endmacro %}
+
 {# Preserve the accumulator's legacy enrollment payload fallback exactly. #}
 {% macro enrollment_payload_deferral_rate() -%}
 COALESCE(

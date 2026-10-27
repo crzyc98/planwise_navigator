@@ -44,6 +44,8 @@ const SCALARS: Mapping[] = [
   ['dcEasyEnrollShareWithoutAutoEnrollment', 'easy_enroll_channel_share_without_auto_enrollment', 100],
   ['dcEasyEnrollShareWithAutoEnrollment', 'easy_enroll_channel_share_with_auto_enrollment', 100],
   ['dcEasyEnrollEscalationCap', 'easy_enroll_escalation_cap', 100],
+  ['dcReenrollmentSweepEnabled', 'reenrollment_sweep_enabled'],
+  ['dcReenrollmentSweepIntervalYears', 'reenrollment_sweep_interval_years'],
   ['dcDefaultDeferral', 'auto_enrollment_default_deferral_rate', 100],
   ['dcAutoEnrollWindowDays', 'auto_enrollment_window_days'],
   ['dcAutoEnrollOptOutGracePeriod', 'auto_enrollment_opt_out_grace_period'],
@@ -102,6 +104,7 @@ function applyEnrollment(variables: Variables, form: FormData): FormData {
     dcVoluntaryDeferralBaseRates: rates,
     ...(rows<FormData['dcEasyEnrollPackages'][number]>(variables.easy_enroll_packages)
       ? { dcEasyEnrollPackages: packagesToPercent(variables.easy_enroll_packages as FormData['dcEasyEnrollPackages']) } : {}),
+    dcReenrollmentSweepFirstYear: String(variables.reenrollment_sweep_first_year ?? ''),
     ...(rows<FormData['dcBelowDefaultShareTiers'][number]>(variables.below_default_share_tiers)
       ? { dcBelowDefaultShareTiers: tiersToPercent(variables.below_default_share_tiers as FormData['dcBelowDefaultShareTiers']) } : {}),
     ...(rows<FormData['dcBelowDefaultSteps'][number]>(variables.below_default_steps)

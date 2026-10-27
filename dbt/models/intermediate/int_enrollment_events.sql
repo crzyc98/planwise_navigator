@@ -85,7 +85,10 @@ WITH parameter_rows AS (
     {{ var('auto_enrollment_window_days', 45) }}::INTEGER
       AS auto_enrollment_window_days,
     '{{ var('auto_enrollment_scope', 'all_eligible_employees') }}'::VARCHAR
-      AS auto_enrollment_scope
+      AS auto_enrollment_scope,
+    {{ var('reenrollment_sweep_enabled', false) }}::BOOLEAN AS reenrollment_sweep_enabled,
+    {{ var('reenrollment_sweep_interval_years', 3) }}::INTEGER AS reenrollment_sweep_interval_years,
+    {{ var('reenrollment_sweep_first_year', none) if var('reenrollment_sweep_first_year', none) is not none else 'NULL' }}::INTEGER AS reenrollment_sweep_first_year
 {% endif %}
 ),
 
@@ -135,6 +138,9 @@ active_workforce AS (
     parameters.auto_enrollment_default_deferral_rate,
     parameters.auto_enrollment_window_days,
     parameters.auto_enrollment_scope,
+    parameters.reenrollment_sweep_enabled,
+    parameters.reenrollment_sweep_interval_years,
+    parameters.reenrollment_sweep_first_year,
     eligibility.plan_eligibility_date,
     eligibility.is_plan_eligible,
     COALESCE(ov.is_plan_ineligible_override, false) AS is_plan_ineligible_override
@@ -159,17 +165,64 @@ active_workforce AS (
     AND base.simulation_year = ov.simulation_year
 ),
 
+-- Temporal inputs: only published prior simulation years are available here.
+-- Direct relation reads avoid a cycle through this year's event publication.
+prior_sweep_events AS (
+  {% if var('simulation_year') | int > var('start_year', 2025) | int %}
+  SELECT employee_id, effective_date, event_type, event_details,
+    employee_deferral_rate, event_sequence, event_id
+  FROM {{ target.schema }}.fct_yearly_events
+  WHERE simulation_year < {{ var('simulation_year') }}
+    AND scenario_id = '{{ var('scenario_id', 'default') }}'
+    AND event_type IN ('enrollment', 'benefit_enrollment', 'enrollment_change',
+      'deferral_escalation', 'deferral_match_response', 'deferral_change')
+  {% else %}
+  SELECT NULL::VARCHAR AS employee_id, NULL::TIMESTAMP AS effective_date,
+    NULL::VARCHAR AS event_type, NULL::VARCHAR AS event_details,
+    NULL::DECIMAL(5,4) AS employee_deferral_rate, NULL::INTEGER AS event_sequence,
+    NULL::VARCHAR AS event_id
+  WHERE FALSE
+  {% endif %}
+),
+sweep_history AS (
+  SELECT aw.employee_id,
+    MAX(e.effective_date) FILTER (WHERE e.event_type = 'enrollment_change'
+      AND LOWER(e.event_details) LIKE '%opt-out%') AS latest_opt_out_date,
+    -- Prior-year events can take effect this year. Apply those already effective
+    -- at the sweep date on top of the prior-year deferral accumulator.
+    ARG_MAX(e.employee_deferral_rate,
+      STRUCT_PACK(date := e.effective_date, sequence := e.event_sequence, id := e.event_id))
+      FILTER (WHERE e.effective_date >= MAKE_DATE(aw.simulation_year, 1, 1)
+        AND e.effective_date <= ({{ reenrollment_sweep_date('aw') }})) AS pending_deferral_rate
+  FROM active_workforce aw
+  LEFT JOIN prior_sweep_events e ON aw.employee_id = e.employee_id
+  GROUP BY aw.employee_id
+),
 previous_enrollment_state AS (
   SELECT
-    employee_id,
-    enrollment_date AS previous_enrollment_date,
-    is_enrolled AS was_enrolled_previously,
-    ever_opted_out,
-    enrollment_source,
-    CASE WHEN enrollment_date IS NULL THEN 0
-         ELSE {{ var('simulation_year') }} - EXTRACT(YEAR FROM enrollment_date)
+    pe.employee_id,
+    pe.enrollment_date AS previous_enrollment_date,
+    pe.is_enrolled AS was_enrolled_previously,
+    pe.ever_opted_out,
+    pe.current_deferral_rate,
+    history.latest_opt_out_date,
+    COALESCE(history.pending_deferral_rate,
+      {% if var('simulation_year') | int > var('start_year', 2025) | int %}
+      deferral.current_deferral_rate,
+      {% endif %}
+      pe.current_deferral_rate, 0) AS sweep_deferral_rate,
+    pe.enrollment_source,
+    CASE WHEN pe.enrollment_date IS NULL THEN 0
+         ELSE {{ var('simulation_year') }} - EXTRACT(YEAR FROM pe.enrollment_date)
     END AS years_since_first_enrollment
-  FROM {{ ref('stg_prior_enrollment_state') }}
+  FROM {{ ref('stg_prior_enrollment_state') }} pe
+  LEFT JOIN sweep_history history ON pe.employee_id = history.employee_id
+  {% if var('simulation_year') | int > var('start_year', 2025) | int %}
+  LEFT JOIN {{ target.schema }}.int_deferral_rate_state_accumulator deferral
+    ON pe.employee_id = deferral.employee_id
+    AND deferral.simulation_year = {{ var('simulation_year') }} - 1
+    AND deferral.scenario_id = '{{ var('scenario_id', 'default') }}'
+  {% endif %}
 ),
 
 auto_enrollment_eligible_population AS (
@@ -183,15 +236,8 @@ auto_enrollment_eligible_population AS (
     -- Explicit eligibility with clear semantics using macro
     {{ get_eligibility_reason('aw.employee_hire_date', 'aw.simulation_year', 'aw.employment_status', 'pe.was_enrolled_previously', 'aw.auto_enrollment_scope') }} as eligibility_reason,
     -- Simplified eligibility flag
-    CASE
-      WHEN aw.employment_status = 'active'
-        AND COALESCE(pe.was_enrolled_previously, false) = false
-        AND aw.is_plan_ineligible_override = false  -- Feature 103 gate
-        AND aw.is_plan_eligible
-        AND {{ is_eligible_for_auto_enrollment_scope('aw.employee_hire_date', 'aw.simulation_year', 'aw.auto_enrollment_scope') }}
-      THEN true
-      ELSE false
-    END as is_auto_enrollment_eligible
+    ({{ is_ordinary_auto_enrollment_candidate('aw', 'pe') }}
+      OR {{ is_reenrollment_sweep_candidate('aw', 'pe') }}) as is_auto_enrollment_eligible
   FROM active_workforce aw
   LEFT JOIN previous_enrollment_state pe ON aw.employee_id = pe.employee_id
 ),
@@ -221,13 +267,9 @@ eligible_for_enrollment AS (
       ELSE 'executive'
     END as income_segment,
 
-    -- SIMPLIFIED: Use macro-based eligibility logic for consistency
-    {{ is_eligible_for_auto_enrollment_scope('aw.employee_hire_date', 'aw.simulation_year', 'aw.auto_enrollment_scope') }}
-      AND aw.employment_status = 'active'
-      AND COALESCE(pe.was_enrolled_previously, false) = false
-      AND aw.is_plan_ineligible_override = false  -- Feature 103 gate
-      AND aw.is_plan_eligible
-    as is_eligible,
+    ({{ is_ordinary_auto_enrollment_candidate('aw', 'pe') }}
+      OR {{ is_reenrollment_sweep_candidate('aw', 'pe') }}) AS is_eligible,
+    {{ is_reenrollment_sweep_candidate('aw', 'pe') }} AS is_reenrollment_sweep,
 
     -- CRITICAL: Track already enrolled status to prevent duplicates
     COALESCE(pe.was_enrolled_previously, false) as is_already_enrolled,
@@ -236,6 +278,7 @@ eligible_for_enrollment AS (
     -- Gate on auto_enrollment_enabled (Issue #246: flag was previously ignored)
     CASE
       WHEN NOT {{ var('auto_enrollment_enabled', true) }} THEN false
+      WHEN {{ is_reenrollment_sweep_candidate('aw', 'pe') }} THEN true
       WHEN aw.auto_enrollment_scope = 'all_eligible_employees' THEN true
       WHEN aw.auto_enrollment_scope = 'new_hires_only'
            AND ({{ is_eligible_for_auto_enrollment_scope('aw.employee_hire_date', 'aw.simulation_year', 'aw.auto_enrollment_scope') }})
@@ -245,7 +288,10 @@ eligible_for_enrollment AS (
 
     -- Generate deterministic "random" values for enrollment decisions
     (ABS(PLANALIGN_HASH(aw.employee_id || '-enroll-' || CAST(aw.simulation_year AS VARCHAR))) % 1000) / 1000.0 as enrollment_random,
-    (ABS(PLANALIGN_HASH(aw.employee_id || '-optout-' || CAST(aw.simulation_year AS VARCHAR))) % 1000) / 1000.0 as optout_random
+    CASE WHEN {{ is_reenrollment_sweep_candidate('aw', 'pe') }}
+      THEN {{ enrollment_behavior_draw('aw.employee_id', 'aw.simulation_year', '-reenrollment-optout-') }}
+      ELSE (ABS(PLANALIGN_HASH(aw.employee_id || '-optout-' || CAST(aw.simulation_year AS VARCHAR))) % 1000) / 1000.0
+    END AS optout_random
   FROM active_workforce aw
   LEFT JOIN previous_enrollment_state pe ON aw.employee_id = pe.employee_id
 ),
@@ -258,6 +304,7 @@ enrollment_events AS (
     'enrollment' as event_type,
     efo.simulation_year,
     CASE
+      WHEN efo.is_reenrollment_sweep THEN {{ reenrollment_sweep_date('efo') }}
       WHEN EXTRACT(YEAR FROM efo.employee_hire_date) = efo.simulation_year
         THEN CAST(efo.plan_eligibility_date + efo.auto_enrollment_window_days * INTERVAL '1 day' AS TIMESTAMP)
       ELSE CAST((efo.simulation_year || '-01-15 08:00:00') AS TIMESTAMP)
@@ -265,6 +312,9 @@ enrollment_events AS (
 
     -- Event details based on enrollment type (Phase 2: E062 Fix)
     CASE
+      WHEN efo.is_reenrollment_sweep THEN (
+        'Re-enrollment sweep - ' || CAST(ROUND(efo.auto_enrollment_default_deferral_rate * 100, 1) AS VARCHAR) || '% default deferral'
+      )
       WHEN efo.is_auto_enrollment_row THEN (
         'Auto-enrollment - ' || CAST(ROUND(efo.auto_enrollment_default_deferral_rate * 100, 1) AS VARCHAR) || '% default deferral'
       )
@@ -374,7 +424,7 @@ enrollment_events AS (
   FROM eligible_for_enrollment efo
   WHERE efo.is_eligible = true
     -- CRITICAL FIX: Prevent duplicate enrollments for ALL simulation years
-    AND efo.is_already_enrolled = false
+    AND (efo.is_already_enrolled = false OR efo.is_reenrollment_sweep)
     -- ONLY generate auto-enrollment events (voluntary enrollments handled by dedicated CTEs)
     AND efo.is_auto_enrollment_row = true
 ),
@@ -586,6 +636,9 @@ opt_out_events AS (
     'enrollment_change' as event_type,
     efo.simulation_year,
     CASE
+      WHEN efo.is_reenrollment_sweep AND EXTRACT(YEAR FROM efo.employee_hire_date) < efo.simulation_year
+        THEN GREATEST(CAST((efo.simulation_year || '-06-15 14:00:00') AS TIMESTAMP),
+          efo.plan_eligibility_date + INTERVAL '{{ var("auto_enrollment_opt_out_grace_period", 30) }}' DAY)
       WHEN EXTRACT(YEAR FROM efo.employee_hire_date) = efo.simulation_year
         THEN CAST(efo.plan_eligibility_date + efo.auto_enrollment_window_days * INTERVAL '1 day' + INTERVAL '{{ var("auto_enrollment_opt_out_grace_period", 30) }}' DAY AS TIMESTAMP)
       ELSE CAST((efo.simulation_year || '-06-15 14:00:00') AS TIMESTAMP)
@@ -864,6 +917,7 @@ deduplicated_events AS (
   FROM sequence_eligible_events
   -- DEFENSIVE: Exclude employees who already enrolled in prior years
   WHERE event_type != 'enrollment'
+    OR (event_category = 'auto_enrollment' AND event_details LIKE 'Re-enrollment sweep - %')
     OR employee_id NOT IN (
       SELECT employee_id
       FROM previous_enrollment_state

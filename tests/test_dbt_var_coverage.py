@@ -93,6 +93,9 @@ def _maximal_config():
     cfg.workforce.part_time_new_hire_pct = 0.05
     cfg.dc_plan = {
         "auto_enroll": True,
+        "reenrollment_sweep_enabled": True,
+        "reenrollment_sweep_interval_years": 2,
+        "reenrollment_sweep_first_year": 2027,
         "auto_enroll_hire_date_cutoff": "2025-01-01",
         "auto_enroll_window_days": 45,
         "auto_enroll_opt_out_grace_period": 30,
@@ -190,6 +193,18 @@ def _all_exported_vars() -> set[str]:
 
 
 class TestDbtVarCoverage:
+    def test_reenrollment_sweep_is_exported_per_design(self):
+        names = {
+            f"reenrollment_sweep_{field}"
+            for field in ("enabled", "interval_years", "first_year")
+        }
+        assert names <= _all_exported_vars()
+        assert names <= DBT_VAR_PER_DESIGN
+        variables = to_dbt_vars(_maximal_config())
+        assert variables["reenrollment_sweep_enabled"] is True
+        assert variables["reenrollment_sweep_interval_years"] == 2
+        assert variables["reenrollment_sweep_first_year"] == 2027
+
     def test_participant_behavior_is_run_global(self):
         assert len(PARTICIPANT_BEHAVIOR_VARS) == 21
         assert PARTICIPANT_BEHAVIOR_VARS <= _all_exported_vars()

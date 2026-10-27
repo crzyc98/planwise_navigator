@@ -209,7 +209,13 @@ models:
       - name: employee_deferral_rate
         data_type: DECIMAL(5,4)
       - name: prev_employee_deferral_rate
+        description: Canonical rate after sweep override of earlier escalation and match-response events.
         data_type: DECIMAL(5,4)
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: "> 0"
       - name: employee_age
         data_type: SMALLINT
       - name: employee_tenure

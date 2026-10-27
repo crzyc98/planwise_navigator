@@ -24,6 +24,9 @@ ROOT = Path(__file__).resolve().parents[3]
 
 # Explicit expected values also keep the export/mapping tests independent of implementation.
 DEFAULTS: dict[str, Any] = {
+    "reenrollment_sweep_enabled": False,
+    "reenrollment_sweep_interval_years": 3,
+    "reenrollment_sweep_first_year": None,
     "deferral_escalation_mode": "automatic",
     "deferral_escalation_participant_elected_signup_probability": 0.0,
     "easy_enroll_enabled": False,
