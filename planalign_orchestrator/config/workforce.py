@@ -13,7 +13,11 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from .participant_behavior import BelowDefaultSettings
+from .participant_behavior import (
+    BelowDefaultSettings,
+    DeferralChangeMultiplierBand,
+    DeferralChangeMultiplierBands,
+)
 
 
 class WorkforceSettings(BaseModel):
@@ -33,24 +37,28 @@ class WorkforceSettings(BaseModel):
 # Opt-Out Rate Settings
 # =============================================================================
 
-# Demographic sensitivity multipliers applied to the target opt-out rate.
-# Calibrated so a weighted average across a typical workforce ≈ 1.0.
-OPT_OUT_AGE_MULTIPLIERS = {
-    "young": 1.8,
-    "mid_career": 1.1,
-    "mature": 0.7,
-    "senior": 0.4,
-}
-OPT_OUT_INCOME_MULTIPLIERS = {
-    "low_income": 1.3,
-    "moderate": 1.0,
-    "high": 0.8,
-    "executive": 0.5,
-}
+
+class OptOutMultipliers(BaseModel):
+    """Relative opt-out propensity, normalized within each candidate cohort."""
+
+    age: DeferralChangeMultiplierBands = Field(
+        default_factory=lambda: [
+            DeferralChangeMultiplierBand(min=lower, multiplier=factor)
+            for lower, factor in [(0, 1.8), (30, 1.1), (45, 0.7), (60, 0.4)]
+        ]
+    )
+    income: DeferralChangeMultiplierBands = Field(
+        default_factory=lambda: [
+            DeferralChangeMultiplierBand(min=lower, multiplier=factor)
+            for lower, factor in [(0, 1.3), (50000, 1.0), (100000, 0.8), (200000, 0.5)]
+        ]
+    )
 
 
 class OptOutRatesSettings(BaseModel):
-    """Opt-out rate settings: analyst sets a single target, demographic rates derived."""
+    """Opt-out target and relative age/income propensity bands."""
+
+    multipliers: OptOutMultipliers = Field(default_factory=OptOutMultipliers)
 
     target: float = Field(
         default=0.09, ge=0, le=1, description="Overall target opt-out rate"

@@ -211,6 +211,8 @@ export interface FormData {
 
   // DC Plan - Auto-Enrollment Opt-Out Rate
   dcOptOutRateTarget: number;
+  dcOptOutMultipliersAge: NonNullable<components['schemas']['StudioDCPlanConfig']['opt_out_multipliers_age']>;
+  dcOptOutMultipliersIncome: NonNullable<components['schemas']['StudioDCPlanConfig']['opt_out_multipliers_income']>;
 
   // DC Plan - New-hire enrollment rates (issue #652). Empty string = unset,
   // which keeps the demographic model. Any value is an exact percentage.

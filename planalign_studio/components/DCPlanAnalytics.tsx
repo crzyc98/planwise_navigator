@@ -862,6 +862,12 @@ export default function DCPlanAnalytics() {
             />
           </div>
 
+          {analytics.opt_out_by_year?.length > 0 && <div className="rounded-xl border border-border p-4 text-sm">
+            <h3 className="font-semibold">Demographic opt-outs: target and realized rate</h3>
+            <p className="text-ink-muted">All opt-out candidates, independent of the population filters above. Specified flat new-hire cohorts are excluded. Realized rates vary with deterministic draws; clipping can lower the expected rate.</p>
+            {analytics.opt_out_by_year.map(row => <p key={row.year}>{row.year}: target {(row.target_rate * 100).toFixed(1)}%; realized {row.realized_rate == null ? 'unavailable (no candidates)' : `${(row.realized_rate * 100).toFixed(1)}%`} ({row.opt_out_count}/{row.candidate_count})</p>)}
+          </div>}
+
           {/* Scenario Info Banner */}
           <div className="bg-info-surface border border-info-border rounded-lg p-4 flex items-center justify-between">
             <div>

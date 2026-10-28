@@ -5319,6 +5319,13 @@
             "title": "Match Contribution Rate",
             "type": "number"
           },
+          "opt_out_by_year": {
+            "items": {
+              "$ref": "#/components/schemas/OptOutYearSummary"
+            },
+            "title": "Opt Out By Year",
+            "type": "array"
+          },
           "participation_by_method": {
             "$ref": "#/components/schemas/ParticipationByMethod",
             "description": "Breakdown by enrollment method"
@@ -5402,6 +5409,7 @@
           "scenario_id",
           "scenario_name",
           "resolved_first_simulation_year",
+          "opt_out_by_year",
           "total_eligible",
           "total_enrolled",
           "participation_rate",
@@ -10123,6 +10131,47 @@
           "message"
         ],
         "title": "OptOutRateAnalysisResult",
+        "type": "object"
+      },
+      "OptOutYearSummary": {
+        "description": "Run-recorded demographic opt-out rate; excludes specified flat new hires.",
+        "properties": {
+          "candidate_count": {
+            "title": "Candidate Count",
+            "type": "integer"
+          },
+          "opt_out_count": {
+            "title": "Opt Out Count",
+            "type": "integer"
+          },
+          "realized_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Realized Rate"
+          },
+          "target_rate": {
+            "title": "Target Rate",
+            "type": "number"
+          },
+          "year": {
+            "title": "Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "year",
+          "candidate_count",
+          "opt_out_count",
+          "target_rate",
+          "realized_rate"
+        ],
+        "title": "OptOutYearSummary",
         "type": "object"
       },
       "OptimizationIteration": {
@@ -15234,6 +15283,49 @@
               }
             ],
             "title": "Match Tiers"
+          },
+          "opt_out_multipliers_age": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DeferralChangeMultiplierBand"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opt Out Multipliers Age"
+          },
+          "opt_out_multipliers_income": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DeferralChangeMultiplierBand"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opt Out Multipliers Income"
+          },
+          "opt_out_rate_target": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opt Out Rate Target"
           },
           "points_match_tiers": {
             "anyOf": [

@@ -64,7 +64,7 @@ const SCALARS: Mapping[] = [
   ['dcAutoEnrollWindowDays', 'auto_enrollment_window_days'],
   ['dcAutoEnrollOptOutGracePeriod', 'auto_enrollment_opt_out_grace_period'],
   ['dcAutoEnrollHireDateCutoff', 'auto_enrollment_hire_date_cutoff'],
-  ['dcOptOutRateTarget', 'opt_out_rate_moderate', 100],
+  ['dcOptOutRateTarget', 'opt_out_rate_target', 100],
   ['dcMatchMagnetEnabled', 'enrollment_match_magnet_enabled'],
   ['dcMatchMagnetProbability', 'enrollment_match_magnet_probability', 100],
   ['dcMatchMagnetDownwardEnabled', 'enrollment_match_magnet_downward_enabled'],
@@ -116,6 +116,8 @@ function applyEnrollment(variables: Variables, form: FormData): FormData {
     dcDeferralSpreadMaxLift: variables.deferral_spread_max_lift == null ? form.dcDeferralSpreadMaxLift : String(variables.deferral_spread_max_lift),
     dcEscalationHireDateCutoff: (variables.deferral_escalation_hire_date_cutoff ?? '') as string,
     dcVoluntaryDeferralBaseRates: rates,
+    dcOptOutMultipliersAge: rows<FormData['dcOptOutMultipliersAge'][number]>(variables.opt_out_multipliers_age) ?? form.dcOptOutMultipliersAge,
+    dcOptOutMultipliersIncome: rows<FormData['dcOptOutMultipliersIncome'][number]>(variables.opt_out_multipliers_income) ?? form.dcOptOutMultipliersIncome,
     ...(rows<FormData['dcDeferralRateChangesIncreaseSteps'][number]>(variables.deferral_rate_changes_increase_steps)
       ? { dcDeferralRateChangesIncreaseSteps: stepsToPercent(variables.deferral_rate_changes_increase_steps as FormData['dcDeferralRateChangesIncreaseSteps']) } : {}),
     ...(rows<FormData['dcDeferralRateChangesDecreaseSteps'][number]>(variables.deferral_rate_changes_decrease_steps)

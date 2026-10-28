@@ -1,3 +1,4 @@
+import { OptOutBandsEditor } from './OptOutBandsEditor';
 import { NumericInput } from './NumericInput';
 import { useEffect, useState } from 'react';
 import { AlertTriangle, BarChart3, Info, X } from 'lucide-react';
@@ -426,22 +427,7 @@ export function DCPlanSection() {
                  <InputField label="Target Opt-Out Rate" {...inputProps('dcOptOutRateTarget')} type="number" step="0.5" suffix="%" helper="Demographic opt-out target for continuing employees and any new hires using the demographic model." min={0} max={100} />
                </div>
 
-               {/* Derived rates preview */}
-               <details open={formData.dcAutoEnroll} className="text-xs text-ink-muted">
-                 <summary className="cursor-pointer hover:text-ink-muted font-medium">View derived demographic rates</summary>
-                 <div className="mt-2 grid grid-cols-2 gap-x-8 gap-y-1 pl-2">
-                   <p className="font-medium text-ink-muted col-span-2 mt-1">By Age</p>
-                   <span>Young (18-30): {(Number(formData.dcOptOutRateTarget) * 1.8).toFixed(1)}%</span>
-                   <span>Mid-Career (31-45): {(Number(formData.dcOptOutRateTarget) * 1.1).toFixed(1)}%</span>
-                   <span>Mature (46-55): {(Number(formData.dcOptOutRateTarget) * 0.7).toFixed(1)}%</span>
-                   <span>Senior (55+): {(Number(formData.dcOptOutRateTarget) * 0.4).toFixed(1)}%</span>
-                   <p className="font-medium text-ink-muted col-span-2 mt-1">By Income</p>
-                   <span>Low Income: {(Number(formData.dcOptOutRateTarget) * 1.3).toFixed(1)}%</span>
-                   <span>Moderate: {(Number(formData.dcOptOutRateTarget) * 1.0).toFixed(1)}%</span>
-                   <span>High: {(Number(formData.dcOptOutRateTarget) * 0.8).toFixed(1)}%</span>
-                   <span>Executive: {(Number(formData.dcOptOutRateTarget) * 0.5).toFixed(1)}%</span>
-                 </div>
-               </details>
+               <OptOutBandsEditor form={formData} onChange={changes => setFormData(prev => ({ ...prev, ...changes }))} />
              </fieldset>
              <EnrollmentRateInput kind="optOut" />
   </>;

@@ -199,33 +199,16 @@ class TestExportEnrollmentVars:
         assert result["auto_enrollment_default_deferral_rate"] == 0.05
         assert result["auto_enrollment_opt_out_grace_period"] == 15
 
-    def test_opt_out_rates_derived_from_target_by_age(self):
-        from planalign_orchestrator.config.workforce import OPT_OUT_AGE_MULTIPLIERS
-
+    def test_opt_out_target_and_bands(self):
         cfg = _make_config()
         cfg.enrollment.auto_enrollment.opt_out_rates.target = 0.10
         result = _export_enrollment_vars(cfg)
-        assert result["opt_out_rate_young"] == pytest.approx(
-            0.10 * OPT_OUT_AGE_MULTIPLIERS["young"]
-        )
-        assert result["opt_out_rate_mid"] == pytest.approx(
-            0.10 * OPT_OUT_AGE_MULTIPLIERS["mid_career"]
-        )
-        assert result["opt_out_rate_mature"] == pytest.approx(
-            0.10 * OPT_OUT_AGE_MULTIPLIERS["mature"]
-        )
-        assert result["opt_out_rate_senior"] == pytest.approx(
-            0.10 * OPT_OUT_AGE_MULTIPLIERS["senior"]
-        )
-
-    def test_opt_out_rates_derived_from_target_by_income(self):
-        from planalign_orchestrator.config.workforce import OPT_OUT_INCOME_MULTIPLIERS
-
-        cfg = _make_config()
-        cfg.enrollment.auto_enrollment.opt_out_rates.target = 0.10
-        result = _export_enrollment_vars(cfg)
-        for key, mult in OPT_OUT_INCOME_MULTIPLIERS.items():
-            assert result[f"opt_out_rate_{key}"] == pytest.approx(0.10 * mult)
+        assert result["opt_out_rate_target"] == 0.10
+        assert result["opt_out_multipliers_age"][1] == {"min": 30, "multiplier": 1.1}
+        assert result["opt_out_multipliers_income"][1] == {
+            "min": 50000,
+            "multiplier": 1.0,
+        }
 
     def test_proactive_enrollment(self):
         cfg = _make_config()
@@ -291,12 +274,12 @@ class TestExportEnrollmentVars:
             "opt_out_rate_executive": 0.08,
         }
         result = _export_enrollment_vars(cfg)
-        assert result["opt_out_rate_young"] == 0.20
-        assert result["opt_out_rate_mid"] == 0.15
-        assert result["opt_out_rate_mature"] == 0.10
-        assert result["opt_out_rate_senior"] == 0.05
-        assert result["opt_out_rate_low_income"] == 0.25
-        assert result["opt_out_rate_executive"] == 0.08
+        assert "opt_out_rate_young" not in result
+        assert "opt_out_rate_moderate" not in result
+        assert (
+            result["opt_out_rate_target"]
+            == cfg.enrollment.auto_enrollment.opt_out_rates.target
+        )
 
     def test_dc_plan_escalation_settings(self):
         cfg = _make_config()
@@ -366,7 +349,7 @@ class TestExportEnrollmentVars:
         cfg.dc_plan = 42  # non-dict, no model_dump
         result = _export_enrollment_vars(cfg)
         # Should still have base enrollment vars from the typed config
-        assert "opt_out_rate_young" in result
+        assert "opt_out_rate_target" in result
 
     def test_voluntary_enrollment_rate_exported_when_set(self):
         """voluntary_enrollment_rate is exported to dbt vars when configured."""
@@ -615,8 +598,8 @@ class TestNewHireOptOutRateExport:
         cfg = _make_config()
         cfg.enrollment.auto_enrollment.new_hire_opt_out_rate = 0.1
         result = _export_enrollment_vars(cfg)
-        assert "opt_out_rate_young" in result
-        assert "opt_out_rate_senior" in result
+        assert "opt_out_rate_target" in result
+        assert "opt_out_multipliers_age" in result
 
 
 class TestVoluntaryEnrollmentRateSemantics:
@@ -1600,7 +1583,7 @@ class TestToDbtVars:
         assert "random_seed" in result
         # Enrollment
         assert "auto_enrollment_enabled" in result
-        assert "opt_out_rate_young" in result
+        assert "opt_out_rate_target" in result
         # Threading
         assert "dbt_threads" in result
         assert "event_generation_mode" in result

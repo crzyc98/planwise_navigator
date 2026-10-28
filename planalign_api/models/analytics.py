@@ -116,6 +116,16 @@ class IRSLimitMetrics(APIModel):
     irs_limit_rate: float = Field(description="Percentage of participants at limit")
 
 
+class OptOutYearSummary(APIModel):
+    """Run-recorded demographic opt-out rate; excludes specified flat new hires."""
+
+    year: int
+    candidate_count: int
+    opt_out_count: int
+    target_rate: float
+    realized_rate: float | None
+
+
 class DCPlanAnalytics(APIModel):
     """Complete DC Plan analytics for a scenario."""
 
@@ -128,6 +138,8 @@ class DCPlanAnalytics(APIModel):
             "requested cohort (134-new-hire-cohort)"
         )
     )
+
+    opt_out_by_year: List[OptOutYearSummary] = Field(default_factory=list)
 
     # Participation summary
     total_eligible: int = Field(description="Total eligible employees")

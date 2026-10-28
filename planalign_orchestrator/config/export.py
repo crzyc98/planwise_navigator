@@ -304,15 +304,13 @@ def _export_auto_enrollment_fields(auto: Any, dbt_vars: Dict[str, Any]) -> None:
 
 
 def _export_opt_out_rates(auto: Any, dbt_vars: Dict[str, Any]) -> None:
-    """Derive demographic opt-out rates from the single target rate."""
-    from .workforce import OPT_OUT_AGE_MULTIPLIERS, OPT_OUT_INCOME_MULTIPLIERS
-
-    target = float(auto.opt_out_rates.target)
-    for key, mult in OPT_OUT_AGE_MULTIPLIERS.items():
-        dbt_key = f"opt_out_rate_{key}" if key != "mid_career" else "opt_out_rate_mid"
-        dbt_vars[dbt_key] = target * mult
-    for key, mult in OPT_OUT_INCOME_MULTIPLIERS.items():
-        dbt_vars[f"opt_out_rate_{key}"] = target * mult
+    """Export the target and normalized demographic propensity bands."""
+    dbt_vars["opt_out_rate_target"] = float(auto.opt_out_rates.target)
+    for dimension in ("age", "income"):
+        dbt_vars[f"opt_out_multipliers_{dimension}"] = [
+            band.model_dump()
+            for band in getattr(auto.opt_out_rates.multipliers, dimension)
+        ]
 
 
 def _export_voluntary_enrollment(
@@ -384,17 +382,6 @@ _DC_PLAN_AUTO_ENROLL_FIELDS: Dict[str, tuple] = {
     "auto_enroll_window_days": ("auto_enrollment_window_days", int),
     "auto_enroll_opt_out_grace_period": ("auto_enrollment_opt_out_grace_period", int),
 }
-
-_DC_PLAN_OPT_OUT_DEMOGRAPHIC_FIELDS = (
-    "opt_out_rate_young",
-    "opt_out_rate_mid",
-    "opt_out_rate_mature",
-    "opt_out_rate_senior",
-    "opt_out_rate_low_income",
-    "opt_out_rate_moderate",
-    "opt_out_rate_high",
-    "opt_out_rate_executive",
-)
 
 # Escalation fields: dc_plan source key -> (dbt_vars target key, cast, percent_divide)
 _DC_PLAN_ESCALATION_FIELDS: Dict[str, tuple] = {
@@ -540,10 +527,14 @@ def _apply_dc_plan_enrollment_overrides(
     if scope is not None:
         dbt_vars["auto_enrollment_scope"] = _SCOPE_MAP.get(scope, scope)
 
-    # Opt-out rates: if UI sends a target, derive all demographic rates from it.
-    # Also accept pre-derived demographic rates (sent alongside target by frontend).
-    for field in _DC_PLAN_OPT_OUT_DEMOGRAPHIC_FIELDS:
-        _set_if_not_none(dbt_vars, field, dc_plan_dict.get(field), float)
+    # Legacy segment rates are ignored; the target and bands are authoritative.
+    _set_if_not_none(
+        dbt_vars, "opt_out_rate_target", dc_plan_dict.get("opt_out_rate_target"), float
+    )
+    for dimension in ("age", "income"):
+        key = f"opt_out_multipliers_{dimension}"
+        if dc_plan_dict.get(key) is not None:
+            dbt_vars[key] = dc_plan_dict[key]
 
     for field in (
         "enabled",

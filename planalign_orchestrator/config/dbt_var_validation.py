@@ -81,6 +81,7 @@ RATE_VARS = frozenset(
         "enrollment_match_magnet_probability",
         "new_hire_ineligible_pct",
         "new_hire_opt_out_rate",
+        "opt_out_rate_target",
         "new_hire_termination_rate",
         "part_time_new_hire_pct",
         "promotion_max_cap_pct",
@@ -157,6 +158,12 @@ _LIST_MODELS: dict[str, tuple[type[BaseModel], str]] = {
         "decrease_steps",
     ),
 }
+
+for _dimension in ("age", "income"):
+    _LIST_MODELS[f"opt_out_multipliers_{_dimension}"] = (
+        DeferralChangeDirectionMultipliers,
+        _dimension,
+    )
 
 for _direction in ("increase", "decrease"):
     for _dimension in ("age", "income", "tenure"):

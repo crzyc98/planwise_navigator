@@ -53,6 +53,14 @@ _DMR = "deferral_match_response"
 # Enums and constrained lists reject the generic mutation; each entry is a valid
 # change (linked sub-rates move together so they still sum to 1).
 VALID_ALTERNATES: dict[str, dict[str, Any]] = {
+    **{
+        f"enrollment.auto_enrollment.opt_out_rates.multipliers.{dim}": {
+            f"enrollment.auto_enrollment.opt_out_rates.multipliers.{dim}": [
+                {"min": 0, "multiplier": 1.0}
+            ]
+        }
+        for dim in ("age", "income")
+    },
     "enrollment.auto_enrollment.reenrollment_sweep.method": {
         "enrollment.auto_enrollment.reenrollment_sweep.method": "into_aip"
     },

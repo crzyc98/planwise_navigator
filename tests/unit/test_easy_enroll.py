@@ -149,7 +149,8 @@ def _enrollment_sql(ae: bool, share: float) -> str:
     source = (DBT / "models/intermediate/int_enrollment_events.sql").read_text()
     tail = source[source.index("{% if var('easy_enroll_enabled', false) %}") :]
     return _render_sql(
-        "WITH fixture_boundary AS (SELECT 1)\n" + tail,
+        "{% set flat_new_hire_opt_out_rate = none %}WITH opt_out_candidates AS (SELECT employee_id, simulation_year FROM deduplicated_events WHERE FALSE), fixture_boundary AS (SELECT 1)\n"
+        + tail,
         easy_enroll_enabled=True,
         auto_enrollment_enabled=ae,
         # Opposite inactive shares catch use of the wrong AE configuration branch.

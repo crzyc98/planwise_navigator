@@ -231,7 +231,9 @@ export const DEFAULT_FORM_DATA: FormData = {
   dcAutoEnrollHireDateCutoff: '2020-01-01',
 
   // DC Plan - Auto-Enrollment Opt-Out Rate (overall target percentage)
-  dcOptOutRateTarget: 8,
+  dcOptOutRateTarget: 9,
+  dcOptOutMultipliersAge: [{ min: 0, multiplier: 1.8 }, { min: 30, multiplier: 1.1 }, { min: 45, multiplier: 0.7 }, { min: 60, multiplier: 0.4 }],
+  dcOptOutMultipliersIncome: [{ min: 0, multiplier: 1.3 }, { min: 50000, multiplier: 1 }, { min: 100000, multiplier: 0.8 }, { min: 200000, multiplier: 0.5 }],
 
   // DC Plan - New-hire enrollment rates (issue #652).
   // Set explicitly so a new scenario starts on the flat new-hire rates rather

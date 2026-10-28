@@ -116,3 +116,29 @@ GROUP BY 1, 2 ORDER BY 1, 3 DESC;
 ```
 
 The integration suites in `tests/integration/test_new_hire_enrollment_rates.py` and `tests/integration/test_deferral_spread.py` run these assertions against databases named by `PLANALIGN_652_DB_*` environment variables.
+
+## Demographic opt-out bands
+
+`enrollment.auto_enrollment.opt_out_rates.target` defaults to 0.09. Under
+`opt_out_rates.multipliers`, `age` and `income` each accept ordered
+`{min, multiplier}` bands. Minimums start at zero and increase strictly;
+multipliers are nonnegative. Intervals include the minimum and exclude the next
+minimum. Default age minimums are 0, 30, 45, 60 (multipliers 1.8, 1.1, 0.7, 0.4);
+income minimums are $0, $50,000, $100,000, $200,000 (1.3, 1, 0.8, 0.5).
+Studio exposes these in the collapsed **Advanced: opt-out by age and income** section.
+
+Within each year and hire-year/continuing candidate cohort, probability is
+`min(1, target * age_multiplier * income_multiplier / mean_weight)`.
+With positive mean weight and no saturation, the mean probability equals the
+target. Deterministic draws do not guarantee the exact realized fraction.
+Clipping at 1 can lower the mean below target. An all-zero cohort uses the flat
+target. All-one multipliers reproduce flat-target probabilities. A specified
+new-hire flat opt-out rate retains its existing deterministic rank selection.
+Saved legacy demographic segment rates are ignored; the target and bands apply.
+
+DC Plan analytics shows each run's recorded demographic target alongside realized
+opt-outs and the candidate denominator by year. These figures cover all candidates
+and do not follow the snapshot population filters. Specified flat new-hire cohorts
+are excluded. Older runs without diagnostics show no demographic rate report;
+rerun to populate it. Defaults retain the existing relative propensities; no
+plan-level opt-out data was available to refit them.
