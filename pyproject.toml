@@ -65,7 +65,7 @@ dev = [
     # alongside it for compatibility (#705) -- see requirements-dev.txt.
     "pytest==9.1.1",
     "pytest-cov==7.1.0",
-    "pytest-mock==3.16.0",
+    "pytest-mock==3.17.0",
     "pytest-xdist==3.8.0",
     "pytest-split==0.11.0",
     "hypothesis>=6.0.0",
@@ -73,7 +73,7 @@ dev = [
     "Faker==40.43.0",
 
     # Code Quality
-    "ruff==0.17.1",
+    "ruff==0.17.2",
     "black==26.10.1",
     "isort==9.0.2",
     # Keep mypy on the validated version until the dev toolchain is reviewed.
@@ -91,9 +91,9 @@ dev = [
     # mkdocs>=1.6; pymdown-extensions pinned explicitly (was transitive) at
     # its own fix version to clear PYSEC-2026-3609/PYSEC-2026-3654 (#705).
     "mkdocs==1.6.1",
-    "mkdocs-material==9.7.7",
+    "mkdocs-material==9.8.0",
     "pymdown-extensions==12.3",
-    "mkdocstrings-python==2.0.9",
+    "mkdocstrings-python==2.0.10",
     "jupyter==1.1.1",
     "ipython==9.17.1",
     "ipdb==0.13.13",
