@@ -1672,7 +1672,15 @@ models:
     config:
       tags: ["enrollment", "dc_plan", "epic_e023", "event_sourcing"]
     data_tests:
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "optout_realized_count >= 0 AND optout_realized_count <= optout_candidate_count"
       - reenrollment_sweep_eligibility
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "event_probability >= 0 AND event_probability <= 1"
+          config:
+            where: "event_category = 'enrollment_opt_out'"
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns: [scenario_id, employee_id, simulation_year, event_type]

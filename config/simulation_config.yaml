@@ -77,6 +77,20 @@ plan_eligibility:
 enrollment:
   # Auto-enrollment configuration
   auto_enrollment:
+    opt_out_rates:
+      target: 0.09
+      # Relative propensities are normalized across each opt-out candidate cohort.
+      multipliers:
+        age:
+          - {min: 0, multiplier: 1.8}
+          - {min: 30, multiplier: 1.1}
+          - {min: 45, multiplier: 0.7}
+          - {min: 60, multiplier: 0.4}
+        income:
+          - {min: 0, multiplier: 1.3}
+          - {min: 50000, multiplier: 1.0}
+          - {min: 100000, multiplier: 0.8}
+          - {min: 200000, multiplier: 0.5}
     # Optional plan provision: re-default eligible noncontributors, including opt-outs.
     # Applies in first_year and every interval_years thereafter; normal opt-out applies again.
     # Sweeps include eligible legacy hires regardless of AE scope or cutoff.

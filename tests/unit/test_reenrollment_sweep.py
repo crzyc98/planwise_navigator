@@ -208,7 +208,11 @@ def test_per_design_sweep_schedule_and_defaults() -> None:
 def render_events(source: str, **variables: Any) -> str:
     macros = "\n".join(
         (DBT / "macros" / name).read_text()
-        for name in ("utils/subsystem_seed.sql", "self_directed_enrollment_rate.sql")
+        for name in (
+            "utils/subsystem_seed.sql",
+            "self_directed_enrollment_rate.sql",
+            "deferral_change.sql",
+        )
     )
     return (
         Environment(undefined=StrictUndefined)
@@ -244,7 +248,7 @@ def test_sweep_election_and_repeat_optout_survive_final_deduplication(
         )
     ]
     optouts = source[
-        source.index("opt_out_candidates AS (") : source.index(
+        source.index("opt_out_candidates_raw AS (") : source.index(
             "-- Combine all enrollment-related events"
         )
     ]
@@ -257,10 +261,9 @@ def test_sweep_election_and_repeat_optout_survive_final_deduplication(
         + tail,
         simulation_year=2027,
         start_year=2025,
-        **{
-            f"opt_out_rate_{age}": opt_out_rate
-            for age in ("young", "mid", "mature", "senior")
-        },
+        opt_out_rate_target=opt_out_rate,
+        opt_out_multipliers_age=[{"min": 0, "multiplier": 1}],
+        opt_out_multipliers_income=[{"min": 0, "multiplier": 1}],
     )
     with duckdb.connect() as conn:
         stable = (

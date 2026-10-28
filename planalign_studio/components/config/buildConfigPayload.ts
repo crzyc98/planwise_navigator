@@ -11,21 +11,6 @@ function rateOverride(key: string, mode: FormData['dcVoluntaryEnrollmentMode'], 
   return value !== '' ? { [key]: Number(value) / 100 } : {};
 }
 
-// Demographic sensitivity multipliers applied to the target opt-out rate.
-// Weights are calibrated so a weighted average across a typical workforce ≈ 1.0.
-const OPT_OUT_AGE_MULTIPLIERS = {
-  young: 1.8,       // 18-30: highest opt-out
-  mid: 1.1,         // 31-45: slightly above average
-  mature: 0.7,      // 46-55: below average
-  senior: 0.4,      // 55+: lowest opt-out
-};
-const OPT_OUT_INCOME_MULTIPLIERS = {
-  low_income: 1.3,  // <$50k: highest opt-out
-  moderate: 1.0,    // $50k-$100k: baseline
-  high: 0.8,        // $100k-$200k: below average
-  executive: 0.5,   // >$200k: lowest opt-out
-};
-
 export function buildConfigPayload(
   formData: FormData,
   promotionHazardConfig: PromotionHazardConfig | null,
@@ -123,6 +108,8 @@ export function buildConfigPayload(
       auto_enroll_scope: formData.dcAutoEnrollScope,
       auto_enroll_hire_date_cutoff: formData.dcAutoEnrollHireDateCutoff,
       opt_out_rate_target: Number(formData.dcOptOutRateTarget) / 100,
+      opt_out_multipliers_age: formData.dcOptOutMultipliersAge,
+      opt_out_multipliers_income: formData.dcOptOutMultipliersIncome,
       ...rateOverride('voluntary_enrollment_rate', formData.dcVoluntaryEnrollmentMode, formData.dcVoluntaryEnrollmentRate),
       ...rateOverride('new_hire_opt_out_rate', formData.dcNewHireOptOutMode, formData.dcNewHireOptOutRate),
       ...(formData.dcDeferralSpreadMaxLift !== '' ? { deferral_spread_max_lift: Number(formData.dcDeferralSpreadMaxLift) } : {}),
@@ -164,14 +151,6 @@ export function buildConfigPayload(
         downward_enabled: Boolean(formData.dcMatchResponseDownwardEnabled),
         downward_participation_rate: Number(formData.dcMatchResponseDownwardParticipation) / 100,
       },
-      opt_out_rate_young: Number(formData.dcOptOutRateTarget) / 100 * OPT_OUT_AGE_MULTIPLIERS.young,
-      opt_out_rate_mid: Number(formData.dcOptOutRateTarget) / 100 * OPT_OUT_AGE_MULTIPLIERS.mid,
-      opt_out_rate_mature: Number(formData.dcOptOutRateTarget) / 100 * OPT_OUT_AGE_MULTIPLIERS.mature,
-      opt_out_rate_senior: Number(formData.dcOptOutRateTarget) / 100 * OPT_OUT_AGE_MULTIPLIERS.senior,
-      opt_out_rate_low_income: Number(formData.dcOptOutRateTarget) / 100 * OPT_OUT_INCOME_MULTIPLIERS.low_income,
-      opt_out_rate_moderate: Number(formData.dcOptOutRateTarget) / 100 * OPT_OUT_INCOME_MULTIPLIERS.moderate,
-      opt_out_rate_high: Number(formData.dcOptOutRateTarget) / 100 * OPT_OUT_INCOME_MULTIPLIERS.high,
-      opt_out_rate_executive: Number(formData.dcOptOutRateTarget) / 100 * OPT_OUT_INCOME_MULTIPLIERS.executive,
       match_enabled: Boolean(formData.dcMatchEnabled),
       match_template: formData.dcMatchTemplate,
       match_tiers: formData.dcMatchTiers.map(t => ({

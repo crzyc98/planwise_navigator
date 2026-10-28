@@ -283,18 +283,6 @@ vars:
   voluntary_tenure_factor_per_year: 0.05      # +5% per year of service
   voluntary_high_earner_bonus: 0.15           # +15% for earners >$100k
 
-  # Opt-out probabilities by demographics
-  opt_out_rate_young: 0.35                    # Ages 18-25
-  opt_out_rate_mid: 0.20                      # Ages 26-35
-  opt_out_rate_mature: 0.15                   # Ages 36-50
-  opt_out_rate_senior: 0.10                   # Ages 51+
-
-  # Income-based opt-out adjustments
-  opt_out_rate_low_income: 0.40               # <$30k (higher opt-out)
-  opt_out_rate_moderate: 0.25                 # $30k-$50k (baseline)
-  opt_out_rate_high: 0.15                     # $50k-$100k (lower opt-out)
-  opt_out_rate_executive: 0.05                # >$100k (lowest opt-out)
-
   # Deferral rate distribution for new enrollments
   deferral_rate_3pct_prob: 0.25               # 25% choose 3% (match threshold)
   deferral_rate_6pct_prob: 0.35               # 35% choose 6% (common default)

@@ -84,6 +84,9 @@ class StudioPointsMatchTier(PartialConfig):
 
 
 class StudioDCPlanConfig(PartialConfig):
+    opt_out_rate_target: Rate | None = None
+    opt_out_multipliers_age: DeferralChangeMultiplierBands | None = None
+    opt_out_multipliers_income: DeferralChangeMultiplierBands | None = None
     auto_enroll: bool | None = None
     reenrollment_sweep_enabled: bool | None = None
     reenrollment_sweep_interval_years: int | None = Field(

@@ -248,9 +248,8 @@ def fit_opt_out_target(
 ) -> Optional[FittedValue]:
     """Fit the overall opt-out rate as first-year non-participation.
 
-    The typed config exposes a single ``target`` and derives demographic rates
-    from it (``OPT_OUT_AGE_MULTIPLIERS``), so one scalar is what the simulator
-    consumes. This is a *proxy*: the census records participation, not who was
+    Fit the headline ``target``; retain the configured age/income propensity
+    bands, which the simulator normalizes within each opt-out candidate cohort. This is a *proxy*: the census records participation, not who was
     auto-enrolled and then opted out.
     """
     if not posture.covers_new_hires:

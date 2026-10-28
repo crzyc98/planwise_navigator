@@ -266,6 +266,8 @@ function mapDCPlanEnrollmentFields(cfg: any, prev: FormData): Partial<FormData> 
     dcAutoEnrollOptOutGracePeriod: cfg.dc_plan?.auto_enroll_opt_out_grace_period ?? prev.dcAutoEnrollOptOutGracePeriod,
     dcAutoEnrollScope: cfg.dc_plan?.auto_enroll_scope || prev.dcAutoEnrollScope,
     dcAutoEnrollHireDateCutoff: cfg.dc_plan?.auto_enroll_hire_date_cutoff ?? prev.dcAutoEnrollHireDateCutoff,
+    dcOptOutMultipliersAge: cfg.dc_plan?.opt_out_multipliers_age ?? prev.dcOptOutMultipliersAge,
+    dcOptOutMultipliersIncome: cfg.dc_plan?.opt_out_multipliers_income ?? prev.dcOptOutMultipliersIncome,
     dcOptOutRateTarget: cfg.dc_plan?.opt_out_rate_target != null
       ? cfg.dc_plan.opt_out_rate_target * 100 : prev.dcOptOutRateTarget,
     dcVoluntaryEnrollmentRate: cfg.dc_plan?.voluntary_enrollment_rate != null

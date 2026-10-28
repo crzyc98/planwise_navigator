@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
 ### Removed
 
 - Deleted 238 YAML settings with no effect from setup, compensation, new_hire_compensation, raise_timing, plan_year, plan_eligibility, enrollment, employee_id_generation, optimization, orchestrator, multi_year, deferral_baseline, deferral_rates, corporate_network, and legacy ops. Stopped exporting 11 unread dbt variables and added guards for YAML consumers and exported-variable readers.
@@ -22,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - DC Plan participation charts no longer classify nonparticipants labeled "not auto enrolled" as automatically enrolled. Enrollment-method counts exclude unenrolled and nonparticipating rows; existing run results display correctly without rerunning simulations.
 
 ### Changed
+
+- Opt-out age and income bands are configurable in YAML and Studio's advanced opt-out section. Cohort-normalized probabilities now target the configured rate, reducing the previous demographic bias (about 12–14% against a 9% target in observed runs). Realized rates vary with deterministic draws; clipping at 100% can lower the expected rate. Default runs can produce fewer opt-outs.
 
 - First-year match-responsive deferral increases can reach the full employer-match threshold even above the annual auto-escalation cap. Simultaneous escalation no longer clips that response; the existing IRS rate-equivalent limit remains. Reruns can produce higher employee contributions and employer matches. Studio now keeps the escalation cap inside the collapsible annual escalation settings.
 - Studio match eligibility controls now show the requirements actually in effect for legacy configurations. Editing one requirement saves the complete displayed policy instead of silently activating other dormant eligibility settings; unchanged configurations retain their existing behavior. Configuration review describes the effective requirements directly.

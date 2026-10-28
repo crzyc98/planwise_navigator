@@ -447,9 +447,9 @@ year_over_year_enrollment_events AS (
 ),
 
 -- Issue #652: the population that CAN opt out, with a deterministic rank
--- inside its own cohort. Ranking is what makes a configured opt-out rate come
--- out exact; a raw hash threshold drifted to 14.9% against a configured 10%.
-opt_out_candidates AS (
+-- inside its own cohort. The specified flat new-hire path selects ROUND(rate * N);
+-- the demographic path below uses normalized probabilities and seeded draws.
+opt_out_candidates_raw AS (
   SELECT
     efo.*,
     (EXTRACT(YEAR FROM efo.employee_hire_date) = efo.simulation_year)
@@ -480,6 +480,28 @@ opt_out_candidates AS (
       SELECT employee_id FROM year_over_year_enrollment_events
     )
     AND efo.employment_status = 'active'
+),
+
+-- Normalize only across eligible auto-enrolled opt-out candidates.
+opt_out_candidates_weighted AS (
+  SELECT
+    efo.*,
+    {{ deferral_change_multiplier('efo.current_age', var('opt_out_multipliers_age', [
+      {'min': 0, 'multiplier': 1.8}, {'min': 30, 'multiplier': 1.1},
+      {'min': 45, 'multiplier': 0.7}, {'min': 60, 'multiplier': 0.4}])) }} *
+    {{ deferral_change_multiplier('efo.current_compensation', var('opt_out_multipliers_income', [
+      {'min': 0, 'multiplier': 1.3}, {'min': 50000, 'multiplier': 1.0},
+      {'min': 100000, 'multiplier': 0.8}, {'min': 200000, 'multiplier': 0.5}])) }} AS optout_weight
+  FROM opt_out_candidates_raw efo
+),
+opt_out_candidates AS (
+  SELECT
+    efo.*,
+    LEAST(1.0, {{ var('opt_out_rate_target', 0.09) }} * COALESCE(
+      optout_weight / NULLIF(AVG(optout_weight) OVER (
+        PARTITION BY simulation_year, is_hire_year_new_hire
+      ), 0), 1.0)) AS optout_probability
+  FROM opt_out_candidates_weighted efo
 ),
 
 -- Generate opt-out events using simplified logic
@@ -518,42 +540,12 @@ opt_out_events AS (
     efo.age_band,
     efo.tenure_band,
 
-    -- Opt-out probability based on demographics (9% target × sensitivity multipliers)
-    {%- if flat_new_hire_opt_out_rate is not none %}
-    -- Issue #652: hire-year new hires use the analyst's flat opt-out rate.
-    -- Continuing employees keep the demographic model (opt_out_rates.target).
-    CASE
-      WHEN EXTRACT(YEAR FROM efo.employee_hire_date) = efo.simulation_year
-        THEN {{ flat_new_hire_opt_out_rate }}
-      ELSE (
-    CASE efo.age_segment
-      WHEN 'young' THEN {{ var('opt_out_rate_young', 0.162) }}
-      WHEN 'mid_career' THEN {{ var('opt_out_rate_mid', 0.099) }}
-      WHEN 'mature' THEN {{ var('opt_out_rate_mature', 0.063) }}
-      ELSE {{ var('opt_out_rate_senior', 0.036) }}
-    END *
-    CASE efo.income_segment
-      WHEN 'low_income' THEN {{ var('opt_out_rate_low_income', 0.117) }} / {{ var('opt_out_rate_moderate', 0.09) }}
-      WHEN 'moderate' THEN 1.0  -- Base rate
-      WHEN 'high' THEN {{ var('opt_out_rate_high', 0.072) }} / {{ var('opt_out_rate_moderate', 0.09) }}
-      ELSE {{ var('opt_out_rate_executive', 0.045) }} / {{ var('opt_out_rate_moderate', 0.09) }}
-    END
-      )
-    END as event_probability,
-    {%- else %}
-    CASE efo.age_segment
-      WHEN 'young' THEN {{ var('opt_out_rate_young', 0.162) }}
-      WHEN 'mid_career' THEN {{ var('opt_out_rate_mid', 0.099) }}
-      WHEN 'mature' THEN {{ var('opt_out_rate_mature', 0.063) }}
-      ELSE {{ var('opt_out_rate_senior', 0.036) }}
-    END *
-    CASE efo.income_segment
-      WHEN 'low_income' THEN {{ var('opt_out_rate_low_income', 0.117) }} / {{ var('opt_out_rate_moderate', 0.09) }}
-      WHEN 'moderate' THEN 1.0  -- Base rate
-      WHEN 'high' THEN {{ var('opt_out_rate_high', 0.072) }} / {{ var('opt_out_rate_moderate', 0.09) }}
-      ELSE {{ var('opt_out_rate_executive', 0.045) }} / {{ var('opt_out_rate_moderate', 0.09) }}
-    END as event_probability,
-    {%- endif %}
+    {% if flat_new_hire_opt_out_rate is not none %}
+    CASE WHEN efo.is_hire_year_new_hire THEN {{ flat_new_hire_opt_out_rate }}
+      ELSE efo.optout_probability END AS event_probability,
+    {% else %}
+    efo.optout_probability AS event_probability,
+    {% endif %}
 
     'enrollment_opt_out' as event_category
   FROM opt_out_candidates efo
@@ -561,42 +553,15 @@ opt_out_events AS (
     {%- if flat_new_hire_opt_out_rate is not none %}
     -- Issue #652 (decision D3, revised): exact-count opt-out for hire-year
     -- new hires -- take the top Q*N of the auto-enrolled cohort by rank.
-    -- Continuing employees keep the demographic threshold unchanged.
+    -- Continuing employees use the normalized demographic probability.
     CASE
       WHEN efo.is_hire_year_new_hire
         THEN efo.optout_rank
              <= ROUND({{ flat_new_hire_opt_out_rate }} * efo.optout_cohort_size)
-      ELSE efo.optout_random < (
-      CASE efo.age_segment
-        WHEN 'young' THEN {{ var('opt_out_rate_young', 0.162) }}
-        WHEN 'mid_career' THEN {{ var('opt_out_rate_mid', 0.099) }}
-        WHEN 'mature' THEN {{ var('opt_out_rate_mature', 0.063) }}
-        ELSE {{ var('opt_out_rate_senior', 0.036) }}
-      END *
-      CASE efo.income_segment
-        WHEN 'low_income' THEN {{ var('opt_out_rate_low_income', 0.117) }} / {{ var('opt_out_rate_moderate', 0.09) }}
-        WHEN 'moderate' THEN 1.0
-        WHEN 'high' THEN {{ var('opt_out_rate_high', 0.072) }} / {{ var('opt_out_rate_moderate', 0.09) }}
-        ELSE {{ var('opt_out_rate_executive', 0.045) }} / {{ var('opt_out_rate_moderate', 0.09) }}
-      END
-      )
+      ELSE efo.optout_random < efo.optout_probability
     END
     {%- else %}
-    -- Apply probabilistic opt-out based on demographics (9% target × sensitivity multipliers)
-    efo.optout_random < (
-      CASE efo.age_segment
-        WHEN 'young' THEN {{ var('opt_out_rate_young', 0.162) }}
-        WHEN 'mid_career' THEN {{ var('opt_out_rate_mid', 0.099) }}
-        WHEN 'mature' THEN {{ var('opt_out_rate_mature', 0.063) }}
-        ELSE {{ var('opt_out_rate_senior', 0.036) }}
-      END *
-      CASE efo.income_segment
-        WHEN 'low_income' THEN {{ var('opt_out_rate_low_income', 0.117) }} / {{ var('opt_out_rate_moderate', 0.09) }}
-        WHEN 'moderate' THEN 1.0
-        WHEN 'high' THEN {{ var('opt_out_rate_high', 0.072) }} / {{ var('opt_out_rate_moderate', 0.09) }}
-        ELSE {{ var('opt_out_rate_executive', 0.045) }} / {{ var('opt_out_rate_moderate', 0.09) }}
-      END
-    )
+    efo.optout_random < efo.optout_probability
     {%- endif %}
 ),
 
@@ -794,6 +759,22 @@ deduplicated_events AS (
 )
 {% endif %}
 
+-- Persist the demographic candidate denominator with the run's target.
+, opt_out_diagnostics AS (
+  SELECT
+    COUNT(*) AS optout_candidate_count,
+    COUNT(e.employee_id) AS optout_realized_count
+  FROM opt_out_candidates c
+  LEFT JOIN deduplicated_events e
+    ON e.employee_id = c.employee_id
+    AND e.simulation_year = c.simulation_year
+    AND e.event_category = 'enrollment_opt_out'
+    AND e.priority_rank = 1
+  {% if flat_new_hire_opt_out_rate is not none %}
+  WHERE NOT COALESCE(c.is_hire_year_new_hire, FALSE)
+  {% endif %}
+)
+
 -- Final selection compatible with fct_yearly_events schema with event sourcing metadata
 -- Phase 2 Fix: Restored all critical WHERE clauses to prevent duplicate enrollments
 -- Phase 3 Fix: Added deduplication to prevent multiple enrollments per employee per year
@@ -833,6 +814,9 @@ SELECT
   {% else %}
   event_category,
   {% endif %}
+  diagnostics.optout_candidate_count,
+  diagnostics.optout_realized_count,
+  {{ var('opt_out_rate_target', 0.09) }}::DOUBLE AS optout_target_rate,
   -- Event sourcing metadata for audit trail
   ROW_NUMBER() OVER (PARTITION BY employee_id, simulation_year ORDER BY effective_date, event_type) as event_sequence,
   CURRENT_TIMESTAMP as created_at,
@@ -847,6 +831,7 @@ SELECT
     ELSE 'VALID'
   END as data_quality_flag
 FROM deduplicated_events
+CROSS JOIN opt_out_diagnostics diagnostics
 {% if var('easy_enroll_enabled', false) %}
 LEFT JOIN easy_enroll_choices USING (employee_id, simulation_year, event_type)
 {% endif %}

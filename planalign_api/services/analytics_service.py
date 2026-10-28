@@ -2,7 +2,7 @@
 
 import logging
 from decimal import Decimal
-from typing import Dict, List, Literal, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Literal, Optional, Tuple
 
 from ..models.analytics import (
     ContributionYearSummary,
@@ -15,6 +15,7 @@ from ..models.analytics import (
     GrandfatheredCostYear,
     IRSLimitMetrics,
     ParticipationByMethod,
+    OptOutYearSummary,
 )
 from ..models.employer_cost import ForfeiturePolicy
 from ..models.vesting import VestingScheduleConfig
@@ -35,6 +36,9 @@ from .database_path_resolver import (
     DatabasePathResolver,
     create_api_database_path_resolver,
 )
+
+if TYPE_CHECKING:
+    import duckdb
 
 logger = logging.getLogger(__name__)
 
@@ -488,6 +492,7 @@ class AnalyticsService:
                 first_simulation_year = self._resolve_first_simulation_year(
                     conn, workspace_id, scenario_id
                 )
+                opt_out_by_year = self._get_opt_out_by_year(conn)
                 participation = self._get_participation_summary(
                     conn, active_only, cohort, first_simulation_year, population
                 )
@@ -516,6 +521,7 @@ class AnalyticsService:
             return DCPlanAnalytics(
                 scenario_id=scenario_id,
                 scenario_name=scenario_name,
+                opt_out_by_year=opt_out_by_year,
                 resolved_first_simulation_year=first_simulation_year,
                 total_eligible=participation["total_eligible"],
                 total_enrolled=participation["total_enrolled"],
@@ -550,6 +556,40 @@ class AnalyticsService:
         except Exception as e:
             logger.error(f"Failed to get DC plan analytics: {e}")
             return None
+
+    @staticmethod
+    def _get_opt_out_by_year(
+        conn: "duckdb.DuckDBPyConnection",
+    ) -> List[OptOutYearSummary]:
+        """Use recorded candidates, not snapshot enrollment or current draft config."""
+        columns = conn.execute(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = 'int_enrollment_events'"
+        ).fetchall()
+        if not {
+            "optout_candidate_count",
+            "optout_realized_count",
+            "optout_target_rate",
+        }.issubset({row[0] for row in columns}):
+            return []
+        rows = conn.execute("""
+            SELECT simulation_year, MAX(optout_candidate_count),
+              MAX(optout_realized_count), MAX(optout_target_rate)
+            FROM int_enrollment_events
+            WHERE optout_candidate_count IS NOT NULL
+              AND optout_realized_count IS NOT NULL AND optout_target_rate IS NOT NULL
+            GROUP BY simulation_year ORDER BY simulation_year
+        """).fetchall()
+        return [
+            OptOutYearSummary(
+                year=year,
+                candidate_count=candidates,
+                opt_out_count=count,
+                target_rate=target,
+                realized_rate=count / candidates if candidates else None,
+            )
+            for year, candidates, count, target in rows
+        ]
 
     def _get_participation_summary(
         self,

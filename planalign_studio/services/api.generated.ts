@@ -5140,6 +5140,8 @@ export interface components {
              * @default 0
              */
             match_contribution_rate: number;
+            /** Opt Out By Year */
+            opt_out_by_year: components["schemas"]["OptOutYearSummary"][];
             /** @description Breakdown by enrollment method */
             participation_by_method: components["schemas"]["ParticipationByMethod"];
             /**
@@ -7459,6 +7461,22 @@ export interface components {
             total_eligible_in_census: number;
         };
         /**
+         * OptOutYearSummary
+         * @description Run-recorded demographic opt-out rate; excludes specified flat new hires.
+         */
+        OptOutYearSummary: {
+            /** Candidate Count */
+            candidate_count: number;
+            /** Opt Out Count */
+            opt_out_count: number;
+            /** Realized Rate */
+            realized_rate: number | null;
+            /** Target Rate */
+            target_rate: number;
+            /** Year */
+            year: number;
+        };
+        /**
          * OptimizationIteration
          * @description One evaluated candidate in the search.
          */
@@ -9605,6 +9623,12 @@ export interface components {
             match_template?: string | null;
             /** Match Tiers */
             match_tiers?: components["schemas"]["StudioMatchTier"][] | null;
+            /** Opt Out Multipliers Age */
+            opt_out_multipliers_age?: components["schemas"]["DeferralChangeMultiplierBand"][] | null;
+            /** Opt Out Multipliers Income */
+            opt_out_multipliers_income?: components["schemas"]["DeferralChangeMultiplierBand"][] | null;
+            /** Opt Out Rate Target */
+            opt_out_rate_target?: number | null;
             /** Points Match Tiers */
             points_match_tiers?: components["schemas"]["StudioPointsMatchTier"][] | null;
             /** Reenrollment Sweep Decline Probability */
