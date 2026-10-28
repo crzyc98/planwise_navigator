@@ -651,7 +651,9 @@ def _git(repo_root: Path, *args: str) -> subprocess.CompletedProcess:
 
 def _census_rows(parquet: Path) -> Optional[int]:
     try:
-        row = duckdb.sql(f"SELECT count(*) FROM read_parquet('{parquet}')").fetchone()
+        row = duckdb.execute(
+            f"SELECT count(*) FROM read_parquet('{parquet}')"
+        ).fetchone()
         return int(row[0]) if row is not None else None
     except Exception:
         return None

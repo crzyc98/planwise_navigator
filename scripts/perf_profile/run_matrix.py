@@ -161,7 +161,9 @@ def resolve_census(size: CensusSize) -> Path:
 
 def _census_rows(parquet: Path) -> int:
     with duckdb.connect() as conn:
-        return conn.sql(f"SELECT COUNT(*) FROM read_parquet('{parquet}')").fetchone()[0]
+        return conn.execute(
+            f"SELECT COUNT(*) FROM read_parquet('{parquet}')"
+        ).fetchone()[0]
 
 
 def _load_config(config_source: Path, census_parquet: Path, horizon: tuple[int, int]):

@@ -200,8 +200,8 @@ def _table_signature(db: Path, table: str) -> Optional[Tuple[int, int]]:
         if not columns:
             return None
         row_expr = ", ".join(f'"{name}"' for (name,) in columns)
-        count = conn.sql(f'SELECT COUNT(*) FROM main."{table}"').fetchone()[0]
-        checksum = conn.sql(
+        count = conn.execute(f'SELECT COUNT(*) FROM main."{table}"').fetchone()[0]
+        checksum = conn.execute(
             f'SELECT COALESCE(sum(hash(ROW({row_expr}))), 0) FROM main."{table}"'
         ).fetchone()[0]
         return count, int(checksum) if checksum is not None else 0

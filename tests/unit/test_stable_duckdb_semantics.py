@@ -121,7 +121,7 @@ def test_hash_join_nested_lambdas_and_repeat_install(
     connection.execute(module.install_stable_hash())
     rows = connection.execute(
         "WITH inputs AS (SELECT unnest(['abc', '你好', '123456789']) AS value) "
-        "SELECT a.value, list_transform([a.value], item -> planalign_hash(item || '|42')) "
+        "SELECT a.value, list_transform([a.value], lambda item: planalign_hash(item || '|42')) "
         "FROM inputs a JOIN inputs b ON planalign_hash(a.value) = planalign_hash(b.value) "
         "ORDER BY a.value"
     ).fetchall()
