@@ -35,6 +35,8 @@ WITH simulation_parameters AS (
 
 workforce_with_contributions AS (
     SELECT
+        fw.scenario_id,
+        fw.plan_design_id,
         fw.employee_id,
         fw.simulation_year,
         fw.current_compensation,
@@ -87,6 +89,19 @@ rate_consistency_violations AS (
         ) AS validation_message
     FROM workforce_with_contributions
     WHERE ABS(current_deferral_rate - COALESCE(effective_annual_deferral_rate, 0)) > 0.05
+      -- Effective rates legitimately differ from year-end rates when a current-year
+      -- election changes the timeline (including the Feature 101 opt-out window).
+      AND NOT EXISTS (
+        SELECT 1
+        FROM {{ ref('fct_yearly_events') }} events
+        WHERE events.employee_id = workforce_with_contributions.employee_id
+          AND events.scenario_id = workforce_with_contributions.scenario_id
+          AND events.plan_design_id = workforce_with_contributions.plan_design_id
+          AND events.simulation_year = workforce_with_contributions.simulation_year
+          AND (events.event_type IN ('enrollment', 'benefit_enrollment',
+            'deferral_escalation', 'enrollment_change', 'deferral_change')
+            OR events.event_category = 'reenrollment_sweep')
+      )
       AND is_enrolled_flag = true
       AND prorated_annual_contributions > 0
 ),

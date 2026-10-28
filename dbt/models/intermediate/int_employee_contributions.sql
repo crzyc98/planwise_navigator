@@ -142,6 +142,7 @@ current_year_deferral_changes AS (
   SELECT
     employee_id,
     plan_design_id,
+    event_id,
     effective_date::DATE AS effective_date,
     prev_employee_deferral_rate,
     employee_deferral_rate
@@ -152,6 +153,52 @@ current_year_deferral_changes AS (
   QUALIFY ROW_NUMBER() OVER (
     PARTITION BY scenario_id, plan_design_id, employee_id, simulation_year
     ORDER BY effective_date DESC, event_id DESC
+  ) = 1
+),
+
+-- Current-year rate changes in effective order. Match responses are dated Jan 1
+-- and precede escalation: an escalation generated from the pre-response rate must
+-- not set the rate in effect before it (the accumulator keeps the response rate).
+current_year_rate_changes AS (
+  SELECT
+    employee_id,
+    plan_design_id,
+    effective_date::DATE AS effective_date,
+    event_id,
+    CASE
+      WHEN LOWER(event_type) IN ('enrollment', 'benefit_enrollment')
+        OR event_category = 'reenrollment_sweep' THEN 0
+      WHEN event_type = 'deferral_match_response' THEN 1
+      WHEN event_type = 'deferral_escalation' THEN 2
+      ELSE 3
+    END AS event_order,
+    prev_employee_deferral_rate,
+    CASE
+      WHEN LOWER(event_type) IN ('enrollment', 'benefit_enrollment')
+        OR event_category = 'reenrollment_sweep'
+      THEN {{ enrollment_payload_deferral_rate() }}
+      ELSE employee_deferral_rate
+    END AS new_rate
+  FROM {{ ref('fct_yearly_events') }}
+  WHERE simulation_year = {{ simulation_year }}
+    AND scenario_id = '{{ scenario_id }}'
+    AND (LOWER(event_type) IN ('enrollment', 'benefit_enrollment')
+      OR event_category = 'reenrollment_sweep'
+      OR (event_type IN ('deferral_match_response', 'deferral_escalation', 'enrollment_change')
+        AND employee_deferral_rate IS NOT NULL))
+  UNION ALL
+  SELECT employee_id, plan_design_id, effective_date, event_id, 4,
+    prev_employee_deferral_rate, employee_deferral_rate
+  FROM current_year_deferral_changes
+),
+
+prior_year_rates AS (
+  SELECT employee_id, plan_design_id, current_deferral_rate
+  FROM {{ ref('int_deferral_rate_state_accumulator') }}
+  WHERE simulation_year < {{ simulation_year }}
+    AND scenario_id = '{{ scenario_id }}'
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY employee_id, plan_design_id ORDER BY simulation_year DESC
   ) = 1
 ),
 
@@ -193,11 +240,6 @@ workforce_windowed AS (
             AND eo.opt_out_date IS NOT NULL
             AND eo.opt_out_date >= eo.enroll_date) AS is_same_year_enroll_optout,
         eo.enrollment_window_deferral_rate,
-        dc.employee_id IS NOT NULL AS has_deferral_change,
-        dc.prev_employee_deferral_rate AS rate_before_change,
-        dc.employee_deferral_rate AS rate_after_change,
-        LEAST(wf.days_employed_in_year, GREATEST(0,
-          DATEDIFF('day', wf.employment_start_date, dc.effective_date))) AS days_before_change,
         -- Active-enrollment days, bounded by termination / year-end (FR-003, FR-007)
         CASE
             WHEN eo.enroll_date IS NOT NULL
@@ -214,8 +256,49 @@ workforce_windowed AS (
     LEFT JOIN enrollment_state enrollment
       ON wf.employee_id = enrollment.employee_id
     LEFT JOIN enroll_optout_window eo ON wf.employee_id = eo.employee_id
-    LEFT JOIN current_year_deferral_changes dc
-      ON wf.employee_id = dc.employee_id AND wf.plan_design_id = dc.plan_design_id
+),
+
+-- Offsets count days strictly before a change, bounded by the inclusive
+-- employment window. Sorting by the original date preserves clamped ties.
+rate_segments AS (
+  SELECT
+    wf.employee_id,
+    wf.plan_design_id,
+    wf.days_employed_in_year,
+    COALESCE(rc.prev_employee_deferral_rate, py.current_deferral_rate, 0)
+      AS starting_rate,
+    LEAST(wf.days_employed_in_year, GREATEST(0,
+      DATEDIFF('day', wf.employment_start_date, rc.effective_date))) AS start_day,
+    CASE WHEN LEAD(rc.effective_date) OVER changes IS NOT NULL THEN
+      LEAST(wf.days_employed_in_year, GREATEST(0,
+        DATEDIFF('day', wf.employment_start_date,
+          LEAD(rc.effective_date) OVER changes))) END AS next_day,
+    ROW_NUMBER() OVER changes AS change_number,
+    CASE WHEN LEAD(rc.effective_date) OVER changes IS NULL
+      THEN wf.year_end_deferral_rate ELSE rc.new_rate END AS segment_rate
+  FROM workforce_windowed wf
+  JOIN current_year_rate_changes rc
+    ON wf.employee_id = rc.employee_id AND wf.plan_design_id = rc.plan_design_id
+  LEFT JOIN prior_year_rates py
+    ON wf.employee_id = py.employee_id AND wf.plan_design_id = py.plan_design_id
+  WINDOW changes AS (
+    PARTITION BY wf.employee_id, wf.plan_design_id
+    ORDER BY rc.effective_date, rc.event_order, rc.event_id
+  )
+),
+
+time_weighted_rates AS (
+  SELECT
+    employee_id,
+    plan_design_id,
+    CAST(SUM(
+      CASE WHEN change_number = 1
+        THEN starting_rate::DECIMAL(18,12) * start_day ELSE 0 END
+      + segment_rate::DECIMAL(18,12)
+        * (COALESCE(next_day, days_employed_in_year) - start_day)
+    ) / NULLIF(MAX(days_employed_in_year), 0) AS DECIMAL(18,12)) AS effective_rate
+  FROM rate_segments
+  GROUP BY employee_id, plan_design_id
 ),
 
 contribution_inputs AS (
@@ -224,16 +307,10 @@ contribution_inputs AS (
         -- Catch-up eligibility is based on age attained by calendar-year end.
         COALESCE({{ simulation_year }} - YEAR(employee_birth_date), current_age)
           AS contribution_limit_age,
-        -- Effective rate: window rate for enroll→opt-out, else the (carried) rate
+        -- Feature 101 takes precedence; otherwise use the timeline or unchanged carried rate.
         CASE WHEN is_same_year_enroll_optout
              THEN enrollment_window_deferral_rate
-             WHEN has_deferral_change THEN
-               -- Fixed-point numerator; divide once and retain twelve fractional digits.
-               -- The surrounding CASE retains the existing DOUBLE output type.
-               CAST((rate_before_change::DECIMAL(18,12) * days_before_change
-                 + rate_after_change::DECIMAL(18,12)
-                   * (days_employed_in_year - days_before_change))
-                 / NULLIF(days_employed_in_year, 0) AS DECIMAL(18,12))
+             WHEN tw.employee_id IS NOT NULL THEN tw.effective_rate
              ELSE year_end_deferral_rate
         END AS effective_deferral_rate,
         -- Contribution base: earned pay scaled to the enrolled share of employed days
@@ -249,6 +326,7 @@ contribution_inputs AS (
             ELSE 'full_year'
         END AS contribution_window_category
     FROM workforce_windowed
+    LEFT JOIN time_weighted_rates tw USING (employee_id, plan_design_id)
 ),
 
 

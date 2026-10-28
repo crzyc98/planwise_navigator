@@ -72,7 +72,9 @@ def stopped_fixture(connection: duckdb.DuckDBPyConnection) -> None:
       INSERT INTO fct_yearly_events BY NAME
         SELECT employee_id, simulation_year, effective_date, 'deferral_escalation' AS event_type,
           'default' AS scenario_id, 'default' AS plan_design_id,
-          new_deferral_rate AS employee_deferral_rate FROM int_deferral_rate_escalation_events
+          new_deferral_rate AS employee_deferral_rate,
+          previous_deferral_rate AS prev_employee_deferral_rate
+        FROM int_deferral_rate_escalation_events
     """)
     accumulate(connection, 2025, **stop_settings())
 
@@ -145,7 +147,10 @@ def test_stop_restart_weighting_and_carry(
     stop_rows = contributions(conn, 2025)
     assert len(stop_rows) == 99
     for amount, rate, effective in stop_rows:
-        expected = 0.09 * (effective.date() - date(2025, 1, 1)).days / 365
+        # Timeline: 6% until the July 1 escalation, 7% until the stop, then 0.
+        expected = (
+            0.06 * 181 + 0.07 * (effective.date() - date(2025, 7, 1)).days
+        ) / 365
         assert float(amount) == pytest.approx(50000 * expected, abs=0.005)
         assert float(rate) == pytest.approx(expected, abs=0.000001)
     advance(conn, 2026)
