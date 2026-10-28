@@ -1,4 +1,14 @@
 {
+  "comparison": {
+    "head_sha": "c21324da5caf304ad36c526204ba220a6171ec26",
+    "test_step_seconds": {
+      "test (1)": 4082.0,
+      "test (2)": 2771.0,
+      "test (3)": 1705.0,
+      "test (4)": 3573.0
+    },
+    "url": "https://github.com/crzyc98/planwise_navigator/actions/runs/40013973725"
+  },
   "source": {
     "head_sha": "04bff1eb332837e8a25c16f0ec0c7b06f0a166a7",
     "test_step_seconds": {
