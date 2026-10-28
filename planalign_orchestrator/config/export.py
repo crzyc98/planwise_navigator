@@ -370,23 +370,11 @@ def _export_proactive_enrollment(
 ) -> None:
     """Export proactive enrollment and timing settings to dbt vars."""
     pro = cfg.enrollment.proactive_enrollment
-    _set_if_not_none(dbt_vars, "proactive_enrollment_enabled", pro.enabled, bool)
     _set_if_not_none(
         dbt_vars, "proactive_enrollment_min_days", pro.timing_window.min_days, int
     )
     _set_if_not_none(
         dbt_vars, "proactive_enrollment_max_days", pro.timing_window.max_days, int
-    )
-    probs = pro.probability_by_demographics or {}
-    for key in ("young", "mid_career", "mature", "senior"):
-        if key in probs:
-            dbt_vars[f"proactive_enrollment_rate_{key}"] = float(probs[key])
-
-    _set_if_not_none(
-        dbt_vars,
-        "enrollment_business_day_adjustment",
-        cfg.enrollment.timing.business_day_adjustment,
-        bool,
     )
 
 
@@ -680,16 +668,6 @@ def _export_legacy_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     ):
         if legacy.get(source):
             dbt_vars[target] = legacy[source]
-
-    # Deferral baseline mode (Option A default: frozen)
-    try:
-        db = getattr(cfg, "deferral_baseline", None)
-        if isinstance(db, dict) and "mode" in db and db["mode"]:
-            dbt_vars["deferral_baseline_mode"] = str(db["mode"]).lower()
-        else:
-            dbt_vars["deferral_baseline_mode"] = "frozen"
-    except Exception:
-        dbt_vars["deferral_baseline_mode"] = "frozen"
 
     # Staging/setup parameters
     try:
@@ -1234,13 +1212,6 @@ def _export_compensation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                     market_scenario, 0
                 )
 
-            level_adjustments = (
-                new_hire_config.get("level_market_adjustments")
-                if isinstance(new_hire_config, dict)
-                else getattr(new_hire_config, "level_market_adjustments", None)
-            )
-            if level_adjustments:
-                dbt_vars["level_market_adjustments"] = level_adjustments
     except Exception as e:
         logger.warning("Error processing new_hire configuration: %s", e, exc_info=True)
 
@@ -1367,10 +1338,7 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                 )
 
             if eligibility:
-                min_tenure = eligibility.get("minimum_tenure_years")
                 require_active = eligibility.get("require_active_at_year_end")
-                min_hours = eligibility.get("minimum_hours_annual")
-                allow_new_hires = eligibility.get("allow_new_hires")
                 allow_terminated_new_hires = eligibility.get(
                     "allow_terminated_new_hires"
                 )
@@ -1378,14 +1346,8 @@ def _export_core_contribution_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                     "allow_experienced_terminations"
                 )
 
-                if min_tenure is not None:
-                    dbt_vars["core_minimum_tenure_years"] = int(min_tenure)
                 if require_active is not None:
                     dbt_vars["core_require_active_eoy"] = bool(require_active)
-                if min_hours is not None:
-                    dbt_vars["core_minimum_hours"] = int(min_hours)
-                if allow_new_hires is not None:
-                    dbt_vars["core_allow_new_hires"] = bool(allow_new_hires)
                 if allow_terminated_new_hires is not None:
                     dbt_vars["core_allow_terminated_new_hires"] = bool(
                         allow_terminated_new_hires

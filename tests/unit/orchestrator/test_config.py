@@ -210,7 +210,7 @@ enrollment:
     # Spot-check a few keys
     assert vars_dict["plan_eligibility_waiting_period_days"] == 30
     assert vars_dict["random_seed"] == 99
-    assert vars_dict["proactive_enrollment_rate_senior"] == 0.75
+    assert "proactive_enrollment_rate_senior" not in vars_dict
 
 
 def test_to_dbt_vars_golden_output(golden_config):
@@ -238,16 +238,14 @@ def test_to_dbt_vars_golden_output(golden_config):
     # Note: Production config uses 0 waiting days (immediate eligibility)
     assert result["plan_eligibility_waiting_period_days"] == 0
 
-    # Verify proactive enrollment rates exist and are reasonable (0-1 range)
+    # Legacy proactive demographic aliases are no longer exported.
     for rate_key in [
         "proactive_enrollment_rate_young",
         "proactive_enrollment_rate_mid_career",
         "proactive_enrollment_rate_mature",
         "proactive_enrollment_rate_senior",
     ]:
-        assert (
-            0 <= result[rate_key] <= 1
-        ), f"{rate_key} out of range: {result[rate_key]}"
+        assert rate_key not in result
 
 
 def test_to_dbt_vars_contains_all_required_keys(minimal_config):
@@ -271,7 +269,6 @@ def test_to_dbt_vars_contains_all_required_keys(minimal_config):
         "auto_enrollment_default_deferral_rate",
         "auto_enrollment_opt_out_grace_period",
         # Proactive enrollment
-        "proactive_enrollment_enabled",
         "proactive_enrollment_min_days",
         "proactive_enrollment_max_days",
     ]
@@ -296,4 +293,3 @@ def test_to_dbt_vars_output_types(minimal_config):
 
     # Boolean types
     assert isinstance(result["auto_enrollment_enabled"], bool)
-    assert isinstance(result["proactive_enrollment_enabled"], bool)

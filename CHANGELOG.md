@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- Deleted 238 YAML settings with no effect from setup, compensation, new_hire_compensation, raise_timing, plan_year, plan_eligibility, enrollment, employee_id_generation, optimization, orchestrator, multi_year, deferral_baseline, deferral_rates, corporate_network, and legacy ops. Stopped exporting 11 unread dbt variables and added guards for YAML consumers and exported-variable readers.
+
 ### Fixed
 
 - YAML match formulas were ignored (match always used the tiered default), and optimizer match levers had no effect. Match design now uses `dc_plan.match_tiers` everywhere. The YAML/CLI match-magnet ceiling is now 5%, which earns the full default match, instead of 6%.

@@ -129,9 +129,6 @@ def test_saved_setting_reaches_run_config_but_not_consumed_inputs(
     run_config = yaml.safe_load((tmp_path / "changed/config.yaml").read_text())
     assert run_config[section][key] == value
     assert baseline_seeds == changed_seeds
-    if key == "level_market_adjustments":
-        assert changed.pop(key) == value
-        baseline.pop(key)
     assert baseline == changed
 
 
