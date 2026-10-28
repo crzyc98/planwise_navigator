@@ -92,12 +92,24 @@ VALID_ALTERNATES: dict[str, dict[str, Any]] = {
         f"{_MULT}.{direction}.{dimension}": {
             f"{_MULT}.{direction}.{dimension}": [{"min": 0, "multiplier": 1.0}]
         }
-        for direction in ("increase", "decrease")
-        for dimension in ("age", "income", "tenure")
+        for direction, dimension in [
+            *(("increase", d) for d in ("age", "income", "tenure")),
+            *(("decrease", d) for d in ("rate", "age", "income", "tenure")),
+        ]
     },
     **{
-        f"{_STEPS}.{name}": {f"{_STEPS}.{name}": [{"pp": 1, "weight": 1.0}]}
-        for name in ("increase_steps", "decrease_steps")
+        f"enrollment.below_default.multipliers.{dimension}": {
+            f"enrollment.below_default.multipliers.{dimension}": [
+                {"min": 0, "multiplier": 1.0}
+            ]
+        }
+        for dimension in ("age", "income")
+    },
+    f"{_STEPS}.increase_steps": {
+        f"{_STEPS}.increase_steps": [{"pp": 1, "weight": 1.0}]
+    },
+    f"{_STEPS}.decrease_shares": {
+        f"{_STEPS}.decrease_shares": [{"share": 0.5, "weight": 1.0}]
     },
 }
 SINGLE_VALUE: dict[str, str] = {
