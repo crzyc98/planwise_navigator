@@ -63,7 +63,7 @@ def test_dry_run_rejects_unresolvable_lever(tmp_path: Path) -> None:
         """
 design_space:
   levers:
-    - name: employer_match.tier_2_rate
+    - name: employer_match.tier_3_rate
       kind: continuous
       bounds: [0.1, 0.9]
 objective:
@@ -79,7 +79,7 @@ baseline:
         app, ["optimize", str(spec_path), "--max-runs", "3", "--dry-run"]
     )
     assert result.exit_code != 0
-    assert "tier_2_rate" in result.output
+    assert "tier_3_rate" in result.output
 
 
 def test_output_path_cannot_be_the_shared_dev_database() -> None:

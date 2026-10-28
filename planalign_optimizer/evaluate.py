@@ -36,12 +36,21 @@ def resolve_candidate_config(
 ) -> tuple[SimulationConfig, dict[str, object]]:
     """Overlay declared levers on a deep copy and return the exported dbt delta."""
     payload = deepcopy(baseline.model_dump(mode="python"))
+    if any(
+        name.startswith("employer_match.tier_")
+        or name == "employer_match.max_match_percentage"
+        for name in lever_values
+    ):
+        _seed_match_tiers(payload)
     for name, value in lever_values.items():
         try:
             path = LEVER_REGISTRY[name]
         except KeyError as exc:
             raise ValueError(f"unknown optimizer lever '{name}'") from exc
         _set_path(payload, path, value)
+        _keep_match_tiers_contiguous(payload, path, value)
+    _recompute_match_cap(payload, lever_values)
+    _check_match_tiers_ordered(payload)
     candidate = SimulationConfig.model_validate(payload)
     before = to_dbt_vars(baseline)
     after = to_dbt_vars(candidate)
@@ -60,12 +69,18 @@ def validate_levers_against_baseline(
 
     ``spec_io.validate_spec`` only checks that a lever name is registered; it
     cannot know whether the *resolved baseline* actually has the shape that
-    name assumes (e.g. a tiered lever against a baseline whose active match
-    formula has no ``tiers`` list). Probing every lever here, once, up front
+    name assumes (e.g. a tier lever beyond the configured match tiers).
+    Probing every lever here, once, up front
     turns that into a clear spec-validation error instead of a mid-search
     crash that discards already-completed candidates.
     """
     payload = deepcopy(baseline.model_dump(mode="python"))
+    if any(
+        lever.name.startswith("employer_match.tier_")
+        or lever.name == "employer_match.max_match_percentage"
+        for lever in levers
+    ):
+        _seed_match_tiers(payload)
     errors: list[str] = []
     for lever in levers:
         try:
@@ -192,15 +207,8 @@ def _constraint_result(
 def _set_path(
     payload: dict[str, object], path: tuple[str | int, ...], value: LeverValue
 ) -> None:
-    if _set_simple_match_tier(payload, path, value):
-        return
     cursor: object = payload
     for index, segment in enumerate(path[:-1]):
-        if segment == "*":
-            employer_match = payload.get("employer_match")
-            if not isinstance(employer_match, dict):
-                raise ValueError("baseline has no employer_match configuration")
-            segment = str(employer_match.get("active_formula", ""))
         next_segment = path[index + 1]
         if isinstance(segment, int):
             if not isinstance(cursor, list) or segment >= len(cursor):
@@ -223,24 +231,61 @@ def _set_path(
         raise ValueError(f"baseline cannot resolve optimizer path {path}")
 
 
-def _set_simple_match_tier(
+def _seed_match_tiers(payload: dict[str, object]) -> None:
+    """Supply the dbt default design for baselines without explicit tiers."""
+    dc_plan = payload.setdefault("dc_plan", {})
+    if dc_plan is None:
+        dc_plan = payload["dc_plan"] = {}
+    if not isinstance(dc_plan, dict):
+        raise ValueError("baseline dc_plan must be a mapping")
+    if "match_tiers" not in dc_plan or dc_plan["match_tiers"] is None:
+        dc_plan["match_tiers"] = [
+            {"employee_min": 0.0, "employee_max": 0.03, "match_rate": 1.0},
+            {"employee_min": 0.03, "employee_max": 0.05, "match_rate": 0.5},
+        ]
+
+
+def _keep_match_tiers_contiguous(
     payload: dict[str, object], path: tuple[str | int, ...], value: LeverValue
-) -> bool:
-    """Treat tier one as the flat active formula when it has no tiers array."""
-    if "tiers" not in path:
-        return False
-    employer_match = payload.get("employer_match")
-    if not isinstance(employer_match, dict):
-        return False
-    formulas = employer_match.get("formulas")
-    active = employer_match.get("active_formula")
-    formula = formulas.get(active) if isinstance(formulas, dict) else None
-    tier_position = path.index("tiers") + 1
-    if not isinstance(formula, dict) or "tiers" in formula or path[tier_position] != 0:
-        return False
-    leaf = path[-1]
-    target = "max_match_percentage" if leaf == "employee_max" else leaf
-    if not isinstance(target, str):
-        return False
-    formula[target] = value
-    return True
+) -> None:
+    if path[:2] != ("dc_plan", "match_tiers") or path[-1] != "employee_max":
+        return
+    index = path[2]
+    assert isinstance(index, int)
+    _set_next_tier_min(payload, index, value)
+
+
+def _set_next_tier_min(
+    payload: dict[str, object], index: int, value: LeverValue
+) -> None:
+    dc_plan = payload["dc_plan"]
+    assert isinstance(dc_plan, dict)
+    tiers = dc_plan["match_tiers"]
+    if index + 1 < len(tiers):
+        tiers[index + 1]["employee_min"] = value
+
+
+def _recompute_match_cap(
+    payload: dict[str, object], values: dict[str, LeverValue]
+) -> None:
+    if "employer_match.max_match_percentage" in values:
+        return
+    if not any(name.startswith("employer_match.tier_") for name in values):
+        return
+    dc_plan = payload["dc_plan"]
+    assert isinstance(dc_plan, dict)
+    dc_plan["match_cap_percent"] = sum(
+        (tier["employee_max"] - tier["employee_min"]) * tier["match_rate"]
+        for tier in dc_plan["match_tiers"]
+    )
+
+
+def _check_match_tiers_ordered(payload: dict[str, object]) -> None:
+    """Reject candidates whose cap levers invert a tier (negative width)."""
+    dc_plan = payload.get("dc_plan")
+    tiers = dc_plan.get("match_tiers") if isinstance(dc_plan, dict) else None
+    for tier in tiers or []:
+        if tier["employee_max"] <= tier["employee_min"]:
+            raise ValueError(
+                f"match tier {tier['employee_min']}-{tier['employee_max']} is empty or inverted"
+            )

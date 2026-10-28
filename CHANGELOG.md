@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- YAML match formulas were ignored (match always used the tiered default), and optimizer match levers had no effect. Match design now uses `dc_plan.match_tiers` everywhere. The YAML/CLI match-magnet ceiling is now 5%, which earns the full default match, instead of 6%.
+- YAML `eligibility.waiting_period_days` was exported under names no model read, so it (and the optimizer's `eligibility.waiting_period_days` lever) had no effect. It now sets the plan eligibility waiting period; Studio's eligibility months still take precedence. The optimizer's `vesting_schedule` lever is removed because the simulation does not model vesting.
+
 - Editing a legacy match eligibility rule in Studio no longer stores a new-hire service waiver. A later minimum-service edit now requires hire-year employees to meet service instead of keeping them match-eligible.
 - Clearing the auto-enrollment hire-date cutoff in Studio no longer fails the run with an invalid `''::DATE`. A blank cutoff now uses the engine default (2020-01-01), the same way the escalation cutoff works.
 - Studio saves promotion increases and ranges in the nested promotion settings, including 12.5% and 5%, and removes stale flat aliases when either is edited. Legacy flat defaults still defer to nested values.

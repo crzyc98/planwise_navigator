@@ -153,8 +153,7 @@ class TestExportSimulationVars:
         cfg.eligibility.waiting_period_days = 60
         cfg.plan_eligibility.minimum_age = 21
         result = _export_simulation_vars(cfg)
-        assert result["eligibility_waiting_days"] == 60
-        assert result["minimum_service_days"] == 60
+        assert result["plan_eligibility_waiting_period_days"] == 60
         assert result["minimum_age"] == 21
 
     def test_random_seed(self):
@@ -787,8 +786,8 @@ class TestExportEmployerMatchVars:
         result = _export_employer_match_vars(cfg)
         em = result["employer_match"]
         assert em["apply_eligibility"] is True
-        assert result["active_match_formula"] == "tiered_match"
-        assert "match_formulas" in result
+        assert "active_match_formula" not in result
+        assert "match_formulas" not in result
 
     def test_employer_match_status_exported(self):
         from planalign_orchestrator.config.workforce import EmployerMatchSettings

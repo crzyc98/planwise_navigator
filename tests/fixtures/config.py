@@ -122,7 +122,7 @@ GOLDEN_DBT_VARS_KEYS = [
     "auto_enrollment_window_days",
     "auto_enrollment_default_deferral_rate",
     # Eligibility settings
-    "eligibility_waiting_days",
+    "plan_eligibility_waiting_period_days",
     "minimum_age",
     # Proactive enrollment rates
     "proactive_enrollment_rate_young",
