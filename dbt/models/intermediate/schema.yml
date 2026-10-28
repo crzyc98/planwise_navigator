@@ -628,6 +628,10 @@ models:
     config:
       tags: ["contribution", "critical", "core_calculation"]
     data_tests:
+      - dbt_utils.expression_is_true:
+          name: "contribution_request_uses_effective_timeline_rate"
+          arguments:
+            expression: "ABS(requested_contribution_amount - total_contribution_base_compensation * effective_annual_deferral_rate) < 0.01"
       # Feature 101: the windowed base can never exceed employment-prorated comp
       - dbt_utils.expression_is_true:
           arguments:
@@ -688,7 +692,7 @@ models:
                 min_value: 0
                 max_value: 200000
       - name: effective_annual_deferral_rate
-        description: Enrollment-window rate for same-year enroll to opt-out; otherwise the year-end rate, weighted over hire/termination-bounded employment days only when a deferral_change occurs. Match consumes this rate as an annual true-up.
+        description: Enrollment-window rate for same-year enroll to opt-out; otherwise the rate timeline weighted over hire/termination-bounded employment days for enrollment, escalation, enrollment changes and voluntary deferral changes. Match consumes this rate as an annual true-up.
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
