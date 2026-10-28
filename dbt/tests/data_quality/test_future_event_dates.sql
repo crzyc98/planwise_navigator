@@ -39,4 +39,11 @@ WHERE (
   -- Enrollment events may legitimately cross year boundaries for late-year hires
   -- (e.g., hired in Dec, enrolled in Jan of next year with a waiting period)
   AND event_type NOT IN ({{ evt_enrollment() }}, {{ evt_enrollment_change() }})
+  -- Census employees' start-year eligibility events carry their real (historical)
+  -- eligibility date, which can predate the simulation (#1011).
+  AND NOT (
+    event_type = {{ evt_eligibility() }}
+    AND simulation_year = {{ var('start_year', 2025) }}
+    AND effective_date < MAKE_DATE(simulation_year, 1, 1)
+  )
 ORDER BY simulation_year, effective_date DESC, employee_id
