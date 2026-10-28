@@ -13,7 +13,7 @@ from pydantic import ValidationError
 
 from planalign_orchestrator.config import SimulationConfig
 from planalign_orchestrator.config.export import to_dbt_vars
-from tests.test_dbt_var_coverage import _maximal_config
+from tests.test_dbt_var_coverage import _all_exported_vars
 
 pytestmark = [pytest.mark.fast, pytest.mark.config]
 ROOT = Path(__file__).resolve().parents[1]
@@ -44,6 +44,56 @@ EXPORT_PYTHON_CONSUMED: dict[str, str] = {
     "dbt_threads": "planalign_orchestrator/dbt_runner.py: dbt execution threads",
     "event_shards": "planalign_orchestrator/pipeline/stage_execution_strategies.py: shard selectors",
     "max_parallel_years": "planalign_orchestrator/pipeline_orchestrator.py: execution diagnostics",
+}
+
+
+_STEPS = "deferral_rate_changes"
+_MULT = "deferral_rate_changes.multipliers"
+_DMR = "deferral_match_response"
+# Enums and constrained lists reject the generic mutation; each entry is a valid
+# change (linked sub-rates move together so they still sum to 1).
+VALID_ALTERNATES: dict[str, dict[str, Any]] = {
+    "enrollment.auto_enrollment.reenrollment_sweep.method": {
+        "enrollment.auto_enrollment.reenrollment_sweep.method": "into_aip"
+    },
+    "enrollment.below_default.share_tiers": {
+        "enrollment.below_default.share_tiers": [
+            {"max_auto_enroll_default_rate": None, "share": 0.05}
+        ]
+    },
+    "enrollment.below_default.steps": {
+        "enrollment.below_default.steps": [{"pp": 1, "weight": 1.0}]
+    },
+    "employer_core_contribution.integration.level_mode": {
+        "employer_core_contribution.integration.level_mode": "percent_of_ss_wage_base"
+    },
+    "deferral_auto_escalation.mode": {
+        "deferral_auto_escalation.mode": "participant_elected"
+    },
+    "easy_enroll.packages": {"easy_enroll.packages": [{"rate": 0.06, "share": 1.0}]},
+    **{
+        f"{_DMR}.{rate}": {f"{_DMR}.{rate}": 0.55, f"{_DMR}.{other}": 0.45}
+        for rate, other in [
+            ("upward_maximize_rate", "upward_partial_increase_rate"),
+            ("upward_partial_increase_rate", "upward_maximize_rate"),
+            ("downward_reduce_to_max_rate", "downward_partial_decrease_rate"),
+            ("downward_partial_decrease_rate", "downward_reduce_to_max_rate"),
+        ]
+    },
+    **{
+        f"{_MULT}.{direction}.{dimension}": {
+            f"{_MULT}.{direction}.{dimension}": [{"min": 0, "multiplier": 1.0}]
+        }
+        for direction in ("increase", "decrease")
+        for dimension in ("age", "income", "tenure")
+    },
+    **{
+        f"{_STEPS}.{name}": {f"{_STEPS}.{name}": [{"pp": 1, "weight": 1.0}]}
+        for name in ("increase_steps", "decrease_steps")
+    },
+}
+SINGLE_VALUE: dict[str, str] = {
+    "deferral_match_response.effective_timing": "Literal['first_year'] allows one value",
 }
 
 
@@ -78,20 +128,29 @@ def test_each_yaml_leaf_has_a_consumer() -> None:
     disconnected = []
     paths = dict(_leaves(raw))
     assert set(PYTHON_CONSUMED) <= paths.keys()
+    untestable = []
     for path, value in paths.items():
+        if path in SINGLE_VALUE:
+            continue
         changed = deepcopy(raw)
-        parent = changed
-        keys = path.split(".")
-        for key in keys[:-1]:
-            parent = parent[key]
-        parent[keys[-1]] = _mutate(value)
+        for target, new in VALID_ALTERNATES.get(path, {path: _mutate(value)}).items():
+            _set(changed, target, new)
         try:
             exported = to_dbt_vars(SimulationConfig.model_validate(changed))
         except ValidationError:
+            untestable.append(path)
             continue
         if exported == baseline and path not in PYTHON_CONSUMED:
             disconnected.append(path)
+    assert not untestable, f"Add a valid alternate to VALID_ALTERNATES: {untestable}"
     assert not disconnected, f"YAML settings without consumers: {disconnected}"
+
+
+def _set(data: dict[str, Any], path: str, value: Any) -> None:
+    keys = path.split(".")
+    for key in keys[:-1]:
+        data = data[key]
+    data[keys[-1]] = value
 
 
 def _dbt_var_readers() -> tuple[set[str], set[str]]:
@@ -109,7 +168,7 @@ def _dbt_var_readers() -> tuple[set[str], set[str]]:
 
 def test_every_exported_var_has_a_reader() -> None:
     names, prefixes = _dbt_var_readers()
-    exported = set(to_dbt_vars(_maximal_config()))
+    exported = _all_exported_vars()
     unread = {
         name
         for name in exported - names - EXPORT_PYTHON_CONSUMED.keys()
