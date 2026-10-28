@@ -250,6 +250,103 @@
         "title": "ADPEmployeeDetail",
         "type": "object"
       },
+      "ADPQNECEstimate": {
+        "properties": {
+          "applied_test_after": {
+            "default": "basic",
+            "title": "Applied Test After",
+            "type": "string"
+          },
+          "applied_threshold_after": {
+            "default": 0.0,
+            "title": "Applied Threshold After",
+            "type": "number"
+          },
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "limit_breach_count": {
+            "default": 0,
+            "title": "Limit Breach Count",
+            "type": "integer"
+          },
+          "nhce_average_adp_after": {
+            "default": 0.0,
+            "title": "Nhce Average Adp After",
+            "type": "number"
+          },
+          "nhce_average_adp_before": {
+            "default": 0.0,
+            "title": "Nhce Average Adp Before",
+            "type": "number"
+          },
+          "qnec_rate": {
+            "default": 0.0,
+            "title": "Qnec Rate",
+            "type": "number"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "recipient_count": {
+            "default": 0,
+            "title": "Recipient Count",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "estimate",
+              "not_needed",
+              "unsupported",
+              "infeasible"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "test_result_after": {
+            "default": "fail",
+            "enum": [
+              "pass",
+              "fail"
+            ],
+            "title": "Test Result After",
+            "type": "string"
+          },
+          "total_qnec": {
+            "default": 0.0,
+            "title": "Total Qnec",
+            "type": "number"
+          }
+        },
+        "required": [
+          "status",
+          "reason",
+          "qnec_rate",
+          "total_qnec",
+          "recipient_count",
+          "nhce_average_adp_before",
+          "nhce_average_adp_after",
+          "applied_threshold_after",
+          "applied_test_after",
+          "test_result_after",
+          "limit_breach_count",
+          "assumptions"
+        ],
+        "title": "ADPQNECEstimate",
+        "type": "object"
+      },
       "ADPScenarioResult": {
         "properties": {
           "alternative_test_threshold": {
@@ -295,6 +392,7 @@
                 "type": "null"
               }
             ],
+            "description": "Aggregate modeled estimate: (HCE average - threshold) x total HCE compensation; not a participant-level refund calculation",
             "title": "Excess Hce Amount"
           },
           "excluded_count": {
@@ -331,6 +429,16 @@
             "default": 0,
             "title": "Nhce Count",
             "type": "integer"
+          },
+          "qnec_estimate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ADPQNECEstimate"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "safe_harbor": {
             "default": false,
@@ -387,6 +495,7 @@
           "applied_threshold",
           "margin",
           "excess_hce_amount",
+          "qnec_estimate",
           "testing_method",
           "safe_harbor",
           "hce_threshold_used",

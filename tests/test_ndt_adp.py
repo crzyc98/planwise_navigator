@@ -27,14 +27,15 @@ def _create_test_db(conn: duckdb.DuckDBPyConnection):
             catch_up_limit INTEGER,
             catch_up_age_threshold INTEGER,
             compensation_limit INTEGER,
-            hce_compensation_threshold INTEGER
+            hce_compensation_threshold INTEGER,
+            annual_additions_limit INTEGER
         )
     """)
     conn.execute("""
         INSERT INTO config_irs_limits VALUES
-        (2024, 23000, 30500, 50, 345000, 155000),
-        (2025, 23500, 31000, 50, 350000, 160000),
-        (2026, 24000, 32000, 50, 360000, 165000)
+        (2024, 23000, 30500, 50, 345000, 155000, 69000),
+        (2025, 23500, 31000, 50, 350000, 160000, 70000),
+        (2026, 24000, 32000, 50, 360000, 165000, 72000)
     """)
 
     conn.execute("""
@@ -135,6 +136,7 @@ class TestADPBasicPass:
         with patch("duckdb.connect", return_value=conn):
             result = service.run_adp_test("ws1", "sc1", "Test", 2025)
 
+        assert result.qnec_estimate is None
         assert result.test_result == "pass"
         # basic threshold = 4% * 1.25 = 5%
         assert abs(result.basic_test_threshold - 0.05) < 0.001
@@ -168,6 +170,8 @@ class TestADPBasicFailWithExcess:
         with patch("duckdb.connect", return_value=conn):
             result = service.run_adp_test("ws1", "sc1", "Test", 2025)
 
+        assert result.qnec_estimate.status == "estimate"
+        assert result.qnec_estimate.test_result_after == "pass"
         assert result.test_result == "fail"
         assert result.margin < 0
         # Excess = (hce_avg - applied_threshold) * sum(hce_comp)
@@ -390,6 +394,12 @@ class TestADPPriorYearMethod:
         # With prior year method: NHCE baseline = 2024 NHCE ADP = 2%
         # basic = 2% * 1.25 = 2.5%, alt = min(4%, 4%) = 4%
         # applied = 4% (alternative), HCE avg = 5% -> FAIL
+        assert result.test_result == "fail"
+        assert result.qnec_estimate.status == "unsupported"
+        assert (
+            result.qnec_estimate.reason
+            == "Prior-year testing is not supported by the QNEC estimate"
+        )
         assert result.testing_method == "prior"
         assert result.nhce_average_adp != 0.02  # nhce_average_adp is current year
         # The thresholds are based on prior year NHCE baseline (2%)
@@ -608,3 +618,36 @@ class TestADPDatabaseNotFound:
 
         assert result.test_result == "error"
         assert "not found" in (result.test_message or "").lower()
+
+
+@pytest.mark.parametrize(
+    "limit,expected,breaches",
+    [(65000, "infeasible", 1), (70000, "estimate", 0), (None, "estimate", 0)],
+)
+def test_qnec_headroom_excludes_catch_up_and_adds_employer_amounts(
+    adp_service_with_db: tuple[NDTService, duckdb.DuckDBPyConnection, MagicMock],
+    limit: int | None,
+    expected: str,
+    breaches: int,
+) -> None:
+    service, conn, resolver = adp_service_with_db
+    conn.execute(
+        "UPDATE config_irs_limits SET annual_additions_limit = ? WHERE limit_year = 2025",
+        [limit],
+    )
+    _insert_employee(conn, "H", 2025, 200000, 200000, 20000)
+    # Deferrals above the $23.5K base limit are catch-up and not 415 additions:
+    # $23.5K + $40K employer + $4.5K QNEC = $68K, under $70K but over $65K.
+    _insert_employee(
+        conn, "N", 2025, 100000, 350000, 30000, match_amount=20000, core_amount=20000
+    )
+    resolver.resolve.return_value = ResolvedDatabasePath(
+        path=Path(":memory:"), source="scenario"
+    )
+    with patch("duckdb.connect", return_value=conn):
+        result = service.run_adp_test("ws1", "sc1", "Test", 2025)
+    assert result.test_result == "fail"
+    assert result.qnec_estimate is not None
+    assert result.qnec_estimate.status == expected
+    assert result.qnec_estimate.limit_breach_count == breaches
+    assert result.qnec_estimate.total_qnec == pytest.approx(4500)

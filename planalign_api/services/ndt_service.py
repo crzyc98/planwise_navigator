@@ -1,10 +1,18 @@
 """NDT (Non-Discrimination Testing) service for ACP, ADP, 401(a)(4), and 415 tests."""
 
+from dataclasses import dataclass, field
 import logging
 import statistics
 from typing import List, Optional
 
 import yaml
+from pydantic import Field
+from .ndt_qnec import (
+    ADPQNECEstimate,
+    ADPQNECContext,
+    NHCEQNECInput,
+    estimate_uniform_qnec,
+)
 from .compliance_metrics import (
     annual_additions,
     base_deferrals,
@@ -20,6 +28,72 @@ from .database_path_resolver import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _adp_thresholds(nhce_average: float) -> tuple[float, float, str, float]:
+    basic = nhce_average * 1.25
+    alternative = min(nhce_average * 2, nhce_average + 0.02)
+    test = "basic" if basic >= alternative else "alternative"
+    return basic, alternative, test, max(basic, alternative)
+
+
+def _qnec_for_failure(
+    test_result: str,
+    testing_method: str,
+    hce_adps: List[float],
+    context: ADPQNECContext,
+) -> Optional[ADPQNECEstimate]:
+    if test_result != "fail":
+        return None
+    if testing_method == "prior":
+        return ADPQNECEstimate(
+            status="unsupported",
+            reason="Prior-year testing is not supported by the QNEC estimate",
+        )
+    return estimate_uniform_qnec(hce_adps, context.nhce, context.annual_additions_limit)
+
+
+@dataclass
+class _ADPPopulation:
+    hce_adps: List[float] = field(default_factory=list)
+    nhce_adps: List[float] = field(default_factory=list)
+    hce_compensations: List[float] = field(default_factory=list)
+    nhce: List[NHCEQNECInput] = field(default_factory=list)
+    employees: List["ADPEmployeeDetail"] = field(default_factory=list)
+    excluded_count: int = 0
+
+
+def _collect_adp_population(
+    rows: List[tuple[str, bool, float, Optional[float], float, Optional[float], float]],
+    include_employees: bool,
+) -> _ADPPopulation:
+    population = _ADPPopulation()
+    for emp_id, is_hce, deferrals, comp, adp, prior_comp, additions in rows:
+        if comp is None or comp <= 0:
+            population.excluded_count += 1
+            continue
+        if is_hce:
+            population.hce_adps.append(adp)
+            population.hce_compensations.append(float(comp))
+        else:
+            population.nhce_adps.append(adp)
+            population.nhce.append(
+                NHCEQNECInput(float(comp), float(adp), float(additions))
+            )
+        if include_employees:
+            population.employees.append(
+                ADPEmployeeDetail(
+                    employee_id=str(emp_id),
+                    is_hce=bool(is_hce),
+                    employee_deferrals=float(deferrals),
+                    plan_compensation=float(comp),
+                    individual_adp=float(adp),
+                    prior_year_compensation=(
+                        float(prior_comp) if prior_comp is not None else None
+                    ),
+                )
+            )
+    return population
 
 
 # ==============================================================================
@@ -186,7 +260,11 @@ class ADPScenarioResult(APIModel):
     applied_test: str = "basic"  # "basic" or "alternative"
     applied_threshold: float = 0.0
     margin: float = 0.0
-    excess_hce_amount: Optional[float] = None
+    excess_hce_amount: Optional[float] = Field(
+        default=None,
+        description="Aggregate modeled estimate: (HCE average - threshold) x total HCE compensation; not a participant-level refund calculation",
+    )
+    qnec_estimate: Optional[ADPQNECEstimate] = None
     testing_method: str = "current"  # "current" or "prior"
     safe_harbor: bool = False
     hce_threshold_used: int = 0
@@ -1262,6 +1340,8 @@ class NDTService:
                 SELECT
                     s.employee_id,
                     s.current_eligibility_status,
+                    COALESCE(s.employer_match_amount, 0) AS match_amount,
+                    COALESCE(s.employer_core_amount, 0) AS core_amount,
                     LEAST(
                         COALESCE(s.prorated_annual_contributions, 0),
                         il.base_limit
@@ -1294,11 +1374,22 @@ class NDTService:
                 adp_base_deferrals,
                 testing_comp_414s_capped,
                 individual_adp,
-                prior_year_comp
+                prior_year_comp,
+                -- 415 annual additions exclude catch-up: deferrals above the 402(g) base limit
+                adp_base_deferrals + match_amount + core_amount AS annual_additions
             FROM per_employee
             ORDER BY is_hce DESC, individual_adp DESC
             """
 
+                limit_row = conn.execute(
+                    "SELECT annual_additions_limit FROM config_irs_limits WHERE limit_year = ?",
+                    [year],
+                ).fetchone()
+                additions_limit = (
+                    float(limit_row[0])
+                    if limit_row and limit_row[0] is not None
+                    else None
+                )
                 prior_year_param = year - 1 if prior_year_exists else year
                 rows = conn.execute(
                     query, [prior_year_param, year, hce_threshold, year]
@@ -1314,39 +1405,9 @@ class NDTService:
                     testing_method=actual_testing_method,
                 )
 
-            # Separate HCE/NHCE and compute ADPs
-            hce_adps: List[float] = []
-            nhce_adps: List[float] = []
-            hce_compensations: List[float] = []
-            employees: List[ADPEmployeeDetail] = []
-            excluded_count = 0
-
-            for row in rows:
-                emp_id, is_hce, deferrals, comp, adp, prior_comp = row
-
-                if comp is None or comp <= 0:
-                    excluded_count += 1
-                    continue
-
-                if is_hce:
-                    hce_adps.append(adp)
-                    hce_compensations.append(float(comp))
-                else:
-                    nhce_adps.append(adp)
-
-                if include_employees:
-                    employees.append(
-                        ADPEmployeeDetail(
-                            employee_id=str(emp_id),
-                            is_hce=bool(is_hce),
-                            employee_deferrals=float(deferrals),
-                            plan_compensation=float(comp),
-                            individual_adp=float(adp),
-                            prior_year_compensation=(
-                                float(prior_comp) if prior_comp is not None else None
-                            ),
-                        )
-                    )
+            population = _collect_adp_population(rows, include_employees)
+            hce_adps, nhce_adps = population.hce_adps, population.nhce_adps
+            employees, excluded_count = population.employees, population.excluded_count
 
             # Edge case: no NHCE
             if not nhce_adps:
@@ -1399,7 +1460,9 @@ class NDTService:
                 year=year,
                 hce_adps=hce_adps,
                 nhce_adps=nhce_adps,
-                hce_compensations=hce_compensations,
+                qnec_context=ADPQNECContext(
+                    population.hce_compensations, population.nhce, additions_limit
+                ),
                 hce_threshold=hce_threshold,
                 excluded_count=excluded_count,
                 testing_method=actual_testing_method,
@@ -1426,7 +1489,7 @@ class NDTService:
         year: int,
         hce_adps: List[float],
         nhce_adps: List[float],
-        hce_compensations: List[float],
+        qnec_context: ADPQNECContext,
         hce_threshold: int,
         excluded_count: int,
         testing_method: str,
@@ -1438,31 +1501,15 @@ class NDTService:
         hce_avg = sum(hce_adps) / len(hce_adps)
         nhce_avg = sum(nhce_adps) / len(nhce_adps)
 
-        # Use prior year NHCE baseline if provided
         baseline_nhce = nhce_baseline_adp if nhce_baseline_adp is not None else nhce_avg
-
-        # Basic test: NHCE avg x 1.25
-        basic_threshold = baseline_nhce * 1.25
-
-        # Alternative test: lesser of (NHCE avg x 2.0) and (NHCE avg + 0.02)
-        alt_threshold = min(baseline_nhce * 2.0, baseline_nhce + 0.02)
-
-        # Select more favorable test (higher threshold)
-        if basic_threshold >= alt_threshold:
-            applied_test = "basic"
-            applied_threshold = basic_threshold
-        else:
-            applied_test = "alternative"
-            applied_threshold = alt_threshold
-
-        # Determine pass/fail
+        basic_threshold, alt_threshold, applied_test, applied_threshold = (
+            _adp_thresholds(baseline_nhce)
+        )
         test_result = "pass" if hce_avg <= applied_threshold else "fail"
         margin = applied_threshold - hce_avg
-
-        # Compute excess HCE amount when failing
         excess_hce_amount = None
         if test_result == "fail":
-            total_hce_comp = sum(hce_compensations)
+            total_hce_comp = sum(qnec_context.hce_compensations)
             excess_hce_amount = (hce_avg - applied_threshold) * total_hce_comp
 
         return ADPScenarioResult(
@@ -1482,6 +1529,9 @@ class NDTService:
             applied_threshold=applied_threshold,
             margin=margin,
             excess_hce_amount=excess_hce_amount,
+            qnec_estimate=_qnec_for_failure(
+                test_result, testing_method, hce_adps, qnec_context
+            ),
             testing_method=testing_method,
             hce_threshold_used=hce_threshold,
             employees=employees,
