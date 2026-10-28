@@ -50,6 +50,7 @@ def resolve_candidate_config(
         _set_path(payload, path, value)
         _keep_match_tiers_contiguous(payload, path, value)
     _recompute_match_cap(payload, lever_values)
+    _check_match_tiers_ordered(payload)
     candidate = SimulationConfig.model_validate(payload)
     before = to_dbt_vars(baseline)
     after = to_dbt_vars(candidate)
@@ -277,3 +278,14 @@ def _recompute_match_cap(
         (tier["employee_max"] - tier["employee_min"]) * tier["match_rate"]
         for tier in dc_plan["match_tiers"]
     )
+
+
+def _check_match_tiers_ordered(payload: dict[str, object]) -> None:
+    """Reject candidates whose cap levers invert a tier (negative width)."""
+    dc_plan = payload.get("dc_plan")
+    tiers = dc_plan.get("match_tiers") if isinstance(dc_plan, dict) else None
+    for tier in tiers or []:
+        if tier["employee_max"] <= tier["employee_min"]:
+            raise ValueError(
+                f"match tier {tier['employee_min']}-{tier['employee_max']} is empty or inverted"
+            )

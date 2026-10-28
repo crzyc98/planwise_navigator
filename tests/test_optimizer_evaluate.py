@@ -145,6 +145,17 @@ def test_cap_levers_and_contiguous_tiers(missing: bool) -> None:
     assert to_dbt_vars(candidate)["match_cap_percent"] == 0.02
 
 
+def test_cap_past_next_tier_is_rejected() -> None:
+    baseline = load_simulation_config(
+        "config/simulation_config.yaml", env_overrides=False
+    )
+    with pytest.raises(ValueError, match="inverted"):
+        resolve_candidate_config(
+            baseline,
+            {"employer_match.tier_1_cap": 0.06, "employer_match.tier_1_rate": 0.0},
+        )
+
+
 def test_vesting_lever_is_rejected() -> None:
     baseline = load_simulation_config(
         "config/simulation_config.yaml", env_overrides=False
