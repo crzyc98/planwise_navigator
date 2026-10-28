@@ -1414,9 +1414,9 @@ function ADPQNECCard({ estimate }: { estimate: NonNullable<ADPScenarioResult['qn
       <dl className="grid grid-cols-2 gap-3 mt-3 text-sm">
         <div><dt className="text-xs text-ink-muted">QNEC rate</dt><dd className="font-semibold">{formatPercent(estimate.qnec_rate ?? 0)}</dd></div>
         <div><dt className="text-xs text-ink-muted">Total principal</dt><dd className="font-semibold">{formatCurrency(estimate.total_qnec ?? 0)}</dd></div>
-        <div><dt className="text-xs text-ink-muted">Recipients</dt><dd className="font-semibold">{estimate.recipient_count}</dd></div>
+        <div><dt className="text-xs text-ink-muted">Recipients</dt><dd className="font-semibold">{estimate.recipient_count?.toLocaleString()}</dd></div>
         <div><dt className="text-xs text-ink-muted">NHCE average ADP</dt><dd className="font-semibold">{formatPercent(estimate.nhce_average_adp_before ?? 0)} → {formatPercent(estimate.nhce_average_adp_after ?? 0)}</dd></div>
-        <div><dt className="text-xs text-ink-muted">Test after</dt><dd className="font-semibold">{estimate.test_result_after?.toUpperCase()}</dd></div>
+        <div><dt className="text-xs text-ink-muted">Test after</dt><dd className={`font-semibold ${estimate.test_result_after === 'pass' ? 'text-success-ink' : 'text-danger-ink'}`}>{estimate.test_result_after?.toUpperCase()}</dd></div>
       </dl>
       <ul className="list-disc pl-4 mt-3 text-xs text-ink-muted">
         {estimate.assumptions?.map(assumption => <li key={assumption}>{assumption}</li>)}
