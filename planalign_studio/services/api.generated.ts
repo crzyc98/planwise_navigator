@@ -2790,6 +2790,64 @@ export interface components {
             /** Prior Year Compensation */
             prior_year_compensation: number | null;
         };
+        /** ADPQNECEstimate */
+        ADPQNECEstimate: {
+            /**
+             * Applied Test After
+             * @default basic
+             */
+            applied_test_after: string;
+            /**
+             * Applied Threshold After
+             * @default 0
+             */
+            applied_threshold_after: number;
+            /** Assumptions */
+            assumptions: string[];
+            /**
+             * Limit Breach Count
+             * @default 0
+             */
+            limit_breach_count: number;
+            /**
+             * Nhce Average Adp After
+             * @default 0
+             */
+            nhce_average_adp_after: number;
+            /**
+             * Nhce Average Adp Before
+             * @default 0
+             */
+            nhce_average_adp_before: number;
+            /**
+             * Qnec Rate
+             * @default 0
+             */
+            qnec_rate: number;
+            /** Reason */
+            reason: string | null;
+            /**
+             * Recipient Count
+             * @default 0
+             */
+            recipient_count: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "estimate" | "not_needed" | "unsupported" | "infeasible";
+            /**
+             * Test Result After
+             * @default fail
+             * @enum {string}
+             */
+            test_result_after: "pass" | "fail";
+            /**
+             * Total Qnec
+             * @default 0
+             */
+            total_qnec: number;
+        };
         /** ADPScenarioResult */
         ADPScenarioResult: {
             /**
@@ -2814,7 +2872,10 @@ export interface components {
             basic_test_threshold: number;
             /** Employees */
             employees: components["schemas"]["ADPEmployeeDetail"][] | null;
-            /** Excess Hce Amount */
+            /**
+             * Excess Hce Amount
+             * @description Aggregate modeled estimate: (HCE average - threshold) x total HCE compensation; not a participant-level refund calculation
+             */
             excess_hce_amount: number | null;
             /**
              * Excluded Count
@@ -2851,6 +2912,7 @@ export interface components {
              * @default 0
              */
             nhce_count: number;
+            qnec_estimate: components["schemas"]["ADPQNECEstimate"] | null;
             /**
              * Safe Harbor
              * @default false

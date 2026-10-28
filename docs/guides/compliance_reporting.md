@@ -85,3 +85,19 @@ npm run test -- components/ComplianceOverview.test.tsx
 
 The integration check builds a synthetic 2025–2027 simulation in pytest's
 temporary directory; it never writes to `dbt/simulation.duckdb`.
+
+### ADP uniform QNEC planning estimate
+
+A failing current-year ADP test includes a modeled uniform QNEC estimate for all
+included NHCEs, including nondeferrers. It applies a uniform percentage of capped
+testing compensation, rounds each participant's principal up to the cent, and
+recomputes the ADP test. The estimate reports recipients, total principal, and
+before/after NHCE averages. Amounts that exceed the modeled 415 annual additions
+limit are flagged as infeasible and are not clipped. Unavailable limits are
+explicitly disclosed; prior-year testing is unsupported.
+
+This is a planning estimate only and requires plan administrator review before
+any correction. It excludes earnings and uses compensation-based HCE classification.
+The retained `excess_hce_amount` field is an aggregate modeled estimate
+((HCE average − threshold) × total HCE testing compensation), not a participant-level
+refund calculation.

@@ -1399,6 +1399,33 @@ function Section415ComparisonResults({ results, scenarioOrder }: { results: Sect
 // ADP Single Scenario Result
 // ==============================================================================
 
+function ADPQNECCard({ estimate }: { estimate: NonNullable<ADPScenarioResult['qnec_estimate']> }) {
+  if (estimate.status !== 'estimate') {
+    return (
+      <div className="bg-warning-surface border border-warning-border rounded-xl p-4 text-warning-ink">
+        <h4 className="text-sm font-semibold">QNEC correction estimate</h4>
+        <p className="text-sm mt-1">{estimate.reason}</p>
+      </div>
+    );
+  }
+  return (
+    <div className="bg-surface-raised border border-border rounded-xl p-4 text-ink">
+      <h4 className="text-sm font-semibold">QNEC correction estimate</h4>
+      <dl className="grid grid-cols-2 gap-3 mt-3 text-sm">
+        <div><dt className="text-xs text-ink-muted">QNEC rate</dt><dd className="font-semibold">{formatPercent(estimate.qnec_rate ?? 0)}</dd></div>
+        <div><dt className="text-xs text-ink-muted">Total principal</dt><dd className="font-semibold">{formatCurrency(estimate.total_qnec ?? 0)}</dd></div>
+        <div><dt className="text-xs text-ink-muted">Recipients</dt><dd className="font-semibold">{estimate.recipient_count}</dd></div>
+        <div><dt className="text-xs text-ink-muted">NHCE average ADP</dt><dd className="font-semibold">{formatPercent(estimate.nhce_average_adp_before ?? 0)} → {formatPercent(estimate.nhce_average_adp_after ?? 0)}</dd></div>
+        <div><dt className="text-xs text-ink-muted">Test after</dt><dd className="font-semibold">{estimate.test_result_after?.toUpperCase()}</dd></div>
+      </dl>
+      <ul className="list-disc pl-4 mt-3 text-xs text-ink-muted">
+        {estimate.assumptions?.map(assumption => <li key={assumption}>{assumption}</li>)}
+      </ul>
+      <p className="text-sm mt-3">Planning estimate only — requires plan administrator review before any correction.</p>
+    </div>
+  );
+}
+
 function ADPSingleResult({
   result,
   showEmployees,
@@ -1505,14 +1532,16 @@ function ADPSingleResult({
         <div className="bg-danger-surface border border-danger-border rounded-xl p-4 flex items-start">
           <DollarSign size={20} className="text-danger-ink mr-3 mt-0.5 flex-shrink-0" />
           <div>
-            <h4 className="text-sm font-semibold text-danger-ink">Excess HCE Deferrals</h4>
+            <h4 className="text-sm font-semibold text-danger-ink">Modeled HCE excess (aggregate estimate)</h4>
             <p className="text-2xl font-bold text-danger-ink mt-1">{formatCurrency(result.excess_hce_amount)}</p>
             <p className="text-xs text-danger-ink mt-1">
-              Aggregate HCE deferral reduction needed for HCE average ADP to meet the applied threshold.
+              Aggregate modeled estimate; this is not a participant-level refund calculation.
             </p>
           </div>
         </div>
       )}
+
+      {result.qnec_estimate && <ADPQNECCard estimate={result.qnec_estimate} />}
 
       {/* Testing method fallback warning */}
       {result.test_message && (
@@ -1683,7 +1712,7 @@ function ADPComparisonResults({ results, scenarioOrder }: { results: ADPScenario
                   </div>
                   {isFailing && result.excess_hce_amount != null && (
                     <div className="flex justify-between text-sm text-danger-ink">
-                      <span>Excess Amount</span>
+                      <span>Modeled HCE excess</span>
                       <span className="font-bold">{formatCurrency(result.excess_hce_amount)}</span>
                     </div>
                   )}
