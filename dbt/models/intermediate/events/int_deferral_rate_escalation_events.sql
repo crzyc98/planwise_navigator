@@ -33,7 +33,7 @@
   - Previous escalation history computed from prior years of this model (no circular deps)
 */
 
-{% if not esc_enabled and not var('easy_enroll_enabled', false) and not var('reenrollment_sweep_enabled', false) and not plan_design_parameters_config %}
+{% if not esc_enabled and not var('easy_enroll_enabled', true) and not var('reenrollment_sweep_enabled', false) and not plan_design_parameters_config %}
 -- Escalation disabled via config; return no rows but preserve fused-events schema
 SELECT
     CAST(NULL AS VARCHAR)           AS employee_id,
@@ -204,12 +204,12 @@ workforce_with_status AS (
             AND decision.employee_deferral_rate > 0)) AS is_enrolled,
         {{ prior_reenrollment_aip_member('w.employee_id') }} AS is_sweep_aip,
         -- Initialize membership in year 1; carry state thereafter.
-        {% if var('easy_enroll_enabled', false) %}
+        {% if var('easy_enroll_enabled', true) %}
         {{ easy_enroll_member(ref('int_enrollment_events'), 'w.employee_id', simulation_year,
           "'" ~ var('scenario_id', 'default') ~ "'") }} AS is_easy_enroll,
         {{ easy_enroll_member(ref('int_enrollment_events'), 'w.employee_id', simulation_year,
           "'" ~ var('scenario_id', 'default') ~ "'",
-          current_year_only=var('deferral_rate_changes_enabled', false)
+          current_year_only=var('deferral_rate_changes_enabled', true)
             and var('deferral_rate_changes_post_escalation_decrease_leaves_escalation', false)) }} OR
         {% endif %}
         {% if simulation_year == start_year %}
@@ -255,7 +255,7 @@ workforce_with_status AS (
 ),
 
 {% set effective_cap = "CASE WHEN w.is_easy_enroll THEN " ~ var('easy_enroll_escalation_cap', 0.10) ~ " ELSE w.deferral_escalation_cap END"
-  if var('easy_enroll_enabled', false) else 'w.deferral_escalation_cap' %}
+  if var('easy_enroll_enabled', true) else 'w.deferral_escalation_cap' %}
 
 -- Apply parameter-driven eligibility rules
 eligible_employees AS (
@@ -330,7 +330,7 @@ escalation_events AS (
         -- Must be enrolled in program (registry) OR newly enrolling (baseline allows auto-escalate and no prior escalations)
         (e.in_auto_escalation_program = true)
         {% if not esc_enabled %}
-        AND (e.is_sweep_aip{% if var('easy_enroll_enabled', false) %} OR e.is_easy_enroll{% endif %})
+        AND (e.is_sweep_aip{% if var('easy_enroll_enabled', true) %} OR e.is_easy_enroll{% endif %})
         {% endif %}
         AND (CASE WHEN {{ require_enrollment }} THEN e.is_enrolled_check ELSE TRUE END)
         AND e.meets_tenure_check

@@ -230,7 +230,7 @@ WITH all_events AS (
   FROM {{ ref('int_reenrollment_sweep_events') }}
   WHERE simulation_year = {{ simulation_year }}
 
-{%- if var('deferral_rate_changes_enabled', false) %}
+{%- if var('deferral_rate_changes_enabled', true) %}
 
   UNION ALL
 

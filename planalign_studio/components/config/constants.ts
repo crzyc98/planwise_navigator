@@ -204,24 +204,24 @@ export const DEFAULT_FORM_DATA: FormData = {
   dcEscalationRate: 1.0,
   dcEscalationCap: 10.0,
   dcEscalationMode: 'automatic',
-  dcEscalationSignupProbability: 0,
-  dcEasyEnrollEnabled: false,
+  dcEscalationSignupProbability: 1,
+  dcEasyEnrollEnabled: true,
   dcEasyEnrollShareWithoutAutoEnrollment: 45,
   dcEasyEnrollShareWithAutoEnrollment: 57,
   dcEasyEnrollPackages: [{ rate: 6, share: 30 }, { rate: 8, share: 50 }, { rate: 10, share: 20 }],
   dcEasyEnrollEscalationCap: 10,
-  dcDeferralRateChangesEnabled: false,
-  dcDeferralRateChangesWithEscalationIncreaseProbability: 3,
-  dcDeferralRateChangesWithEscalationDecreaseProbability: 15,
-  dcDeferralRateChangesWithoutEscalationIncreaseProbability: 25,
-  dcDeferralRateChangesWithoutEscalationDecreaseProbability: 7.5,
+  dcDeferralRateChangesEnabled: true,
+  dcDeferralRateChangesWithEscalationIncreaseProbability: 8.5,
+  dcDeferralRateChangesWithEscalationDecreaseProbability: 6.7,
+  dcDeferralRateChangesWithoutEscalationIncreaseProbability: 8.5,
+  dcDeferralRateChangesWithoutEscalationDecreaseProbability: 6.7,
   dcDeferralRateChangesIncreaseSteps: [{ pp: 1, weight: 10 }, { pp: 2, weight: 10 }, { pp: 3, weight: 15 }, { pp: 5, weight: 20 }, { pp: 7, weight: 20 }, { pp: 10, weight: 25 }],
-  dcDeferralRateChangesDecreaseSteps: [{ pp: 1, weight: 10 }, { pp: 2, weight: 15 }, { pp: 3, weight: 15 }, { pp: 5, weight: 20 }, { pp: 8, weight: 20 }, { pp: 12, weight: 20 }],
+  dcDeferralRateChangesDecreaseShares: [{ share: 25, weight: 20 }, { share: 50, weight: 25 }, { share: 75, weight: 35 }, { share: 90, weight: 20 }],
   dcDeferralRateChangesPostEscalationDecreaseWindowDays: 90,
   dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation: false,
   dcDeferralRateChangesStopProbability: 1.5,
-  dcDeferralRateChangesRestartProbability: 0,
-  dcBelowDefaultShareTiers: [{ max_auto_enroll_default_rate: null, share: 0 }],
+  dcDeferralRateChangesRestartProbability: 40,
+  dcBelowDefaultShareTiers: [{ max_auto_enroll_default_rate: 3, share: 10 }, { max_auto_enroll_default_rate: null, share: 15 }],
   dcBelowDefaultSteps: [{ pp: 1, weight: 50 }, { pp: 2, weight: 30 }, { pp: 3, weight: 20 }],
 
   // DC Plan - Auto-Enrollment Advanced
@@ -253,7 +253,7 @@ export const DEFAULT_FORM_DATA: FormData = {
   // DC Plan - Match Magnet dial (Feature 102; defaults preserve prior behavior)
   dcMatchMagnetEnabled: true,
   dcMatchMagnetProbability: 45,
-  dcMatchMagnetDownwardEnabled: false,
+  dcMatchMagnetDownwardEnabled: true,
   // 25% clears every segment at the maximum spread: the top segment
   // (senior_executive, 15%) plus the 10pp ceiling on the spread lands
   // exactly here, so no segment can be clipped at the default cap.

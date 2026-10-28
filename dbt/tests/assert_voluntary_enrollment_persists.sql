@@ -59,7 +59,7 @@ LEFT JOIN opt_outs oo
 WHERE nxt.employment_status <> 'terminated'
   AND oo.employee_id IS NULL
   AND (nxt.participation_status <> 'participating' OR COALESCE(nxt.current_deferral_rate, 0) <= 0)
-{% if var('deferral_rate_changes_enabled', false) %}
+{% if var('deferral_rate_changes_enabled', true) %}
   AND NOT EXISTS (
     SELECT 1 FROM {{ ref('fct_yearly_events') }} stopped
     WHERE stopped.employee_id = nxt.employee_id

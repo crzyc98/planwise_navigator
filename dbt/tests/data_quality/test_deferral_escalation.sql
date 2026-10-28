@@ -34,7 +34,7 @@ escalation_events AS (
     event.employee_deferral_rate,
     event.prev_employee_deferral_rate,
     event.event_details,
-    {% if var('easy_enroll_enabled', false) %}
+    {% if var('easy_enroll_enabled', true) %}
     CASE WHEN {{ easy_enroll_member(ref('fct_yearly_events'), 'event.employee_id',
       'event.simulation_year', 'event.scenario_id') }}
       THEN {{ var('easy_enroll_escalation_cap', 0.10) }}

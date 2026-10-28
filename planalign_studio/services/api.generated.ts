@@ -5419,6 +5419,13 @@ export interface components {
              */
             multiplier: number;
         };
+        /** DeferralChangeShare */
+        DeferralChangeShare: {
+            /** Share */
+            share: number;
+            /** Weight */
+            weight: number;
+        };
         /** DeferralChangeStep */
         DeferralChangeStep: {
             /**
@@ -9482,6 +9489,10 @@ export interface components {
             auto_enroll?: boolean | null;
             /** Auto Escalation */
             auto_escalation?: boolean | null;
+            /** Below Default Multipliers Age */
+            below_default_multipliers_age?: components["schemas"]["DeferralChangeMultiplierBand"][] | null;
+            /** Below Default Multipliers Income */
+            below_default_multipliers_income?: components["schemas"]["DeferralChangeMultiplierBand"][] | null;
             /**
              * Below Default Share Tiers
              * @description Ordered tiers by auto-enrollment default rate, decimal 0–1 (0.06 = 6%); one final null ceiling. Each tier's share is independent and need not sum to 1.
@@ -9493,10 +9504,10 @@ export interface components {
              */
             below_default_steps?: components["schemas"]["DeferralChangeStep"][] | null;
             /**
-             * Deferral Rate Changes Decrease Steps
-             * @description Ordered decreases in whole percentage points (pp); list weights must sum to 1 (±1e-6).
+             * Deferral Rate Changes Decrease Shares
+             * @description Shares of the current rate cut, strictly between 0 and 1; list weights must sum to 1 (±1e-6).
              */
-            deferral_rate_changes_decrease_steps?: components["schemas"]["DeferralChangeStep"][] | null;
+            deferral_rate_changes_decrease_shares?: components["schemas"]["DeferralChangeShare"][] | null;
             /**
              * Deferral Rate Changes Enabled
              * @description Enable voluntary deferral increases, decreases, stops and restarts; false leaves results unchanged.
@@ -9517,6 +9528,11 @@ export interface components {
              * @description Decrease probability multipliers by income (annual compensation dollars); ordered inclusive min bounds starting at 0, final band open-ended. Multiplied across age, income and tenure before proportional rescaling; stop probability is preserved.
              */
             deferral_rate_changes_multipliers_decrease_income?: components["schemas"]["DeferralChangeMultiplierBand"][] | null;
+            /**
+             * Deferral Rate Changes Multipliers Decrease Rate
+             * @description Decrease probability multipliers by current decimal deferral rate; inclusive lower bounds starting at 0.
+             */
+            deferral_rate_changes_multipliers_decrease_rate?: components["schemas"]["DeferralChangeMultiplierBand"][] | null;
             /**
              * Deferral Rate Changes Multipliers Decrease Tenure
              * @description Decrease probability multipliers by tenure (years); ordered inclusive min bounds starting at 0, final band open-ended. Multiplied across age, income and tenure before proportional rescaling; stop probability is preserved.

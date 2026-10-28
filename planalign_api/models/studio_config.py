@@ -10,6 +10,7 @@ from planalign_orchestrator.config.participant_behavior import (
     AIPMode,
     BelowDefaultTier,
     DeferralChangeStep,
+    DeferralChangeShare,
     DeferralChangeMultiplierBands,
     EasyEnrollPackage,
     Rate,
@@ -144,6 +145,8 @@ class StudioDCPlanConfig(PartialConfig):
         default=None,
         description="Ordered tiers by auto-enrollment default rate, decimal 0–1 (0.06 = 6%); one final null ceiling. Each tier's share is independent and need not sum to 1.",
     )
+    below_default_multipliers_age: DeferralChangeMultiplierBands | None = None
+    below_default_multipliers_income: DeferralChangeMultiplierBands | None = None
     below_default_steps: list[DeferralChangeStep] | None = Field(
         default=None,
         description="Ordered below-default reductions in whole percentage points (pp); list weights must sum to 1 (±1e-6).",
@@ -204,13 +207,19 @@ class StudioDCPlanConfig(PartialConfig):
         default=None,
         description="Decrease probability multipliers by tenure (years); ordered inclusive min bounds starting at 0, final band open-ended. Multiplied across age, income and tenure before proportional rescaling; stop probability is preserved.",
     )
+    deferral_rate_changes_multipliers_decrease_rate: (
+        DeferralChangeMultiplierBands | None
+    ) = Field(
+        default=None,
+        description="Decrease probability multipliers by current decimal deferral rate; inclusive lower bounds starting at 0.",
+    )
     deferral_rate_changes_increase_steps: list[DeferralChangeStep] | None = Field(
         default=None,
         description="Ordered increases in whole percentage points (pp); list weights must sum to 1 (±1e-6).",
     )
-    deferral_rate_changes_decrease_steps: list[DeferralChangeStep] | None = Field(
+    deferral_rate_changes_decrease_shares: list[DeferralChangeShare] | None = Field(
         default=None,
-        description="Ordered decreases in whole percentage points (pp); list weights must sum to 1 (±1e-6).",
+        description="Shares of the current rate cut, strictly between 0 and 1; list weights must sum to 1 (±1e-6).",
     )
     deferral_rate_changes_post_escalation_decrease_window_days: int | None = Field(
         default=None,

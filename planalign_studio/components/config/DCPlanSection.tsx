@@ -553,7 +553,7 @@ export function DCPlanSection() {
                    disabled={!formData.dcMatchMagnetEnabled || !formData.dcAutoEnroll} aria-describedby="dcplan-match-magnet-downward-help" className="mt-1 h-4 w-4 text-fidelity-green rounded disabled:opacity-50" />
                  Also pull rates down to the full-match rate when it is below the auto-enrollment default
                </label>
-               <p id="dcplan-match-magnet-downward-help" className="mt-1 text-xs text-ink-muted">Applies only to employees whose starting rate is between the full-match rate and the auto-enrollment default. Rates above the default are never lowered. Uses the same {formData.dcMatchMagnetProbability}% probability as the upward pull. {!formData.dcAutoEnroll ? 'Inactive while auto-enrollment is off. Saved value is retained.' : !formData.dcMatchMagnetEnabled ? 'Inactive while new-enrollee match seeking is off. Saved value is retained.' : ''}</p>
+               <p id="dcplan-match-magnet-downward-help" className="mt-1 text-xs text-ink-muted">On by default. Applies only to employees whose starting rate is between the full-match rate and the auto-enrollment default. Rates above the default are never lowered. Uses the same {formData.dcMatchMagnetProbability}% probability as the upward pull. {!formData.dcAutoEnroll ? 'Inactive while auto-enrollment is off. Saved value is retained.' : !formData.dcMatchMagnetEnabled ? 'Inactive while new-enrollee match seeking is off. Saved value is retained.' : ''}</p>
              </div>
            </div>
            </details>

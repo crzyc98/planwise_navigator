@@ -8,6 +8,7 @@ export type EscalationMode = NonNullable<components['schemas']['StudioDCPlanConf
 // pp remains a whole number of percentage points in both the UI and API.
 export type BelowDefaultTier = components['schemas']['BelowDefaultTier'];
 export type DeferralChangeStep = components['schemas']['DeferralChangeStep'];
+export type DeferralChangeShare = components['schemas']['DeferralChangeShare'];
 export type BelowDefaultStep = DeferralChangeStep;
 export type EasyEnrollPackage = components['schemas']['EasyEnrollPackage'];
 
@@ -197,7 +198,7 @@ export interface FormData {
   dcDeferralRateChangesWithoutEscalationIncreaseProbability: number;
   dcDeferralRateChangesWithoutEscalationDecreaseProbability: number;
   dcDeferralRateChangesIncreaseSteps: DeferralChangeStep[];
-  dcDeferralRateChangesDecreaseSteps: DeferralChangeStep[];
+  dcDeferralRateChangesDecreaseShares: DeferralChangeShare[];
   dcDeferralRateChangesPostEscalationDecreaseWindowDays: number;
   dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation: boolean;
   dcDeferralRateChangesStopProbability: number;

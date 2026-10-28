@@ -101,6 +101,11 @@ _PARTICIPANT_BEHAVIOR_FIELDS = {
         "enrollment.below_default.steps",
     ),
 }
+for _dimension in ("age", "income"):
+    _PARTICIPANT_BEHAVIOR_FIELDS[f"below_default_multipliers_{_dimension}"] = (
+        f"below_default_multipliers_{_dimension}",
+        f"enrollment.below_default.multipliers.{_dimension}",
+    )
 for _field in (
     "enabled",
     "channel_share_without_auto_enrollment",
@@ -119,7 +124,7 @@ for _field in (
     "without_escalation.increase_probability",
     "without_escalation.decrease_probability",
     "increase_steps",
-    "decrease_steps",
+    "decrease_shares",
     "post_escalation_decrease_window_days",
     "post_escalation_decrease_leaves_escalation",
     "stop_probability",
@@ -130,6 +135,7 @@ for _field in (
     "multipliers.decrease.age",
     "multipliers.decrease.income",
     "multipliers.decrease.tenure",
+    "multipliers.decrease.rate",
 ):
     _name = f"deferral_rate_changes_{_field.replace('.', '_')}"
     _PARTICIPANT_BEHAVIOR_FIELDS[_name] = (_name, f"deferral_rate_changes.{_field}")

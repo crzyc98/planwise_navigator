@@ -160,11 +160,13 @@ enrollment:
   # Epic E053: Year-over-year voluntary enrollment for non-participants
   year_over_year_conversion:
     enabled: true  # Enable year-over-year voluntary enrollment
+    # Age rates scaled together for about 5% population-average annual conversion.
+    # Income and tenure multipliers retain the demographic gradients.
     base_rates_by_age:
-      young: 0.03      # 3% annual conversion for ages 18-30
-      mid_career: 0.05 # 5% annual conversion for ages 31-45
-      mature: 0.07     # 7% annual conversion for ages 46-55
-      senior: 0.08     # 8% annual conversion for ages 56+
+      young: 0.028
+      mid_career: 0.046
+      mature: 0.064
+      senior: 0.074
     income_multipliers:
       low_income: 0.8  # Financial constraints reduce conversion
       moderate: 1.0    # Baseline conversion rate
@@ -191,14 +193,19 @@ enrollment:
   #   max_deferral_rate: 0.10  # Upper bound on voluntary deferral selection (incl. snapped rates)
 
   match_magnet:
-    # Optionally lower above-ceiling enrollment rates to the match ceiling; false leaves results unchanged.
+    # By default, lower eligible self-directed starting rates toward the full-match ceiling.
     # Uses the same probability as the upward match magnet (snap_probability), decimal 0–1.
-    downward_enabled: false
+    downward_enabled: true
   below_default:
-    # Let some enrollees choose a rate below the auto-enrollment default; zero shares leave results unchanged.
+    # By default, 10% choose below AE defaults up to 3%; 15% choose below higher defaults.
     # Tier ceilings are decimals (0.06 = 6%); share is the fraction choosing below-default in that tier (0–1).
     # Tiers are ordered by ceiling with one final null ceiling; tier shares are independent, not a distribution.
-    share_tiers: [{max_auto_enroll_default_rate: null, share: 0.0}]
+    share_tiers: [{max_auto_enroll_default_rate: 0.03, share: 0.10}, {max_auto_enroll_default_rate: null, share: 0.15}]
+    # Multipliers scale tier share; age in years, income in annual dollars.
+    # Ordered inclusive lower bounds; first min is 0.
+    multipliers:
+      age: [{min: 0, multiplier: 1.4}, {min: 30, multiplier: 1.1}, {min: 40, multiplier: 0.9}, {min: 50, multiplier: 0.75}, {min: 60, multiplier: 0.65}]
+      income: [{min: 0, multiplier: 1.6}, {min: 40000, multiplier: 1.2}, {min: 60000, multiplier: 1.0}, {min: 100000, multiplier: 0.7}, {min: 150000, multiplier: 0.5}]
     # pp = whole percentage points below the default; weights must sum to 1 (±1e-6).
     steps: [{pp: 1, weight: 0.50}, {pp: 2, weight: 0.30}, {pp: 3, weight: 0.20}]
 
@@ -396,10 +403,10 @@ deferral_match_response:
 deferral_auto_escalation:
   # Escalation is the auto-increase program (AIP).
   # Increase enrolled participants' deferrals annually; automatic mode preserves existing behavior.
-  # Rates are decimals (0.06 = 6%); signup probability is per participant per year, 0–1.
+  # Rates are decimals (0.06 = 6%); signup uses a stable per-participant probability, 0–1.
   enabled: true                 # Master on/off switch
   mode: automatic               # automatic | participant_elected; only applies when enabled
-  participant_elected_signup_probability: 0.0  # Shipped default leaves results unchanged
+  participant_elected_signup_probability: 0.01  # 1% sign up outside Easy Enroll in participant-elected mode
   effective_day: "01-01"        # MM-DD for escalation effective date
   increment_amount: 0.01        # Annual escalation rate (default 1%)
   maximum_rate: 0.10            # Cap for deferral rate (default 10%)
@@ -412,10 +419,10 @@ storage:
   max_runs_per_scenario: 3  # Maximum archived runs to keep per scenario (0 = unlimited)
   artifact_max_age_days: 14  # `planalign gc` reclaims var/ campaign DBs older than this
 
-# Offer preset deferral packages during self-directed enrollment; disabled leaves results unchanged.
+# Offer preset deferral packages by default during self-directed enrollment.
 # Rates are decimals (0.06 = 6%); shares are fractions, 0–1.
 easy_enroll:
-  enabled: false
+  enabled: true
   # Share of employees who enroll on their own (before any auto-enrollment) who use
   # Easy Enroll instead of choosing a rate themselves; the remainder enroll proactively online.
   # Use the share for whether the plan has auto-enrollment. Easy Enroll is only available
@@ -431,12 +438,12 @@ easy_enroll:
     - {rate: 0.10, share: 0.20}
   escalation_cap: 0.10  # Maximum deferral rate under escalation for package participants (10%)
 
-# Model voluntary deferral increases, decreases, stops and restarts; disabled leaves results unchanged.
+# Model voluntary deferral increases, decreases, stops and restarts by default.
 # All probabilities are per participant per year, 0–1; 0.03 = 3%.
 deferral_rate_changes:
-  enabled: false
-  with_escalation: {increase_probability: 0.03, decrease_probability: 0.15}  # Annual participant probabilities
-  without_escalation: {increase_probability: 0.25, decrease_probability: 0.075}  # Annual participant probabilities
+  enabled: true
+  with_escalation: {increase_probability: 0.085, decrease_probability: 0.067}  # Annual participant probabilities (in AIP)
+  without_escalation: {increase_probability: 0.085, decrease_probability: 0.067}  # Annual participant probabilities (not in AIP)
   # Probability = base x age x income x tenure for each direction. Stop is unchanged.
   # If increase + decrease + stop > 1, scale increase/decrease proportionally to 1 - stop.
   # Ordered inclusive lower bounds: age/tenure in years, income in annual dollars.
@@ -448,13 +455,14 @@ deferral_rate_changes:
       income: [{min: 0, multiplier: 0.5}, {min: 25000, multiplier: 0.65}, {min: 50000, multiplier: 0.75}, {min: 60000, multiplier: 0.9}, {min: 75000, multiplier: 1.0}, {min: 100000, multiplier: 1.15}, {min: 125000, multiplier: 1.2}, {min: 150000, multiplier: 1.35}, {min: 200000, multiplier: 1.3}, {min: 250000, multiplier: 1.2}]
       tenure: [{min: 0, multiplier: 1.05}, {min: 2, multiplier: 0.9}, {min: 5, multiplier: 0.95}, {min: 10, multiplier: 1.1}, {min: 15, multiplier: 1.15}, {min: 20, multiplier: 1.2}, {min: 25, multiplier: 1.25}, {min: 30, multiplier: 1.15}]
     decrease:
+      rate: [{min: 0, multiplier: 0.5}, {min: 0.04, multiplier: 0.8}, {min: 0.07, multiplier: 1.0}, {min: 0.10, multiplier: 1.3}, {min: 0.15, multiplier: 1.6}]
       age: [{min: 0, multiplier: 0.95}, {min: 30, multiplier: 1.1}, {min: 40, multiplier: 1.0}, {min: 50, multiplier: 0.85}, {min: 60, multiplier: 0.75}, {min: 70, multiplier: 0.5}]
       income: [{min: 0, multiplier: 0.5}, {min: 25000, multiplier: 0.65}, {min: 40000, multiplier: 0.6}, {min: 50000, multiplier: 0.75}, {min: 60000, multiplier: 0.85}, {min: 75000, multiplier: 0.95}, {min: 100000, multiplier: 1.05}, {min: 125000, multiplier: 1.25}, {min: 150000, multiplier: 1.4}, {min: 200000, multiplier: 1.55}, {min: 250000, multiplier: 1.25}]
       tenure: [{min: 0, multiplier: 0.9}, {min: 2, multiplier: 0.95}, {min: 3, multiplier: 1.05}, {min: 4, multiplier: 1.1}, {min: 5, multiplier: 1.05}, {min: 15, multiplier: 1.0}, {min: 20, multiplier: 0.9}, {min: 25, multiplier: 0.85}, {min: 30, multiplier: 0.75}]
   # pp = whole percentage points of deferral change; each list's weights must sum to 1 (±1e-6).
   increase_steps: [{pp: 1, weight: 0.10}, {pp: 2, weight: 0.10}, {pp: 3, weight: 0.15}, {pp: 5, weight: 0.20}, {pp: 7, weight: 0.20}, {pp: 10, weight: 0.25}]
-  decrease_steps: [{pp: 1, weight: 0.10}, {pp: 2, weight: 0.15}, {pp: 3, weight: 0.15}, {pp: 5, weight: 0.20}, {pp: 8, weight: 0.20}, {pp: 12, weight: 0.20}]
+  decrease_shares: [{share: 0.25, weight: 0.2}, {share: 0.5, weight: 0.25}, {share: 0.75, weight: 0.35}, {share: 0.9, weight: 0.2}]  # Fraction of the current rate cut; minimum resulting rate is 1%.
   post_escalation_decrease_window_days: 90  # Non-negative days after escalation
   post_escalation_decrease_leaves_escalation: false  # Remain in the auto-increase program after a decrease
   stop_probability: 0.015  # Annual probability of stopping contributions
-  restart_probability: 0.0  # Shipped default does not restart contributions
+  restart_probability: 0.40  # Annual chance a stopped participant restarts; ~2/3 of stops restart, net of turnover

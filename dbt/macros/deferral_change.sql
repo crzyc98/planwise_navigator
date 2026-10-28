@@ -22,7 +22,7 @@ COALESCE(
     match_rate, increment, escalation_cap, compensation, age, irs_alias='il') -%}
 {# Event payloads are DECIMAL(5,4). Canonicalize only in enabled runs so that
    inherited DOUBLE rates (e.g. 0.06 + 0.01) compare exactly with their payload. #}
-{% if var('deferral_rate_changes_enabled', false) %}CAST({% endif %}
+{% if var('deferral_rate_changes_enabled', true) %}CAST({% endif %}
 CASE
   WHEN {{ opt_out }} THEN 0.00::DECIMAL(5,4)
   WHEN NOT ({{ enrolled }}) THEN 0.00::DECIMAL(5,4)
@@ -37,7 +37,7 @@ CASE
   )::DECIMAL(5,4)
   ELSE COALESCE({{ escalation }}, {{ match_rate }}, {{ fallback }})
 END
-{% if var('deferral_rate_changes_enabled', false) %}AS DECIMAL(5,4)){% endif %}
+{% if var('deferral_rate_changes_enabled', true) %}AS DECIMAL(5,4)){% endif %}
 {%- endmacro %}
 
 {# A zero rate alone is not stop provenance. A later opt-out cancels that stop. #}
@@ -77,17 +77,18 @@ END
     {'pp': 3, 'weight': 0.15}, {'pp': 5, 'weight': 0.2},
     {'pp': 7, 'weight': 0.2}, {'pp': 10, 'weight': 0.25}]
     if direction == 'increase' else [
-    {'pp': 1, 'weight': 0.1}, {'pp': 2, 'weight': 0.15},
-    {'pp': 3, 'weight': 0.15}, {'pp': 5, 'weight': 0.2},
-    {'pp': 8, 'weight': 0.2}, {'pp': 12, 'weight': 0.2}] -%}
-  {%- set steps = var('deferral_rate_changes_' ~ direction ~ '_steps', defaults) -%}
+    {'share': 0.25, 'weight': 0.2}, {'share': 0.5, 'weight': 0.25},
+    {'share': 0.75, 'weight': 0.35}, {'share': 0.9, 'weight': 0.2}] -%}
+  {%- set field = 'pp' if direction == 'increase' else 'share' -%}
+  {%- set suffix = '_steps' if direction == 'increase' else '_shares' -%}
+  {%- set steps = var('deferral_rate_changes_' ~ direction ~ suffix, defaults) -%}
   {%- set ns = namespace(cumulative=0.0) -%}
 CASE
   {%- for step in steps %}
     {%- set ns.cumulative = ns.cumulative + step.weight %}
-  WHEN {{ draw }} < {{ ns.cumulative }} THEN {{ step.pp }}
+  WHEN {{ draw }} < {{ ns.cumulative }} THEN {{ step[field] }}
   {%- endfor %}
-  ELSE {{ steps[-1].pp }}
+  ELSE {{ steps[-1][field] }}
 END
 {%- endmacro %}
 
@@ -105,7 +106,7 @@ CAST(CASE
   WHEN {{ category }} = 'restart' THEN LEAST({{ last_nonzero }}, {{ cap }})
   WHEN {{ category }} = 'proactive_increase'
   THEN GREATEST({{ previous_rate }}, LEAST({{ cap }}, {{ previous_rate }} + {{ step_pp }} / 100.0))
-  ELSE LEAST({{ previous_rate }}, GREATEST(0.01, {{ previous_rate }} - {{ step_pp }} / 100.0))
+  ELSE GREATEST(0.01, LEAST({{ previous_rate }} - 0.01, ROUND({{ previous_rate }} * (1 - {{ step_pp }}), 2)))
 END AS DECIMAL(5,4))
 {%- endmacro %}
 
@@ -180,4 +181,11 @@ END
 CASE WHEN {{ probability }} + {{ other }} + {{ stop }} > 1.0
   THEN {{ probability }} / ({{ probability }} + {{ other }}) * (1.0 - {{ stop }})
   ELSE {{ probability }} END
+{%- endmacro %}
+
+{% macro deferral_change_rate_multiplier(rate) -%}
+{{ deferral_change_multiplier(rate, var('deferral_rate_changes_multipliers_decrease_rate', [
+  {'min': 0, 'multiplier': 0.5}, {'min': 0.04, 'multiplier': 0.8},
+  {'min': 0.07, 'multiplier': 1.0}, {'min': 0.10, 'multiplier': 1.3},
+  {'min': 0.15, 'multiplier': 1.6}])) }}
 {%- endmacro %}

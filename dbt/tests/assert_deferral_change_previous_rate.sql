@@ -100,7 +100,7 @@ WHERE state.employee_id IS NULL
       AND escalation.simulation_year = events.simulation_year
       AND escalation.event_type = 'deferral_escalation'
   ))
-  {% if var('deferral_rate_changes_enabled', false) and var('deferral_rate_changes_post_escalation_decrease_leaves_escalation', false) %}
+  {% if var('deferral_rate_changes_enabled', true) and var('deferral_rate_changes_post_escalation_decrease_leaves_escalation', false) %}
   OR (events.event_category = 'aip_response_decrease' AND state.aip_participant)
   {% endif %}
   OR EXISTS (

@@ -34,7 +34,7 @@ class EasyEnrollPackage(BaseModel):
 
 
 class EasyEnrollSettings(BaseModel):
-    enabled: bool = False
+    enabled: bool = True
     channel_share_without_auto_enrollment: Rate = 0.45
     channel_share_with_auto_enrollment: Rate = 0.57
     packages: list[EasyEnrollPackage] = Field(
@@ -74,42 +74,6 @@ class DeferralChangeStep(BaseModel):
     weight: Rate = Field(
         description="Step probability weight, decimal 0–1; list weights must sum to 1 (±1e-6)."
     )
-
-
-class BelowDefaultSettings(BaseModel):
-    share_tiers: list[BelowDefaultTier] = Field(
-        default_factory=lambda: [
-            BelowDefaultTier(max_auto_enroll_default_rate=None, share=0.0)
-        ],
-        min_length=1,
-    )
-    steps: list[DeferralChangeStep] = Field(
-        default_factory=lambda: [
-            DeferralChangeStep(pp=pp, weight=weight)
-            for pp, weight in [(1, 0.50), (2, 0.30), (3, 0.20)]
-        ]
-    )
-
-    @field_validator("share_tiers")
-    @classmethod
-    def check_tiers(cls, tiers: list[BelowDefaultTier]) -> list[BelowDefaultTier]:
-        bounds = [tier.max_auto_enroll_default_rate for tier in tiers]
-        if bounds.count(None) != 1 or bounds[-1] is not None:
-            raise ValueError(
-                "share_tiers must have exactly one open-ended (null) tier, last"
-            )
-        closed = [bound for bound in bounds if bound is not None]
-        if any(left >= right for left, right in zip(closed, closed[1:])):
-            raise ValueError(
-                "share_tiers must be ordered by max_auto_enroll_default_rate ascending"
-            )
-        return tiers
-
-    @field_validator("steps")
-    @classmethod
-    def check_steps(cls, steps: list[DeferralChangeStep]) -> list[DeferralChangeStep]:
-        validate_weights([step.weight for step in steps])
-        return steps
 
 
 class DeferralChangeRates(BaseModel):
@@ -154,6 +118,73 @@ DeferralChangeMultiplierBands = Annotated[
     Field(min_length=1),
     AfterValidator(validate_multiplier_bands),
 ]
+
+
+class BelowDefaultMultipliers(BaseModel):
+    age: DeferralChangeMultiplierBands = Field(
+        default_factory=lambda: [
+            DeferralChangeMultiplierBand(min=lower, multiplier=factor)
+            for lower, factor in [
+                (0, 1.4),
+                (30, 1.1),
+                (40, 0.9),
+                (50, 0.75),
+                (60, 0.65),
+            ]
+        ]
+    )
+    income: DeferralChangeMultiplierBands = Field(
+        default_factory=lambda: [
+            DeferralChangeMultiplierBand(min=lower, multiplier=factor)
+            for lower, factor in [
+                (0, 1.6),
+                (40000, 1.2),
+                (60000, 1.0),
+                (100000, 0.7),
+                (150000, 0.5),
+            ]
+        ]
+    )
+
+
+class BelowDefaultSettings(BaseModel):
+    multipliers: BelowDefaultMultipliers = Field(
+        default_factory=BelowDefaultMultipliers
+    )
+    share_tiers: list[BelowDefaultTier] = Field(
+        default_factory=lambda: [
+            BelowDefaultTier(max_auto_enroll_default_rate=0.03, share=0.10),
+            BelowDefaultTier(max_auto_enroll_default_rate=None, share=0.15),
+        ],
+        min_length=1,
+    )
+    steps: list[DeferralChangeStep] = Field(
+        default_factory=lambda: [
+            DeferralChangeStep(pp=pp, weight=weight)
+            for pp, weight in [(1, 0.50), (2, 0.30), (3, 0.20)]
+        ]
+    )
+
+    @field_validator("share_tiers")
+    @classmethod
+    def check_tiers(cls, tiers: list[BelowDefaultTier]) -> list[BelowDefaultTier]:
+        bounds = [tier.max_auto_enroll_default_rate for tier in tiers]
+        if bounds.count(None) != 1 or bounds[-1] is not None:
+            raise ValueError(
+                "share_tiers must have exactly one open-ended (null) tier, last"
+            )
+        closed = [bound for bound in bounds if bound is not None]
+        if any(left >= right for left, right in zip(closed, closed[1:])):
+            raise ValueError(
+                "share_tiers must be ordered by max_auto_enroll_default_rate ascending"
+            )
+        return tiers
+
+    @field_validator("steps")
+    @classmethod
+    def check_steps(cls, steps: list[DeferralChangeStep]) -> list[DeferralChangeStep]:
+        validate_weights([step.weight for step in steps])
+        return steps
 
 
 def neutral_multiplier_bands() -> list[DeferralChangeMultiplierBand]:
@@ -219,6 +250,18 @@ class DeferralChangeIncreaseMultipliers(DeferralChangeDirectionMultipliers):
 
 
 class DeferralChangeDecreaseMultipliers(DeferralChangeDirectionMultipliers):
+    rate: DeferralChangeMultiplierBands = Field(
+        default_factory=lambda: [
+            DeferralChangeMultiplierBand(min=lower, multiplier=factor)
+            for lower, factor in [
+                (0, 0.5),
+                (0.04, 0.8),
+                (0.07, 1.0),
+                (0.10, 1.3),
+                (0.15, 1.6),
+            ]
+        ]
+    )
     age: DeferralChangeMultiplierBands = Field(
         default_factory=lambda: [
             DeferralChangeMultiplierBand(min=lower, multiplier=factor)
@@ -277,19 +320,24 @@ class DeferralChangeMultipliers(BaseModel):
     )
 
 
+class DeferralChangeShare(BaseModel):
+    share: float = Field(gt=0, lt=1)
+    weight: Rate
+
+
 class DeferralRateChangesSettings(BaseModel):
-    enabled: bool = False
+    enabled: bool = True
     multipliers: DeferralChangeMultipliers = Field(
         default_factory=DeferralChangeMultipliers
     )
     with_escalation: DeferralChangeRates = Field(
         default_factory=lambda: DeferralChangeRates(
-            increase_probability=0.03, decrease_probability=0.15
+            increase_probability=0.085, decrease_probability=0.067
         )
     )
     without_escalation: DeferralChangeRates = Field(
         default_factory=lambda: DeferralChangeRates(
-            increase_probability=0.25, decrease_probability=0.075
+            increase_probability=0.085, decrease_probability=0.067
         )
     )
     increase_steps: list[DeferralChangeStep] = Field(
@@ -305,23 +353,24 @@ class DeferralRateChangesSettings(BaseModel):
             ]
         ]
     )
-    decrease_steps: list[DeferralChangeStep] = Field(
+    decrease_shares: list[DeferralChangeShare] = Field(
         default_factory=lambda: [
-            DeferralChangeStep(pp=pp, weight=weight)
-            for pp, weight in [
-                (1, 0.1),
-                (2, 0.15),
-                (3, 0.15),
-                (5, 0.2),
-                (8, 0.2),
-                (12, 0.2),
-            ]
+            DeferralChangeShare(share=share, weight=weight)
+            for share, weight in [(0.25, 0.2), (0.5, 0.25), (0.75, 0.35), (0.9, 0.2)]
         ]
     )
     post_escalation_decrease_window_days: int = Field(default=90, ge=0, strict=True)
     post_escalation_decrease_leaves_escalation: bool = False
     stop_probability: Rate = 0.015
-    restart_probability: Rate = 0.0
+    restart_probability: Rate = 0.40
+
+    @field_validator("decrease_shares")
+    @classmethod
+    def check_shares(
+        cls, shares: list[DeferralChangeShare]
+    ) -> list[DeferralChangeShare]:
+        validate_weights([row.weight for row in shares])
+        return shares
 
     @model_validator(mode="after")
     def check_stop_probability_mass(self) -> "DeferralRateChangesSettings":
@@ -338,7 +387,7 @@ class DeferralRateChangesSettings(BaseModel):
                     )
         return self
 
-    @field_validator("increase_steps", "decrease_steps")
+    @field_validator("increase_steps")
     @classmethod
     def check_steps(cls, steps: list[DeferralChangeStep]) -> list[DeferralChangeStep]:
         validate_weights([step.weight for step in steps])
@@ -352,7 +401,7 @@ class DeferralAutoEscalationSettings(BaseModel):
 
     enabled: bool = True
     mode: AIPMode = "automatic"
-    participant_elected_signup_probability: Rate = 0.0
+    participant_elected_signup_probability: Rate = 0.01
     effective_day: str | None = None
     increment_amount: Rate | None = None
     maximum_rate: Rate | None = None

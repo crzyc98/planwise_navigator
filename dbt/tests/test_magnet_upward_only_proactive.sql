@@ -17,7 +17,7 @@ WHERE match_optimized_rate < raw_deferral_rate
   AND {{ enrollment_behavior_draw('employee_id', 'simulation_year', '-below-default-') }}
     >= {{ below_default_share('auto_enrollment_default_deferral_rate') }}
   {% endif %}
-  {% if var('auto_enrollment_enabled', true) and var('enrollment_match_magnet_downward_enabled', false) and var('enrollment_match_magnet_enabled', true) %}
+  {% if var('auto_enrollment_enabled', true) and var('enrollment_match_magnet_downward_enabled', true) and var('enrollment_match_magnet_enabled', true) %}
   AND NOT (
     match_optimized_rate = match_magnet_ceiling
     AND match_magnet_ceiling > 0

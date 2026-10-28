@@ -192,14 +192,14 @@ enrollment:
 
 deferral_rate_changes:               # new, #983
   enabled: false                                # Phase 4: true
-  with_escalation:     {increase_probability: 0.03,  decrease_probability: 0.15}
-  without_escalation: {increase_probability: 0.25,  decrease_probability: 0.075}
+  with_escalation:     {increase_probability: 0.085, decrease_probability: 0.067}  # 2026-10-27: one all-plans rate for both groups
+  without_escalation: {increase_probability: 0.085, decrease_probability: 0.067}
   increase_steps: [{pp: 1, weight: 0.10}, {pp: 2, weight: 0.10}, {pp: 3, weight: 0.15}, {pp: 5, weight: 0.20}, {pp: 7, weight: 0.20}, {pp: 10, weight: 0.25}]  # fitted in PR 3e
-  decrease_steps: [{pp: 1, weight: 0.10}, {pp: 2, weight: 0.15}, {pp: 3, weight: 0.15}, {pp: 5, weight: 0.20}, {pp: 8, weight: 0.20}, {pp: 12, weight: 0.20}]  # fitted in PR 3e
+  decrease_shares: [{share: 0.25, weight: 0.2}, {share: 0.5, weight: 0.25}, {share: 0.75, weight: 0.35}, {share: 0.9, weight: 0.2}]  # Fraction of the current rate cut; minimum resulting rate is 1%.
   post_escalation_decrease_window_days: 90
   post_escalation_decrease_leaves_escalation: false                  # [D7]: stay in AIP
   stop_probability: 0.015
-  restart_probability: 0.0                             # Phase 4: 0.05 [D9]
+  restart_probability: 0.0                             # Phase 4: 0.40 [D9, rechecked 2026-10-27]
 ```
 
 - Validators enforce:
@@ -261,6 +261,6 @@ Every PR runs edge configs (AE `all_eligible_employees`, escalation off, match r
 | D6 | Existing non-participants reuse YoY conversion, retuned in Phase 4 to a ~5% population average with the income and tenure gradients kept. |
 | D7 | An `aip_response_decrease` does **not** remove the participant from AIP (`post_escalation_decrease_leaves_escalation: false`). |
 | D8 | The participant-elected AIP sign-up rate outside Easy Enroll defaults to **1%** in Phase 4. |
-| D9 | `restart_probability` defaults to **5% a year** in Phase 4. Recheck it against the calibration report in 3e. |
+| D9 | `restart_probability` defaults to **5% a year** in Phase 4. Recheck it against the calibration report in 3e. **Rechecked 2026-10-27: 40%**, so about two-thirds of stops restart after turnover, in line with plan data. |
 
 Still open, needed before PR 2: the #987 questions (which plans get Easy Enroll by default; whether auto-enrolled people can switch into a package; whether the 35% channel share is right).

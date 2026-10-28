@@ -13,7 +13,7 @@ export function EasyEnrollEditor({ form, onChange }: Props) {
   const errors = validateEasyEnrollSettings(form);
   const errorId = 'dcplan-easy-enroll-errors';
   return <div className="sm:col-span-6 space-y-4">
-    <p className="text-xs text-ink-muted">Employees who enroll on their own, before any auto-enrollment, can pick a preset package instead of choosing a rate. Auto-enrolled employees never use Easy Enroll.</p>
+    <p className="text-xs text-ink-muted">On by default. Employees who enroll on their own, before any auto-enrollment, can pick a preset package instead of choosing a rate. Auto-enrolled employees never use Easy Enroll.</p>
     {!form.dcEasyEnrollEnabled && <p className="text-xs text-ink-muted">Inactive while Easy Enroll is off. Saved values are retained.</p>}
     {form.dcEasyEnrollEnabled && errors.length > 0 && <div id={errorId} role="alert" className="rounded border border-danger-border bg-danger-surface p-3 text-xs text-danger-ink">
       {errors.map(error => <p key={error}>{error}</p>)}

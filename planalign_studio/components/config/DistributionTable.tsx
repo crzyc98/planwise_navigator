@@ -5,6 +5,8 @@ interface Props {
   titleId: string;
   rows: { value: number; share: number }[];
   valueHeading: string;
+  valueLabel?: string;
+  weightLabel?: string;
   shareHeading: string;
   rowLabel: string;
   removeLabel?: string;
@@ -35,9 +37,9 @@ export function DistributionTable(props: Props) {
       <table className="w-full text-sm" aria-labelledby={props.titleId}>
         <thead><tr className="border-b border-border"><th scope="col" className="text-left p-2">{props.valueHeading}</th><th scope="col" className="text-left p-2">{props.shareHeading}</th><th scope="col" className="text-left p-2">Actions</th></tr></thead>
         <tbody>{rows.map((row, index) => <tr key={index} className="border-b border-border">
-          <td className="p-2 whitespace-nowrap"><NumericInput aria-label={`${props.rowLabel} ${index + 1} ${props.integer ? 'in percentage points' : 'contribution rate'}`} value={row.value} integer={props.integer} min={props.integer ? 1 : 0} max={props.max} className={inputClass}
+          <td className="p-2 whitespace-nowrap"><NumericInput aria-label={`${props.rowLabel} ${index + 1} ${props.valueLabel ?? (props.integer ? 'in percentage points' : 'contribution rate')}`} value={row.value} integer={props.integer} min={props.integer ? 1 : 0} max={props.max} className={inputClass}
             {...errorProps(props.invalidValue(index))} onChange={event => props.onChange(index, { value: Number(event.target.value) })} /> {props.valueSuffix}</td>
-          <td className="p-2 whitespace-nowrap"><NumericInput aria-label={`${props.rowLabel} ${index + 1} ${props.integer ? 'weight' : 'share'}`} value={row.share} min={0} max={100} className={inputClass}
+          <td className="p-2 whitespace-nowrap"><NumericInput aria-label={`${props.rowLabel} ${index + 1} ${props.weightLabel ?? (props.integer ? 'weight' : 'share')}`} value={row.share} min={0} max={100} className={inputClass}
             {...errorProps(invalidDistribution(rows.map(item => item.share)))} onChange={event => props.onChange(index, { share: Number(event.target.value) })} /> %{props.shareSuffix}</td>
           <td className="p-2"><button type="button" className={buttonClass} disabled={rows.length === 1} aria-label={`Remove ${props.removeLabel ?? props.rowLabel.toLowerCase()} ${index + 1}`}
             onClick={() => props.onRemove(index)}>Remove</button></td>

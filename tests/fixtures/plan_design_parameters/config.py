@@ -62,6 +62,8 @@ def apply_two_design_parameters(config: SimulationConfig) -> SimulationConfig:
             "first_escalation_delay_years": 0,
         }
     )
+    # Easy Enroll members escalate to the package cap, not the design's cap.
+    configured.easy_enroll.enabled = False
     return configured
 
 

@@ -58,7 +58,7 @@ WITH parameter_rows AS (
   WHERE NOT c.declined
     AND ({{ var('deferral_escalation_enabled', true) }} OR c.method = 'into_aip')
     AND NOT COALESCE(s.aip_participant, FALSE)
-    {% if var('deferral_rate_changes_enabled', false) and var('deferral_rate_changes_post_escalation_decrease_leaves_escalation', false) %}
+    {% if var('deferral_rate_changes_enabled', true) and var('deferral_rate_changes_post_escalation_decrease_leaves_escalation', false) %}
     AND NOT EXISTS (
       SELECT 1 FROM {{ ref('fct_yearly_events') }} exit
       WHERE exit.employee_id = c.employee_id AND exit.scenario_id = c.scenario_id

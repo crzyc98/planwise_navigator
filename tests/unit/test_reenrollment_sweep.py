@@ -259,6 +259,7 @@ def test_sweep_election_and_repeat_optout_survive_final_deduplication(
         + candidates
         + optouts
         + tail,
+        easy_enroll_enabled=False,
         simulation_year=2027,
         start_year=2025,
         opt_out_rate_target=opt_out_rate,

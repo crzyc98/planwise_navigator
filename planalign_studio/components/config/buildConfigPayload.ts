@@ -129,7 +129,7 @@ export function buildConfigPayload(
       deferral_rate_changes_without_escalation_increase_probability: Number(formData.dcDeferralRateChangesWithoutEscalationIncreaseProbability) / 100,
       deferral_rate_changes_without_escalation_decrease_probability: Number(formData.dcDeferralRateChangesWithoutEscalationDecreaseProbability) / 100,
       deferral_rate_changes_increase_steps: formData.dcDeferralRateChangesIncreaseSteps.map(step => ({ pp: step.pp, weight: step.weight / 100 })),
-      deferral_rate_changes_decrease_steps: formData.dcDeferralRateChangesDecreaseSteps.map(step => ({ pp: step.pp, weight: step.weight / 100 })),
+      deferral_rate_changes_decrease_shares: formData.dcDeferralRateChangesDecreaseShares.map(step => ({ share: step.share / 100, weight: step.weight / 100 })),
       deferral_rate_changes_post_escalation_decrease_window_days: formData.dcDeferralRateChangesPostEscalationDecreaseWindowDays,
       deferral_rate_changes_post_escalation_decrease_leaves_escalation: formData.dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation,
       deferral_rate_changes_stop_probability: Number(formData.dcDeferralRateChangesStopProbability) / 100,

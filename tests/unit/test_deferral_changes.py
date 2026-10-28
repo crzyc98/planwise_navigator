@@ -87,7 +87,7 @@ def test_probability_boundaries(
     ]
 
 
-@pytest.mark.parametrize("direction", ["increase", "decrease"])
+@pytest.mark.parametrize("direction", ["increase"])
 def test_weight_boundaries(conn: duckdb.DuckDBPyConnection, direction: str) -> None:
     sql = "SELECT {{ deferral_change_step('u', '" + direction + "') }} "
     sql += "FROM (VALUES (0.0), (0.199999), (0.2), (0.999999)) t(u) ORDER BY u"
@@ -144,12 +144,10 @@ def test_draws_probabilities_weights_and_seed(conn: duckdb.DuckDBPyConnection) -
 @pytest.mark.parametrize(
     "before,category,step,cap,expected",
     [
-        (0.005, "proactive_decrease", 1, 0.15, 0.005),
-        (0.01, "proactive_decrease", 8, 0.15, 0.01),
-        (0.03, "proactive_decrease", 8, 0.15, 0.01),
-        (0.07, "proactive_decrease", 2, 0.15, 0.05),
-        (0.03, "aip_response_decrease", 8, 0.15, 0.01),
-        (0.07, "aip_response_decrease", 2, 0.15, 0.05),
+        (0.10, "proactive_decrease", 0.5, 0.15, 0.05),
+        (0.02, "proactive_decrease", 0.25, 0.15, 0.01),
+        (0.015, "aip_response_decrease", 0.9, 0.15, 0.01),
+        (0.01, "proactive_decrease", 0.5, 0.15, 0.01),
         (0.14, "proactive_increase", 3, 0.15, 0.15),
         (0.16, "proactive_increase", 3, 0.15, 0.16),
         (0.005, "proactive_increase", 1, 0.15, 0.015),
@@ -160,7 +158,7 @@ def test_rate_bounds(
     conn: duckdb.DuckDBPyConnection,
     before: float,
     category: str,
-    step: int,
+    step: float,
     cap: float,
     expected: float,
 ) -> None:
@@ -257,10 +255,13 @@ def event_sql(year: int = 2025, **variables: Any) -> str:
         "simulation_year": year,
         "deferral_rate_changes_enabled": True,
         "deferral_rate_changes_stop_probability": 0.0,
+        "deferral_rate_changes_multipliers_decrease_rate": [
+            {"min": 0, "multiplier": 1.0}
+        ],
         "deferral_rate_changes_with_escalation_increase_probability": 0.5,
         "deferral_rate_changes_with_escalation_decrease_probability": 0.5,
         "deferral_rate_changes_increase_steps": [{"pp": 2, "weight": 1}],
-        "deferral_rate_changes_decrease_steps": [{"pp": 2, "weight": 1}],
+        "deferral_rate_changes_decrease_shares": [{"share": 0.25, "weight": 1}],
         **{
             f"deferral_rate_changes_multipliers_{direction}_{dimension}": [
                 {"min": 0, "multiplier": 1.0}
@@ -453,7 +454,7 @@ def test_event_eligibility_and_noops(
         conn.execute("DELETE FROM int_deferral_rate_escalation_events")
         conn.execute(
             "UPDATE int_baseline_workforce SET employee_deferral_rate = ?",
-            [0.005 if reason == "floor" else 0.16],
+            [0.01 if reason == "floor" else 0.16],
         )
     variables = {}
     if reason in ("floor", "cap"):
@@ -516,6 +517,29 @@ def test_membership_selects_probability_group(
     )
 
 
+def test_hires_outside_escalation_scope_use_nonmember_rates(
+    conn: duckdb.DuckDBPyConnection,
+) -> None:
+    fixture_inputs(conn)
+    conn.execute("""
+      ALTER TABLE int_employee_compensation_by_year ADD COLUMN employee_hire_date DATE;
+      UPDATE int_employee_compensation_by_year SET employee_hire_date =
+        CASE WHEN employee_id IN ('employee-0', 'employee-1') THEN DATE '2015-06-01'
+          ELSE DATE '2022-06-01' END;
+    """)
+    rows = conn.execute(
+        event_sql(
+            deferral_escalation_hire_date_cutoff="2020-01-01",
+            deferral_rate_changes_with_escalation_increase_probability=0.0,
+            deferral_rate_changes_with_escalation_decrease_probability=0.0,
+            deferral_rate_changes_without_escalation_increase_probability=1.0,
+            deferral_rate_changes_without_escalation_decrease_probability=0.0,
+        )
+    ).fetchall()
+    # Pre-cutoff hires are never escalated, so they take non-member rates.
+    assert sorted(row[0] for row in rows) == ["employee-0", "employee-1"]
+
+
 def test_prior_year_stopped_and_unenrolled_are_ineligible(
     conn: duckdb.DuckDBPyConnection,
 ) -> None:
@@ -559,7 +583,7 @@ def test_prechange_double_roundoff_is_canonical_only_when_enabled(
       '0.06::DOUBLE + 0.01::DOUBLE', 'NULL', '0.01', '0.10', '50000', '40') }} AS rate
       FROM (SELECT 23500 base_limit, 31000 catch_up_limit, 50 catch_up_age_threshold,
         34750 super_catch_up_limit, 60 super_catch_up_age_min, 63 super_catch_up_age_max) il"""
-    off = conn.execute(render(sql)).fetchone()[0]
+    off = conn.execute(render(sql, deferral_rate_changes_enabled=False)).fetchone()[0]
     on = conn.execute(render(sql, deferral_rate_changes_enabled=True)).fetchone()[0]
     assert off == 0.06 + 0.01 and off != 0.07
     assert float(on) == 0.07
@@ -1032,7 +1056,10 @@ def test_rendered_model_uses_multiplied_probabilities(
 def test_dbt_step_fallback_matches_fitted_defaults(
     conn: duckdb.DuckDBPyConnection, direction: str
 ) -> None:
-    steps = getattr(DeferralRateChangesSettings(), f"{direction}_steps")
+    steps = getattr(
+        DeferralRateChangesSettings(),
+        "increase_steps" if direction == "increase" else "decrease_shares",
+    )
     cumulative = 0.0
     for step in steps:
         midpoint = cumulative + step.weight / 2
@@ -1043,7 +1070,9 @@ def test_dbt_step_fallback_matches_fitted_defaults(
             + direction
             + "') }}"
         )
-        assert conn.execute(render(sql)).fetchone()[0] == step.pp
+        assert float(conn.execute(render(sql)).fetchone()[0]) == pytest.approx(
+            step.pp if direction == "increase" else step.share
+        )
         cumulative += step.weight
 
 
@@ -1080,3 +1109,68 @@ def test_dbt_multiplier_fallback_matches_fitted_defaults(
             bands[0].multiplier,
         )
         assert multiplier == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    "rate,expected",
+    [(0, 0.5), (0.0399, 0.5), (0.04, 0.8), (0.07, 1), (0.1, 1.3), (0.15, 1.6)],
+)
+def test_rate_multiplier_fallback(
+    conn: duckdb.DuckDBPyConnection, rate: float, expected: float
+) -> None:
+    bands = DeferralRateChangesSettings().multipliers.decrease.rate
+    sql = (
+        "SELECT 0.1 * {{ deferral_change_rate_multiplier('v') }} FROM (SELECT "
+        + str(rate)
+        + " AS v)"
+    )
+    actual = conn.execute(render(sql)).fetchone()[0]
+    assert actual == pytest.approx(0.1 * expected)
+    configured = conn.execute(
+        render(
+            sql,
+            deferral_rate_changes_multipliers_decrease_rate=[
+                band.model_dump() for band in bands
+            ],
+        )
+    ).fetchone()[0]
+    assert actual == configured
+
+
+def test_current_rate_multiplier_changes_event_probability(
+    conn: duckdb.DuckDBPyConnection,
+) -> None:
+    fixture_inputs(conn)
+    base = event_sql()
+    higher = event_sql(
+        deferral_rate_changes_multipliers_decrease_rate=[
+            {"min": 0, "multiplier": 0.5},
+            {"min": 0.07, "multiplier": 1.5},
+        ]
+    )
+    base_probability = conn.execute(
+        "SELECT DISTINCT event_probability FROM ("
+        + base
+        + ") WHERE event_category = 'aip_response_decrease'"
+    ).fetchone()[0]
+    higher_probability = conn.execute(
+        "SELECT DISTINCT event_probability FROM ("
+        + higher
+        + ") WHERE event_category = 'aip_response_decrease'"
+    ).fetchone()[0]
+    assert float(base_probability) == 0.5
+    assert float(higher_probability) == 0.6
+
+
+def test_share_draw_weight_boundaries(conn: duckdb.DuckDBPyConnection) -> None:
+    sql = "SELECT {{ deferral_change_step('u', 'decrease') }} FROM (VALUES (0.0), (0.199999), (0.2), (0.999999)) t(u) ORDER BY u"
+    rows = conn.execute(
+        render(
+            sql,
+            deferral_rate_changes_decrease_shares=[
+                {"share": 0.25, "weight": 0.2},
+                {"share": 0.9, "weight": 0.8},
+            ],
+        )
+    ).fetchall()
+    assert [float(row[0]) for row in rows] == [0.25, 0.25, 0.9, 0.9]

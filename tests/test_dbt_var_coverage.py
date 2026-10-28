@@ -225,7 +225,7 @@ class TestDbtVarCoverage:
         assert variables["reenrollment_sweep_decline_probability"] == 0.25
 
     def test_participant_behavior_is_run_global(self):
-        assert len(PARTICIPANT_BEHAVIOR_VARS) == 27
+        assert len(PARTICIPANT_BEHAVIOR_VARS) == 30
         assert PARTICIPANT_BEHAVIOR_VARS <= _all_exported_vars()
         assert all(
             dbt_var_disposition(name) == "global" for name in PARTICIPANT_BEHAVIOR_VARS

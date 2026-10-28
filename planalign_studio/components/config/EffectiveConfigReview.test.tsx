@@ -110,7 +110,7 @@ describe('Effective configuration review', () => {
       deferral_rate_changes_without_escalation_increase_probability: 0.25,
       deferral_rate_changes_without_escalation_decrease_probability: 0.075,
       deferral_rate_changes_increase_steps: [{ pp: 1, weight: 0.375 }, { pp: 3, weight: 0.625 }],
-      deferral_rate_changes_decrease_steps: [{ pp: 2, weight: 1 }],
+      deferral_rate_changes_decrease_shares: [{ share: 0.5, weight: 1 }],
       deferral_rate_changes_post_escalation_decrease_window_days: 90,
       deferral_rate_changes_post_escalation_decrease_leaves_escalation: false,
       deferral_rate_changes_stop_probability: 0.015,
@@ -125,7 +125,7 @@ describe('Effective configuration review', () => {
       'Not in automatic increases: lower their rate', 'How much people raise', 'How much people lower',
       'Stop contributing', 'Restart after stopping', 'These people also leave automatic increases']) expect(html).toContain(label);
     for (const value of ['3.25%', '15%', '25%', '7.5%', '1.5%', '0%', '90 days',
-      '1 percentage point (37.5%); 3 percentage points (62.5%)', '2 percentage points (100%)']) expect(html).toContain(value);
+      '1 percentage point (37.5%); 3 percentage points (62.5%)', '50% of current rate (100%)']) expect(html).toContain(value);
     expect(html.match(/Inactive while contribution rate changes are off; saved value retained./g) ?? []).toHaveLength(enabled ? 0 : 10);
     expect(html.match(/Inactive while automatic increases are off; saved value retained./g) ?? []).toHaveLength(enabled ? 2 : 0);
     if (enabled) expect(html).toContain('Stopped employees stay enrolled at 0%; a restart returns them to their earlier rate.');

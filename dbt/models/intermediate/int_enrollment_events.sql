@@ -379,7 +379,8 @@ year_over_year_enrollment_events AS (
     {{ self_directed_enrollment_rate(
       deferral_spread(yoy_base_deferral_rate, yoy_spread_random, deferral_spread_max_lift),
       yoy_match_ceiling, yoy_magnet_random, 'aw.employee_id', 'aw.simulation_year',
-      upward_enabled=false, auto_default='aw.auto_enrollment_default_deferral_rate'
+      upward_enabled=false, auto_default='aw.auto_enrollment_default_deferral_rate',
+      age='aw.current_age', income='aw.current_compensation'
     ) }})) AS employee_deferral_rate,
 
     0.00 as prev_employee_deferral_rate,
@@ -393,10 +394,10 @@ year_over_year_enrollment_events AS (
 
     -- Conversion probability calculation
     (CASE
-      WHEN aw.current_age < 31 THEN {{ var('year_over_year_conversion_base_rates_by_age_young', 0.03) }}
-      WHEN aw.current_age < 46 THEN {{ var('year_over_year_conversion_base_rates_by_age_mid_career', 0.05) }}
-      WHEN aw.current_age < 56 THEN {{ var('year_over_year_conversion_base_rates_by_age_mature', 0.07) }}
-      ELSE {{ var('year_over_year_conversion_base_rates_by_age_senior', 0.08) }}
+      WHEN aw.current_age < 31 THEN {{ var('year_over_year_conversion_base_rates_by_age_young', 0.028) }}
+      WHEN aw.current_age < 46 THEN {{ var('year_over_year_conversion_base_rates_by_age_mid_career', 0.046) }}
+      WHEN aw.current_age < 56 THEN {{ var('year_over_year_conversion_base_rates_by_age_mature', 0.064) }}
+      ELSE {{ var('year_over_year_conversion_base_rates_by_age_senior', 0.074) }}
     END *
     CASE
       WHEN aw.current_compensation < 50000 THEN {{ var('year_over_year_conversion_income_multipliers_low_income', 0.8) }}
@@ -427,10 +428,10 @@ year_over_year_enrollment_events AS (
     AND {{ var('year_over_year_conversion_enabled', true) }}
     AND (ABS(PLANALIGN_HASH(aw.employee_id || '-yoy-conversion-' || CAST(aw.simulation_year AS VARCHAR))) % 1000) / 1000.0 < (
       CASE
-        WHEN aw.current_age < 31 THEN {{ var('year_over_year_conversion_base_rates_by_age_young', 0.03) }}
-        WHEN aw.current_age < 46 THEN {{ var('year_over_year_conversion_base_rates_by_age_mid_career', 0.05) }}
-        WHEN aw.current_age < 56 THEN {{ var('year_over_year_conversion_base_rates_by_age_mature', 0.07) }}
-        ELSE {{ var('year_over_year_conversion_base_rates_by_age_senior', 0.08) }}
+        WHEN aw.current_age < 31 THEN {{ var('year_over_year_conversion_base_rates_by_age_young', 0.028) }}
+        WHEN aw.current_age < 46 THEN {{ var('year_over_year_conversion_base_rates_by_age_mid_career', 0.046) }}
+        WHEN aw.current_age < 56 THEN {{ var('year_over_year_conversion_base_rates_by_age_mature', 0.064) }}
+        ELSE {{ var('year_over_year_conversion_base_rates_by_age_senior', 0.074) }}
       END *
       CASE
         WHEN aw.current_compensation < 50000 THEN {{ var('year_over_year_conversion_income_multipliers_low_income', 0.8) }}
@@ -745,7 +746,7 @@ deduplicated_events AS (
     )
 )
 
-{% if var('easy_enroll_enabled', false) %}
+{% if var('easy_enroll_enabled', true) %}
 , easy_enroll_choices AS (
   SELECT
     employee_id,
@@ -785,7 +786,7 @@ SELECT
   event_type,
   simulation_year,
   effective_date,
-  {% if var('easy_enroll_enabled', false) %}
+  {% if var('easy_enroll_enabled', true) %}
   CASE WHEN package_rate IS NOT NULL
     THEN 'Easy Enroll: original_channel=' || event_category
       || '; package_rate=' || CAST(package_rate AS VARCHAR)
@@ -797,7 +798,7 @@ SELECT
   {% endif %}
   compensation_amount,
   previous_compensation,
-  {% if var('easy_enroll_enabled', false) %}
+  {% if var('easy_enroll_enabled', true) %}
   COALESCE(package_rate, employee_deferral_rate) AS employee_deferral_rate,
   {% else %}
   employee_deferral_rate,
@@ -809,7 +810,7 @@ SELECT
   age_band,
   tenure_band,
   event_probability,
-  {% if var('easy_enroll_enabled', false) %}
+  {% if var('easy_enroll_enabled', true) %}
   CASE WHEN package_rate IS NOT NULL THEN 'easy_enroll' ELSE event_category END AS event_category,
   {% else %}
   event_category,
@@ -832,7 +833,7 @@ SELECT
   END as data_quality_flag
 FROM deduplicated_events
 CROSS JOIN opt_out_diagnostics diagnostics
-{% if var('easy_enroll_enabled', false) %}
+{% if var('easy_enroll_enabled', true) %}
 LEFT JOIN easy_enroll_choices USING (employee_id, simulation_year, event_type)
 {% endif %}
 WHERE priority_rank = 1  -- Keep one per event_type per employee-year (enrollment + opt-out can coexist)

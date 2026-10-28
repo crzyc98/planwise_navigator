@@ -1,4 +1,4 @@
-"""Config-only contract for epic #986; no simulation behavior is enabled."""
+"""Default and explicit-off configuration contracts for epic #986."""
 
 import json
 from pathlib import Path
@@ -33,8 +33,8 @@ DEFAULTS: dict[str, Any] = {
     "reenrollment_sweep_include_below_aip_cap": False,
     "reenrollment_sweep_decline_probability": 0.10,
     "deferral_escalation_mode": "automatic",
-    "deferral_escalation_participant_elected_signup_probability": 0.0,
-    "easy_enroll_enabled": False,
+    "deferral_escalation_participant_elected_signup_probability": 0.01,
+    "easy_enroll_enabled": True,
     "easy_enroll_channel_share_without_auto_enrollment": 0.45,
     "easy_enroll_channel_share_with_auto_enrollment": 0.57,
     "easy_enroll_packages": [
@@ -43,18 +43,35 @@ DEFAULTS: dict[str, Any] = {
         {"rate": 0.10, "share": 0.20},
     ],
     "easy_enroll_escalation_cap": 0.10,
-    "enrollment_match_magnet_downward_enabled": False,
-    "below_default_share_tiers": [{"max_auto_enroll_default_rate": None, "share": 0.0}],
+    "enrollment_match_magnet_downward_enabled": True,
+    "below_default_share_tiers": [
+        {"max_auto_enroll_default_rate": 0.03, "share": 0.10},
+        {"max_auto_enroll_default_rate": None, "share": 0.15},
+    ],
+    "below_default_multipliers_age": [
+        {"min": 0, "multiplier": 1.4},
+        {"min": 30, "multiplier": 1.1},
+        {"min": 40, "multiplier": 0.9},
+        {"min": 50, "multiplier": 0.75},
+        {"min": 60, "multiplier": 0.65},
+    ],
+    "below_default_multipliers_income": [
+        {"min": 0, "multiplier": 1.6},
+        {"min": 40000, "multiplier": 1.2},
+        {"min": 60000, "multiplier": 1.0},
+        {"min": 100000, "multiplier": 0.7},
+        {"min": 150000, "multiplier": 0.5},
+    ],
     "below_default_steps": [
         {"pp": 1, "weight": 0.50},
         {"pp": 2, "weight": 0.30},
         {"pp": 3, "weight": 0.20},
     ],
-    "deferral_rate_changes_enabled": False,
-    "deferral_rate_changes_with_escalation_increase_probability": 0.03,
-    "deferral_rate_changes_with_escalation_decrease_probability": 0.15,
-    "deferral_rate_changes_without_escalation_increase_probability": 0.25,
-    "deferral_rate_changes_without_escalation_decrease_probability": 0.075,
+    "deferral_rate_changes_enabled": True,
+    "deferral_rate_changes_with_escalation_increase_probability": 0.085,
+    "deferral_rate_changes_with_escalation_decrease_probability": 0.067,
+    "deferral_rate_changes_without_escalation_increase_probability": 0.085,
+    "deferral_rate_changes_without_escalation_decrease_probability": 0.067,
     "deferral_rate_changes_increase_steps": [
         {"pp": pp, "weight": weight}
         for pp, weight in [
@@ -66,21 +83,24 @@ DEFAULTS: dict[str, Any] = {
             (10, 0.25),
         ]
     ],
-    "deferral_rate_changes_decrease_steps": [
-        {"pp": pp, "weight": weight}
-        for pp, weight in [
-            (1, 0.1),
-            (2, 0.15),
-            (3, 0.15),
-            (5, 0.2),
-            (8, 0.2),
-            (12, 0.2),
+    "deferral_rate_changes_decrease_shares": [
+        {"share": share, "weight": weight}
+        for share, weight in [(0.25, 0.2), (0.5, 0.25), (0.75, 0.35), (0.9, 0.2)]
+    ],
+    "deferral_rate_changes_multipliers_decrease_rate": [
+        {"min": lower, "multiplier": factor}
+        for lower, factor in [
+            (0, 0.5),
+            (0.04, 0.8),
+            (0.07, 1.0),
+            (0.10, 1.3),
+            (0.15, 1.6),
         ]
     ],
     "deferral_rate_changes_post_escalation_decrease_window_days": 90,
     "deferral_rate_changes_post_escalation_decrease_leaves_escalation": False,
     "deferral_rate_changes_stop_probability": 0.015,
-    "deferral_rate_changes_restart_probability": 0.0,
+    "deferral_rate_changes_restart_probability": 0.40,
     "deferral_rate_changes_multipliers_increase_age": [
         {"min": lower, "multiplier": factor}
         for lower, factor in [
@@ -189,7 +209,7 @@ OVERRIDES: dict[str, Any] = {
     "deferral_rate_changes_without_escalation_increase_probability": 0.26,
     "deferral_rate_changes_without_escalation_decrease_probability": 0.08,
     "deferral_rate_changes_increase_steps": [{"pp": 2, "weight": 1.0}],
-    "deferral_rate_changes_decrease_steps": [{"pp": 4, "weight": 1.0}],
+    "deferral_rate_changes_decrease_shares": [{"share": 0.5, "weight": 1.0}],
     "deferral_rate_changes_post_escalation_decrease_window_days": 0,
     "deferral_rate_changes_post_escalation_decrease_leaves_escalation": True,
     "deferral_rate_changes_stop_probability": 0.0,
@@ -227,15 +247,58 @@ def test_easy_enroll_model_defaults() -> None:
     assert settings.channel_share_with_auto_enrollment == 0.57
 
 
-def test_off_defaults_and_preexisting_vars_unchanged() -> None:
-    exported = to_dbt_vars(load_simulation_config("config/simulation_config.yaml"))
+def test_explicit_off_and_preexisting_vars_unchanged() -> None:
+    cfg = load_simulation_config("config/simulation_config.yaml")
+    cfg.easy_enroll.enabled = False
+    cfg.deferral_auto_escalation.participant_elected_signup_probability = 0.0
+    cfg.enrollment.match_magnet.downward_enabled = False
+    cfg.enrollment.below_default = BelowDefaultSettings(
+        share_tiers=[{"max_auto_enroll_default_rate": None, "share": 0.0}]
+    )
+    cfg.enrollment.year_over_year_conversion.base_rates_by_age = {
+        "young": 0.03,
+        "mid_career": 0.05,
+        "mature": 0.07,
+        "senior": 0.08,
+    }
+    cfg.deferral_rate_changes.enabled = False
+    cfg.deferral_rate_changes.restart_probability = 0.0
+    exported = to_dbt_vars(cfg)
     baseline = json.loads(
         (ROOT / "tests/fixtures/participant_behavior_legacy_vars.json").read_text()
     )
     baseline["census_parquet_path"] = str(ROOT / "data/census_preprocessed.parquet")
     assert {key: exported[key] for key in baseline} == baseline
     assert exported.keys() - baseline.keys() == DEFAULTS.keys()
+    expected = {
+        **DEFAULTS,
+        "easy_enroll_enabled": False,
+        "deferral_escalation_participant_elected_signup_probability": 0.0,
+        "enrollment_match_magnet_downward_enabled": False,
+        "below_default_share_tiers": [
+            {"max_auto_enroll_default_rate": None, "share": 0.0}
+        ],
+        "deferral_rate_changes_enabled": False,
+        "deferral_rate_changes_restart_probability": 0.0,
+    }
+    assert {key: exported[key] for key in DEFAULTS} == expected
+    assert not validate_dbt_vars(exported)
+
+
+def test_phase_four_defaults_match_yaml_and_omitted_settings() -> None:
+    cfg = load_simulation_config("config/simulation_config.yaml")
+    exported = to_dbt_vars(cfg)
     assert {key: exported[key] for key in DEFAULTS} == DEFAULTS
+    raw = cfg.model_dump()
+    for key in ("easy_enroll", "deferral_rate_changes", "deferral_auto_escalation"):
+        raw.pop(key)
+    for key in ("below_default", "match_magnet", "year_over_year_conversion"):
+        raw["enrollment"].pop(key)
+    omitted = to_dbt_vars(type(cfg).model_validate(raw))
+    assert {key: omitted[key] for key in DEFAULTS} == DEFAULTS
+    for age in ("young", "mid_career", "mature", "senior"):
+        key = f"year_over_year_conversion_base_rates_by_age_{age}"
+        assert omitted[key] == exported[key]
     assert not validate_dbt_vars(exported)
 
 
@@ -410,7 +473,7 @@ def test_studio_escalation_mode_preserves_independent_toggle(
         ],
         *[
             (DeferralRateChangesSettings, {key: value})
-            for key in ("increase_steps", "decrease_steps")
+            for key in ("increase_steps",)
             for value in (
                 [],
                 [{"pp": 0, "weight": 1}],
@@ -446,7 +509,7 @@ def test_reject_invalid_settings(model: type[BaseModel], data: dict[str, Any]) -
         ),
         ("below_default_steps", [{"pp": 1, "weight": 0.2}, {"pp": 2, "weight": 0.2}]),
         ("deferral_rate_changes_increase_steps", [{"pp": 0, "weight": 1}]),
-        ("deferral_rate_changes_decrease_steps", [{"pp": 1, "weight": 0.5}]),
+        ("deferral_rate_changes_decrease_shares", [{"share": 0.5, "weight": 0.5}]),
         ("deferral_escalation_mode", "invalid"),
         ("deferral_escalation_mode", "none"),
         ("easy_enroll_enabled", "false"),
@@ -497,7 +560,7 @@ def test_all_yaml_settings_export_nondefault_values() -> None:
         with_escalation={"increase_probability": 0.04, "decrease_probability": 0.16},
         without_escalation={"increase_probability": 0.26, "decrease_probability": 0.08},
         increase_steps=[{"pp": 2, "weight": 1.0}],
-        decrease_steps=[{"pp": 4, "weight": 1.0}],
+        decrease_shares=[{"share": 0.5, "weight": 1.0}],
         post_escalation_decrease_window_days=0,
         post_escalation_decrease_leaves_escalation=True,
         stop_probability=0.0,
@@ -578,6 +641,12 @@ def test_null_escalation_preserves_main_exports(
 ) -> None:
     raw = yaml.safe_load((ROOT / "config/simulation_config.yaml").read_text())
     raw["deferral_auto_escalation"] = None
+    raw["enrollment"]["year_over_year_conversion"]["base_rates_by_age"] = {
+        "young": 0.03,
+        "mid_career": 0.05,
+        "mature": 0.07,
+        "senior": 0.08,
+    }
     raw["dc_plan"] = (
         raw.get("dc_plan", {})
         | StudioConfig.model_validate({"dc_plan": overrides}).model_dump(
@@ -632,8 +701,15 @@ def test_null_new_behavior_settings_load_as_defaults(
     )
 
 
-@pytest.mark.parametrize("direction", ["increase", "decrease"])
-@pytest.mark.parametrize("dimension", ["age", "income", "tenure"])
+@pytest.mark.parametrize(
+    "direction,dimension",
+    [
+        (direction, dimension)
+        for direction in ("increase", "decrease")
+        for dimension in ("age", "income", "tenure")
+    ]
+    + [("decrease", "rate")],
+)
 @pytest.mark.parametrize(
     "bands",
     [
@@ -686,3 +762,70 @@ def test_fitted_deferral_defaults_match_yaml_and_partial_overrides() -> None:
         expected = defaults["multipliers"][direction]
         assert settings["multipliers"][direction]["income"] == expected["income"]
         assert settings["multipliers"][direction]["tenure"] == expected["tenure"]
+
+
+@pytest.mark.parametrize("dimension", ["age", "income"])
+@pytest.mark.parametrize(
+    "bands",
+    [
+        [],
+        [{"min": 1, "multiplier": 1}],
+        [{"min": 0, "multiplier": 1}, {"min": 0, "multiplier": 2}],
+        [
+            {"min": 0, "multiplier": 1},
+            {"min": 10, "multiplier": 1},
+            {"min": 5, "multiplier": 1},
+        ],
+        [{"min": -1, "multiplier": 1}],
+        [{"min": 0, "multiplier": -1}],
+        [{"min": 0, "multiplier": float("nan")}],
+        [{"min": float("inf"), "multiplier": 1}],
+    ],
+)
+def test_below_default_multiplier_validation(
+    dimension: str, bands: list[dict[str, float]]
+) -> None:
+    with pytest.raises(ValidationError):
+        BelowDefaultSettings.model_validate({"multipliers": {dimension: bands}})
+    problems = validate_dbt_vars({f"below_default_multipliers_{dimension}": bands})
+    assert any(
+        problem["field"] == f"below_default_multipliers_{dimension}"
+        for problem in problems
+    )
+
+
+@pytest.mark.parametrize("dimension", ["age", "income"])
+def test_below_default_multipliers_api_round_trip(dimension: str) -> None:
+    key = f"below_default_multipliers_{dimension}"
+    value = [{"min": 0, "multiplier": 0}, {"min": 20, "multiplier": 2}]
+    cfg = load_simulation_config("config/simulation_config.yaml")
+    cfg.dc_plan = StudioConfig.model_validate({"dc_plan": {key: value}}).model_dump(
+        exclude_unset=True
+    )["dc_plan"]
+    assert to_dbt_vars(cfg)[key] == value
+
+
+@pytest.mark.parametrize(
+    "share,weight", [(0, 1), (1, 1), (-0.1, 1), (1.1, 1), (0.5, 0.9), (0.5, 1.1)]
+)
+def test_invalid_decrease_shares(share: float, weight: float) -> None:
+    with pytest.raises(ValidationError):
+        DeferralRateChangesSettings(
+            decrease_shares=[{"share": share, "weight": weight}]
+        )
+
+
+def test_decrease_rate_multiplier_api_round_trip() -> None:
+    key = "deferral_rate_changes_multipliers_decrease_rate"
+    value = [{"min": 0, "multiplier": 0.2}, {"min": 0.1, "multiplier": 2.0}]
+    cfg = load_simulation_config("config/simulation_config.yaml")
+    cfg.dc_plan = StudioConfig.model_validate({"dc_plan": {key: value}}).model_dump(
+        exclude_unset=True
+    )["dc_plan"]
+    assert to_dbt_vars(cfg)[key] == value
+    assert validate_dbt_vars({key: value}) == []
+
+
+def test_empty_decrease_shares_rejected() -> None:
+    with pytest.raises(ValidationError):
+        DeferralRateChangesSettings(decrease_shares=[])
