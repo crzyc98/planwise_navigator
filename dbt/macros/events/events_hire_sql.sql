@@ -89,8 +89,8 @@
         END * 365
       ) DAY AS birth_date,
 
-      -- Hire date evenly distributed throughout year using modulo for cycling
-      CAST('{{ simulation_year }}-01-01' AS DATE) + INTERVAL (hs.hire_sequence_num % 365) DAY AS hire_date,
+      -- Hire dates cover the calendar year in seeded order independent of level
+      {{ distributed_hire_date('hs.hire_sequence_num', simulation_year) }} AS hire_date,
 
       -- Use compensation from workforce needs with small variance for realism
       ROUND(hs.new_hire_avg_compensation * (0.9 + (hs.hire_sequence_num % 10) * 0.02), 2) AS compensation_amount

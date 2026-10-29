@@ -124,7 +124,7 @@ new_hire_assignments AS (
     ) DAY AS birth_date,
 
     -- Hire date evenly distributed throughout year
-    CAST('{{ simulation_year }}-01-01' AS DATE) + INTERVAL (hs.hire_sequence_num % 365) DAY AS hire_date,
+    {{ distributed_hire_date('hs.hire_sequence_num', simulation_year) }} AS hire_date,
 
     -- Use level-based compensation with small variance and explicit decimal casting
     CAST(ROUND(lc.avg_level_compensation * (0.9 + (hs.hire_sequence_num % 10) * 0.02), 2) AS DECIMAL(12,2)) AS compensation_amount
