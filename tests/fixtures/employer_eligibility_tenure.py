@@ -12,6 +12,7 @@ import pandas as pd
 
 from planalign_orchestrator import ConstructionSpec, build_orchestrator
 from planalign_orchestrator.config import SimulationConfig, load_simulation_config
+from planalign_orchestrator.config.participant_behavior import BelowDefaultTier
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE_ROOT = ROOT / "tests/fixtures/employer_eligibility_tenure"
@@ -78,7 +79,30 @@ def load_wait_config(
     config = load_simulation_config(config_path, env_overrides=False)
     config.simulation.end_year = end_year
     config.setup["census_parquet_path"] = str(census_parquet)
+    _pin_pre_986_deferral_behaviors(config)
     return config
+
+
+def _pin_pre_986_deferral_behaviors(config: SimulationConfig) -> None:
+    """Turn off #986 participant behaviors so rates isolate eligibility rules.
+
+    Uses the CHANGELOG's documented off-switches, which reproduce pre-#986
+    results; the characterization baseline predates those defaults.
+    """
+    config.easy_enroll.enabled = False
+    config.deferral_rate_changes.enabled = False
+    config.deferral_rate_changes.restart_probability = 0.0
+    config.enrollment.match_magnet.downward_enabled = False
+    config.enrollment.below_default.share_tiers = [
+        BelowDefaultTier(max_auto_enroll_default_rate=None, share=0.0)
+    ]
+    config.deferral_auto_escalation.participant_elected_signup_probability = 0.0
+    config.enrollment.year_over_year_conversion.base_rates_by_age = {
+        "young": 0.03,
+        "mid_career": 0.05,
+        "mature": 0.07,
+        "senior": 0.08,
+    }
 
 
 def load_termination_rate_config(

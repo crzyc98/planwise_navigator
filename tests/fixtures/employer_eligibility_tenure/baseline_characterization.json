@@ -11,25 +11,30 @@
       "basis": "Core and employee deferrals (and resulting match) now use workforce prorated_annual_compensation: actual earned pay, time-weighted for compensation changes and employment, instead of pre-raise starting pay.",
       "verification": "At pre-#978 revision 04bff1eb, the isolated characterization test passes and all stored aggregates match exactly. At source_revision, all core_paid and match_paid counts remain unchanged; only core_cost and match_cost increase, by 1.51-2.00%. IRS seed, census, wait configurations, and absolute $0.01 tolerance are unchanged.",
       "historical_explanation": "The explanation document above describes the earlier #889 IRS-seed reconciliation; its pre-raise compensation-basis discussion predates #978/#979."
+    },
+    "deferral_rate_timing_reconciliation": {
+      "change": "9b4f050a7dfeaea0c077e1237445006ce1479463 (#1028)",
+      "basis": "Employee deferrals, and the match on them, are weighted by when each deferral rate was in effect during the year.",
+      "verification": "With #986 participant behaviors pinned off in the fixture, the isolated characterization test passes against the prior baseline at pre-#1028 revision 306eb045. At #1028, all core_cost, core_paid and match_paid values are unchanged; only match_cost moves, by -0.34% to 0.00%. IRS seed, census, wait configurations and the absolute $0.01 tolerance are unchanged."
     }
   },
   "opening_year": {
     "1": {
       "core_cost": 739210.17,
       "core_paid": 138,
-      "match_cost": 754396.89,
+      "match_cost": 752127.27,
       "match_paid": 107
     },
     "2": {
       "core_cost": 510624.4,
       "core_paid": 97,
-      "match_cost": 537497.76,
+      "match_cost": 535923.9,
       "match_paid": 77
     },
     "3": {
       "core_cost": 453300.61,
       "core_paid": 88,
-      "match_cost": 465566.78,
+      "match_cost": 463992.92,
       "match_paid": 68
     }
   },
@@ -37,25 +42,25 @@
     "2025": {
       "core_cost": 813963.03,
       "core_paid": 152,
-      "match_cost": 836031.29,
+      "match_cost": 833761.67,
       "match_paid": 116
     },
     "2026": {
       "core_cost": 863219.24,
       "core_paid": 155,
-      "match_cost": 964600.16,
+      "match_cost": 964552.46,
       "match_paid": 128
     },
     "2027": {
       "core_cost": 915330.32,
       "core_paid": 158,
-      "match_cost": 1057763.52,
+      "match_cost": 1055605.62,
       "match_paid": 137
     },
     "2028": {
       "core_cost": 958522.47,
       "core_paid": 161,
-      "match_cost": 1158766.92,
+      "match_cost": 1157322.33,
       "match_paid": 147
     },
     "2029": {
