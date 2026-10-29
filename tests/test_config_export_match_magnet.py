@@ -163,22 +163,18 @@ def test_default_yaml_match_design() -> None:
     assert result["employer_match_max_deferral_rate"] == 0.05
 
 
-def test_legacy_formula_without_supported_match_is_rejected() -> None:
+def test_legacy_formulas_do_not_change_export(caplog: pytest.LogCaptureFixture) -> None:
     from planalign_orchestrator.config import to_dbt_vars
 
     cfg = _make_config()
     cfg.dc_plan = {}
+    before = to_dbt_vars(cfg)
     cfg.employer_match.active_formula = "old"
-    cfg.employer_match.formulas = {
-        "old": {
-            "type": "tiered",
-            "tiers": [{"employee_min": 0, "employee_max": 0.06, "match_rate": 0.5}],
-            "max_match_percentage": 0.03,
-        }
-    }
-    assert cfg.employer_match.formulas["old"]["tiers"][0]["match_rate"] == 0.5
-    with pytest.raises(ValueError, match="dc_plan.match_tiers"):
-        to_dbt_vars(cfg)
+    cfg.employer_match.formulas = {"old": {"max_match_percentage": 0.12}}
+    caplog.clear()
+    assert to_dbt_vars(cfg) == before
+    warnings = [r for r in caplog.records if "Legacy employer_match" in r.message]
+    assert len(warnings) == 1
 
 
 def test_supported_tiers_override_legacy_formula() -> None:
