@@ -1,4 +1,4 @@
-# Campaign A — repaired prerequisite; matrix pending
+# Campaign A — blocked by storage capacity
 
 As of 2026-10-29, branch `t3/nh-salary-calibration-campaign` in the existing `t3-e8a89381` worktree. Frozen oracle: `ORACLE.md`; 54 synthetic cells, nine dev and 45 holdout. Each stage requires 63 cell/seed runs (seed 42 for all; seed 101 for dev). No calibration tuning, accepted campaign checkpoint, or stop-rule completion.
 
@@ -22,3 +22,11 @@ Seed-noise band and numeric campaign scores remain **undefined**: no complete pa
 The serial runner defaults to `baseline`. Explicit `--stage prerequisite_repair` selects separate logs under `/tmp/nhcal/matrix_logs/prerequisite_repair/`, skips every existing stage/seed record (including the completed repaired cell), and refuses existing logs or run directories; direct cell execution also refuses existing records. Optional `--limit N` bounds new launches, including failed launches; it does not retry preserved attempts. Baseline log locations stay unchanged. Safe to start the remaining repaired baseline matrix with that explicit stage; it was **not started** by this bounded task.
 
 Current harness verification (no simulations/network/workers): `python3 scripts/dev.py --check`; `python3 scripts/dev.py -- python -m pytest campaign_a/test_run_cell.py campaign_a/test_run_matrix.py campaign_a/test_score.py -q` (**18 passed**); `python3 scripts/dev.py -- ruff check .` (passed). Black/check hooks and whitespace checks are recorded with the evidence commit. Durable audit: `repaired_cell_raw_audit.json`; independent summary: `repaired_cell_audit.json`; lead score: `repaired_cell_lead_score.json`. Historical decimal-age proposal/patch is retained with its historical status labeled. No databases or census files are included.
+
+## Blocked execution checkpoint
+
+Repaired matrix started 2026-10-29T20:08:49Z; stopped after verifying only 5.9 GiB filesystem capacity remained. The completed repaired cell retains 247,738,261 bytes (237 MiB); 62 comparable runs require approximately 14.3 GiB before additional temporary working space. No evidence was deleted. The active balanced_h2_c1_low seed 42 attempt is interrupted, not failed; repaired-stage totals are one completed, one interrupted, 61 unrun. Original baseline failures remain preserved. Runner delegate was cancelled; only the owned matrix process and descendants were terminated. Attached session transfer failed (unknown process ID 8693), so process identity and cell records were checked directly.
+
+Repair and harness commits: 4616f452 and 9a9431a0. No tuning hypotheses have been kept or reverted; no stop criterion has been met. Dev/holdout baseline and final campaign scores and seed noise are undefined (holdout seed 101 N/A). One-cell metrics above are diagnostic only. No analyst default recommendation is validated. Completion requires additional disk capacity on the /tmp filesystem (roughly 15 GiB further retained output plus working margin); then resume preserved unrun slots and explicitly allocate a new attempt for the interrupted cell. No Campaign B, push, or PR.
+
+**CHECKPOINT: awaiting human review** — blocked, original campaign incomplete.
