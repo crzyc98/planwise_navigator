@@ -133,6 +133,13 @@ class CensusDataQualityIssue(APIModel):
 class CensusAnalysisResult(APIModel):
     """Result from census-based pre-simulation analysis."""
 
+    new_hire_rate: Optional[float] = None
+    termination_rate: Optional[float] = None
+    workforce_rate_start: Optional[date] = None
+    workforce_average_headcount: Optional[float] = None
+    match_receipt_rate: Optional[float] = None
+    core_receipt_rate: Optional[float] = None
+
     total_employees: int = Field(..., description="Total rows in the census file")
     active_employees: int = Field(
         ..., description="Rows flagged active as of the census"
