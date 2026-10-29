@@ -16,6 +16,11 @@
       "change": "9b4f050a7dfeaea0c077e1237445006ce1479463 (#1028)",
       "basis": "Employee deferrals, and the match on them, are weighted by when each deferral rate was in effect during the year.",
       "verification": "With #986 participant behaviors pinned off in the fixture, the isolated characterization test passes against the prior baseline at pre-#1028 revision 306eb045. At #1028, all core_cost, core_paid and match_paid values are unchanged; only match_cost moves, by -0.34% to 0.00%. IRS seed, census, wait configurations and the absolute $0.01 tolerance are unchanged."
+    },
+    "age_tenure_progression_reconciliation": {
+      "change": "c435ccf (#1041)",
+      "basis": "Age and tenure now advance once per year instead of twice, so age- and tenure-based eligibility no longer drifts ahead in later years.",
+      "verification": "Regenerated from isolated runs of all four wait cases at c435ccf; values reproduce CI's failing run exactly. Opening-year values and all core_paid/match_paid counts are unchanged; only zero-wait core_cost and match_cost for 2027-2029 move, by -0.12% to -0.02%. IRS seed, census, wait configurations and the absolute $0.01 tolerance are unchanged."
     }
   },
   "opening_year": {
@@ -52,21 +57,21 @@
       "match_paid": 128
     },
     "2027": {
-      "core_cost": 915330.32,
+      "core_cost": 915174.01,
       "core_paid": 158,
-      "match_cost": 1055605.62,
+      "match_cost": 1055397.21,
       "match_paid": 137
     },
     "2028": {
-      "core_cost": 958522.47,
+      "core_cost": 958144.82,
       "core_paid": 161,
-      "match_cost": 1157322.33,
+      "match_cost": 1156751.11,
       "match_paid": 147
     },
     "2029": {
-      "core_cost": 1006232.8,
+      "core_cost": 1005025.53,
       "core_paid": 164,
-      "match_cost": 1226197.57,
+      "match_cost": 1225658.95,
       "match_paid": 151
     }
   }
