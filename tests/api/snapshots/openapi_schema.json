@@ -3147,6 +3147,17 @@
             "title": "Available Segment Dimensions",
             "type": "array"
           },
+          "core_receipt_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Core Receipt Rate"
+          },
           "data_quality_issues": {
             "description": "Missing/null critical fields, duplicate IDs, out-of-range values",
             "items": {
@@ -3175,6 +3186,17 @@
             "description": "IRS HCE compensation threshold used for the as-of year, if known",
             "title": "Hce Compensation Threshold"
           },
+          "match_receipt_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match Receipt Rate"
+          },
           "message": {
             "anyOf": [
               {
@@ -3186,6 +3208,17 @@
             ],
             "description": "Informational or warning message",
             "title": "Message"
+          },
+          "new_hire_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Hire Rate"
           },
           "overall": {
             "$ref": "#/components/schemas/CensusMetrics",
@@ -3204,13 +3237,53 @@
             "title": "Source File",
             "type": "string"
           },
+          "termination_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Termination Rate"
+          },
           "total_employees": {
             "description": "Total rows in the census file",
             "title": "Total Employees",
             "type": "integer"
+          },
+          "workforce_average_headcount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workforce Average Headcount"
+          },
+          "workforce_rate_start": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workforce Rate Start"
           }
         },
         "required": [
+          "new_hire_rate",
+          "termination_rate",
+          "workforce_rate_start",
+          "workforce_average_headcount",
+          "match_receipt_rate",
+          "core_receipt_rate",
           "total_employees",
           "active_employees",
           "overall",
