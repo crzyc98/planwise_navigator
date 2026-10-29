@@ -1,0 +1,614 @@
+{
+  "audit": {
+    "cell": "balanced_h5_c1_low",
+    "run": "prerequisite_repair",
+    "seed": 42,
+    "read_only": true
+  },
+  "sources": {
+    "baseline_db": "/tmp/nhcal/balanced_h5_c1_low/prerequisite_repair_seed_42_v2/workspaces/ce4bc844-8b5a-4217-96f3-3c168abaab1c/scenarios/f732f681-5bb3-40b7-bbef-47ffb47c791a/runs/61ff9bb8-b3a8-4022-9e99-0e87500aa3c0/simulation.duckdb",
+    "calibration_db": "/tmp/nhcal/balanced_h5_c1_low/prerequisite_repair_seed_42_v2/planalign_calibration_70967_1793303221921_rwg_yhvy.duckdb",
+    "applied_full_db": "/tmp/nhcal/balanced_h5_c1_low/prerequisite_repair_seed_42_v2/workspaces/ce4bc844-8b5a-4217-96f3-3c168abaab1c/scenarios/f732f681-5bb3-40b7-bbef-47ffb47c791a/runs/1bf04d81-6953-46e2-9257-9e0bfb46a7c6/simulation.duckdb"
+  },
+  "all_population_primary": [
+    {
+      "simulation_year": 2026,
+      "row_count": 5938,
+      "headcount": 5938,
+      "avg_compensation": 97266.53726138604
+    },
+    {
+      "simulation_year": 2027,
+      "row_count": 6329,
+      "headcount": 6329,
+      "avg_compensation": 95801.93854861641,
+      "comp_growth_pct": -1.5057580479438504,
+      "headcount_growth_pct": 6.5847086561131585,
+      "comp_err_pp": 2.5057580479438504,
+      "headcount_err_pp": 1.5847086561131585,
+      "calibration_prediction_pct": -0.7184709489835314,
+      "cal_gap_pp": 0.787287098960319
+    },
+    {
+      "simulation_year": 2028,
+      "row_count": 6655,
+      "headcount": 6655,
+      "avg_compensation": 98183.4588398957,
+      "comp_growth_pct": 2.4858790201523373,
+      "headcount_growth_pct": 5.1508927160689,
+      "comp_err_pp": 1.4858790201523373,
+      "headcount_err_pp": 0.15089271606889998,
+      "calibration_prediction_pct": 2.64686973651886,
+      "cal_gap_pp": 0.1609907163665225
+    },
+    {
+      "simulation_year": 2029,
+      "row_count": 6988,
+      "headcount": 6988,
+      "avg_compensation": 99405.39489308477,
+      "comp_growth_pct": 1.244543701787526,
+      "headcount_growth_pct": 5.003756574004514,
+      "comp_err_pp": 0.24454370178752605,
+      "headcount_err_pp": 0.003756574004514235,
+      "calibration_prediction_pct": 0.8863106728522147,
+      "cal_gap_pp": 0.3582330289353114
+    },
+    {
+      "simulation_year": 2030,
+      "row_count": 7337,
+      "headcount": 7337,
+      "avg_compensation": 100589.02903921716,
+      "comp_growth_pct": 1.1907141935359133,
+      "headcount_growth_pct": 4.9942759015455085,
+      "comp_err_pp": 0.19071419353591335,
+      "headcount_err_pp": 0.005724098454491511,
+      "calibration_prediction_pct": 1.0863968196946483,
+      "cal_gap_pp": 0.10431737384126505
+    }
+  ],
+  "active_only_secondary": [
+    {
+      "simulation_year": 2026,
+      "row_count": 5250,
+      "headcount": 5250,
+      "avg_compensation": 103224.12410245021
+    },
+    {
+      "simulation_year": 2027,
+      "row_count": 5513,
+      "headcount": 5513,
+      "avg_compensation": 102482.48875843135,
+      "comp_growth_pct": -0.7184709489835739,
+      "headcount_growth_pct": 5.009523809523819,
+      "comp_err_pp": 1.7184709489835739,
+      "headcount_err_pp": 0.00952380952381926
+    },
+    {
+      "simulation_year": 2028,
+      "row_count": 5789,
+      "headcount": 5789,
+      "avg_compensation": 105195.066738609,
+      "comp_growth_pct": 2.6468697365182647,
+      "headcount_growth_pct": 5.006348630509705,
+      "comp_err_pp": 1.6468697365182647,
+      "headcount_err_pp": 0.006348630509704911
+    },
+    {
+      "simulation_year": 2029,
+      "row_count": 6078,
+      "headcount": 6078,
+      "avg_compensation": 106127.42184242744,
+      "comp_growth_pct": 0.8863106728523418,
+      "headcount_growth_pct": 4.992226636724828,
+      "comp_err_pp": 0.11368932714765823,
+      "headcount_err_pp": 0.007773363275171974
+    },
+    {
+      "simulation_year": 2030,
+      "row_count": 6382,
+      "headcount": 6382,
+      "avg_compensation": 107280.3867781473,
+      "comp_growth_pct": 1.0863968196944462,
+      "headcount_growth_pct": 5.0016452780519804,
+      "comp_err_pp": 0.08639681969444624,
+      "headcount_err_pp": 0.0016452780519804477
+    }
+  ],
+  "score_maxima": {
+    "max_comp_err_pp": 2.5057580479438504,
+    "max_headcount_err_pp": 1.5847086561131585,
+    "max_cal_gap_pp": 0.787287098960319,
+    "failure_count": 0
+  },
+  "duplicate_employee_years": [],
+  "calibration_best_prediction_from_cell_outcome": [
+    {
+      "simulation_year": 2026,
+      "avg_compensation": 103224.12410245012,
+      "yoy_growth_pct": null,
+      "target_growth_pct": 1.0,
+      "growth_delta_pct": null,
+      "headcount": 5250,
+      "headcount_growth_pct": null,
+      "total_compensation": 541926651.5378618,
+      "total_comp_growth_pct": null,
+      "new_hire_avg_comp": 84278.9604533333,
+      "existing_avg_comp": 116186.94276888882,
+      "new_hire_gap": -31907.98231555552
+    },
+    {
+      "simulation_year": 2027,
+      "avg_compensation": 102482.48875843131,
+      "yoy_growth_pct": -0.7184709489835314,
+      "target_growth_pct": 1.0,
+      "growth_delta_pct": -1.7184709489835313,
+      "headcount": 5513,
+      "headcount_growth_pct": 5.0095238095238095,
+      "total_compensation": 564985960.5252306,
+      "total_comp_growth_pct": 4.255060887286474,
+      "new_hire_avg_comp": 85415.10059096181,
+      "existing_avg_comp": 118159.7760881723,
+      "new_hire_gap": -32744.675497210483
+    },
+    {
+      "simulation_year": 2028,
+      "avg_compensation": 105195.06673860957,
+      "yoy_growth_pct": 2.64686973651886,
+      "target_growth_pct": 1.0,
+      "growth_delta_pct": 1.6468697365188598,
+      "headcount": 5789,
+      "headcount_growth_pct": 5.006348630509704,
+      "total_compensation": 608974241.3498167,
+      "total_comp_growth_pct": 7.785729893835414,
+      "new_hire_avg_comp": 84313.56608981382,
+      "existing_avg_comp": 119766.70147251812,
+      "new_hire_gap": -35453.135382704306
+    },
+    {
+      "simulation_year": 2029,
+      "avg_compensation": 106127.42184242734,
+      "yoy_growth_pct": 0.8863106728522147,
+      "target_growth_pct": 1.0,
+      "growth_delta_pct": -0.11368932714778535,
+      "headcount": 6078,
+      "headcount_growth_pct": 4.992226636724824,
+      "total_compensation": 645042469.9582736,
+      "total_comp_growth_pct": 5.922783947069788,
+      "new_hire_avg_comp": 84879.88548488014,
+      "existing_avg_comp": 121176.62225043902,
+      "new_hire_gap": -36296.736765558875
+    },
+    {
+      "simulation_year": 2030,
+      "avg_compensation": 107280.38677814756,
+      "yoy_growth_pct": 1.0863968196946483,
+      "target_growth_pct": 1.0,
+      "growth_delta_pct": 0.0863968196946483,
+      "headcount": 6382,
+      "headcount_growth_pct": 5.001645278051991,
+      "total_compensation": 684663428.418135,
+      "total_comp_growth_pct": 6.142379812979507,
+      "new_hire_avg_comp": 86025.28629592841,
+      "existing_avg_comp": 122155.917998139,
+      "new_hire_gap": -36130.631702210594
+    }
+  ],
+  "calibration_database_last_evaluation": {
+    "run_metadata": [
+      {
+        "run_id": "61ff9bb8-b3a8-4022-9e99-0e87500aa3c0",
+        "config_fingerprint": "f41df2438ef510d49a57d78d6e6b79236992bb300b9f52827d4d898a493e80de",
+        "random_seed": 42,
+        "start_year": 2026,
+        "end_year": 2030
+      },
+      {
+        "run_id": "593d2c62-8e67-40e3-a712-e6cf2dd30ee8",
+        "config_fingerprint": "f41df2438ef510d49a57d78d6e6b79236992bb300b9f52827d4d898a493e80de",
+        "random_seed": 42,
+        "start_year": 2026,
+        "end_year": 2030
+      }
+    ],
+    "fct_compensation_growth": [
+      {
+        "calculation_method": "methodology_a_current",
+        "simulation_year": 2030,
+        "avg_compensation": 115517.25396176279,
+        "yoy_growth_pct": 2.448557372214904,
+        "target_status": "TARGET_ACHIEVED",
+        "deviation_from_target": 0.4485573722149039
+      },
+      {
+        "calculation_method": "methodology_b_continuous",
+        "simulation_year": 2030,
+        "avg_compensation": 126649.27327132416,
+        "yoy_growth_pct": 2.2527867126140686,
+        "target_status": "TARGET_ACHIEVED",
+        "deviation_from_target": 0.2527867126140686
+      },
+      {
+        "calculation_method": "methodology_c_full_year",
+        "simulation_year": 2030,
+        "avg_compensation": 122673.91893346501,
+        "yoy_growth_pct": 8.79557460818445,
+        "target_status": "ABOVE_TARGET",
+        "deviation_from_target": 6.795574608184451
+      }
+    ]
+  },
+  "calibration_metric_mismatch": "calibration uses methodology_a_current; primary uses all snapshot rows",
+  "plausibility": {
+    "applied_ranges": [
+      {
+        "level": 1,
+        "name": "Staff",
+        "min_compensation": 45710,
+        "max_compensation": 54845,
+        "frozen_census_avg_compensation": 57479.597347310875,
+        "hire_annual_avg": 48027.483235935644,
+        "hire_to_frozen_ratio": 0.8355570576762671,
+        "range_valid": true,
+        "within_0_6_to_1_3_frozen_avg": true
+      },
+      {
+        "level": 2,
+        "name": "Manager",
+        "min_compensation": 69189,
+        "max_compensation": 82655,
+        "frozen_census_avg_compensation": 100357.27263355922,
+        "hire_annual_avg": 73227.41046173249,
+        "hire_to_frozen_ratio": 0.7296672033835785,
+        "range_valid": true,
+        "within_0_6_to_1_3_frozen_avg": true
+      },
+      {
+        "level": 3,
+        "name": "Sr Manager",
+        "min_compensation": 97416,
+        "max_compensation": 111475,
+        "frozen_census_avg_compensation": 140743.47365824314,
+        "hire_annual_avg": 102259.23047227939,
+        "hire_to_frozen_ratio": 0.7265646343260495,
+        "range_valid": true,
+        "within_0_6_to_1_3_frozen_avg": true
+      },
+      {
+        "level": 4,
+        "name": "Director",
+        "min_compensation": 145702,
+        "max_compensation": 181632,
+        "frozen_census_avg_compensation": 217245.30543378997,
+        "hire_annual_avg": 160864.13247582212,
+        "hire_to_frozen_ratio": 0.7404723068911094,
+        "range_valid": true,
+        "within_0_6_to_1_3_frozen_avg": true
+      },
+      {
+        "level": 5,
+        "name": "VP",
+        "min_compensation": 262341,
+        "max_compensation": 306082,
+        "frozen_census_avg_compensation": 373686.8428846156,
+        "hire_annual_avg": 284353.4207539674,
+        "hire_to_frozen_ratio": 0.7609404135263282,
+        "range_valid": true,
+        "within_0_6_to_1_3_frozen_avg": true
+      }
+    ],
+    "ranges_ascending": true,
+    "applied_ages": [
+      {
+        "age": 22,
+        "weight": 0.0
+      },
+      {
+        "age": 25,
+        "weight": 0.002
+      },
+      {
+        "age": 28,
+        "weight": 0.005
+      },
+      {
+        "age": 32,
+        "weight": 0.058
+      },
+      {
+        "age": 35,
+        "weight": 0.174
+      },
+      {
+        "age": 40,
+        "weight": 0.358
+      },
+      {
+        "age": 45,
+        "weight": 0.278
+      },
+      {
+        "age": 50,
+        "weight": 0.125
+      }
+    ],
+    "best_scale": 0.7370808337435758,
+    "scale_bounds": [
+      0.5,
+      3.0
+    ],
+    "lever_fallback_false": true,
+    "active_new_hire_current_compensation": [
+      {
+        "simulation_year": 2026,
+        "level_id": 1,
+        "active_new_hire_count": 334,
+        "active_new_hire_current_compensation": 48030.79514970062
+      },
+      {
+        "simulation_year": 2026,
+        "level_id": 2,
+        "active_new_hire_count": 190,
+        "active_new_hire_current_compensation": 73182.55021052633
+      },
+      {
+        "simulation_year": 2026,
+        "level_id": 3,
+        "active_new_hire_count": 123,
+        "active_new_hire_current_compensation": 102229.92479674799
+      },
+      {
+        "simulation_year": 2026,
+        "level_id": 4,
+        "active_new_hire_count": 70,
+        "active_new_hire_current_compensation": 161619.53314285714
+      },
+      {
+        "simulation_year": 2026,
+        "level_id": 5,
+        "active_new_hire_count": 33,
+        "active_new_hire_current_compensation": 284078.85303030297
+      },
+      {
+        "simulation_year": 2027,
+        "level_id": 1,
+        "active_new_hire_count": 649,
+        "active_new_hire_current_compensation": 48980.15771956845
+      },
+      {
+        "simulation_year": 2027,
+        "level_id": 2,
+        "active_new_hire_count": 407,
+        "active_new_hire_current_compensation": 73926.6475184277
+      },
+      {
+        "simulation_year": 2027,
+        "level_id": 3,
+        "active_new_hire_count": 261,
+        "active_new_hire_current_compensation": 104281.80206896547
+      },
+      {
+        "simulation_year": 2027,
+        "level_id": 4,
+        "active_new_hire_count": 141,
+        "active_new_hire_current_compensation": 165720.17716312056
+      },
+      {
+        "simulation_year": 2027,
+        "level_id": 5,
+        "active_new_hire_count": 72,
+        "active_new_hire_current_compensation": 289080.7979166666
+      },
+      {
+        "simulation_year": 2028,
+        "level_id": 1,
+        "active_new_hire_count": 931,
+        "active_new_hire_current_compensation": 49999.47341568234
+      },
+      {
+        "simulation_year": 2028,
+        "level_id": 2,
+        "active_new_hire_count": 636,
+        "active_new_hire_current_compensation": 75261.30163522031
+      },
+      {
+        "simulation_year": 2028,
+        "level_id": 3,
+        "active_new_hire_count": 390,
+        "active_new_hire_current_compensation": 106427.73138461524
+      },
+      {
+        "simulation_year": 2028,
+        "level_id": 4,
+        "active_new_hire_count": 200,
+        "active_new_hire_current_compensation": 168998.24260000006
+      },
+      {
+        "simulation_year": 2028,
+        "level_id": 5,
+        "active_new_hire_count": 108,
+        "active_new_hire_current_compensation": 295593.0369444444
+      },
+      {
+        "simulation_year": 2029,
+        "level_id": 1,
+        "active_new_hire_count": 1143,
+        "active_new_hire_current_compensation": 50852.23171478554
+      },
+      {
+        "simulation_year": 2029,
+        "level_id": 2,
+        "active_new_hire_count": 852,
+        "active_new_hire_current_compensation": 76265.02400234737
+      },
+      {
+        "simulation_year": 2029,
+        "level_id": 3,
+        "active_new_hire_count": 522,
+        "active_new_hire_current_compensation": 108214.207605364
+      },
+      {
+        "simulation_year": 2029,
+        "level_id": 4,
+        "active_new_hire_count": 278,
+        "active_new_hire_current_compensation": 171129.76014388507
+      },
+      {
+        "simulation_year": 2029,
+        "level_id": 5,
+        "active_new_hire_count": 138,
+        "active_new_hire_current_compensation": 299396.6544202898
+      },
+      {
+        "simulation_year": 2030,
+        "level_id": 1,
+        "active_new_hire_count": 1333,
+        "active_new_hire_current_compensation": 51675.12647411861
+      },
+      {
+        "simulation_year": 2030,
+        "level_id": 2,
+        "active_new_hire_count": 1085,
+        "active_new_hire_current_compensation": 77440.69388940057
+      },
+      {
+        "simulation_year": 2030,
+        "level_id": 3,
+        "active_new_hire_count": 645,
+        "active_new_hire_current_compensation": 110165.48282170527
+      },
+      {
+        "simulation_year": 2030,
+        "level_id": 4,
+        "active_new_hire_count": 359,
+        "active_new_hire_current_compensation": 173608.62075208916
+      },
+      {
+        "simulation_year": 2030,
+        "level_id": 5,
+        "active_new_hire_count": 175,
+        "active_new_hire_current_compensation": 305459.1249714279
+      }
+    ],
+    "failures": []
+  },
+  "publication": {
+    "snapshot_years": [
+      {
+        "simulation_year": 2026,
+        "rows": 5938
+      },
+      {
+        "simulation_year": 2027,
+        "rows": 6329
+      },
+      {
+        "simulation_year": 2028,
+        "rows": 6655
+      },
+      {
+        "simulation_year": 2029,
+        "rows": 6988
+      },
+      {
+        "simulation_year": 2030,
+        "rows": 7337
+      }
+    ],
+    "event_years": [
+      {
+        "simulation_year": 2026,
+        "rows": 11685
+      },
+      {
+        "simulation_year": 2027,
+        "rows": 12109
+      },
+      {
+        "simulation_year": 2028,
+        "rows": 12941
+      },
+      {
+        "simulation_year": 2029,
+        "rows": 13807
+      },
+      {
+        "simulation_year": 2030,
+        "rows": 14090
+      }
+    ],
+    "run_metadata": [
+      {
+        "run_id": "1bf04d81-6953-46e2-9257-9e0bfb46a7c6",
+        "config_fingerprint": "a32dccddfb1645203bcfde12260641ad5ae9ce2be3fce3a7215d459d326fdaa8",
+        "random_seed": 42,
+        "start_year": 2026,
+        "end_year": 2030,
+        "scenario_id": null,
+        "plan_design_id": null,
+        "entry_point": "studio",
+        "runner_kind": "dbt"
+      }
+    ]
+  },
+  "provenance": {
+    "baseline": {
+      "cell_run_id": "61ff9bb8-b3a8-4022-9e99-0e87500aa3c0",
+      "provenance_run_id": "61ff9bb8-b3a8-4022-9e99-0e87500aa3c0",
+      "metadata": [
+        {
+          "run_id": "61ff9bb8-b3a8-4022-9e99-0e87500aa3c0",
+          "config_fingerprint": "f41df2438ef510d49a57d78d6e6b79236992bb300b9f52827d4d898a493e80de",
+          "random_seed": 42,
+          "start_year": 2026,
+          "end_year": 2030,
+          "scenario_id": null,
+          "plan_design_id": null
+        }
+      ],
+      "completed_years": [
+        2026,
+        2027,
+        2028,
+        2029,
+        2030
+      ],
+      "config_sha256_matches_provenance": true,
+      "census_sha256": "2478aea623811d90adc973f8603cabc900318411d45df6c230334f6166e8e3c1",
+      "provenance_fingerprint": "f41df2438ef510d49a57d78d6e6b79236992bb300b9f52827d4d898a493e80de",
+      "cell_fingerprint": "e20659dc5ef36a62c9c2991a168d75f3fd4a8456d2837a0fcf4cca12bd519a78"
+    },
+    "applied": {
+      "cell_run_id": "1bf04d81-6953-46e2-9257-9e0bfb46a7c6",
+      "provenance_run_id": "1bf04d81-6953-46e2-9257-9e0bfb46a7c6",
+      "metadata": [
+        {
+          "run_id": "1bf04d81-6953-46e2-9257-9e0bfb46a7c6",
+          "config_fingerprint": "a32dccddfb1645203bcfde12260641ad5ae9ce2be3fce3a7215d459d326fdaa8",
+          "random_seed": 42,
+          "start_year": 2026,
+          "end_year": 2030,
+          "scenario_id": null,
+          "plan_design_id": null
+        }
+      ],
+      "completed_years": [
+        2026,
+        2027,
+        2028,
+        2029,
+        2030
+      ],
+      "config_sha256_matches_provenance": true,
+      "census_sha256": "2478aea623811d90adc973f8603cabc900318411d45df6c230334f6166e8e3c1",
+      "provenance_fingerprint": "a32dccddfb1645203bcfde12260641ad5ae9ce2be3fce3a7215d459d326fdaa8",
+      "cell_fingerprint": "0536a86101e255e8c5b89f293c2e036b67e9af140c0f3120bcd1dc37b54da459"
+    }
+  },
+  "recorded_total_seconds": 698.3400765419938,
+  "campaign_matrix": {
+    "path": "/Users/nicholasamaral/.t3/worktrees/fidelity_planalign/t3-e8a89381/campaign_a/matrix.json",
+    "present": true,
+    "seed_noise_band": "not computed: this independent audit is limited to seed 42 of one cell",
+    "campaign_score": "not computed: a one-cell audit cannot establish the matrix campaign score"
+  }
+}

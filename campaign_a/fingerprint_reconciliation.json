@@ -1,0 +1,55 @@
+{
+  "status": "verified",
+  "source_chain": [
+    "campaign_a/run_cell.py: prepare_workspace stores the /tmp directory path; run_full hashes before execute_simulation",
+    "planalign_api/services/simulation/service.py: _prepare_simulation calls validate_census before write_config and initialize_manifest",
+    "planalign_api/services/simulation/run_execution.py: validate_census assigns str(resolved.resolve())",
+    "planalign_orchestrator/run_metadata.py: compute_config_fingerprint includes census path via to_dbt_vars"
+  ],
+  "phases": {
+    "baseline": {
+      "submitted_config_fingerprint": "e20659dc5ef36a62c9c2991a168d75f3fd4a8456d2837a0fcf4cca12bd519a78",
+      "attested_config_fingerprint": "f41df2438ef510d49a57d78d6e6b79236992bb300b9f52827d4d898a493e80de",
+      "config_attestation": {
+        "status": "verified",
+        "submitted_census_path": "/tmp/nhcal/balanced_h5_c1_low/prerequisite_repair_seed_42_v2/workspaces/ce4bc844-8b5a-4217-96f3-3c168abaab1c/census.parquet",
+        "attested_census_path": "/private/tmp/nhcal/balanced_h5_c1_low/prerequisite_repair_seed_42_v2/workspaces/ce4bc844-8b5a-4217-96f3-3c168abaab1c/census.parquet",
+        "only_change": "setup.census_parquet_path",
+        "config_sha256": "2210c9db10897de3889e6e2e6fcda7bf00c19ef3d51efdb45dbcf32e175dc760"
+      },
+      "original_config_fingerprint": "e20659dc5ef36a62c9c2991a168d75f3fd4a8456d2837a0fcf4cca12bd519a78",
+      "submitted_reconstruction": "Recorded config with only census path restored from recorded directory/workspace_id; original hash reproduced exactly",
+      "original_hash_matches_submitted": true,
+      "full_config_equal_after_path_resolution": true,
+      "db_metadata": [
+        [
+          "61ff9bb8-b3a8-4022-9e99-0e87500aa3c0",
+          "f41df2438ef510d49a57d78d6e6b79236992bb300b9f52827d4d898a493e80de"
+        ]
+      ],
+      "census_sha256": "2478aea623811d90adc973f8603cabc900318411d45df6c230334f6166e8e3c1"
+    },
+    "applied": {
+      "submitted_config_fingerprint": "0536a86101e255e8c5b89f293c2e036b67e9af140c0f3120bcd1dc37b54da459",
+      "attested_config_fingerprint": "a32dccddfb1645203bcfde12260641ad5ae9ce2be3fce3a7215d459d326fdaa8",
+      "config_attestation": {
+        "status": "verified",
+        "submitted_census_path": "/tmp/nhcal/balanced_h5_c1_low/prerequisite_repair_seed_42_v2/workspaces/ce4bc844-8b5a-4217-96f3-3c168abaab1c/census.parquet",
+        "attested_census_path": "/private/tmp/nhcal/balanced_h5_c1_low/prerequisite_repair_seed_42_v2/workspaces/ce4bc844-8b5a-4217-96f3-3c168abaab1c/census.parquet",
+        "only_change": "setup.census_parquet_path",
+        "config_sha256": "c7893acd12eeb73521befadadb0290e608a6ea08b5b7d77f08fde89fb094c272"
+      },
+      "original_config_fingerprint": "0536a86101e255e8c5b89f293c2e036b67e9af140c0f3120bcd1dc37b54da459",
+      "submitted_reconstruction": "Recorded config with only census path restored from recorded directory/workspace_id; original hash reproduced exactly",
+      "original_hash_matches_submitted": true,
+      "full_config_equal_after_path_resolution": true,
+      "db_metadata": [
+        [
+          "1bf04d81-6953-46e2-9257-9e0bfb46a7c6",
+          "a32dccddfb1645203bcfde12260641ad5ae9ce2be3fce3a7215d459d326fdaa8"
+        ]
+      ],
+      "census_sha256": "2478aea623811d90adc973f8603cabc900318411d45df6c230334f6166e8e3c1"
+    }
+  }
+}

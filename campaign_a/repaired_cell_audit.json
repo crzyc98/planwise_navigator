@@ -1,0 +1,24 @@
+{
+  "audit_status": "completed",
+  "primary_all_population_score_maxima": {
+    "max_comp_err_pp": 2.5057580479438504,
+    "max_headcount_err_pp": 1.5847086561131585,
+    "max_cal_gap_pp": 0.787287098960319,
+    "failure_count": 0
+  },
+  "plausibility_failure_count": 0,
+  "seed_noise_band": "not computed: this independent audit is limited to seed 42 of one cell",
+  "campaign_score": "not computed: a one-cell audit cannot establish the matrix campaign score",
+  "finding_ids": [
+    "F1-primary score misses compensation and calibration thresholds",
+    "F2-calibration DB is last-evaluation state, not best-candidate prediction state",
+    "F3-applied provenance fingerprint differs from cell-stored fingerprint"
+  ],
+  "evidence": "/tmp/nhcal/audit_repaired_cell/evidence.json",
+  "fingerprint_finding_resolution": {
+    "finding": "F3",
+    "status": "explained and verified; original fingerprints preserved",
+    "proof": "campaign_a/fingerprint_reconciliation.json"
+  },
+  "durable_evidence": "campaign_a/repaired_cell_raw_audit.json"
+}

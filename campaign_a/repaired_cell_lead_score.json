@@ -1,0 +1,76 @@
+{
+  "status": "scored",
+  "score": 2.5057580479438504,
+  "hc_err": 1.5847086561131585,
+  "cal_gap": 0.787287098960319,
+  "failures": [],
+  "annual": [
+    {
+      "year": 2026,
+      "headcount": 5938,
+      "avg_comp": 97266.53726138604,
+      "active_headcount": 5250,
+      "active_avg_comp": 103224.12410245021,
+      "hc_growth": null,
+      "comp_growth": null,
+      "active_hc_growth": null,
+      "active_comp_growth": null
+    },
+    {
+      "year": 2027,
+      "headcount": 6329,
+      "avg_comp": 95801.93854861641,
+      "active_headcount": 5513,
+      "active_avg_comp": 102482.48875843135,
+      "hc_growth": 6.5847086561131585,
+      "comp_growth": -1.5057580479438504,
+      "active_hc_growth": 5.009523809523819,
+      "active_comp_growth": -0.7184709489835739,
+      "comp_err": 2.5057580479438504,
+      "hc_err": 1.5847086561131585,
+      "cal_gap": 0.787287098960319
+    },
+    {
+      "year": 2028,
+      "headcount": 6655,
+      "avg_comp": 98183.4588398957,
+      "active_headcount": 5789,
+      "active_avg_comp": 105195.066738609,
+      "hc_growth": 5.1508927160689,
+      "comp_growth": 2.4858790201523373,
+      "active_hc_growth": 5.006348630509705,
+      "active_comp_growth": 2.6468697365182647,
+      "comp_err": 1.4858790201523373,
+      "hc_err": 0.15089271606889998,
+      "cal_gap": 0.1609907163665225
+    },
+    {
+      "year": 2029,
+      "headcount": 6988,
+      "avg_comp": 99405.39489308477,
+      "active_headcount": 6078,
+      "active_avg_comp": 106127.42184242744,
+      "hc_growth": 5.003756574004514,
+      "comp_growth": 1.244543701787526,
+      "active_hc_growth": 4.992226636724828,
+      "active_comp_growth": 0.8863106728523418,
+      "comp_err": 0.24454370178752605,
+      "hc_err": 0.003756574004514235,
+      "cal_gap": 0.3582330289353114
+    },
+    {
+      "year": 2030,
+      "headcount": 7337,
+      "avg_comp": 100589.02903921716,
+      "active_headcount": 6382,
+      "active_avg_comp": 107280.3867781473,
+      "hc_growth": 4.9942759015455085,
+      "comp_growth": 1.1907141935359133,
+      "active_hc_growth": 5.0016452780519804,
+      "active_comp_growth": 1.0863968196944462,
+      "comp_err": 0.19071419353591335,
+      "hc_err": 0.005724098454491511,
+      "cal_gap": 0.10431737384126505
+    }
+  ]
+}

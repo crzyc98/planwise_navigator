@@ -216,3 +216,67 @@ def test_frozen_census_tampering_fails_closed(campaign, monkeypatch):
     )
     with pytest.raises(ValueError, match="hash mismatch"):
         harness.run_cell(campaign["id"], 42, "baseline")
+
+
+def test_repair_stage_preserves_baseline_and_refuses_record_overwrite(
+    campaign, monkeypatch
+):
+    harness.save_record(
+        campaign, 42, "baseline", {"status": "failed", "error": "original"}
+    )
+    monkeypatch.setattr(
+        harness.SimulationService, "execute_simulation", completed_simulation
+    )
+    monkeypatch.setattr(harness, "AutoCalibrator", FakeCalibrator)
+    record = harness.run_cell(campaign["id"], 42, "prerequisite_repair")
+    saved = json.loads(
+        (harness.CAMPAIGN / "cells" / f"{campaign['id']}.json").read_text()
+    )
+    assert saved["runs"]["baseline"]["42"] == {"status": "failed", "error": "original"}
+    assert saved["runs"]["prerequisite_repair"]["42"] == record
+    assert (
+        record["applied"]["attested_config_fingerprint"]
+        == record["applied"]["config_fingerprint"]
+    )
+    # A record alone is sufficient to block overwrite, even without the run directory.
+    monkeypatch.setattr(harness, "RUN_ROOT", harness.RUN_ROOT / "unused")
+    with pytest.raises(FileExistsError, match="record"):
+        harness.run_cell(campaign["id"], 42, "prerequisite_repair")
+
+
+def test_actual_config_drift_fails_attestation(campaign, monkeypatch):
+    async def drift(self, workspace, scenario, run_id, config):
+        config["simulation"]["target_growth_rate"] = 0.123
+        await completed_simulation(self, workspace, scenario, run_id, config)
+
+    monkeypatch.setattr(harness.SimulationService, "execute_simulation", drift)
+    with pytest.raises(ValueError, match="config mismatch"):
+        harness.run_cell(campaign["id"], 42, "prerequisite_repair")
+    saved = json.loads(
+        (harness.CAMPAIGN / "cells" / f"{campaign['id']}.json").read_text()
+    )
+    assert saved["runs"]["prerequisite_repair"]["42"]["baseline"]["status"] == "failed"
+
+
+def test_census_alias_resolution_is_attested(campaign, monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        harness.SimulationService, "execute_simulation", completed_simulation
+    )
+    monkeypatch.setattr(harness, "AutoCalibrator", FakeCalibrator)
+    record = harness.run_cell(campaign["id"], 42, "prerequisite_repair")["applied"]
+    submitted = yaml.safe_load(Path(record["config_path"]).read_text())
+    alias = tmp_path / "census_alias.parquet"
+    alias.symlink_to(submitted["setup"]["census_parquet_path"])
+    submitted["setup"]["census_parquet_path"] = str(alias)
+    record["config_fingerprint"] = harness.config_fingerprint(submitted)
+    result = harness.attest_config(record, submitted)
+    assert (
+        result["submitted_config_fingerprint"] != result["attested_config_fingerprint"]
+    )
+    assert result["config_attestation"]["only_change"] == "setup.census_parquet_path"
+    manifest_path = Path(record["provenance_path"])
+    manifest = json.loads(manifest_path.read_text())
+    manifest["configuration"]["fingerprint"] = "tampered"
+    manifest_path.write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="attestation mismatch"):
+        harness.attest_config(record, submitted)

@@ -1,0 +1,46 @@
+{
+  "scope": "No production edits, simulations, workers, network, checkout creation, push or PR",
+  "checks": [
+    {
+      "command": "python3 scripts/dev.py --check",
+      "result": "passed; existing borrowed dependencies"
+    },
+    {
+      "command": "python3 scripts/dev.py -- python -m pytest campaign_a/test_run_cell.py campaign_a/test_run_matrix.py campaign_a/test_score.py -q",
+      "result": "18 passed in 2.64s; engine execution stubbed"
+    },
+    {
+      "command": "python3 scripts/dev.py -- ruff check .",
+      "result": "passed"
+    },
+    {
+      "command": "python3 scripts/dev.py -- black --check campaign_a/run_cell.py campaign_a/run_matrix.py campaign_a/reconcile_fingerprints.py campaign_a/test_run_cell.py campaign_a/test_run_matrix.py campaign_a/test_score.py",
+      "result": "6 files unchanged"
+    },
+    {
+      "command": "python3 scripts/dev.py -- pre-commit run",
+      "result": "all applicable hooks passed using existing cached environments; historical patch blank-context whitespace cleaned after first whitespace rejection"
+    },
+    {
+      "command": "git apply --numstat campaign_a/decimal_age_candidate.patch",
+      "result": "historical patch parses; not applied"
+    },
+    {
+      "command": "python3 scripts/dev.py -- python -m campaign_a.reconcile_fingerprints",
+      "result": "both full phases verified read-only; saved fingerprint_reconciliation.json"
+    }
+  ],
+  "read_only_raw_score": "Exactly reproduces repaired_cell_lead_score.json, including all annual rows",
+  "prior_record_preservation": "All previously committed stage/seed and failed_attempts JSON values unchanged",
+  "repaired_matrix_preflight": {
+    "pending": 62,
+    "skip": [
+      [
+        "balanced_h5_c1_low",
+        42
+      ]
+    ],
+    "existing_pending_logs_or_run_directories": []
+  },
+  "full_fast_suite": "Not rerun; prior prerequisite repair result 4070 passed"
+}

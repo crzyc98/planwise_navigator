@@ -1,0 +1,758 @@
+[
+  {
+    "cell": "balanced_h2_c1_low",
+    "split": "holdout",
+    "seed": 42,
+    "status": "interrupted",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "balanced_h2_c1_high",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "balanced_h2_c2p5_low",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "balanced_h2_c2p5_high",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "balanced_h2_c4_low",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "balanced_h2_c4_high",
+    "split": "dev",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "balanced_h2_c4_high",
+    "split": "dev",
+    "seed": 101,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "balanced_h3p5_c1_low",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "balanced_h3p5_c1_high",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "balanced_h3p5_c2p5_low",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "balanced_h3p5_c2p5_high",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "balanced_h3p5_c4_low",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "balanced_h3p5_c4_high",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "balanced_h5_c1_low",
+    "split": "dev",
+    "seed": 42,
+    "status": "failed",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "balanced_h5_c1_low",
+    "split": "dev",
+    "seed": 101,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "balanced_h5_c1_high",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "balanced_h5_c2p5_low",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "balanced_h5_c2p5_high",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "balanced_h5_c4_low",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "balanced_h5_c4_high",
+    "split": "dev",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "balanced_h5_c4_high",
+    "split": "dev",
+    "seed": 101,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "young_h2_c1_low",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "young_h2_c1_high",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "young_h2_c2p5_low",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "young_h2_c2p5_high",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "young_h2_c4_low",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "young_h2_c4_high",
+    "split": "dev",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "young_h2_c4_high",
+    "split": "dev",
+    "seed": 101,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "young_h3p5_c1_low",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "young_h3p5_c1_high",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "young_h3p5_c2p5_low",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "young_h3p5_c2p5_high",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "young_h3p5_c4_low",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "young_h3p5_c4_high",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "young_h5_c1_low",
+    "split": "dev",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "young_h5_c1_low",
+    "split": "dev",
+    "seed": 101,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "young_h5_c1_high",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "young_h5_c2p5_low",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "young_h5_c2p5_high",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "young_h5_c4_low",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "young_h5_c4_high",
+    "split": "dev",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "young_h5_c4_high",
+    "split": "dev",
+    "seed": 101,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "older_h2_c1_low",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "older_h2_c1_high",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "older_h2_c2p5_low",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "older_h2_c2p5_high",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "older_h2_c4_low",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "older_h2_c4_high",
+    "split": "dev",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "older_h2_c4_high",
+    "split": "dev",
+    "seed": 101,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "older_h3p5_c1_low",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "older_h3p5_c1_high",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "older_h3p5_c2p5_low",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "older_h3p5_c2p5_high",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "older_h3p5_c4_low",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "older_h3p5_c4_high",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "older_h5_c1_low",
+    "split": "dev",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "older_h5_c1_low",
+    "split": "dev",
+    "seed": 101,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "older_h5_c1_high",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "older_h5_c2p5_low",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "older_h5_c2p5_high",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "older_h5_c4_low",
+    "split": "holdout",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "older_h5_c4_high",
+    "split": "dev",
+    "seed": 42,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  },
+  {
+    "cell": "older_h5_c4_high",
+    "split": "dev",
+    "seed": 101,
+    "status": "not_run",
+    "score": null,
+    "hc_err": null,
+    "cal_gap": null,
+    "failures": [
+      "incomplete_applied_pipeline"
+    ]
+  }
+]

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import copy
 import json
 import os
 import shutil
@@ -160,6 +161,45 @@ def prepare_workspace(
     )
 
 
+def attest_config(record: Json, submitted: Json) -> Json:
+    """Fail closed unless only the service's census path resolution changed."""
+    recorded = yaml.safe_load(Path(record["config_path"]).read_text())
+    expected = copy.deepcopy(submitted)
+    original_path = expected["setup"]["census_parquet_path"]
+    recorded_path = recorded["setup"]["census_parquet_path"]
+    if original_path != recorded_path:
+        expected["setup"]["census_parquet_path"] = str(
+            Path(original_path).resolve(strict=True)
+        )
+    if expected != recorded:
+        raise ValueError("Submitted/recorded config mismatch")
+    manifest = json.loads(Path(record["provenance_path"]).read_text())
+    fingerprint = config_fingerprint(recorded)
+    artifacts = {
+        item["logical_name"]: item["sha256"] for item in manifest["archive_artifacts"]
+    }
+    if (
+        manifest["run_id"] != record["run_id"]
+        or manifest["configuration"]["fingerprint"] != fingerprint
+        or artifacts.get("config.yaml") != sha256_file(Path(record["config_path"]))[0]
+        or config_fingerprint(submitted) != record["config_fingerprint"]
+    ):
+        raise ValueError("Config attestation mismatch")
+    return {
+        "submitted_config_fingerprint": config_fingerprint(submitted),
+        "attested_config_fingerprint": fingerprint,
+        "config_attestation": {
+            "status": "verified",
+            "submitted_census_path": original_path,
+            "attested_census_path": recorded_path,
+            "only_change": (
+                "setup.census_parquet_path" if submitted != recorded else None
+            ),
+            "config_sha256": artifacts["config.yaml"],
+        },
+    }
+
+
 def run_full(
     storage: WorkspaceStorage, workspace: str, scenario: str, record: Json
 ) -> None:
@@ -180,6 +220,8 @@ def run_full(
         provenance_path=str(database.parent / "provenance.json"),
         config_fingerprint=config_fingerprint(config),
     )
+    submitted = copy.deepcopy(config)
+    record["submitted_config_fingerprint"] = record["config_fingerprint"]
     started = time.monotonic()
     try:
         with execution_environment(storage.workspaces_root.parent, database):
@@ -196,6 +238,7 @@ def run_full(
             raise RuntimeError(
                 f"Full simulation did not publish completed run {run_id}; inspect {database.parent}"
             )
+        record.update(attest_config(record, submitted))
         record["status"] = "completed"
     finally:
         record["seconds"] = time.monotonic() - started
@@ -316,8 +359,17 @@ def execute_phase(
 def run_cell(cell_id: str, seed: int, stage: str) -> Json:
     cells = json.loads((CAMPAIGN / "matrix.json").read_text())
     cell = next((row for row in cells if row["id"] == cell_id), None)
-    if cell is None or seed not in cell["seeds"] or stage != "baseline":
+    if (
+        cell is None
+        or seed not in cell["seeds"]
+        or stage not in ("baseline", "prerequisite_repair")
+    ):
         raise ValueError("Unknown cell, unfrozen seed, or unsupported stage")
+    path = CAMPAIGN / "cells" / f"{cell_id}.json"
+    if path.exists() and str(seed) in json.loads(path.read_text()).get("runs", {}).get(
+        stage, {}
+    ):
+        raise FileExistsError("Existing cell stage/seed record; refusing overwrite")
     directory = RUN_ROOT / cell_id / f"{stage}_seed_{seed}_v2"
     directory.mkdir(parents=True, exist_ok=False)
     record: Json = {
@@ -376,7 +428,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cell", required=True)
     parser.add_argument("--seed", required=True, type=int)
-    parser.add_argument("--stage", required=True, choices=["baseline"])
+    parser.add_argument(
+        "--stage", required=True, choices=["baseline", "prerequisite_repair"]
+    )
     args = parser.parse_args()
     run_cell(args.cell, args.seed, args.stage)
 
