@@ -24,8 +24,14 @@ def validate_vesting_history(
     contributions remain relevant even if their earlier cohort attributes differ.
     Legacy archives without scope columns retain employee/year identity.
     """
-    keys = vesting_scope_columns(connection) + ["employee_id"]
-    join = " AND ".join(f"s.{key} IS NOT DISTINCT FROM t.{key}" for key in keys)
+    scope = vesting_scope_columns(connection)
+    keys = scope + ["employee_id"]
+    # A NULL scope key on a prior row must reach the identity check below
+    # rather than silently falling out of the same-scope join.
+    join = " AND ".join(
+        [f"(s.{key} IS NULL OR s.{key} = t.{key})" for key in scope]
+        + ["s.employee_id = t.employee_id"]
+    )
     nulls = " OR ".join(f"{key} IS NULL" for key in keys)
     group = ", ".join(keys + ["simulation_year"])
     cte = f"""WITH terminated AS (

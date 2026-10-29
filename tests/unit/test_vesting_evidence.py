@@ -174,6 +174,20 @@ def test_cost_comparison_route_returns_evidence_error_as_422(
     assert caught.value.detail == "invalid prior basis"
 
 
+@pytest.mark.parametrize("column", ["scenario_id", "plan_design_id"])
+def test_null_scope_in_prior_history_is_evidence_error(column: str) -> None:
+    with duckdb.connect(":memory:") as conn:
+        populate(conn)
+        conn.execute(
+            f"UPDATE fct_workforce_snapshot SET {column}=NULL "
+            "WHERE plan_design_id='A' AND simulation_year=2025"
+        )
+        with pytest.raises(VestingEvidenceError, match="missing snapshot identity"):
+            project_forfeitures_for_connection(conn, SCHEDULE)
+        with pytest.raises(VestingEvidenceError, match="missing snapshot identity"):
+            VestingService(Mock())._get_terminated_employees(conn, 2026)
+
+
 @pytest.mark.parametrize("status", ["ACTIVE", "TERMINATED"])
 def test_null_year_in_selected_history_is_evidence_error(status: str) -> None:
     with duckdb.connect(":memory:") as conn:
