@@ -4066,6 +4066,13 @@ export interface components {
              */
             as_of_date?: string | null;
             /**
+             * Employee Status
+             * @description Population to analyze using the census active flag.
+             * @default active
+             * @enum {string}
+             */
+            employee_status?: "all" | "active" | "terminated";
+            /**
              * File Path
              * @description Path to census file (relative to workspace or absolute)
              */

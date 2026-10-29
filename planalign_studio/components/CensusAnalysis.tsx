@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { LayoutContextType } from './Layout';
 import { extractCensusPath } from './config/ConfigContext';
-import { getWorkspace, analyzeCensus, CensusAnalysisResult, CensusSegmentMetrics, CensusDeferralRateBucket } from '../services/api';
+import { getWorkspace, analyzeCensus, CensusAnalysisRequest, CensusAnalysisResult, CensusSegmentMetrics, CensusDeferralRateBucket } from '../services/api';
 import { useChartTheme } from '../hooks/useChartTheme';
 
 const formatCurrency = (value: number): string => {
@@ -181,6 +181,7 @@ export default function CensusAnalysis() {
   const { activeWorkspace } = useOutletContext<LayoutContextType>();
 
   const [censusPath, setCensusPath] = useState('');
+  const [employeeStatus, setEmployeeStatus] = useState<NonNullable<CensusAnalysisRequest["employee_status"]>>("active");
   const [asOfDate, setAsOfDate] = useState('');
   const [result, setResult] = useState<CensusAnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -202,11 +203,13 @@ export default function CensusAnalysis() {
       setError('This workspace has no census file uploaded yet.');
       return;
     }
+    setResult(null);
     setLoading(true);
     setError(null);
     try {
       const data = await analyzeCensus(activeWorkspace.id, {
         file_path: censusPath,
+        employee_status: employeeStatus,
         as_of_date: asOfDate || undefined,
       });
       setResult(data);
@@ -221,7 +224,7 @@ export default function CensusAnalysis() {
   useEffect(() => {
     if (censusPath) void runAnalysis();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [censusPath]);
+  }, [censusPath, employeeStatus]);
 
   const segmentsForDimension = useMemo(
     () => (result?.segments ?? []).filter(s => s.dimension === dimension),
@@ -260,6 +263,25 @@ export default function CensusAnalysis() {
             Analyze
           </button>
         </div>
+      </div>
+
+      <div role="group" aria-label="Employee status" className="flex flex-wrap items-center gap-2">
+        {(['all', 'active', 'terminated'] as const).map(status => (
+          <button
+            key={status}
+            type="button"
+            aria-pressed={employeeStatus === status}
+            disabled={loading}
+            onClick={() => setEmployeeStatus(status)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors disabled:opacity-50 ${employeeStatus === status
+              ? 'bg-fidelity-green text-ink-inverse border-fidelity-green'
+              : 'bg-surface-raised text-ink-muted border-border hover:bg-surface-subtle'}`}
+          >
+            {status === 'all' ? 'All' : status === 'active' ? 'Active' : 'Terminated'}
+          </button>
+        ))}
+        <span className="text-xs text-ink-subtle">Uses the census active flag; missing status is treated as active.</span>
+        {loading && <Loader2 aria-label="Loading analysis" size={16} className="animate-spin" />}
       </div>
 
       {!censusPath && !loading && (
@@ -339,7 +361,7 @@ export default function CensusAnalysis() {
               value={result.overall.zero_deferral_count.toLocaleString()}
               subtext={result.overall.hce_count == null
                 ? 'HCE classification unavailable'
-                : `${result.overall.hce_count.toLocaleString()} HCE in active census`}
+                : `${result.overall.hce_count.toLocaleString()} HCE in selected population`}
               icon={AlertTriangle}
               color="gray"
               loading={loading}

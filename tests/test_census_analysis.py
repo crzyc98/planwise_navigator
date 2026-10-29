@@ -417,3 +417,44 @@ class TestFileHandling:
 
         assert result.as_of_date == date(2025, 6, 30)
         assert result.as_of_date_source == "provided"
+
+
+@pytest.mark.fast
+@pytest.mark.parametrize(
+    "status,count,compensation",
+    [("all", 2, 180000), ("active", 1, 80000), ("terminated", 1, 100000)],
+)
+def test_population_filter(service, workspace_dir, status, count, compensation):
+    _write_csv(
+        workspace_dir / "census.csv",
+        [
+            _employee(
+                employee_id="A", active="employed", compensation=80000, department="Eng"
+            ),
+            _employee(
+                employee_id="T", active="false", compensation=100000, department="Eng"
+            ),
+        ],
+    )
+    result = service.analyze("test-ws", "census.csv", AS_OF, employee_status=status)
+    assert result.total_employees == 2
+    assert result.active_employees == 1
+    assert result.overall.employee_count == count
+    assert result.overall.total_eligible_compensation == compensation
+    assert sum(b.count for b in result.deferral_rate_distribution) == count
+    assert (
+        next(s for s in result.segments if s.dimension == "department").employee_count
+        == count
+    )
+
+
+@pytest.mark.fast
+def test_terminated_population_without_status_is_empty(service, workspace_dir):
+    row = _employee()
+    del row["active"]
+    _write_csv(workspace_dir / "census.csv", [row])
+    result = service.analyze(
+        "test-ws", "census.csv", AS_OF, employee_status="terminated"
+    )
+    assert result.overall.employee_count == 0
+    assert result.message == "No employees found in the selected population."
