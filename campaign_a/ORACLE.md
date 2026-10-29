@@ -1,0 +1,20 @@
+# Campaign A frozen oracle
+Frozen before any simulation on 2026-10-29 at base 53b3c32a706bcdf57ddaf71976576bfce67c250c.
+
+## Population and compensation
+Score the default ALL population displayed in Studio AnalyticsDashboard (population useState defaults to 'all', line 215) via simulation/results_reader.py: all fct_workforce_snapshot rows; headcount is COUNT(DISTINCT employee_id), compensation is AVG(prorated_annual_compensation). Include new hires and terminated employees; this is earned prorated compensation, not annualized salary. Compute with unrounded values, not displayed thousands. 2026 supplies the denominator only; score YoY for 2027–2030.
+Calibrator reads fct_compensation_growth methodology_a_current: detailed_status_code IN ('continuous_active','new_hire_active'), AVG(prorated_annual_compensation). This differs from the default Studio ALL population: record this source-verified metric mismatch. Also report active-only growth and active headcount as secondary diagnostics (LOWER(employment_status) = 'active'); never replace primary ALL-population scores with those diagnostics.
+
+## Scores
+For each year, growth = 100*(current/prior - 1). comp_err and hc_err are absolute differences from cell targets in percentage points. cal_gap is absolute difference between the calibration prediction for that same year and the applied full simulation growth. Cell scores are maxima across the four years; campaign score is arithmetic mean of cell maximum comp_err. Report maximum hc_err, maximum cal_gap and failure counts alongside it. Missing years, duplicate employee/year records, missing predictions or nonfinite metrics fail; never drop failed cells or average only successful cells.
+
+## Plausibility
+Each is failure: range min >= max; either endpoint decreases with ascending level; per-level new-hire annual salary average outside 0.6–1.3 times frozen census level average; scale clamped; unannounced lever fallback; negative or nonfinite salary/range/scale/count value. Negative signed growth or signed target errors are legitimate and are not negative monetary values. Audit new-hire annual salary from hire events (before subsequent increases); also report active new-hire current_compensation. Empty new-hire levels are unscorable, not automatically passing.
+
+## Acceptance and split
+All holdout cells must have max comp_err <= 0.25pp, hc_err <= 0.10pp, cal_gap <= 0.10pp and zero failures. Infeasibility passes only with explicit system diagnosis and no implausible returned range; record separately, never substitute a numeric zero score. No numeric campaign acceptance with missing cells.
+Matrix.json freezes 54 cells: all three shapes crossed with HC {2,3.5,5}, compensation {1,2.5,4}, turnover low {0.1,0.2} / high {0.2,0.35}. Dev is each shape crossed with (HC,comp,turnover) {(5,1,low),(2,4,high),(5,4,high)}: nine cells. Other 45 are holdout. Seed 42 all cells; seed 101 dev at baseline and end. Holdout seed 101 is not required and reported N/A.
+Noise band is mean absolute paired difference in baseline dev max comp_err between seeds 42 and 101. Keep only dev score improvements strictly exceeding this frozen band, with no new failures and passing fast suite and ruff. Holdout baseline/final/every third kept change only, never tune from holdout.
+
+## Protocol
+Synthetic censuses only, hashed before runs. Full provenance-matched baseline, Studio new_hire_scale calibration, exact fractional apply with provenance, fresh full simulation. Every database under /tmp/nhcal/<cell>/ with underscore-safe basename and identical DATABASE_PATH. Save raw annual predictions and applied ranges in cell JSON. Independent auditor reads this oracle and raw tables, never lead scorer or implementer reasoning. Resolve scorer disagreement before hill climb. First test fast/full parity. At most 12 iterations, stop at acceptance or three consecutive non-improvements. No Campaign B.

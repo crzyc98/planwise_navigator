@@ -1,0 +1,14 @@
+{
+  "id": "older_h5_c1_high",
+  "shape": "older",
+  "hc_target_pct": 5,
+  "comp_target_pct": 1,
+  "turnover": "high",
+  "total_termination_rate": 0.2,
+  "new_hire_termination_rate": 0.35,
+  "split": "holdout",
+  "seeds": [
+    42
+  ],
+  "status": "not_run"
+}

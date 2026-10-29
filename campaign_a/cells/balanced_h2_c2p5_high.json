@@ -1,0 +1,14 @@
+{
+  "id": "balanced_h2_c2p5_high",
+  "shape": "balanced",
+  "hc_target_pct": 2,
+  "comp_target_pct": 2.5,
+  "turnover": "high",
+  "total_termination_rate": 0.2,
+  "new_hire_termination_rate": 0.35,
+  "split": "holdout",
+  "seeds": [
+    42
+  ],
+  "status": "not_run"
+}

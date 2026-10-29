@@ -1,0 +1,15 @@
+{
+  "id": "young_h5_c4_high",
+  "shape": "young",
+  "hc_target_pct": 5,
+  "comp_target_pct": 4,
+  "turnover": "high",
+  "total_termination_rate": 0.2,
+  "new_hire_termination_rate": 0.35,
+  "split": "dev",
+  "seeds": [
+    42,
+    101
+  ],
+  "status": "not_run"
+}

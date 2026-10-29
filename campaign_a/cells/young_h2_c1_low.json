@@ -1,0 +1,14 @@
+{
+  "id": "young_h2_c1_low",
+  "shape": "young",
+  "hc_target_pct": 2,
+  "comp_target_pct": 1,
+  "turnover": "low",
+  "total_termination_rate": 0.1,
+  "new_hire_termination_rate": 0.2,
+  "split": "holdout",
+  "seeds": [
+    42
+  ],
+  "status": "not_run"
+}
