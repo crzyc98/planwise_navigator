@@ -63,7 +63,7 @@ DC_PREREQUISITE_TABLES: List[str] = [
 class AgeWeight(TypedDict):
     """One new-hire age bucket. Stays a plain dict at runtime (dbt var input)."""
 
-    age: float
+    age: int
     weight: float
 
 

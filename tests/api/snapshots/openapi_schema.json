@@ -698,7 +698,7 @@
         "properties": {
           "age": {
             "title": "Age",
-            "type": "number"
+            "type": "integer"
           },
           "weight": {
             "title": "Weight",
