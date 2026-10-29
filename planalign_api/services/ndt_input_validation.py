@@ -30,7 +30,7 @@ def validate_ndt_inputs(
             f"SELECT COUNT(*) FROM fct_workforce_snapshot WHERE {predicate} "
             f"AND ({field} IS NULL OR NOT isfinite({field}) OR {field} < 0)",
             [year],
-        ).fetchone()[0]
+        ).fetchall()[0][0]
         if count:
             raise ValueError(
                 f"NDT input unavailable: {count} eligible row(s) have missing or invalid {field} in {year}"
@@ -40,7 +40,7 @@ def validate_ndt_inputs(
         and not connection.execute(
             f"SELECT COUNT(*) FROM fct_workforce_snapshot WHERE {predicate}",
             [year],
-        ).fetchone()[0]
+        ).fetchall()[0][0]
     ):
         raise ValueError(f"NDT input unavailable: no eligible population in {year}")
 
@@ -77,7 +77,7 @@ def validate_ndt_population(
         "GROUP BY employee_id, simulation_year "
         "HAVING COUNT(*) > 1 OR employee_id IS NULL)",
         bounds,
-    ).fetchone()[0]
+    ).fetchall()[0][0]
     if invalid:
         raise ValueError(
             "NDT population unavailable: duplicate or missing employee/year keys "
@@ -99,7 +99,7 @@ def validate_classification_pay(
                OR NOT isfinite(COALESCE(p.current_compensation, s.current_compensation))
                OR COALESCE(p.current_compensation, s.current_compensation) < 0)""",
         [year - 1, year],
-    ).fetchone()[0]
+    ).fetchall()[0][0]
     if invalid:
         raise ValueError(
             f"NDT input unavailable: {invalid} eligible row(s) have invalid HCE classification compensation in {year}"
@@ -149,7 +149,7 @@ def validate_eligibility_and_denominator(
         WHERE simulation_year = ? AND (current_eligibility_status IS NULL
           OR current_eligibility_status NOT IN ('eligible', 'ineligible', 'pending'))""",
         [year],
-    ).fetchone()[0]
+    ).fetchall()[0][0]
     if unknown:
         raise ValueError(
             f"NDT input unavailable: {unknown} row(s) have unknown eligibility in {year}"
@@ -161,7 +161,7 @@ def validate_eligibility_and_denominator(
         f"SELECT COUNT(*) FROM fct_workforce_snapshot WHERE simulation_year = ? "
         f"AND current_eligibility_status = 'eligible' AND {denominator} = 0",
         [year],
-    ).fetchone()[0]
+    ).fetchall()[0][0]
     if zero:
         raise ValueError(
             f"NDT input unavailable: {zero} eligible row(s) have zero {denominator} "

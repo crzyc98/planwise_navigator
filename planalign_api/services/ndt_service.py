@@ -1568,7 +1568,7 @@ class NDTService:
                       AND s.prorated_annual_compensation > 0
                       AND p.current_compensation IS NULL""",
                     [year - 1, year],
-                ).fetchone()[0]
+                ).fetchall()[0][0]
 
             evidence_message = (
                 f"HCE classification uses current compensation for {missing_prior_count} "

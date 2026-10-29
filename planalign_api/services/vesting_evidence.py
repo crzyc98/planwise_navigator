@@ -48,7 +48,7 @@ def validate_vesting_history(
     bad_keys = connection.execute(cte + f"""
         SELECT COUNT(*) FROM (SELECT {group} FROM relevant GROUP BY {group}
         HAVING COUNT(*) > 1 OR {nulls} OR simulation_year IS NULL)
-        """).fetchone()[0]
+        """).fetchall()[0][0]
     if bad_keys:
         raise VestingEvidenceError(
             "Vesting basis unavailable: duplicate or missing snapshot identity in selected history"
@@ -57,7 +57,7 @@ def validate_vesting_history(
         SELECT COUNT(*) FROM relevant s WHERE UPPER(s.employment_status) = 'ACTIVE'
         AND (total_employer_contributions IS NULL
              OR NOT isfinite(total_employer_contributions) OR total_employer_contributions < 0)
-        """).fetchone()[0]
+        """).fetchall()[0][0]
     if invalid:
         raise VestingEvidenceError(
             "Vesting basis unavailable: missing or invalid prior employer contributions"

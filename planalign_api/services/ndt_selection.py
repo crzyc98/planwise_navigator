@@ -47,7 +47,7 @@ def _validate_design_identity(
         "SELECT COUNT(*) FROM fct_workforce_snapshot "
         "WHERE (plan_design_id IS NULL OR trim(plan_design_id) = '')" + predicate,
         [] if bounds is None else list(bounds),
-    ).fetchone()[0]
+    ).fetchall()[0][0]
     if unknown:
         raise ValueError("NDT selected history contains unknown plan_design_id")
 
@@ -74,7 +74,7 @@ def select_ndt_design(
     scenario = _configured_scenario(connection, resolved)
     bounds = None if year is None else (year - lookback, year)
     _validate_design_identity(connection, bounds)
-    database = connection.execute("SELECT current_database()").fetchone()[0]
+    database = connection.execute("SELECT current_database()").fetchall()[0][0]
     catalog = '"' + database.replace('"', '""') + '"'
     years = "" if bounds is None else " AND simulation_year BETWEEN ? AND ?"
     connection.execute(
@@ -86,7 +86,7 @@ def select_ndt_design(
     count = connection.execute(
         "SELECT COUNT(*) FROM fct_workforce_snapshot" + predicate,
         [] if year is None else [year],
-    ).fetchone()[0]
+    ).fetchall()[0][0]
     if not count:
         raise ValueError(
             "NDT selected design has no population for the requested year(s)"
