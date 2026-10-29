@@ -189,7 +189,10 @@ def run_full(
                 )
             )
         context = storage.get_scenario_read_context(workspace, scenario)
-        if str(context.result_run_id) != run_id or context.database_path != database:
+        if (
+            str(context.result_run_id) != run_id
+            or context.database_path.resolve() != database.resolve()
+        ):
             raise RuntimeError(
                 f"Full simulation did not publish completed run {run_id}; inspect {database.parent}"
             )
@@ -315,7 +318,7 @@ def run_cell(cell_id: str, seed: int, stage: str) -> Json:
     cell = next((row for row in cells if row["id"] == cell_id), None)
     if cell is None or seed not in cell["seeds"] or stage != "baseline":
         raise ValueError("Unknown cell, unfrozen seed, or unsupported stage")
-    directory = RUN_ROOT / cell_id / f"seed_{seed}"
+    directory = RUN_ROOT / cell_id / f"{stage}_seed_{seed}_v2"
     directory.mkdir(parents=True, exist_ok=False)
     record: Json = {
         "status": "running",

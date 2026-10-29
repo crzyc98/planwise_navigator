@@ -14,7 +14,7 @@ import pandas as pd
 
 SEED = 42
 ROWS = 5000
-OUTPUT_DIR = Path("/tmp/nhcal/census")
+OUTPUT_DIR = Path("/tmp/nhcal/census_v2")
 MANIFEST_PATH = Path("campaign_a/census_manifest.json")
 
 
@@ -52,6 +52,7 @@ def make_dataset(shape: str) -> pd.DataFrame:
                 days=rng.randint(0, 364)
             )
         hire = max(hire, date(birth.year + 18, birth.month, birth.day))
+        gross = round(gross * min(365, (date(2025, 12, 31) - hire).days + 1) / 365, 2)
         contribution = round(gross * 0.06, 2)
         records.append(
             dict(
