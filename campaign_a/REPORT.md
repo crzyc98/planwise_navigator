@@ -7,3 +7,5 @@ First balanced dev seed 42 attempt retained as failed: simulation completed all 
 
 Source finding: Studio Analytics defaults to ALL employees; calibrator uses active employees. Oracle scores ALL and retains active-only diagnostics. No measured calibration/full-simulation gap yet.
 Baseline/final scores pending for dev seeds 42/101 and holdout seed 42 (holdout seed 101 N/A). No kept production changes, reverted hypotheses, or infeasibility conclusions. No campaign stop criterion met. Analyst recommendation pending measured evidence.
+
+First corrected cell: baseline completed (105s), calibration completed without convergence (539s; max active annual error 1.72pp), applied full failed (25s). Independent Terra audit and lead raw-table verification confirm decimal ages from apply cause MAKE_DATE binder failure and no applied snapshot. Primary applied score/gap undefined. Baseline ALL max comp error 5.169118pp and HC error 1.584709pp are diagnostics, not an applied score. Remaining baseline matrix queued; no tuning yet.
