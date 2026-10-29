@@ -14,7 +14,7 @@ LOG_ROOT = Path("/tmp/nhcal/matrix_logs")
 
 
 def run_matrix(stage: str = "baseline", limit: int | None = None) -> None:
-    if stage not in ("baseline", "prerequisite_repair") or (
+    if stage not in ("baseline", "prerequisite_repair", "hire_date_fix") or (
         limit is not None and limit < 1
     ):
         raise ValueError("Unsupported stage or nonpositive limit")
@@ -63,7 +63,9 @@ def run_matrix(stage: str = "baseline", limit: int | None = None) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--stage", choices=["baseline", "prerequisite_repair"], default="baseline"
+        "--stage",
+        choices=["baseline", "prerequisite_repair", "hire_date_fix"],
+        default="baseline",
     )
     parser.add_argument("--limit", type=int)
     args = parser.parse_args()

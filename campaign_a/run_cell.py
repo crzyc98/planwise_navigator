@@ -362,7 +362,7 @@ def run_cell(cell_id: str, seed: int, stage: str) -> Json:
     if (
         cell is None
         or seed not in cell["seeds"]
-        or stage not in ("baseline", "prerequisite_repair")
+        or stage not in ("baseline", "prerequisite_repair", "hire_date_fix")
     ):
         raise ValueError("Unknown cell, unfrozen seed, or unsupported stage")
     path = CAMPAIGN / "cells" / f"{cell_id}.json"
@@ -429,7 +429,9 @@ def main() -> None:
     parser.add_argument("--cell", required=True)
     parser.add_argument("--seed", required=True, type=int)
     parser.add_argument(
-        "--stage", required=True, choices=["baseline", "prerequisite_repair"]
+        "--stage",
+        required=True,
+        choices=["baseline", "prerequisite_repair", "hire_date_fix"],
     )
     args = parser.parse_args()
     run_cell(args.cell, args.seed, args.stage)
