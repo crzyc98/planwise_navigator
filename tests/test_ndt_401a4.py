@@ -145,7 +145,8 @@ class TestRatioTestPass:
         with patch("duckdb.connect", return_value=conn):
             result = service.run_401a4_test("ws1", "sc1", "Test Scenario", 2025)
 
-        assert result.test_result == "pass"
+        assert result.test_result == "unavailable"
+        assert result.heuristic_result == "pass"
         assert result.applied_test == "ratio"
         assert abs(result.hce_average_rate - 0.08) < 0.001
         assert abs(result.nhce_average_rate - 0.06) < 0.001
@@ -201,7 +202,8 @@ class TestRatioFailGeneralPass:
         with patch("duckdb.connect", return_value=conn):
             result = service.run_401a4_test("ws1", "sc1", "Test", 2025)
 
-        assert result.test_result == "pass"
+        assert result.test_result == "unavailable"
+        assert result.heuristic_result == "pass"
         assert result.applied_test == "general"
 
 
@@ -236,7 +238,8 @@ class TestBothTestsFail:
         with patch("duckdb.connect", return_value=conn):
             result = service.run_401a4_test("ws1", "sc1", "Test", 2025)
 
-        assert result.test_result == "fail"
+        assert result.test_result == "unavailable"
+        assert result.heuristic_result == "fail"
         assert result.margin < 0
 
 
@@ -304,7 +307,9 @@ class TestServiceRiskFlag:
         with patch("duckdb.connect", return_value=conn):
             result = service.run_401a4_test("ws1", "sc1", "Test", 2025)
 
-        assert result.test_result == "pass"
+        assert result.test_result == "unavailable"
+        assert result.heuristic_result is None
+        assert "auto-pass" not in result.test_message
         assert result.service_risk_flag is True
         assert "Age-banded" in (result.service_risk_detail or "")
 
@@ -548,7 +553,9 @@ class TestAllHCE:
         with patch("duckdb.connect", return_value=conn):
             result = service.run_401a4_test("ws1", "sc1", "Test", 2025)
 
-        assert result.test_result == "pass"
+        assert result.test_result == "unavailable"
+        assert result.heuristic_result is None
+        assert "auto-pass" not in result.test_message
         assert result.test_message is not None
         assert (
             "nhce" in result.test_message.lower()
@@ -583,7 +590,9 @@ class TestAllNHCE:
         with patch("duckdb.connect", return_value=conn):
             result = service.run_401a4_test("ws1", "sc1", "Test", 2025)
 
-        assert result.test_result == "pass"
+        assert result.test_result == "unavailable"
+        assert result.heuristic_result is None
+        assert "auto-pass" not in result.test_message
         assert result.nhce_count == 2
         assert result.hce_count == 0
 
@@ -753,5 +762,29 @@ class TestZeroCompExcluded:
             result = service.run_401a4_test("ws1", "sc1", "Test", 2025)
 
         # Zero-comp employee passes benefiting filter but excluded by comp check
-        assert result.hce_count + result.nhce_count == 2
-        assert result.excluded_count >= 1
+        assert result.test_result == "error"
+        assert "zero prorated_annual_compensation" in result.test_message
+        assert result.employees is None
+
+
+def test_rate_group_counterexample_cannot_claim_statutory_pass():
+    """All NHCE rates are below HCE's 10%; rate-group ratio is 0/100%."""
+    result = NDTService._compute_401a4_result(
+        None,
+        "synthetic",
+        "synthetic",
+        2025,
+        [0.10],
+        [0.09, 0.09, 0.09, 0.01],
+        155000,
+        0,
+        False,
+        None,
+    )
+    assert result.hce_average_rate == pytest.approx(0.10)
+    assert result.nhce_average_rate == pytest.approx(0.07)
+    assert result.heuristic_result == "pass"
+    assert result.test_result == "unavailable"
+    assert "rate-group coverage" in result.test_message
+    assert not result.service_risk_flag
+    assert result.model_dump()["test_result"] == "unavailable"

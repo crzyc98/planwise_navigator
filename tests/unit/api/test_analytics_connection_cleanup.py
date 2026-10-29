@@ -77,7 +77,8 @@ def test_failure_closes_retained_connection(
         assert result.default_year is None
     else:
         assert result.test_result == "error"
-        assert "config_irs_limits" in result.test_message
+        # Input validation reads the snapshot before any IRS-limit lookup.
+        assert "fct_workforce_snapshot does not exist" in result.test_message
     _assert_closed(retained_connection)
 
 
@@ -101,6 +102,20 @@ def test_ndt_early_return_and_later_query_failure_close_connection(
                 "INSERT INTO config_irs_limits VALUES "
                 "(2025, 160000, 70000, 23500, 50, 31000, 34750, 60, 64)"
             )
+        else:
+            # Input validation runs first, so the limits early return needs a
+            # valid snapshot to be reached.
+            conn.execute("""
+                CREATE TABLE fct_workforce_snapshot AS
+                SELECT 'E1' AS employee_id, y AS simulation_year,
+                    50000.0 AS current_compensation,
+                    50000.0 AS prorated_annual_compensation,
+                    0.0 AS prorated_annual_contributions,
+                    0.0 AS employer_match_amount, 0.0 AS employer_core_amount,
+                    'eligible' AS current_eligibility_status,
+                    true AS is_enrolled_flag, 'active' AS employment_status
+                FROM (VALUES (2024), (2025)) t(y)
+            """)
     conn = duckdb.connect(str(database_path), read_only=True)
     try:
         with patch("duckdb.connect", return_value=conn):

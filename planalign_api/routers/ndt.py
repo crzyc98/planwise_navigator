@@ -133,6 +133,11 @@ def get_compliance_employees(
 def get_ndt_available_years(
     workspace_id: str,
     scenario_id: str = Query(..., description="Scenario ID"),
+    plan_design_id: str | None = Query(
+        None,
+        min_length=1,
+        description="Explicit design within each selected scenario archive",
+    ),
     storage: WorkspaceStorage = Depends(get_storage),
     ndt_service: NDTService = Depends(get_ndt_service),
 ) -> AvailableYearsResponse:
@@ -151,7 +156,9 @@ def get_ndt_available_years(
             detail=f"Scenario {scenario_id} not found",
         )
 
-    return ndt_service.get_available_years(workspace_id, scenario_id)
+    return ndt_service.get_available_years(
+        workspace_id, scenario_id, plan_design_id=plan_design_id
+    )
 
 
 @router.get(
@@ -163,6 +170,11 @@ def run_acp_test(
     scenarios: str = Query(..., description="Comma-separated scenario IDs"),
     year: int = Query(..., description="Simulation year to analyze"),
     include_employees: bool = Query(False, description="Include per-employee detail"),
+    plan_design_id: str | None = Query(
+        None,
+        min_length=1,
+        description="Explicit design within each selected scenario archive",
+    ),
     storage: WorkspaceStorage = Depends(get_storage),
     ndt_service: NDTService = Depends(get_ndt_service),
 ) -> ACPTestResponse:
@@ -208,6 +220,7 @@ def run_acp_test(
             scenario_name=scenario_names[scenario_id],
             year=year,
             include_employees=include_employees,
+            plan_design_id=plan_design_id,
         )
         results.append(result)
 
@@ -230,10 +243,15 @@ def run_401a4_test(
     include_match: bool = Query(
         False, description="Include employer match in contribution rate"
     ),
+    plan_design_id: str | None = Query(
+        None,
+        min_length=1,
+        description="Explicit design within each selected scenario archive",
+    ),
     storage: WorkspaceStorage = Depends(get_storage),
     ndt_service: NDTService = Depends(get_ndt_service),
 ) -> Section401a4TestResponse:
-    """Run 401(a)(4) general nondiscrimination test for one or more scenarios."""
+    """Describe employer allocation rates for one or more scenarios. Statutory 401(a)(4) determination is unavailable; legacy average/median comparisons do not evaluate rate-group coverage."""
     workspace = storage.get_workspace(workspace_id)
     if not workspace:
         raise HTTPException(
@@ -271,6 +289,7 @@ def run_401a4_test(
             scenario_name=scenario_names[scenario_id],
             year=year,
             include_employees=include_employees,
+            plan_design_id=plan_design_id,
             include_match=include_match,
         )
         results.append(result)
@@ -293,6 +312,11 @@ def run_415_test(
     include_employees: bool = Query(False, description="Include per-employee detail"),
     warning_threshold: float = Query(
         0.95, description="At-risk threshold (0.0-1.0)", ge=0.0, le=1.0
+    ),
+    plan_design_id: str | None = Query(
+        None,
+        min_length=1,
+        description="Explicit design within each selected scenario archive",
     ),
     storage: WorkspaceStorage = Depends(get_storage),
     ndt_service: NDTService = Depends(get_ndt_service),
@@ -335,6 +359,7 @@ def run_415_test(
             scenario_name=scenario_names[scenario_id],
             year=year,
             include_employees=include_employees,
+            plan_design_id=plan_design_id,
             warning_threshold=warning_threshold,
         )
         results.append(result)
@@ -360,6 +385,11 @@ def run_adp_test(
     ),
     testing_method: str = Query(
         "current", description="Testing method: current or prior"
+    ),
+    plan_design_id: str | None = Query(
+        None,
+        min_length=1,
+        description="Explicit design within each selected scenario archive",
     ),
     storage: WorkspaceStorage = Depends(get_storage),
     ndt_service: NDTService = Depends(get_ndt_service),
@@ -408,6 +438,7 @@ def run_adp_test(
             scenario_name=scenario_names[scenario_id],
             year=year,
             include_employees=include_employees,
+            plan_design_id=plan_design_id,
             safe_harbor=safe_harbor,
             testing_method=testing_method,
         )

@@ -109,6 +109,7 @@
   "max_parallel_years": 1,
   "merit_budget": 0.035,
   "minimum_age": 21,
+  "plan_eligibility_minimum_age": 21,
   "new_hire_eligibility_match_census": false,
   "new_hire_ineligible_pct": 0.0,
   "new_hire_termination_rate": 0.25,

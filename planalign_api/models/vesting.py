@@ -76,12 +76,18 @@ class VestingAnalysisRequest(APIModel):
 class EmployeeVestingDetail(APIModel):
     """Vesting calculation details for a single employee."""
 
+    configured_scenario_id: Optional[str] = None
+    plan_design_id: Optional[str] = None
     employee_id: str = Field(..., min_length=1)
     hire_date: date
     termination_date: date
     tenure_years: int = Field(..., ge=0)
     tenure_band: str
-    annual_hours_worked: int = Field(..., ge=0)
+    annual_hours_worked: Optional[int] = Field(
+        ...,
+        ge=0,
+        description="Reported annual hours; null when unavailable or invalid and not required by either schedule",
+    )
     total_employer_contributions: Decimal = Field(..., ge=0)
 
     # Current schedule results

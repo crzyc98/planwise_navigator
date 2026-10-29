@@ -16,6 +16,7 @@ from ..models.vesting import (
     VestingScheduleType,
 )
 from ..services.scenario_read_warning import has_selected_result
+from ..services.vesting_evidence import VestingEvidenceError
 from ..services.vesting_service import (
     SCHEDULE_INFO,
     VestingService,
@@ -221,9 +222,12 @@ def analyze_vesting(
 
     scenario_name = scenario.name or scenario_id
 
-    result = vesting_service.analyze_vesting(
-        workspace_id, scenario_id, scenario_name, request
-    )
+    try:
+        result = vesting_service.analyze_vesting(
+            workspace_id, scenario_id, scenario_name, request
+        )
+    except VestingEvidenceError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     if result is None:
         raise HTTPException(

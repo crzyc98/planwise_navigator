@@ -228,6 +228,7 @@ def _export_simulation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
         )
     if cfg.plan_eligibility.minimum_age is not None:
         dbt_vars["minimum_age"] = cfg.plan_eligibility.minimum_age
+        dbt_vars["plan_eligibility_minimum_age"] = cfg.plan_eligibility.minimum_age
     # Feature 103: configurable new-hire plan ineligibility (no-op defaults).
     dbt_vars["new_hire_ineligible_pct"] = cfg.eligibility.new_hire_ineligible_pct
     dbt_vars["new_hire_eligibility_match_census"] = (
@@ -1111,9 +1112,7 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                 dbt_vars["employer_match"]["apply_eligibility"] = True
 
     except Exception as e:
-        logger.warning(
-            "Error processing dc_plan match configuration: %s", e, exc_info=True
-        )
+        raise ValueError(f"Invalid dc_plan match configuration: {e}") from e
 
     employer = cfg.employer_match
     legacy_fields = employer.model_fields_set if employer is not None else set()

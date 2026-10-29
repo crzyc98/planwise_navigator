@@ -560,8 +560,8 @@ class TestZeroCompExcluded415:
         with patch("duckdb.connect", return_value=conn):
             result = service.run_415_test("ws1", "sc1", "Test", 2025)
 
-        assert result.total_participants == 1
-        assert result.excluded_count >= 1
+        assert result.test_result == "error"
+        assert "zero current_compensation" in result.test_message
 
 
 # ==============================================================================

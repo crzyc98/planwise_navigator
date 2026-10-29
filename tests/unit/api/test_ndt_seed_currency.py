@@ -18,7 +18,16 @@ NDT_TESTS = ("run_acp_test", "run_adp_test", "run_401a4_test", "run_415_test")
 
 def _create_archive(database: Path, has_legacy_seed: bool) -> None:
     with duckdb.connect(str(database)) as conn:
-        conn.execute("CREATE TABLE fct_workforce_snapshot (simulation_year INTEGER)")
+        # Keep population evidence valid so this fixture isolates archived seed errors.
+        conn.execute("""CREATE TABLE fct_workforce_snapshot AS SELECT
+            'synthetic' AS employee_id, 2026 AS simulation_year,
+            'eligible' AS current_eligibility_status,
+            50000.0 AS current_compensation,
+            50000.0 AS prorated_annual_compensation,
+            3000.0 AS prorated_annual_contributions,
+            1500.0 AS employer_match_amount, 0.0 AS employer_core_amount,
+            0.0 AS employee_after_tax_contributions, 35 AS current_age
+        """)
         if has_legacy_seed:
             conn.execute("CREATE TABLE config_irs_limits (limit_year INTEGER)")
             conn.execute("INSERT INTO config_irs_limits VALUES (2026)")

@@ -155,7 +155,8 @@ class TestHCEClassification:
 
         assert result.hce_count == 0
         assert result.test_result == "pass"
-        assert result.test_message == "No HCE employees in population"
+        assert result.test_message.startswith("No HCE employees in population")
+        assert "Legacy after-tax contribution column absent" in result.test_message
 
     def test_first_year_fallback_to_current_comp(self, service_with_db):
         """First simulation year uses current-year comp for HCE determination."""
@@ -309,7 +310,7 @@ class TestACPCompensationBasis:
         _insert_employee(conn, "NHCE1", 2024, 100000.0, 100000.0, 0.0)
         _insert_employee(conn, "NHCE1", 2025, 100000.0, 100000.0, 3000.0)
         conn.execute(
-            "ALTER TABLE fct_workforce_snapshot ADD COLUMN after_tax_contribution DOUBLE"
+            "ALTER TABLE fct_workforce_snapshot ADD COLUMN after_tax_contribution DOUBLE DEFAULT 0"
         )
         conn.execute("""
             UPDATE fct_workforce_snapshot

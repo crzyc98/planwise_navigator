@@ -103,12 +103,11 @@ SELECT
     CAST(employee_birth_date AS TIMESTAMP) AS employee_birth_date,
     CAST(employee_hire_date AS TIMESTAMP) AS employee_hire_date,
     employee_gross_compensation AS employee_compensation,  -- Use helper model's compensation field
-    current_age + 1 AS current_age,  -- Increment age for new year
-    current_tenure + 1 AS current_tenure,  -- Increment tenure for new year
+    current_age,  -- Helper already advances prior-year age
+    current_tenure,  -- Helper already advances prior-year tenure
     level_id,
-    -- Recalculate age and tenure bands for the new year using centralized macros
-    {{ assign_age_band('current_age + 1') }} AS age_band,
-    {{ assign_tenure_band('current_tenure + 1') }} AS tenure_band,
+    {{ assign_age_band('current_age') }} AS age_band,
+    {{ assign_tenure_band('current_tenure') }} AS tenure_band,
     employment_status,
     CAST(employee_enrollment_date AS TIMESTAMP) AS employee_enrollment_date,
     is_enrolled_flag,  -- Backup enrollment status flag
