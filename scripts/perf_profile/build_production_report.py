@@ -87,7 +87,7 @@ def _events(sample: TimingSample) -> Optional[int]:
         return None
     try:
         with duckdb.connect(str(db), read_only=True) as conn:
-            return conn.sql("SELECT COUNT(*) FROM fct_yearly_events").fetchone()[0]
+            return conn.execute("SELECT COUNT(*) FROM fct_yearly_events").fetchone()[0]
     except (duckdb.Error, OSError):
         return None
 

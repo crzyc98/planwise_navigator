@@ -8,23 +8,23 @@ CREATE OR REPLACE MACRO pa_hash_mul(x) AS
 CREATE OR REPLACE MACRO pa_hash_mix(x) AS
   -- Single-element bindings avoid repeating expensive expanded expressions.
   list_extract(list_transform([pa_hash_mul(x)],
-    h -> pa_hash_mul(xor(h, h >> 47))), 1);
+    lambda h: pa_hash_mul(xor(h, h >> 47))), 1);
 CREATE OR REPLACE MACRO pa_hash_word(x) AS
   CAST('0x' || array_to_string(list_reverse(regexp_extract_all(x, '..')), '') AS UBIGINT);
 CREATE OR REPLACE MACRO pa_hash_finalize(x) AS
-  list_extract(list_transform([x], h ->
+  list_extract(list_transform([x], lambda h:
     list_extract(list_transform([pa_hash_mul(xor(h, h >> 47))],
-      k -> xor(k, k >> 47)), 1)), 1);
+      lambda k: xor(k, k >> 47)), 1)), 1);
 CREATE OR REPLACE MACRO pa_hash_blocks(x) AS
   list_reduce(
     list_concat(
       [xor(3782874213::UBIGINT, pa_hash_mul(length(x) // 2))],
-      list_transform(range(length(x) // 16), i -> pa_hash_mix(pa_hash_word(substr(x, i * 16 + 1, 16))))
+      list_transform(range(length(x) // 16), lambda i: pa_hash_mix(pa_hash_word(substr(x, i * 16 + 1, 16))))
     ),
-    (a, b) -> pa_hash_mul(xor(a, b))
+    lambda a, b: pa_hash_mul(xor(a, b))
   );
 CREATE OR REPLACE MACRO pa_hash_hex(x) AS
-  list_extract(list_transform([pa_hash_blocks(x)], h -> pa_hash_finalize(
+  list_extract(list_transform([pa_hash_blocks(x)], lambda h: pa_hash_finalize(
     CASE WHEN length(x) % 16 = 0 THEN h
     ELSE pa_hash_mul(xor(h,
       pa_hash_word(substr(x, (length(x) // 16) * 16 + 1)))) END)), 1);

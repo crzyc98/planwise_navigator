@@ -335,7 +335,7 @@ def test_parquet_has_all_datasets_and_native_types(tmp_path):
         census = conn.read_parquet(str(tmp_path / "extracted/census.parquet"))
         assert census.columns == ["employee_id", "employee_hire_date"]
         assert str(census.types[1]) == "DATE"
-        assert census.count("*").fetchone()[0] == 3
+        assert census.count("*").fetchall()[0][0] == 3
         metadata = conn.read_parquet(str(tmp_path / "extracted/metadata.parquet"))
         assert ("workspace", "W") in metadata.fetchall()
 
@@ -379,10 +379,10 @@ def test_parquet_retains_schema_for_empty_datasets(tmp_path):
         snapshot = conn.read_parquet(
             str(tmp_path / "extracted/workforce_snapshot.parquet")
         )
-        assert snapshot.count("*").fetchone()[0] == 0
+        assert snapshot.count("*").fetchall()[0][0] == 0
         assert "current_compensation" in snapshot.columns
         census = conn.read_parquet(str(tmp_path / "extracted/census.parquet"))
-        assert census.count("*").fetchone()[0] == 0
+        assert census.count("*").fetchall()[0][0] == 0
         assert census.columns == ["employee_id", "employee_hire_date"]
 
 
