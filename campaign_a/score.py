@@ -1,0 +1,175 @@
+"""Lead scorer for the frozen Campaign A oracle; reads databases only."""
+
+from __future__ import annotations
+
+import json
+import math
+from pathlib import Path
+from typing import Any
+
+import duckdb
+
+ROOT = Path(__file__).resolve().parent
+Json = dict[str, Any]
+
+
+def annual(database: str) -> list[Json]:
+    with duckdb.connect(database, read_only=True) as conn:
+        duplicate = conn.execute(
+            "SELECT count(*) FROM (SELECT employee_id, simulation_year FROM fct_workforce_snapshot GROUP BY 1,2 HAVING count(*) > 1)"
+        ).fetchone()[0]
+        if duplicate:
+            raise ValueError("duplicate employee/year snapshots")
+        rows = conn.execute(
+            "SELECT simulation_year, count(DISTINCT employee_id), avg(prorated_annual_compensation), count(DISTINCT employee_id) FILTER (WHERE lower(employment_status)='active'), avg(prorated_annual_compensation) FILTER (WHERE lower(employment_status)='active') FROM fct_workforce_snapshot WHERE simulation_year BETWEEN 2026 AND 2030 GROUP BY 1 ORDER BY 1"
+        ).fetchall()
+    if [row[0] for row in rows] != list(range(2026, 2031)):
+        raise ValueError("missing snapshot years")
+    result = []
+    for index, row in enumerate(rows):
+        if any(
+            value is None or not math.isfinite(value) or value <= 0 for value in row[1:]
+        ):
+            raise ValueError("invalid annual compensation or headcount")
+        entry = dict(
+            zip(
+                [
+                    "year",
+                    "headcount",
+                    "avg_comp",
+                    "active_headcount",
+                    "active_avg_comp",
+                ],
+                row,
+            )
+        )
+        for column, name in [
+            (1, "hc_growth"),
+            (2, "comp_growth"),
+            (3, "active_hc_growth"),
+            (4, "active_comp_growth"),
+        ]:
+            entry[name] = (
+                100 * (row[column] / rows[index - 1][column] - 1) if index else None
+            )
+        result.append(entry)
+    return result
+
+
+def range_flags(calibration: Json) -> list[str]:
+    flags = []
+    ranges = sorted(calibration.get("ranges") or [], key=lambda row: row["level"])
+    if not ranges:
+        return ["missing_ranges"]
+    previous = (0.0, 0.0)
+    for row in ranges:
+        lo, hi = row["min_compensation"], row["max_compensation"]
+        if not all(math.isfinite(x) and x >= 0 for x in (lo, hi)) or lo >= hi:
+            flags.append(f"invalid_range_level_{row['level']}")
+        if lo < previous[0] or hi < previous[1]:
+            flags.append(f"nonmonotone_range_level_{row['level']}")
+        previous = (lo, hi)
+    if calibration.get("scale_clamped"):
+        flags.append("scale_clamped")
+    outcome = calibration.get("outcome", {})
+    if outcome.get("best_scale") is None:
+        flags.append("missing_scale_or_fallback")
+    return flags
+
+
+def hire_flags(database: str, census: str) -> list[str]:
+    with duckdb.connect(database, read_only=True) as conn:
+        rows = conn.execute(
+            "SELECT simulation_year,level_id,avg(compensation_amount),min(compensation_amount) FROM fct_yearly_events WHERE upper(event_type)='HIRE' GROUP BY 1,2"
+        ).fetchall()
+        means = dict(
+            conn.execute(
+                "SELECT employee_job_level,avg(employee_gross_compensation) FROM read_parquet(?) GROUP BY 1",
+                [census],
+            ).fetchall()
+        )
+    flags = []
+    observed = {(year, level) for year, level, _, _ in rows}
+    for year in range(2026, 2031):
+        for level in means:
+            if (year, level) not in observed:
+                flags.append(f"missing_hires_{year}_{level}")
+    for year, level, average, minimum in rows:
+        if average is None or not math.isfinite(average) or minimum < 0:
+            flags.append(f"invalid_hire_pay_{year}_{level}")
+        elif level not in means or not 0.6 <= average / means[level] <= 1.3:
+            flags.append(f"hire_pay_ratio_{year}_{level}")
+    return flags
+
+
+def score_run(cell: Json, run: Json, census: str) -> Json:
+    if run.get("status") != "completed":
+        return {
+            "status": run.get("status", "not_run"),
+            "score": None,
+            "hc_err": None,
+            "cal_gap": None,
+            "failures": ["incomplete_applied_pipeline"],
+        }
+    try:
+        rows = annual(run["applied"]["database"])
+        predictions = {
+            row["simulation_year"]: row["yoy_growth_pct"]
+            for row in run["calibration"]["annual_predictions"]
+        }
+        for row in rows[1:]:
+            prediction = predictions[row["year"]]
+            if prediction is None or not math.isfinite(prediction):
+                raise ValueError("missing or nonfinite calibration prediction")
+            row["comp_err"] = abs(row["comp_growth"] - cell["comp_target_pct"])
+            row["hc_err"] = abs(row["hc_growth"] - cell["hc_target_pct"])
+            row["cal_gap"] = abs(prediction - row["comp_growth"])
+        flags = range_flags(run["calibration"]) + hire_flags(
+            run["applied"]["database"], census
+        )
+        return {
+            "status": "scored",
+            "score": max(row["comp_err"] for row in rows[1:]),
+            "hc_err": max(row["hc_err"] for row in rows[1:]),
+            "cal_gap": max(row["cal_gap"] for row in rows[1:]),
+            "failures": flags,
+            "annual": rows,
+        }
+    except (duckdb.Error, KeyError, ValueError, TypeError, ZeroDivisionError) as exc:
+        return {
+            "status": "unscorable",
+            "score": None,
+            "hc_err": None,
+            "cal_gap": None,
+            "failures": [f"{type(exc).__name__}: {exc}"],
+        }
+
+
+def main() -> None:
+    cells = json.loads((ROOT / "matrix.json").read_text())
+    census = json.loads((ROOT / "census_manifest.json").read_text())
+    scores = []
+    for cell in cells:
+        record = json.loads((ROOT / "cells" / f"{cell['id']}.json").read_text())
+        for seed in cell["seeds"]:
+            run = record.get("runs", {}).get("baseline", {}).get(str(seed), {})
+            result = score_run(cell, run, census[cell["shape"]]["path"])
+            scores.append(
+                dict(cell=cell["id"], split=cell["split"], seed=seed, **result)
+            )
+    (ROOT / "baseline_scores.json").write_text(
+        json.dumps(scores, indent=2, allow_nan=False) + "\n"
+    )
+    print(
+        json.dumps(
+            {
+                "expected": len(scores),
+                "scored": sum(row["score"] is not None for row in scores),
+                "failed_or_missing": sum(row["score"] is None for row in scores),
+            }
+        )
+    )
+
+
+if __name__ == "__main__":
+    main()
