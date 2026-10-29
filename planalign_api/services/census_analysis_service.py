@@ -11,7 +11,7 @@ import csv
 import logging
 from datetime import date
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 import duckdb
 
@@ -94,6 +94,7 @@ class CensusAnalysisService:
         workspace_id: str,
         file_path: str,
         as_of_date: Optional[date] = None,
+        employee_status: Literal["all", "active", "terminated"] = "active",
     ) -> CensusAnalysisResult:
         resolved = self._resolve_path(workspace_id, file_path)
         try:
@@ -132,9 +133,15 @@ class CensusAnalysisService:
 
             hce_threshold = self._hce_threshold_for_year(resolved_as_of.date.year)
 
+            population_filter = {
+                "all": "1=1",
+                "active": active_filter,
+                "terminated": f"NOT ({active_filter})",
+            }[employee_status]
+
             self._build_analyzed_table(
                 conn,
-                active_filter=active_filter,
+                active_filter=population_filter,
                 as_of=resolved_as_of.date,
                 birth_col=birth_col,
                 hire_col=hire_col,
@@ -662,7 +669,7 @@ class CensusAnalysisService:
         deferral_col: Optional[str],
     ) -> Optional[str]:
         if overall.employee_count == 0:
-            return "No active employees found in the census."
+            return "No employees found in the selected population."
         if deferral_col is None:
             return "Census has no deferral rate column; participation and savings-rate metrics are unavailable."
         if comp_col is None:

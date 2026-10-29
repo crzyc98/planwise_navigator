@@ -3097,6 +3097,17 @@
             "description": "Date the census is evaluated as-of. Inferred from the census when omitted.",
             "title": "As Of Date"
           },
+          "employee_status": {
+            "default": "active",
+            "description": "Population to analyze using the census active flag.",
+            "enum": [
+              "all",
+              "active",
+              "terminated"
+            ],
+            "title": "Employee Status",
+            "type": "string"
+          },
           "file_path": {
             "description": "Path to census file (relative to workspace or absolute)",
             "title": "File Path",

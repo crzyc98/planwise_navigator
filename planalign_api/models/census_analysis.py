@@ -6,7 +6,7 @@ date), independent of any simulation run.
 """
 
 from datetime import date
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import Field
 from .base import APIModel
@@ -14,6 +14,11 @@ from .base import APIModel
 
 class CensusAnalysisRequest(APIModel):
     """Request for census-based pre-simulation analysis."""
+
+    employee_status: Literal["all", "active", "terminated"] = Field(
+        default="active",
+        description="Population to analyze using the census active flag.",
+    )
 
     file_path: str = Field(
         ..., description="Path to census file (relative to workspace or absolute)"
