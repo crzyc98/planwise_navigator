@@ -8,6 +8,7 @@ The SQL engine for the simulation. The orchestrator runs these models one year a
 - `profiles.yml` reads `DATABASE_PATH` (default `simulation.duckdb`). The orchestrator pins `DBT_PROFILES_DIR` to this directory. Running dbt manually from here does the same.
 - **`simulation.duckdb` is the shared dev DB.** Read it freely, but validate changes in an isolated DB (see root `CLAUDE.md`). For production-shaped runs, use `planalign simulate`, not hand-rolled `dbt run` loops.
 - Each dbt invocation costs ~4–5s of startup and parse. Batch selections, and don't delete `target/`, because partial parsing depends on it.
+- **Pass the scenario's vars when running config-dependent tests by hand.** The orchestrator passes the full `to_dbt_vars(config)` to every command. A bare `dbt test` falls back to var defaults, so tests like `assert_easy_enroll_membership_and_cap` check the DB against different rules than it was built with and report false failures (for example, the default config's escalation `hire_date_cutoff`). Dump the vars with `python -c "import json; from planalign_orchestrator.config import load_simulation_config, to_dbt_vars; print(json.dumps(to_dbt_vars(load_simulation_config('cfg.yaml'))))"` and pass them with `--vars`.
 
 ```bash
 DATABASE_PATH=/tmp/run/iso.duckdb dbt run --select int_baseline_workforce --vars '{simulation_year: 2025}' --threads 1

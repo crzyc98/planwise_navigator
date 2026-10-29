@@ -11,7 +11,7 @@ import csv
 import logging
 from datetime import date
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 import duckdb
 
@@ -94,6 +94,7 @@ class CensusAnalysisService:
         workspace_id: str,
         file_path: str,
         as_of_date: Optional[date] = None,
+        employee_status: Literal["all", "active", "terminated"] = "active",
     ) -> CensusAnalysisResult:
         resolved = self._resolve_path(workspace_id, file_path)
         try:
@@ -132,9 +133,15 @@ class CensusAnalysisService:
 
             hce_threshold = self._hce_threshold_for_year(resolved_as_of.date.year)
 
+            population_filter = {
+                "all": "1=1",
+                "active": active_filter,
+                "terminated": f"NOT ({active_filter})",
+            }[employee_status]
+
             self._build_analyzed_table(
                 conn,
-                active_filter=active_filter,
+                active_filter=population_filter,
                 as_of=resolved_as_of.date,
                 birth_col=birth_col,
                 hire_col=hire_col,
@@ -200,6 +207,13 @@ class CensusAnalysisService:
             )
 
             return CensusAnalysisResult(
+                **self._workforce_rates(conn, hire_col, term_col, resolved_as_of.date),
+                match_receipt_rate=(
+                    self._receipt_rate(conn, "_employer_match") if match_col else None
+                ),
+                core_receipt_rate=(
+                    self._receipt_rate(conn, "_employer_core") if core_col else None
+                ),
                 total_employees=total_employees,
                 active_employees=active_employees,
                 overall=overall,
@@ -655,6 +669,61 @@ class CensusAnalysisService:
         row = conn.execute(sql).fetchone()
         return row[0] if row and row[0] is not None else 0
 
+    def _receipt_rate(
+        self, conn: duckdb.DuckDBPyConnection, column: str
+    ) -> Optional[float]:
+        row = conn.execute(
+            f"SELECT AVG(CASE WHEN {column} > 0 THEN 1.0 ELSE 0.0 END) "
+            "FROM analyzed WHERE _eligible"
+        ).fetchone()
+        assert row is not None
+        return row[0]
+
+    def _workforce_rates(
+        self,
+        conn: duckdb.DuckDBPyConnection,
+        hire_col: Optional[str],
+        term_col: Optional[str],
+        as_of: date,
+    ) -> dict[str, date | float | None]:
+        """Trailing-year events divided by mean endpoint headcount, full census."""
+        start_row = conn.execute(
+            "SELECT CAST(?::DATE - INTERVAL '1 year' AS DATE)", [as_of]
+        ).fetchone()
+        assert start_row is not None
+        start = start_row[0]
+        result: dict[str, date | float | None] = {"workforce_rate_start": start}
+        if not hire_col or not term_col:
+            return result
+        row = conn.execute(
+            f"""
+            WITH dates AS (
+              SELECT TRY_CAST({hire_col} AS DATE) AS hire,
+                TRY_CAST({term_col} AS DATE) AS term,
+                {term_col} IS NOT NULL AND TRIM(CAST({term_col} AS VARCHAR)) != '' AS has_term
+              FROM census
+            )
+            SELECT
+              COUNT(*) FILTER (WHERE hire IS NULL OR (has_term AND term IS NULL) OR term < hire),
+              COUNT(*) FILTER (WHERE hire <= $start AND (term IS NULL OR term > $start)),
+              COUNT(*) FILTER (WHERE hire <= $end AND (term IS NULL OR term > $end)),
+              COUNT(*) FILTER (WHERE hire > $start AND hire <= $end),
+              COUNT(*) FILTER (WHERE term > $start AND term <= $end)
+            FROM dates
+        """,
+            {"start": start, "end": as_of},
+        ).fetchone()
+        assert row is not None
+        if row[0]:
+            return result
+        average = (row[1] + row[2]) / 2
+        result.update(
+            workforce_average_headcount=average,
+            new_hire_rate=row[3] / average if average else None,
+            termination_rate=row[4] / average if average else None,
+        )
+        return result
+
     def _message(
         self,
         overall: CensusMetrics,
@@ -662,7 +731,7 @@ class CensusAnalysisService:
         deferral_col: Optional[str],
     ) -> Optional[str]:
         if overall.employee_count == 0:
-            return "No active employees found in the census."
+            return "No employees found in the selected population."
         if deferral_col is None:
             return "Census has no deferral rate column; participation and savings-rate metrics are unavailable."
         if comp_col is None:

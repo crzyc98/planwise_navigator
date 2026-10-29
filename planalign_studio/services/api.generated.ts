@@ -4066,6 +4066,13 @@ export interface components {
              */
             as_of_date?: string | null;
             /**
+             * Employee Status
+             * @description Population to analyze using the census active flag.
+             * @default active
+             * @enum {string}
+             */
+            employee_status?: "all" | "active" | "terminated";
+            /**
              * File Path
              * @description Path to census file (relative to workspace or absolute)
              */
@@ -4097,6 +4104,8 @@ export interface components {
              * @description Segment dimensions with usable data in this census, e.g. ['department', 'age_band']
              */
             available_segment_dimensions: string[];
+            /** Core Receipt Rate */
+            core_receipt_rate: number | null;
             /**
              * Data Quality Issues
              * @description Missing/null critical fields, duplicate IDs, out-of-range values
@@ -4112,11 +4121,15 @@ export interface components {
              * @description IRS HCE compensation threshold used for the as-of year, if known
              */
             hce_compensation_threshold: number | null;
+            /** Match Receipt Rate */
+            match_receipt_rate: number | null;
             /**
              * Message
              * @description Informational or warning message
              */
             message: string | null;
+            /** New Hire Rate */
+            new_hire_rate: number | null;
             /** @description Metrics across all active employees, unsegmented */
             overall: components["schemas"]["CensusMetrics"];
             /**
@@ -4129,11 +4142,17 @@ export interface components {
              * @description Path to source census file
              */
             source_file: string;
+            /** Termination Rate */
+            termination_rate: number | null;
             /**
              * Total Employees
              * @description Total rows in the census file
              */
             total_employees: number;
+            /** Workforce Average Headcount */
+            workforce_average_headcount: number | null;
+            /** Workforce Rate Start */
+            workforce_rate_start: string | null;
         };
         /**
          * CensusDataQualityIssue

@@ -1331,6 +1331,7 @@ export async function analyzeCensus(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         file_path: request.file_path,
+        employee_status: request.employee_status,
         ...(request.as_of_date ? { as_of_date: request.as_of_date } : {}),
       }),
     }

@@ -464,6 +464,7 @@ def analyze_census(
             workspace_id=workspace_id,
             file_path=request.file_path,
             as_of_date=request.as_of_date,
+            employee_status=request.employee_status,
         )
         return result
     except ValueError as e:

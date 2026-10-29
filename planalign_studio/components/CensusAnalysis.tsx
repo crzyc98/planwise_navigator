@@ -8,7 +8,8 @@ import {
 } from 'lucide-react';
 import { LayoutContextType } from './Layout';
 import { extractCensusPath } from './config/ConfigContext';
-import { getWorkspace, analyzeCensus, CensusAnalysisResult, CensusSegmentMetrics, CensusDeferralRateBucket } from '../services/api';
+import { getWorkspace, analyzeCensus, CensusAnalysisRequest, CensusAnalysisResult, CensusSegmentMetrics, CensusDeferralRateBucket } from '../services/api';
+import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 import { useChartTheme } from '../hooks/useChartTheme';
 
 const formatCurrency = (value: number): string => {
@@ -158,12 +159,21 @@ const DeferralBucketTooltip = ({ active, payload, label }: any) => {
   );
 };
 
-function DeferralDistributionChart({ data }: { data: CensusDeferralRateBucket[] }) {
+function DeferralDistributionChart({ data, context }: { data: CensusDeferralRateBucket[]; context: string }) {
+  const { copy, copied, error } = useCopyToClipboard();
   const chartTheme = useChartTheme();
 
   return (
     <div className="bg-surface-raised p-5 rounded-xl shadow-sm border border-border">
-      <h3 className="text-sm font-semibold text-ink mb-4">Deferral Rate Distribution</h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-semibold text-ink">Deferral Rate Distribution</h3>
+        <button type="button" className="text-sm text-fidelity-green" onClick={() => void copy([
+          'Deferral Rate Distribution', context,
+          'Deferral bucket\tEmployees\tPercent of eligible',
+          ...data.map(row => `${row.bucket}\t${row.count}\t${row.percentage}%`),
+        ].join('\n'))}>{copied ? 'Copied' : 'Copy data'}</button>
+      </div>
+      {error && <p role="alert" className="text-sm text-danger-ink">{error}</p>}
       <ResponsiveContainer width="100%" height={240}>
         <BarChart data={data} margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid.line} vertical={false} />
@@ -181,6 +191,7 @@ export default function CensusAnalysis() {
   const { activeWorkspace } = useOutletContext<LayoutContextType>();
 
   const [censusPath, setCensusPath] = useState('');
+  const [employeeStatus, setEmployeeStatus] = useState<NonNullable<CensusAnalysisRequest["employee_status"]>>("active");
   const [asOfDate, setAsOfDate] = useState('');
   const [result, setResult] = useState<CensusAnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -202,11 +213,13 @@ export default function CensusAnalysis() {
       setError('This workspace has no census file uploaded yet.');
       return;
     }
+    setResult(null);
     setLoading(true);
     setError(null);
     try {
       const data = await analyzeCensus(activeWorkspace.id, {
         file_path: censusPath,
+        employee_status: employeeStatus,
         as_of_date: asOfDate || undefined,
       });
       setResult(data);
@@ -221,7 +234,7 @@ export default function CensusAnalysis() {
   useEffect(() => {
     if (censusPath) void runAnalysis();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [censusPath]);
+  }, [censusPath, employeeStatus]);
 
   const segmentsForDimension = useMemo(
     () => (result?.segments ?? []).filter(s => s.dimension === dimension),
@@ -260,6 +273,25 @@ export default function CensusAnalysis() {
             Analyze
           </button>
         </div>
+      </div>
+
+      <div role="group" aria-label="Employee status" className="flex flex-wrap items-center gap-2">
+        {(['all', 'active', 'terminated'] as const).map(status => (
+          <button
+            key={status}
+            type="button"
+            aria-pressed={employeeStatus === status}
+            disabled={loading}
+            onClick={() => setEmployeeStatus(status)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors disabled:opacity-50 ${employeeStatus === status
+              ? 'bg-fidelity-green text-ink-inverse border-fidelity-green'
+              : 'bg-surface-raised text-ink-muted border-border hover:bg-surface-subtle'}`}
+          >
+            {status === 'all' ? 'All' : status === 'active' ? 'Active' : 'Terminated'}
+          </button>
+        ))}
+        <span className="text-xs text-ink-subtle">Uses the census active flag; missing status is treated as active.</span>
+        {loading && <Loader2 aria-label="Loading analysis" size={16} className="animate-spin" />}
       </div>
 
       {!censusPath && !loading && (
@@ -339,15 +371,36 @@ export default function CensusAnalysis() {
               value={result.overall.zero_deferral_count.toLocaleString()}
               subtext={result.overall.hce_count == null
                 ? 'HCE classification unavailable'
-                : `${result.overall.hce_count.toLocaleString()} HCE in active census`}
+                : `${result.overall.hce_count.toLocaleString()} HCE in selected population`}
               icon={AlertTriangle}
               color="gray"
               loading={loading}
             />
           </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <KPICard title="Employer Cost / Compensation"
+              value={formatPercent(result.overall.total_eligible_compensation > 0
+                ? result.overall.total_employer_cost / result.overall.total_eligible_compensation : null)}
+              subtext="Employer cost ÷ displayed total compensation" icon={DollarSign} color="orange" />
+            <KPICard title="Receiving Match" value={formatPercent(result.match_receipt_rate ?? null)}
+              subtext="Eligible employees with positive match contributions" icon={Users} color="green" />
+            <KPICard title="Receiving Non-elective Core" value={formatPercent(result.core_receipt_rate ?? null)}
+              subtext="Eligible employees with positive core contributions" icon={Users} color="green" />
+            <KPICard title="New-hire Rate" value={formatPercent(result.new_hire_rate ?? null)}
+              subtext="Hires ÷ average beginning/end headcount" icon={Users} color="blue" />
+            <KPICard title="Termination Rate" value={formatPercent(result.termination_rate ?? null)}
+              subtext="Terminations ÷ average beginning/end headcount" icon={Users} color="gray" />
+          </div>
+          <p className="text-xs text-ink-subtle">
+            Workforce rates use the full census, regardless of the status toggle, for dates after {result.workforce_rate_start} through {result.as_of_date}.
+            {' '}Average headcount: {result.workforce_average_headcount ?? 'unavailable'}.
+            {' '}— means unavailable. Rates require valid hire and termination dates; a blank termination date means still employed.
+            Receipt percentages use the selected population and contributions as loaded.
+          </p>
+
           {result.deferral_rate_distribution.length > 0 && (
-            <DeferralDistributionChart data={result.deferral_rate_distribution} />
+            <DeferralDistributionChart data={result.deferral_rate_distribution} context={`As of ${result.as_of_date} · ${employeeStatus} employees`} />
           )}
 
           {(errorIssues.length > 0 || warningIssues.length > 0) && (

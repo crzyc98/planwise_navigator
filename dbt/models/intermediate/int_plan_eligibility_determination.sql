@@ -85,7 +85,7 @@ eligibility_calculation AS (
       WHEN parameters.eligibility_waiting_period_days = 0 THEN TRUE
       ELSE DATE_DIFF(
         'day', employee.employee_hire_date,
-        MAKE_DATE(employee.simulation_year, 12, 31)
+        MAKE_DATE(employee.simulation_year::INTEGER, 12, 31)
       ) >= parameters.eligibility_waiting_period_days
     END AS meets_tenure_requirement
   FROM employees employee
@@ -124,17 +124,17 @@ SELECT
   END AS eligibility_status,
   CASE
     WHEN current_age < minimum_age THEN (minimum_age - current_age) * 365
-    WHEN DATE_DIFF('day', employee_hire_date, MAKE_DATE(simulation_year, 12, 31))
+    WHEN DATE_DIFF('day', employee_hire_date, MAKE_DATE(simulation_year::INTEGER, 12, 31))
       < waiting_period_days
     THEN waiting_period_days
-      - DATE_DIFF('day', employee_hire_date, MAKE_DATE(simulation_year, 12, 31))
+      - DATE_DIFF('day', employee_hire_date, MAKE_DATE(simulation_year::INTEGER, 12, 31))
     ELSE 0
   END AS days_until_eligible,
   CASE
     WHEN meets_age_requirement AND meets_tenure_requirement
     THEN GREATEST(
       plan_eligibility_date,
-      MAKE_DATE(simulation_year - current_age + minimum_age, 1, 1)
+      MAKE_DATE(FLOOR(simulation_year - current_age + minimum_age)::INTEGER, 1, 1)
     )
     ELSE NULL
   END AS eligibility_effective_date,

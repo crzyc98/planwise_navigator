@@ -417,3 +417,120 @@ class TestFileHandling:
 
         assert result.as_of_date == date(2025, 6, 30)
         assert result.as_of_date_source == "provided"
+
+
+@pytest.mark.fast
+@pytest.mark.parametrize(
+    "status,count,compensation",
+    [("all", 2, 180000), ("active", 1, 80000), ("terminated", 1, 100000)],
+)
+def test_population_filter(service, workspace_dir, status, count, compensation):
+    _write_csv(
+        workspace_dir / "census.csv",
+        [
+            _employee(
+                employee_id="A", active="employed", compensation=80000, department="Eng"
+            ),
+            _employee(
+                employee_id="T", active="false", compensation=100000, department="Eng"
+            ),
+        ],
+    )
+    result = service.analyze("test-ws", "census.csv", AS_OF, employee_status=status)
+    assert result.total_employees == 2
+    assert result.active_employees == 1
+    assert result.overall.employee_count == count
+    assert result.overall.total_eligible_compensation == compensation
+    assert sum(b.count for b in result.deferral_rate_distribution) == count
+    assert (
+        next(s for s in result.segments if s.dimension == "department").employee_count
+        == count
+    )
+
+
+@pytest.mark.fast
+def test_terminated_population_without_status_is_empty(service, workspace_dir):
+    row = _employee()
+    del row["active"]
+    _write_csv(workspace_dir / "census.csv", [row])
+    result = service.analyze(
+        "test-ws", "census.csv", AS_OF, employee_status="terminated"
+    )
+    assert result.overall.employee_count == 0
+    assert result.message == "No employees found in the selected population."
+
+
+@pytest.mark.fast
+@pytest.mark.parametrize("status", ["all", "active", "terminated"])
+def test_workforce_rates_use_full_census_and_receipts_use_selected_population(
+    service, workspace_dir, status
+):
+    rows = [
+        _employee(
+            employee_id="A",
+            hire_date="2020-01-01",
+            employee_termination_date="",
+            match=100,
+            core=0,
+        ),
+        _employee(
+            employee_id="B",
+            hire_date="2024-03-01",
+            employee_termination_date="",
+            match=0,
+            core=100,
+        ),
+        _employee(
+            employee_id="C",
+            hire_date="2020-01-01",
+            employee_termination_date="2024-06-01",
+            active="false",
+            match=100,
+            core=100,
+        ),
+        _employee(
+            employee_id="D",
+            hire_date="2025-01-01",
+            employee_termination_date="",
+            match=0,
+            core=0,
+        ),
+    ]
+    _write_csv(workspace_dir / "census.csv", rows)
+    result = service.analyze("test-ws", "census.csv", AS_OF, employee_status=status)
+    assert result.workforce_rate_start == date(2023, 12, 31)
+    assert result.workforce_average_headcount == 2
+    assert result.new_hire_rate == 0.5
+    assert result.termination_rate == 0.5
+    expected = {"all": 0.5, "active": 1 / 3, "terminated": 1.0}[status]
+    assert result.match_receipt_rate == pytest.approx(expected)
+    assert result.core_receipt_rate == pytest.approx(expected)
+
+
+@pytest.mark.fast
+def test_missing_columns_do_not_imply_zero_rates(service, workspace_dir):
+    row = _employee()
+    del row["employer_match_contribution"]
+    del row["employer_core_contribution"]
+    result = _analyze(service, workspace_dir, [row])
+    assert result.match_receipt_rate is None
+    assert result.core_receipt_rate is None
+    assert result.new_hire_rate is None
+    assert result.termination_rate is None
+
+
+@pytest.mark.fast
+def test_workforce_dates_reject_invalid_and_exclude_boundary_and_future_events(
+    service, workspace_dir
+):
+    rows = [
+        _employee(hire_date="2023-12-31", employee_termination_date="2025-01-01"),
+        _employee(hire_date="2024-12-31", employee_termination_date=""),
+    ]
+    result = _analyze(service, workspace_dir, rows)
+    assert result.new_hire_rate == pytest.approx(1 / 1.5)
+    assert result.termination_rate == 0
+    rows[0]["employee_termination_date"] = "invalid"
+    result = _analyze(service, workspace_dir, rows)
+    assert result.termination_rate is None
+    assert result.new_hire_rate is None
