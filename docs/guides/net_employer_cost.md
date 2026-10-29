@@ -11,8 +11,8 @@ one shared function.
 Forfeiture used to be scored against the **prior year's** employer
 contributions — one year of match plus core. That is a single year's funding,
 not an account balance, so an employee on a 3-year cliff who terminated in year
-three was scored as forfeiting one year of employer money when a sponsor would
-forfeit all three.
+three was scored against only one earlier year. The modeled proxy now includes
+all earlier simulated years; it still excludes termination-year contributions.
 
 The basis is now the employee's **cumulative** employer contributions across
 every simulation year before the year they terminated. On the reference dev
@@ -23,6 +23,22 @@ automatically — their numbers move materially, which is the point.
 **Limitation, stated everywhere it is used:** contributions made *before* the
 first simulation year are outside the run and are not in the basis. Forfeitures
 for employees hired before the horizon are understated.
+
+## Evidence and lifecycle limitations
+
+The basis is a contribution-history proxy, not an account balance. It does not
+establish investment returns, distributions, restoration of forfeitures, or
+balances transferred between plan designs. Repeated termination episodes sum
+prior active-year contributions again; rehire account-balance treatment is not
+validated. Do not interpret that projection as a distribution ledger.
+
+A later year with no recorded prior contributions can still produce zero under
+the existing horizon-based availability rule. That rule does not distinguish a
+new hire from missing historical rows. Known zero contributions and absent
+history are therefore not equivalent evidence, even when outputs coincide.
+Explicit NULL, negative, nonfinite or duplicate consumed history is rejected by
+the vesting evidence checks. Scenario and design keys isolate history when those
+columns are present; legacy archives without them retain employee/year scope.
 
 ## Forfeiture policy
 

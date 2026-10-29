@@ -175,3 +175,78 @@ def test_legacy_formulas_do_not_change_export(caplog: pytest.LogCaptureFixture) 
     assert to_dbt_vars(cfg) == before
     warnings = [r for r in caplog.records if "Legacy employer_match" in r.message]
     assert len(warnings) == 1
+
+
+def test_supported_tiers_override_legacy_formula() -> None:
+    from planalign_orchestrator.config import to_dbt_vars
+
+    cfg = _make_config()
+    cfg.employer_match.active_formula = "old"
+    cfg.dc_plan = {
+        "match_tiers": [{"employee_min": 0, "employee_max": 0.06, "match_rate": 0.5}],
+        "match_cap_percent": 0.03,
+    }
+    result = to_dbt_vars(cfg)
+    assert result["match_tiers"] == cfg.dc_plan["match_tiers"]
+    assert result["match_cap_percent"] == 0.03
+
+
+@pytest.mark.parametrize("bad_cap", ["bad", {}, []])
+def test_invalid_match_cap_cannot_leave_partial_export(bad_cap: object) -> None:
+    from planalign_orchestrator.config import to_dbt_vars
+
+    cfg = _make_config()
+    cfg.dc_plan = {
+        "match_tiers": [{"employee_min": 0, "employee_max": 0.06, "match_rate": 0.5}],
+        "match_cap_percent": bad_cap,
+    }
+    with pytest.raises(ValueError, match="Invalid dc_plan match configuration"):
+        to_dbt_vars(cfg)
+
+
+def test_per_design_match_is_authoritative_over_legacy_global() -> None:
+    from planalign_orchestrator.config import to_dbt_vars
+
+    cfg = _make_config()
+    cfg.dc_plan = {}
+    cfg.employer_match.active_formula = "old"
+    cfg.plan_design_id = "baseline"
+    cfg.plan_design_parameters = {
+        "baseline": {
+            "match": {
+                "family": "deferral_based",
+                "cap_percent": 0.03,
+                "tiers": [{"employee_min": 0, "employee_max": 0.06, "match_rate": 0.5}],
+            },
+            "employer_core": {"contribution_rate": 0.02},
+            "auto_enrollment": {
+                "default_deferral_rate": 0.06,
+                "window_days": 45,
+                "scope": "all_eligible_employees",
+            },
+            "deferral_escalation": {"increment": 0.01, "cap": 0.1},
+            "eligibility": {"waiting_period_days": 0},
+        }
+    }
+    result = to_dbt_vars(cfg)
+    assert result["plan_design_parameters"]["baseline"]["match"]["cap_percent"] == 0.03
+    assert (
+        result["plan_design_parameters"]["baseline"]["match"]["tiers"][0]["match_rate"]
+        == 0.5
+    )
+
+
+@pytest.mark.parametrize("age", [18, 19, 21])
+def test_configured_minimum_age_overrides_project_default(age: int) -> None:
+    from pathlib import Path
+    import yaml
+    from planalign_orchestrator.config import to_dbt_vars
+
+    cfg = _make_config()
+    cfg.plan_eligibility.minimum_age = age
+    defaults = yaml.safe_load(
+        (Path(__file__).parents[1] / "dbt/dbt_project.yml").read_text()
+    )["vars"]
+    merged = defaults | to_dbt_vars(cfg)
+    assert merged["plan_eligibility_minimum_age"] == age
+    assert merged["minimum_age"] == age

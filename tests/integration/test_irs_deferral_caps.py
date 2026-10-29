@@ -70,9 +70,12 @@ def _config(census_path: Path) -> SimulationConfig:
         "downward_enabled": False,
     }
     raw["deferral_auto_escalation"].update(enabled=True, maximum_rate=0.15)
-    raw["employer_match"]["formulas"]["tiered_match"].update(
-        tiers=[{"tier": 1, "employee_min": 0, "employee_max": 0.15, "match_rate": 1.0}],
-        max_match_percentage=0.15,
+    # Voluntary rate changes would supersede the match response under test.
+    raw["deferral_rate_changes"] = {"enabled": False}
+    raw.setdefault("dc_plan", {}).update(
+        match_template="tiered",
+        match_tiers=[{"employee_min": 0, "employee_max": 0.15, "match_rate": 1.0}],
+        match_cap_percent=0.15,
     )
     return SimulationConfig.model_validate(raw)
 

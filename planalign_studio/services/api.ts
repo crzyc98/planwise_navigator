@@ -1737,13 +1737,15 @@ export async function runACPTest(
   workspaceId: string,
   scenarioIds: string[],
   year: number,
-  includeEmployees: boolean = false
+  includeEmployees: boolean = false,
+  planDesignId?: string
 ): Promise<ACPTestResponse> {
   const params = new URLSearchParams({
     scenarios: scenarioIds.join(','),
     year: year.toString(),
     include_employees: includeEmployees.toString(),
   });
+  if (planDesignId) params.set('plan_design_id', planDesignId);
   const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/analytics/ndt/acp?${params}`
   );
@@ -1755,9 +1757,11 @@ export async function runACPTest(
  */
 export async function getNDTAvailableYears(
   workspaceId: string,
-  scenarioId: string
+  scenarioId: string,
+  planDesignId?: string
 ): Promise<NDTAvailableYearsResponse> {
   const params = new URLSearchParams({ scenario_id: scenarioId });
+  if (planDesignId) params.set('plan_design_id', planDesignId);
   const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/analytics/ndt/available-years?${params}`
   );
@@ -1782,7 +1786,8 @@ export async function run401a4Test(
   scenarioIds: string[],
   year: number,
   includeEmployees: boolean = false,
-  includeMatch: boolean = false
+  includeMatch: boolean = false,
+  planDesignId?: string
 ): Promise<Section401a4TestResponse> {
   const params = new URLSearchParams({
     scenarios: scenarioIds.join(','),
@@ -1790,6 +1795,7 @@ export async function run401a4Test(
     include_employees: includeEmployees.toString(),
     include_match: includeMatch.toString(),
   });
+  if (planDesignId) params.set('plan_design_id', planDesignId);
   const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/analytics/ndt/401a4?${params}`
   );
@@ -1850,7 +1856,8 @@ export async function runADPTest(
   year: number,
   includeEmployees: boolean = false,
   safeHarbor: boolean = false,
-  testingMethod: 'current' | 'prior' = 'current'
+  testingMethod: 'current' | 'prior' = 'current',
+  planDesignId?: string
 ): Promise<ADPTestResponse> {
   const params = new URLSearchParams({
     scenarios: scenarioIds.join(','),
@@ -1859,6 +1866,7 @@ export async function runADPTest(
     safe_harbor: safeHarbor.toString(),
     testing_method: testingMethod,
   });
+  if (planDesignId) params.set('plan_design_id', planDesignId);
   const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/analytics/ndt/adp?${params}`
   );
@@ -1873,7 +1881,8 @@ export async function run415Test(
   scenarioIds: string[],
   year: number,
   includeEmployees: boolean = false,
-  warningThreshold: number = 0.95
+  warningThreshold: number = 0.95,
+  planDesignId?: string
 ): Promise<Section415TestResponse> {
   const params = new URLSearchParams({
     scenarios: scenarioIds.join(','),
@@ -1881,6 +1890,7 @@ export async function run415Test(
     include_employees: includeEmployees.toString(),
     warning_threshold: warningThreshold.toString(),
   });
+  if (planDesignId) params.set('plan_design_id', planDesignId);
   const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/analytics/ndt/415?${params}`
   );

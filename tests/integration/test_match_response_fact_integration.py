@@ -123,9 +123,14 @@ def test_full_match_response_exceeds_annual_escalation_cap(
         enabled=escalation_enabled,
         maximum_rate=0.06,
     )
-    raw["employer_match"]["formulas"]["tiered_match"].update(
-        tiers=[{"tier": 1, "employee_min": 0, "employee_max": 0.08, "match_rate": 1.0}],
-        max_match_percentage=0.08,
+    # Isolates the response and escalation cap: Easy Enroll escalates to its
+    # own 10% cap and voluntary rate changes move responders off 8%.
+    raw["easy_enroll"]["enabled"] = False
+    raw["deferral_rate_changes"]["enabled"] = False
+    raw["dc_plan"].update(
+        match_template="tiered",
+        match_tiers=[{"employee_min": 0, "employee_max": 0.08, "match_rate": 1.0}],
+        match_cap_percent=0.08,
     )
     if per_design:
         raw["plan_design_parameters"] = {

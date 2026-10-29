@@ -129,7 +129,20 @@ was the critical path (4,308 seconds). `.test_durations` was refreshed from this
 run's four timing artifacts; `.test_durations.provenance.json` records the source
 SHA, run URL, test count, and step elapsed seconds.
 
-The AFTER comparison run on this branch with refreshed timings is pending and
-will be added. No shard-balancing improvement is established until that complete
-run can be compared using the procedure above. The 49/65/49/63-minute figures in
-the workflow header remain historical August measurements.
+The AFTER run
+[40013973725](https://github.com/crzyc98/planwise_navigator/actions/runs/40013973725)
+used the refreshed timings (PR #981 head `c21324da`), and all four shards succeeded:
+
+| Shard | BEFORE (min) | AFTER (min) | Delta |
+| --- | ---: | ---: | ---: |
+| 1 | 71.8 | 68.0 | -3.8 |
+| 2 | 48.8 | 46.2 | -2.6 |
+| 3 | 63.9 | 28.4 | -35.5 |
+| 4 | 42.5 | 59.5 | +17.0 |
+
+The critical path dropped by 3.8 minutes, from 71.8 to 68.0 (about 5%). Total shard
+time fell from 227 to 202 minutes. The shards are still unbalanced: the slowest takes
+2.4x as long as the fastest. Per-test durations sum to only about 153 minutes, so
+roughly 50 minutes of shard time is fixture and setup cost that `least_duration`
+cannot see. Better balancing would need to account for that cost, not just refresh
+timings again. #874 closes on this measurement.

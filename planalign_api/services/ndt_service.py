@@ -1,10 +1,20 @@
 """NDT (Non-Discrimination Testing) service for ACP, ADP, 401(a)(4), and 415 tests."""
 
+from dataclasses import dataclass, field
 import logging
 import statistics
 from typing import List, Optional
 
 import yaml
+from pydantic import Field, model_validator
+from .ndt_selection import available_ndt_designs, select_ndt_design
+from .ndt_input_validation import validate_ndt_inputs, validate_ndt_population
+from .ndt_qnec import (
+    ADPQNECEstimate,
+    ADPQNECContext,
+    NHCEQNECInput,
+    estimate_uniform_qnec,
+)
 from .compliance_metrics import (
     annual_additions,
     base_deferrals,
@@ -16,10 +26,97 @@ from ..models.base import APIModel
 from ..storage.workspace_storage import WorkspaceStorage
 from .database_path_resolver import (
     DatabasePathResolver,
+    ResolvedDatabasePath,
     create_api_database_path_resolver,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _effective_core_family(config: object, design_id: str | None) -> str | None:
+    """Use selected-design family, then the established global UI precedence."""
+    if not isinstance(config, dict):
+        return None
+    parameters = config.get("plan_design_parameters")
+    if design_id is not None and isinstance(parameters, dict):
+        design = parameters.get(design_id)
+        core = design.get("employer_core") if isinstance(design, dict) else None
+        family = core.get("family") if isinstance(core, dict) else None
+        if isinstance(family, str) and family:
+            return family
+    dc_plan = config.get("dc_plan")
+    dc_status = dc_plan.get("core_status") if isinstance(dc_plan, dict) else None
+    if isinstance(dc_status, str) and dc_status:
+        return dc_status
+    core = config.get("employer_core_contribution")
+    status = core.get("status") if isinstance(core, dict) else None
+    return status if isinstance(status, str) else None
+
+
+def _adp_thresholds(nhce_average: float) -> tuple[float, float, str, float]:
+    basic = nhce_average * 1.25
+    alternative = min(nhce_average * 2, nhce_average + 0.02)
+    test = "basic" if basic >= alternative else "alternative"
+    return basic, alternative, test, max(basic, alternative)
+
+
+def _qnec_for_failure(
+    test_result: str,
+    testing_method: str,
+    hce_adps: List[float],
+    context: ADPQNECContext,
+) -> Optional[ADPQNECEstimate]:
+    if test_result != "fail":
+        return None
+    if testing_method == "prior":
+        return ADPQNECEstimate(
+            status="unsupported",
+            reason="Prior-year testing is not supported by the QNEC estimate",
+        )
+    return estimate_uniform_qnec(hce_adps, context.nhce, context.annual_additions_limit)
+
+
+@dataclass
+class _ADPPopulation:
+    hce_adps: List[float] = field(default_factory=list)
+    nhce_adps: List[float] = field(default_factory=list)
+    hce_compensations: List[float] = field(default_factory=list)
+    nhce: List[NHCEQNECInput] = field(default_factory=list)
+    employees: List["ADPEmployeeDetail"] = field(default_factory=list)
+    excluded_count: int = 0
+
+
+def _collect_adp_population(
+    rows: List[tuple[str, bool, float, Optional[float], float, Optional[float], float]],
+    include_employees: bool,
+) -> _ADPPopulation:
+    population = _ADPPopulation()
+    for emp_id, is_hce, deferrals, comp, adp, prior_comp, additions in rows:
+        if comp is None or comp <= 0:
+            population.excluded_count += 1
+            continue
+        if is_hce:
+            population.hce_adps.append(adp)
+            population.hce_compensations.append(float(comp))
+        else:
+            population.nhce_adps.append(adp)
+            population.nhce.append(
+                NHCEQNECInput(float(comp), float(adp), float(additions))
+            )
+        if include_employees:
+            population.employees.append(
+                ADPEmployeeDetail(
+                    employee_id=str(emp_id),
+                    is_hce=bool(is_hce),
+                    employee_deferrals=float(deferrals),
+                    plan_compensation=float(comp),
+                    individual_adp=float(adp),
+                    prior_year_compensation=(
+                        float(prior_comp) if prior_comp is not None else None
+                    ),
+                )
+            )
+    return population
 
 
 # ==============================================================================
@@ -38,6 +135,11 @@ class ACPEmployeeDetail(APIModel):
 
 
 class ACPScenarioResult(APIModel):
+    plan_design_id: str | None = Field(
+        default=None,
+        description="Explicitly requested design; null retains legacy unselected behavior",
+    )
+
     scenario_id: str
     scenario_name: str
     simulation_year: int
@@ -65,6 +167,10 @@ class ACPTestResponse(APIModel):
 
 
 class AvailableYearsResponse(APIModel):
+    plan_design_ids: List[str] = Field(
+        default_factory=list,
+        description="Candidate design IDs in the selected archive; each test validates its own population",
+    )
     years: List[int]
     default_year: Optional[int] = None
 
@@ -86,12 +192,26 @@ class Section401a4EmployeeDetail(APIModel):
 
 
 class Section401a4ScenarioResult(APIModel):
+    plan_design_id: str | None = Field(
+        default=None,
+        description="Explicitly requested design; null retains legacy unselected behavior",
+    )
+
     scenario_id: str
     scenario_name: str
     simulation_year: int
-    test_result: str  # "pass", "fail", "error"
+    test_result: str = Field(
+        description="Statutory determination: unavailable or execution error; heuristics do not establish qualification."
+    )
+    heuristic_result: Optional[str] = Field(
+        default=None,
+        description="Legacy average/median rate comparison only: pass or fail. Not a statutory test.",
+    )
     test_message: Optional[str] = None
-    applied_test: str = "ratio"  # "ratio" or "general"
+    applied_test: str = Field(
+        default="ratio",
+        description="Legacy heuristic selector: ratio means average rates; general means median rates. Neither is a statutory test.",
+    )
     hce_count: int = 0
     nhce_count: int = 0
     excluded_count: int = 0
@@ -99,14 +219,42 @@ class Section401a4ScenarioResult(APIModel):
     nhce_average_rate: float = 0.0
     hce_median_rate: float = 0.0
     nhce_median_rate: float = 0.0
-    ratio: float = 0.0
-    ratio_test_threshold: float = 0.70
-    margin: float = 0.0
+    ratio: float = Field(
+        default=0.0,
+        description="Legacy NHCE/HCE average-rate ratio; meaningful only when heuristic_result is non-null.",
+    )
+    ratio_test_threshold: float = Field(
+        default=0.70,
+        description="Legacy heuristic threshold, not the statutory rate-group coverage threshold.",
+    )
+    margin: float = Field(
+        default=0.0,
+        description="Legacy selected average or median ratio minus 0.70; meaningful only when heuristic_result is non-null.",
+    )
     include_match: bool = False
     service_risk_flag: bool = False
     service_risk_detail: Optional[str] = None
     hce_threshold_used: int = 0
     employees: Optional[List[Section401a4EmployeeDetail]] = None
+
+    @model_validator(mode="after")
+    def distinguish_heuristic_from_determination(self) -> "Section401a4ScenarioResult":
+        """Prevent every successful calculation path from claiming qualification."""
+        if self.test_result in {"pass", "fail"}:
+            self.heuristic_result = self.test_result
+            self.test_result = "unavailable"
+        if self.test_result == "unavailable":
+            explanation = (
+                "Statutory 401(a)(4) determination unavailable: rate-group coverage "
+                "and required plan facts have not been evaluated. Average and median "
+                "rate comparisons are descriptive heuristics for the selected "
+                "contributing population only."
+            )
+            if not self.test_message or explanation not in self.test_message:
+                self.test_message = explanation + (
+                    " " + self.test_message if self.test_message else ""
+                )
+        return self
 
 
 class Section401a4TestResponse(APIModel):
@@ -134,6 +282,11 @@ class Section415EmployeeDetail(APIModel):
 
 
 class Section415ScenarioResult(APIModel):
+    plan_design_id: str | None = Field(
+        default=None,
+        description="Explicitly requested design; null retains legacy unselected behavior",
+    )
+
     scenario_id: str
     scenario_name: str
     simulation_year: int
@@ -171,6 +324,11 @@ class ADPEmployeeDetail(APIModel):
 
 
 class ADPScenarioResult(APIModel):
+    plan_design_id: str | None = Field(
+        default=None,
+        description="Explicitly requested design; null retains legacy unselected behavior",
+    )
+
     scenario_id: str
     scenario_name: str
     simulation_year: int
@@ -186,7 +344,11 @@ class ADPScenarioResult(APIModel):
     applied_test: str = "basic"  # "basic" or "alternative"
     applied_threshold: float = 0.0
     margin: float = 0.0
-    excess_hce_amount: Optional[float] = None
+    excess_hce_amount: Optional[float] = Field(
+        default=None,
+        description="Aggregate modeled estimate: (HCE average - threshold) x total HCE compensation; not a participant-level refund calculation",
+    )
+    qnec_estimate: Optional[ADPQNECEstimate] = None
     testing_method: str = "current"  # "current" or "prior"
     safe_harbor: bool = False
     hce_threshold_used: int = 0
@@ -216,7 +378,7 @@ class NDTService:
         self.db_resolver = db_resolver or create_api_database_path_resolver(storage)
 
     def get_available_years(
-        self, workspace_id: str, scenario_id: str
+        self, workspace_id: str, scenario_id: str, plan_design_id: str | None = None
     ) -> AvailableYearsResponse:
         """Get available simulation years for NDT testing."""
         import duckdb
@@ -225,18 +387,26 @@ class NDTService:
         if not resolved.exists:
             return AvailableYearsResponse(years=[], default_year=None)
 
+        designs: list[str] = []
         try:
             with duckdb.connect(str(resolved.path), read_only=True) as conn:
+                if resolved.source in ("scenario", "run"):
+                    designs = available_ndt_designs(conn)
+                select_ndt_design(conn, resolved, plan_design_id)
                 result = conn.execute(
                     "SELECT DISTINCT simulation_year FROM fct_workforce_snapshot ORDER BY simulation_year"
                 ).fetchall()
 
             years = [row[0] for row in result]
             default_year = years[-1] if years else None
-            return AvailableYearsResponse(years=years, default_year=default_year)
+            return AvailableYearsResponse(
+                years=years, default_year=default_year, plan_design_ids=designs
+            )
         except Exception as e:
             logger.error(f"Failed to get available years: {e}")
-            return AvailableYearsResponse(years=[], default_year=None)
+            return AvailableYearsResponse(
+                years=[], default_year=None, plan_design_ids=designs
+            )
 
     def run_acp_test(
         self,
@@ -245,6 +415,7 @@ class NDTService:
         scenario_name: str,
         year: int,
         include_employees: bool = False,
+        plan_design_id: str | None = None,
     ) -> ACPScenarioResult:
         """Run the ACP non-discrimination test for a single scenario and year."""
         import duckdb
@@ -252,6 +423,7 @@ class NDTService:
         resolved = self.db_resolver.resolve(workspace_id, scenario_id)
         if not resolved.exists:
             return ACPScenarioResult(
+                plan_design_id=plan_design_id,
                 scenario_id=scenario_id,
                 scenario_name=scenario_name,
                 simulation_year=year,
@@ -263,6 +435,9 @@ class NDTService:
 
         try:
             with duckdb.connect(str(resolved.path), read_only=True) as conn:
+                select_ndt_design(conn, resolved, plan_design_id, year, lookback=1)
+                validate_ndt_population(conn, year, 1)
+                validate_ndt_inputs(conn, year, "acp")
                 # Get HCE threshold for the prior year (used for HCE determination)
                 hce_threshold_row = conn.execute(
                     "SELECT hce_compensation_threshold FROM config_irs_limits WHERE limit_year = ?",
@@ -277,6 +452,7 @@ class NDTService:
                     ).fetchone()
                     if not hce_threshold_row or hce_threshold_row[0] is None:
                         return ACPScenarioResult(
+                            plan_design_id=plan_design_id,
                             scenario_id=scenario_id,
                             scenario_name=scenario_name,
                             simulation_year=year,
@@ -380,8 +556,14 @@ class NDTService:
                     query, [prior_year_param, year, hce_threshold, year]
                 ).fetchall()
 
+            assumption = (
+                "Legacy after-tax contribution column absent; ACP assumes zero after-tax contributions."
+                if after_tax_expression == "0.0"
+                else ""
+            )
             if not rows:
                 return ACPScenarioResult(
+                    plan_design_id=plan_design_id,
                     scenario_id=scenario_id,
                     scenario_name=scenario_name,
                     simulation_year=year,
@@ -426,11 +608,12 @@ class NDTService:
             # Edge case: no NHCE employees
             if not nhce_acps:
                 return ACPScenarioResult(
+                    plan_design_id=plan_design_id,
                     scenario_id=scenario_id,
                     scenario_name=scenario_name,
                     simulation_year=year,
                     test_result="error",
-                    test_message="Insufficient NHCE population",
+                    test_message="Insufficient NHCE population. " + assumption,
                     hce_count=len(hce_acps),
                     nhce_count=0,
                     hce_threshold_used=hce_threshold,
@@ -441,11 +624,12 @@ class NDTService:
             if not hce_acps:
                 nhce_avg = sum(nhce_acps) / len(nhce_acps)
                 return ACPScenarioResult(
+                    plan_design_id=plan_design_id,
                     scenario_id=scenario_id,
                     scenario_name=scenario_name,
                     simulation_year=year,
                     test_result="pass",
-                    test_message="No HCE employees in population",
+                    test_message="No HCE employees in population. " + assumption,
                     hce_count=0,
                     nhce_count=len(nhce_acps),
                     hce_average_acp=0.0,
@@ -456,7 +640,7 @@ class NDTService:
                 )
 
             # Compute pass/fail
-            return self._compute_test_result(
+            result = self._compute_test_result(
                 scenario_id=scenario_id,
                 scenario_name=scenario_name,
                 year=year,
@@ -468,9 +652,14 @@ class NDTService:
                 employees=employees if include_employees else None,
             )
 
+            result.test_message = assumption or None
+            result.plan_design_id = plan_design_id
+            return result
+
         except Exception as e:
             logger.error(f"Failed to run ACP test: {e}")
             return ACPScenarioResult(
+                plan_design_id=plan_design_id,
                 scenario_id=scenario_id,
                 scenario_name=scenario_name,
                 simulation_year=year,
@@ -544,6 +733,7 @@ class NDTService:
         year: int,
         include_employees: bool = False,
         include_match: bool = False,
+        plan_design_id: str | None = None,
     ) -> Section401a4ScenarioResult:
         """Run the 401(a)(4) general nondiscrimination test for a single scenario and year."""
         import duckdb
@@ -551,6 +741,7 @@ class NDTService:
         resolved = self.db_resolver.resolve(workspace_id, scenario_id)
         if not resolved.exists:
             return Section401a4ScenarioResult(
+                plan_design_id=plan_design_id,
                 scenario_id=scenario_id,
                 scenario_name=scenario_name,
                 simulation_year=year,
@@ -562,6 +753,9 @@ class NDTService:
 
         try:
             with duckdb.connect(str(resolved.path), read_only=True) as conn:
+                select_ndt_design(conn, resolved, plan_design_id, year, lookback=1)
+                validate_ndt_population(conn, year, 1)
+                validate_ndt_inputs(conn, year, "401a4")
                 # Get HCE threshold for the prior year
                 hce_threshold_row = conn.execute(
                     "SELECT hce_compensation_threshold FROM config_irs_limits WHERE limit_year = ?",
@@ -574,6 +768,7 @@ class NDTService:
                     ).fetchone()
                     if not hce_threshold_row or hce_threshold_row[0] is None:
                         return Section401a4ScenarioResult(
+                            plan_design_id=plan_design_id,
                             scenario_id=scenario_id,
                             scenario_name=scenario_name,
                             simulation_year=year,
@@ -646,6 +841,7 @@ class NDTService:
 
             if not rows:
                 return Section401a4ScenarioResult(
+                    plan_design_id=plan_design_id,
                     scenario_id=scenario_id,
                     scenario_name=scenario_name,
                     simulation_year=year,
@@ -702,11 +898,12 @@ class NDTService:
             # Edge case: no NHCE employees
             if not nhce_rates:
                 result = Section401a4ScenarioResult(
+                    plan_design_id=plan_design_id,
                     scenario_id=scenario_id,
                     scenario_name=scenario_name,
                     simulation_year=year,
-                    test_result="pass",
-                    test_message="No NHCE employees in population — auto-pass",
+                    test_result="unavailable",
+                    test_message="No NHCE employees in population; rate comparison unavailable",
                     hce_count=len(hce_rates),
                     nhce_count=0,
                     excluded_count=excluded_count,
@@ -715,18 +912,24 @@ class NDTService:
                     employees=employees if include_employees else None,
                 )
                 self._detect_service_risk(
-                    result, workspace_id, scenario_id, hce_tenures, nhce_tenures
+                    result,
+                    workspace_id,
+                    scenario_id,
+                    hce_tenures,
+                    nhce_tenures,
+                    resolved,
                 )
                 return result
 
             # Edge case: no HCE employees -> auto-pass
             if not hce_rates:
                 result = Section401a4ScenarioResult(
+                    plan_design_id=plan_design_id,
                     scenario_id=scenario_id,
                     scenario_name=scenario_name,
                     simulation_year=year,
-                    test_result="pass",
-                    test_message="No HCE employees in population — auto-pass",
+                    test_result="unavailable",
+                    test_message="No HCE employees in population; rate comparison unavailable",
                     hce_count=0,
                     nhce_count=len(nhce_rates),
                     excluded_count=excluded_count,
@@ -735,7 +938,12 @@ class NDTService:
                     employees=employees if include_employees else None,
                 )
                 self._detect_service_risk(
-                    result, workspace_id, scenario_id, hce_tenures, nhce_tenures
+                    result,
+                    workspace_id,
+                    scenario_id,
+                    hce_tenures,
+                    nhce_tenures,
+                    resolved,
                 )
                 return result
 
@@ -744,11 +952,12 @@ class NDTService:
                 abs(r) < 1e-9 for r in nhce_rates
             ):
                 result = Section401a4ScenarioResult(
+                    plan_design_id=plan_design_id,
                     scenario_id=scenario_id,
                     scenario_name=scenario_name,
                     simulation_year=year,
-                    test_result="pass",
-                    test_message="No employer contributions — test not applicable",
+                    test_result="unavailable",
+                    test_message="No employer contributions; rate comparison unavailable",
                     hce_count=len(hce_rates),
                     nhce_count=len(nhce_rates),
                     excluded_count=excluded_count,
@@ -757,7 +966,12 @@ class NDTService:
                     employees=employees if include_employees else None,
                 )
                 self._detect_service_risk(
-                    result, workspace_id, scenario_id, hce_tenures, nhce_tenures
+                    result,
+                    workspace_id,
+                    scenario_id,
+                    hce_tenures,
+                    nhce_tenures,
+                    resolved,
                 )
                 return result
 
@@ -774,16 +988,19 @@ class NDTService:
                 employees=employees if include_employees else None,
             )
 
+            result.plan_design_id = plan_design_id
             # Service-based risk detection (T008)
             self._detect_service_risk(
-                result, workspace_id, scenario_id, hce_tenures, nhce_tenures
+                result, workspace_id, scenario_id, hce_tenures, nhce_tenures, resolved
             )
 
+            result.plan_design_id = plan_design_id
             return result
 
         except Exception as e:
             logger.error(f"Failed to run 401(a)(4) test: {e}")
             return Section401a4ScenarioResult(
+                plan_design_id=plan_design_id,
                 scenario_id=scenario_id,
                 scenario_name=scenario_name,
                 simulation_year=year,
@@ -855,29 +1072,17 @@ class NDTService:
         scenario_id: str,
         hce_tenures: List[float],
         nhce_tenures: List[float],
+        resolved: ResolvedDatabasePath,
     ) -> None:
         """Detect service-based NEC tenure skew risk (mutates result in-place)."""
         try:
-            resolved = self.db_resolver.resolve(workspace_id, scenario_id)
             if resolved.config_path is not None:
                 config = yaml.safe_load(
                     resolved.config_path.read_text(encoding="utf-8")
                 )
             else:
                 config = self.storage.get_merged_config(workspace_id, scenario_id)
-            if not config:
-                return
-            ec_config = config.get("employer_core_contribution", {})
-            if not isinstance(ec_config, dict):
-                return
-            # dc_plan wins, matching the precedence in to_dbt_vars: the DC Plan UI
-            # writes only dc_plan.core_status, while the workspace merge always
-            # supplies an employer_core_contribution default of status='flat'.
-            dc_plan = config.get("dc_plan") or {}
-            dc_status = (
-                dc_plan.get("core_status") if isinstance(dc_plan, dict) else None
-            )
-            ec_status = dc_status or ec_config.get("status", "")
+            ec_status = _effective_core_family(config, result.plan_design_id)
 
             if ec_status == "age_banded":
                 result.service_risk_flag = True
@@ -913,6 +1118,7 @@ class NDTService:
         year: int,
         include_employees: bool = False,
         warning_threshold: float = 0.95,
+        plan_design_id: str | None = None,
     ) -> Section415ScenarioResult:
         """Run the Section 415 annual additions limit test for a single scenario and year."""
         import duckdb
@@ -920,6 +1126,7 @@ class NDTService:
         resolved = self.db_resolver.resolve(workspace_id, scenario_id)
         if not resolved.exists:
             return Section415ScenarioResult(
+                plan_design_id=plan_design_id,
                 scenario_id=scenario_id,
                 scenario_name=scenario_name,
                 simulation_year=year,
@@ -930,6 +1137,9 @@ class NDTService:
         assert resolved.path is not None  # guaranteed by resolved.exists check above
         try:
             with duckdb.connect(str(resolved.path), read_only=True) as conn:
+                select_ndt_design(conn, resolved, plan_design_id, year, lookback=0)
+                validate_ndt_population(conn, year, 0)
+                validate_ndt_inputs(conn, year, "415")
                 # Get IRS limits for the test year
                 limits_row = conn.execute(
                     "SELECT annual_additions_limit, base_limit, catch_up_age_threshold, catch_up_limit, super_catch_up_limit, super_catch_up_age_min, super_catch_up_age_max FROM config_irs_limits WHERE limit_year = ?",
@@ -938,6 +1148,7 @@ class NDTService:
 
                 if not limits_row or any(value is None for value in limits_row):
                     return Section415ScenarioResult(
+                        plan_design_id=plan_design_id,
                         scenario_id=scenario_id,
                         scenario_name=scenario_name,
                         simulation_year=year,
@@ -1077,6 +1288,7 @@ class NDTService:
             test_result = "fail" if breach_count > 0 else "pass"
 
             return Section415ScenarioResult(
+                plan_design_id=plan_design_id,
                 scenario_id=scenario_id,
                 scenario_name=scenario_name,
                 simulation_year=year,
@@ -1095,6 +1307,7 @@ class NDTService:
         except Exception as e:
             logger.error(f"Failed to run 415 test: {e}")
             return Section415ScenarioResult(
+                plan_design_id=plan_design_id,
                 scenario_id=scenario_id,
                 scenario_name=scenario_name,
                 simulation_year=year,
@@ -1115,18 +1328,20 @@ class NDTService:
         include_employees: bool = False,
         safe_harbor: bool = False,
         testing_method: str = "current",
+        plan_design_id: str | None = None,
     ) -> ADPScenarioResult:
         """Run the ADP non-discrimination test for a single scenario and year."""
         import duckdb
 
         # Safe harbor short-circuit
-        if safe_harbor:
+        if safe_harbor and plan_design_id is None:
             return ADPScenarioResult(
+                plan_design_id=plan_design_id,
                 scenario_id=scenario_id,
                 scenario_name=scenario_name,
                 simulation_year=year,
                 test_result="exempt",
-                test_message="Safe harbor plan — ADP test not required",
+                test_message="Config-only safe harbor assumption — ADP exempt; no population determination",
                 safe_harbor=True,
                 testing_method=testing_method,
             )
@@ -1134,6 +1349,7 @@ class NDTService:
         resolved = self.db_resolver.resolve(workspace_id, scenario_id)
         if not resolved.exists:
             return ADPScenarioResult(
+                plan_design_id=plan_design_id,
                 scenario_id=scenario_id,
                 scenario_name=scenario_name,
                 simulation_year=year,
@@ -1145,6 +1361,21 @@ class NDTService:
         assert resolved.path is not None  # guaranteed by resolved.exists check above
         try:
             with duckdb.connect(str(resolved.path), read_only=True) as conn:
+                select_ndt_design(
+                    conn,
+                    resolved,
+                    plan_design_id,
+                    year,
+                    lookback=2 if testing_method == "prior" else 1,
+                )
+                validate_ndt_population(
+                    conn, year, 2 if testing_method == "prior" else 1
+                )
+                if safe_harbor:
+                    raise ValueError(
+                        "Design-specific safe harbor applicability is not established"
+                    )
+                validate_ndt_inputs(conn, year, "adp")
                 # Get HCE threshold for the prior year
                 hce_threshold_row = conn.execute(
                     "SELECT hce_compensation_threshold FROM config_irs_limits WHERE limit_year = ?",
@@ -1158,6 +1389,7 @@ class NDTService:
                     ).fetchone()
                     if not hce_threshold_row or hce_threshold_row[0] is None:
                         return ADPScenarioResult(
+                            plan_design_id=plan_design_id,
                             scenario_id=scenario_id,
                             scenario_name=scenario_name,
                             simulation_year=year,
@@ -1182,6 +1414,7 @@ class NDTService:
                 actual_testing_method = testing_method
                 if testing_method == "prior":
                     if prior_year_exists:
+                        validate_ndt_inputs(conn, year - 1, "adp", prior_baseline=True)
                         prior_nhce_query = """
                     WITH prior_hce AS (
                         SELECT employee_id, current_compensation AS comp
@@ -1244,6 +1477,15 @@ class NDTService:
                     else:
                         actual_testing_method = "current"
 
+                if (
+                    plan_design_id is not None
+                    and testing_method == "prior"
+                    and prior_year_nhce_adp is None
+                ):
+                    raise ValueError(
+                        "NDT selected design has no usable prior-year NHCE baseline"
+                    )
+
                 # Main ADP query with HCE determination. ADP uses capped 414(s)
                 # testing compensation as denominator and 402(g) base-limit-capped
                 # deferrals as numerator, excluding catch-up.
@@ -1262,6 +1504,8 @@ class NDTService:
                 SELECT
                     s.employee_id,
                     s.current_eligibility_status,
+                    COALESCE(s.employer_match_amount, 0) AS match_amount,
+                    COALESCE(s.employer_core_amount, 0) AS core_amount,
                     LEAST(
                         COALESCE(s.prorated_annual_contributions, 0),
                         il.base_limit
@@ -1294,18 +1538,49 @@ class NDTService:
                 adp_base_deferrals,
                 testing_comp_414s_capped,
                 individual_adp,
-                prior_year_comp
+                prior_year_comp,
+                -- 415 annual additions exclude catch-up: deferrals above the 402(g) base limit
+                adp_base_deferrals + match_amount + core_amount AS annual_additions
             FROM per_employee
             ORDER BY is_hce DESC, individual_adp DESC
             """
 
+                limit_row = conn.execute(
+                    "SELECT annual_additions_limit FROM config_irs_limits WHERE limit_year = ?",
+                    [year],
+                ).fetchone()
+                additions_limit = (
+                    float(limit_row[0])
+                    if limit_row and limit_row[0] is not None
+                    else None
+                )
                 prior_year_param = year - 1 if prior_year_exists else year
                 rows = conn.execute(
                     query, [prior_year_param, year, hce_threshold, year]
                 ).fetchall()
+                missing_prior_count = conn.execute(
+                    """SELECT COUNT(*) FROM fct_workforce_snapshot s
+                    LEFT JOIN fct_workforce_snapshot p
+                      ON s.employee_id = p.employee_id AND p.simulation_year = ?
+                    WHERE s.simulation_year = ?
+                      AND (s.current_eligibility_status = 'eligible'
+                           OR s.current_eligibility_status IS NULL)
+                      AND s.prorated_annual_compensation > 0
+                      AND p.current_compensation IS NULL""",
+                    [year - 1, year],
+                ).fetchall()[0][0]
+
+            evidence_message = (
+                f"HCE classification uses current compensation for {missing_prior_count} "
+                "employee(s) missing prior-year compensation; this is a modeled "
+                "assumption, not observed prior-year pay."
+                if missing_prior_count
+                else ""
+            )
 
             if not rows:
                 return ADPScenarioResult(
+                    plan_design_id=plan_design_id,
                     scenario_id=scenario_id,
                     scenario_name=scenario_name,
                     simulation_year=year,
@@ -1314,48 +1589,19 @@ class NDTService:
                     testing_method=actual_testing_method,
                 )
 
-            # Separate HCE/NHCE and compute ADPs
-            hce_adps: List[float] = []
-            nhce_adps: List[float] = []
-            hce_compensations: List[float] = []
-            employees: List[ADPEmployeeDetail] = []
-            excluded_count = 0
-
-            for row in rows:
-                emp_id, is_hce, deferrals, comp, adp, prior_comp = row
-
-                if comp is None or comp <= 0:
-                    excluded_count += 1
-                    continue
-
-                if is_hce:
-                    hce_adps.append(adp)
-                    hce_compensations.append(float(comp))
-                else:
-                    nhce_adps.append(adp)
-
-                if include_employees:
-                    employees.append(
-                        ADPEmployeeDetail(
-                            employee_id=str(emp_id),
-                            is_hce=bool(is_hce),
-                            employee_deferrals=float(deferrals),
-                            plan_compensation=float(comp),
-                            individual_adp=float(adp),
-                            prior_year_compensation=(
-                                float(prior_comp) if prior_comp is not None else None
-                            ),
-                        )
-                    )
+            population = _collect_adp_population(rows, include_employees)
+            hce_adps, nhce_adps = population.hce_adps, population.nhce_adps
+            employees, excluded_count = population.employees, population.excluded_count
 
             # Edge case: no NHCE
             if not nhce_adps:
                 return ADPScenarioResult(
+                    plan_design_id=plan_design_id,
                     scenario_id=scenario_id,
                     scenario_name=scenario_name,
                     simulation_year=year,
                     test_result="error",
-                    test_message="Insufficient NHCE population",
+                    test_message="Insufficient NHCE population. " + evidence_message,
                     hce_count=len(hce_adps),
                     nhce_count=0,
                     excluded_count=excluded_count,
@@ -1368,11 +1614,12 @@ class NDTService:
             if not hce_adps:
                 nhce_avg = sum(nhce_adps) / len(nhce_adps)
                 return ADPScenarioResult(
+                    plan_design_id=plan_design_id,
                     scenario_id=scenario_id,
                     scenario_name=scenario_name,
                     simulation_year=year,
                     test_result="pass",
-                    test_message="No HCE employees in population",
+                    test_message="No HCE employees in population. " + evidence_message,
                     hce_count=0,
                     nhce_count=len(nhce_adps),
                     excluded_count=excluded_count,
@@ -1389,17 +1636,22 @@ class NDTService:
                 if actual_testing_method == "prior" and prior_year_nhce_adp is not None
                 else None
             )
-            test_message = None
+            test_message = evidence_message or None
             if testing_method == "prior" and actual_testing_method == "current":
-                test_message = "Prior year data not available — fell back to current year testing method"
+                test_message = (
+                    "Prior year data not available — fell back to current year testing method. "
+                    + evidence_message
+                )
 
-            return self._compute_adp_result(
+            result = self._compute_adp_result(
                 scenario_id=scenario_id,
                 scenario_name=scenario_name,
                 year=year,
                 hce_adps=hce_adps,
                 nhce_adps=nhce_adps,
-                hce_compensations=hce_compensations,
+                qnec_context=ADPQNECContext(
+                    population.hce_compensations, population.nhce, additions_limit
+                ),
                 hce_threshold=hce_threshold,
                 excluded_count=excluded_count,
                 testing_method=actual_testing_method,
@@ -1408,9 +1660,13 @@ class NDTService:
                 employees=employees if include_employees else None,
             )
 
+            result.plan_design_id = plan_design_id
+            return result
+
         except Exception as e:
             logger.error(f"Failed to run ADP test: {e}")
             return ADPScenarioResult(
+                plan_design_id=plan_design_id,
                 scenario_id=scenario_id,
                 scenario_name=scenario_name,
                 simulation_year=year,
@@ -1426,7 +1682,7 @@ class NDTService:
         year: int,
         hce_adps: List[float],
         nhce_adps: List[float],
-        hce_compensations: List[float],
+        qnec_context: ADPQNECContext,
         hce_threshold: int,
         excluded_count: int,
         testing_method: str,
@@ -1438,31 +1694,15 @@ class NDTService:
         hce_avg = sum(hce_adps) / len(hce_adps)
         nhce_avg = sum(nhce_adps) / len(nhce_adps)
 
-        # Use prior year NHCE baseline if provided
         baseline_nhce = nhce_baseline_adp if nhce_baseline_adp is not None else nhce_avg
-
-        # Basic test: NHCE avg x 1.25
-        basic_threshold = baseline_nhce * 1.25
-
-        # Alternative test: lesser of (NHCE avg x 2.0) and (NHCE avg + 0.02)
-        alt_threshold = min(baseline_nhce * 2.0, baseline_nhce + 0.02)
-
-        # Select more favorable test (higher threshold)
-        if basic_threshold >= alt_threshold:
-            applied_test = "basic"
-            applied_threshold = basic_threshold
-        else:
-            applied_test = "alternative"
-            applied_threshold = alt_threshold
-
-        # Determine pass/fail
+        basic_threshold, alt_threshold, applied_test, applied_threshold = (
+            _adp_thresholds(baseline_nhce)
+        )
         test_result = "pass" if hce_avg <= applied_threshold else "fail"
         margin = applied_threshold - hce_avg
-
-        # Compute excess HCE amount when failing
         excess_hce_amount = None
         if test_result == "fail":
-            total_hce_comp = sum(hce_compensations)
+            total_hce_comp = sum(qnec_context.hce_compensations)
             excess_hce_amount = (hce_avg - applied_threshold) * total_hce_comp
 
         return ADPScenarioResult(
@@ -1482,6 +1722,9 @@ class NDTService:
             applied_threshold=applied_threshold,
             margin=margin,
             excess_hce_amount=excess_hce_amount,
+            qnec_estimate=_qnec_for_failure(
+                test_result, testing_method, hce_adps, qnec_context
+            ),
             testing_method=testing_method,
             hce_threshold_used=hce_threshold,
             employees=employees,

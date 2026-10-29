@@ -1315,7 +1315,7 @@ export interface paths {
         };
         /**
          * Run 401A4 Test
-         * @description Run 401(a)(4) general nondiscrimination test for one or more scenarios.
+         * @description Describe employer allocation rates for one or more scenarios. Statutory 401(a)(4) determination is unavailable; legacy average/median comparisons do not evaluate rate-group coverage.
          */
         get: operations["run_401a4_test_api_workspaces__workspace_id__analytics_ndt_401a4_get"];
         put?: never;
@@ -2752,6 +2752,11 @@ export interface components {
              * @default 0
              */
             nhce_count: number;
+            /**
+             * Plan Design Id
+             * @description Explicitly requested design; null retains legacy unselected behavior
+             */
+            plan_design_id: string | null;
             /** Scenario Id */
             scenario_id: string;
             /** Scenario Name */
@@ -2790,6 +2795,64 @@ export interface components {
             /** Prior Year Compensation */
             prior_year_compensation: number | null;
         };
+        /** ADPQNECEstimate */
+        ADPQNECEstimate: {
+            /**
+             * Applied Test After
+             * @default basic
+             */
+            applied_test_after: string;
+            /**
+             * Applied Threshold After
+             * @default 0
+             */
+            applied_threshold_after: number;
+            /** Assumptions */
+            assumptions: string[];
+            /**
+             * Limit Breach Count
+             * @default 0
+             */
+            limit_breach_count: number;
+            /**
+             * Nhce Average Adp After
+             * @default 0
+             */
+            nhce_average_adp_after: number;
+            /**
+             * Nhce Average Adp Before
+             * @default 0
+             */
+            nhce_average_adp_before: number;
+            /**
+             * Qnec Rate
+             * @default 0
+             */
+            qnec_rate: number;
+            /** Reason */
+            reason: string | null;
+            /**
+             * Recipient Count
+             * @default 0
+             */
+            recipient_count: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "estimate" | "not_needed" | "unsupported" | "infeasible";
+            /**
+             * Test Result After
+             * @default fail
+             * @enum {string}
+             */
+            test_result_after: "pass" | "fail";
+            /**
+             * Total Qnec
+             * @default 0
+             */
+            total_qnec: number;
+        };
         /** ADPScenarioResult */
         ADPScenarioResult: {
             /**
@@ -2814,7 +2877,10 @@ export interface components {
             basic_test_threshold: number;
             /** Employees */
             employees: components["schemas"]["ADPEmployeeDetail"][] | null;
-            /** Excess Hce Amount */
+            /**
+             * Excess Hce Amount
+             * @description Aggregate modeled estimate: (HCE average - threshold) x total HCE compensation; not a participant-level refund calculation
+             */
             excess_hce_amount: number | null;
             /**
              * Excluded Count
@@ -2851,6 +2917,12 @@ export interface components {
              * @default 0
              */
             nhce_count: number;
+            /**
+             * Plan Design Id
+             * @description Explicitly requested design; null retains legacy unselected behavior
+             */
+            plan_design_id: string | null;
+            qnec_estimate: components["schemas"]["ADPQNECEstimate"] | null;
             /**
              * Safe Harbor
              * @default false
@@ -3251,6 +3323,11 @@ export interface components {
         AvailableYearsResponse: {
             /** Default Year */
             default_year: number | null;
+            /**
+             * Plan Design Ids
+             * @description Candidate design IDs in the selected archive; each test validates its own population
+             */
+            plan_design_ids: string[];
             /** Years */
             years: number[];
         };
@@ -5856,8 +5933,13 @@ export interface components {
          * @description Vesting calculation details for a single employee.
          */
         EmployeeVestingDetail: {
-            /** Annual Hours Worked */
-            annual_hours_worked: number;
+            /**
+             * Annual Hours Worked
+             * @description Reported annual hours; null when unavailable or invalid and not required by either schedule
+             */
+            annual_hours_worked: number | null;
+            /** Configured Scenario Id */
+            configured_scenario_id: string | null;
             /** Current Forfeiture */
             current_forfeiture: number;
             /** Current Vested Amount */
@@ -5876,6 +5958,8 @@ export interface components {
              * Format: date
              */
             hire_date: string;
+            /** Plan Design Id */
+            plan_design_id: string | null;
             /** Proposed Forfeiture */
             proposed_forfeiture: number;
             /** Proposed Vested Amount */
@@ -8880,6 +8964,7 @@ export interface components {
         Section401a4ScenarioResult: {
             /**
              * Applied Test
+             * @description Legacy heuristic selector: ratio means average rates; general means median rates. Neither is a statutory test.
              * @default ratio
              */
             applied_test: string;
@@ -8911,12 +8996,18 @@ export interface components {
              */
             hce_threshold_used: number;
             /**
+             * Heuristic Result
+             * @description Legacy average/median rate comparison only: pass or fail. Not a statutory test.
+             */
+            heuristic_result: string | null;
+            /**
              * Include Match
              * @default false
              */
             include_match: boolean;
             /**
              * Margin
+             * @description Legacy selected average or median ratio minus 0.70; meaningful only when heuristic_result is non-null.
              * @default 0
              */
             margin: number;
@@ -8936,12 +9027,19 @@ export interface components {
              */
             nhce_median_rate: number;
             /**
+             * Plan Design Id
+             * @description Explicitly requested design; null retains legacy unselected behavior
+             */
+            plan_design_id: string | null;
+            /**
              * Ratio
+             * @description Legacy NHCE/HCE average-rate ratio; meaningful only when heuristic_result is non-null.
              * @default 0
              */
             ratio: number;
             /**
              * Ratio Test Threshold
+             * @description Legacy heuristic threshold, not the statutory rate-group coverage threshold.
              * @default 0.7
              */
             ratio_test_threshold: number;
@@ -8960,7 +9058,10 @@ export interface components {
             simulation_year: number;
             /** Test Message */
             test_message: string | null;
-            /** Test Result */
+            /**
+             * Test Result
+             * @description Statutory determination: unavailable or execution error; heuristics do not establish qualification.
+             */
             test_result: string;
         };
         /** Section401a4TestResponse */
@@ -9056,6 +9157,11 @@ export interface components {
              * @default 0
              */
             passing_count: number;
+            /**
+             * Plan Design Id
+             * @description Explicitly requested design; null retains legacy unselected behavior
+             */
+            plan_design_id: string | null;
             /** Scenario Id */
             scenario_id: string;
             /** Scenario Name */
@@ -13057,6 +13163,8 @@ export interface operations {
                 include_employees?: boolean;
                 /** @description Include employer match in contribution rate */
                 include_match?: boolean;
+                /** @description Explicit design within each selected scenario archive */
+                plan_design_id?: string | null;
             };
             header?: never;
             path: {
@@ -13103,6 +13211,8 @@ export interface operations {
                 include_employees?: boolean;
                 /** @description At-risk threshold (0.0-1.0) */
                 warning_threshold?: number;
+                /** @description Explicit design within each selected scenario archive */
+                plan_design_id?: string | null;
             };
             header?: never;
             path: {
@@ -13147,6 +13257,8 @@ export interface operations {
                 year: number;
                 /** @description Include per-employee detail */
                 include_employees?: boolean;
+                /** @description Explicit design within each selected scenario archive */
+                plan_design_id?: string | null;
             };
             header?: never;
             path: {
@@ -13195,6 +13307,8 @@ export interface operations {
                 safe_harbor?: boolean;
                 /** @description Testing method: current or prior */
                 testing_method?: string;
+                /** @description Explicit design within each selected scenario archive */
+                plan_design_id?: string | null;
             };
             header?: never;
             path: {
@@ -13235,6 +13349,8 @@ export interface operations {
             query: {
                 /** @description Scenario ID */
                 scenario_id: string;
+                /** @description Explicit design within each selected scenario archive */
+                plan_design_id?: string | null;
             };
             header?: never;
             path: {

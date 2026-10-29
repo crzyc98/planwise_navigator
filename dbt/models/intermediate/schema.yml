@@ -734,6 +734,21 @@ models:
 
   - name: int_employee_compensation_by_year
     description: Compensation inputs for event generation, with stable incremental date types from the first simulation year
+    data_tests:
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: >
+              data_source != 'previous_year_helper_model'
+              OR NOT EXISTS (
+                SELECT 1 FROM {{ ref('int_workforce_state_accumulator') }} state
+                WHERE state.employee_id = int_employee_compensation_by_year.employee_id
+                  AND state.simulation_year = int_employee_compensation_by_year.simulation_year
+                  AND state.employment_status = 'active'
+                  AND (
+                    state.current_age IS DISTINCT FROM int_employee_compensation_by_year.current_age
+                    OR state.current_tenure IS DISTINCT FROM int_employee_compensation_by_year.current_tenure
+                  )
+              )
     columns:
       - name: employee_birth_date
         description: Employee birth date normalized to the final incremental TIMESTAMP type
