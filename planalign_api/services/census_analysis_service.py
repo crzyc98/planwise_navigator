@@ -672,10 +672,12 @@ class CensusAnalysisService:
     def _receipt_rate(
         self, conn: duckdb.DuckDBPyConnection, column: str
     ) -> Optional[float]:
-        return conn.execute(
+        row = conn.execute(
             f"SELECT AVG(CASE WHEN {column} > 0 THEN 1.0 ELSE 0.0 END) "
             "FROM analyzed WHERE _eligible"
-        ).fetchone()[0]
+        ).fetchone()
+        assert row is not None
+        return row[0]
 
     def _workforce_rates(
         self,
@@ -685,9 +687,11 @@ class CensusAnalysisService:
         as_of: date,
     ) -> dict[str, date | float | None]:
         """Trailing-year events divided by mean endpoint headcount, full census."""
-        start = conn.execute(
+        start_row = conn.execute(
             "SELECT CAST(?::DATE - INTERVAL '1 year' AS DATE)", [as_of]
-        ).fetchone()[0]
+        ).fetchone()
+        assert start_row is not None
+        start = start_row[0]
         result: dict[str, date | float | None] = {"workforce_rate_start": start}
         if not hire_col or not term_col:
             return result
@@ -709,6 +713,7 @@ class CensusAnalysisService:
         """,
             {"start": start, "end": as_of},
         ).fetchone()
+        assert row is not None
         if row[0]:
             return result
         average = (row[1] + row[2]) / 2
