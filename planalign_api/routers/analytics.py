@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Literal, Optional
 
+from ..services.vesting_evidence import VestingEvidenceError
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
@@ -423,6 +424,8 @@ def compare_grandfathered_cost(
             ),
             forfeiture_policy,
         )
+    except VestingEvidenceError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=f"Scenario result not found: {exc}")
 

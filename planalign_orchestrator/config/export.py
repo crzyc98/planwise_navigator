@@ -228,6 +228,7 @@ def _export_simulation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
         )
     if cfg.plan_eligibility.minimum_age is not None:
         dbt_vars["minimum_age"] = cfg.plan_eligibility.minimum_age
+        dbt_vars["plan_eligibility_minimum_age"] = cfg.plan_eligibility.minimum_age
     # Feature 103: configurable new-hire plan ineligibility (no-op defaults).
     dbt_vars["new_hire_ineligible_pct"] = cfg.eligibility.new_hire_ineligible_pct
     dbt_vars["new_hire_eligibility_match_census"] = (
@@ -1111,16 +1112,29 @@ def _export_employer_match_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                 dbt_vars["employer_match"]["apply_eligibility"] = True
 
     except Exception as e:
-        logger.warning(
-            "Error processing dc_plan match configuration: %s", e, exc_info=True
-        )
+        raise ValueError(f"Invalid dc_plan match configuration: {e}") from e
 
     employer = cfg.employer_match
     legacy_fields = employer.model_fields_set if employer is not None else set()
-    if "match_tiers" not in dbt_vars and legacy_fields & {"active_formula", "formulas"}:
-        logger.warning(
-            "Legacy employer_match formulas are ignored; the match uses "
-            "dc_plan.match_tiers (default 100% of first 3% + 50% of next 2%)."
+    supported_mode = dbt_vars.get("employer_match_status", "deferral_based")
+    supported_formula = (
+        bool(dbt_vars.get("match_tiers"))
+        if supported_mode == "deferral_based"
+        else supported_mode == "graded_by_service"
+        and bool(dbt_vars.get("employer_match_graded_schedule"))
+        or supported_mode == "tenure_graded"
+        and bool(dbt_vars.get("tenure_graded_bands"))
+        or supported_mode == "points_based"
+        and bool(dbt_vars.get("points_match_tiers"))
+    )
+    if getattr(cfg, "plan_design_parameters", None):
+        # These validated terms replace global match formulas in the SQL models.
+        supported_formula = bool(cfg.validated_plan_design_parameters().root)
+    if legacy_fields & {"active_formula", "formulas"} and not supported_formula:
+        raise ValueError(
+            "Legacy employer_match.active_formula/formulas are ignored during "
+            "execution. Configure dc_plan.match_tiers and match_cap_percent, "
+            "or select a supported employer_match_status with its formula."
         )
 
     match_max = _compute_match_max_deferral_rate(dbt_vars)

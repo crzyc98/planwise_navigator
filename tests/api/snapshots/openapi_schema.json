@@ -127,6 +127,18 @@
             "title": "Nhce Count",
             "type": "integer"
           },
+          "plan_design_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Explicitly requested design; null retains legacy unselected behavior",
+            "title": "Plan Design Id"
+          },
           "scenario_id": {
             "title": "Scenario Id",
             "type": "string"
@@ -156,6 +168,7 @@
           }
         },
         "required": [
+          "plan_design_id",
           "scenario_id",
           "scenario_name",
           "simulation_year",
@@ -430,6 +443,18 @@
             "title": "Nhce Count",
             "type": "integer"
           },
+          "plan_design_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Explicitly requested design; null retains legacy unselected behavior",
+            "title": "Plan Design Id"
+          },
           "qnec_estimate": {
             "anyOf": [
               {
@@ -479,6 +504,7 @@
           }
         },
         "required": [
+          "plan_design_id",
           "scenario_id",
           "scenario_name",
           "simulation_year",
@@ -1455,6 +1481,14 @@
             ],
             "title": "Default Year"
           },
+          "plan_design_ids": {
+            "description": "Candidate design IDs in the selected archive; each test validates its own population",
+            "items": {
+              "type": "string"
+            },
+            "title": "Plan Design Ids",
+            "type": "array"
+          },
           "years": {
             "items": {
               "type": "integer"
@@ -1464,6 +1498,7 @@
           }
         },
         "required": [
+          "plan_design_ids",
           "years",
           "default_year"
         ],
@@ -6714,9 +6749,28 @@
         "description": "Vesting calculation details for a single employee.",
         "properties": {
           "annual_hours_worked": {
-            "minimum": 0.0,
-            "title": "Annual Hours Worked",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Reported annual hours; null when unavailable or invalid and not required by either schedule",
+            "title": "Annual Hours Worked"
+          },
+          "configured_scenario_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Configured Scenario Id"
           },
           "current_forfeiture": {
             "title": "Current Forfeiture",
@@ -6744,6 +6798,17 @@
             "format": "date",
             "title": "Hire Date",
             "type": "string"
+          },
+          "plan_design_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Design Id"
           },
           "proposed_forfeiture": {
             "title": "Proposed Forfeiture",
@@ -6777,6 +6842,8 @@
           }
         },
         "required": [
+          "configured_scenario_id",
+          "plan_design_id",
           "employee_id",
           "hire_date",
           "termination_date",
@@ -13709,6 +13776,7 @@
         "properties": {
           "applied_test": {
             "default": "ratio",
+            "description": "Legacy heuristic selector: ratio means average rates; general means median rates. Neither is a statutory test.",
             "title": "Applied Test",
             "type": "string"
           },
@@ -13751,6 +13819,18 @@
             "title": "Hce Threshold Used",
             "type": "integer"
           },
+          "heuristic_result": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Legacy average/median rate comparison only: pass or fail. Not a statutory test.",
+            "title": "Heuristic Result"
+          },
           "include_match": {
             "default": false,
             "title": "Include Match",
@@ -13758,6 +13838,7 @@
           },
           "margin": {
             "default": 0.0,
+            "description": "Legacy selected average or median ratio minus 0.70; meaningful only when heuristic_result is non-null.",
             "title": "Margin",
             "type": "number"
           },
@@ -13776,13 +13857,27 @@
             "title": "Nhce Median Rate",
             "type": "number"
           },
+          "plan_design_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Explicitly requested design; null retains legacy unselected behavior",
+            "title": "Plan Design Id"
+          },
           "ratio": {
             "default": 0.0,
+            "description": "Legacy NHCE/HCE average-rate ratio; meaningful only when heuristic_result is non-null.",
             "title": "Ratio",
             "type": "number"
           },
           "ratio_test_threshold": {
             "default": 0.7,
+            "description": "Legacy heuristic threshold, not the statutory rate-group coverage threshold.",
             "title": "Ratio Test Threshold",
             "type": "number"
           },
@@ -13826,15 +13921,18 @@
             "title": "Test Message"
           },
           "test_result": {
+            "description": "Statutory determination: unavailable or execution error; heuristics do not establish qualification.",
             "title": "Test Result",
             "type": "string"
           }
         },
         "required": [
+          "plan_design_id",
           "scenario_id",
           "scenario_name",
           "simulation_year",
           "test_result",
+          "heuristic_result",
           "test_message",
           "applied_test",
           "hce_count",
@@ -13995,6 +14093,18 @@
             "title": "Passing Count",
             "type": "integer"
           },
+          "plan_design_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Explicitly requested design; null retains legacy unselected behavior",
+            "title": "Plan Design Id"
+          },
           "scenario_id": {
             "title": "Scenario Id",
             "type": "string"
@@ -14034,6 +14144,7 @@
           }
         },
         "required": [
+          "plan_design_id",
           "scenario_id",
           "scenario_name",
           "simulation_year",
@@ -21948,7 +22059,7 @@
     },
     "/api/workspaces/{workspace_id}/analytics/ndt/401a4": {
       "get": {
-        "description": "Run 401(a)(4) general nondiscrimination test for one or more scenarios.",
+        "description": "Describe employer allocation rates for one or more scenarios. Statutory 401(a)(4) determination is unavailable; legacy average/median comparisons do not evaluate rate-group coverage.",
         "operationId": "run_401a4_test_api_workspaces__workspace_id__analytics_ndt_401a4_get",
         "parameters": [
           {
@@ -22004,6 +22115,25 @@
               "description": "Include employer match in contribution rate",
               "title": "Include Match",
               "type": "boolean"
+            }
+          },
+          {
+            "description": "Explicit design within each selected scenario archive",
+            "in": "query",
+            "name": "plan_design_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Explicit design within each selected scenario archive",
+              "title": "Plan Design Id"
             }
           }
         ],
@@ -22130,6 +22260,25 @@
               "title": "Warning Threshold",
               "type": "number"
             }
+          },
+          {
+            "description": "Explicit design within each selected scenario archive",
+            "in": "query",
+            "name": "plan_design_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Explicit design within each selected scenario archive",
+              "title": "Plan Design Id"
+            }
           }
         ],
         "responses": {
@@ -22240,6 +22389,25 @@
               "description": "Include per-employee detail",
               "title": "Include Employees",
               "type": "boolean"
+            }
+          },
+          {
+            "description": "Explicit design within each selected scenario archive",
+            "in": "query",
+            "name": "plan_design_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Explicit design within each selected scenario archive",
+              "title": "Plan Design Id"
             }
           }
         ],
@@ -22376,6 +22544,25 @@
               "title": "Testing Method",
               "type": "string"
             }
+          },
+          {
+            "description": "Explicit design within each selected scenario archive",
+            "in": "query",
+            "name": "plan_design_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Explicit design within each selected scenario archive",
+              "title": "Plan Design Id"
+            }
           }
         ],
         "responses": {
@@ -22463,6 +22650,25 @@
               "description": "Scenario ID",
               "title": "Scenario Id",
               "type": "string"
+            }
+          },
+          {
+            "description": "Explicit design within each selected scenario archive",
+            "in": "query",
+            "name": "plan_design_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Explicit design within each selected scenario archive",
+              "title": "Plan Design Id"
             }
           }
         ],

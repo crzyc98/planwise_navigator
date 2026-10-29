@@ -3,8 +3,15 @@
 from __future__ import annotations
 
 import logging
+from math import isfinite
 from decimal import Decimal
 from typing import List, Optional
+
+from .vesting_evidence import (
+    VestingEvidenceError,
+    validate_vesting_history,
+    vesting_scope_columns,
+)
 
 from ..models.vesting import (
     EmployeeVestingDetail,
@@ -138,7 +145,7 @@ SCHEDULE_INFO: dict[VestingScheduleType, VestingScheduleInfo] = {
 
 def get_vesting_percentage(
     schedule_type: VestingScheduleType,
-    tenure_years: float,
+    tenure_years: Optional[float],
     annual_hours: Optional[int] = None,
     require_hours: bool = False,
     hours_threshold: int = 1000,
@@ -159,6 +166,17 @@ def get_vesting_percentage(
     schedule = VESTING_SCHEDULES.get(schedule_type)
     if not schedule:
         raise ValueError(f"Unknown schedule type: {schedule_type}")
+
+    if tenure_years is None or not isfinite(tenure_years) or tenure_years < 0:
+        raise VestingEvidenceError(
+            "Vesting basis unavailable: missing or invalid tenure"
+        )
+    if require_hours and (
+        annual_hours is None or not isfinite(annual_hours) or annual_hours < 0
+    ):
+        raise VestingEvidenceError(
+            "Vesting basis unavailable: missing or invalid hours"
+        )
 
     # Apply hours credit adjustment
     effective_tenure = int(tenure_years)
@@ -200,22 +218,27 @@ def _terminated_employees_all_years(conn, where_clause: str = "") -> List[dict]:
     contributions they accrued in every simulation year before the year they
     terminated, not the single prior year.
     """
+    validate_vesting_history(conn, where_clause)
+    scope = vesting_scope_columns(conn)
+    scope_select = "".join(f"{key}, " for key in scope)
+    scope_group = "".join(f"t.{key}, " for key in scope)
+    scope_join = "".join(f" AND c.{key} = t.{key}" for key in scope)
     status_joiner = "AND" if where_clause else "WHERE"
     query = f"""
         WITH terminated AS (
             SELECT
-                simulation_year,
+                {scope_select}simulation_year,
                 employee_id,
                 current_tenure,
                 tenure_band,
-                COALESCE(annual_hours_worked, 0) AS annual_hours_worked
+                annual_hours_worked
             FROM fct_workforce_snapshot
             {where_clause}
             {status_joiner} UPPER(employment_status) = 'TERMINATED'
         ),
         contributions AS (
             SELECT
-                simulation_year,
+                {scope_select}simulation_year,
                 employee_id,
                 COALESCE(total_employer_contributions, 0)
                     AS total_employer_contributions
@@ -232,10 +255,10 @@ def _terminated_employees_all_years(conn, where_clause: str = "") -> List[dict]:
                 AS total_employer_contributions
         FROM terminated t
         LEFT JOIN contributions c
-          ON c.employee_id = t.employee_id
+          ON c.employee_id = t.employee_id {scope_join}
          AND c.simulation_year < t.simulation_year
         GROUP BY
-            t.simulation_year,
+            {scope_group}t.simulation_year,
             t.employee_id,
             t.current_tenure,
             t.tenure_band,
@@ -271,6 +294,7 @@ def _simulation_years(conn) -> List[int]:
     rows = conn.execute("""
         SELECT DISTINCT simulation_year
         FROM fct_workforce_snapshot
+        WHERE simulation_year IS NOT NULL
         ORDER BY simulation_year
         """).fetchall()
     return [int(row[0]) for row in rows]
@@ -292,8 +316,8 @@ def _forfeiture_row(
         amount = Decimal(str(emp["total_employer_contributions"]))
         pct = get_vesting_percentage(
             schedule.schedule_type,
-            emp["current_tenure"] or 0,
-            emp["annual_hours_worked"] or 0,
+            emp["current_tenure"],
+            emp["annual_hours_worked"],
             schedule.require_hours_credit,
             schedule.hours_threshold,
         )
@@ -325,12 +349,13 @@ def project_forfeitures_for_connection(
     ``where_clause`` filters the employees whose terminations are projected.
     Their contribution basis still includes every prior simulation year.
     """
+    employees = _terminated_employees_all_years(conn, where_clause)
     years = _simulation_years(conn)
     if not years:
         return []
 
     by_year: dict[int, List[dict]] = {year: [] for year in years}
-    for emp in _terminated_employees_all_years(conn, where_clause):
+    for emp in employees:
         by_year.setdefault(int(emp["simulation_year"]), []).append(emp)
 
     terminated_counts = _terminated_counts_by_year(conn, where_clause)
@@ -399,8 +424,8 @@ class VestingService:
         The forfeiture basis is the employee's *cumulative* employer
         contributions across every simulation year before the termination year
         (issue #444), not the single prior year. An employee on a 3-year cliff
-        who terminates in year three forfeits three years of employer money, not
-        one. Termination zeroes the current year's columns in the snapshot and
+        can forfeit multiple prior years of modeled employer contributions, not
+        just the immediately preceding year. Termination zeroes the current year's columns in the snapshot and
         the pipeline funds no employer contribution in the termination year, so
         summing the prior active years is the whole in-horizon balance.
 
@@ -408,28 +433,35 @@ class VestingService:
         and are not in the basis; that limitation is stated in the methodology
         copy on every surface that reports these figures.
         """
-        query = """
+        validate_vesting_history(conn, f"WHERE simulation_year = {int(year)}")
+        scope = vesting_scope_columns(conn)
+        scope_t = "".join(f"t.{key}, " for key in scope)
+        scope_columns = "".join(f"{key}, " for key in scope)
+        scope_join = "".join(f" AND p.{key} = t.{key}" for key in scope)
+        scenario_output = "t.scenario_id" if "scenario_id" in scope else "NULL"
+        design_output = "t.plan_design_id" if "plan_design_id" in scope else "NULL"
+        query = f"""
             WITH terminated_this_year AS (
                 SELECT
-                    t.employee_id,
+                    {scope_t}t.employee_id,
                     t.employee_hire_date,
                     t.termination_date,
                     t.current_tenure,
                     t.tenure_band,
-                    COALESCE(t.annual_hours_worked, 0) as annual_hours_worked
+                    t.annual_hours_worked
                 FROM fct_workforce_snapshot t
                 WHERE t.simulation_year = ?
                   AND UPPER(t.employment_status) = 'TERMINATED'
             ),
             cumulative_contributions AS (
                 SELECT
-                    employee_id,
+                    {scope_columns}employee_id,
                     SUM(COALESCE(total_employer_contributions, 0))
                         AS total_employer_contributions
                 FROM fct_workforce_snapshot
                 WHERE simulation_year < ?
                   AND UPPER(employment_status) = 'ACTIVE'
-                GROUP BY employee_id
+                GROUP BY {scope_columns}employee_id
             )
             SELECT
                 t.employee_id,
@@ -438,10 +470,12 @@ class VestingService:
                 t.current_tenure,
                 t.tenure_band,
                 COALESCE(p.total_employer_contributions, 0) as total_employer_contributions,
-                t.annual_hours_worked
+                t.annual_hours_worked,
+                {scenario_output} AS configured_scenario_id,
+                {design_output} AS plan_design_id
             FROM terminated_this_year t
             LEFT JOIN cumulative_contributions p
-              ON t.employee_id = p.employee_id
+              ON t.employee_id = p.employee_id {scope_join}
             WHERE COALESCE(p.total_employer_contributions, 0) > 0
             ORDER BY p.total_employer_contributions DESC
         """
@@ -454,6 +488,8 @@ class VestingService:
             "tenure_band",
             "total_employer_contributions",
             "annual_hours_worked",
+            "configured_scenario_id",
+            "plan_design_id",
         ]
         return [dict(zip(columns, row)) for row in result]
 
@@ -479,9 +515,9 @@ class VestingService:
         """Calculate vesting details for each employee (T026)."""
         details = []
         for emp in employees:
-            tenure = emp["current_tenure"] or 0
+            tenure = emp["current_tenure"]
             contributions = Decimal(str(emp["total_employer_contributions"]))
-            hours = emp["annual_hours_worked"] or 0
+            hours = emp["annual_hours_worked"]
 
             # Calculate current schedule vesting
             current_pct = get_vesting_percentage(
@@ -510,6 +546,8 @@ class VestingService:
 
             detail = EmployeeVestingDetail(
                 employee_id=emp["employee_id"],
+                configured_scenario_id=emp.get("configured_scenario_id"),
+                plan_design_id=emp.get("plan_design_id"),
                 hire_date=(
                     emp["employee_hire_date"].date()
                     if hasattr(emp["employee_hire_date"], "date")
@@ -522,7 +560,11 @@ class VestingService:
                 ),
                 tenure_years=int(tenure),
                 tenure_band=emp["tenure_band"] or "Unknown",
-                annual_hours_worked=hours,
+                annual_hours_worked=(
+                    hours
+                    if hours is not None and isfinite(hours) and hours >= 0
+                    else None
+                ),
                 total_employer_contributions=contributions,
                 current_vesting_pct=current_pct,
                 current_vested_amount=current_vested,
@@ -725,6 +767,15 @@ class VestingService:
                 built = self._build_scenario_series(
                     scenario_id, scenario_name, conn, schedule, policy
                 )
+            except VestingEvidenceError as exc:
+                skipped.append(
+                    SkippedScenario(
+                        scenario_id=scenario_id,
+                        scenario_name=scenario_name,
+                        reason=str(exc),
+                    )
+                )
+                continue
             finally:
                 conn.close()
 

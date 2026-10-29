@@ -469,8 +469,8 @@ class TestADPZeroCompExcluded:
         with patch("duckdb.connect", return_value=conn):
             result = service.run_adp_test("ws1", "sc1", "Test", 2025)
 
-        assert result.excluded_count == 1
-        assert result.hce_count + result.nhce_count == 2
+        assert result.test_result == "error"
+        assert "zero prorated_annual_compensation" in result.test_message
 
 
 # ==============================================================================
@@ -544,7 +544,7 @@ class TestADPCompensationBasis:
         assert abs(hce_emp.employee_deferrals - 23500.0) < 1.0
         assert abs(hce_emp.individual_adp - (23500.0 / 200000.0)) < 0.001
 
-    def test_zero_or_missing_capped_testing_comp_excluded(self, adp_service_with_db):
+    def test_missing_capped_testing_comp_is_unavailable(self, adp_service_with_db):
         service, conn, mock_resolver = adp_service_with_db
 
         _insert_employee(conn, "HCE1", 2024, 200000.0, 200000.0, 0.0)
@@ -565,9 +565,9 @@ class TestADPCompensationBasis:
                 "ws1", "sc1", "Test", 2025, include_employees=True
             )
 
-        assert result.excluded_count == 2
-        assert result.hce_count + result.nhce_count == 2
-        assert {e.employee_id for e in result.employees} == {"HCE1", "NHCE1"}
+        assert result.test_result == "error"
+        assert "prorated_annual_compensation" in result.test_message
+        assert result.employees is None
 
 
 # ==============================================================================
@@ -651,3 +651,22 @@ def test_qnec_headroom_excludes_catch_up_and_adds_employer_amounts(
     assert result.qnec_estimate.status == expected
     assert result.qnec_estimate.limit_breach_count == breaches
     assert result.qnec_estimate.total_qnec == pytest.approx(4500)
+
+
+def test_adp_discloses_missing_prior_pay_on_no_hce_pass(adp_service_with_db):
+    service, conn, resolver = adp_service_with_db
+    _insert_employee(conn, "N", 2024, 100000, 100000, 0)
+    _insert_employee(conn, "N", 2025, 100000, 100000, 4000)
+    _insert_employee(conn, "H", 2025, 100000, 100000, 10000)
+    resolver.resolve.return_value = ResolvedDatabasePath(
+        path=Path(":memory:"), source="scenario"
+    )
+    with patch("duckdb.connect", return_value=conn):
+        result = service.run_adp_test("ws", "sc", "Synthetic", 2025)
+    assert result.test_result == "pass"
+    assert result.hce_count == 0
+    assert (
+        "current compensation for 1 employee(s) missing prior-year"
+        in result.test_message
+    )
+    assert "modeled assumption" in result.model_dump()["test_message"]

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import {
   Shield, ChevronDown, Loader2, AlertCircle, RefreshCw, CheckCircle,
@@ -25,6 +25,7 @@ import {
 import { MAX_SCENARIO_SELECTION } from '../constants';
 import type { LayoutContextType } from './Layout';
 import ComplianceOverview from './ComplianceOverview';
+import { combineNDTAvailability, createNDTRequestGate } from './ndtSelection';
 import { getComplianceSummary, ComplianceResponse } from '../services/api';
 
 type TestType = 'acp' | '401a4' | '415' | 'adp' | 'compliance';
@@ -50,7 +51,7 @@ const TEST_TYPE_LABELS: Record<TestType, string> = {
   compliance: 'Compliance Overview',
   acp: 'ACP Test',
   adp: 'ADP Test',
-  '401a4': '401(a)(4) General Test',
+  '401a4': '401(a)(4) Rate Analysis',
   '415': '415 Annual Additions',
 };
 
@@ -62,6 +63,8 @@ export default function NDTTesting() {
   const [selectedScenarioIds, setSelectedScenarioIds] = useState<string[]>([]);
   const [availableYears, setAvailableYears] = useState<number[]>([]);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [planDesignId, setPlanDesignId] = useState('');
+  const [availableDesigns, setAvailableDesigns] = useState<string[]>([]);
   const [comparisonMode, setComparisonMode] = useState(false);
   const [testType, setTestType] = useState<TestType>('acp');
 
@@ -81,6 +84,12 @@ export default function NDTTesting() {
   // Detail state
   const [showEmployees, setShowEmployees] = useState(false);
 
+  const selectedDesign = testType === 'compliance' ? undefined : planDesignId || undefined;
+  const requestGate = useRef(createNDTRequestGate()).current;
+  const selectionKey = JSON.stringify([activeWorkspace?.id, selectedScenarioIds, selectedYear,
+    selectedDesign, testType, includeMatch, warningThreshold, safeHarbor, testingMethod]);
+  requestGate.select(selectionKey);
+
   // Fetch scenarios when workspace changes
   useEffect(() => {
     if (activeWorkspace?.id) {
@@ -88,22 +97,38 @@ export default function NDTTesting() {
     }
   }, [activeWorkspace?.id]);
 
-  // Fetch available years when scenario changes (single mode)
+  // A stale year lookup must not restore another scenario/design's selection.
   useEffect(() => {
-    if (activeWorkspace?.id && selectedScenarioIds.length === 1) {
-      fetchYears(activeWorkspace.id, selectedScenarioIds[0]);
-    } else if (selectedScenarioIds.length === 0) {
-      setAvailableYears([]);
-      setSelectedYear(null);
+    let cancelled = false;
+    setAvailableYears([]);
+    setSelectedYear(null);
+    setAvailableDesigns([]);
+    if (!activeWorkspace?.id || selectedScenarioIds.length === 0) {
+      setLoadingYears(false);
+      return;
     }
-  }, [activeWorkspace?.id, selectedScenarioIds]);
+    setLoadingYears(true);
+    Promise.all(selectedScenarioIds.map(id => getNDTAvailableYears(activeWorkspace.id, id, selectedDesign)))
+      .then(responses => {
+        if (cancelled) return;
+        const { years, designs } = combineNDTAvailability(responses);
+        setAvailableYears(years);
+        setAvailableDesigns(designs);
+        setSelectedYear(years.at(-1) ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setError('Unable to load years for the selected scenarios and design.');
+      })
+      .finally(() => { if (!cancelled) setLoadingYears(false); });
+    return () => { cancelled = true; };
+  }, [activeWorkspace?.id, selectedScenarioIds, selectedDesign]);
 
-  // Clear results when selection changes
   useEffect(() => {
     setTestResponse(null);
     setShowEmployees(false);
     setError(null);
-  }, [selectedScenarioIds, selectedYear, comparisonMode, testType]);
+    setLoading(false);
+  }, [selectionKey]);
 
   const fetchScenarios = async (workspaceId: string) => {
     setLoadingScenarios(true);
@@ -118,24 +143,10 @@ export default function NDTTesting() {
     }
   };
 
-  const fetchYears = async (workspaceId: string, scenarioId: string) => {
-    setLoadingYears(true);
-    try {
-      const data = await getNDTAvailableYears(workspaceId, scenarioId);
-      setAvailableYears(data.years);
-      setSelectedYear(data.default_year);
-    } catch (err) {
-      console.error('Failed to fetch years:', err);
-      setAvailableYears([]);
-      setSelectedYear(null);
-    } finally {
-      setLoadingYears(false);
-    }
-  };
-
   const handleRunTest = useCallback(async () => {
     if (!activeWorkspace?.id || selectedScenarioIds.length === 0 || !selectedYear) return;
 
+    const token = requestGate.begin();
     setLoading(true);
     setError(null);
     setTestResponse(null);
@@ -146,56 +157,57 @@ export default function NDTTesting() {
         data = await getComplianceSummary(activeWorkspace.id, selectedScenarioIds, selectedYear, warningThreshold);
       } else if (testType === 'acp') {
         data = await runACPTest(
-          activeWorkspace.id, selectedScenarioIds, selectedYear, showEmployees,
+          activeWorkspace.id, selectedScenarioIds, selectedYear, showEmployees, selectedDesign,
         );
       } else if (testType === 'adp') {
         data = await runADPTest(
-          activeWorkspace.id, selectedScenarioIds, selectedYear, showEmployees, safeHarbor, testingMethod,
+          activeWorkspace.id, selectedScenarioIds, selectedYear, showEmployees, safeHarbor, testingMethod, selectedDesign,
         );
       } else if (testType === '401a4') {
         data = await run401a4Test(
-          activeWorkspace.id, selectedScenarioIds, selectedYear, showEmployees, includeMatch,
+          activeWorkspace.id, selectedScenarioIds, selectedYear, showEmployees, includeMatch, selectedDesign,
         );
       } else {
         data = await run415Test(
-          activeWorkspace.id, selectedScenarioIds, selectedYear, showEmployees, warningThreshold,
+          activeWorkspace.id, selectedScenarioIds, selectedYear, showEmployees, warningThreshold, selectedDesign,
         );
       }
-      setTestResponse(data);
+      if (requestGate.isCurrent(token)) setTestResponse(data);
     } catch (err: any) {
-      setError(err.detail || err.message || `Failed to run ${TEST_TYPE_LABELS[testType]}`);
+      if (requestGate.isCurrent(token)) setError(err.detail || err.message || `Failed to run ${TEST_TYPE_LABELS[testType]}`);
     } finally {
-      setLoading(false);
+      if (requestGate.isCurrent(token)) setLoading(false);
     }
-  }, [activeWorkspace?.id, selectedScenarioIds, selectedYear, showEmployees, testType, includeMatch, warningThreshold, safeHarbor, testingMethod]);
+  }, [activeWorkspace?.id, selectedScenarioIds, selectedYear, showEmployees, testType, includeMatch, warningThreshold, safeHarbor, testingMethod, selectedDesign, requestGate]);
 
   const handleToggleEmployees = useCallback(async () => {
     const newVal = !showEmployees;
     setShowEmployees(newVal);
 
     if (newVal && testResponse && activeWorkspace?.id && selectedYear) {
+      const token = requestGate.begin();
       setLoading(true);
       try {
         let data: AnyTestResponse;
         if (testType === 'compliance') {
           return;
         } else if (testType === 'acp') {
-          data = await runACPTest(activeWorkspace.id, selectedScenarioIds, selectedYear, true);
+          data = await runACPTest(activeWorkspace.id, selectedScenarioIds, selectedYear, true, selectedDesign);
         } else if (testType === 'adp') {
-          data = await runADPTest(activeWorkspace.id, selectedScenarioIds, selectedYear, true, safeHarbor, testingMethod);
+          data = await runADPTest(activeWorkspace.id, selectedScenarioIds, selectedYear, true, safeHarbor, testingMethod, selectedDesign);
         } else if (testType === '401a4') {
-          data = await run401a4Test(activeWorkspace.id, selectedScenarioIds, selectedYear, true, includeMatch);
+          data = await run401a4Test(activeWorkspace.id, selectedScenarioIds, selectedYear, true, includeMatch, selectedDesign);
         } else {
-          data = await run415Test(activeWorkspace.id, selectedScenarioIds, selectedYear, true, warningThreshold);
+          data = await run415Test(activeWorkspace.id, selectedScenarioIds, selectedYear, true, warningThreshold, selectedDesign);
         }
-        setTestResponse(data);
+        if (requestGate.isCurrent(token)) setTestResponse(data);
       } catch (err: any) {
-        setError(err.detail || err.message || 'Failed to load employee details');
+        if (requestGate.isCurrent(token)) setError(err.detail || err.message || 'Failed to load employee details');
       } finally {
-        setLoading(false);
+        if (requestGate.isCurrent(token)) setLoading(false);
       }
     }
-  }, [showEmployees, testResponse, activeWorkspace?.id, selectedScenarioIds, selectedYear, testType, includeMatch, warningThreshold, safeHarbor, testingMethod]);
+  }, [showEmployees, testResponse, activeWorkspace?.id, selectedScenarioIds, selectedYear, testType, includeMatch, warningThreshold, safeHarbor, testingMethod, selectedDesign, requestGate]);
 
   const handleScenarioToggle = (scenarioId: string) => {
     if (comparisonMode) {
@@ -230,9 +242,9 @@ export default function NDTTesting() {
   }, []);
 
   const completedScenarios = scenarios.filter(s => s.status === 'completed');
-  const canRun = selectedScenarioIds.length > 0 && selectedYear !== null && !loading;
+  const canRun = selectedScenarioIds.length > 0 && selectedYear !== null && !loading && !loadingYears;
   const scenarioPlaceholder = completedScenarios.length === 0 ? 'No completed runs' : 'Select Scenario';
-  const yearPlaceholder = availableYears.length === 0 ? 'Select scenario first' : 'Select Year';
+  const yearPlaceholder = availableYears.length === 0 ? (selectedScenarioIds.length ? 'No common years available' : 'Select scenario first') : 'Select Year';
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -265,7 +277,7 @@ export default function NDTTesting() {
                 <option value="compliance">Compliance Overview</option>
                 <option value="acp">ACP Test</option>
                 <option value="adp">ADP Test</option>
-                <option value="401a4">401(a)(4) General Test</option>
+                <option value="401a4">401(a)(4) Rate Analysis</option>
                 <option value="415">415 Annual Additions</option>
               </select>
               <ChevronDown size={16} className="absolute right-3 top-2.5 text-ink-subtle pointer-events-none" />
@@ -293,6 +305,20 @@ export default function NDTTesting() {
                 </select>
                 <ChevronDown size={16} className="absolute right-3 top-2.5 text-ink-subtle pointer-events-none" />
               </div>
+            </div>
+          )}
+
+          {testType !== 'compliance' && (
+            <div>
+              <label htmlFor="ndt-design" className="block text-xs font-medium text-ink-muted mb-1">Plan design</label>
+              <select id="ndt-design" value={planDesignId}
+                onChange={event => setPlanDesignId(event.target.value)}
+                disabled={loadingYears || selectedScenarioIds.length === 0}
+                className="bg-surface-raised border border-border-strong rounded-lg px-3 py-2 text-sm">
+                <option value="">Unselected (single-design archives)</option>
+                {[...new Set([...availableDesigns, ...(planDesignId ? [planDesignId] : [])])].map(id => <option key={id} value={id}>{id}</option>)}
+              </select>
+              <p className="text-xs text-ink-muted mt-1">Applies to each selected scenario. Years must be available in every scenario.</p>
             </div>
           )}
 
@@ -640,6 +666,7 @@ function ACPSingleResult({
 
   return (
     <div className="space-y-6">
+      {result.test_message && <p className="text-sm text-warning-ink">{result.test_message}</p>}
       <div className={`rounded-xl p-6 border-2 ${isPassing ? 'bg-success-surface border-success-border' : 'bg-danger-surface border-danger-border'}`}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center">
@@ -817,6 +844,7 @@ function ACPComparisonResults({ results, scenarioOrder }: { results: ACPScenario
                 <p className="text-xs text-warning-ink">{result.test_message}</p>
               ) : (
                 <div className="space-y-2">
+                  {result.test_message && <p className="text-xs text-warning-ink">{result.test_message}</p>}
                   <div className="flex justify-between text-sm">
                     <span className="text-ink-muted">HCE Avg ACP</span>
                     <span className="font-medium text-ink">{formatPercent(result.hce_average_acp)}</span>
@@ -864,142 +892,9 @@ function Section401a4SingleResult({
   onToggleEmployees: () => void;
   loading: boolean;
 }) {
-  const isPassing = result.test_result === 'pass';
-  const isError = result.test_result === 'error';
-
-  if (isError) {
-    return (
-      <div className="bg-warning-surface border border-warning-border rounded-xl p-6">
-        <div className="flex items-center mb-2">
-          <AlertCircle size={24} className="text-warning-ink mr-3" />
-          <h3 className="text-lg font-semibold text-warning-ink">Test Error</h3>
-        </div>
-        <p className="text-sm text-warning-ink">{result.test_message}</p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
-      {/* Pass/Fail Card */}
-      <div className={`rounded-xl p-6 border-2 ${isPassing ? 'bg-success-surface border-success-border' : 'bg-danger-surface border-danger-border'}`}>
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center">
-            {isPassing ? (
-              <CheckCircle size={32} className="text-success-ink mr-3" />
-            ) : (
-              <XCircle size={32} className="text-danger-ink mr-3" />
-            )}
-            <div>
-              <h3 className="text-xl font-bold">
-                <span className={isPassing ? 'text-success-ink' : 'text-danger-ink'}>
-                  401(a)(4) Test: {isPassing ? 'PASS' : 'FAIL'}
-                </span>
-              </h3>
-              <p className={`text-sm ${isPassing ? 'text-success-ink' : 'text-danger-ink'}`}>
-                {result.scenario_name} &mdash; Year {result.simulation_year}
-                <span className="ml-2 text-xs opacity-75">
-                  ({result.applied_test === 'ratio' ? 'Ratio Test' : 'General Test'})
-                </span>
-              </p>
-            </div>
-          </div>
-          <div className={`text-right px-4 py-2 rounded-lg ${isPassing ? 'bg-success-surface' : 'bg-danger-surface'}`}>
-            <p className="text-xs font-medium text-ink-muted">Margin</p>
-            <p className={`text-lg font-bold ${isPassing ? 'text-success-ink' : 'text-danger-ink'}`}>
-              {result.margin >= 0 ? '+' : ''}{formatPercent(result.margin)}
-            </p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-surface-raised/70 rounded-lg p-3">
-            <p className="text-xs text-ink-muted">HCE Avg Rate</p>
-            <p className="text-lg font-bold text-ink">{formatPercent(result.hce_average_rate)}</p>
-          </div>
-          <div className="bg-surface-raised/70 rounded-lg p-3">
-            <p className="text-xs text-ink-muted">NHCE Avg Rate</p>
-            <p className="text-lg font-bold text-ink">{formatPercent(result.nhce_average_rate)}</p>
-          </div>
-          <div className="bg-surface-raised/70 rounded-lg p-3">
-            <p className="text-xs text-ink-muted">Ratio (NHCE/HCE)</p>
-            <p className="text-lg font-bold text-ink">{formatPercent(result.ratio)}</p>
-          </div>
-          <div className="bg-surface-raised/70 rounded-lg p-3">
-            <p className="text-xs text-ink-muted">Applied Test</p>
-            <p className="text-lg font-bold text-ink capitalize">{result.applied_test}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Nondiscrimination review caveat */}
-      {result.service_risk_flag && (
-        <div className="bg-warning-surface border border-warning-border rounded-xl p-4 flex items-start">
-          <AlertTriangle size={20} className="text-warning-ink mr-3 mt-0.5 flex-shrink-0" />
-          <div>
-            <h4 className="text-sm font-semibold text-warning-ink">Nondiscrimination Review Required</h4>
-            <p className="text-sm text-warning-ink mt-1">
-              The employer core contribution design may require further nondiscrimination review.
-              This result is not a legal qualification conclusion. {result.service_risk_detail}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Detailed Breakdown */}
-      <div className="bg-surface-raised rounded-xl shadow-sm border border-border p-6">
-        <h3 className="text-lg font-semibold text-ink mb-4 flex items-center">
-          <Info size={20} className="mr-2 text-ink-subtle" />
-          Detailed Breakdown
-        </h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-          <div className="bg-surface-subtle rounded-lg p-3">
-            <p className="text-xs text-ink-muted flex items-center"><Users size={12} className="mr-1" /> HCE Count</p>
-            <p className="text-xl font-bold text-ink">{result.hce_count}</p>
-          </div>
-          <div className="bg-surface-subtle rounded-lg p-3">
-            <p className="text-xs text-ink-muted flex items-center"><Users size={12} className="mr-1" /> NHCE Count</p>
-            <p className="text-xl font-bold text-ink">{result.nhce_count}</p>
-          </div>
-          <div className="bg-surface-subtle rounded-lg p-3">
-            <p className="text-xs text-ink-muted">Excluded</p>
-            <p className="text-xl font-bold text-ink">{result.excluded_count}</p>
-          </div>
-          <div className="bg-surface-subtle rounded-lg p-3">
-            <p className="text-xs text-ink-muted">Include Match</p>
-            <p className="text-xl font-bold text-ink">{result.include_match ? 'Yes' : 'No'}</p>
-          </div>
-        </div>
-        <div className="bg-surface-subtle rounded-lg p-4 space-y-2">
-          <div className="flex justify-between text-sm">
-            <span className="text-ink-muted">Ratio Test (NHCE avg / HCE avg &gt;= 70%)</span>
-            <span className={`font-medium ${result.ratio >= 0.70 ? 'text-success-ink' : 'text-danger-ink'}`}>
-              {formatPercent(result.ratio)} {result.ratio >= 0.70 ? 'PASS' : 'FAIL'}
-            </span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-ink-muted">General Test (NHCE median / HCE median &gt;= 70%)</span>
-            <span className="font-medium text-ink-muted">
-              {result.hce_median_rate > 0
-                ? `${formatPercent(result.nhce_median_rate / result.hce_median_rate)}`
-                : 'N/A'}
-            </span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-ink-muted">HCE Median Rate</span>
-            <span className="font-medium text-ink-muted">{formatPercent(result.hce_median_rate)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-ink-muted">NHCE Median Rate</span>
-            <span className="font-medium text-ink-muted">{formatPercent(result.nhce_median_rate)}</span>
-          </div>
-          <div className="border-t border-border pt-2 mt-2 flex justify-between text-sm">
-            <span className="text-ink-muted">HCE Compensation Threshold</span>
-            <span className="font-medium text-ink-muted">{formatCurrency(result.hce_threshold_used)}</span>
-          </div>
-        </div>
-      </div>
-
+      <Section401a4Summary result={result} />
       {/* Employee Detail Table */}
       <div className="bg-surface-raised rounded-xl shadow-sm border border-border">
         <button
@@ -1057,70 +952,44 @@ function Section401a4SingleResult({
 // 401(a)(4) Comparison Results
 // ==============================================================================
 
-function Section401a4ComparisonResults({ results, scenarioOrder }: { results: Section401a4ScenarioResult[]; scenarioOrder: string[] }) {
-  const ordered = [...results].sort((a, b) => scenarioOrder.indexOf(a.scenario_id) - scenarioOrder.indexOf(b.scenario_id));
+export function Section401a4Summary({ result }: { result: Section401a4ScenarioResult }) {
+  const isError = result.test_result === 'error';
+  const hasComparison = result.heuristic_result != null;
   return (
-    <div className="space-y-6">
-      <div className={`grid gap-6 ${getGridColsClass(ordered.length)}`}>
-        {ordered.map((result) => {
-          const isPassing = result.test_result === 'pass';
-          const isError = result.test_result === 'error';
-          const cardClass = isPassing ? 'bg-success-surface border-success-border' : 'bg-danger-surface border-danger-border';
-          return (
-            <div key={result.scenario_id} className={`rounded-xl p-5 border-2 ${isError ? 'bg-warning-surface border-warning-border' : cardClass}`}>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-bold text-ink truncate mr-2">{result.scenario_name}</h3>
-                {isError ? (
-                  <span className="flex-shrink-0 px-2 py-1 rounded-full text-xs font-bold bg-warning-surface text-warning-ink">ERROR</span>
-                ) : isPassing ? (
-                  <span className="flex-shrink-0 px-2 py-1 rounded-full text-xs font-bold bg-success-surface text-success-ink flex items-center">
-                    <CheckCircle size={12} className="mr-1" /> PASS
-                  </span>
-                ) : (
-                  <span className="flex-shrink-0 px-2 py-1 rounded-full text-xs font-bold bg-danger-surface text-danger-ink flex items-center">
-                    <XCircle size={12} className="mr-1" /> FAIL
-                  </span>
-                )}
-              </div>
-              {isError ? (
-                <p className="text-xs text-warning-ink">{result.test_message}</p>
-              ) : (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-ink-muted">HCE Avg Rate</span>
-                    <span className="font-medium text-ink">{formatPercent(result.hce_average_rate)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-ink-muted">NHCE Avg Rate</span>
-                    <span className="font-medium text-ink">{formatPercent(result.nhce_average_rate)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-ink-muted">Ratio</span>
-                    <span className="font-medium text-ink">{formatPercent(result.ratio)}</span>
-                  </div>
-                  <div className={`flex justify-between text-sm border-t pt-2 ${isPassing ? 'border-success-border' : 'border-danger-border'}`}>
-                    <span className="text-ink-muted">Margin</span>
-                    <span className={`font-bold ${isPassing ? 'text-success-ink' : 'text-danger-ink'}`}>
-                      {result.margin >= 0 ? '+' : ''}{formatPercent(result.margin)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-xs text-ink-muted pt-1">
-                    <span>HCE: {result.hce_count} | NHCE: {result.nhce_count}</span>
-                    <span className="capitalize">{result.applied_test} test</span>
-                  </div>
-                  {result.service_risk_flag && (
-                    <div className="flex items-center text-xs text-warning-ink bg-warning-surface rounded px-2 py-1 mt-1">
-                      <AlertTriangle size={12} className="mr-1" /> Review caveat
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+    <div className="rounded-xl p-5 border border-border bg-surface text-ink">
+      <h3 className="font-bold"><AlertCircle className="inline mr-2" size={20} />
+        401(a)(4): {isError ? 'Execution error' : 'Determination unavailable'}
+      </h3>
+      <p>{result.scenario_name} — Year {result.simulation_year}</p>
+      <p className="text-sm text-ink-muted">{result.test_message}</p>
+      {!isError && <>
+        <p className="text-sm text-ink-muted mt-3">
+          Selected contributing employees only; this is not the full coverage population.
+          Match {result.include_match ? 'included' : 'excluded'} in rates.
+          HCE: {result.hce_count}; NHCE: {result.nhce_count}; invalid compensation excluded: {result.excluded_count}.
+        </p>
+        {hasComparison ? <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
+          <dt>HCE average rate</dt><dd>{formatPercent(result.hce_average_rate)}</dd>
+          <dt>NHCE average rate</dt><dd>{formatPercent(result.nhce_average_rate)}</dd>
+          <dt>HCE median rate</dt><dd>{formatPercent(result.hce_median_rate)}</dd>
+          <dt>NHCE median rate</dt><dd>{formatPercent(result.nhce_median_rate)}</dd>
+          <dt>Average-rate ratio (rounded)</dt><dd>{formatPercent(result.ratio)}</dd>
+          <dt>Median-rate ratio (rounded)</dt><dd>{result.hce_median_rate > 0 ? formatPercent(result.nhce_median_rate / result.hce_median_rate) : 'Unavailable'}</dd>
+        </dl> : <p className="text-sm mt-3">Rate comparison unavailable for this population.</p>}
+        <p className="text-sm text-ink-muted mt-3">
+          Rate ratios are descriptive. The legacy 70% comparison is not the statutory rate-group coverage test.
+        </p>
+        {result.service_risk_flag && <p className="text-sm text-warning-ink">{result.service_risk_detail}</p>}
+      </>}
     </div>
   );
+}
+
+export function Section401a4ComparisonResults({ results, scenarioOrder }: { results: Section401a4ScenarioResult[]; scenarioOrder: string[] }) {
+  const ordered = [...results].sort((a, b) => scenarioOrder.indexOf(a.scenario_id) - scenarioOrder.indexOf(b.scenario_id));
+  return <div className={`grid gap-6 ${getGridColsClass(ordered.length)}`}>
+    {ordered.map(result => <Section401a4Summary key={result.scenario_id} result={result} />)}
+  </div>;
 }
 
 // ==============================================================================
@@ -1692,6 +1561,7 @@ function ADPComparisonResults({ results, scenarioOrder }: { results: ADPScenario
                 <p className="text-xs text-info-ink">Safe harbor — test not required</p>
               ) : (
                 <div className="space-y-2">
+                  {result.test_message && <p className="text-xs text-warning-ink">{result.test_message}</p>}
                   <div className="flex justify-between text-sm">
                     <span className="text-ink-muted">HCE Avg ADP</span>
                     <span className="font-medium text-ink">{formatPercent(result.hce_average_adp)}</span>

@@ -870,8 +870,10 @@ export default function VestingAnalysis() {
                   </thead>
                   <tbody className="divide-y divide-border">
                     {sortedEmployeeDetails.slice(0, 100).map((emp) => (
-                      <tr key={emp.employee_id} className="hover:bg-surface-subtle">
-                        <td className="py-3 px-4 text-ink-muted font-mono text-sm">{emp.employee_id}</td>
+                      <tr key={JSON.stringify([emp.configured_scenario_id, emp.plan_design_id, emp.employee_id])} className="hover:bg-surface-subtle">
+                        <td className="py-3 px-4 text-ink-muted font-mono text-sm">{emp.employee_id}
+                          {(emp.plan_design_id || emp.configured_scenario_id) && <div className="text-xs text-ink-subtle font-sans">{[emp.configured_scenario_id, emp.plan_design_id].filter(Boolean).join(' / ')}</div>}
+                        </td>
                         <td className="py-3 px-4 text-right">{emp.tenure_years} yrs</td>
                         <td className="py-3 px-4 text-right">{formatCurrency(emp.total_employer_contributions)}</td>
                         <td className="py-3 px-4 text-right">{(emp.current_vesting_pct * 100).toFixed(1)}%</td>
