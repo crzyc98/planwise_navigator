@@ -1,21 +1,17 @@
 {
-  "source": "matrix.json and cells/*.json, stage/seed records (not stale top-level statuses or baseline_scores.json)",
-  "cells": 54,
-  "required_runs_per_stage": 63,
-  "stages": {
+  "status": "blocked_storage",
+  "run_counts": {
     "baseline": {
       "failed": 11,
       "interrupted": 1,
-      "unrun": 51
+      "not_run": 51
     },
     "prerequisite_repair": {
-      "unrun": 62,
+      "interrupted": 1,
+      "not_run": 61,
       "completed": 1
     }
   },
-  "legacy_failed_attempts_outside_matrix_slots": 1,
-  "seed_noise_band": null,
-  "campaign_score": null,
-  "matrix_complete": false,
-  "stop_rule_met": false
+  "free_gib_at_stop": 5.9,
+  "completed_cell_bytes": 247738261
 }
