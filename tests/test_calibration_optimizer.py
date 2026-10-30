@@ -7,6 +7,9 @@ avg-comp growth and that workforce growth is set (not searched).
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from pathlib import Path
+
 import pytest
 
 from planalign_orchestrator.calibration_optimizer import (
@@ -266,6 +269,7 @@ def test_scale_mode_falls_back_to_levers_at_bound(tmp_path) -> None:
         base_job_level_compensation=_BASE_RANGES,
         initial_scale=1.0,
         scale_max=1.2,
+        lever_fallback=True,
     )
     optimizer = _make_optimizer(tmp_path, settings)
     _wire_scaled_response(optimizer)
@@ -276,7 +280,8 @@ def test_scale_mode_falls_back_to_levers_at_bound(tmp_path) -> None:
     assert outcome.best_scale == pytest.approx(1.2)
     # Levers moved above their anchors only in the fallback stage.
     assert (outcome.best_params.cola_rate + outcome.best_params.merit_budget) > 0.055
-    assert "hit its bound" in outcome.message
+    assert "COLA/merit were adjusted" in outcome.reason
+    assert outcome.status == "converged"
 
 
 def test_scale_mode_requires_base_ranges() -> None:
@@ -304,3 +309,69 @@ def test_single_year_range_raises_clear_error(tmp_path) -> None:
 
     with pytest.raises(ValueError, match="two-year range"):
         optimizer.optimize()
+
+
+@pytest.mark.parametrize(
+    ("response", "budget", "expected", "reason"),
+    [
+        (lambda s: (2 * s, 2 * s), 12, "converged", None),
+        (lambda s: (2 * s - 1, 2 * s + 1), 12, "infeasible", "spread"),
+        (lambda s: (s - 5, s - 4), 12, "infeasible", "maximum scale bound"),
+        (lambda s: (s + 5, s + 6), 12, "infeasible", "minimum scale bound"),
+        (lambda s: (2 - s, 3 - s), 12, "not_converged", "monotonicity"),
+        (lambda s: (2 * s, 10 - s), 12, "not_converged", "monotonicity"),
+        (lambda s: (2 * s, 2 * s), 1, "not_converged", "budget exhausted"),
+    ],
+)
+def test_minimax_outcomes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    response: Callable[[float], tuple[float, float]],
+    budget: int,
+    expected: str,
+    reason: str | None,
+) -> None:
+    settings = AutoCalibrationSettings(
+        target_workforce_growth=0.03,
+        target_comp_growth=0.035,
+        search_mode="new_hire_scale",
+        base_job_level_compensation=_BASE_RANGES,
+        max_iterations=budget,
+        tolerance_pct=0.01,
+    )
+    assert settings.lever_fallback is False
+    optimizer = _make_optimizer(tmp_path, settings)
+
+    def evaluate(params: CalibrationParameterSet) -> list[PerYearCompensationResult]:
+        optimizer._evals += 1
+        assert params.job_level_compensation is not None
+        scale = params.job_level_compensation[0]["min_compensation"] / 50000
+        return [
+            PerYearCompensationResult(
+                simulation_year=year,
+                avg_compensation=100,
+                headcount=10,
+                yoy_growth_pct=growth,
+            )
+            for year, growth in zip((2025, 2026, 2027), (999, *response(scale)))
+        ]
+
+    monkeypatch.setattr(optimizer, "_evaluate", evaluate)
+    outcome = optimizer.optimize()
+    assert outcome.status == expected
+    assert outcome.converged == (expected == "converged")
+    assert len(outcome.iterations) <= budget
+    assert outcome.max_abs_error_pct == min(
+        i.max_abs_error_pct for i in outcome.iterations
+    )
+    assert {(i.cola_rate, i.merit_budget) for i in outcome.iterations} == {
+        (0.02, 0.035)
+    }
+    if reason:
+        assert reason in outcome.reason
+    if expected == "infeasible":
+        assert "2026:" in outcome.reason and "2027:" in outcome.reason
+        assert "worst-year error" in outcome.reason
+    if reason == "spread":
+        assert outcome.best_scale == pytest.approx(1.75)
+        assert outcome.max_abs_error_pct == pytest.approx(1)

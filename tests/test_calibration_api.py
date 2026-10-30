@@ -445,7 +445,8 @@ def test_concurrent_runs_on_same_db_serialize(client, monkeypatch, tmp_path) -> 
     assert active["max"] == 1
 
 
-def test_optimize_returns_outcome(client, monkeypatch) -> None:
+@pytest.mark.parametrize("status", ["converged", "not_converged", "infeasible"])
+def test_optimize_returns_outcome(client, monkeypatch, status: str) -> None:
     from planalign_orchestrator.calibration_optimizer import (
         AutoCalibrationResult,
         OptimizationIteration,
@@ -453,7 +454,9 @@ def test_optimize_returns_outcome(client, monkeypatch) -> None:
     from planalign_orchestrator.calibration_runner import CalibrationParameterSet
 
     outcome = AutoCalibrationResult(
-        converged=True,
+        converged=status == "converged",
+        status=status,
+        reason="Analyst-facing explanation.",
         message="Converged in 3 iteration(s)",
         best_params=CalibrationParameterSet(cola_rate=0.028, merit_budget=0.043),
         achieved_comp_growth_pct=4.01,
@@ -499,7 +502,9 @@ def test_optimize_returns_outcome(client, monkeypatch) -> None:
 
     job = _await_job(client, body["run_id"])
     assert job["status"] == "completed"
-    assert job["outcome"]["converged"] is True
+    assert job["outcome"]["converged"] == (status == "converged")
+    assert job["outcome"]["status"] == status
+    assert job["outcome"]["reason"] == "Analyst-facing explanation."
     assert job["outcome"]["best_params"]["cola_rate"] == pytest.approx(0.028)
 
 

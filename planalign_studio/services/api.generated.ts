@@ -3248,10 +3248,17 @@ export interface components {
              * @constant
              */
             objective: "max_annual_error";
+            /** Reason */
+            reason: string | null;
             /** Results */
             results: components["schemas"]["PerYearCompensationResult"][];
             /** Start Year */
             start_year: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "converged" | "not_converged" | "infeasible";
             /** Target Comp Growth Pct */
             target_comp_growth_pct: number;
         };
@@ -3275,7 +3282,7 @@ export interface components {
             initial_scale?: number;
             /**
              * Lever Fallback
-             * @default true
+             * @default false
              */
             lever_fallback?: boolean;
             /**

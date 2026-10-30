@@ -98,7 +98,7 @@ def test_workforce_growth_rate_bounds() -> None:
 def test_first_year_growth_and_delta_are_null() -> None:
     row = CalibrationRunner._assemble_row(
         2025,
-        {"avg_compensation": 92000.0, "yoy_growth_pct": None},
+        {"avg_compensation": 92000.0, "yoy_growth_pct": None, "headcount": 100},
         {"headcount": 100, "new_hire_avg": 80000.0, "existing_avg": 95000.0},
         target=0.035,
     )
@@ -111,7 +111,7 @@ def test_delta_computed_on_percentage_scale() -> None:
     # target 0.035 (decimal) -> 3.5%; yoy 3.6% -> delta +0.1
     row = CalibrationRunner._assemble_row(
         2026,
-        {"avg_compensation": 95000.0, "yoy_growth_pct": 3.6},
+        {"avg_compensation": 95000.0, "yoy_growth_pct": 3.6, "headcount": 105},
         {"headcount": 105, "new_hire_avg": 82000.0, "existing_avg": 96000.0},
         target=0.035,
     )
@@ -314,3 +314,49 @@ def test_workforce_growth_rate_applies_to_simulation_config(tmp_path) -> None:
     # ...but the explicit workforce_growth_rate lever must.
     runner._apply_param_overrides(CalibrationParameterSet(workforce_growth_rate=0.05))
     assert runner._config.simulation.target_growth_rate == 0.05
+
+
+def test_snapshot_metric_matches_studio_active_query(tmp_path: Path) -> None:
+    from planalign_api import main  # noqa: F401 -- initialize API imports
+    from planalign_api.services.simulation.results_reader import (
+        _population_filter,
+        _query_workforce_progression,
+    )
+
+    database = tmp_path / "active_fixture.duckdb"
+    with duckdb.connect(str(database)) as conn:
+        conn.execute("""
+            CREATE TABLE fct_workforce_snapshot (
+                simulation_year INTEGER, employee_id VARCHAR,
+                employment_status VARCHAR, detailed_status_code VARCHAR,
+                prorated_annual_compensation DOUBLE,
+                full_year_equivalent_compensation DOUBLE
+            )
+        """)
+        conn.executemany(
+            "INSERT INTO fct_workforce_snapshot VALUES (?, ?, ?, ?, ?, ?)",
+            [
+                (2024, "a", "active", "continuous_active", 100, 100),
+                (2025, "a", "ACTIVE", "continuous_active", 120, 120),
+                (2025, "b", "active", "other", 80, 160),
+                (2025, "c", "terminated", "new_hire_active", 900, 900),
+                (2026, "a", "Active", "continuous_active", 132, 132),
+                (2026, "b", "active", "new_hire_active", 88, 176),
+                (2026, "c", None, "continuous_active", 900, 900),
+            ],
+        )
+        studio = _query_workforce_progression(
+            conn, 2025, 2026, _population_filter("active")
+        )
+        for row in studio:
+            actual = CalibrationRunner._read_growth(conn, row["simulation_year"])
+            assert actual["avg_compensation"] == row["avg_compensation"]
+            assert actual["headcount"] == row["headcount"] == 2
+        assert CalibrationRunner._read_growth(conn, 2026)[
+            "yoy_growth_pct"
+        ] == pytest.approx(10)
+    runner = CalibrationRunner(
+        CalibrationRun(start_year=2025, end_year=2026, database_path=database)
+    )
+    assert runner._read_year(2025).yoy_growth_pct is None
+    assert runner._read_year(2025).headcount == 2

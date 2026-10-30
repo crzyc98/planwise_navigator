@@ -94,6 +94,7 @@ class FakeCalibrator:
         ]
         return AutoCalibrationResult(
             converged=True,
+            status="converged",
             message="fixture",
             best_scale=1.012345,
             best_params=self.run.params.model_copy(

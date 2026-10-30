@@ -483,6 +483,8 @@ class CalibrationRunner:
         conn = duckdb.connect(str(self.database_path), read_only=True)
         try:
             growth = self._read_growth(conn, year)
+            if year == self.run.start_year:
+                growth["yoy_growth_pct"] = None
             gap = self._read_snapshot_gap(conn, year)
         finally:
             conn.close()
@@ -508,16 +510,33 @@ class CalibrationRunner:
     def _read_growth(conn: duckdb.DuckDBPyConnection, year: int) -> Dict[str, Any]:
         row = conn.execute(
             """
-            SELECT avg_compensation, yoy_growth_pct
-            FROM fct_compensation_growth
-            WHERE calculation_method = 'methodology_a_current'
-              AND simulation_year = ?
+            WITH annual AS (
+                SELECT simulation_year,
+                       AVG(prorated_annual_compensation) AS avg_compensation,
+                       COUNT(*) AS headcount,
+                       SUM(prorated_annual_compensation) AS total_comp
+                FROM fct_workforce_snapshot
+                WHERE LOWER(employment_status) = 'active'
+                  AND simulation_year IN (?, ?)
+                GROUP BY simulation_year
+            )
+            SELECT current.avg_compensation,
+                   (current.avg_compensation / NULLIF(prior.avg_compensation, 0) - 1) * 100,
+                   current.headcount, current.total_comp
+            FROM annual AS current
+            LEFT JOIN annual AS prior
+              ON prior.simulation_year = current.simulation_year - 1
+            WHERE current.simulation_year = ?
             """,
-            [year],
+            [year - 1, year, year],
         ).fetchone()
         if row is None:
-            raise ConfigurationError(f"No compensation-growth row produced for {year}")
-        return {"avg_compensation": row[0], "yoy_growth_pct": row[1]}
+            raise ConfigurationError(
+                f"No active workforce snapshot rows produced for {year}"
+            )
+        return dict(
+            zip(("avg_compensation", "yoy_growth_pct", "headcount", "total_comp"), row)
+        )
 
     @staticmethod
     def _read_snapshot_gap(
@@ -525,24 +544,16 @@ class CalibrationRunner:
     ) -> Dict[str, Any]:
         # The new-hire vs existing comparison uses FULL-YEAR-EQUIVALENT rates:
         # prorated comp for mid-year hires is mechanically ~half their rate, so
-        # a prorated "gap" mostly measures hire timing, not pay policy. Total
-        # comp stays prorated -- it is actual dollars paid, consistent with the
-        # growth math.
+        # a prorated "gap" mostly measures hire timing, not pay policy.
         row = conn.execute(
             """
             SELECT
-                COUNT(*) FILTER (
-                    WHERE detailed_status_code IN ('continuous_active', 'new_hire_active')
-                ) AS headcount,
                 AVG(full_year_equivalent_compensation) FILTER (
                     WHERE detailed_status_code = 'new_hire_active'
                 ) AS new_hire_avg,
                 AVG(full_year_equivalent_compensation) FILTER (
                     WHERE detailed_status_code = 'continuous_active'
-                ) AS existing_avg,
-                SUM(prorated_annual_compensation) FILTER (
-                    WHERE detailed_status_code IN ('continuous_active', 'new_hire_active')
-                ) AS total_comp
+                ) AS existing_avg
             FROM fct_workforce_snapshot
             WHERE simulation_year = ?
             """,
@@ -550,12 +561,7 @@ class CalibrationRunner:
         ).fetchone()
         # A bare-aggregate query (no GROUP BY) always returns exactly one row.
         assert row is not None
-        return {
-            "headcount": int(row[0] or 0),
-            "new_hire_avg": row[1],
-            "existing_avg": row[2],
-            "total_comp": float(row[3] or 0.0),
-        }
+        return {"new_hire_avg": row[0], "existing_avg": row[1]}
 
     @staticmethod
     def _assemble_row(
@@ -579,8 +585,8 @@ class CalibrationRunner:
             yoy_growth_pct=yoy,
             target_growth_pct=target_pct,
             growth_delta_pct=delta,
-            headcount=gap.get("headcount", 0),
-            total_compensation=gap.get("total_comp", 0.0),
+            headcount=growth["headcount"],
+            total_compensation=growth.get("total_comp") or 0.0,
             new_hire_avg_comp=nh,
             existing_avg_comp=ex,
             new_hire_gap=(nh - ex if (nh is not None and ex is not None) else None),

@@ -1162,6 +1162,11 @@ export default function CalibrationPanel() {
               <p className={`text-xs font-medium ${autoOutcome.converged ? 'text-success-ink' : 'text-warning-ink'}`}>
                 {autoOutcome.message}
               </p>
+              {autoOutcome.reason && (
+                <p className={`mt-1 text-xs ${autoOutcome.status === 'converged' ? 'text-info-ink' : 'text-warning-ink'}`}>
+                  {autoOutcome.reason}
+                </p>
+              )}
               <p className="mt-1 text-xs text-info-ink">
                 Horizon {autoOutcome.start_year}–{autoOutcome.end_year}; maximum annual error{' '}
                 {autoOutcome.max_abs_error_pct.toFixed(2)}pp.

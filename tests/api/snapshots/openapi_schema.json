@@ -1315,6 +1315,17 @@
             "title": "Objective",
             "type": "string"
           },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
           "results": {
             "items": {
               "$ref": "#/components/schemas/PerYearCompensationResult"
@@ -1326,6 +1337,15 @@
             "title": "Start Year",
             "type": "integer"
           },
+          "status": {
+            "enum": [
+              "converged",
+              "not_converged",
+              "infeasible"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
           "target_comp_growth_pct": {
             "title": "Target Comp Growth Pct",
             "type": "number"
@@ -1333,6 +1353,8 @@
         },
         "required": [
           "converged",
+          "status",
+          "reason",
           "message",
           "best_params",
           "best_scale",
@@ -1383,7 +1405,7 @@
             "type": "number"
           },
           "lever_fallback": {
-            "default": true,
+            "default": false,
             "title": "Lever Fallback",
             "type": "boolean"
           },
