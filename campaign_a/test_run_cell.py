@@ -152,7 +152,7 @@ def test_missing_completed_baseline_cannot_calibrate(campaign, tmp_path, monkeyp
     directory = tmp_path / "isolated"
     directory.mkdir()
     storage, workspace, scenario, inputs = harness.prepare_workspace(
-        campaign, 42, directory
+        campaign, 42, directory, "search_fix"
     )
     monkeypatch.setattr(
         harness, "AutoCalibrator", lambda *a, **kw: pytest.fail("guard bypassed")
