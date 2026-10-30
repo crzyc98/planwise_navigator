@@ -74,6 +74,7 @@ STAGES = (
     "hire_date_fix",
     "search_fix",
     "indexed_cola",
+    "prior_hire_turnover",
 )
 # Analyst starting-pay growth assumption per stage; matches the 2% config COLA.
 SALARY_GROWTH_BY_STAGE = {"indexed_cola": 0.02}
