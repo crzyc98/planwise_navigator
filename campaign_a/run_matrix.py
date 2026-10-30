@@ -18,6 +18,7 @@ STAGES = (
     "search_fix",
     "indexed_cola",
     "prior_hire_turnover",
+    "turnover_indexed_3pct",
 )
 
 
