@@ -7,6 +7,7 @@
     "calibration_reason": "The minimax balance point is tightly located, but the annual growth spread is too wide for one scale to meet every year's tolerance. Best achievable evaluated worst-year error: 0.621pp; annual growth: 2027: 3.380%, 2028: 3.920%, 2029: 3.763%, 2030: 4.621%.",
     "status": "scored",
     "score": 0.6208232997481558,
+    "cagr_err": 0.0800523972831666,
     "hc_err": 0.004434589800437649,
     "cal_gap": 5.773159728050814e-13,
     "failures": [],
@@ -78,7 +79,10 @@
         "hc_err": 0.004434589800437649,
         "cal_gap": 5.773159728050814e-13
       }
-    ]
+    ],
+    "stress": false,
+    "pass_per_year": false,
+    "pass_cagr": true
   },
   {
     "cell": "balanced_h2_c4_high",
@@ -88,6 +92,7 @@
     "calibration_reason": "The minimax balance point is tightly located, but the annual growth spread is too wide for one scale to meet every year's tolerance. Best achievable evaluated worst-year error: 0.537pp; annual growth: 2027: 3.466%, 2028: 4.537%, 2029: 4.365%, 2030: 3.647%.",
     "status": "scored",
     "score": 0.5369890167125781,
+    "cagr_err": 0.00296366026253736,
     "hc_err": 0.004434589800437649,
     "cal_gap": 8.43769498715119e-13,
     "failures": [],
@@ -159,7 +164,10 @@
         "hc_err": 0.004434589800437649,
         "cal_gap": 2.6645352591003757e-13
       }
-    ]
+    ],
+    "stress": false,
+    "pass_per_year": false,
+    "pass_cagr": true
   },
   {
     "cell": "balanced_h5_c1_low",
@@ -169,6 +177,7 @@
     "calibration_reason": "The minimax balance point is tightly located, but the annual growth spread is too wide for one scale to meet every year's tolerance. Best achievable evaluated worst-year error: 0.639pp; annual growth: 2027: 0.361%, 2028: 1.305%, 2029: 1.277%, 2030: 1.639%.",
     "status": "scored",
     "score": 0.6392030139912084,
+    "cagr_err": 0.1444973504145084,
     "hc_err": 0.00952380952381926,
     "cal_gap": 1.9317880628477724e-12,
     "failures": [],
@@ -240,7 +249,10 @@
         "hc_err": 0.0016452780519804477,
         "cal_gap": 1.9317880628477724e-12
       }
-    ]
+    ],
+    "stress": true,
+    "pass_per_year": false,
+    "pass_cagr": true
   },
   {
     "cell": "balanced_h5_c1_low",
@@ -250,6 +262,7 @@
     "calibration_reason": "The minimax balance point is tightly located, but the annual growth spread is too wide for one scale to meet every year's tolerance. Best achievable evaluated worst-year error: 0.530pp; annual growth: 2027: 0.472%, 2028: 0.673%, 2029: 0.948%, 2030: 1.530%.",
     "status": "scored",
     "score": 0.5296153895293596,
+    "cagr_err": 0.09529450292620112,
     "hc_err": 0.00952380952381926,
     "cal_gap": 3.552713678800501e-13,
     "failures": [],
@@ -321,7 +334,10 @@
         "hc_err": 0.0016452780519804477,
         "cal_gap": 6.661338147750939e-14
       }
-    ]
+    ],
+    "stress": true,
+    "pass_per_year": false,
+    "pass_cagr": true
   },
   {
     "cell": "balanced_h5_c4_high",
@@ -331,6 +347,7 @@
     "calibration_reason": "The minimax balance point is tightly located, but the annual growth spread is too wide for one scale to meet every year's tolerance. Best achievable evaluated worst-year error: 0.384pp; annual growth: 2027: 3.619%, 2028: 4.171%, 2029: 3.822%, 2030: 4.384%.",
     "status": "scored",
     "score": 0.38449270899607946,
+    "cagr_err": 0.0015036716642011783,
     "hc_err": 0.00952380952381926,
     "cal_gap": 8.215650382226158e-13,
     "failures": [],
@@ -402,7 +419,10 @@
         "hc_err": 0.0016452780519804477,
         "cal_gap": 8.881784197001252e-14
       }
-    ]
+    ],
+    "stress": false,
+    "pass_per_year": true,
+    "pass_cagr": true
   },
   {
     "cell": "balanced_h5_c4_high",
@@ -412,6 +432,7 @@
     "calibration_reason": "The minimax balance point is tightly located, but the annual growth spread is too wide for one scale to meet every year's tolerance. Best achievable evaluated worst-year error: 0.530pp; annual growth: 2027: 3.470%, 2028: 4.530%, 2029: 4.334%, 2030: 4.078%.",
     "status": "scored",
     "score": 0.5300893076313464,
+    "cagr_err": 0.10228563747658814,
     "hc_err": 0.00952380952381926,
     "cal_gap": 9.992007221626409e-13,
     "failures": [],
@@ -483,7 +504,10 @@
         "hc_err": 0.0016452780519804477,
         "cal_gap": 4.662936703425657e-13
       }
-    ]
+    ],
+    "stress": false,
+    "pass_per_year": false,
+    "pass_cagr": true
   },
   {
     "cell": "young_h2_c4_high",
@@ -493,6 +517,7 @@
     "calibration_reason": "The minimax balance point is tightly located, but the annual growth spread is too wide for one scale to meet every year's tolerance. Best achievable evaluated worst-year error: 0.689pp; annual growth: 2027: 3.314%, 2028: 3.777%, 2029: 3.886%, 2030: 4.689%.",
     "status": "scored",
     "score": 0.6886671055040186,
+    "cagr_err": 0.0848136423442023,
     "hc_err": 0.004434589800437649,
     "cal_gap": 3.419486915845482e-12,
     "failures": [],
@@ -564,7 +589,10 @@
         "hc_err": 0.004434589800437649,
         "cal_gap": 1.865174681370263e-12
       }
-    ]
+    ],
+    "stress": false,
+    "pass_per_year": false,
+    "pass_cagr": true
   },
   {
     "cell": "young_h2_c4_high",
@@ -574,6 +602,7 @@
     "calibration_reason": "The minimax balance point is tightly located, but the annual growth spread is too wide for one scale to meet every year's tolerance. Best achievable evaluated worst-year error: 0.665pp; annual growth: 2027: 3.336%, 2028: 4.060%, 2029: 4.665%, 2030: 4.231%.",
     "status": "scored",
     "score": 0.6647921968185013,
+    "cagr_err": 0.07192449287403502,
     "hc_err": 0.004434589800437649,
     "cal_gap": 9.103828801926284e-13,
     "failures": [],
@@ -645,7 +674,10 @@
         "hc_err": 0.004434589800437649,
         "cal_gap": 9.103828801926284e-13
       }
-    ]
+    ],
+    "stress": false,
+    "pass_per_year": false,
+    "pass_cagr": true
   },
   {
     "cell": "young_h5_c1_low",
@@ -655,6 +687,7 @@
     "calibration_reason": "The minimax balance point is tightly located, but the annual growth spread is too wide for one scale to meet every year's tolerance. Best achievable evaluated worst-year error: 0.912pp; annual growth: 2027: 0.089%, 2028: 1.098%, 2029: 1.193%, 2030: 1.912%.",
     "status": "scored",
     "score": 0.9116935274672064,
+    "cagr_err": 0.0709453394815327,
     "hc_err": 0.00952380952381926,
     "cal_gap": 7.549516567451064e-13,
     "failures": [],
@@ -726,7 +759,10 @@
         "hc_err": 0.0016452780519804477,
         "cal_gap": 7.549516567451064e-13
       }
-    ]
+    ],
+    "stress": true,
+    "pass_per_year": false,
+    "pass_cagr": true
   },
   {
     "cell": "young_h5_c1_low",
@@ -736,6 +772,7 @@
     "calibration_reason": "The minimax balance point is tightly located, but the annual growth spread is too wide for one scale to meet every year's tolerance. Best achievable evaluated worst-year error: 0.853pp; annual growth: 2027: 0.148%, 2028: 0.691%, 2029: 1.089%, 2030: 1.853%.",
     "status": "scored",
     "score": 0.8531864277994359,
+    "cagr_err": 0.05651456284998435,
     "hc_err": 0.00952380952381926,
     "cal_gap": 7.771561172376096e-13,
     "failures": [],
@@ -807,7 +844,10 @@
         "hc_err": 0.0016452780519804477,
         "cal_gap": 8.881784197001252e-14
       }
-    ]
+    ],
+    "stress": true,
+    "pass_per_year": false,
+    "pass_cagr": true
   },
   {
     "cell": "young_h5_c4_high",
@@ -817,6 +857,7 @@
     "calibration_reason": "The minimax balance point is tightly located, but the annual growth spread is too wide for one scale to meet every year's tolerance. Best achievable evaluated worst-year error: 0.608pp; annual growth: 2027: 3.405%, 2028: 3.972%, 2029: 3.714%, 2030: 4.608%.",
     "status": "scored",
     "score": 0.6081703734679458,
+    "cagr_err": 0.07623941706850967,
     "hc_err": 0.00952380952381926,
     "cal_gap": 1.4876988529977098e-12,
     "failures": [],
@@ -888,7 +929,10 @@
         "hc_err": 0.0016452780519804477,
         "cal_gap": 4.884981308350689e-13
       }
-    ]
+    ],
+    "stress": false,
+    "pass_per_year": false,
+    "pass_cagr": true
   },
   {
     "cell": "young_h5_c4_high",
@@ -898,6 +942,7 @@
     "calibration_reason": "The minimax balance point is tightly located, but the annual growth spread is too wide for one scale to meet every year's tolerance. Best achievable evaluated worst-year error: 0.789pp; annual growth: 2027: 3.211%, 2028: 3.862%, 2029: 4.511%, 2030: 4.789%.",
     "status": "scored",
     "score": 0.7893927478046772,
+    "cagr_err": 0.09171005241304453,
     "hc_err": 0.00952380952381926,
     "cal_gap": 3.552713678800501e-13,
     "failures": [],
@@ -969,7 +1014,10 @@
         "hc_err": 0.0016452780519804477,
         "cal_gap": 3.552713678800501e-13
       }
-    ]
+    ],
+    "stress": false,
+    "pass_per_year": false,
+    "pass_cagr": true
   },
   {
     "cell": "older_h2_c4_high",
@@ -979,6 +1027,7 @@
     "calibration_reason": "The minimax balance point is tightly located, but the annual growth spread is too wide for one scale to meet every year's tolerance. Best achievable evaluated worst-year error: 0.240pp; annual growth: 2027: 3.836%, 2028: 4.098%, 2029: 3.790%, 2030: 4.240%.",
     "status": "scored",
     "score": 0.23962674689439822,
+    "cagr_err": 0.00915503504667825,
     "hc_err": 0.004434589800437649,
     "cal_gap": 8.215650382226158e-13,
     "failures": [],
@@ -1050,7 +1099,10 @@
         "hc_err": 0.004434589800437649,
         "cal_gap": 3.9968028886505635e-13
       }
-    ]
+    ],
+    "stress": false,
+    "pass_per_year": true,
+    "pass_cagr": true
   },
   {
     "cell": "older_h2_c4_high",
@@ -1060,6 +1112,7 @@
     "calibration_reason": "The minimax balance point is tightly located, but the annual growth spread is too wide for one scale to meet every year's tolerance. Best achievable evaluated worst-year error: 0.536pp; annual growth: 2027: 3.471%, 2028: 4.536%, 2029: 4.123%, 2030: 3.521%.",
     "status": "scored",
     "score": 0.5363310688394831,
+    "cagr_err": 0.08798117195742616,
     "hc_err": 0.004434589800437649,
     "cal_gap": 1.021405182655144e-12,
     "failures": [],
@@ -1131,7 +1184,10 @@
         "hc_err": 0.004434589800437649,
         "cal_gap": 8.659739592076221e-13
       }
-    ]
+    ],
+    "stress": false,
+    "pass_per_year": false,
+    "pass_cagr": true
   },
   {
     "cell": "older_h5_c1_low",
@@ -1141,6 +1197,7 @@
     "calibration_reason": "The minimax balance point is tightly located, but the annual growth spread is too wide for one scale to meet every year's tolerance. Best achievable evaluated worst-year error: 0.485pp; annual growth: 2027: 0.515%, 2028: 1.158%, 2029: 1.037%, 2030: 1.485%.",
     "status": "scored",
     "score": 0.48529168942390655,
+    "cagr_err": 0.048206329324541386,
     "hc_err": 0.00952380952381926,
     "cal_gap": 1.0658141036401503e-12,
     "failures": [],
@@ -1212,7 +1269,10 @@
         "hc_err": 0.0016452780519804477,
         "cal_gap": 8.215650382226158e-13
       }
-    ]
+    ],
+    "stress": true,
+    "pass_per_year": true,
+    "pass_cagr": true
   },
   {
     "cell": "older_h5_c1_low",
@@ -1222,6 +1282,7 @@
     "calibration_reason": "The minimax balance point is tightly located, but the annual growth spread is too wide for one scale to meet every year's tolerance. Best achievable evaluated worst-year error: 0.518pp; annual growth: 2027: 0.483%, 2028: 0.805%, 2029: 1.063%, 2030: 1.518%.",
     "status": "scored",
     "score": 0.5177448385859549,
+    "cagr_err": 0.033620600021143865,
     "hc_err": 0.00952380952381926,
     "cal_gap": 1.2212453270876722e-12,
     "failures": [],
@@ -1293,7 +1354,10 @@
         "hc_err": 0.0016452780519804477,
         "cal_gap": 8.659739592076221e-13
       }
-    ]
+    ],
+    "stress": true,
+    "pass_per_year": false,
+    "pass_cagr": true
   },
   {
     "cell": "older_h5_c4_high",
@@ -1303,6 +1367,7 @@
     "calibration_reason": "The minimax balance point is tightly located, but the annual growth spread is too wide for one scale to meet every year's tolerance. Best achievable evaluated worst-year error: 0.257pp; annual growth: 2027: 4.257%, 2028: 4.180%, 2029: 3.781%, 2030: 4.066%.",
     "status": "scored",
     "score": 0.2571984649854233,
+    "cagr_err": 0.07099729834414781,
     "hc_err": 0.00952380952381926,
     "cal_gap": 9.103828801926284e-13,
     "failures": [],
@@ -1374,7 +1439,10 @@
         "hc_err": 0.0016452780519804477,
         "cal_gap": 9.103828801926284e-13
       }
-    ]
+    ],
+    "stress": false,
+    "pass_per_year": true,
+    "pass_cagr": true
   },
   {
     "cell": "older_h5_c4_high",
@@ -1384,6 +1452,7 @@
     "calibration_reason": "The minimax balance point is tightly located, but the annual growth spread is too wide for one scale to meet every year's tolerance. Best achievable evaluated worst-year error: 0.296pp; annual growth: 2027: 3.704%, 2028: 4.296%, 2029: 3.805%, 2030: 3.792%.",
     "status": "scored",
     "score": 0.29585012385540477,
+    "cagr_err": 0.1009292706414886,
     "hc_err": 0.00952380952381926,
     "cal_gap": 1.5987211554602254e-12,
     "failures": [],
@@ -1455,6 +1524,9 @@
         "hc_err": 0.0016452780519804477,
         "cal_gap": 1.0880185641326534e-12
       }
-    ]
+    ],
+    "stress": false,
+    "pass_per_year": true,
+    "pass_cagr": true
   }
 ]

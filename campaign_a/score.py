@@ -13,6 +13,14 @@ ROOT = Path(__file__).resolve().parent
 Json = dict[str, Any]
 
 
+# Amendment 2026-10-30 (see ORACLE.md), fixed before any holdout run.
+PER_YEAR_BAR = 0.50
+CAGR_BAR = 0.25
+HC_BAR = 0.10
+CAL_GAP_BAR = 0.10
+STRESS_COMP_TARGETS = (1,)
+
+
 def annual(database: str) -> list[Json]:
     with duckdb.connect(database, read_only=True) as conn:
         duplicate = conn.execute(
@@ -102,6 +110,28 @@ def hire_flags(database: str, census: str) -> list[str]:
     return flags
 
 
+def cagr_err(rows: list[Json], target: float) -> float:
+    """Amendment 2026-10-30: compound Active comp growth error over the horizon."""
+    first, last = rows[0]["active_avg_comp"], rows[-1]["active_avg_comp"]
+    growth = 100 * ((last / first) ** (1 / (len(rows) - 1)) - 1)
+    return abs(growth - target)
+
+
+def bars(cell: Json, result: Json) -> Json:
+    """Amendment 2026-10-30 acceptance bars; 1% comp targets are stress cells."""
+    clean = (
+        result["score"] is not None
+        and result["hc_err"] <= HC_BAR
+        and result["cal_gap"] <= CAL_GAP_BAR
+        and not result["failures"]
+    )
+    return {
+        "stress": cell["comp_target_pct"] in STRESS_COMP_TARGETS,
+        "pass_per_year": clean and result["score"] <= PER_YEAR_BAR,
+        "pass_cagr": clean and result["cagr_err"] <= CAGR_BAR,
+    }
+
+
 def score_run(cell: Json, run: Json, census: str) -> Json:
     if run.get("status") != "completed":
         return {
@@ -131,6 +161,7 @@ def score_run(cell: Json, run: Json, census: str) -> Json:
         return {
             "status": "scored",
             "score": max(row["comp_err"] for row in rows[1:]),
+            "cagr_err": cagr_err(rows, cell["comp_target_pct"]),
             "hc_err": max(row["hc_err"] for row in rows[1:]),
             "cal_gap": max(row["cal_gap"] for row in rows[1:]),
             "failures": flags,
@@ -166,9 +197,11 @@ def main(stage: str = "baseline", split: str | None = None) -> None:
                     calibration_status=outcome.get("status"),
                     calibration_reason=outcome.get("reason"),
                     **result,
+                    **bars(cell, result),
                 )
             )
-    (ROOT / f"{stage}_scores.json").write_text(
+    suffix = "_holdout" if split == "holdout" else ""
+    (ROOT / f"{stage}{suffix}_scores.json").write_text(
         json.dumps(scores, indent=2, allow_nan=False) + "\n"
     )
     print(
@@ -177,6 +210,13 @@ def main(stage: str = "baseline", split: str | None = None) -> None:
                 "expected": len(scores),
                 "scored": sum(row["score"] is not None for row in scores),
                 "failed_or_missing": sum(row["score"] is None for row in scores),
+                "standard_cells": sum(not row["stress"] for row in scores),
+                "standard_pass_per_year": sum(
+                    row["pass_per_year"] for row in scores if not row["stress"]
+                ),
+                "standard_pass_cagr": sum(
+                    row["pass_cagr"] for row in scores if not row["stress"]
+                ),
             }
         )
     )

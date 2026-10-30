@@ -21,3 +21,12 @@ Synthetic censuses only, hashed before runs. Full provenance-matched baseline, S
 
 ## Amendment 2026-10-29 (user decision, after parity diagnosis)
 The scored metric is Studio's **Active** population view, not the ALL default: comp growth = YoY of AVG(prorated_annual_compensation) over LOWER(employment_status)='active' fct_workforce_snapshot rows; headcount = active rows. ALL-population and annualized figures are diagnostics only. Reason: ALL rows include terminated employees, so hire/termination timing dominates that growth figure (and ALL headcount drifts from the E077 active target). New stages `hire_date_fix` and `search_fix` follow the simulation fixes for hire-date assignment (92f67588) and leap-year proration (15331c5b) plus the minimax search (eedcd5cf). Pre-amendment stage scores are not comparable to post-fix stages.
+
+## Amendment 2026-10-30 (user decision, before any post-fix holdout run)
+Written and committed before any holdout cell runs at stage `turnover_indexed_3pct`; holdout results must not change it.
+- **Acceptance bars** replace the per-year 0.25pp bar, which sits below measured seed noise (~0.3–0.4pp per year at 5,000 employees). A run passes a bar only if hc_err <= 0.10pp, cal_gap <= 0.10pp and it has zero failures, plus:
+  - per-year bar: max annual comp_err <= 0.50pp;
+  - compound bar: |2026→2030 compound Active comp growth − target| <= 0.25pp.
+  Both pass rates are reported; neither replaces the other.
+- **Stress cells:** cells with a 1% comp-growth target are stress tests, scored and reported separately. With 3.5% merit and 2% COLA, 1% average growth requires new-hire pay to keep falling behind incumbents, which is not a typical US workforce. Campaign acceptance is judged on the remaining (standard) cells.
+- **Holdout configuration:** stage `turnover_indexed_3pct` (first-year prior-hire turnover fix ac5be11d, 3% annual new-hire range growth), seed 42, all 45 holdout cells, run once. Infeasible-but-diagnosed cells are scored on their returned best scale like every other run.

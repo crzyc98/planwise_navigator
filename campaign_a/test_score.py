@@ -5,7 +5,7 @@ from pathlib import Path
 import duckdb
 import pytest
 
-from campaign_a.score import annual, range_flags, score_run
+from campaign_a.score import annual, bars, cagr_err, range_flags, score_run
 
 pytestmark = pytest.mark.fast
 
@@ -62,3 +62,30 @@ def test_invalid_ranges_and_clamp_are_failures():
     assert "scale_clamped" in flags
     assert "invalid_range_level_2" in flags
     assert "nonmonotone_range_level_2" in flags
+
+
+def test_cagr_err_uses_first_and_last_active_average():
+    rows = [{"active_avg_comp": 100.0}] + [{}] * 3 + [{"active_avg_comp": 121.0}]
+    assert cagr_err(rows, 4.0) == pytest.approx(abs(100 * (1.21**0.25 - 1) - 4))
+
+
+def test_bars_mark_stress_cells_and_require_clean_runs():
+    result = {
+        "score": 0.4,
+        "cagr_err": 0.1,
+        "hc_err": 0.0,
+        "cal_gap": 0.0,
+        "failures": [],
+    }
+    assert bars({"comp_target_pct": 4}, result) == {
+        "stress": False,
+        "pass_per_year": True,
+        "pass_cagr": True,
+    }
+    assert bars({"comp_target_pct": 1}, result)["stress"]
+    flagged = dict(result, failures=["hire_pay_ratio_2030_5"])
+    assert not any(
+        bars({"comp_target_pct": 4}, flagged)[k] for k in ("pass_per_year", "pass_cagr")
+    )
+    missing = dict(result, score=None)
+    assert not bars({"comp_target_pct": 4}, missing)["pass_cagr"]
