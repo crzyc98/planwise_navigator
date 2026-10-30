@@ -68,6 +68,17 @@ def execution_environment(
             os.environ["DATABASE_PATH"] = previous_database
 
 
+STAGES = (
+    "baseline",
+    "prerequisite_repair",
+    "hire_date_fix",
+    "search_fix",
+    "indexed_cola",
+)
+# Analyst starting-pay growth assumption per stage; matches the 2% config COLA.
+SALARY_GROWTH_BY_STAGE = {"indexed_cola": 0.02}
+
+
 def save_record(cell: Json, seed: int, stage: str, record: Json) -> None:
     """Preserve other stages/seeds and existing scorer fields."""
     path = CAMPAIGN / "cells" / f"{cell['id']}.json"
@@ -109,7 +120,7 @@ def census_inputs(storage: WorkspaceStorage, workspace: str, census: Path) -> Js
 
 
 def prepare_workspace(
-    cell: Json, seed: int, directory: Path
+    cell: Json, seed: int, directory: Path, stage: str
 ) -> tuple[WorkspaceStorage, str, str, Json]:
     manifest = json.loads((CAMPAIGN / "census_manifest.json").read_text())[
         cell["shape"]
@@ -149,6 +160,8 @@ def prepare_workspace(
     config.setdefault("new_hire", {}).update(
         age_distribution=ages["distribution"], job_level_compensation=ranges
     )
+    if stage in SALARY_GROWTH_BY_STAGE:
+        config["new_hire"]["salary_growth_rate"] = SALARY_GROWTH_BY_STAGE[stage]
     storage.update_workspace(workspace.id, base_config=config)
     scenario = storage.create_scenario(
         workspace.id, ScenarioCreate(name="Campaign target")
@@ -359,12 +372,7 @@ def execute_phase(
 def run_cell(cell_id: str, seed: int, stage: str) -> Json:
     cells = json.loads((CAMPAIGN / "matrix.json").read_text())
     cell = next((row for row in cells if row["id"] == cell_id), None)
-    if (
-        cell is None
-        or seed not in cell["seeds"]
-        or stage
-        not in ("baseline", "prerequisite_repair", "hire_date_fix", "search_fix")
-    ):
+    if cell is None or seed not in cell["seeds"] or stage not in STAGES:
         raise ValueError("Unknown cell, unfrozen seed, or unsupported stage")
     path = CAMPAIGN / "cells" / f"{cell_id}.json"
     if path.exists() and str(seed) in json.loads(path.read_text()).get("runs", {}).get(
@@ -384,7 +392,9 @@ def run_cell(cell_id: str, seed: int, stage: str) -> Json:
     started = time.monotonic()
     try:
         save_record(cell, seed, stage, record)
-        storage, workspace, scenario, inputs = prepare_workspace(cell, seed, directory)
+        storage, workspace, scenario, inputs = prepare_workspace(
+            cell, seed, directory, stage
+        )
         record.update(workspace_id=workspace, scenario_id=scenario, inputs=inputs)
         execute_phase(
             cell,
@@ -432,7 +442,7 @@ def main() -> None:
     parser.add_argument(
         "--stage",
         required=True,
-        choices=["baseline", "prerequisite_repair", "hire_date_fix", "search_fix"],
+        choices=list(STAGES),
     )
     args = parser.parse_args()
     run_cell(args.cell, args.seed, args.stage)
