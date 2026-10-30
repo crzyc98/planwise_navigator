@@ -121,9 +121,10 @@ def score_run(cell: Json, run: Json, census: str) -> Json:
             prediction = predictions[row["year"]]
             if prediction is None or not math.isfinite(prediction):
                 raise ValueError("missing or nonfinite calibration prediction")
-            row["comp_err"] = abs(row["comp_growth"] - cell["comp_target_pct"])
-            row["hc_err"] = abs(row["hc_growth"] - cell["hc_target_pct"])
-            row["cal_gap"] = abs(prediction - row["comp_growth"])
+            # Amendment 2026-10-29: score Studio's Active view (see ORACLE.md).
+            row["comp_err"] = abs(row["active_comp_growth"] - cell["comp_target_pct"])
+            row["hc_err"] = abs(row["active_hc_growth"] - cell["hc_target_pct"])
+            row["cal_gap"] = abs(prediction - row["active_comp_growth"])
         flags = range_flags(run["calibration"]) + hire_flags(
             run["applied"]["database"], census
         )
@@ -145,19 +146,29 @@ def score_run(cell: Json, run: Json, census: str) -> Json:
         }
 
 
-def main() -> None:
+def main(stage: str = "baseline", split: str | None = None) -> None:
     cells = json.loads((ROOT / "matrix.json").read_text())
+    if split is not None:
+        cells = [cell for cell in cells if cell["split"] == split]
     census = json.loads((ROOT / "census_manifest.json").read_text())
     scores = []
     for cell in cells:
         record = json.loads((ROOT / "cells" / f"{cell['id']}.json").read_text())
         for seed in cell["seeds"]:
-            run = record.get("runs", {}).get("baseline", {}).get(str(seed), {})
+            run = record.get("runs", {}).get(stage, {}).get(str(seed), {})
             result = score_run(cell, run, census[cell["shape"]]["path"])
+            outcome = run.get("calibration", {}).get("outcome", {})
             scores.append(
-                dict(cell=cell["id"], split=cell["split"], seed=seed, **result)
+                dict(
+                    cell=cell["id"],
+                    split=cell["split"],
+                    seed=seed,
+                    calibration_status=outcome.get("status"),
+                    calibration_reason=outcome.get("reason"),
+                    **result,
+                )
             )
-    (ROOT / "baseline_scores.json").write_text(
+    (ROOT / f"{stage}_scores.json").write_text(
         json.dumps(scores, indent=2, allow_nan=False) + "\n"
     )
     print(
@@ -172,4 +183,10 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--stage", default="baseline")
+    parser.add_argument("--split", choices=["dev", "holdout"])
+    args = parser.parse_args()
+    main(args.stage, args.split)
