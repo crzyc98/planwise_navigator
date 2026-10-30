@@ -44,10 +44,24 @@ Indexing removed the downward trend but did not improve accuracy overall. Per-ye
 
 **Structural 2027 step.** `int_workforce_needs.sql` terminates the prior year's hires at the new-hire rate, but year 1 hard-codes `0 AS current_year_hires`, so the census's 2025 hires (1,000 of 5,000 in every synthetic census) are treated as experienced. Experienced terminations are 1,000 in 2026, then 1,185 in 2027 (0.20 x 4,000 + 0.35 x 1,100) and ~23–24% of headcount thereafter. The extra turnover and replacement hiring depress 2027 comp growth in every run. This is current Studio behavior and was not changed.
 
+## Stage `prior_hire_turnover`: census prior-year hires get second-year turnover (commit ac5be11d, 17a796ce)
+Year 1 of `int_workforce_needs.sql` now counts census employees hired in the prior year as prior-year hires (new-hire termination rate), matching later years. Starting-pay growth 0%.
+
+| Metric | search_fix | prior_hire_turnover |
+|---|---|---|
+| Mean max-year comp_err, seed 42 / 101 | 0.531 / 0.771pp | 0.709 / 0.768pp |
+| Worst run | 1.29pp | 1.35pp |
+| 1%-target cells, mean max-year error | 0.38pp | 0.25pp |
+| 4%-target cells, mean max-year error | 0.79pp | 0.98pp |
+| CAGR error mean / max | 0.071 / 0.134pp | 0.116 / 0.332pp |
+| cal_gap max / plausibility failures | 0.000pp / 0 | 0.000pp / 0 |
+
+The turnover step moved into the unscored 2026 base year, so 2027 is no longer depressed; it is now the highest year in 4%-target cells (e.g. 5.35, 4.70, 3.33, 2.65%). The remaining shape is the monotone decline from fixed nominal new-hire pay, which the 2% `indexed_cola` run was masking with the old 2027 step. Seed-to-seed difference per year: mean 0.37pp, max 0.97pp.
+
 ## Not done
 Holdout (45 cells) not run. Decisions pending: the first-year prior-hire turnover rule, the analyst growth-rate choice, and the per-year acceptance bar. Needs ~11 GB unless databases are deleted after scoring.
 
 ## Verification
-`python3 scripts/dev.py -- python -m pytest -m fast -q -n 4` (4105 passed); `python3 scripts/dev.py -- ruff check .`; `bun run --cwd planalign_studio typecheck`; `python3 scripts/dev.py -- python campaign_a/score.py --stage search_fix --split dev`; `python3 scripts/dev.py -- python campaign_a/score.py --stage indexed_cola --split dev` (4130 fast tests passed after commit 8cdae2c3).
+`python3 scripts/dev.py -- python -m pytest -m fast -q -n 4` (4105 passed); `python3 scripts/dev.py -- ruff check .`; `bun run --cwd planalign_studio typecheck`; `python3 scripts/dev.py -- python campaign_a/score.py --stage search_fix --split dev`; `python3 scripts/dev.py -- python campaign_a/score.py --stage indexed_cola --split dev`; `python3 scripts/dev.py -- python campaign_a/score.py --stage prior_hire_turnover --split dev` (4130 fast tests passed after commit 8cdae2c3).
 
 **CHECKPOINT: awaiting human review**

@@ -1,3 +1,4 @@
 iter	hypothesis	commit	score	hc_err	cal_gap	failures	kept
 search_fix	Hire-date + leap-year sim fixes; Active metric; minimax search	eedcd5cf	0.531 (s42) / 0.771 (s101)	<=0.01	0.000	0	kept
 indexed_cola	2%/yr new-hire range growth (= COLA)	63e1211e	0.620 (s42) / 0.853 (s101)	<=0.01	0.000	5	feature kept; accuracy not improved
+prior_hire_turnover	Census prior-year hires get second-year turnover; 0% range growth	ac5be11d	0.709 (s42) / 0.768 (s101)	<=0.01	0.000	0	fix kept; accuracy not improved

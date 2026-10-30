@@ -1,6 +1,6 @@
 {
   "status": "dev_validated_awaiting_review",
-  "stage": "indexed_cola",
+  "stage": "prior_hire_turnover",
   "dev_runs": {
     "completed": 18,
     "failed": 0
@@ -10,11 +10,11 @@
   },
   "cal_gap_max_pp": 0.0,
   "dev_mean_max_comp_err_pp": {
-    "42": 0.62,
-    "101": 0.853
+    "42": 0.709,
+    "101": 0.768
   },
   "noise_band_pp": 0.253,
-  "dev_plausibility_failures": 5,
+  "dev_plausibility_failures": 0,
   "previous_stage": {
     "stage": "search_fix",
     "dev_mean_max_comp_err_pp": {
