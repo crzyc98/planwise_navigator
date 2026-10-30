@@ -1,17 +1,9 @@
 {
-  "status": "blocked_storage",
-  "run_counts": {
-    "baseline": {
-      "failed": 11,
-      "interrupted": 1,
-      "not_run": 51
-    },
-    "prerequisite_repair": {
-      "interrupted": 1,
-      "not_run": 61,
-      "completed": 1
-    }
-  },
-  "free_gib_at_stop": 5.9,
-  "completed_cell_bytes": 247738261
+  "status": "dev_validated_awaiting_review",
+  "stage": "search_fix",
+  "dev_runs": {"completed": 18, "failed": 0},
+  "holdout_runs": {"not_run": 45},
+  "cal_gap_max_pp": 0.0,
+  "dev_mean_max_comp_err_pp": {"42": 0.531, "101": 0.771},
+  "noise_band_pp": 0.253
 }

@@ -1,1 +1,2 @@
 iter	hypothesis	commit	score	hc_err	cal_gap	failures	kept
+search_fix	Hire-date + leap-year sim fixes; Active metric; minimax search	eedcd5cf	0.531 (s42) / 0.771 (s101)	<=0.01	0.000	0	kept
