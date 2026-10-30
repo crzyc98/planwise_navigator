@@ -202,7 +202,9 @@ def score_run(cell: Json, run: Json, census: str) -> Json:
         }
 
 
-def main(stage: str = "baseline", split: str | None = None) -> None:
+def main(
+    stage: str = "baseline", split: str | None = None, seed: int | None = None
+) -> None:
     cells = json.loads((ROOT / "matrix.json").read_text())
     if split is not None:
         cells = [cell for cell in cells if cell["split"] == split]
@@ -210,22 +212,24 @@ def main(stage: str = "baseline", split: str | None = None) -> None:
     scores = []
     for cell in cells:
         record = json.loads((ROOT / "cells" / f"{cell['id']}.json").read_text())
-        for seed in cell["seeds"]:
-            run = record.get("runs", {}).get(stage, {}).get(str(seed), {})
+        for run_seed in [s for s in cell["seeds"] if seed in (None, s)]:
+            run = record.get("runs", {}).get(stage, {}).get(str(run_seed), {})
             result = score_run(cell, run, census[cell["shape"]]["path"])
             outcome = run.get("calibration", {}).get("outcome", {})
             scores.append(
                 dict(
                     cell=cell["id"],
                     split=cell["split"],
-                    seed=seed,
+                    seed=run_seed,
                     calibration_status=outcome.get("status"),
                     calibration_reason=outcome.get("reason"),
                     **result,
                     **bars(cell, result),
                 )
             )
-    suffix = "_holdout" if split == "holdout" else ""
+    suffix = ("_holdout" if split == "holdout" else "") + (
+        f"_seed{seed}" if seed is not None else ""
+    )
     (ROOT / f"{stage}{suffix}_scores.json").write_text(
         json.dumps(scores, indent=2, allow_nan=False) + "\n"
     )
@@ -253,5 +257,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--stage", default="baseline")
     parser.add_argument("--split", choices=["dev", "holdout"])
+    parser.add_argument("--seed", type=int)
     args = parser.parse_args()
-    main(args.stage, args.split)
+    main(args.stage, args.split, args.seed)
