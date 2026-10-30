@@ -14,6 +14,10 @@
 {% set scenario_id = var('scenario_id', 'default') %}
 {% set start_year = var('start_year', 2025) | int %}
 {% set is_first_year = (simulation_year | int) == start_year %}
+{% set prior_year_hire -%}
+COUNT(*) FILTER (WHERE employee_hire_date >= DATE '{{ (simulation_year | int) - 1 }}-01-01'
+  AND employee_hire_date < DATE '{{ simulation_year }}-01-01')
+{%- endset %}
 
 WITH simulation_config AS (
   SELECT
@@ -29,11 +33,13 @@ WITH simulation_config AS (
 -- Current workforce baseline (switch source based on first year vs subsequent years)
 current_workforce AS (
   {% if is_first_year %}
-  -- Year 1: Use baseline workforce only (do NOT include staging new hires)
+  -- Year 1: Use baseline workforce only (do NOT include staging new hires).
+  -- Census employees hired in the prior year carry the same second-year
+  -- new-hire turnover as simulated prior-year hires in later years.
   SELECT
     COUNT(*) AS total_active_workforce,
-    COUNT(*) AS experienced_workforce,
-    0 AS current_year_hires,
+    COUNT(*) - {{ prior_year_hire }} AS experienced_workforce,
+    {{ prior_year_hire }} AS current_year_hires,
     AVG(current_compensation) AS avg_compensation,
     SUM(current_compensation) AS total_compensation
   FROM {{ ref('int_baseline_workforce') }}
