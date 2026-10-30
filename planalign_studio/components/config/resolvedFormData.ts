@@ -202,6 +202,7 @@ function applyCoreSchedules(variables: Variables, form: FormData): FormData {
 function applyNewHire(variables: Variables, form: FormData): FormData {
   return {
     ...form,
+    newHireSalaryGrowthPercent: typeof variables.new_hire_salary_growth_rate === 'number' ? variables.new_hire_salary_growth_rate * 100 : 0,
     ...(rows<Variables>(variables.new_hire_age_distribution) ? { newHireAgeDistribution: rows<Variables>(variables.new_hire_age_distribution)!.map(row => ({
       age: row.age, weight: row.weight, description: form.newHireAgeDistribution.find(age => age.age === row.age)?.description ?? '',
     })) as FormData['newHireAgeDistribution'] } : {}),

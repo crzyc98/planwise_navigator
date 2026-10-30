@@ -84,8 +84,9 @@ level_compensation AS (
     max_compensation,
     -- Simplified compensation calculation to prevent overflow
     CAST(
-      min_compensation +
-      (COALESCE(max_compensation, min_compensation * 1.5) - min_compensation) * 0.50
+      (min_compensation +
+      (COALESCE(max_compensation, min_compensation * 1.5) - min_compensation) * 0.50)
+      {{ new_hire_salary_index() }}
     AS DECIMAL(12,2)) AS avg_level_compensation
   FROM {{ ref('stg_config_job_levels') }}
 ),

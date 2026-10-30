@@ -129,6 +129,15 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
       </div>
 
 
+      <div className="space-y-2">
+        <label htmlFor="newhire-salary-growth" className="block text-sm font-medium text-ink">Annual starting-pay growth (%)</label>
+        <div className="flex items-center gap-2">
+          <NumericInput id="newhire-salary-growth" type="number" min="0" max="25" step="0.1" value={formData.newHireSalaryGrowthPercent} onChange={(e) => setFormData(prev => ({ ...prev, newHireSalaryGrowthPercent: parseFloat(e.target.value) }))} className="focus:ring-fidelity-green focus:border-fidelity-green block w-full sm:text-sm border-border rounded-md p-2" />
+          <button type="button" onClick={() => setFormData(prev => ({ ...prev, newHireSalaryGrowthPercent: prev.colaRate }))} className="px-3 py-2 rounded bg-surface-disabled text-sm whitespace-nowrap">Match COLA</button>
+        </div>
+        <p className="text-xs text-ink-muted">Raises new-hire salary ranges each year after the first simulation year. Ranges are entered in first-year dollars.</p>
+      </div>
+
       <div className="space-y-4">
         {!essentials && (<fieldset disabled className="space-y-4">
         <legend className="text-sm font-medium text-ink">Legacy offer controls (unsupported)</legend>

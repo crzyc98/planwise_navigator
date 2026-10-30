@@ -233,3 +233,21 @@ describe('contribution rate change payload and inheritance', () => {
       deferral_rate_changes_stop_probability: 0.0225, deferral_rate_changes_increase_steps: [{ pp: 3, weight: 1 }] } });
   });
 });
+
+describe('annual starting-pay growth', () => {
+  it('loads percentages and saves decimal rates', () => {
+    const form = applyConfigToFormData({ new_hire: { salary_growth_rate: 0.03 } }, DEFAULT_FORM_DATA);
+    expect(form.newHireSalaryGrowthPercent).toBe(3);
+    expect(payload(form).new_hire).toMatchObject({ salary_growth_rate: 0.03 });
+  });
+
+  it('defaults missing and explicit zero rates to zero even after another scenario', () => {
+    const previous = { ...DEFAULT_FORM_DATA, newHireSalaryGrowthPercent: 5, colaRate: 4 };
+    for (const config of [{}, { new_hire: {} }, { new_hire: { salary_growth_rate: 0 } }]) {
+      const form = applyConfigToFormData(config, previous);
+      expect(form.newHireSalaryGrowthPercent).toBe(0);
+      expect(payload(form).new_hire).toMatchObject({ salary_growth_rate: 0 });
+    }
+    expect(payload(DEFAULT_FORM_DATA).new_hire).toMatchObject({ salary_growth_rate: 0 });
+  });
+});

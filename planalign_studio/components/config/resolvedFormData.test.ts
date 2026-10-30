@@ -177,3 +177,17 @@ describe('resolved Easy Enroll inputs', () => {
         dcEasyEnrollShareWithoutAutoEnrollment: 0, dcEasyEnrollEscalationCap: 0 });
   });
 });
+
+describe('resolved starting-pay growth', () => {
+  it('converts the exported decimal rate to percent', () => {
+    expect(applyResolvedFormData({ new_hire_salary_growth_rate: 0.03 }, DEFAULT_FORM_DATA)
+      .newHireSalaryGrowthPercent).toBe(3);
+  });
+
+  it('resets missing and zero rates to zero rather than COLA', () => {
+    const previous = { ...DEFAULT_FORM_DATA, newHireSalaryGrowthPercent: 7, colaRate: 4 };
+    expect(applyResolvedFormData({}, previous).newHireSalaryGrowthPercent).toBe(0);
+    expect(applyResolvedFormData({ new_hire_salary_growth_rate: 0 }, previous)
+      .newHireSalaryGrowthPercent).toBe(0);
+  });
+});

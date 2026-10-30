@@ -292,7 +292,7 @@ compensation_planning AS (
      COALESCE({{ resolve_parameter('jlm.level_id', 'HIRE', 'compensation_percentile', simulation_year) }}, 0.50) *
      COALESCE({{ resolve_parameter('jlm.level_id', 'HIRE', 'market_adjustment_multiplier', simulation_year) }}, 1.0) *
      (1 + {{ var('market_scenario_adjustment', 0) }} / 100.0)
-    ) AS DOUBLE) AS new_hire_avg_compensation,
+    ) {{ new_hire_salary_index() }} AS DOUBLE) AS new_hire_avg_compensation,
     -- Merit increase planning - use variable-based parameters for consistency
     CAST(wbl.total_compensation * {{ var('merit_budget', 0.035) }} AS DOUBLE) AS merit_increase_cost,
     -- COLA planning - use variable-based parameters for consistency

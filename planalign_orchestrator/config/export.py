@@ -1165,6 +1165,11 @@ def _export_compensation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
     if promotion.advanced.market_adjustments:
         dbt_vars["promotion_market_adjustments"] = promotion.advanced.market_adjustments
 
+    # Omit the default so existing configs keep their fingerprints.
+    salary_growth_rate = cfg.new_hire.get("salary_growth_rate", 0.0)
+    if salary_growth_rate:
+        dbt_vars["new_hire_salary_growth_rate"] = salary_growth_rate
+
     # E082: Job level compensation from new_hire config
     try:
         new_hire_config = getattr(cfg, "new_hire", None)
