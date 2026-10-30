@@ -58,10 +58,22 @@ Year 1 of `int_workforce_needs.sql` now counts census employees hired in the pri
 
 The turnover step moved into the unscored 2026 base year, so 2027 is no longer depressed; it is now the highest year in 4%-target cells (e.g. 5.35, 4.70, 3.33, 2.65%). The remaining shape is the monotone decline from fixed nominal new-hire pay, which the 2% `indexed_cola` run was masking with the old 2027 step. Seed-to-seed difference per year: mean 0.37pp, max 0.97pp.
 
+## Stage `turnover_indexed_3pct`: turnover fix + 3% annual new-hire range growth (commit 3dad48f9)
+3% chosen as a typical US assumption: 2026 salary-structure adjustments average ~2.6%, total increase budgets 3.4–3.6%, Atlanta Fed job-switcher wage growth ~5.0% and stayer ~3.6% (Aug 2026).
+
+| Stage | Mean max-year err s42 / s101 | 1%-target cells | 4%-target cells | Worst run | CAGR err mean / max | Failures |
+|---|---|---|---|---|---|---|
+| search_fix | 0.531 / 0.771 | 0.380 | 0.786 | 1.29 | 0.071 / 0.134 | 0 |
+| indexed_cola (2%) | 0.620 / 0.853 | 0.699 | 0.755 | 1.06 | 0.126 / 0.362 | 5 |
+| prior_hire_turnover (0%) | 0.709 / 0.768 | 0.252 | 0.982 | 1.35 | 0.116 / 0.332 | 0 |
+| turnover_indexed_3pct | 0.537 / 0.584 | 0.656 | 0.513 | 0.91 | 0.068 / 0.144 | 0 |
+
+cal_gap max 0.000pp and active headcount error <= 0.01pp in every stage. 4%-target cells: 1 run <= 0.25pp, 5 runs <= 0.5pp; the oldest-workforce cells are nearly flat (e.g. 3.70, 4.30, 3.81, 3.79%). 1%-target cells now rise across the horizon (e.g. 0.09 → 1.91%) because 1% average growth with 3.5% merit + 2% COLA requires new-hire pay far below incumbents, which a market-indexed range does not sustain.
+
 ## Not done
 Holdout (45 cells) not run. Decisions pending: the first-year prior-hire turnover rule, the analyst growth-rate choice, and the per-year acceptance bar. Needs ~11 GB unless databases are deleted after scoring.
 
 ## Verification
-`python3 scripts/dev.py -- python -m pytest -m fast -q -n 4` (4105 passed); `python3 scripts/dev.py -- ruff check .`; `bun run --cwd planalign_studio typecheck`; `python3 scripts/dev.py -- python campaign_a/score.py --stage search_fix --split dev`; `python3 scripts/dev.py -- python campaign_a/score.py --stage indexed_cola --split dev`; `python3 scripts/dev.py -- python campaign_a/score.py --stage prior_hire_turnover --split dev` (4130 fast tests passed after commit 8cdae2c3).
+`python3 scripts/dev.py -- python -m pytest -m fast -q -n 4` (4105 passed); `python3 scripts/dev.py -- ruff check .`; `bun run --cwd planalign_studio typecheck`; `python3 scripts/dev.py -- python campaign_a/score.py --stage search_fix --split dev`; `python3 scripts/dev.py -- python campaign_a/score.py --stage indexed_cola --split dev`; `python3 scripts/dev.py -- python campaign_a/score.py --stage prior_hire_turnover --split dev`; `python3 scripts/dev.py -- python campaign_a/score.py --stage turnover_indexed_3pct --split dev` (4130 fast tests passed after commit 8cdae2c3).
 
 **CHECKPOINT: awaiting human review**

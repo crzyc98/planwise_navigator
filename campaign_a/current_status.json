@@ -1,6 +1,6 @@
 {
   "status": "dev_validated_awaiting_review",
-  "stage": "prior_hire_turnover",
+  "stage": "turnover_indexed_3pct",
   "dev_runs": {
     "completed": 18,
     "failed": 0
@@ -10,8 +10,8 @@
   },
   "cal_gap_max_pp": 0.0,
   "dev_mean_max_comp_err_pp": {
-    "42": 0.709,
-    "101": 0.768
+    "42": 0.537,
+    "101": 0.584
   },
   "noise_band_pp": 0.253,
   "dev_plausibility_failures": 0,
