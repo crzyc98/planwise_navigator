@@ -70,6 +70,20 @@ The turnover step moved into the unscored 2026 base year, so 2027 is no longer d
 
 cal_gap max 0.000pp and active headcount error <= 0.01pp in every stage. 4%-target cells: 1 run <= 0.25pp, 5 runs <= 0.5pp; the oldest-workforce cells are nearly flat (e.g. 3.70, 4.30, 3.81, 3.79%). 1%-target cells now rise across the horizon (e.g. 0.09 → 1.91%) because 1% average growth with 3.5% merit + 2% COLA requires new-hire pay far below incumbents, which a market-indexed range does not sustain.
 
+## Stage `backfill_by_level`: hires backfill each level toward the census mix (commit 66267c26)
+Diagnosis (on the spent seed-42 holdout): hires were split by the current level mix, so promotions drifted the workforce upward with nothing backfilling vacated levels. Young censuses fell from 67% to 51–54% level 1 in four years, and level-mix shift supplied 1.6–2.8pp of the 2.5pp annual growth while within-level growth was near zero. High-turnover cells failed more because new hires (about 25% of actives, versus 13% at low turnover) carried the drifting mix. Hires now go to each level's shortfall against its start-year census share after expected terminations; promotion vacancies are refilled the next year. The young smoke cell now holds level 1 at 66–67%. Plausibility yardstick now rises with configured starting-pay growth (ORACLE amendment 2026-10-31).
+
+| Dev (18 runs) | turnover_indexed_3pct | backfill_by_level |
+|---|---|---|
+| Mean max-year err s42 / s101 | 0.537 / 0.584pp | 0.386 / 0.488pp |
+| 1% / 4%-target cells | 0.656 / 0.513pp | 0.361 / 0.475pp |
+| Worst run | 0.91pp | 0.76pp |
+| CAGR err mean / max | 0.068 / 0.144pp | 0.049 / 0.188pp |
+| Standard runs passing per-year / compound | 4 / 12, 12 / 12 | 6 / 12, 12 / 12 |
+| Runs with failures | 0 | 1 (stress) |
+
+The failure is young_h5_c1_low seed 42: no level-2 hires in 2028 and 2030, because promotions kept level 2 above its census share. Under backfill a full level can legitimately receive no hires; the oracle counts that as a failure, and it is left unchanged. 4%-target cells now run high in 2027 and settle near target (e.g. 4.51, 3.50, 3.50, 3.88%).
+
 ## Holdout: stage `turnover_indexed_3pct`, seed 42, run once (bars per ORACLE amendment 2026-10-30)
 All 45 holdout cells completed; none failed. No setting was changed after seeing these results.
 
@@ -88,4 +102,4 @@ Seed 101 holdout (N/A by the oracle). Why high-turnover 2.5% cells rise toward 2
 ## Verification
 `python3 scripts/dev.py -- python -m pytest -m fast -q -n 4` (4105 passed); `python3 scripts/dev.py -- ruff check .`; `bun run --cwd planalign_studio typecheck`; `python3 scripts/dev.py -- python campaign_a/score.py --stage search_fix --split dev`; `python3 scripts/dev.py -- python campaign_a/score.py --stage indexed_cola --split dev`; `python3 scripts/dev.py -- python campaign_a/score.py --stage prior_hire_turnover --split dev`; `python3 scripts/dev.py -- python campaign_a/score.py --stage turnover_indexed_3pct --split dev`; `python3 scripts/dev.py -- python campaign_a/score.py --stage turnover_indexed_3pct --split holdout` (4130 fast tests passed after commit 8cdae2c3).
 
-**CHECKPOINT: holdout complete; awaiting human review**
+**CHECKPOINT: backfill dev complete; seed-7 holdout pending**

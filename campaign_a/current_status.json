@@ -1,6 +1,6 @@
 {
-  "status": "holdout_complete_awaiting_review",
-  "stage": "turnover_indexed_3pct",
+  "status": "backfill_dev_complete_holdout_pending",
+  "stage": "backfill_by_level",
   "dev_runs": {
     "completed": 18,
     "failed": 0
@@ -12,16 +12,16 @@
   },
   "cal_gap_max_pp": 0.0,
   "dev_mean_max_comp_err_pp": {
-    "42": 0.537,
-    "101": 0.584
+    "42": 0.386,
+    "101": 0.488
   },
   "noise_band_pp": 0.253,
-  "dev_plausibility_failures": 0,
+  "dev_plausibility_failures": 1,
   "previous_stage": {
-    "stage": "search_fix",
+    "stage": "turnover_indexed_3pct",
     "dev_mean_max_comp_err_pp": {
-      "42": 0.531,
-      "101": 0.771
+      "42": 0.537,
+      "101": 0.584
     }
   },
   "holdout": {
@@ -43,5 +43,11 @@
     },
     "plausibility_failures": 0,
     "hc_err_max_pp": 0.01
+  },
+  "fresh_holdout": {
+    "stage": "backfill_by_level",
+    "seed": 7,
+    "cells": 45,
+    "status": "not_run"
   }
 }

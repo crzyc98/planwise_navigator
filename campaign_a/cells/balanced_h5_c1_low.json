@@ -6823,6 +6823,1220 @@
         "seconds": 679.2073677919998,
         "completed_at": "2026-10-30T16:28:45.060749+00:00"
       }
+    },
+    "backfill_by_level": {
+      "42": {
+        "status": "completed",
+        "started_at": "2026-10-30T22:58:45.580826+00:00",
+        "directory": "/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_42_v2",
+        "baseline": {
+          "status": "completed",
+          "started_at": "2026-10-30T22:58:45.653988+00:00",
+          "run_id": "c6f42931-d731-4535-88d0-a94752e01efd",
+          "database": "/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_42_v2/workspaces/3a556717-7742-4fc5-997e-362d507bd1e6/scenarios/325cc4ec-671b-4d10-8de1-d5e3626c8b9a/runs/c6f42931-d731-4535-88d0-a94752e01efd/simulation.duckdb",
+          "config_path": "/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_42_v2/workspaces/3a556717-7742-4fc5-997e-362d507bd1e6/scenarios/325cc4ec-671b-4d10-8de1-d5e3626c8b9a/runs/c6f42931-d731-4535-88d0-a94752e01efd/config.yaml",
+          "provenance_path": "/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_42_v2/workspaces/3a556717-7742-4fc5-997e-362d507bd1e6/scenarios/325cc4ec-671b-4d10-8de1-d5e3626c8b9a/runs/c6f42931-d731-4535-88d0-a94752e01efd/provenance.json",
+          "config_fingerprint": "5ab10d9fbbd23c45e345081b33a55d7df1172aef72d07e0bd18c1aeaae9ac0dc",
+          "submitted_config_fingerprint": "5ab10d9fbbd23c45e345081b33a55d7df1172aef72d07e0bd18c1aeaae9ac0dc",
+          "attested_config_fingerprint": "2645d78760b85ebd7f5a0d89c0a0950b0e4a76ccf9a71fdcd8fcba022d6fc262",
+          "config_attestation": {
+            "status": "verified",
+            "submitted_census_path": "/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_42_v2/workspaces/3a556717-7742-4fc5-997e-362d507bd1e6/census.parquet",
+            "attested_census_path": "/private/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_42_v2/workspaces/3a556717-7742-4fc5-997e-362d507bd1e6/census.parquet",
+            "only_change": "setup.census_parquet_path",
+            "config_sha256": "b4deb850d5575d7e32888c2de3a2a360e4e534001a931918f09c6c197aafea71"
+          },
+          "seconds": 105.31866550000268,
+          "completed_at": "2026-10-30T23:00:30.988848+00:00"
+        },
+        "calibration": {
+          "status": "completed",
+          "started_at": "2026-10-30T23:00:30.994433+00:00",
+          "context": {
+            "workspace_id": "3a556717-7742-4fc5-997e-362d507bd1e6",
+            "scenario_id": "325cc4ec-671b-4d10-8de1-d5e3626c8b9a",
+            "source_scenario_id": "325cc4ec-671b-4d10-8de1-d5e3626c8b9a",
+            "source_run_id": "c6f42931-d731-4535-88d0-a94752e01efd",
+            "config_fingerprint": "2645d78760b85ebd7f5a0d89c0a0950b0e4a76ccf9a71fdcd8fcba022d6fc262",
+            "census_fingerprint": "2478aea623811d90adc973f8603cabc900318411d45df6c230334f6166e8e3c1",
+            "random_seed": 42,
+            "start_year": 2026,
+            "end_year": 2030
+          },
+          "database": "/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_42_v2/planalign_calibration_35684_1793401124981_puxgmu26.duckdb",
+          "config_path": "/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_42_v2/calibration_config_j9loqcjm.yaml",
+          "settings": {
+            "target_workforce_growth": 0.05,
+            "target_comp_growth": 0.01,
+            "tolerance_pct": 0.05,
+            "max_iterations": 8,
+            "adjust": "both",
+            "search_mode": "new_hire_scale",
+            "base_job_level_compensation": [
+              {
+                "level": 1,
+                "name": "Staff",
+                "min_compensation": 62015,
+                "max_compensation": 74409
+              },
+              {
+                "level": 2,
+                "name": "Manager",
+                "min_compensation": 93869,
+                "max_compensation": 112138
+              },
+              {
+                "level": 3,
+                "name": "Sr Manager",
+                "min_compensation": 132165,
+                "max_compensation": 151239
+              },
+              {
+                "level": 4,
+                "name": "Director",
+                "min_compensation": 197674,
+                "max_compensation": 246421
+              },
+              {
+                "level": 5,
+                "name": "VP",
+                "min_compensation": 355919,
+                "max_compensation": 415263
+              }
+            ],
+            "initial_scale": 1.0,
+            "scale_min": 0.5,
+            "scale_max": 3.0,
+            "lever_fallback": false
+          },
+          "outcome": {
+            "converged": false,
+            "status": "infeasible",
+            "reason": "The minimax balance point is tightly located, but the annual growth spread is too wide for one scale to meet every year's tolerance. Best achievable evaluated worst-year error: 0.342pp; annual growth: 2027: 0.670%, 2028: 1.007%, 2029: 0.841%, 2030: 1.342%.",
+            "message": "Stopped after 5 run(s); best candidate has maximum annual error 0.34pp vs tolerance 0.05pp (horizon mean 0.96% vs target 1.00%)",
+            "best_params": {
+              "target_growth_pct": 0.01,
+              "cola_rate": 0.02,
+              "merit_budget": 0.035,
+              "promotion_increase": null,
+              "workforce_growth_rate": 0.05,
+              "total_termination_rate": 0.1,
+              "new_hire_termination_rate": 0.2,
+              "new_hire_age_distribution": [
+                {
+                  "age": 22,
+                  "weight": 0.0
+                },
+                {
+                  "age": 25,
+                  "weight": 0.002
+                },
+                {
+                  "age": 28,
+                  "weight": 0.005
+                },
+                {
+                  "age": 32,
+                  "weight": 0.058
+                },
+                {
+                  "age": 35,
+                  "weight": 0.174
+                },
+                {
+                  "age": 40,
+                  "weight": 0.358
+                },
+                {
+                  "age": 45,
+                  "weight": 0.278
+                },
+                {
+                  "age": 50,
+                  "weight": 0.125
+                }
+              ],
+              "job_level_compensation": [
+                {
+                  "level": 1,
+                  "name": "Staff",
+                  "min_compensation": 45521,
+                  "max_compensation": 54618
+                },
+                {
+                  "level": 2,
+                  "name": "Manager",
+                  "min_compensation": 68902,
+                  "max_compensation": 82312
+                },
+                {
+                  "level": 3,
+                  "name": "Sr Manager",
+                  "min_compensation": 97013,
+                  "max_compensation": 111014
+                },
+                {
+                  "level": 4,
+                  "name": "Director",
+                  "min_compensation": 145098,
+                  "max_compensation": 180880
+                },
+                {
+                  "level": 5,
+                  "name": "VP",
+                  "min_compensation": 261255,
+                  "max_compensation": 304815
+                }
+              ]
+            },
+            "best_scale": 0.734028029274482,
+            "achieved_comp_growth_pct": 0.9649948375882178,
+            "target_comp_growth_pct": 1.0,
+            "max_abs_error_pct": 0.3417946127805225,
+            "objective": "max_annual_error",
+            "start_year": 2026,
+            "end_year": 2030,
+            "iterations": [
+              {
+                "iteration": 1,
+                "cola_rate": 0.02,
+                "merit_budget": 0.035,
+                "scale": 1.0,
+                "achieved_growth_pct": 4.0366213618389715,
+                "error_pct": 3.5251855407963726,
+                "max_abs_error_pct": 3.5251855407963726
+              },
+              {
+                "iteration": 2,
+                "cola_rate": 0.02,
+                "merit_budget": 0.035,
+                "scale": 0.75,
+                "achieved_growth_pct": 1.161861728276714,
+                "error_pct": 0.515452456144506,
+                "max_abs_error_pct": 0.515452456144506
+              },
+              {
+                "iteration": 3,
+                "cola_rate": 0.02,
+                "merit_budget": 0.035,
+                "scale": 0.5,
+                "achieved_growth_pct": -2.1361089572147884,
+                "error_pct": -3.8823923370707494,
+                "max_abs_error_pct": 3.8823923370707494
+              },
+              {
+                "iteration": 4,
+                "cola_rate": 0.02,
+                "merit_budget": 0.035,
+                "scale": 0.625,
+                "achieved_growth_pct": -0.4269580045075383,
+                "error_pct": -1.9656104699809154,
+                "max_abs_error_pct": 1.9656104699809154
+              },
+              {
+                "iteration": 5,
+                "cola_rate": 0.02,
+                "merit_budget": 0.035,
+                "scale": 0.734028029274482,
+                "achieved_growth_pct": 0.9649948375882178,
+                "error_pct": 0.3417946127805225,
+                "max_abs_error_pct": 0.3417946127805225
+              }
+            ],
+            "results": [
+              {
+                "simulation_year": 2026,
+                "avg_compensation": 101449.37362201663,
+                "yoy_growth_pct": null,
+                "target_growth_pct": 1.0,
+                "growth_delta_pct": null,
+                "headcount": 5250,
+                "headcount_growth_pct": null,
+                "total_compensation": 532609211.51558733,
+                "total_comp_growth_pct": null,
+                "new_hire_avg_comp": 83442.36025882357,
+                "existing_avg_comp": 116297.90178636332,
+                "new_hire_gap": -32855.54152753975
+              },
+              {
+                "simulation_year": 2027,
+                "avg_compensation": 102129.18206597606,
+                "yoy_growth_pct": 0.6700962457316662,
+                "target_growth_pct": 1.0,
+                "growth_delta_pct": -0.32990375426833385,
+                "headcount": 5513,
+                "headcount_growth_pct": 5.0095238095238095,
+                "total_compensation": 563038180.729726,
+                "total_comp_growth_pct": 5.713188686232118,
+                "new_hire_avg_comp": 82028.49455899197,
+                "existing_avg_comp": 117424.9811530173,
+                "new_hire_gap": -35396.48659402534
+              },
+              {
+                "simulation_year": 2028,
+                "avg_compensation": 103158.13127134295,
+                "yoy_growth_pct": 1.0074977440847288,
+                "target_growth_pct": 1.0,
+                "growth_delta_pct": 0.007497744084728808,
+                "headcount": 5789,
+                "headcount_growth_pct": 5.006348630509704,
+                "total_compensation": 597182421.9298043,
+                "total_comp_growth_pct": 6.064285224107841,
+                "new_hire_avg_comp": 79596.36410284438,
+                "existing_avg_comp": 118545.47837333429,
+                "new_hire_gap": -38949.11427048991
+              },
+              {
+                "simulation_year": 2029,
+                "avg_compensation": 104025.2689783678,
+                "yoy_growth_pct": 0.8405907477559538,
+                "target_growth_pct": 1.0,
+                "growth_delta_pct": -0.15940925224404623,
+                "headcount": 6078,
+                "headcount_growth_pct": 4.992226636724824,
+                "total_compensation": 632265584.8505195,
+                "total_comp_growth_pct": 5.874781579696104,
+                "new_hire_avg_comp": 85728.22991657976,
+                "existing_avg_comp": 119257.84550302831,
+                "new_hire_gap": -33529.61558644855
+              },
+              {
+                "simulation_year": 2030,
+                "avg_compensation": 105421.07443345,
+                "yoy_growth_pct": 1.3417946127805225,
+                "target_growth_pct": 1.0,
+                "growth_delta_pct": 0.3417946127805225,
+                "headcount": 6382,
+                "headcount_growth_pct": 5.001645278051991,
+                "total_compensation": 672797297.0342779,
+                "total_comp_growth_pct": 6.410551697723814,
+                "new_hire_avg_comp": 87102.63461767623,
+                "existing_avg_comp": 120616.79796465137,
+                "new_hire_gap": -33514.16334697514
+              }
+            ]
+          },
+          "annual_predictions": [
+            {
+              "simulation_year": 2026,
+              "avg_compensation": 101449.37362201663,
+              "yoy_growth_pct": null,
+              "target_growth_pct": 1.0,
+              "growth_delta_pct": null,
+              "headcount": 5250,
+              "headcount_growth_pct": null,
+              "total_compensation": 532609211.51558733,
+              "total_comp_growth_pct": null,
+              "new_hire_avg_comp": 83442.36025882357,
+              "existing_avg_comp": 116297.90178636332,
+              "new_hire_gap": -32855.54152753975
+            },
+            {
+              "simulation_year": 2027,
+              "avg_compensation": 102129.18206597606,
+              "yoy_growth_pct": 0.6700962457316662,
+              "target_growth_pct": 1.0,
+              "growth_delta_pct": -0.32990375426833385,
+              "headcount": 5513,
+              "headcount_growth_pct": 5.0095238095238095,
+              "total_compensation": 563038180.729726,
+              "total_comp_growth_pct": 5.713188686232118,
+              "new_hire_avg_comp": 82028.49455899197,
+              "existing_avg_comp": 117424.9811530173,
+              "new_hire_gap": -35396.48659402534
+            },
+            {
+              "simulation_year": 2028,
+              "avg_compensation": 103158.13127134295,
+              "yoy_growth_pct": 1.0074977440847288,
+              "target_growth_pct": 1.0,
+              "growth_delta_pct": 0.007497744084728808,
+              "headcount": 5789,
+              "headcount_growth_pct": 5.006348630509704,
+              "total_compensation": 597182421.9298043,
+              "total_comp_growth_pct": 6.064285224107841,
+              "new_hire_avg_comp": 79596.36410284438,
+              "existing_avg_comp": 118545.47837333429,
+              "new_hire_gap": -38949.11427048991
+            },
+            {
+              "simulation_year": 2029,
+              "avg_compensation": 104025.2689783678,
+              "yoy_growth_pct": 0.8405907477559538,
+              "target_growth_pct": 1.0,
+              "growth_delta_pct": -0.15940925224404623,
+              "headcount": 6078,
+              "headcount_growth_pct": 4.992226636724824,
+              "total_compensation": 632265584.8505195,
+              "total_comp_growth_pct": 5.874781579696104,
+              "new_hire_avg_comp": 85728.22991657976,
+              "existing_avg_comp": 119257.84550302831,
+              "new_hire_gap": -33529.61558644855
+            },
+            {
+              "simulation_year": 2030,
+              "avg_compensation": 105421.07443345,
+              "yoy_growth_pct": 1.3417946127805225,
+              "target_growth_pct": 1.0,
+              "growth_delta_pct": 0.3417946127805225,
+              "headcount": 6382,
+              "headcount_growth_pct": 5.001645278051991,
+              "total_compensation": 672797297.0342779,
+              "total_comp_growth_pct": 6.410551697723814,
+              "new_hire_avg_comp": 87102.63461767623,
+              "existing_avg_comp": 120616.79796465137,
+              "new_hire_gap": -33514.16334697514
+            }
+          ],
+          "ranges": [
+            {
+              "level": 1,
+              "name": "Staff",
+              "min_compensation": 45521,
+              "max_compensation": 54618
+            },
+            {
+              "level": 2,
+              "name": "Manager",
+              "min_compensation": 68902,
+              "max_compensation": 82312
+            },
+            {
+              "level": 3,
+              "name": "Sr Manager",
+              "min_compensation": 97013,
+              "max_compensation": 111014
+            },
+            {
+              "level": 4,
+              "name": "Director",
+              "min_compensation": 145098,
+              "max_compensation": 180880
+            },
+            {
+              "level": 5,
+              "name": "VP",
+              "min_compensation": 261255,
+              "max_compensation": 304815
+            }
+          ],
+          "scale_clamped": false,
+          "apply": {
+            "workspace_updated": true,
+            "scenarios": [
+              {
+                "scenario_id": "325cc4ec-671b-4d10-8de1-d5e3626c8b9a",
+                "success": true,
+                "error": null
+              }
+            ],
+            "total_applied": 1,
+            "total_failed": 0
+          },
+          "seconds": 332.2040377500016,
+          "completed_at": "2026-10-30T23:06:03.267004+00:00"
+        },
+        "applied": {
+          "status": "completed",
+          "started_at": "2026-10-30T23:06:03.272575+00:00",
+          "run_id": "45a4778f-0854-4f81-a7f2-54a22ea4fa55",
+          "database": "/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_42_v2/workspaces/3a556717-7742-4fc5-997e-362d507bd1e6/scenarios/325cc4ec-671b-4d10-8de1-d5e3626c8b9a/runs/45a4778f-0854-4f81-a7f2-54a22ea4fa55/simulation.duckdb",
+          "config_path": "/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_42_v2/workspaces/3a556717-7742-4fc5-997e-362d507bd1e6/scenarios/325cc4ec-671b-4d10-8de1-d5e3626c8b9a/runs/45a4778f-0854-4f81-a7f2-54a22ea4fa55/config.yaml",
+          "provenance_path": "/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_42_v2/workspaces/3a556717-7742-4fc5-997e-362d507bd1e6/scenarios/325cc4ec-671b-4d10-8de1-d5e3626c8b9a/runs/45a4778f-0854-4f81-a7f2-54a22ea4fa55/provenance.json",
+          "config_fingerprint": "9e0ded72b3a13d22f085e688386f2aa2153cd3225a61365b0f896a1a0519d20f",
+          "submitted_config_fingerprint": "9e0ded72b3a13d22f085e688386f2aa2153cd3225a61365b0f896a1a0519d20f",
+          "attested_config_fingerprint": "e661851d6190878550df6fcc7b9cf5885c6d96b09aad9d867b502006255382d3",
+          "config_attestation": {
+            "status": "verified",
+            "submitted_census_path": "/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_42_v2/workspaces/3a556717-7742-4fc5-997e-362d507bd1e6/census.parquet",
+            "attested_census_path": "/private/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_42_v2/workspaces/3a556717-7742-4fc5-997e-362d507bd1e6/census.parquet",
+            "only_change": "setup.census_parquet_path",
+            "config_sha256": "ec573cfd0fc60fe068dc9d01d904d3822b3f567fc708671e3c621e10f90efd91"
+          },
+          "seconds": 105.2227164169999,
+          "completed_at": "2026-10-30T23:07:48.511828+00:00"
+        },
+        "workspace_id": "3a556717-7742-4fc5-997e-362d507bd1e6",
+        "scenario_id": "325cc4ec-671b-4d10-8de1-d5e3626c8b9a",
+        "inputs": {
+          "age_analysis": {
+            "total_employees": 1000,
+            "recent_hires_only": true,
+            "analysis_type": "New hires from 2025",
+            "distribution": [
+              {
+                "age": 22,
+                "weight": 0.0,
+                "description": "Recent college graduates",
+                "count": 0
+              },
+              {
+                "age": 25,
+                "weight": 0.002,
+                "description": "Early career",
+                "count": 2
+              },
+              {
+                "age": 28,
+                "weight": 0.005,
+                "description": "Established early career",
+                "count": 5
+              },
+              {
+                "age": 32,
+                "weight": 0.058,
+                "description": "Mid-career switchers",
+                "count": 58
+              },
+              {
+                "age": 35,
+                "weight": 0.174,
+                "description": "Experienced hires",
+                "count": 174
+              },
+              {
+                "age": 40,
+                "weight": 0.358,
+                "description": "Senior experienced",
+                "count": 358
+              },
+              {
+                "age": 45,
+                "weight": 0.278,
+                "description": "Mature professionals",
+                "count": 278
+              },
+              {
+                "age": 50,
+                "weight": 0.125,
+                "description": "Late career changes",
+                "count": 125
+              }
+            ],
+            "source_file": "/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_42_v2/workspaces/3a556717-7742-4fc5-997e-362d507bd1e6/census.parquet",
+            "as_of_date": "2025-12-31",
+            "as_of_date_source": "inferred",
+            "fallback_notice": null
+          },
+          "compensation_analysis": {
+            "total_employees": 1402,
+            "recent_hires_only": true,
+            "lookback_years": 4,
+            "has_level_data": true,
+            "analysis_type": "Hires from last 4 years (1402 employees, annualized)",
+            "compensation_annualized": true,
+            "levels": [
+              {
+                "level": 1,
+                "name": "Staff",
+                "employee_count": 482,
+                "raw_min_compensation": 56117.9,
+                "raw_max_compensation": 144956.1,
+                "min_compensation": 62014.83,
+                "max_compensation": 74409.48,
+                "median_compensation": 68273.72,
+                "p25_compensation": 62014.83,
+                "p75_compensation": 74409.48,
+                "avg_compensation": 68672.56
+              },
+              {
+                "level": 2,
+                "name": "Manager",
+                "employee_count": 399,
+                "raw_min_compensation": 81047.67,
+                "raw_max_compensation": 181890.45,
+                "min_compensation": 93869.32,
+                "max_compensation": 112138.03,
+                "median_compensation": 103703.14,
+                "p25_compensation": 93869.32,
+                "p75_compensation": 112138.03,
+                "avg_compensation": 103136.62
+              },
+              {
+                "level": 3,
+                "name": "Sr Manager",
+                "employee_count": 310,
+                "raw_min_compensation": 122119.93,
+                "raw_max_compensation": 186685.09,
+                "min_compensation": 132165.41,
+                "max_compensation": 151239.38,
+                "median_compensation": 141959.94,
+                "p25_compensation": 132165.41,
+                "p75_compensation": 151239.38,
+                "avg_compensation": 141994.79
+              },
+              {
+                "level": 4,
+                "name": "Director",
+                "employee_count": 122,
+                "raw_min_compensation": 161788.07,
+                "raw_max_compensation": 308195.51,
+                "min_compensation": 197674.34,
+                "max_compensation": 246421.11,
+                "median_compensation": 223018.88,
+                "p25_compensation": 197674.34,
+                "p75_compensation": 246421.11,
+                "avg_compensation": 221809.41
+              },
+              {
+                "level": 5,
+                "name": "VP",
+                "employee_count": 89,
+                "raw_min_compensation": 303237.95,
+                "raw_max_compensation": 895972.8,
+                "min_compensation": 355919.37,
+                "max_compensation": 415262.83,
+                "median_compensation": 377797.41,
+                "p25_compensation": 355919.37,
+                "p75_compensation": 415262.83,
+                "avg_compensation": 388236.55
+              }
+            ],
+            "source_file": "/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_42_v2/workspaces/3a556717-7742-4fc5-997e-362d507bd1e6/census.parquet"
+          },
+          "base_ranges": [
+            {
+              "level": 1,
+              "name": "Staff",
+              "min_compensation": 62015,
+              "max_compensation": 74409
+            },
+            {
+              "level": 2,
+              "name": "Manager",
+              "min_compensation": 93869,
+              "max_compensation": 112138
+            },
+            {
+              "level": 3,
+              "name": "Sr Manager",
+              "min_compensation": 132165,
+              "max_compensation": 151239
+            },
+            {
+              "level": 4,
+              "name": "Director",
+              "min_compensation": 197674,
+              "max_compensation": 246421
+            },
+            {
+              "level": 5,
+              "name": "VP",
+              "min_compensation": 355919,
+              "max_compensation": 415263
+            }
+          ],
+          "census_sha256": "2478aea623811d90adc973f8603cabc900318411d45df6c230334f6166e8e3c1"
+        },
+        "seconds": 542.9375721249999,
+        "completed_at": "2026-10-30T23:07:48.517616+00:00"
+      },
+      "101": {
+        "status": "completed",
+        "started_at": "2026-10-30T23:07:50.003610+00:00",
+        "directory": "/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_101_v2",
+        "baseline": {
+          "status": "completed",
+          "started_at": "2026-10-30T23:07:50.079095+00:00",
+          "run_id": "34d01821-2db0-4eed-8ba3-dde1b6f757fe",
+          "database": "/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_101_v2/workspaces/6e312f5f-2f7f-4b55-b509-cbcfb46549d9/scenarios/d026afe6-767c-4a59-86d9-986f65cdd2a1/runs/34d01821-2db0-4eed-8ba3-dde1b6f757fe/simulation.duckdb",
+          "config_path": "/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_101_v2/workspaces/6e312f5f-2f7f-4b55-b509-cbcfb46549d9/scenarios/d026afe6-767c-4a59-86d9-986f65cdd2a1/runs/34d01821-2db0-4eed-8ba3-dde1b6f757fe/config.yaml",
+          "provenance_path": "/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_101_v2/workspaces/6e312f5f-2f7f-4b55-b509-cbcfb46549d9/scenarios/d026afe6-767c-4a59-86d9-986f65cdd2a1/runs/34d01821-2db0-4eed-8ba3-dde1b6f757fe/provenance.json",
+          "config_fingerprint": "af5b294ba4e129d8ecb934cc9af3b91a281aa54a448dabc86752f5a0bb64ab72",
+          "submitted_config_fingerprint": "af5b294ba4e129d8ecb934cc9af3b91a281aa54a448dabc86752f5a0bb64ab72",
+          "attested_config_fingerprint": "d24da2897801f8b1eecb69f14d192e432a9744f501e0d729687b670517bab251",
+          "config_attestation": {
+            "status": "verified",
+            "submitted_census_path": "/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_101_v2/workspaces/6e312f5f-2f7f-4b55-b509-cbcfb46549d9/census.parquet",
+            "attested_census_path": "/private/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_101_v2/workspaces/6e312f5f-2f7f-4b55-b509-cbcfb46549d9/census.parquet",
+            "only_change": "setup.census_parquet_path",
+            "config_sha256": "cfa8f90171ff8d17b0c000af5d388a8b2404aebbd8e2a0d18ad9ab66ab98f294"
+          },
+          "seconds": 105.3053795420019,
+          "completed_at": "2026-10-30T23:09:35.401978+00:00"
+        },
+        "calibration": {
+          "status": "completed",
+          "started_at": "2026-10-30T23:09:35.407833+00:00",
+          "context": {
+            "workspace_id": "6e312f5f-2f7f-4b55-b509-cbcfb46549d9",
+            "scenario_id": "d026afe6-767c-4a59-86d9-986f65cdd2a1",
+            "source_scenario_id": "d026afe6-767c-4a59-86d9-986f65cdd2a1",
+            "source_run_id": "34d01821-2db0-4eed-8ba3-dde1b6f757fe",
+            "config_fingerprint": "d24da2897801f8b1eecb69f14d192e432a9744f501e0d729687b670517bab251",
+            "census_fingerprint": "2478aea623811d90adc973f8603cabc900318411d45df6c230334f6166e8e3c1",
+            "random_seed": 101,
+            "start_year": 2026,
+            "end_year": 2030
+          },
+          "database": "/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_101_v2/planalign_calibration_44142_1793401669396_simhfl9n.duckdb",
+          "config_path": "/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_101_v2/calibration_config_wb0u8dqg.yaml",
+          "settings": {
+            "target_workforce_growth": 0.05,
+            "target_comp_growth": 0.01,
+            "tolerance_pct": 0.05,
+            "max_iterations": 8,
+            "adjust": "both",
+            "search_mode": "new_hire_scale",
+            "base_job_level_compensation": [
+              {
+                "level": 1,
+                "name": "Staff",
+                "min_compensation": 62015,
+                "max_compensation": 74409
+              },
+              {
+                "level": 2,
+                "name": "Manager",
+                "min_compensation": 93869,
+                "max_compensation": 112138
+              },
+              {
+                "level": 3,
+                "name": "Sr Manager",
+                "min_compensation": 132165,
+                "max_compensation": 151239
+              },
+              {
+                "level": 4,
+                "name": "Director",
+                "min_compensation": 197674,
+                "max_compensation": 246421
+              },
+              {
+                "level": 5,
+                "name": "VP",
+                "min_compensation": 355919,
+                "max_compensation": 415263
+              }
+            ],
+            "initial_scale": 1.0,
+            "scale_min": 0.5,
+            "scale_max": 3.0,
+            "lever_fallback": false
+          },
+          "outcome": {
+            "converged": false,
+            "status": "infeasible",
+            "reason": "The minimax balance point is tightly located, but the annual growth spread is too wide for one scale to meet every year's tolerance. Best achievable evaluated worst-year error: 0.310pp; annual growth: 2027: 0.973%, 2028: 0.706%, 2029: 1.006%, 2030: 1.310%.",
+            "message": "Stopped after 5 run(s); best candidate has maximum annual error 0.31pp vs tolerance 0.05pp (horizon mean 1.00% vs target 1.00%)",
+            "best_params": {
+              "target_growth_pct": 0.01,
+              "cola_rate": 0.02,
+              "merit_budget": 0.035,
+              "promotion_increase": null,
+              "workforce_growth_rate": 0.05,
+              "total_termination_rate": 0.1,
+              "new_hire_termination_rate": 0.2,
+              "new_hire_age_distribution": [
+                {
+                  "age": 22,
+                  "weight": 0.0
+                },
+                {
+                  "age": 25,
+                  "weight": 0.002
+                },
+                {
+                  "age": 28,
+                  "weight": 0.005
+                },
+                {
+                  "age": 32,
+                  "weight": 0.058
+                },
+                {
+                  "age": 35,
+                  "weight": 0.174
+                },
+                {
+                  "age": 40,
+                  "weight": 0.358
+                },
+                {
+                  "age": 45,
+                  "weight": 0.278
+                },
+                {
+                  "age": 50,
+                  "weight": 0.125
+                }
+              ],
+              "job_level_compensation": [
+                {
+                  "level": 1,
+                  "name": "Staff",
+                  "min_compensation": 45377,
+                  "max_compensation": 54446
+                },
+                {
+                  "level": 2,
+                  "name": "Manager",
+                  "min_compensation": 68685,
+                  "max_compensation": 82053
+                },
+                {
+                  "level": 3,
+                  "name": "Sr Manager",
+                  "min_compensation": 96707,
+                  "max_compensation": 110664
+                },
+                {
+                  "level": 4,
+                  "name": "Director",
+                  "min_compensation": 144641,
+                  "max_compensation": 180309
+                },
+                {
+                  "level": 5,
+                  "name": "VP",
+                  "min_compensation": 260431,
+                  "max_compensation": 303853
+                }
+              ]
+            },
+            "best_scale": 0.7317130771448926,
+            "achieved_comp_growth_pct": 0.9988941480845392,
+            "target_comp_growth_pct": 1.0,
+            "max_abs_error_pct": 0.3103621632184703,
+            "objective": "max_annual_error",
+            "start_year": 2026,
+            "end_year": 2030,
+            "iterations": [
+              {
+                "iteration": 1,
+                "cola_rate": 0.02,
+                "merit_budget": 0.035,
+                "scale": 1.0,
+                "achieved_growth_pct": 4.139755316448507,
+                "error_pct": 3.860174050203847,
+                "max_abs_error_pct": 3.860174050203847
+              },
+              {
+                "iteration": 2,
+                "cola_rate": 0.02,
+                "merit_budget": 0.035,
+                "scale": 0.75,
+                "achieved_growth_pct": 1.227450226301513,
+                "error_pct": 0.5008755053656619,
+                "max_abs_error_pct": 0.5008755053656619
+              },
+              {
+                "iteration": 3,
+                "cola_rate": 0.02,
+                "merit_budget": 0.035,
+                "scale": 0.5,
+                "achieved_growth_pct": -2.115560990159149,
+                "error_pct": -3.541222044500513,
+                "max_abs_error_pct": 3.541222044500513
+              },
+              {
+                "iteration": 4,
+                "cola_rate": 0.02,
+                "merit_budget": 0.035,
+                "scale": 0.625,
+                "achieved_growth_pct": -0.38276475609436145,
+                "error_pct": -1.7088908770570668,
+                "max_abs_error_pct": 1.7088908770570668
+              },
+              {
+                "iteration": 5,
+                "cola_rate": 0.02,
+                "merit_budget": 0.035,
+                "scale": 0.7317130771448926,
+                "achieved_growth_pct": 0.9988941480845392,
+                "error_pct": 0.3103621632184703,
+                "max_abs_error_pct": 0.3103621632184703
+              }
+            ],
+            "results": [
+              {
+                "simulation_year": 2026,
+                "avg_compensation": 101433.7104658316,
+                "yoy_growth_pct": null,
+                "target_growth_pct": 1.0,
+                "growth_delta_pct": null,
+                "headcount": 5250,
+                "headcount_growth_pct": null,
+                "total_compensation": 532526979.9456159,
+                "total_comp_growth_pct": null,
+                "new_hire_avg_comp": 84994.96770588221,
+                "existing_avg_comp": 116452.3535159089,
+                "new_hire_gap": -31457.38581002668
+              },
+              {
+                "simulation_year": 2027,
+                "avg_compensation": 102420.60349760174,
+                "yoy_growth_pct": 0.9729438341926633,
+                "target_growth_pct": 1.0,
+                "growth_delta_pct": -0.02705616580733672,
+                "headcount": 5513,
+                "headcount_growth_pct": 5.0095238095238095,
+                "total_compensation": 564644787.0822784,
+                "total_comp_growth_pct": 6.031207496743639,
+                "new_hire_avg_comp": 76252.88893470794,
+                "existing_avg_comp": 118175.61283836198,
+                "new_hire_gap": -41922.72390365404
+              },
+              {
+                "simulation_year": 2028,
+                "avg_compensation": 103143.86982596516,
+                "yoy_growth_pct": 0.7061726875885466,
+                "target_growth_pct": 1.0,
+                "growth_delta_pct": -0.29382731241145343,
+                "headcount": 5789,
+                "headcount_growth_pct": 5.006348630509704,
+                "total_compensation": 597099862.4225123,
+                "total_comp_growth_pct": 5.747874784772371,
+                "new_hire_avg_comp": 82547.55851203513,
+                "existing_avg_comp": 118187.80368000048,
+                "new_hire_gap": -35640.245167965346
+              },
+              {
+                "simulation_year": 2029,
+                "avg_compensation": 104181.59814183212,
+                "yoy_growth_pct": 1.0060979073384768,
+                "target_growth_pct": 1.0,
+                "growth_delta_pct": 0.006097907338476816,
+                "headcount": 6078,
+                "headcount_growth_pct": 4.992226636724824,
+                "total_compensation": 633215753.5060556,
+                "total_comp_growth_pct": 6.048551231784982,
+                "new_hire_avg_comp": 85862.58165797712,
+                "existing_avg_comp": 119129.74776518888,
+                "new_hire_gap": -33267.16610721176
+              },
+              {
+                "simulation_year": 2030,
+                "avg_compensation": 105546.75438491901,
+                "yoy_growth_pct": 1.3103621632184703,
+                "target_growth_pct": 1.0,
+                "growth_delta_pct": 0.3103621632184703,
+                "headcount": 6382,
+                "headcount_growth_pct": 5.001645278051991,
+                "total_compensation": 673599386.4845531,
+                "total_comp_growth_pct": 6.377547108532464,
+                "new_hire_avg_comp": 86073.12482621628,
+                "existing_avg_comp": 120724.21504185998,
+                "new_hire_gap": -34651.09021564369
+              }
+            ]
+          },
+          "annual_predictions": [
+            {
+              "simulation_year": 2026,
+              "avg_compensation": 101433.7104658316,
+              "yoy_growth_pct": null,
+              "target_growth_pct": 1.0,
+              "growth_delta_pct": null,
+              "headcount": 5250,
+              "headcount_growth_pct": null,
+              "total_compensation": 532526979.9456159,
+              "total_comp_growth_pct": null,
+              "new_hire_avg_comp": 84994.96770588221,
+              "existing_avg_comp": 116452.3535159089,
+              "new_hire_gap": -31457.38581002668
+            },
+            {
+              "simulation_year": 2027,
+              "avg_compensation": 102420.60349760174,
+              "yoy_growth_pct": 0.9729438341926633,
+              "target_growth_pct": 1.0,
+              "growth_delta_pct": -0.02705616580733672,
+              "headcount": 5513,
+              "headcount_growth_pct": 5.0095238095238095,
+              "total_compensation": 564644787.0822784,
+              "total_comp_growth_pct": 6.031207496743639,
+              "new_hire_avg_comp": 76252.88893470794,
+              "existing_avg_comp": 118175.61283836198,
+              "new_hire_gap": -41922.72390365404
+            },
+            {
+              "simulation_year": 2028,
+              "avg_compensation": 103143.86982596516,
+              "yoy_growth_pct": 0.7061726875885466,
+              "target_growth_pct": 1.0,
+              "growth_delta_pct": -0.29382731241145343,
+              "headcount": 5789,
+              "headcount_growth_pct": 5.006348630509704,
+              "total_compensation": 597099862.4225123,
+              "total_comp_growth_pct": 5.747874784772371,
+              "new_hire_avg_comp": 82547.55851203513,
+              "existing_avg_comp": 118187.80368000048,
+              "new_hire_gap": -35640.245167965346
+            },
+            {
+              "simulation_year": 2029,
+              "avg_compensation": 104181.59814183212,
+              "yoy_growth_pct": 1.0060979073384768,
+              "target_growth_pct": 1.0,
+              "growth_delta_pct": 0.006097907338476816,
+              "headcount": 6078,
+              "headcount_growth_pct": 4.992226636724824,
+              "total_compensation": 633215753.5060556,
+              "total_comp_growth_pct": 6.048551231784982,
+              "new_hire_avg_comp": 85862.58165797712,
+              "existing_avg_comp": 119129.74776518888,
+              "new_hire_gap": -33267.16610721176
+            },
+            {
+              "simulation_year": 2030,
+              "avg_compensation": 105546.75438491901,
+              "yoy_growth_pct": 1.3103621632184703,
+              "target_growth_pct": 1.0,
+              "growth_delta_pct": 0.3103621632184703,
+              "headcount": 6382,
+              "headcount_growth_pct": 5.001645278051991,
+              "total_compensation": 673599386.4845531,
+              "total_comp_growth_pct": 6.377547108532464,
+              "new_hire_avg_comp": 86073.12482621628,
+              "existing_avg_comp": 120724.21504185998,
+              "new_hire_gap": -34651.09021564369
+            }
+          ],
+          "ranges": [
+            {
+              "level": 1,
+              "name": "Staff",
+              "min_compensation": 45377,
+              "max_compensation": 54446
+            },
+            {
+              "level": 2,
+              "name": "Manager",
+              "min_compensation": 68685,
+              "max_compensation": 82053
+            },
+            {
+              "level": 3,
+              "name": "Sr Manager",
+              "min_compensation": 96707,
+              "max_compensation": 110664
+            },
+            {
+              "level": 4,
+              "name": "Director",
+              "min_compensation": 144641,
+              "max_compensation": 180309
+            },
+            {
+              "level": 5,
+              "name": "VP",
+              "min_compensation": 260431,
+              "max_compensation": 303853
+            }
+          ],
+          "scale_clamped": false,
+          "apply": {
+            "workspace_updated": true,
+            "scenarios": [
+              {
+                "scenario_id": "d026afe6-767c-4a59-86d9-986f65cdd2a1",
+                "success": true,
+                "error": null
+              }
+            ],
+            "total_applied": 1,
+            "total_failed": 0
+          },
+          "seconds": 336.44084529200336,
+          "completed_at": "2026-10-30T23:15:11.922554+00:00"
+        },
+        "applied": {
+          "status": "completed",
+          "started_at": "2026-10-30T23:15:11.928793+00:00",
+          "run_id": "dd7828af-14e8-4878-8e91-4f02b7b4662d",
+          "database": "/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_101_v2/workspaces/6e312f5f-2f7f-4b55-b509-cbcfb46549d9/scenarios/d026afe6-767c-4a59-86d9-986f65cdd2a1/runs/dd7828af-14e8-4878-8e91-4f02b7b4662d/simulation.duckdb",
+          "config_path": "/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_101_v2/workspaces/6e312f5f-2f7f-4b55-b509-cbcfb46549d9/scenarios/d026afe6-767c-4a59-86d9-986f65cdd2a1/runs/dd7828af-14e8-4878-8e91-4f02b7b4662d/config.yaml",
+          "provenance_path": "/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_101_v2/workspaces/6e312f5f-2f7f-4b55-b509-cbcfb46549d9/scenarios/d026afe6-767c-4a59-86d9-986f65cdd2a1/runs/dd7828af-14e8-4878-8e91-4f02b7b4662d/provenance.json",
+          "config_fingerprint": "aa72e5b4c1ebb98b72ad68a474277498e1882f406876556791b4c113603124e7",
+          "submitted_config_fingerprint": "aa72e5b4c1ebb98b72ad68a474277498e1882f406876556791b4c113603124e7",
+          "attested_config_fingerprint": "8fb5a4160e86932b6692687ba169952f4ba3619d4ed2f63ddda789c89b1e44f5",
+          "config_attestation": {
+            "status": "verified",
+            "submitted_census_path": "/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_101_v2/workspaces/6e312f5f-2f7f-4b55-b509-cbcfb46549d9/census.parquet",
+            "attested_census_path": "/private/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_101_v2/workspaces/6e312f5f-2f7f-4b55-b509-cbcfb46549d9/census.parquet",
+            "only_change": "setup.census_parquet_path",
+            "config_sha256": "4b1d9c95c000e72eff15cb02f1c0b652fb5f454daf9d3b6fe027d36f70544573"
+          },
+          "seconds": 107.26010958299958,
+          "completed_at": "2026-10-30T23:16:59.204757+00:00"
+        },
+        "workspace_id": "6e312f5f-2f7f-4b55-b509-cbcfb46549d9",
+        "scenario_id": "d026afe6-767c-4a59-86d9-986f65cdd2a1",
+        "inputs": {
+          "age_analysis": {
+            "total_employees": 1000,
+            "recent_hires_only": true,
+            "analysis_type": "New hires from 2025",
+            "distribution": [
+              {
+                "age": 22,
+                "weight": 0.0,
+                "description": "Recent college graduates",
+                "count": 0
+              },
+              {
+                "age": 25,
+                "weight": 0.002,
+                "description": "Early career",
+                "count": 2
+              },
+              {
+                "age": 28,
+                "weight": 0.005,
+                "description": "Established early career",
+                "count": 5
+              },
+              {
+                "age": 32,
+                "weight": 0.058,
+                "description": "Mid-career switchers",
+                "count": 58
+              },
+              {
+                "age": 35,
+                "weight": 0.174,
+                "description": "Experienced hires",
+                "count": 174
+              },
+              {
+                "age": 40,
+                "weight": 0.358,
+                "description": "Senior experienced",
+                "count": 358
+              },
+              {
+                "age": 45,
+                "weight": 0.278,
+                "description": "Mature professionals",
+                "count": 278
+              },
+              {
+                "age": 50,
+                "weight": 0.125,
+                "description": "Late career changes",
+                "count": 125
+              }
+            ],
+            "source_file": "/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_101_v2/workspaces/6e312f5f-2f7f-4b55-b509-cbcfb46549d9/census.parquet",
+            "as_of_date": "2025-12-31",
+            "as_of_date_source": "inferred",
+            "fallback_notice": null
+          },
+          "compensation_analysis": {
+            "total_employees": 1402,
+            "recent_hires_only": true,
+            "lookback_years": 4,
+            "has_level_data": true,
+            "analysis_type": "Hires from last 4 years (1402 employees, annualized)",
+            "compensation_annualized": true,
+            "levels": [
+              {
+                "level": 1,
+                "name": "Staff",
+                "employee_count": 482,
+                "raw_min_compensation": 56117.9,
+                "raw_max_compensation": 144956.1,
+                "min_compensation": 62014.83,
+                "max_compensation": 74409.48,
+                "median_compensation": 68273.72,
+                "p25_compensation": 62014.83,
+                "p75_compensation": 74409.48,
+                "avg_compensation": 68672.56
+              },
+              {
+                "level": 2,
+                "name": "Manager",
+                "employee_count": 399,
+                "raw_min_compensation": 81047.67,
+                "raw_max_compensation": 181890.45,
+                "min_compensation": 93869.32,
+                "max_compensation": 112138.03,
+                "median_compensation": 103703.14,
+                "p25_compensation": 93869.32,
+                "p75_compensation": 112138.03,
+                "avg_compensation": 103136.62
+              },
+              {
+                "level": 3,
+                "name": "Sr Manager",
+                "employee_count": 310,
+                "raw_min_compensation": 122119.93,
+                "raw_max_compensation": 186685.09,
+                "min_compensation": 132165.41,
+                "max_compensation": 151239.38,
+                "median_compensation": 141959.94,
+                "p25_compensation": 132165.41,
+                "p75_compensation": 151239.38,
+                "avg_compensation": 141994.79
+              },
+              {
+                "level": 4,
+                "name": "Director",
+                "employee_count": 122,
+                "raw_min_compensation": 161788.07,
+                "raw_max_compensation": 308195.51,
+                "min_compensation": 197674.34,
+                "max_compensation": 246421.11,
+                "median_compensation": 223018.88,
+                "p25_compensation": 197674.34,
+                "p75_compensation": 246421.11,
+                "avg_compensation": 221809.41
+              },
+              {
+                "level": 5,
+                "name": "VP",
+                "employee_count": 89,
+                "raw_min_compensation": 303237.95,
+                "raw_max_compensation": 895972.8,
+                "min_compensation": 355919.37,
+                "max_compensation": 415262.83,
+                "median_compensation": 377797.41,
+                "p25_compensation": 355919.37,
+                "p75_compensation": 415262.83,
+                "avg_compensation": 388236.55
+              }
+            ],
+            "source_file": "/tmp/nhcal/balanced_h5_c1_low/backfill_by_level_seed_101_v2/workspaces/6e312f5f-2f7f-4b55-b509-cbcfb46549d9/census.parquet"
+          },
+          "base_ranges": [
+            {
+              "level": 1,
+              "name": "Staff",
+              "min_compensation": 62015,
+              "max_compensation": 74409
+            },
+            {
+              "level": 2,
+              "name": "Manager",
+              "min_compensation": 93869,
+              "max_compensation": 112138
+            },
+            {
+              "level": 3,
+              "name": "Sr Manager",
+              "min_compensation": 132165,
+              "max_compensation": 151239
+            },
+            {
+              "level": 4,
+              "name": "Director",
+              "min_compensation": 197674,
+              "max_compensation": 246421
+            },
+            {
+              "level": 5,
+              "name": "VP",
+              "min_compensation": 355919,
+              "max_compensation": 415263
+            }
+          ],
+          "census_sha256": "2478aea623811d90adc973f8603cabc900318411d45df6c230334f6166e8e3c1"
+        },
+        "seconds": 549.2100167080025,
+        "completed_at": "2026-10-30T23:16:59.211518+00:00"
+      }
     }
   },
   "failed_attempts": [
