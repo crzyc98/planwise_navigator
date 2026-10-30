@@ -30,3 +30,8 @@ Written and committed before any holdout cell runs at stage `turnover_indexed_3p
   Both pass rates are reported; neither replaces the other.
 - **Stress cells:** cells with a 1% comp-growth target are stress tests, scored and reported separately. With 3.5% merit and 2% COLA, 1% average growth requires new-hire pay to keep falling behind incumbents, which is not a typical US workforce. Campaign acceptance is judged on the remaining (standard) cells.
 - **Holdout configuration:** stage `turnover_indexed_3pct` (first-year prior-hire turnover fix ac5be11d, 3% annual new-hire range growth), seed 42, all 45 holdout cells, run once. Infeasible-but-diagnosed cells are scored on their returned best scale like every other run.
+
+## Amendment 2026-10-31 (user decision, before any backfill holdout run)
+The seed-42 holdout was examined while diagnosing level-mix drift, so it no longer counts as unseen. Stage `backfill_by_level` (commit 66267c26) allocates hires to each level's shortfall against its start-year census share.
+- **Plausibility yardstick:** the per-level new-hire band (0.6–1.3× census level average) compares against the census average grown by the run's configured `new_hire.salary_growth_rate`, i.e. `census_mean × (1 + rate)^(year − 2026)`. Reason: starting pay is meant to rise with the market, so a frozen 2026 yardstick flags normal market pay as implausible. With rate 0 the check is unchanged. Earlier stages' committed scores used the frozen yardstick.
+- **Fresh holdout:** all 45 holdout cells at seed 7 (never run), stage `backfill_by_level`, run once after dev review, using the 2026-10-30 bars and stress-cell split.

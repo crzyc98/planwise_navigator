@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import duckdb
+import yaml
 
 ROOT = Path(__file__).resolve().parent
 Json = dict[str, Any]
@@ -19,6 +20,7 @@ CAGR_BAR = 0.25
 HC_BAR = 0.10
 CAL_GAP_BAR = 0.10
 STRESS_COMP_TARGETS = (1,)
+CENSUS_YEAR = 2026
 
 
 def annual(database: str) -> list[Json]:
@@ -85,7 +87,7 @@ def range_flags(calibration: Json) -> list[str]:
     return flags
 
 
-def hire_flags(database: str, census: str) -> list[str]:
+def hire_flags(database: str, census: str, growth: float = 0.0) -> list[str]:
     with duckdb.connect(database, read_only=True) as conn:
         rows = conn.execute(
             "SELECT simulation_year,level_id,avg(compensation_amount),min(compensation_amount) FROM fct_yearly_events WHERE upper(event_type)='HIRE' GROUP BY 1,2"
@@ -105,9 +107,22 @@ def hire_flags(database: str, census: str) -> list[str]:
     for year, level, average, minimum in rows:
         if average is None or not math.isfinite(average) or minimum < 0:
             flags.append(f"invalid_hire_pay_{year}_{level}")
-        elif level not in means or not 0.6 <= average / means[level] <= 1.3:
+        elif (
+            level not in means
+            or not 0.6 <= average / indexed(means[level], year, growth) <= 1.3
+        ):
             flags.append(f"hire_pay_ratio_{year}_{level}")
     return flags
+
+
+def indexed(census_mean: float, year: int, growth: float) -> float:
+    """Amendment 2026-10-31: the census yardstick rises with configured starting-pay growth."""
+    return census_mean * (1 + growth) ** (year - CENSUS_YEAR)
+
+
+def salary_growth(config_path: str) -> float:
+    config = yaml.safe_load(Path(config_path).read_text()) or {}
+    return float((config.get("new_hire") or {}).get("salary_growth_rate", 0.0))
 
 
 def cagr_err(rows: list[Json], target: float) -> float:
@@ -156,7 +171,9 @@ def score_run(cell: Json, run: Json, census: str) -> Json:
             row["hc_err"] = abs(row["active_hc_growth"] - cell["hc_target_pct"])
             row["cal_gap"] = abs(prediction - row["active_comp_growth"])
         flags = range_flags(run["calibration"]) + hire_flags(
-            run["applied"]["database"], census
+            run["applied"]["database"],
+            census,
+            salary_growth(run["applied"]["config_path"]),
         )
         return {
             "status": "scored",
@@ -167,7 +184,15 @@ def score_run(cell: Json, run: Json, census: str) -> Json:
             "failures": flags,
             "annual": rows,
         }
-    except (duckdb.Error, KeyError, ValueError, TypeError, ZeroDivisionError) as exc:
+    except (
+        duckdb.Error,
+        OSError,
+        yaml.YAMLError,
+        KeyError,
+        ValueError,
+        TypeError,
+        ZeroDivisionError,
+    ) as exc:
         return {
             "status": "unscorable",
             "score": None,

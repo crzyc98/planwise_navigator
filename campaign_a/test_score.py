@@ -5,7 +5,15 @@ from pathlib import Path
 import duckdb
 import pytest
 
-from campaign_a.score import annual, bars, cagr_err, range_flags, score_run
+from campaign_a.score import (
+    annual,
+    bars,
+    cagr_err,
+    hire_flags,
+    range_flags,
+    salary_growth,
+    score_run,
+)
 
 pytestmark = pytest.mark.fast
 
@@ -89,3 +97,33 @@ def test_bars_mark_stress_cells_and_require_clean_runs():
     )
     missing = dict(result, score=None)
     assert not bars({"comp_target_pct": 4}, missing)["pass_cagr"]
+
+
+def test_hire_pay_yardstick_rises_with_configured_growth(tmp_path: Path):
+    database, census = tmp_path / "hires.duckdb", tmp_path / "census.parquet"
+    with duckdb.connect(str(database)) as conn:
+        conn.execute(
+            "COPY (SELECT 1 AS employee_job_level, 100.0 AS employee_gross_compensation) TO '"
+            + str(census)
+            + "' (FORMAT parquet)"
+        )
+        conn.execute(
+            "CREATE TABLE fct_yearly_events AS SELECT y AS simulation_year, 1 AS level_id, 'hire' AS event_type, 140.0 AS compensation_amount FROM range(2026, 2031) t(y)"
+        )
+    # 140 is above 1.3x the frozen 100, but within 1.3x 100*1.03^n from 2029 on.
+    frozen = hire_flags(str(database), str(census))
+    indexed = hire_flags(str(database), str(census), 0.03)
+    assert frozen == [f"hire_pay_ratio_{year}_1" for year in range(2026, 2031)]
+    assert indexed == [
+        "hire_pay_ratio_2026_1",
+        "hire_pay_ratio_2027_1",
+        "hire_pay_ratio_2028_1",
+    ]
+
+
+def test_salary_growth_defaults_to_zero(tmp_path: Path):
+    config = tmp_path / "config.yaml"
+    config.write_text("new_hire:\n  salary_growth_rate: 0.03\n")
+    assert salary_growth(str(config)) == 0.03
+    config.write_text("simulation:\n  start_year: 2026\n")
+    assert salary_growth(str(config)) == 0.0
