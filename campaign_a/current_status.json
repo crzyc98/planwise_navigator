@@ -1,12 +1,14 @@
 {
-  "status": "dev_validated_awaiting_review",
+  "status": "holdout_complete_awaiting_review",
   "stage": "turnover_indexed_3pct",
   "dev_runs": {
     "completed": 18,
     "failed": 0
   },
   "holdout_runs": {
-    "not_run": 45
+    "completed": 45,
+    "failed": 0,
+    "seed": 42
   },
   "cal_gap_max_pp": 0.0,
   "dev_mean_max_comp_err_pp": {
@@ -21,5 +23,25 @@
       "42": 0.531,
       "101": 0.771
     }
+  },
+  "holdout": {
+    "standard": {
+      "runs": 30,
+      "pass_per_year": 19,
+      "pass_cagr": 30,
+      "mean_max_comp_err_pp": 0.499,
+      "worst_pp": 1.18,
+      "cagr_err_mean_pp": 0.048
+    },
+    "stress": {
+      "runs": 15,
+      "pass_per_year": 4,
+      "pass_cagr": 15,
+      "mean_max_comp_err_pp": 1.036,
+      "worst_pp": 1.684,
+      "cagr_err_mean_pp": 0.049
+    },
+    "plausibility_failures": 0,
+    "hc_err_max_pp": 0.01
   }
 }

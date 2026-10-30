@@ -3,3 +3,4 @@ search_fix	Hire-date + leap-year sim fixes; Active metric; minimax search	eedcd5
 indexed_cola	2%/yr new-hire range growth (= COLA)	63e1211e	0.620 (s42) / 0.853 (s101)	<=0.01	0.000	5	feature kept; accuracy not improved
 prior_hire_turnover	Census prior-year hires get second-year turnover; 0% range growth	ac5be11d	0.709 (s42) / 0.768 (s101)	<=0.01	0.000	0	fix kept; accuracy not improved
 turnover_indexed_3pct	Turnover fix + 3%/yr new-hire range growth	3dad48f9	0.537 (s42) / 0.584 (s101)	<=0.01	0.000	0	best dev stage
+turnover_indexed_3pct (holdout)	Holdout, 45 cells, seed 42, run once	3dad48f9	0.499 standard / 1.036 stress	<=0.01	0.000	0	standard: per-year 19/30, compound 30/30
