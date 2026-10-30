@@ -10,6 +10,7 @@
 -- Provides granular visibility into hiring, termination, and financial impact by job level
 
 {% set simulation_year = var('simulation_year') %}
+{% set start_year = var('start_year', 2025) | int %}
 {% set scenario_id = var('scenario_id', 'default') %}
 
 WITH workforce_needs_summary AS (
@@ -19,8 +20,18 @@ WITH workforce_needs_summary AS (
     AND scenario_id = '{{ scenario_id }}'
 ),
 
+anchor_shares AS (
+  SELECT
+    level_id,
+    COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () AS anchor_share
+  FROM {{ ref('int_baseline_workforce') }}
+  WHERE simulation_year = {{ start_year }}
+    AND employment_status = 'active'
+  GROUP BY level_id
+),
+
 -- Current workforce by level (from previous year's ending state)
-workforce_by_level AS (
+current_workforce_by_level AS (
   SELECT
     level_id,
     -- Use FILTER to count only employees who existed at start of year (for planning purposes)
@@ -43,6 +54,47 @@ workforce_by_level AS (
   GROUP BY level_id
   -- Filter out levels that have no employees at start of year
   HAVING COUNT(*) FILTER (WHERE employee_hire_date < DATE '{{ simulation_year }}-01-01') > 0
+),
+
+-- E082: Check if fixed level distribution is enabled for this scenario
+fixed_level_config AS (
+  SELECT
+    level_id,
+    distribution_pct,
+    use_fixed_distribution
+  FROM {{ ref('config_new_hire_level_distribution') }}
+  WHERE scenario_id = COALESCE(
+    NULLIF('{{ scenario_id }}', 'default'),
+    'default'
+  )
+  -- Fall back to default if no scenario-specific config exists
+  OR (scenario_id = 'default' AND NOT EXISTS (
+    SELECT 1 FROM {{ ref('config_new_hire_level_distribution') }}
+    WHERE scenario_id = '{{ scenario_id }}'
+      AND scenario_id != 'default'
+  ))
+),
+
+-- Determine if we should use fixed distribution (any row has use_fixed_distribution = true)
+use_fixed_distribution_flag AS (
+  SELECT COALESCE(BOOL_OR(use_fixed_distribution), false) AS use_fixed
+  FROM fixed_level_config
+),
+
+workforce_by_level AS (
+  SELECT
+    level_id, current_headcount, experienced_headcount, new_hire_headcount,
+    avg_compensation, total_compensation, min_compensation, max_compensation,
+    median_compensation, compensation_std_dev
+  FROM current_workforce_by_level
+  UNION ALL
+  SELECT
+    a.level_id, 0, 0, 0, NULL, 0, NULL, NULL, NULL, NULL
+  FROM anchor_shares a
+  WHERE NOT EXISTS (
+    SELECT 1 FROM current_workforce_by_level w WHERE w.level_id = a.level_id
+  )
+    AND NOT (SELECT use_fixed FROM use_fixed_distribution_flag)
 ),
 
 -- E077: Experienced Termination Quotas by Level (ADR E077-B with edge cases)
@@ -114,31 +166,23 @@ termination_by_level AS (
     END) * wbl.avg_compensation AS termination_compensation_cost
   FROM remainder_allocation ra
   JOIN workforce_by_level wbl ON ra.level_id = wbl.level_id
+  UNION ALL
+  SELECT level_id, experienced_headcount, 0, 0
+  FROM workforce_by_level
+  WHERE current_headcount = 0
 ),
 
--- E082: Check if fixed level distribution is enabled for this scenario
-fixed_level_config AS (
+-- Backfill toward the start-year census mix; promotion vacancies are filled next year.
+backfill_gaps AS (
   SELECT
-    level_id,
-    distribution_pct,
-    use_fixed_distribution
-  FROM {{ ref('config_new_hire_level_distribution') }}
-  WHERE scenario_id = COALESCE(
-    NULLIF('{{ scenario_id }}', 'default'),
-    'default'
-  )
-  -- Fall back to default if no scenario-specific config exists
-  OR (scenario_id = 'default' AND NOT EXISTS (
-    SELECT 1 FROM {{ ref('config_new_hire_level_distribution') }}
-    WHERE scenario_id = '{{ scenario_id }}'
-      AND scenario_id != 'default'
-  ))
-),
-
--- Determine if we should use fixed distribution (any row has use_fixed_distribution = true)
-use_fixed_distribution_flag AS (
-  SELECT COALESCE(BOOL_OR(use_fixed_distribution), false) AS use_fixed
-  FROM fixed_level_config
+    wbl.level_id,
+    COALESCE(a.anchor_share, 0.0) AS anchor_share,
+    GREATEST(0.0, COALESCE(a.anchor_share, 0.0) * wns.target_ending_workforce
+      - (wbl.current_headcount - COALESCE(tbl.expected_terminations, 0))) AS gap
+  FROM workforce_by_level wbl
+  CROSS JOIN workforce_needs_summary wns
+  LEFT JOIN anchor_shares a ON wbl.level_id = a.level_id
+  LEFT JOIN termination_by_level tbl ON wbl.level_id = tbl.level_id
 ),
 
 -- E077: Hiring Quotas by Level (ADR E077-B with adaptive distribution)
@@ -154,12 +198,14 @@ hiring_by_level AS (
         WHEN (SELECT use_fixed FROM use_fixed_distribution_flag) THEN
           COALESCE(flc.distribution_pct, 0.0)
         ELSE
-          wbl.current_headcount * 1.0 / NULLIF(SUM(wbl.current_headcount) OVER (), 0)
+          CASE WHEN SUM(bg.gap) OVER () > 0
+            THEN bg.gap / SUM(bg.gap) OVER ()
+            ELSE bg.anchor_share
+          END
       END AS raw_weight
     FROM workforce_by_level wbl
     LEFT JOIN fixed_level_config flc ON wbl.level_id = flc.level_id
-    WHERE wbl.current_headcount > 0  -- Exclude empty levels for weight calculation
-      OR (SELECT use_fixed FROM use_fixed_distribution_flag)  -- Include all levels if fixed distribution
+    JOIN backfill_gaps bg ON wbl.level_id = bg.level_id
   ),
   level_stats AS (
     SELECT

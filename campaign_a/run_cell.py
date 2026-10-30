@@ -76,10 +76,15 @@ STAGES = (
     "indexed_cola",
     "prior_hire_turnover",
     "turnover_indexed_3pct",
+    "backfill_by_level",
 )
 # Analyst starting-pay growth assumption per stage. indexed_cola matches the
 # 2% config COLA; 3% reflects typical US salary-structure and market wage growth.
-SALARY_GROWTH_BY_STAGE = {"indexed_cola": 0.02, "turnover_indexed_3pct": 0.03}
+SALARY_GROWTH_BY_STAGE = {
+    "indexed_cola": 0.02,
+    "turnover_indexed_3pct": 0.03,
+    "backfill_by_level": 0.03,
+}
 
 
 def save_record(cell: Json, seed: int, stage: str, record: Json) -> None:
