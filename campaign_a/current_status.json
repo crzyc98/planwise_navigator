@@ -1,6 +1,6 @@
 {
-  "status": "seed13_holdout_complete_awaiting_review",
-  "stage": "two_dial",
+  "status": "promo_backfill_dev_complete_holdout_pending",
+  "stage": "promo_backfill",
   "dev_runs": {
     "completed": 18,
     "failed": 0
@@ -12,8 +12,8 @@
   },
   "cal_gap_max_pp": 0.0,
   "dev_mean_max_comp_err_pp": {
-    "42": 0.206,
-    "101": 0.263
+    "42": 0.157,
+    "101": 0.252
   },
   "noise_band_pp": 0.253,
   "dev_plausibility_failures": 0,

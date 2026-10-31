@@ -127,6 +127,20 @@ Backfill fixed the high-turnover and 2.5%-target misses: high-turnover standard 
 
 Failures: six young, low-turnover cells hire no level-2 employees in 3–4 years, because promotions keep level 2 above its census share; the oracle counts empty hiring levels as failures. Ignoring that flag (non-binding, post hoc) the standard compound pass would be 29/30; per-year is unchanged at 18/30.
 
+## Stage `promo_backfill`: backfill gap counts expected promotions (commit bd23c051)
+Diagnosis (spent seed-13 holdout): the backfill gap ignored promotions, so year 1 hired into L2/L3 by census share, promotions overfilled L2, and L2 got no hires from year 2. That one-time shift front-loaded year-2 growth ~1pp in young cells. The gap now subtracts expected promotions out and adds expected promotions in (summed promotion-hazard probabilities). L2 now receives hires every year.
+
+| Dev (18 runs) | two_dial | promo_backfill |
+|---|---|---|
+| Mean max-year err s42 / s101 | 0.206 / 0.263pp | 0.157 / 0.252pp |
+| Mean year-to-year swing (max-min) | 0.47pp | 0.41pp |
+| Young cells mean max-year err | 0.30pp | 0.17pp |
+| Worst run | 0.50pp | 0.51pp |
+| Standard runs passing per-year / compound | 11 / 12, 12 / 12 | 10 / 12, 11 / 12 |
+| Runs with failures | 0 | 1 |
+
+The failure is young_h2_c4_high seed 42 (worst-year error 0.05pp): level-5 hire pay is 1.31-1.32x the indexed census mean against the 1.3 plausibility bar (calibrated scale 1.07). older_h2_c4_high seed 101 misses per-year at 0.51pp, as under two_dial. Balanced 4%-high cells are slightly worse (e.g. 0.34 -> 0.50pp), within seed noise.
+
 ## Holdout: stage `turnover_indexed_3pct`, seed 42, run once (bars per ORACLE amendment 2026-10-30)
 All 45 holdout cells completed; none failed. No setting was changed after seeing these results.
 
