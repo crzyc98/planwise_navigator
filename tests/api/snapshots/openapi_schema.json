@@ -1377,6 +1377,7 @@
           "status": {
             "enum": [
               "converged",
+              "best_achievable",
               "not_converged",
               "infeasible"
             ],

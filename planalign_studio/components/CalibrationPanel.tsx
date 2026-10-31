@@ -1168,11 +1168,11 @@ export default function CalibrationPanel() {
           )}
           {autoOutcome && (
             <div className="mt-3">
-              <p className={`text-xs font-medium ${autoOutcome.converged ? 'text-success-ink' : 'text-warning-ink'}`}>
+              <p className={`text-xs font-medium ${autoOutcome.status === 'converged' ? 'text-success-ink' : autoOutcome.status === 'best_achievable' ? 'text-info-ink' : 'text-warning-ink'}`}>
                 {autoOutcome.message}
               </p>
               {autoOutcome.reason && (
-                <p className={`mt-1 text-xs ${autoOutcome.status === 'converged' ? 'text-info-ink' : 'text-warning-ink'}`}>
+                <p className={`mt-1 text-xs ${autoOutcome.status === 'converged' || autoOutcome.status === 'best_achievable' ? 'text-info-ink' : 'text-warning-ink'}`}>
                   {autoOutcome.reason}
                 </p>
               )}
