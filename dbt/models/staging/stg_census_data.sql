@@ -112,7 +112,7 @@ annualized_data AS (
 
 -- Derive two compensation fields from the annual salary rate:
 --   1. computed_plan_year_compensation: prorated amount for the active portion of the plan year
---      (annual rate * days_active_in_year / 365). Equals 0 when employee has no plan-year overlap.
+--      (annual rate * days_active_in_year / days_in_plan_year). Equals 0 when employee has no plan-year overlap.
 --   2. employee_annualized_compensation: full-year equivalent salary rate, equal to
 --      employee_gross_compensation per the data contract (annual rate, not prorated).
 comp_data AS (
@@ -121,7 +121,8 @@ comp_data AS (
     -- Plan-year compensation: prorated by active days in the plan year
     CASE
       WHEN ad.days_active_in_year = 0 THEN 0.0
-      ELSE ad.employee_gross_compensation * (ad.days_active_in_year / 365.0)
+      ELSE ad.employee_gross_compensation * (ad.days_active_in_year / DATE_DIFF('day',
+        MAKE_DATE(YEAR(ad.plan_start), 1, 1), MAKE_DATE(YEAR(ad.plan_start) + 1, 1, 1)))
     END AS computed_plan_year_compensation,
     -- Annualized compensation: the full-year salary rate (equals gross per data contract)
     ad.employee_gross_compensation AS employee_annualized_compensation

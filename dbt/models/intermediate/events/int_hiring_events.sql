@@ -144,8 +144,8 @@ new_hire_assignments AS (
     -- Birth date calculation based on assigned age
     CAST('{{ simulation_year }}-01-01' AS DATE) - INTERVAL (COALESCE(hwa.assigned_age, 32) * 365) DAY AS birth_date,
 
-    -- Hire date evenly distributed throughout year using modulo for cycling
-    CAST('{{ simulation_year }}-01-01' AS DATE) + INTERVAL (hwa.hire_sequence_num % 365) DAY AS hire_date,
+    -- Hire dates cover the calendar year in seeded order independent of level
+    {{ distributed_hire_date('hwa.hire_sequence_num', simulation_year) }} AS hire_date,
 
     -- Use compensation from workforce needs with small variance for realism.
     -- Multipliers cycle 0.91..1.09 (mean exactly 1.00) so realized average

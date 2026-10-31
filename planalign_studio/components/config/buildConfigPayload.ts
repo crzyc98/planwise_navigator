@@ -73,6 +73,7 @@ export function buildConfigPayload(
         min_compensation: row.minComp,
         max_compensation: row.maxComp,
       })),
+      salary_growth_rate: formData.newHireSalaryGrowthPercent / 100,
       market_scenario: formData.marketScenario,
       level_market_adjustments: formData.levelMarketAdjustments.map(row => ({
         level: row.level,

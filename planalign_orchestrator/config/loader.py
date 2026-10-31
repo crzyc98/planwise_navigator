@@ -26,7 +26,7 @@ from .participant_behavior import (
     DeferralRateChangesSettings,
     EasyEnrollSettings,
 )
-from .simulation import SimulationSettings, CompensationSettings
+from .simulation import SimulationSettings, CompensationSettings, NewHireSettings
 from .workforce import (
     WorkforceSettings,
     EnrollmentSettings,
@@ -113,6 +113,10 @@ class SimulationConfig(BaseModel):
     plan_design_parameters: Optional[PlanDesignParametersMap] = None
 
     simulation: SimulationSettings
+    new_hire: Dict[str, Any] = Field(
+        default_factory=lambda: {"salary_growth_rate": 0.0}
+    )
+
     compensation: CompensationSettings
     workforce: WorkforceSettings = Field(default_factory=WorkforceSettings)
     enrollment: EnrollmentSettings = Field(default_factory=EnrollmentSettings)
@@ -154,6 +158,12 @@ class SimulationConfig(BaseModel):
     contribution_sources: ContributionSourceSettings = Field(
         default_factory=ContributionSourceSettings
     )
+
+    @field_validator("new_hire")
+    @classmethod
+    def validate_new_hire(cls, value: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate starting pay while retaining existing dictionary consumers."""
+        return NewHireSettings.model_validate(value).model_dump()
 
     @field_validator(
         "deferral_auto_escalation",
