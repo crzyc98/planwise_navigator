@@ -31,6 +31,10 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Literal, NamedTuple, Optional, Tuple
 
+import numpy as np
+from numpy.typing import NDArray
+from scipy.optimize import linprog
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from planalign_orchestrator.calibration_runner import (
@@ -76,9 +80,16 @@ class AutoCalibrationSettings(BaseModel):
     # If the scale clamps at a bound and still misses, nudge COLA/merit to
     # close the residual (reported explicitly in the outcome message).
     lever_fallback: bool = False
+    solve_salary_growth: bool = False
+    salary_growth_min: float = Field(default=0.0, ge=0, le=0.25)
+    salary_growth_max: float = Field(default=0.08, ge=0, le=0.25)
 
     @model_validator(mode="after")
     def _validate_scale_mode(self) -> "AutoCalibrationSettings":
+        if self.solve_salary_growth and self.search_mode != "new_hire_scale":
+            raise ValueError("solve_salary_growth requires new_hire_scale search")
+        if self.salary_growth_min >= self.salary_growth_max:
+            raise ValueError("salary_growth_min must be < salary_growth_max")
         if self.scale_min >= self.scale_max:
             raise ValueError("scale_min must be < scale_max")
         if (
@@ -99,6 +110,7 @@ class OptimizationIteration(BaseModel):
     cola_rate: float
     merit_budget: float
     scale: Optional[float] = None
+    salary_growth_rate: Optional[float] = None
     achieved_growth_pct: float
     error_pct: float
     max_abs_error_pct: float
@@ -115,6 +127,7 @@ class AutoCalibrationResult(BaseModel):
     message: str
     best_params: CalibrationParameterSet
     best_scale: Optional[float] = None
+    best_salary_growth_rate: Optional[float] = None
     achieved_comp_growth_pct: float
     target_comp_growth_pct: float
     max_abs_error_pct: float
@@ -249,11 +262,146 @@ class AutoCalibrator:
         self._iterations = []
         self._best = None
 
+        if self.settings.solve_salary_growth:
+            return self._optimize_two_dials(target_pct)
+
         if self.settings.search_mode == "new_hire_scale":
             return self._optimize_scale_mode(target_pct)
 
         converged = self._lever_stage(target_pct, scale=None)
         return self._finish(converged, self._summary(converged, target_pct), target_pct)
+
+    def _dial_bounds(self) -> NDArray[np.float64]:
+        s = self.settings
+        return np.array(
+            [[s.scale_min, s.scale_max], [s.salary_growth_min, s.salary_growth_max]]
+        )
+
+    def _initial_dials(self) -> NDArray[np.float64]:
+        rate = self.run.params.new_hire_salary_growth_rate
+        if rate is None:
+            rate = float(self._runner._config.new_hire.get("salary_growth_rate", 0))
+        bounds = self._dial_bounds()
+        return np.clip([self.settings.initial_scale, rate], bounds[:, 0], bounds[:, 1])
+
+    def _evaluate_dials(
+        self, x: NDArray[np.float64], target_pct: float
+    ) -> NDArray[np.float64]:
+        cola, merit = self._starting_levers()
+        params = self._candidate(cola, merit, 0.0, float(x[0]))
+        params.new_hire_salary_growth_rate = float(x[1])
+        self._try_candidate(params, target_pct, float(x[0]))
+        years = sorted(self._last_errors)
+        expected = list(range(self.run.start_year + 1, self.run.end_year + 1))
+        if years != expected:
+            raise ValueError(
+                "Two-dial calibration requires growth for every post-baseline year"
+            )
+        return np.array([self._last_errors[year] for year in years])
+
+    def _dial_jacobian(
+        self, x: NDArray[np.float64], errors: NDArray[np.float64], target_pct: float
+    ) -> Optional[NDArray[np.float64]]:
+        columns = []
+        bounds = self._dial_bounds()
+        for axis, step in enumerate((0.1, 0.01)):
+            if self._evals >= self.settings.max_iterations or self._dials_converged():
+                return None
+            probe = x.copy()
+            direction = 1 if x[axis] + step <= bounds[axis, 1] else -1
+            probe[axis] = np.clip(x[axis] + direction * step, *bounds[axis])
+            if probe[axis] == x[axis]:
+                probe[axis] = bounds[axis, 1]
+            delta = probe[axis] - x[axis]
+            columns.append((self._evaluate_dials(probe, target_pct) - errors) / delta)
+        return np.column_stack(columns)
+
+    def _dial_step(
+        self,
+        x: NDArray[np.float64],
+        errors: NDArray[np.float64],
+        jacobian: NDArray[np.float64],
+        trust: NDArray[np.float64],
+    ) -> Optional[NDArray[np.float64]]:
+        bounds = self._dial_bounds() - x[:, None]
+        lower = np.maximum(bounds[:, 0], -trust)
+        upper = np.minimum(bounds[:, 1], trust)
+        constraints = np.column_stack(
+            (
+                np.vstack((jacobian, -jacobian)),
+                -np.ones(2 * len(errors)),
+            )
+        )
+        solution = linprog(
+            [0, 0, 1],
+            A_ub=constraints,
+            b_ub=np.concatenate((-errors, errors)),
+            bounds=[*zip(lower, upper), (0, None)],
+            method="highs",
+        )
+        if not solution.success:
+            logger.warning("Two-dial minimax step failed: %s", solution.message)
+            return None
+        return np.asarray(solution.x[:2], dtype=float)
+
+    def _dials_converged(self) -> bool:
+        return self._require_best().abs_error <= self.settings.tolerance_pct
+
+    @staticmethod
+    def _update_dial_jacobian(
+        jacobian: NDArray[np.float64],
+        step: NDArray[np.float64],
+        errors: NDArray[np.float64],
+        new_errors: NDArray[np.float64],
+    ) -> Optional[NDArray[np.float64]]:
+        """Accept an improving step with a Broyden update; otherwise recompute."""
+        if np.max(np.abs(new_errors)) >= np.max(np.abs(errors)):
+            return None
+        residual = new_errors - errors - jacobian @ step
+        return jacobian + np.outer(residual, step) / float(step @ step)
+
+    def _search_dials(self, target_pct: float) -> str:
+        x = self._initial_dials()
+        errors = self._evaluate_dials(x, target_pct)
+        trust = np.array([0.5, 0.02])
+        jacobian = None
+        while (
+            self._evals < self.settings.max_iterations and not self._dials_converged()
+        ):
+            if jacobian is None:
+                jacobian = self._dial_jacobian(x, errors, target_pct)
+            if (
+                jacobian is None
+                or self._dials_converged()
+                or self._evals >= self.settings.max_iterations
+            ):
+                break
+            step = self._dial_step(x, errors, jacobian, trust)
+            if step is None:
+                return "Linearized minimax solver could not produce a step."
+            if np.max(np.abs(step) / np.array([0.5, 0.02])) < 1e-5:
+                return "Trust region collapsed: no improving step within bounds."
+            candidate = np.clip(x + step, *self._dial_bounds().T)
+            step = candidate - x
+            new_errors = self._evaluate_dials(candidate, target_pct)
+            jacobian = self._update_dial_jacobian(jacobian, step, errors, new_errors)
+            if jacobian is None:
+                trust *= 0.5
+            else:
+                x, errors = candidate, new_errors
+            if trust[0] < 1e-4:
+                return "Trust region collapsed without convergence."
+        return "Evaluation budget exhausted before convergence."
+
+    def _optimize_two_dials(self, target_pct: float) -> AutoCalibrationResult:
+        reason = self._search_dials(target_pct)
+        converged = self._dials_converged()
+        return self._finish(
+            converged,
+            self._summary(converged, target_pct),
+            target_pct,
+            reason=None if converged else f"{reason} {self._best_growth_detail()}",
+        )
 
     # -- scale-primary mode ---------------------------------------------------
     def _optimize_scale_mode(self, target_pct: float) -> AutoCalibrationResult:
@@ -468,6 +616,7 @@ class AutoCalibrator:
                 cola_rate=params.cola_rate or 0.0,
                 merit_budget=params.merit_budget or 0.0,
                 scale=scale,
+                salary_growth_rate=params.new_hire_salary_growth_rate,
                 achieved_growth_pct=achieved,
                 error_pct=error,
                 max_abs_error_pct=max_abs_error,
@@ -534,6 +683,7 @@ class AutoCalibrator:
             message=message,
             best_params=best.params,
             best_scale=best.scale,
+            best_salary_growth_rate=best.params.new_hire_salary_growth_rate,
             achieved_comp_growth_pct=best.achieved_pct,
             target_comp_growth_pct=target_pct,
             max_abs_error_pct=best.abs_error,

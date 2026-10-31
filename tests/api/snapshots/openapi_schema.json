@@ -1275,6 +1275,17 @@
           "best_params": {
             "$ref": "#/components/schemas/CalibrationParameterSet"
           },
+          "best_salary_growth_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Salary Growth Rate"
+          },
           "best_scale": {
             "anyOf": [
               {
@@ -1358,6 +1369,7 @@
           "message",
           "best_params",
           "best_scale",
+          "best_salary_growth_rate",
           "achieved_comp_growth_pct",
           "target_comp_growth_pct",
           "max_abs_error_pct",
@@ -1416,6 +1428,20 @@
             "title": "Max Iterations",
             "type": "integer"
           },
+          "salary_growth_max": {
+            "default": 0.08,
+            "maximum": 0.25,
+            "minimum": 0.0,
+            "title": "Salary Growth Max",
+            "type": "number"
+          },
+          "salary_growth_min": {
+            "default": 0.0,
+            "maximum": 0.25,
+            "minimum": 0.0,
+            "title": "Salary Growth Min",
+            "type": "number"
+          },
           "scale_max": {
             "default": 3.0,
             "maximum": 5.0,
@@ -1436,6 +1462,11 @@
             ],
             "title": "Search Mode",
             "type": "string"
+          },
+          "solve_salary_growth": {
+            "default": false,
+            "title": "Solve Salary Growth",
+            "type": "boolean"
           },
           "target_comp_growth": {
             "maximum": 1.0,
@@ -2697,6 +2728,19 @@
             ],
             "description": "New-hire age distribution. Overrides the seed via the same dbt var the full simulation uses, so a tuned distribution transfers verbatim.",
             "title": "New Hire Age Distribution"
+          },
+          "new_hire_salary_growth_rate": {
+            "anyOf": [
+              {
+                "maximum": 0.25,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Hire Salary Growth Rate"
           },
           "new_hire_termination_rate": {
             "anyOf": [
@@ -10353,6 +10397,17 @@
           "merit_budget": {
             "title": "Merit Budget",
             "type": "number"
+          },
+          "salary_growth_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary Growth Rate"
           },
           "scale": {
             "anyOf": [

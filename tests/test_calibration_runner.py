@@ -360,3 +360,21 @@ def test_snapshot_metric_matches_studio_active_query(tmp_path: Path) -> None:
     )
     assert runner._read_year(2025).yoy_growth_pct is None
     assert runner._read_year(2025).headcount == 2
+
+
+def test_salary_growth_override_and_rerun(tmp_path, monkeypatch) -> None:
+    from planalign_orchestrator.config.export import to_dbt_vars
+
+    runner = _runner_with_default_config(tmp_path)
+    monkeypatch.setattr(runner, "_build_all_years", lambda: [])
+    runner._apply_param_overrides(
+        CalibrationParameterSet(new_hire_salary_growth_rate=0.04)
+    )
+    assert runner._config.new_hire["salary_growth_rate"] == 0.04
+    assert to_dbt_vars(runner._config)["new_hire_salary_growth_rate"] == 0.04
+    runner.rerun_with_params(CalibrationParameterSet(new_hire_salary_growth_rate=0.06))
+    runner.rerun_with_params(CalibrationParameterSet())
+    assert runner._config.new_hire["salary_growth_rate"] == 0.06
+    runner.rerun_with_params(CalibrationParameterSet(new_hire_salary_growth_rate=0))
+    assert runner._config.new_hire["salary_growth_rate"] == 0
+    assert "new_hire_salary_growth_rate" not in to_dbt_vars(runner._config)

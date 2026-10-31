@@ -568,6 +568,8 @@ def _merge_calibration_candidate(
             workforce[field] = value
 
     new_hire = merged.setdefault("new_hire", {})
+    if params.new_hire_salary_growth_rate is not None:
+        new_hire["salary_growth_rate"] = params.new_hire_salary_growth_rate
     if params.new_hire_age_distribution is not None:
         new_hire["age_distribution"] = params.new_hire_age_distribution
     if params.job_level_compensation is not None:

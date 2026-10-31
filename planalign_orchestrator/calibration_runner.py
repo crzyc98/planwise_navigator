@@ -137,6 +137,7 @@ class CalibrationParameterSet(BaseModel):
     # {"level", "min_compensation", "max_compensation"}. When provided, this
     # overrides the job_level_compensation dbt var -- the same var the full
     # simulation consumes -- so a calibrated scale transfers verbatim.
+    new_hire_salary_growth_rate: Optional[float] = Field(default=None, ge=0, le=0.25)
     job_level_compensation: Optional[List[JobLevelRange]] = None
 
     @field_validator("new_hire_age_distribution")
@@ -426,6 +427,10 @@ class CalibrationRunner:
         # and MUST NOT be written to simulation.target_growth_rate (which is the
         # workforce/headcount growth target that sizes E077 hiring). Conflating
         # the two changes hiring counts and breaks comp exactness.
+        if params.new_hire_salary_growth_rate is not None:
+            self._config.new_hire["salary_growth_rate"] = (
+                params.new_hire_salary_growth_rate
+            )
         if params.cola_rate is not None:
             self._config.compensation.cola_rate = params.cola_rate
         if params.merit_budget is not None:

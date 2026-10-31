@@ -623,3 +623,28 @@ def test_job_level_compensation_with_name_is_accepted(client, monkeypatch) -> No
     )
     assert resp.status_code == 202
     assert _await_job(client, resp.json()["run_id"])["status"] == "completed"
+
+
+@pytest.mark.parametrize("rate", [0.0, 0.042345, None])
+def test_merge_candidate_salary_growth(rate) -> None:
+    request = calibration_router.CalibrationApplyRequest(
+        context=calibration_router.CalibrationContext(
+            workspace_id="workspace",
+            source_scenario_id="scenario",
+            source_run_id="run",
+            config_fingerprint="config",
+            census_fingerprint="census",
+            random_seed=42,
+            start_year=2025,
+            end_year=2027,
+        ),
+        best_params={"new_hire_salary_growth_rate": rate},
+        target_comp_growth_pct=4,
+    )
+    original = {"new_hire": {"salary_growth_rate": 0.03, "other": "preserved"}}
+    merged = calibration_router._merge_calibration_candidate(original, request)
+    assert merged["new_hire"] == {
+        "salary_growth_rate": 0.03 if rate is None else rate,
+        "other": "preserved",
+    }
+    assert original["new_hire"]["salary_growth_rate"] == 0.03
