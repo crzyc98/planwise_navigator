@@ -88,32 +88,35 @@ def single_design_parity_databases(
 
 
 @pytest.mark.parametrize(
-    ("employee_id", "design_id", "ceiling", "rate"),
+    ("design_id", "ceiling", "rate"),
     [
-        ("INV_EMP_0052", "legacy_design", Decimal("0.03"), Decimal("1.0")),
-        ("INV_EMP_0002", "current_design", Decimal("0.06"), Decimal("0.5")),
+        ("legacy_design", Decimal("0.03"), Decimal("1.0")),
+        ("current_design", Decimal("0.06"), Decimal("0.5")),
     ],
 )
 def test_match_amount_ties_to_assigned_design(
     plan_design_parameter_database: Path,
-    employee_id: str,
     design_id: str,
     ceiling: Decimal,
     rate: Decimal,
 ) -> None:
+    # Pick a match-eligible deferring employee rather than a fixed ID: which
+    # census employees survive the year depends on turnover sampling, and a
+    # terminated employee correctly receives no match.
     with duckdb.connect(str(plan_design_parameter_database), read_only=True) as conn:
         row = conn.execute(
-            "SELECT plan_design_id, eligible_compensation, deferral_rate, "
-            "employer_match_amount FROM int_employee_match_calculations "
-            "WHERE employee_id = ?",
-            [employee_id],
+            "SELECT eligible_compensation, deferral_rate, employer_match_amount "
+            "FROM int_employee_match_calculations "
+            "WHERE plan_design_id = ? AND is_eligible_for_match "
+            "AND deferral_rate > 0 "
+            "ORDER BY simulation_year, employee_id LIMIT 1",
+            [design_id],
         ).fetchone()
     assert row is not None
-    actual_design, compensation, deferral_rate, actual_amount = row
+    compensation, deferral_rate, actual_amount = row
     expected = (
         Decimal(str(compensation)) * min(Decimal(str(deferral_rate)), ceiling) * rate
     ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    assert actual_design == design_id
     assert Decimal(str(actual_amount)) == expected
 
 
