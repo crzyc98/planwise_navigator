@@ -84,6 +84,20 @@ Diagnosis (on the spent seed-42 holdout): hires were split by the current level 
 
 The failure is young_h5_c1_low seed 42: no level-2 hires in 2028 and 2030, because promotions kept level 2 above its census share. Under backfill a full level can legitimately receive no hires; the oracle counts that as a failure, and it is left unchanged. 4%-target cells now run high in 2027 and settle near target (e.g. 4.51, 3.50, 3.50, 3.88%).
 
+## Fresh holdout: stage `backfill_by_level`, seed 7, run once (bars per ORACLE amendments 2026-10-30/31)
+All 45 cells completed. No setting was changed after seeing these results.
+
+| Set | Runs | Pass per-year (<=0.50pp) | Pass compound (<=0.25pp) | Mean / worst max-year err | CAGR err mean / max | Runs with failures |
+|---|---|---|---|---|---|---|
+| Standard, seed 42 pre-fix | 30 | 19 | 30 | 0.499 / 1.18pp | 0.048 / 0.106pp | 0 |
+| Standard, seed 7 backfill | 30 | 18 | 26 | 0.495 / 1.01pp | 0.087 / 0.285pp | 4 |
+| Stress, seed 42 pre-fix | 15 | 4 | 15 | 1.036 / 1.68pp | 0.049 / 0.115pp | 0 |
+| Stress, seed 7 backfill | 15 | 9 | 13 | 0.411 / 0.72pp | 0.063 / 0.097pp | 2 |
+
+Backfill fixed the high-turnover and 2.5%-target misses: high-turnover standard cells pass per-year 9/12 (was 3/12), and 2.5%-target cells 16/18 (was 8/18). It exposed a new pattern in every 4%-target cell: 2027 runs high and growth then declines (e.g. 4.86, 3.38, 3.49, 3.14%); per-year passes 2/12 (was 11/12). Likely cause: with a stable level mix, average pay growth converges toward the starting-pay growth rate (3%), so a constant starting-pay scale reaches other targets only by a one-time front-loaded jump. Before backfill, upward level drift added rising growth that offset this decline. Not investigated further on holdout data.
+
+Failures: six young, low-turnover cells hire no level-2 employees in 3–4 years, because promotions keep level 2 above its census share; the oracle counts empty hiring levels as failures. Ignoring that flag (non-binding, post hoc) the standard compound pass would be 29/30; per-year is unchanged at 18/30.
+
 ## Holdout: stage `turnover_indexed_3pct`, seed 42, run once (bars per ORACLE amendment 2026-10-30)
 All 45 holdout cells completed; none failed. No setting was changed after seeing these results.
 
@@ -102,4 +116,4 @@ Seed 101 holdout (N/A by the oracle). Why high-turnover 2.5% cells rise toward 2
 ## Verification
 `python3 scripts/dev.py -- python -m pytest -m fast -q -n 4` (4105 passed); `python3 scripts/dev.py -- ruff check .`; `bun run --cwd planalign_studio typecheck`; `python3 scripts/dev.py -- python campaign_a/score.py --stage search_fix --split dev`; `python3 scripts/dev.py -- python campaign_a/score.py --stage indexed_cola --split dev`; `python3 scripts/dev.py -- python campaign_a/score.py --stage prior_hire_turnover --split dev`; `python3 scripts/dev.py -- python campaign_a/score.py --stage turnover_indexed_3pct --split dev`; `python3 scripts/dev.py -- python campaign_a/score.py --stage turnover_indexed_3pct --split holdout` (4130 fast tests passed after commit 8cdae2c3).
 
-**CHECKPOINT: backfill dev complete; seed-7 holdout pending**
+**CHECKPOINT: seed-7 holdout complete; awaiting human review**

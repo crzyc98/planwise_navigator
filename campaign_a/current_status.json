@@ -1,5 +1,5 @@
 {
-  "status": "backfill_dev_complete_holdout_pending",
+  "status": "seed7_holdout_complete_awaiting_review",
   "stage": "backfill_by_level",
   "dev_runs": {
     "completed": 18,
@@ -47,7 +47,23 @@
   "fresh_holdout": {
     "stage": "backfill_by_level",
     "seed": 7,
-    "cells": 45,
-    "status": "not_run"
+    "completed": 45,
+    "failed": 0,
+    "standard": {
+      "runs": 30,
+      "pass_per_year": 18,
+      "pass_cagr": 26,
+      "mean_max_comp_err_pp": 0.495,
+      "worst_pp": 1.01,
+      "cagr_err_mean_pp": 0.087
+    },
+    "stress": {
+      "runs": 15,
+      "pass_per_year": 9,
+      "pass_cagr": 13,
+      "mean_max_comp_err_pp": 0.411,
+      "worst_pp": 0.72
+    },
+    "runs_with_failures": 6
   }
 }
