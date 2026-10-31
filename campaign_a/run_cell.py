@@ -77,6 +77,7 @@ STAGES = (
     "prior_hire_turnover",
     "turnover_indexed_3pct",
     "backfill_by_level",
+    "two_dial",
 )
 # Analyst starting-pay growth assumption per stage. indexed_cola matches the
 # 2% config COLA; 3% reflects typical US salary-structure and market wage growth.
@@ -84,7 +85,10 @@ SALARY_GROWTH_BY_STAGE = {
     "indexed_cola": 0.02,
     "turnover_indexed_3pct": 0.03,
     "backfill_by_level": 0.03,
+    "two_dial": 0.03,
 }
+# Amendment 2026-10-31b: calibration also solves starting-pay growth.
+TWO_DIAL_STAGES = {"two_dial"}
 
 
 def save_record(cell: Json, seed: int, stage: str, record: Json) -> None:
@@ -266,8 +270,14 @@ def run_full(
 
 
 def calibration_request(
-    workspace: str, scenario: str, cell: Json, inputs: Json, config: Json
+    workspace: str,
+    scenario: str,
+    cell: Json,
+    inputs: Json,
+    config: Json,
+    stage: str = "baseline",
 ) -> calibration.AutoCalibrationRequest:
+    two_dial = stage in TWO_DIAL_STAGES
     return calibration.AutoCalibrationRequest(
         workspace_id=workspace,
         scenario_id=scenario,
@@ -279,6 +289,8 @@ def calibration_request(
             target_workforce_growth=cell["hc_target_pct"] / 100,
             target_comp_growth=cell["comp_target_pct"] / 100,
             base_job_level_compensation=inputs["base_ranges"],
+            solve_salary_growth=two_dial,
+            max_iterations=12 if two_dial else 8,
         ),
         params=CalibrationParameterSet(
             new_hire_age_distribution=config["new_hire"]["age_distribution"],
@@ -311,10 +323,11 @@ def calibrate_and_apply(
     cell: Json,
     inputs: Json,
     record: Json,
+    stage: str = "baseline",
 ) -> None:
     config = storage.get_merged_config(workspace, scenario)
     assert config is not None
-    request = calibration_request(workspace, scenario, cell, inputs, config)
+    request = calibration_request(workspace, scenario, cell, inputs, config, stage)
     directory = storage.workspaces_root.parent
     with execution_environment(directory):
         target = calibration._materialize_target(request, storage)
@@ -419,7 +432,13 @@ def run_cell(cell_id: str, seed: int, stage: str) -> Json:
             record,
             "calibration",
             lambda: calibrate_and_apply(
-                storage, workspace, scenario, cell, inputs, record["calibration"]
+                storage,
+                workspace,
+                scenario,
+                cell,
+                inputs,
+                record["calibration"],
+                stage,
             ),
         )
         execute_phase(

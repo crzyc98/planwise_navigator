@@ -20,6 +20,7 @@ STAGES = (
     "prior_hire_turnover",
     "turnover_indexed_3pct",
     "backfill_by_level",
+    "two_dial",
 )
 
 
