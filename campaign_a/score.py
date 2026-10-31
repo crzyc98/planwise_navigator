@@ -98,12 +98,14 @@ def hire_flags(database: str, census: str, growth: float = 0.0) -> list[str]:
                 [census],
             ).fetchall()
         )
+        # Amendment 2026-10-31b: a level only misses hires that were planned for it.
+        planned = conn.execute(
+            "SELECT simulation_year,level_id FROM int_workforce_needs_by_level WHERE hires_needed > 0"
+        ).fetchall()
     flags = []
     observed = {(year, level) for year, level, _, _ in rows}
-    for year in range(2026, 2031):
-        for level in means:
-            if (year, level) not in observed:
-                flags.append(f"missing_hires_{year}_{level}")
+    for year, level in sorted(set(planned) - observed):
+        flags.append(f"missing_hires_{year}_{level}")
     for year, level, average, minimum in rows:
         if average is None or not math.isfinite(average) or minimum < 0:
             flags.append(f"invalid_hire_pay_{year}_{level}")

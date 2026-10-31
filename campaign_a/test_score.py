@@ -110,6 +110,9 @@ def test_hire_pay_yardstick_rises_with_configured_growth(tmp_path: Path):
         conn.execute(
             "CREATE TABLE fct_yearly_events AS SELECT y AS simulation_year, 1 AS level_id, 'hire' AS event_type, 140.0 AS compensation_amount FROM range(2026, 2031) t(y)"
         )
+        conn.execute(
+            "CREATE TABLE int_workforce_needs_by_level AS SELECT y AS simulation_year, 1 AS level_id, 1 AS hires_needed FROM range(2026, 2031) t(y)"
+        )
     # 140 is above 1.3x the frozen 100, but within 1.3x 100*1.03^n from 2029 on.
     frozen = hire_flags(str(database), str(census))
     indexed = hire_flags(str(database), str(census), 0.03)
@@ -127,3 +130,21 @@ def test_salary_growth_defaults_to_zero(tmp_path: Path):
     assert salary_growth(str(config)) == 0.03
     config.write_text("simulation:\n  start_year: 2026\n")
     assert salary_growth(str(config)) == 0.0
+
+
+def test_missing_hires_only_flag_planned_levels(tmp_path: Path):
+    database, census = tmp_path / "hires.duckdb", tmp_path / "census.parquet"
+    with duckdb.connect(str(database)) as conn:
+        conn.execute(
+            "COPY (SELECT * FROM (VALUES (1, 100.0), (2, 200.0)) t(employee_job_level, employee_gross_compensation)) TO '"
+            + str(census)
+            + "' (FORMAT parquet)"
+        )
+        conn.execute(
+            "CREATE TABLE fct_yearly_events AS SELECT 2026 AS simulation_year, 1 AS level_id, 'hire' AS event_type, 100.0 AS compensation_amount"
+        )
+        # Level 2 is full (0 planned) in 2026; level 1 is planned but unhired in 2027.
+        conn.execute(
+            "CREATE TABLE int_workforce_needs_by_level AS SELECT * FROM (VALUES (2026, 1, 3), (2026, 2, 0), (2027, 1, 2)) t(simulation_year, level_id, hires_needed)"
+        )
+    assert hire_flags(str(database), str(census)) == ["missing_hires_2027_1"]

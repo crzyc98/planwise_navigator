@@ -35,3 +35,10 @@ Written and committed before any holdout cell runs at stage `turnover_indexed_3p
 The seed-42 holdout was examined while diagnosing level-mix drift, so it no longer counts as unseen. Stage `backfill_by_level` (commit 66267c26) allocates hires to each level's shortfall against its start-year census share.
 - **Plausibility yardstick:** the per-level new-hire band (0.6–1.3× census level average) compares against the census average grown by the run's configured `new_hire.salary_growth_rate`, i.e. `census_mean × (1 + rate)^(year − 2026)`. Reason: starting pay is meant to rise with the market, so a frozen 2026 yardstick flags normal market pay as implausible. With rate 0 the check is unchanged. Earlier stages' committed scores used the frozen yardstick.
 - **Fresh holdout:** all 45 holdout cells at seed 7 (never run), stage `backfill_by_level`, run once after dev review, using the 2026-10-30 bars and stress-cell split.
+
+## Amendment 2026-10-31b (user decision, after the seed-7 holdout; applies only to later runs)
+The seed-7 holdout is spent. Seed-7 scores stay as recorded under the earlier rules.
+- **Planned-hire rule:** `missing_hires_<year>_<level>` fails only when Studio planned hires for that level and year (`int_workforce_needs_by_level.hires_needed > 0`) and none were made. Under backfill-by-level a level at or above its census share legitimately plans zero hires.
+- **Stage `two_dial`:** calibration solves the new-hire range scale and the annual starting-pay growth rate (`new_hire.salary_growth_rate`) together, rate bounded 0–8%, starting from 3%, evaluation budget 12, on top of backfill-by-level. Reason: with a stable level mix, average pay growth converges to the starting-pay growth rate, so one scale can only front-load other targets.
+- **Plausibility yardstick** uses the run's applied (calibrated) growth rate, per the 2026-10-31 amendment.
+- **Fresh holdout:** all 45 holdout cells at seed 13 (never run), stage `two_dial`, run once after dev review, with the 2026-10-30 bars and stress-cell split.
