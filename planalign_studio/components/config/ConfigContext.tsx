@@ -145,6 +145,7 @@ function mapNewHireFields(cfg: any, prev: FormData): Partial<FormData> {
     newHireStrategy: cfg.new_hire?.strategy || prev.newHireStrategy,
     targetPercentile: cfg.new_hire?.target_percentile ?? prev.targetPercentile,
     newHireCompVariance: cfg.new_hire?.compensation_variance_percent ?? prev.newHireCompVariance,
+    newHireSalaryGrowthPercent: (cfg.new_hire?.salary_growth_rate ?? 0) * 100,
     newHireAgeDistribution: cfg.new_hire?.age_distribution
       ? cfg.new_hire.age_distribution.map((d: any, idx: number) => ({
           age: d.age, weight: d.weight,

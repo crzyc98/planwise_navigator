@@ -84,8 +84,9 @@ level_compensation AS (
     max_compensation,
     -- Simplified compensation calculation to prevent overflow
     CAST(
-      min_compensation +
-      (COALESCE(max_compensation, min_compensation * 1.5) - min_compensation) * 0.50
+      (min_compensation +
+      (COALESCE(max_compensation, min_compensation * 1.5) - min_compensation) * 0.50)
+      {{ new_hire_salary_index() }}
     AS DECIMAL(12,2)) AS avg_level_compensation
   FROM {{ ref('stg_config_job_levels') }}
 ),
@@ -124,7 +125,7 @@ new_hire_assignments AS (
     ) DAY AS birth_date,
 
     -- Hire date evenly distributed throughout year
-    CAST('{{ simulation_year }}-01-01' AS DATE) + INTERVAL (hs.hire_sequence_num % 365) DAY AS hire_date,
+    {{ distributed_hire_date('hs.hire_sequence_num', simulation_year) }} AS hire_date,
 
     -- Use level-based compensation with small variance and explicit decimal casting
     CAST(ROUND(lc.avg_level_compensation * (0.9 + (hs.hire_sequence_num % 10) * 0.02), 2) AS DECIMAL(12,2)) AS compensation_amount

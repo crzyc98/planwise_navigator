@@ -39,6 +39,8 @@ def _parse_manifest(
     # database dbt/simulation.duckdb as a side effect. Point it at a throwaway
     # file instead: parsing must never touch or materialize the shared DB.
     env = dict(os.environ)
+    # Graph checks need no telemetry; avoid network retries and shutdown flushes.
+    env["DBT_SEND_ANONYMOUS_USAGE_STATS"] = "false"
     with tempfile.TemporaryDirectory(prefix="dbt-parse-") as scratch:
         env["DATABASE_PATH"] = str(Path(scratch) / "parse-only.duckdb")
         # xdist workers must not overwrite or read one another's manifests.

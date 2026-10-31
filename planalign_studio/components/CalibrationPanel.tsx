@@ -253,6 +253,7 @@ export default function CalibrationPanel() {
   // 'new_hire_scale': solve the new-hire range scale so hiring dilution isn't
   // papered over with raises (COLA/merit stay as set). Needs Match Census.
   const [searchMode, setSearchMode] = useState<SolveMode>('new_hire_scale');
+  const [solveSalaryGrowth, setSolveSalaryGrowth] = useState(true);
   const solvingNewHireRanges = searchMode === 'new_hire_scale';
 
   // Use an actual scenario from the active workspace; prefer Baseline.
@@ -517,6 +518,7 @@ export default function CalibrationPanel() {
             ? {
                 base_job_level_compensation: scaleBases,
                 initial_scale: scaleFactor,
+                solve_salary_growth: solveSalaryGrowth,
               }
             : {}),
         },
@@ -1110,6 +1112,13 @@ export default function CalibrationPanel() {
               ({pct(values.workforce_growth_rate)}) by running real comp-only simulations.
               Typically 3–6 runs (a few minutes).
             </p>
+            {solvingNewHireRanges && (
+              <label className="flex items-center gap-2 text-sm text-info-ink">
+                <input type="checkbox" checked={solveSalaryGrowth} disabled={autoLoading}
+                  onChange={event => setSolveSalaryGrowth(event.target.checked)} />
+                Also solve starting-pay growth
+              </label>
+            )}
             {solvingNewHireRanges && baseRanges.length === 0 && (
               <p className="text-xs text-ink-muted">
                 {censusPath
@@ -1162,6 +1171,11 @@ export default function CalibrationPanel() {
               <p className={`text-xs font-medium ${autoOutcome.converged ? 'text-success-ink' : 'text-warning-ink'}`}>
                 {autoOutcome.message}
               </p>
+              {autoOutcome.reason && (
+                <p className={`mt-1 text-xs ${autoOutcome.status === 'converged' ? 'text-info-ink' : 'text-warning-ink'}`}>
+                  {autoOutcome.reason}
+                </p>
+              )}
               <p className="mt-1 text-xs text-info-ink">
                 Horizon {autoOutcome.start_year}–{autoOutcome.end_year}; maximum annual error{' '}
                 {autoOutcome.max_abs_error_pct.toFixed(2)}pp.
@@ -1169,6 +1183,9 @@ export default function CalibrationPanel() {
               <p className="mt-1 text-xs text-info-ink">
                 Best config: COLA {pct(autoOutcome.best_params.cola_rate ?? 0)}, merit{' '}
                 {pct(autoOutcome.best_params.merit_budget ?? 0)}
+                {autoOutcome.best_salary_growth_rate != null && (
+                  <>, Starting-pay growth: {(autoOutcome.best_salary_growth_rate * 100).toFixed(1)}%/yr</>
+                )}
                 {autoOutcome.best_scale != null && (
                   <>, new-hire range scale {autoOutcome.best_scale.toFixed(2)}×</>
                 )}{' '}

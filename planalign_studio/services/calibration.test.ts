@@ -77,3 +77,24 @@ describe('calibration result retrieval', () => {
     await expect(retrieveCalibrationResult('autocal-test')).rejects.toBeInstanceOf(ApiError);
   });
 });
+
+it.each([true, false])('serializes solve_salary_growth=%s in the optimizer request', async solve => {
+  fetchMock.mockResolvedValueOnce(json({ run_id: 'autocal-test' }))
+    .mockResolvedValueOnce(json(completed));
+  const request: AutoCalibrationRequest = {
+    workspace_id: 'workspace',
+    settings: {
+      target_workforce_growth: 0.03,
+      target_comp_growth: 0.04,
+      search_mode: 'new_hire_scale',
+      solve_salary_growth: solve,
+      base_job_level_compensation: [
+        { level: 1, min_compensation: 50000, max_compensation: 80000 },
+      ],
+    },
+  };
+  const pending = optimizeCalibration(request);
+  await vi.runAllTimersAsync();
+  await pending;
+  expect(JSON.parse(fetchMock.mock.calls[0][1].body).settings.solve_salary_growth).toBe(solve);
+});

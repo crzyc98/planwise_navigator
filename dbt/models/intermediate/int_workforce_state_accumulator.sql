@@ -255,7 +255,8 @@ all_compensation_periods AS (
 prorated_with_events AS (
   SELECT
     employee_id,
-    SUM(period_salary * (DATE_DIFF('day', period_start, period_end) + 1) / 365.0)
+    SUM(period_salary * (DATE_DIFF('day', period_start, period_end) + 1)
+      / DATE_DIFF('day', MAKE_DATE({{ simulation_year }}, 1, 1), MAKE_DATE({{ simulation_year }} + 1, 1, 1)))
       AS prorated_annual_compensation
   FROM all_compensation_periods
   WHERE period_start IS NOT NULL
@@ -275,12 +276,13 @@ prorated_without_events AS (
         THEN w.employee_gross_compensation
           * (DATE_DIFF('day', w.employee_hire_date,
             COALESCE(w.termination_date, '{{ simulation_year }}-12-31'::DATE)) + 1)
-          / 365.0
+          / DATE_DIFF('day', MAKE_DATE({{ simulation_year }}, 1, 1), MAKE_DATE({{ simulation_year }} + 1, 1, 1))
       WHEN w.employment_status = {{ status_terminated() }}
         AND EXTRACT(YEAR FROM w.termination_date) = {{ simulation_year }}
         THEN w.employee_gross_compensation
           * (DATE_DIFF('day', '{{ simulation_year }}-01-01'::DATE,
-            w.termination_date) + 1) / 365.0
+            w.termination_date) + 1)
+          / DATE_DIFF('day', MAKE_DATE({{ simulation_year }}, 1, 1), MAKE_DATE({{ simulation_year }} + 1, 1, 1))
       ELSE w.employee_gross_compensation
     END AS prorated_annual_compensation
   FROM deduplicated_workforce w

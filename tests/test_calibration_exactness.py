@@ -70,7 +70,7 @@ def _per_employee_comp(db: Path) -> dict[tuple[int, str], float]:
         rows = conn.execute("""
             SELECT simulation_year, employee_id, prorated_annual_compensation
             FROM fct_workforce_snapshot
-            WHERE detailed_status_code IN ('continuous_active', 'new_hire_active')
+            WHERE LOWER(employment_status) = 'active'
             """).fetchall()
     finally:
         conn.close()
@@ -105,7 +105,7 @@ def test_calibration_comp_columns_exact(tmp_path) -> None:
             full_comp, abs=1e-6
         ), f"comp drift for {key}"
 
-    # The S051 growth mart must have been produced for every year.
+    # Active snapshot metrics must have been returned for every year.
     assert {r.simulation_year for r in results} == set(range(start, end + 1))
 
 

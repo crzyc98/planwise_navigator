@@ -445,7 +445,8 @@ def test_concurrent_runs_on_same_db_serialize(client, monkeypatch, tmp_path) -> 
     assert active["max"] == 1
 
 
-def test_optimize_returns_outcome(client, monkeypatch) -> None:
+@pytest.mark.parametrize("status", ["converged", "not_converged", "infeasible"])
+def test_optimize_returns_outcome(client, monkeypatch, status: str) -> None:
     from planalign_orchestrator.calibration_optimizer import (
         AutoCalibrationResult,
         OptimizationIteration,
@@ -453,7 +454,9 @@ def test_optimize_returns_outcome(client, monkeypatch) -> None:
     from planalign_orchestrator.calibration_runner import CalibrationParameterSet
 
     outcome = AutoCalibrationResult(
-        converged=True,
+        converged=status == "converged",
+        status=status,
+        reason="Analyst-facing explanation.",
         message="Converged in 3 iteration(s)",
         best_params=CalibrationParameterSet(cola_rate=0.028, merit_budget=0.043),
         achieved_comp_growth_pct=4.01,
@@ -499,7 +502,9 @@ def test_optimize_returns_outcome(client, monkeypatch) -> None:
 
     job = _await_job(client, body["run_id"])
     assert job["status"] == "completed"
-    assert job["outcome"]["converged"] is True
+    assert job["outcome"]["converged"] == (status == "converged")
+    assert job["outcome"]["status"] == status
+    assert job["outcome"]["reason"] == "Analyst-facing explanation."
     assert job["outcome"]["best_params"]["cola_rate"] == pytest.approx(0.028)
 
 
@@ -618,3 +623,28 @@ def test_job_level_compensation_with_name_is_accepted(client, monkeypatch) -> No
     )
     assert resp.status_code == 202
     assert _await_job(client, resp.json()["run_id"])["status"] == "completed"
+
+
+@pytest.mark.parametrize("rate", [0.0, 0.042345, None])
+def test_merge_candidate_salary_growth(rate) -> None:
+    request = calibration_router.CalibrationApplyRequest(
+        context=calibration_router.CalibrationContext(
+            workspace_id="workspace",
+            source_scenario_id="scenario",
+            source_run_id="run",
+            config_fingerprint="config",
+            census_fingerprint="census",
+            random_seed=42,
+            start_year=2025,
+            end_year=2027,
+        ),
+        best_params={"new_hire_salary_growth_rate": rate},
+        target_comp_growth_pct=4,
+    )
+    original = {"new_hire": {"salary_growth_rate": 0.03, "other": "preserved"}}
+    merged = calibration_router._merge_calibration_candidate(original, request)
+    assert merged["new_hire"] == {
+        "salary_growth_rate": 0.03 if rate is None else rate,
+        "other": "preserved",
+    }
+    assert original["new_hire"]["salary_growth_rate"] == 0.03

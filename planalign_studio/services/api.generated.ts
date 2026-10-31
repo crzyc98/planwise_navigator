@@ -3240,6 +3240,8 @@ export interface components {
             /** Achieved Comp Growth Pct */
             achieved_comp_growth_pct: number;
             best_params: components["schemas"]["CalibrationParameterSet"];
+            /** Best Salary Growth Rate */
+            best_salary_growth_rate: number | null;
             /** Best Scale */
             best_scale: number | null;
             /** Converged */
@@ -3258,10 +3260,17 @@ export interface components {
              * @constant
              */
             objective: "max_annual_error";
+            /** Reason */
+            reason: string | null;
             /** Results */
             results: components["schemas"]["PerYearCompensationResult"][];
             /** Start Year */
             start_year: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "converged" | "not_converged" | "infeasible";
             /** Target Comp Growth Pct */
             target_comp_growth_pct: number;
         };
@@ -3285,7 +3294,7 @@ export interface components {
             initial_scale?: number;
             /**
              * Lever Fallback
-             * @default true
+             * @default false
              */
             lever_fallback?: boolean;
             /**
@@ -3293,6 +3302,16 @@ export interface components {
              * @default 8
              */
             max_iterations?: number;
+            /**
+             * Salary Growth Max
+             * @default 0.08
+             */
+            salary_growth_max?: number;
+            /**
+             * Salary Growth Min
+             * @default 0
+             */
+            salary_growth_min?: number;
             /**
              * Scale Max
              * @default 3
@@ -3309,6 +3328,11 @@ export interface components {
              * @enum {string}
              */
             search_mode?: "levers" | "new_hire_scale";
+            /**
+             * Solve Salary Growth
+             * @default false
+             */
+            solve_salary_growth?: boolean;
             /** Target Comp Growth */
             target_comp_growth: number;
             /** Target Workforce Growth */
@@ -3920,6 +3944,8 @@ export interface components {
              * @description New-hire age distribution. Overrides the seed via the same dbt var the full simulation uses, so a tuned distribution transfers verbatim.
              */
             new_hire_age_distribution?: components["schemas"]["AgeWeight"][] | null;
+            /** New Hire Salary Growth Rate */
+            new_hire_salary_growth_rate?: number | null;
             /**
              * New Hire Termination Rate
              * @description New-hire termination rate (workforce.new_hire_termination_rate), as a decimal; held fixed across an auto-calibration search.
@@ -7603,6 +7629,8 @@ export interface components {
             max_abs_error_pct: number;
             /** Merit Budget */
             merit_budget: number;
+            /** Salary Growth Rate */
+            salary_growth_rate?: number | null;
             /** Scale */
             scale?: number | null;
         };

@@ -130,11 +130,15 @@ prorated_compensation_failures AS (
                         wb.employee_hire_date,
                         LEAST(COALESCE(wb.termination_date, CAST(wb.simulation_year || '-12-31' AS DATE)), CAST(wb.simulation_year || '-12-31' AS DATE))
                     ) + 1
-                ELSE 365 -- Full year for continuing employees
+                -- Full year for continuing employees
+                ELSE DATE_DIFF('day', MAKE_DATE(wb.simulation_year::INTEGER, 1, 1),
+                    MAKE_DATE(wb.simulation_year::INTEGER + 1, 1, 1))
             END AS expected_days,
             CASE
                 WHEN wb.current_compensation > 0 AND wb.prorated_annual_compensation > 0
-                    THEN ROUND(wb.prorated_annual_compensation / NULLIF(wb.current_compensation, 0) * 365)
+                    THEN ROUND(wb.prorated_annual_compensation / NULLIF(wb.current_compensation, 0)
+                        * DATE_DIFF('day', MAKE_DATE(wb.simulation_year::INTEGER, 1, 1),
+                            MAKE_DATE(wb.simulation_year::INTEGER + 1, 1, 1)))
                 ELSE 0
             END AS actual_days
         FROM validation_base wb

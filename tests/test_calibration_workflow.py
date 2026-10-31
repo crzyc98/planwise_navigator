@@ -103,8 +103,8 @@ def test_year1_vs_year2_foundation_differs() -> None:
 def test_calibration_output_contract_is_unchanged() -> None:
     row = CalibrationRunner._assemble_row(
         2026,
-        {"avg_compensation": 95_000.0, "yoy_growth_pct": 3.6},
-        {"headcount": 105, "new_hire_avg": 82_000.0, "existing_avg": 96_000.0},
+        {"avg_compensation": 95_000.0, "yoy_growth_pct": 3.6, "headcount": 105},
+        {"new_hire_avg": 82_000.0, "existing_avg": 96_000.0},
         target=0.035,
     )
 

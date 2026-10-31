@@ -10,6 +10,14 @@ from typing import Any, Dict, Optional
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
+class NewHireSettings(BaseModel):
+    """Starting-pay assumptions in first-simulation-year dollars."""
+
+    model_config = ConfigDict(extra="allow")
+
+    salary_growth_rate: float = Field(default=0.0, ge=0.0, le=0.25)
+
+
 class SimulationSettings(BaseModel):
     """Core simulation parameters."""
 
