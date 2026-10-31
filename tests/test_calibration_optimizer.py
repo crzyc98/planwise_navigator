@@ -427,7 +427,9 @@ def test_two_dial_linear_search(
         assert outcome.best_salary_growth_rate == pytest.approx(0.04)
         assert outcome.best_scale == pytest.approx(1.2)
     else:
-        assert outcome.status == "not_converged"
+        assert outcome.status == ("not_converged" if budget <= 2 else "best_achievable")
+        if budget <= 2:
+            assert "budget exhausted" in outcome.reason
         assert "2026:" in outcome.reason
 
 
@@ -475,9 +477,12 @@ def test_initial_salary_growth(tmp_path, param_rate, config_rate, expected) -> N
     assert optimizer._initial_dials()[1] == expected
 
 
-def test_two_dial_flat_response_stops_without_claiming_infeasible(
-    tmp_path, monkeypatch
+@pytest.mark.parametrize("collapse_after_rejections", [False, True])
+@pytest.mark.parametrize("growths", [(2.0, 2.0), (4.3, 3.7)])
+def test_two_dial_flat_response_status(
+    tmp_path, monkeypatch, collapse_after_rejections, growths
 ) -> None:
+    """A stalled search is best achievable only when the mean is on target."""
     settings = AutoCalibrationSettings(
         target_workforce_growth=0.03,
         target_comp_growth=0.04,
@@ -500,15 +505,38 @@ def test_two_dial_flat_response_stops_without_claiming_infeasible(
                 simulation_year=year,
                 avg_compensation=100,
                 headcount=10,
-                yoy_growth_pct=2,
+                yoy_growth_pct=growth,
             )
-            for year in (2026, 2027)
+            for year, growth in zip((2026, 2027), growths)
         ]
 
     monkeypatch.setattr(optimizer, "_evaluate", evaluate)
+    if collapse_after_rejections:
+        # Reuse a synthetic Jacobian so rejected steps fit within the budget.
+        monkeypatch.setattr(
+            optimizer, "_dial_jacobian", lambda x, errors, target: x.reshape(1, 2)
+        )
+        monkeypatch.setattr(
+            optimizer, "_dial_step", lambda x, errors, jacobian, trust: trust.copy()
+        )
     outcome = optimizer.optimize()
-    assert outcome.status == "not_converged"
-    assert "Trust region collapsed" in outcome.reason
+    assert not outcome.converged
+    if growths == (2.0, 2.0):
+        # A systematic 2pp shortfall is not noise: keep not_converged.
+        assert outcome.status == "not_converged"
+        assert "Trust region collapsed" in outcome.reason
+    else:
+        assert outcome.status == "best_achievable"
+        assert outcome.message == (
+            f"Best achievable fit after {len(outcome.iterations)} run(s): worst "
+            "annual error 0.30pp (tolerance 0.05pp; horizon mean 4.00% vs target "
+            "4.00%)."
+        )
+        assert outcome.reason == (
+            "Further changes to new-hire pay level and growth did not reduce the "
+            "worst-year error; the remaining miss is year-to-year simulation "
+            "variation. Annual growth: 2026: 4.30%, 2027: 3.70%."
+        )
     assert outcome.best_scale == 3
     assert outcome.best_salary_growth_rate == 0.08
 

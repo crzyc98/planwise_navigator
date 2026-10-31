@@ -122,7 +122,7 @@ class AutoCalibrationResult(BaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     converged: bool
-    status: Literal["converged", "not_converged", "infeasible"]
+    status: Literal["converged", "best_achievable", "not_converged", "infeasible"]
     reason: Optional[str] = None
     message: str
     best_params: CalibrationParameterSet
@@ -165,6 +165,11 @@ class _BestCandidate(NamedTuple):
     achieved_pct: float
     results: List[PerYearCompensationResult]
     scale: Optional[float]
+
+
+class _DialOutcome(NamedTuple):
+    status: Literal["best_achievable", "not_converged"]
+    reason: str
 
 
 class _ScaleOutcome(NamedTuple):
@@ -360,7 +365,7 @@ class AutoCalibrator:
         residual = new_errors - errors - jacobian @ step
         return jacobian + np.outer(residual, step) / float(step @ step)
 
-    def _search_dials(self, target_pct: float) -> str:
+    def _search_dials(self, target_pct: float) -> _DialOutcome:
         x = self._initial_dials()
         errors = self._evaluate_dials(x, target_pct)
         trust = np.array([0.5, 0.02])
@@ -378,9 +383,15 @@ class AutoCalibrator:
                 break
             step = self._dial_step(x, errors, jacobian, trust)
             if step is None:
-                return "Linearized minimax solver could not produce a step."
+                return _DialOutcome(
+                    "not_converged",
+                    "Linearized minimax solver could not produce a step.",
+                )
             if np.max(np.abs(step) / np.array([0.5, 0.02])) < 1e-5:
-                return "Trust region collapsed: no improving step within bounds."
+                return _DialOutcome(
+                    "best_achievable",
+                    "Trust region collapsed: no improving step within bounds.",
+                )
             candidate = np.clip(x + step, *self._dial_bounds().T)
             step = candidate - x
             new_errors = self._evaluate_dials(candidate, target_pct)
@@ -390,17 +401,45 @@ class AutoCalibrator:
             else:
                 x, errors = candidate, new_errors
             if trust[0] < 1e-4:
-                return "Trust region collapsed without convergence."
-        return "Evaluation budget exhausted before convergence."
+                return _DialOutcome(
+                    "best_achievable", "Trust region collapsed without convergence."
+                )
+        return _DialOutcome(
+            "not_converged", "Evaluation budget exhausted before convergence."
+        )
 
     def _optimize_two_dials(self, target_pct: float) -> AutoCalibrationResult:
-        reason = self._search_dials(target_pct)
+        outcome = self._search_dials(target_pct)
         converged = self._dials_converged()
+        message = self._summary(converged, target_pct)
+        reason = f"{outcome.reason} {self._best_growth_detail()}"
+        status: Literal["converged", "best_achievable", "not_converged"] = (
+            "converged" if converged else outcome.status
+        )
+        best = self._require_best()
+        # A stalled search is only "best achievable" when the horizon mean is on
+        # target and the residual is year-to-year swing; a systematic miss is not.
+        if status == "best_achievable" and (
+            abs(best.achieved_pct - target_pct) > 0.5 * best.abs_error
+        ):
+            status = "not_converged"
+        if status == "best_achievable":
+            message = (
+                f"Best achievable fit after {self._evals} run(s): worst annual error "
+                f"{best.abs_error:.2f}pp (tolerance {self.settings.tolerance_pct:.2f}pp; "
+                f"horizon mean {best.achieved_pct:.2f}% vs target {target_pct:.2f}%)."
+            )
+            reason = (
+                "Further changes to new-hire pay level and growth did not reduce "
+                "the worst-year error; the remaining miss is year-to-year "
+                f"simulation variation. Annual growth: {self._annual_growth_detail(2)}."
+            )
         return self._finish(
             converged,
-            self._summary(converged, target_pct),
+            message,
             target_pct,
-            reason=None if converged else f"{reason} {self._best_growth_detail()}",
+            status=status,
+            reason=None if converged else reason,
         )
 
     # -- scale-primary mode ---------------------------------------------------
@@ -509,14 +548,17 @@ class AutoCalibrator:
             )
         return None
 
-    def _best_growth_detail(self) -> str:
-        best = self._require_best()
-        growths = ", ".join(
-            f"{row.simulation_year}: {row.yoy_growth_pct:.3f}%"
-            for row in best.results
+    def _annual_growth_detail(self, decimals: int) -> str:
+        return ", ".join(
+            f"{row.simulation_year}: {row.yoy_growth_pct:.{decimals}f}%"
+            for row in self._require_best().results
             if self.run.start_year < row.simulation_year <= self.run.end_year
             and row.yoy_growth_pct is not None
         )
+
+    def _best_growth_detail(self) -> str:
+        best = self._require_best()
+        growths = self._annual_growth_detail(3)
         return (
             f"Best achievable evaluated worst-year error: {best.abs_error:.3f}pp; "
             f"annual growth: {growths}."
@@ -667,7 +709,9 @@ class AutoCalibrator:
         converged: bool,
         message: str,
         target_pct: float,
-        status: Optional[Literal["converged", "not_converged", "infeasible"]] = None,
+        status: Optional[
+            Literal["converged", "best_achievable", "not_converged", "infeasible"]
+        ] = None,
         reason: Optional[str] = None,
     ) -> AutoCalibrationResult:
         best = self._require_best()

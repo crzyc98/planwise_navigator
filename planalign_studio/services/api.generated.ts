@@ -3270,7 +3270,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "converged" | "not_converged" | "infeasible";
+            status: "converged" | "best_achievable" | "not_converged" | "infeasible";
             /** Target Comp Growth Pct */
             target_comp_growth_pct: number;
         };
