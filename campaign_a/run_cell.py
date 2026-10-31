@@ -78,6 +78,7 @@ STAGES = (
     "turnover_indexed_3pct",
     "backfill_by_level",
     "two_dial",
+    "promo_backfill",
 )
 # Analyst starting-pay growth assumption per stage. indexed_cola matches the
 # 2% config COLA; 3% reflects typical US salary-structure and market wage growth.
@@ -86,9 +87,10 @@ SALARY_GROWTH_BY_STAGE = {
     "turnover_indexed_3pct": 0.03,
     "backfill_by_level": 0.03,
     "two_dial": 0.03,
+    "promo_backfill": 0.03,
 }
 # Amendment 2026-10-31b: calibration also solves starting-pay growth.
-TWO_DIAL_STAGES = {"two_dial"}
+TWO_DIAL_STAGES = {"two_dial", "promo_backfill"}
 
 
 def save_record(cell: Json, seed: int, stage: str, record: Json) -> None:

@@ -95,6 +95,7 @@ def test_full_refresh_set_contains_only_active_inputs() -> None:
         "int_employee_compensation_by_year",
         "int_workforce_needs",
         "int_workforce_needs_by_level",
+        "int_hazard_promotion",
     }
 
 
@@ -103,3 +104,21 @@ def test_hazard_cache_vars_preserved() -> None:
     assert calls
     for call in calls:
         assert call.kwargs["dbt_vars"] == {"hazard_params_hash": "a" * 64}
+
+
+@pytest.mark.parametrize("year", [2025, 2026])
+@pytest.mark.parametrize(
+    "builder",
+    [
+        WorkflowBuilder.build_year_workflow,
+        WorkflowBuilder.build_calibration_year_workflow,
+    ],
+)
+def test_promotion_hazard_precedes_workforce_planning(builder, year: int) -> None:
+    stages = builder(year, START_YEAR)
+    planning = next(s for s in stages if "int_workforce_needs_by_level" in s.models)
+    assert planning.models.index("int_hazard_promotion") < planning.models.index(
+        "int_workforce_needs_by_level"
+    )
+    events = next(s for s in stages if s.name is WorkflowStage.EVENT_GENERATION)
+    assert "int_hazard_promotion" not in events.models

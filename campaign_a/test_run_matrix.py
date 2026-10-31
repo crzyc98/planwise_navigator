@@ -90,3 +90,10 @@ def test_invalid_bounds_never_launch(runner, stage, limit):
     with pytest.raises(ValueError):
         matrix.run_matrix(stage, limit)
     runner[1].assert_not_called()
+
+
+def test_promo_backfill_stage(runner) -> None:
+    _, execute = runner
+    matrix.run_matrix("promo_backfill", limit=1)
+    assert execute.call_args.args[0][-2:] == ["--stage", "promo_backfill"]
+    assert matrix.STAGES.index("promo_backfill") == matrix.STAGES.index("two_dial") + 1

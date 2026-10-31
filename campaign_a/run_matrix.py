@@ -21,6 +21,7 @@ STAGES = (
     "turnover_indexed_3pct",
     "backfill_by_level",
     "two_dial",
+    "promo_backfill",
 )
 
 

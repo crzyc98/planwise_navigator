@@ -11,6 +11,7 @@
 
 {% set simulation_year = var('simulation_year') %}
 {% set start_year = var('start_year', 2025) | int %}
+{% set promotion_rate_multiplier = var('promotion_rate_multiplier', 1.0) %}
 {% set scenario_id = var('scenario_id', 'default') %}
 
 WITH workforce_needs_summary AS (
@@ -172,17 +173,47 @@ termination_by_level AS (
   WHERE current_headcount = 0
 ),
 
--- Backfill toward the start-year census mix; promotion vacancies are filled next year.
+-- Mirror int_promotion_events eligibility, including its hardcoded maximum level.
+promotion_eligible_workforce AS (
+  SELECT
+    level_id,
+    {{ assign_age_band('current_age') }} AS age_band,
+    {{ assign_tenure_band('current_tenure') }} AS tenure_band
+  FROM {{ ref('int_employee_compensation_by_year') }}
+  WHERE simulation_year = {{ simulation_year }}
+    AND employment_status = 'active'
+    AND level_id < 5
+    AND current_tenure >= 1
+    AND current_age < 65
+),
+
+expected_promotion_flows AS (
+  SELECT
+    ew.level_id,
+    SUM(LEAST(h.promotion_rate * {{ promotion_rate_multiplier }}, 1.0)) AS promotions_out
+  FROM promotion_eligible_workforce ew
+  INNER JOIN {{ ref('int_hazard_promotion') }} h
+    ON ew.level_id = h.level_id
+    AND ew.age_band = h.age_band
+    AND ew.tenure_band = h.tenure_band
+    AND h.year = {{ simulation_year }}
+  GROUP BY ew.level_id
+),
+
+-- Backfill toward the start-year census mix after expected terminations and promotion flows.
 backfill_gaps AS (
   SELECT
     wbl.level_id,
     COALESCE(a.anchor_share, 0.0) AS anchor_share,
     GREATEST(0.0, COALESCE(a.anchor_share, 0.0) * wns.target_ending_workforce
-      - (wbl.current_headcount - COALESCE(tbl.expected_terminations, 0))) AS gap
+      - (wbl.current_headcount - COALESCE(tbl.expected_terminations, 0)
+        - COALESCE(po.promotions_out, 0.0) + COALESCE(pi.promotions_out, 0.0))) AS gap
   FROM workforce_by_level wbl
   CROSS JOIN workforce_needs_summary wns
   LEFT JOIN anchor_shares a ON wbl.level_id = a.level_id
   LEFT JOIN termination_by_level tbl ON wbl.level_id = tbl.level_id
+  LEFT JOIN expected_promotion_flows po ON wbl.level_id = po.level_id
+  LEFT JOIN expected_promotion_flows pi ON wbl.level_id = pi.level_id + 1
 ),
 
 -- E077: Hiring Quotas by Level (ADR E077-B with adaptive distribution)

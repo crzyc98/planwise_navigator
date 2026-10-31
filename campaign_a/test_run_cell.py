@@ -281,3 +281,11 @@ def test_census_alias_resolution_is_attested(campaign, monkeypatch, tmp_path):
     manifest_path.write_text(json.dumps(manifest))
     with pytest.raises(ValueError, match="attestation mismatch"):
         harness.attest_config(record, submitted)
+
+
+def test_promo_backfill_uses_two_dial_salary_growth() -> None:
+    assert (
+        harness.STAGES.index("promo_backfill") == harness.STAGES.index("two_dial") + 1
+    )
+    assert harness.SALARY_GROWTH_BY_STAGE["promo_backfill"] == 0.03
+    assert "promo_backfill" in harness.TWO_DIAL_STAGES
