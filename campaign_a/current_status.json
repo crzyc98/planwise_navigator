@@ -1,5 +1,5 @@
 {
-  "status": "two_dial_dev_complete_holdout_running",
+  "status": "seed13_holdout_complete_awaiting_review",
   "stage": "two_dial",
   "dev_runs": {
     "completed": 18,
@@ -66,10 +66,26 @@
     },
     "runs_with_failures": 6
   },
-  "next_holdout": {
+  "holdout_seed13": {
     "stage": "two_dial",
     "seed": 13,
-    "cells": 45,
-    "status": "running"
+    "completed": 45,
+    "failed": 0,
+    "standard": {
+      "runs": 30,
+      "pass_per_year": 24,
+      "pass_cagr": 30,
+      "mean_max_comp_err_pp": 0.326,
+      "worst_pp": 0.78,
+      "cagr_err_mean_pp": 0.092
+    },
+    "stress": {
+      "runs": 15,
+      "pass_per_year": 13,
+      "pass_cagr": 15,
+      "mean_max_comp_err_pp": 0.25,
+      "worst_pp": 0.6
+    },
+    "runs_with_failures": 0
   }
 }
