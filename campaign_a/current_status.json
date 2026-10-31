@@ -1,6 +1,6 @@
 {
-  "status": "seed7_holdout_complete_awaiting_review",
-  "stage": "backfill_by_level",
+  "status": "two_dial_dev_complete_holdout_running",
+  "stage": "two_dial",
   "dev_runs": {
     "completed": 18,
     "failed": 0
@@ -12,16 +12,16 @@
   },
   "cal_gap_max_pp": 0.0,
   "dev_mean_max_comp_err_pp": {
-    "42": 0.386,
-    "101": 0.488
+    "42": 0.206,
+    "101": 0.263
   },
   "noise_band_pp": 0.253,
-  "dev_plausibility_failures": 1,
+  "dev_plausibility_failures": 0,
   "previous_stage": {
-    "stage": "turnover_indexed_3pct",
+    "stage": "backfill_by_level",
     "dev_mean_max_comp_err_pp": {
-      "42": 0.537,
-      "101": 0.584
+      "42": 0.386,
+      "101": 0.488
     }
   },
   "holdout": {
@@ -65,5 +65,11 @@
       "worst_pp": 0.72
     },
     "runs_with_failures": 6
+  },
+  "next_holdout": {
+    "stage": "two_dial",
+    "seed": 13,
+    "cells": 45,
+    "status": "running"
   }
 }

@@ -84,6 +84,20 @@ Diagnosis (on the spent seed-42 holdout): hires were split by the current level 
 
 The failure is young_h5_c1_low seed 42: no level-2 hires in 2028 and 2030, because promotions kept level 2 above its census share. Under backfill a full level can legitimately receive no hires; the oracle counts that as a failure, and it is left unchanged. 4%-target cells now run high in 2027 and settle near target (e.g. 4.51, 3.50, 3.50, 3.88%).
 
+## Stage `two_dial`: calibration solves range scale and starting-pay growth (commit 375d5938)
+Reason (seed-7 diagnosis): with a stable level mix, average pay growth converges to the starting-pay growth rate, so one scale only front-loads targets away from 3%. Calibration now also solves `new_hire.salary_growth_rate` (bounded 0–8%, start 3%, 12 evaluations). Missing-hire failures now count only for levels with planned hires (ORACLE amendment 2026-10-31b).
+
+| Dev (18 runs) | backfill_by_level | two_dial |
+|---|---|---|
+| Mean max-year err s42 / s101 | 0.386 / 0.488pp | 0.206 / 0.263pp |
+| 1% / 4%-target cells | 0.361 / 0.475pp | 0.206 / 0.248pp |
+| Worst run | 0.76pp | 0.50pp |
+| CAGR err mean / max | 0.049 / 0.188pp | 0.062 / 0.135pp |
+| Standard runs passing per-year / compound | 6 / 12, 12 / 12 | 11 / 12, 12 / 12 |
+| Runs with failures | 1 | 0 |
+
+Solved starting-pay growth: 3.6–4.4% for 4%-target cells (two older/balanced seed-42 runs 2.9–3.1%), 1.2–2.5% for 1%-target cells; scale ~1.0 and ~0.76 respectively. Every calibration reports `not_converged`: 14 stopped when the trust region collapsed at the best two-dial point, 4 used the full budget. The residual 0.1–0.4pp is year-to-year noise that the 0.05pp tolerance cannot reach.
+
 ## Fresh holdout: stage `backfill_by_level`, seed 7, run once (bars per ORACLE amendments 2026-10-30/31)
 All 45 cells completed. No setting was changed after seeing these results.
 
@@ -116,4 +130,4 @@ Seed 101 holdout (N/A by the oracle). Why high-turnover 2.5% cells rise toward 2
 ## Verification
 `python3 scripts/dev.py -- python -m pytest -m fast -q -n 4` (4105 passed); `python3 scripts/dev.py -- ruff check .`; `bun run --cwd planalign_studio typecheck`; `python3 scripts/dev.py -- python campaign_a/score.py --stage search_fix --split dev`; `python3 scripts/dev.py -- python campaign_a/score.py --stage indexed_cola --split dev`; `python3 scripts/dev.py -- python campaign_a/score.py --stage prior_hire_turnover --split dev`; `python3 scripts/dev.py -- python campaign_a/score.py --stage turnover_indexed_3pct --split dev`; `python3 scripts/dev.py -- python campaign_a/score.py --stage turnover_indexed_3pct --split holdout` (4130 fast tests passed after commit 8cdae2c3).
 
-**CHECKPOINT: seed-7 holdout complete; awaiting human review**
+**CHECKPOINT: two_dial dev complete; seed-13 holdout running**
