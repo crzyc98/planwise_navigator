@@ -175,18 +175,6 @@ def _fit_scalars(
     priors: Priors,
     options: FitOptions,
 ) -> None:
-    result.config_overrides["workforce.total_termination_rate"] = (
-        hazards.fit_scalar_rate(
-            transitions.conn,
-            "workforce.total_termination_rate",
-            transitions.table,
-            "terminated",
-            float(priors.config_value("workforce.total_termination_rate", 0.12)),
-            credibility_k=options.credibility_k,
-            min_exposure=options.min_exposure,
-        )
-    )
-
     if transitions.observability.has_termination_rows:
         result.config_overrides["workforce.new_hire_termination_rate"] = (
             hazards.fit_scalar_rate(
@@ -209,6 +197,26 @@ def _fit_scalars(
                 ),
             )
         )
+
+    # Workforce planning adds prior-year hires at the new-hire rate separately.
+    # Invert that mixture instead of feeding its blended rate back as experienced.
+    new_hire_rate = result.config_overrides.get("workforce.new_hire_termination_rate")
+    result.config_overrides["workforce.total_termination_rate"] = (
+        hazards.fit_experienced_termination_rate(
+            transitions.conn,
+            transitions.table,
+            (
+                new_hire_rate.value
+                if new_hire_rate
+                else float(
+                    priors.config_value("workforce.new_hire_termination_rate", 0.25)
+                )
+            ),
+            float(priors.config_value("workforce.total_termination_rate", 0.12)),
+            credibility_k=options.credibility_k,
+            min_exposure=options.min_exposure,
+        )
+    )
 
     growth = compensation.fit_headcount_growth(
         transitions,
