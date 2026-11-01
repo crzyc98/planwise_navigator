@@ -21,58 +21,67 @@
       "change": "c435ccf (#1041)",
       "basis": "Age and tenure now advance once per year instead of twice, so age- and tenure-based eligibility no longer drifts ahead in later years.",
       "verification": "Regenerated from isolated runs of all four wait cases at c435ccf; values reproduce CI's failing run exactly. Opening-year values and all core_paid/match_paid counts are unchanged; only zero-wait core_cost and match_cost for 2027-2029 move, by -0.12% to -0.02%. IRS seed, census, wait configurations and the absolute $0.01 tolerance are unchanged."
+    },
+    "new_hire_calibration_reconciliation": {
+      "changes": [
+        "a5ef9a9d (#1048)",
+        "cefc26a2 (#1051)",
+        "365f5460 (#1050)"
+      ],
+      "basis": "#1048 applies second-year new-hire turnover to census employees hired in the prior year, indexes new-hire starting pay, spreads hire dates across the year and hires by level. In 2025 the census has 8 experienced terminations instead of 11, so 3 more long-service employees stay and become eligible. #1051 (hire-date and termination fixes) and #1050 (promotion-aware hiring) move later zero-wait costs by under 1%.",
+      "verification": "Regenerated from isolated runs of all four wait cases at 365f5460. The same harness at the pre-#1048 revision 9fcd74d8 reproduces the prior baseline exactly. The wait-1 opening-year counts (141, 109) match CI's failing runs from a5ef9a9d onward. Opening-year values come entirely from #1048. Zero-wait costs fall 3.3-7.2%, mostly from #1048. IRS seed, census, wait configurations and the absolute $0.01 tolerance are unchanged."
     }
   },
   "opening_year": {
     "1": {
-      "core_cost": 739210.17,
-      "core_paid": 138,
-      "match_cost": 752127.27,
-      "match_paid": 107
+      "core_cost": 757215.3,
+      "core_paid": 141,
+      "match_cost": 773117.19,
+      "match_paid": 109
     },
     "2": {
-      "core_cost": 510624.4,
-      "core_paid": 97,
-      "match_cost": 535923.9,
-      "match_paid": 77
+      "core_cost": 522338.59,
+      "core_paid": 99,
+      "match_cost": 548525.9,
+      "match_paid": 78
     },
     "3": {
-      "core_cost": 453300.61,
-      "core_paid": 88,
-      "match_cost": 463992.92,
-      "match_paid": 68
+      "core_cost": 465014.8,
+      "core_paid": 90,
+      "match_cost": 476594.92,
+      "match_paid": 69
     }
   },
   "zero_wait_all_years": {
     "2025": {
-      "core_cost": 813963.03,
+      "core_cost": 776436.2,
       "core_paid": 152,
-      "match_cost": 833761.67,
-      "match_paid": 116
+      "match_cost": 789057.66,
+      "match_paid": 115
     },
     "2026": {
-      "core_cost": 863219.24,
+      "core_cost": 816153.68,
       "core_paid": 155,
-      "match_cost": 964552.46,
+      "match_cost": 932716.77,
       "match_paid": 128
     },
     "2027": {
-      "core_cost": 915174.01,
+      "core_cost": 858430.53,
       "core_paid": 158,
-      "match_cost": 1055397.21,
-      "match_paid": 137
+      "match_cost": 1018984.27,
+      "match_paid": 138
     },
     "2028": {
-      "core_cost": 958144.82,
+      "core_cost": 893393.92,
       "core_paid": 161,
-      "match_cost": 1156751.11,
+      "match_cost": 1104569.55,
       "match_paid": 147
     },
     "2029": {
-      "core_cost": 1005025.53,
+      "core_cost": 932835.49,
       "core_paid": 164,
-      "match_cost": 1225658.95,
-      "match_paid": 151
+      "match_cost": 1157129.65,
+      "match_paid": 150
     }
   }
 }
