@@ -139,6 +139,7 @@ class WorkflowBuilder:
                 MODEL_INT_EMPLOYEE_COMPENSATION,
                 "int_effective_parameters",
                 MODEL_INT_WORKFORCE_NEEDS,
+                "int_hazard_promotion",
                 "int_workforce_needs_by_level",
             ]
         else:
@@ -151,6 +152,7 @@ class WorkflowBuilder:
                 MODEL_INT_EMPLOYEE_COMPENSATION,
                 "int_effective_parameters",
                 MODEL_INT_WORKFORCE_NEEDS,
+                "int_hazard_promotion",
                 "int_workforce_needs_by_level",
             ]
 
@@ -200,7 +202,6 @@ class WorkflowBuilder:
                     "int_plan_eligibility_determination",
                     "int_new_hire_termination_events",
                     "int_employee_termination_dates",
-                    "int_hazard_promotion",
                     "int_hazard_merit",
                     MODEL_INT_PROMOTION_EVENTS,
                     MODEL_INT_MERIT_EVENTS,
@@ -285,6 +286,7 @@ class WorkflowBuilder:
                 MODEL_INT_EMPLOYEE_COMPENSATION,
                 "int_effective_parameters",
                 MODEL_INT_WORKFORCE_NEEDS,
+                "int_hazard_promotion",
                 "int_workforce_needs_by_level",
             ]
         else:
@@ -297,6 +299,7 @@ class WorkflowBuilder:
                 MODEL_INT_EMPLOYEE_COMPENSATION,
                 "int_effective_parameters",
                 MODEL_INT_WORKFORCE_NEEDS,
+                "int_hazard_promotion",
                 "int_workforce_needs_by_level",
             ]
 
@@ -324,7 +327,6 @@ class WorkflowBuilder:
                     "int_plan_design_assignment_accumulator",
                     "int_new_hire_termination_events",
                     "int_employee_termination_dates",
-                    "int_hazard_promotion",
                     "int_hazard_merit",
                     MODEL_INT_PROMOTION_EVENTS,
                     MODEL_INT_MERIT_EVENTS,
