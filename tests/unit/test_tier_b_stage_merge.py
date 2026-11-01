@@ -20,13 +20,14 @@ from planalign_orchestrator.pipeline.workflow import WorkflowBuilder, WorkflowSt
 START_YEAR = 2025
 LATER_YEAR = 2026
 
-# The six later-year FOUNDATION models that must survive the merge into INITIALIZATION.
+# The seven later-year FOUNDATION models that must survive the merge into INITIALIZATION.
 LATER_FOUNDATION_MODELS = [
     "int_prev_year_workforce_summary",
     "int_prev_year_workforce_by_level",
     MODEL_INT_EMPLOYEE_COMPENSATION,
     "int_effective_parameters",
     "int_workforce_needs",
+    "int_hazard_promotion",
     "int_workforce_needs_by_level",
 ]
 

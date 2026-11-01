@@ -1,6 +1,6 @@
 {{ config(
   materialized='table',
-  tags=['FOUNDATION', 'EVENT_GENERATION']
+  tags=['FOUNDATION']
 ) }}
 
 -- Promotion hazard model: computes promotion probability for each combination

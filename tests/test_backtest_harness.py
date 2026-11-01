@@ -22,6 +22,7 @@ import uuid
 from planalign_fit.pack import write_pack
 from planalign_backtest.report import write_scorecard
 from planalign_fit.apply import apply_pack
+from planalign_fit.runner import FitOptions
 from planalign_orchestrator.config import load_simulation_config
 from planalign_orchestrator.run_metadata import check_and_record_run
 from planalign_orchestrator.utils import DatabaseConnectionManager
@@ -66,6 +67,13 @@ def completed_backtest(tmp_path_factory, simulated_history):
             output=root / "pack",
             workdir=root / "run",
             keep_databases=True,
+            # Promotions cannot be certified from simulator-made censuses (see
+            # SELF_TEST_EXCLUSIONS), and a fitted rate ~1.75x too high now also
+            # shifts backfill hiring by level. Thresholds above 1 skip the
+            # promotion fit, so the base hazard that made the history is used.
+            fit_options=FitOptions(
+                level_coverage_threshold=1.01, separation_exposure_gate=1.01
+            ),
         ),
     )
     after = (
