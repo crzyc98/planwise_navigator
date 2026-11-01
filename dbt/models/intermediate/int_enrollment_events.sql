@@ -498,12 +498,12 @@ opt_out_candidates_weighted AS (
 opt_out_candidates AS (
   SELECT
     efo.*,
-    -- Exact DECIMAL average: a DOUBLE window sum depends on thread order and
-    -- made event_probability differ in the last digit between identical runs.
+    -- Ordered average: an unordered DOUBLE window sum depends on thread order
+    -- and made event_probability differ in the last digit between identical runs.
     LEAST(1.0, {{ var('opt_out_rate_target', 0.09) }} * COALESCE(
-      optout_weight / NULLIF(CAST(AVG(CAST(optout_weight AS DECIMAL(18, 6))) OVER (
+      optout_weight / NULLIF(AVG(optout_weight ORDER BY employee_id) OVER (
         PARTITION BY simulation_year, is_hire_year_new_hire
-      ) AS DOUBLE), 0), 1.0)) AS optout_probability
+      ), 0), 1.0)) AS optout_probability
   FROM opt_out_candidates_weighted efo
 ),
 
