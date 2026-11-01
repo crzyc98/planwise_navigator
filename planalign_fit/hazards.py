@@ -280,3 +280,40 @@ def fit_scalar_rate(
             min_exposure=min_exposure,
         ),
     )
+
+
+def fit_experienced_termination_rate(
+    conn: "duckdb.DuckDBPyConnection",
+    table: str,
+    new_hire_rate: float,
+    prior: float,
+    *,
+    credibility_k: float,
+    min_exposure: float,
+) -> FittedValue:
+    """Invert workforce planning's experienced/prior-year-hire mixture.
+
+    Terminations are selected by level, not by hire cohort, so filtering the
+    observed leavers to experienced hires would still estimate the mixed rate.
+    Subtract the prior-year cohort's expected contribution from all leavers.
+    """
+    row = conn.execute(f"""
+        SELECT COUNT(*) FILTER (WHERE NOT prior_year_hire),
+               COUNT(*) FILTER (WHERE prior_year_hire),
+               COUNT(*) FILTER (WHERE terminated)
+        FROM {table}
+        """).fetchone()
+    if row is None:
+        raise TransitionError("Could not calculate experienced termination rate.")
+    experienced, recent, departures = row
+    events = min(float(experienced), max(0.0, departures - recent * new_hire_rate))
+    return FittedValue.from_credibility(
+        "workforce.total_termination_rate",
+        shrink_toward(
+            events,
+            float(experienced),
+            prior,
+            credibility_k=credibility_k,
+            min_exposure=min_exposure,
+        ),
+    )

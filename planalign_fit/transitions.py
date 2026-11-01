@@ -304,6 +304,7 @@ SELECT
   p.income_segment,
   p.age,
   p.tenure,
+  COALESCE(EXTRACT(YEAR FROM p.hire_date) = {prior.year}, FALSE) AS prior_year_hire,
   p.compensation AS from_compensation,
   n.compensation AS to_compensation,
   p.is_enrolled AS from_enrolled,

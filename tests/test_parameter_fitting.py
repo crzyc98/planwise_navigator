@@ -28,7 +28,10 @@ from planalign_fit import (
     write_pack,
 )
 from planalign_fit.apply import apply_pack
-from planalign_fit.hazards import termination_level_factor
+from planalign_fit.hazards import (
+    fit_experienced_termination_rate,
+    termination_level_factor,
+)
 from planalign_fit.ipf import FactorCell, solve
 from planalign_fit.models import PromotionBasis
 from planalign_fit.pack import PackError
@@ -1235,3 +1238,30 @@ class TestApplyPackSeedsRoot:
         assert (overlay_seeds / "config_termination_hazard_base.csv").read_text(
             encoding="utf-8"
         ) == fit_run.pack.seed_files["config_termination_hazard_base.csv"]
+
+
+@pytest.mark.parametrize(
+    "experienced,recent,departures,expected",
+    [
+        (800, 200, 130, 0.10),  # 800 * .10 + 200 * .25, not 130 / 1000
+        (1000, 0, 100, 0.10),
+        (0, 200, 50, 0.12),  # No experienced exposure: retain the prior.
+        (0, 0, 0, 0.12),
+        (800, 200, 10, 0.0),  # Incompatible observations stay within rate bounds.
+        (800, 200, 1000, 1.0),
+    ],
+)
+def test_experienced_turnover_inverts_planning_mixture(
+    experienced: int, recent: int, departures: int, expected: float
+) -> None:
+    with duckdb.connect(":memory:") as conn:
+        conn.execute(
+            "CREATE TABLE transitions AS SELECT i >= ? AS prior_year_hire, "
+            "i < ? AS terminated FROM range(?) t(i)",
+            [experienced, departures, experienced + recent],
+        )
+        fitted = fit_experienced_termination_rate(
+            conn, "transitions", 0.25, 0.12, credibility_k=0, min_exposure=0
+        )
+    assert fitted.value == pytest.approx(expected)
+    assert fitted.exposure == experienced

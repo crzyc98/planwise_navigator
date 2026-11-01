@@ -16,7 +16,10 @@ def render_hiring(year: int, seed: int = 42, legacy: bool = False) -> str:
     env.globals.update(
         var=lambda name, default=None: {
             "simulation_year": year,
-            "new_hire_age_distribution": [{"age": 32, "weight": 1.0}],
+            "new_hire_age_distribution": [
+                {"age": 32, "weight": 0.5},
+                {"age": 44, "weight": 0.5},
+            ],
         }.get(name, default),
         config=lambda **kwargs: "",
         ref=lambda name: name,
@@ -91,7 +94,11 @@ def test_hiring_calendar_distribution(year: int, count: int) -> None:
             if days == 366:
                 assert date(year, 2, 29) in dates
         if count > 1:
-            assert rows != conn.execute(render_hiring(year, seed=17)).fetchall()
+            alternate = conn.execute(render_hiring(year, seed=17)).fetchall()
+            assert rows != alternate
+            # Dates determine termination eligibility and timing, so their shuffle
+            # is fixed while hiring's age/compensation draws remain seed-dependent.
+            assert [(r[0], r[4]) for r in rows] == [(r[0], r[4]) for r in alternate]
 
 
 @pytest.mark.parametrize("year", [2025, 2028])

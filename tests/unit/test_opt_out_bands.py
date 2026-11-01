@@ -56,7 +56,7 @@ def probabilities(
     )
     with duckdb.connect() as con:
         rows = con.execute(
-            "WITH opt_out_candidates_raw AS (SELECT age AS current_age, income AS current_compensation, 2025 AS simulation_year, false AS is_hire_year_new_hire FROM (VALUES (25, 40000), (35, 75000), (50, 150000), (65, 250000)) t(age,income)), "
+            "WITH opt_out_candidates_raw AS (SELECT employee_id, age AS current_age, income AS current_compensation, 2025 AS simulation_year, false AS is_hire_year_new_hire FROM (VALUES ('E1', 25, 40000), ('E2', 35, 75000), ('E3', 50, 150000), ('E4', 65, 250000)) t(employee_id,age,income)), "
             + sql
             + " SELECT optout_probability FROM opt_out_candidates"
         ).fetchall()
@@ -75,6 +75,12 @@ def test_flat_and_zero_denominator(weight: float) -> None:
     assert probabilities(
         0.09, {dim: [{"min": 0, "multiplier": weight}] for dim in ("age", "income")}
     ) == pytest.approx([0.09] * 4)
+
+
+def test_equal_custom_weights_keep_exact_target() -> None:
+    """Equal weights must give exactly the target, so draws at the boundary hold."""
+    bands = {dim: [{"min": 0, "multiplier": 1.2345}] for dim in ("age", "income")}
+    assert probabilities(0.09, bands) == [0.09] * 4
 
 
 def test_saturation_lowers_expected_rate() -> None:
