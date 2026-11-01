@@ -9,3 +9,4 @@ backfill_by_level (holdout s7)	Fresh holdout, 45 cells, seed 7, run once	66267c2
 two_dial	Calibration solves range scale + starting-pay growth; backfill	375d5938	0.206 (s42) / 0.263 (s101)	<=0.01	0.000	0	best dev stage; standard per-year 11/12, compound 12/12
 two_dial (holdout s13)	Fresh holdout, 45 cells, seed 13, run once	375d5938	0.326 standard / 0.250 stress	<=0.01	0.000	0	standard: per-year 24/30, compound 30/30
 promo_backfill	Backfill gap counts expected promotions	bd23c051	0.157 (s42) / 0.252 (s101)	<=0.01	0.000	1	young cells 0.30->0.17pp; standard per-year 10/12, compound 11/12 (1 plausibility flag at 1.31x)
+promo_backfill holdout s29	Fresh pre-registered holdout	570084ea	0.183 (standard mean)	<=0.01	0.000	0	standard per-year 30/30, compound 30/30; stress 15/15, 15/15; worst 0.38pp

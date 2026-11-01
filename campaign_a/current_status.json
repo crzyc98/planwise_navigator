@@ -1,5 +1,5 @@
 {
-  "status": "promo_backfill_dev_complete_holdout_pending",
+  "status": "seed29_holdout_complete_awaiting_review",
   "stage": "promo_backfill",
   "dev_runs": {
     "completed": 18,
@@ -87,5 +87,11 @@
       "worst_pp": 0.6
     },
     "runs_with_failures": 0
+  },
+  "holdout_seed29": {
+    "standard_pass_per_year": "30/30",
+    "standard_pass_cagr": "30/30",
+    "stress_pass_per_year": "15/15",
+    "worst_pp": 0.38
   }
 }
