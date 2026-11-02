@@ -31,6 +31,7 @@ dependencies = [
     "python-pptx>=0.6.23",
     # Excel export dependencies
     "openpyxl>=3.1.0",
+    "xlsxwriter>=3.3.1",
     # openpyxl uses lxml when present: ~4x faster large-sheet writes.
     "lxml>=5.0.0",
     # Tableau .hyper export (Cost Comparison page). Releases after 0.0.26479
