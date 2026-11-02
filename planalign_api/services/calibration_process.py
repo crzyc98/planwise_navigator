@@ -114,13 +114,45 @@ def _terminate(process: subprocess.Popen[str]) -> None:
         raise
 
 
+WORKER_MODULE = "planalign_orchestrator.calibration_worker"
+
+
+def wait_for_group_exit(pgid: int) -> None:
+    """Block until every process in the worker's session is gone (POSIX).
+
+    The leader can exit while a descendant (e.g. a dbt subprocess) still holds
+    the database; cleanup and lock release must wait for the whole group.
+    """
+    if not IS_POSIX:
+        return
+    deadline = time.monotonic() + CANCEL_GRACE_SECONDS
+    try:
+        while True:
+            os.killpg(pgid, 0)
+            if time.monotonic() >= deadline:
+                os.killpg(pgid, signal.SIGKILL)
+            time.sleep(0.05)
+    except ProcessLookupError:
+        return
+
+
+def _worker_command_matches(command: list[str], directory: Path) -> bool:
+    return command[1:4] == ["-m", WORKER_MODULE, str(directory)]
+
+
+def terminate_orphans_by_command(directory: Path) -> None:
+    """Find workers for this job with no recorded PID (API died before recording)."""
+    for process in psutil.process_iter(["cmdline"]):
+        command = process.info.get("cmdline") or []
+        if _worker_command_matches(command, directory):
+            terminate_orphan(process.pid, directory)
+
+
 def terminate_orphan(pid: int, directory: Path) -> None:
     """Verify both module and job directory before touching a recorded PID."""
     try:
         process = psutil.Process(pid)
-        command = process.cmdline()
-        module = "planalign_orchestrator.calibration_worker"
-        if command[1:4] != ["-m", module, str(directory)]:
+        if not _worker_command_matches(process.cmdline(), directory):
             return
         if IS_POSIX:
             os.killpg(pid, signal.SIGKILL)

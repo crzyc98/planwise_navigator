@@ -454,6 +454,37 @@ def _verify_apply_context(
 # ---------------------------------------------------------------------------
 
 
+def _enqueue(
+    worker_request: WorkerRequest,
+    target: Optional[_ResolvedTarget],
+    database_path: Optional[str],
+    workspace_config: Optional[Path],
+) -> CalibrationJob:
+    """Persist the job and hand it to the runner; temp files never leak.
+
+    Until ``JobRunner.start`` owns cleanup, a failed job-store write removes the
+    materialized config and database here.
+    """
+    store = get_job_store()
+    try:
+        job = store.create(worker_request.kind)
+        if target:
+            store.update(job.run_id, context=target.context)
+    except Exception:
+        _remove_temp_config(workspace_config)
+        if target:
+            _remove_temp_database(target.database_path)
+        raise
+    get_job_runner().start(
+        job,
+        worker_request,
+        database_path,
+        workspace_config,
+        target.database_path if target else None,
+    )
+    return job
+
+
 @router.post(
     "/calibration/run", response_model=CalibrationStartResponse, status_code=202
 )
@@ -500,17 +531,9 @@ def run_calibration(
             _remove_temp_database(target.database_path)
         raise HTTPException(status_code=422, detail=str(e))
 
-    job = get_job_store().create("run")
-    if target:
-        get_job_store().update(job.run_id, context=target.context)
-
     database_path = str(target.database_path) if target else request.database_path
-    get_job_runner().start(
-        job,
-        WorkerRequest(kind="run", run=run),
-        database_path,
-        workspace_config,
-        target.database_path if target else None,
+    job = _enqueue(
+        WorkerRequest(kind="run", run=run), target, database_path, workspace_config
     )
     return CalibrationStartResponse(run_id=job.run_id, status="queued")
 
@@ -572,17 +595,12 @@ def optimize_calibration(
             _remove_temp_database(target.database_path)
         raise HTTPException(status_code=422, detail=str(e))
 
-    job = get_job_store().create("optimize")
-    if target:
-        get_job_store().update(job.run_id, context=target.context)
-
     database_path = str(target.database_path) if target else request.database_path
-    get_job_runner().start(
-        job,
+    job = _enqueue(
         WorkerRequest(kind="optimize", run=run, settings=request.settings),
+        target,
         database_path,
         workspace_config,
-        target.database_path if target else None,
     )
     return CalibrationStartResponse(run_id=job.run_id, status="queued")
 

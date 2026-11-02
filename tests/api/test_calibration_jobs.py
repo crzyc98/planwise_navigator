@@ -392,3 +392,80 @@ def test_missing_worker_output_is_safe_failure(
     job = client.get(f"/calibration/runs/{run_id}").json()
     assert job["status"] == "failed" and job["error_status"] == 500
     assert str(tmp_path) not in job["error"]
+
+
+@pytest.mark.skipif(os.name != "posix", reason="process groups are POSIX-only")
+def test_wait_for_group_exit_outlives_leader() -> None:
+    """A descendant that survives the leader keeps the group alive until it exits."""
+    import subprocess
+
+    from planalign_api.services import calibration_process
+
+    script = (
+        "import subprocess, sys; "
+        "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(0.5)'])"
+    )
+    leader = subprocess.Popen([sys.executable, "-c", script], start_new_session=True)
+    leader.wait()
+    started = time.monotonic()
+    calibration_process.wait_for_group_exit(leader.pid)
+    assert time.monotonic() - started > 0.2
+    with pytest.raises(ProcessLookupError):
+        os.killpg(leader.pid, 0)
+
+
+def test_recovery_without_recorded_pid_finds_worker_by_command(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from planalign_api.services import calibration_process
+
+    store = JobStore(tmp_path)
+    job = store.create("run")
+    found = []
+    monkeypatch.setattr(
+        calibration_process,
+        "terminate_orphan",
+        lambda pid, directory: found.append((pid, directory)),
+    )
+
+    class Proc:
+        pid = 4242
+        info = {
+            "cmdline": [
+                sys.executable,
+                "-m",
+                calibration_process.WORKER_MODULE,
+                str(store.job_dir(job.run_id)),
+            ]
+        }
+
+    class Other:
+        pid = 1
+        info = {"cmdline": None}
+
+    monkeypatch.setattr(
+        calibration_process.psutil, "process_iter", lambda attrs: [Other(), Proc()]
+    )
+    JobRunner(JobStore(tmp_path), ProcessRegistry()).recover()
+    assert found == [(4242, store.job_dir(job.run_id))]
+    assert store.load(job.run_id).status == "failed"
+
+
+def test_enqueue_failure_removes_temp_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_file, database = tmp_path / "cfg.yaml", tmp_path / "temp.duckdb"
+    config_file.touch()
+    database.touch()
+
+    class FailingStore:
+        def create(self, kind: str) -> None:
+            raise OSError("disk full")
+
+    monkeypatch.setattr(calibration, "get_job_store", lambda: FailingStore())
+    target = calibration._ResolvedTarget.__new__(calibration._ResolvedTarget)
+    object.__setattr__(target, "database_path", database)
+    with pytest.raises(OSError):
+        calibration._enqueue(request(), target, str(database), config_file)
+    assert not config_file.exists()
+    assert not database.exists()

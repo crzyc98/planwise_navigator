@@ -19,7 +19,13 @@ from planalign_orchestrator.calibration_worker import WorkerRequest, atomic_writ
 from ..config import get_settings
 from ..errors import sanitize_job_error
 from ..models.calibration import CalibrationJob
-from .calibration_process import ProcessRegistry, _terminate, terminate_orphan
+from .calibration_process import (
+    ProcessRegistry,
+    _terminate,
+    terminate_orphan,
+    terminate_orphans_by_command,
+    wait_for_group_exit,
+)
 
 logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -251,7 +257,9 @@ class JobRunner:
             except Exception:
                 _terminate(process)
                 raise
-            return process.wait()
+            code = process.wait()
+            wait_for_group_exit(process.pid)
+            return code
 
     def _finalize(self, job: CalibrationJob, code: int | None) -> None:
         if self.registry.begin_finalize(job.run_id):
@@ -303,6 +311,8 @@ class JobRunner:
             pid = self.store.recorded_process(job.run_id)
             if pid is not None:
                 terminate_orphan(pid, self.store.job_dir(job.run_id))
+            else:
+                terminate_orphans_by_command(self.store.job_dir(job.run_id))
             self._terminal(
                 job,
                 status="failed",
