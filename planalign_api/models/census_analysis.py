@@ -20,6 +20,15 @@ class CensusAnalysisRequest(APIModel):
         description="Population to analyze using the census active flag.",
     )
 
+    exclude_zeros: bool = Field(
+        default=False,
+        description=(
+            "When true, each average (deferral, employer contribution, total savings) "
+            "only covers eligible employees whose value for that measure is above zero. "
+            "By default every eligible employee is included, counting non-contributors as 0."
+        ),
+    )
+
     file_path: str = Field(
         ..., description="Path to census file (relative to workspace or absolute)"
     )
@@ -47,10 +56,16 @@ class CensusMetrics(APIModel):
         ..., description="Eligible employees with a deferral rate of zero or null"
     )
     average_deferral_rate: Optional[float] = Field(
-        None, description="Mean deferral rate among enrolled employees, as a decimal"
+        None,
+        description=(
+            "Mean deferral rate, as a decimal, across eligible employees (non-deferrers "
+            "count as 0), or across enrolled employees only when exclude_zeros is set. "
+            "None when the census has no deferral rate column."
+        ),
     )
     median_deferral_rate: Optional[float] = Field(
-        None, description="Median deferral rate among enrolled employees, as a decimal"
+        None,
+        description="Median deferral rate, as a decimal, on the same basis as average_deferral_rate",
     )
     total_eligible_compensation: float = Field(
         ..., description="Sum of gross compensation across eligible employees"
@@ -75,7 +90,8 @@ class CensusMetrics(APIModel):
         None,
         description=(
             "Mean of (employer_match_contribution + employer_core_contribution) / "
-            "compensation across eligible employees with compensation > 0, as a decimal. "
+            "compensation across eligible employees with compensation > 0 (only those "
+            "with an employer contribution when exclude_zeros is set), as a decimal. "
             "An estimate of the employer's contribution rate as loaded in the census, "
             "not a plan-design projection."
         ),
@@ -85,7 +101,8 @@ class CensusMetrics(APIModel):
         description=(
             "Mean, across eligible employees with compensation > 0, of each employee's "
             "own (deferral_rate + employer contribution rate). Employees with no deferral "
-            "rate are treated as deferring 0. None if no eligible employees have compensation."
+            "rate are treated as deferring 0. With exclude_zeros, employees whose total "
+            "is 0 are left out. None if no eligible employees have compensation."
         ),
     )
 
@@ -146,6 +163,10 @@ class CensusAnalysisResult(APIModel):
     )
     overall: CensusMetrics = Field(
         ..., description="Metrics across all active employees, unsegmented"
+    )
+    exclude_zeros: bool = Field(
+        default=False,
+        description="Echo of the request: whether averages leave out zero values",
     )
     segments: List[CensusSegmentMetrics] = Field(
         ...,

@@ -16,6 +16,7 @@ from ..models.analytics import (
     IRSLimitMetrics,
     ParticipationByMethod,
     OptOutYearSummary,
+    RateBases,
 )
 from ..models.employer_cost import ForfeiturePolicy
 from ..models.vesting import VestingScheduleConfig
@@ -48,6 +49,56 @@ Population = Literal[
     "active_eligible",
     "terminated_eligible",
 ]
+
+_CONTRIBUTOR_COMPENSATION_SQL = (
+    "COALESCE(SUM(prorated_annual_compensation) FILTER (WHERE {condition}), 0)"
+)
+
+
+def _year_average_sql(exclude_zeros: bool) -> dict[str, str]:
+    """Per-year deferral average and rate denominators for the zero basis.
+
+    By default non-participants count: the deferral average spans the whole
+    population (non-enrolled as 0) and every rate divides by everyone's
+    compensation. With ``exclude_zeros`` the average covers enrolled employees
+    only and each rate divides by the compensation of employees who received
+    that contribution.
+    """
+    if not exclude_zeros:
+        return {
+            "avg_deferral_rate": (
+                "AVG(CASE WHEN is_enrolled_flag "
+                "THEN COALESCE(current_deferral_rate, 0) ELSE 0 END)"
+            ),
+            **{
+                f"{name}_basis": TOTAL_COMPENSATION_SQL
+                for name in ("employee", "match", "core", "total")
+            },
+        }
+    conditions = {
+        "employee": "prorated_annual_contributions > 0",
+        "match": "employer_match_amount > 0",
+        "core": "employer_core_amount > 0",
+        "total": (
+            "COALESCE(prorated_annual_contributions, 0) "
+            "+ COALESCE(employer_match_amount, 0) "
+            "+ COALESCE(employer_core_amount, 0) > 0"
+        ),
+    }
+    return {
+        "avg_deferral_rate": (
+            "AVG(CASE WHEN is_enrolled_flag THEN current_deferral_rate END)"
+        ),
+        **{
+            f"{name}_basis": _CONTRIBUTOR_COMPENSATION_SQL.format(condition=condition)
+            for name, condition in conditions.items()
+        },
+    }
+
+
+def _pct(numerator: float, denominator: float) -> float:
+    return round(numerator / denominator * 100, 2) if denominator > 0 else 0.0
+
 
 DEFERRAL_BUCKET_ORDER = (
     "0%",
@@ -97,8 +148,31 @@ class AnalyticsService:
         }
 
     @staticmethod
+    def _contributor_rates(
+        total_employee: float,
+        total_match: float,
+        total_core: float,
+        bases: RateBases,
+    ) -> dict:
+        """Contribution rates over contributors' compensation (zeros excluded).
+
+        Each component has its own denominator, so the total is computed from
+        all contributions over the compensation of anyone contributing rather
+        than by summing the component rates.
+        """
+        return {
+            "employee_contribution_rate": _pct(total_employee, bases.employee),
+            "match_contribution_rate": _pct(total_match, bases.match),
+            "core_contribution_rate": _pct(total_core, bases.core),
+            "total_contribution_rate": _pct(
+                total_employee + total_match + total_core, bases.total
+            ),
+        }
+
+    @staticmethod
     def _compute_grand_totals(
         contribution_by_year: List[ContributionYearSummary],
+        exclude_zeros: bool = False,
     ) -> dict:
         """Compute aggregate totals across all contribution years."""
         total_employee = sum(
@@ -109,14 +183,18 @@ class AnalyticsService:
         total_all = sum(c.total_all_contributions for c in contribution_by_year)
         total_employer_cost = total_match + total_core
 
-        total_participants = sum(c.participant_count for c in contribution_by_year)
+        # Weight each year's average by the population it was averaged over.
+        def deferral_weight(c: ContributionYearSummary) -> int:
+            return c.participant_count if exclude_zeros else c.total_eligible_count
+
+        total_weight = sum(deferral_weight(c) for c in contribution_by_year)
         avg_deferral_rate = (
             sum(
-                c.average_deferral_rate * c.participant_count
+                c.average_deferral_rate * deferral_weight(c)
                 for c in contribution_by_year
             )
-            / total_participants
-            if total_participants > 0
+            / total_weight
+            if total_weight > 0
             else 0.0
         )
 
@@ -136,12 +214,21 @@ class AnalyticsService:
         )
 
         # E066: Aggregate contribution rate percentages
-        rates = AnalyticsService._contribution_rates(
-            total_employee,
-            total_match,
-            total_core,
-            total_compensation,
-        )
+        if exclude_zeros:
+            year_bases = [c._rate_bases for c in contribution_by_year if c._rate_bases]
+            bases = RateBases(
+                *(sum(getattr(b, f) for b in year_bases) for f in RateBases._fields)
+            )
+            rates = AnalyticsService._contributor_rates(
+                total_employee, total_match, total_core, bases
+            )
+        else:
+            rates = AnalyticsService._contribution_rates(
+                total_employee,
+                total_match,
+                total_core,
+                total_compensation,
+            )
 
         return {
             "total_employee": total_employee,
@@ -474,6 +561,7 @@ class AnalyticsService:
         effective_rate: bool = False,
         cohort: Cohort = "all",
         population: Optional[Population] = None,
+        exclude_zeros: bool = False,
     ) -> Optional[DCPlanAnalytics]:
         """
         Get DC Plan analytics for a single scenario.
@@ -497,9 +585,16 @@ class AnalyticsService:
                     conn, active_only, cohort, first_simulation_year, population
                 )
                 contribution_by_year = self._get_contribution_by_year(
-                    conn, active_only, cohort, first_simulation_year, population
+                    conn,
+                    active_only,
+                    cohort,
+                    first_simulation_year,
+                    population,
+                    exclude_zeros=exclude_zeros,
                 )
-                totals = self._compute_grand_totals(contribution_by_year)
+                totals = self._compute_grand_totals(
+                    contribution_by_year, exclude_zeros=exclude_zeros
+                )
                 (
                     deferral_distribution,
                     deferral_distribution_by_year,
@@ -537,6 +632,7 @@ class AnalyticsService:
                 escalation_metrics=escalation,
                 irs_limit_metrics=irs_limits,
                 average_deferral_rate=round(totals["avg_deferral_rate"], 4),
+                exclude_zeros=exclude_zeros,
                 total_employer_cost=totals["total_employer_cost"],
                 total_compensation=totals["total_compensation"],
                 total_capped_compensation=totals["total_capped_compensation"],
@@ -685,6 +781,7 @@ class AnalyticsService:
         cohort: Cohort = "all",
         first_simulation_year: Optional[int] = None,
         population: Optional[Population] = None,
+        exclude_zeros: bool = False,
     ) -> List[ContributionYearSummary]:
         """Get contribution totals by simulation year.
 
@@ -694,8 +791,11 @@ class AnalyticsService:
             cohort: Population filter — `all`, `new_hires`, or `baseline` (FR-004).
             first_simulation_year: Required when cohort != "all"; the year that
                 classifies new_hires vs baseline (see _resolve_first_simulation_year).
+            exclude_zeros: Average deferral over enrolled participants only and
+                divide each rate by contributors' compensation (see _year_average_sql).
         """
         try:
+            averages = _year_average_sql(exclude_zeros)
             # E104: Enhanced query with average deferral rate, participation rate, and total employer cost
             # E013: Added total_compensation for employer cost rate calculation
             status_filter = (
@@ -721,12 +821,16 @@ class AnalyticsService:
                     {GROSS_CORE_SQL} as total_core,
                     {GROSS_EMPLOYER_COST_SQL} as total_employer_cost,
                     COALESCE(SUM(prorated_annual_contributions) + SUM(employer_match_amount) + SUM(employer_core_amount), 0) as total_all,
-                    AVG(CASE WHEN is_enrolled_flag THEN current_deferral_rate ELSE NULL END) as avg_deferral_rate,
+                    {averages["avg_deferral_rate"]} as avg_deferral_rate,
                     {participation_rate_expr} as participation_rate,
                     COUNT(CASE WHEN is_enrolled_flag THEN 1 END) as participant_count,
                     COUNT(*) as total_eligible,
                     {TOTAL_COMPENSATION_SQL} as total_compensation,
-                    {CAPPED_COMPENSATION_SQL} as total_capped_compensation
+                    {CAPPED_COMPENSATION_SQL} as total_capped_compensation,
+                    {averages["employee_basis"]} as employee_basis,
+                    {averages["match_basis"]} as match_basis,
+                    {averages["core_basis"]} as core_basis,
+                    {averages["total_basis"]} as total_basis
                 FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} AS snapshot
                 INNER JOIN (
                     SELECT
@@ -760,41 +864,48 @@ class AnalyticsService:
                 total_employee = float(row["total_employee"])
                 total_match = float(row["total_match"])
                 total_core = float(row["total_core"])
-                rates = self._contribution_rates(
-                    total_employee,
-                    total_match,
-                    total_core,
-                    total_compensation,
+                bases = RateBases(
+                    *(float(row[f"{name}_basis"]) for name in RateBases._fields)
                 )
-                results.append(
-                    ContributionYearSummary(
-                        year=int(row["year"]),
-                        total_employee_contributions=total_employee,
-                        total_employer_match=total_match,
-                        total_employer_core=total_core,
-                        total_all_contributions=float(row["total_all"]),
-                        participant_count=int(row["participant_count"]),
-                        total_eligible_count=int(row["total_eligible"]),
-                        # E104: New fields
-                        average_deferral_rate=float(row["avg_deferral_rate"] or 0.0),
-                        participation_rate=round(
-                            float(row["participation_rate"] or 0.0), 2
-                        ),
-                        total_employer_cost=total_employer_cost,
-                        # E013: Employer cost ratio metrics
-                        total_compensation=total_compensation,
-                        total_capped_compensation=total_capped_compensation,
-                        employer_cost_rate=round(employer_cost_rate, 2),
-                        employer_cost_pct_of_capped_compensation=round(
-                            employer_cost_pct_of_capped_compensation, 2
-                        ),
-                        # E066: Contribution rate percentages
-                        employee_contribution_rate=rates["employee_contribution_rate"],
-                        match_contribution_rate=rates["match_contribution_rate"],
-                        core_contribution_rate=rates["core_contribution_rate"],
-                        total_contribution_rate=rates["total_contribution_rate"],
+                rates = (
+                    self._contributor_rates(
+                        total_employee, total_match, total_core, bases
+                    )
+                    if exclude_zeros
+                    else self._contribution_rates(
+                        total_employee, total_match, total_core, total_compensation
                     )
                 )
+                summary = ContributionYearSummary(
+                    year=int(row["year"]),
+                    total_employee_contributions=total_employee,
+                    total_employer_match=total_match,
+                    total_employer_core=total_core,
+                    total_all_contributions=float(row["total_all"]),
+                    participant_count=int(row["participant_count"]),
+                    total_eligible_count=int(row["total_eligible"]),
+                    # E104: New fields
+                    average_deferral_rate=float(row["avg_deferral_rate"] or 0.0),
+                    participation_rate=round(
+                        float(row["participation_rate"] or 0.0), 2
+                    ),
+                    total_employer_cost=total_employer_cost,
+                    # E013: Employer cost ratio metrics
+                    total_compensation=total_compensation,
+                    total_capped_compensation=total_capped_compensation,
+                    employer_cost_rate=round(employer_cost_rate, 2),
+                    employer_cost_pct_of_capped_compensation=round(
+                        employer_cost_pct_of_capped_compensation, 2
+                    ),
+                    # E066: Contribution rate percentages
+                    employee_contribution_rate=rates["employee_contribution_rate"],
+                    match_contribution_rate=rates["match_contribution_rate"],
+                    core_contribution_rate=rates["core_contribution_rate"],
+                    total_contribution_rate=rates["total_contribution_rate"],
+                )
+                if exclude_zeros:
+                    summary._rate_bases = bases
+                results.append(summary)
             if population is None:
                 return results
 

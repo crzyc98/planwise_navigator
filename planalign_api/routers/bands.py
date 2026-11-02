@@ -465,6 +465,7 @@ def analyze_census(
             file_path=request.file_path,
             as_of_date=request.as_of_date,
             employee_status=request.employee_status,
+            exclude_zeros=request.exclude_zeros,
         )
         return result
     except ValueError as e:

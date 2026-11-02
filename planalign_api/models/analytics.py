@@ -1,15 +1,28 @@
 """Analytics models for DC Plan contribution analysis."""
 
-from typing import Dict, List, Optional
+from typing import Dict, List, NamedTuple, Optional
 
-from pydantic import Field
+from pydantic import Field, PrivateAttr
 
 from .employer_cost import EmployerCostOffsetRow, ForfeiturePolicy
 from .base import APIModel
 
 
+class RateBases(NamedTuple):
+    """Compensation denominators for the employee, match, core, and total rates."""
+
+    employee: float
+    match: float
+    core: float
+    total: float
+
+
 class ContributionYearSummary(APIModel):
     """Contribution summary for a single year."""
+
+    # Contributor-only denominators, set when averages exclude zeros, so the
+    # grand totals can aggregate rates on the same basis. Not serialized.
+    _rate_bases: Optional[RateBases] = PrivateAttr(default=None)
 
     year: int = Field(description="Simulation year")
     total_employee_contributions: float = Field(description="Total employee deferrals")
@@ -25,7 +38,11 @@ class ContributionYearSummary(APIModel):
     )
     # E104: New fields for cost comparison
     average_deferral_rate: float = Field(
-        default=0.0, description="Average deferral rate for enrolled participants"
+        default=0.0,
+        description=(
+            "Average deferral rate across the population (non-participants count "
+            "as 0), or across enrolled participants only when exclude_zeros is set"
+        ),
     )
     participation_rate: float = Field(
         default=0.0, description="Participation rate for this year (0-100%)"
@@ -55,16 +72,19 @@ class ContributionYearSummary(APIModel):
     # E066: Contribution rate percentages
     employee_contribution_rate: float = Field(
         default=0.0,
-        description="Employee deferrals as percentage of total compensation",
+        description="Employee deferrals as percentage of total compensation; contributors' compensation only when exclude_zeros is set",
     )
     match_contribution_rate: float = Field(
-        default=0.0, description="Employer match as percentage of total compensation"
+        default=0.0,
+        description="Employer match as percentage of total compensation; contributors' compensation only when exclude_zeros is set",
     )
     core_contribution_rate: float = Field(
-        default=0.0, description="Employer core as percentage of total compensation"
+        default=0.0,
+        description="Employer core as percentage of total compensation; contributors' compensation only when exclude_zeros is set",
     )
     total_contribution_rate: float = Field(
-        default=0.0, description="All contributions as percentage of total compensation"
+        default=0.0,
+        description="All contributions as percentage of total compensation; contributors' compensation only when exclude_zeros is set",
     )
 
 
@@ -182,7 +202,18 @@ class DCPlanAnalytics(APIModel):
     # E104: New fields for cost comparison
     average_deferral_rate: float = Field(
         default=0.0,
-        description="Average deferral rate across all enrolled participants",
+        description=(
+            "Average deferral rate across the population (non-participants count "
+            "as 0), or across enrolled participants only when exclude_zeros is set"
+        ),
+    )
+    exclude_zeros: bool = Field(
+        default=False,
+        description=(
+            "Whether averages leave out zeros: the deferral average covers enrolled "
+            "participants only, and each contribution rate divides by the compensation "
+            "of employees who received that contribution"
+        ),
     )
     total_employer_cost: float = Field(
         default=0.0, description="Grand total employer cost (match + core)"
@@ -206,19 +237,19 @@ class DCPlanAnalytics(APIModel):
     # E066: Aggregate contribution rate percentages
     employee_contribution_rate: float = Field(
         default=0.0,
-        description="Aggregate employee deferrals as percentage of total compensation",
+        description="Aggregate employee deferrals as percentage of total compensation; contributors' compensation only when exclude_zeros is set",
     )
     match_contribution_rate: float = Field(
         default=0.0,
-        description="Aggregate employer match as percentage of total compensation",
+        description="Aggregate employer match as percentage of total compensation; contributors' compensation only when exclude_zeros is set",
     )
     core_contribution_rate: float = Field(
         default=0.0,
-        description="Aggregate employer core as percentage of total compensation",
+        description="Aggregate employer core as percentage of total compensation; contributors' compensation only when exclude_zeros is set",
     )
     total_contribution_rate: float = Field(
         default=0.0,
-        description="Aggregate all contributions as percentage of total compensation",
+        description="Aggregate all contributions as percentage of total compensation; contributors' compensation only when exclude_zeros is set",
     )
 
 

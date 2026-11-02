@@ -3175,6 +3175,12 @@
             "title": "Employee Status",
             "type": "string"
           },
+          "exclude_zeros": {
+            "default": false,
+            "description": "When true, each average (deferral, employer contribution, total savings) only covers eligible employees whose value for that measure is above zero. By default every eligible employee is included, counting non-contributors as 0.",
+            "title": "Exclude Zeros",
+            "type": "boolean"
+          },
           "file_path": {
             "description": "Path to census file (relative to workspace or absolute)",
             "title": "File Path",
@@ -3240,6 +3246,12 @@
             },
             "title": "Deferral Rate Distribution",
             "type": "array"
+          },
+          "exclude_zeros": {
+            "default": false,
+            "description": "Echo of the request: whether averages leave out zero values",
+            "title": "Exclude Zeros",
+            "type": "boolean"
           },
           "hce_compensation_threshold": {
             "anyOf": [
@@ -3354,6 +3366,7 @@
           "total_employees",
           "active_employees",
           "overall",
+          "exclude_zeros",
           "segments",
           "available_segment_dimensions",
           "deferral_rate_distribution",
@@ -3452,7 +3465,7 @@
                 "type": "null"
               }
             ],
-            "description": "Mean deferral rate among enrolled employees, as a decimal",
+            "description": "Mean deferral rate, as a decimal, across eligible employees (non-deferrers count as 0), or across enrolled employees only when exclude_zeros is set. None when the census has no deferral rate column.",
             "title": "Average Deferral Rate"
           },
           "average_employer_contribution_rate": {
@@ -3464,7 +3477,7 @@
                 "type": "null"
               }
             ],
-            "description": "Mean of (employer_match_contribution + employer_core_contribution) / compensation across eligible employees with compensation > 0, as a decimal. An estimate of the employer's contribution rate as loaded in the census, not a plan-design projection.",
+            "description": "Mean of (employer_match_contribution + employer_core_contribution) / compensation across eligible employees with compensation > 0 (only those with an employer contribution when exclude_zeros is set), as a decimal. An estimate of the employer's contribution rate as loaded in the census, not a plan-design projection.",
             "title": "Average Employer Contribution Rate"
           },
           "average_total_savings_rate": {
@@ -3476,7 +3489,7 @@
                 "type": "null"
               }
             ],
-            "description": "Mean, across eligible employees with compensation > 0, of each employee's own (deferral_rate + employer contribution rate). Employees with no deferral rate are treated as deferring 0. None if no eligible employees have compensation.",
+            "description": "Mean, across eligible employees with compensation > 0, of each employee's own (deferral_rate + employer contribution rate). Employees with no deferral rate are treated as deferring 0. With exclude_zeros, employees whose total is 0 are left out. None if no eligible employees have compensation.",
             "title": "Average Total Savings Rate"
           },
           "eligible_count": {
@@ -3515,7 +3528,7 @@
                 "type": "null"
               }
             ],
-            "description": "Median deferral rate among enrolled employees, as a decimal",
+            "description": "Median deferral rate, as a decimal, on the same basis as average_deferral_rate",
             "title": "Median Deferral Rate"
           },
           "participation_rate": {
@@ -3587,7 +3600,7 @@
                 "type": "null"
               }
             ],
-            "description": "Mean deferral rate among enrolled employees, as a decimal",
+            "description": "Mean deferral rate, as a decimal, across eligible employees (non-deferrers count as 0), or across enrolled employees only when exclude_zeros is set. None when the census has no deferral rate column.",
             "title": "Average Deferral Rate"
           },
           "average_employer_contribution_rate": {
@@ -3599,7 +3612,7 @@
                 "type": "null"
               }
             ],
-            "description": "Mean of (employer_match_contribution + employer_core_contribution) / compensation across eligible employees with compensation > 0, as a decimal. An estimate of the employer's contribution rate as loaded in the census, not a plan-design projection.",
+            "description": "Mean of (employer_match_contribution + employer_core_contribution) / compensation across eligible employees with compensation > 0 (only those with an employer contribution when exclude_zeros is set), as a decimal. An estimate of the employer's contribution rate as loaded in the census, not a plan-design projection.",
             "title": "Average Employer Contribution Rate"
           },
           "average_total_savings_rate": {
@@ -3611,7 +3624,7 @@
                 "type": "null"
               }
             ],
-            "description": "Mean, across eligible employees with compensation > 0, of each employee's own (deferral_rate + employer contribution rate). Employees with no deferral rate are treated as deferring 0. None if no eligible employees have compensation.",
+            "description": "Mean, across eligible employees with compensation > 0, of each employee's own (deferral_rate + employer contribution rate). Employees with no deferral rate are treated as deferring 0. With exclude_zeros, employees whose total is 0 are left out. None if no eligible employees have compensation.",
             "title": "Average Total Savings Rate"
           },
           "dimension": {
@@ -3655,7 +3668,7 @@
                 "type": "null"
               }
             ],
-            "description": "Median deferral rate among enrolled employees, as a decimal",
+            "description": "Median deferral rate, as a decimal, on the same basis as average_deferral_rate",
             "title": "Median Deferral Rate"
           },
           "participation_rate": {
@@ -5037,19 +5050,19 @@
         "properties": {
           "average_deferral_rate": {
             "default": 0.0,
-            "description": "Average deferral rate for enrolled participants",
+            "description": "Average deferral rate across the population (non-participants count as 0), or across enrolled participants only when exclude_zeros is set",
             "title": "Average Deferral Rate",
             "type": "number"
           },
           "core_contribution_rate": {
             "default": 0.0,
-            "description": "Employer core as percentage of total compensation",
+            "description": "Employer core as percentage of total compensation; contributors' compensation only when exclude_zeros is set",
             "title": "Core Contribution Rate",
             "type": "number"
           },
           "employee_contribution_rate": {
             "default": 0.0,
-            "description": "Employee deferrals as percentage of total compensation",
+            "description": "Employee deferrals as percentage of total compensation; contributors' compensation only when exclude_zeros is set",
             "title": "Employee Contribution Rate",
             "type": "number"
           },
@@ -5067,7 +5080,7 @@
           },
           "match_contribution_rate": {
             "default": 0.0,
-            "description": "Employer match as percentage of total compensation",
+            "description": "Employer match as percentage of total compensation; contributors' compensation only when exclude_zeros is set",
             "title": "Match Contribution Rate",
             "type": "number"
           },
@@ -5101,7 +5114,7 @@
           },
           "total_contribution_rate": {
             "default": 0.0,
-            "description": "All contributions as percentage of total compensation",
+            "description": "All contributions as percentage of total compensation; contributors' compensation only when exclude_zeros is set",
             "title": "Total Contribution Rate",
             "type": "number"
           },
@@ -5548,7 +5561,7 @@
         "properties": {
           "average_deferral_rate": {
             "default": 0.0,
-            "description": "Average deferral rate across all enrolled participants",
+            "description": "Average deferral rate across the population (non-participants count as 0), or across enrolled participants only when exclude_zeros is set",
             "title": "Average Deferral Rate",
             "type": "number"
           },
@@ -5562,7 +5575,7 @@
           },
           "core_contribution_rate": {
             "default": 0.0,
-            "description": "Aggregate employer core as percentage of total compensation",
+            "description": "Aggregate employer core as percentage of total compensation; contributors' compensation only when exclude_zeros is set",
             "title": "Core Contribution Rate",
             "type": "number"
           },
@@ -5584,7 +5597,7 @@
           },
           "employee_contribution_rate": {
             "default": 0.0,
-            "description": "Aggregate employee deferrals as percentage of total compensation",
+            "description": "Aggregate employee deferrals as percentage of total compensation; contributors' compensation only when exclude_zeros is set",
             "title": "Employee Contribution Rate",
             "type": "number"
           },
@@ -5604,13 +5617,19 @@
             "$ref": "#/components/schemas/EscalationMetrics",
             "description": "Escalation statistics"
           },
+          "exclude_zeros": {
+            "default": false,
+            "description": "Whether averages leave out zeros: the deferral average covers enrolled participants only, and each contribution rate divides by the compensation of employees who received that contribution",
+            "title": "Exclude Zeros",
+            "type": "boolean"
+          },
           "irs_limit_metrics": {
             "$ref": "#/components/schemas/IRSLimitMetrics",
             "description": "IRS limit statistics"
           },
           "match_contribution_rate": {
             "default": 0.0,
-            "description": "Aggregate employer match as percentage of total compensation",
+            "description": "Aggregate employer match as percentage of total compensation; contributors' compensation only when exclude_zeros is set",
             "title": "Match Contribution Rate",
             "type": "number"
           },
@@ -5664,7 +5683,7 @@
           },
           "total_contribution_rate": {
             "default": 0.0,
-            "description": "Aggregate all contributions as percentage of total compensation",
+            "description": "Aggregate all contributions as percentage of total compensation; contributors' compensation only when exclude_zeros is set",
             "title": "Total Contribution Rate",
             "type": "number"
           },
@@ -5719,6 +5738,7 @@
           "escalation_metrics",
           "irs_limit_metrics",
           "average_deferral_rate",
+          "exclude_zeros",
           "total_employer_cost",
           "total_compensation",
           "total_capped_compensation",
@@ -22031,6 +22051,18 @@
               "title": "Cohort",
               "type": "string"
             }
+          },
+          {
+            "description": "If true, average deferral covers enrolled participants only and each contribution rate divides by the compensation of employees who received that contribution. By default non-participants count as 0.",
+            "in": "query",
+            "name": "exclude_zeros",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "If true, average deferral covers enrolled participants only and each contribution rate divides by the compensation of employees who received that contribution. By default non-participants count as 0.",
+              "title": "Exclude Zeros",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -26484,6 +26516,18 @@
               ],
               "title": "Cohort",
               "type": "string"
+            }
+          },
+          {
+            "description": "If true, average deferral covers enrolled participants only and each contribution rate divides by the compensation of employees who received that contribution. By default non-participants count as 0.",
+            "in": "query",
+            "name": "exclude_zeros",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "If true, average deferral covers enrolled participants only and each contribution rate divides by the compensation of employees who received that contribution. By default non-participants count as 0.",
+              "title": "Exclude Zeros",
+              "type": "boolean"
             }
           }
         ],

@@ -162,7 +162,10 @@ class TestOverallMetrics:
         assert result.overall.enrolled_count == 2
         assert result.overall.participation_rate == pytest.approx(0.5)
         assert result.overall.zero_deferral_count == 2
-        assert result.overall.average_deferral_rate == pytest.approx(0.08)
+        # Non-deferrers count as 0 by default: (0.06 + 0.10 + 0 + 0) / 4
+        assert result.overall.average_deferral_rate == pytest.approx(0.04)
+        assert result.overall.median_deferral_rate == pytest.approx(0.03)
+        assert result.exclude_zeros is False
 
     def test_employer_cost_proxy(self, service, workspace_dir):
         rows = [
@@ -246,6 +249,54 @@ class TestOverallMetrics:
         # -> mean 0.06125
         assert result.overall.average_total_savings_rate == pytest.approx(0.06125)
 
+    def test_exclude_zeros_averages_only_contributors(self, service, workspace_dir):
+        rows = [
+            _employee(
+                compensation=120000,
+                deferral_rate=0.06,
+                match=3600,
+                core=1200,
+                department="Eng",
+            ),
+            _employee(compensation=60000, deferral_rate=0, department="Eng"),
+            _employee(compensation=200000, deferral_rate=0.10, department="Sales"),
+            _employee(compensation=50000, deferral_rate=None, department="Sales"),
+            _employee(compensation=40000, deferral_rate=0, match=400, department="Ops"),
+        ]
+        _analyze(service, workspace_dir, rows)
+        result = service.analyze(
+            "test-ws", "census.csv", as_of_date=AS_OF, exclude_zeros=True
+        )
+
+        assert result.exclude_zeros is True
+        # Deferrers only: 0.06, 0.10
+        assert result.overall.average_deferral_rate == pytest.approx(0.08)
+        assert result.overall.median_deferral_rate == pytest.approx(0.08)
+        # Employer recipients only: 0.04, 0.01
+        assert result.overall.average_employer_contribution_rate == pytest.approx(0.025)
+        # Anyone saving: 0.10, 0.10, 0.01
+        assert result.overall.average_total_savings_rate == pytest.approx(0.07)
+        segments = {
+            segment.value: segment
+            for segment in result.segments
+            if segment.dimension == "department"
+        }
+        assert segments["Sales"].average_deferral_rate == pytest.approx(0.10)
+        # A segment with no deferrers has no average rather than 0.
+        assert segments["Ops"].average_deferral_rate is None
+        assert segments["Ops"].enrolled_count == 0
+
+    def test_default_counts_zeros_in_every_average(self, service, workspace_dir):
+        rows = [
+            _employee(compensation=100000, deferral_rate=0.06, match=4000),
+            _employee(compensation=100000, deferral_rate=0, match=0),
+        ]
+        result = _analyze(service, workspace_dir, rows)
+
+        assert result.overall.average_deferral_rate == pytest.approx(0.03)
+        assert result.overall.average_employer_contribution_rate == pytest.approx(0.02)
+        assert result.overall.average_total_savings_rate == pytest.approx(0.05)
+
     def test_savings_rate_none_without_compensation(self, service, workspace_dir):
         rows = [_employee(compensation="", deferral_rate=0.06)]
         result = _analyze(service, workspace_dir, rows)
@@ -287,6 +338,9 @@ class TestDeferralDistribution:
         result = service.analyze("test-ws", "census.csv", as_of_date=AS_OF)
 
         assert result.deferral_rate_distribution == []
+        # No deferral data is unknown, not an average of 0.
+        assert result.overall.average_deferral_rate is None
+        assert result.overall.median_deferral_rate is None
 
 
 @pytest.mark.fast
