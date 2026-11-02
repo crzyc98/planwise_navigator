@@ -8,7 +8,7 @@
 duckdb==2.0.0
 dbt-core==1.12.6
 dbt-duckdb==1.9.6
-pydantic==2.14.1
+pydantic==2.14.2
 python-dotenv>=1.0.0
 pyyaml>=6.0.0
 pandas>=2.0.0
