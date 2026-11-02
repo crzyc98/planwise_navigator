@@ -1,7 +1,8 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { baselineScenarioId } from './calibrationScenario';
+import { baselineScenarioId, isMissingRunError } from './calibrationScenario';
+import { ApiError } from '../services/api';
 import CalibrationPanel from './CalibrationPanel';
 
 vi.mock('react-router-dom', () => ({ useOutletContext: () => ({
@@ -36,5 +37,13 @@ describe('calibration scenario defaults', () => {
     const runButton = html.match(/<button\b[^>]*>.*?<\/button>/g)
       ?.find(button => button.includes('Auto-Calibrate'));
     expect(runButton).toContain('disabled=""');
+  });
+
+  it('recognizes only the no-matching-run 409 as offering a scenario run', () => {
+    const detail = 'No completed simulation matches this workspace census, target config, seed, and horizon.';
+    expect(isMissingRunError(new ApiError(409, 'Conflict', detail))).toBe(true);
+    expect(isMissingRunError(new ApiError(409, 'Conflict', 'The target workspace census is missing.'))).toBe(false);
+    expect(isMissingRunError(new ApiError(422, 'Unprocessable', detail))).toBe(false);
+    expect(isMissingRunError(new Error(detail))).toBe(false);
   });
 });
