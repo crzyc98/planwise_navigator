@@ -33,21 +33,34 @@ def fixture_frame() -> pd.DataFrame:
         """).df()
 
 
-def write_pair(tmp_path: Path, frame: pd.DataFrame) -> tuple[Path, Path]:
+def write_pair(
+    tmp_path: Path, frame: pd.DataFrame, sheet_name: str = "Workforce_Snapshot"
+) -> tuple[Path, Path]:
     exporter = ExcelExporter(None)
     paths = (tmp_path / "old.xlsx", tmp_path / "new.xlsx")
     frame = exporter._sanitize_for_excel(frame)
     for path, engine in zip(paths, ("openpyxl", "xlsxwriter")):
-        with pd.ExcelWriter(path, engine=engine) as writer:
-            exporter._write_formatted_sheet(writer, "Data", frame)
+        with pd.ExcelWriter(
+            path,
+            engine=engine,
+            engine_kwargs=(
+                {"options": {"strings_to_urls": False}}
+                if engine == "xlsxwriter"
+                else {}
+            ),
+        ) as writer:
+            exporter._write_formatted_sheet(writer, sheet_name, frame)
     return paths
 
 
-def test_duckdb_roundtrip_and_formatting(tmp_path: Path) -> None:
-    first, second = write_pair(tmp_path, fixture_frame())
+@pytest.mark.parametrize(
+    "sheet_name", ["Workforce_Snapshot", "Workforce_2025", "Events_Detail"]
+)
+def test_duckdb_roundtrip_and_formatting(tmp_path: Path, sheet_name: str) -> None:
+    first, second = write_pair(tmp_path, fixture_frame(), sheet_name)
     assert compare_workbooks(first, second) == []
     book = load_workbook(second)
-    sheet = book["Data"]
+    sheet = book[sheet_name]
     assert sheet.freeze_panes == "A2"
     assert sheet["C2"].value is True
     assert sheet["C3"].value is None
@@ -81,10 +94,51 @@ def test_object_conversion_widths(tmp_path: Path, values: list[Any]) -> None:
 def test_checker_rejects_changed_value_and_style(tmp_path: Path) -> None:
     first, second = write_pair(tmp_path, pd.DataFrame({"v": [1, 2]}))
     book = load_workbook(second)
-    book["Data"]["A2"] = False
-    book["Data"].freeze_panes = "B2"
+    book["Workforce_Snapshot"]["A2"] = False
+    book["Workforce_Snapshot"].freeze_panes = "B2"
     book.save(second)
     book.close()
     errors = compare_workbooks(first, second)
     assert any("bool" in error for error in errors)
     assert any("freeze panes" in error for error in errors)
+
+
+@pytest.mark.parametrize(
+    "dtype,values",
+    [
+        ("Int64", [None, 0, -7]),
+        ("UInt64", [None, 0, 7]),
+        ("Float64", [None, float("inf"), -float("inf")]),
+        ("float64", [float("nan"), 0.0, 1.5]),
+        ("boolean", [None, True, False]),
+        ("string", [None, "00123", "https://example.com"]),
+        ("datetime64[ns]", [pd.NaT, datetime(2025, 1, 2), None]),
+        (
+            "datetime64[ns, US/Eastern]",
+            [pd.NaT, pd.Timestamp("2025-01-02", tz="US/Eastern"), None],
+        ),
+        (object, [None, Decimal("123.4500"), Decimal("NaN")]),
+        (object, [None, date(2025, 1, 2), pd.Timestamp("2025-01-02", tz="US/Eastern")]),
+        (object, [None, "x" * 40000, "=1+1"]),
+        (object, [None, "00123", "https://example.com"]),
+    ],
+)
+def test_direct_column_conversions(
+    tmp_path: Path, dtype: Any, values: list[Any]
+) -> None:
+    first, second = write_pair(
+        tmp_path, pd.DataFrame({"v": pd.Series(values, dtype=dtype)})
+    )
+    assert compare_workbooks(first, second) == []
+    book = load_workbook(second)
+    assert (2, 1) in book["Workforce_Snapshot"]._cells
+    assert book["Workforce_Snapshot"]["A2"].number_format == "General"
+    assert book["Workforce_Snapshot"]["A4"].hyperlink is None
+    book.close()
+
+
+def test_direct_writer_rejects_oversized_sheet(tmp_path: Path) -> None:
+    frame = pd.DataFrame(index=pd.RangeIndex(1_048_577))
+    with pd.ExcelWriter(tmp_path / "oversized.xlsx", engine="xlsxwriter") as writer:
+        with pytest.raises(ValueError, match="This sheet is too large"):
+            ExcelExporter(None)._write_formatted_sheet(writer, "Events_Detail", frame)

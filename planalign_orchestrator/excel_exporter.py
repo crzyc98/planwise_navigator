@@ -22,10 +22,13 @@ import logging
 import re
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 import duckdb
 import pandas as pd
+from pandas.io.formats.excel import ExcelFormatter
+from xlsxwriter.format import Format
+from xlsxwriter.worksheet import Worksheet
 
 from planalign_core.constants import (
     COL_EMPLOYEE_ID,
@@ -355,7 +358,13 @@ class ExcelExporter:
         with pd.ExcelWriter(
             excel_path,
             engine="xlsxwriter",
-            engine_kwargs={"options": {"strings_to_urls": False}},
+            engine_kwargs={
+                "options": {
+                    "strings_to_urls": False,
+                    "strings_to_formulas": True,
+                    "strings_to_numbers": False,
+                }
+            },
         ) as writer:
             # Workforce Snapshot (single sheet or per-year)
             self._write_workforce_sheets(writer, conn, split)
@@ -842,16 +851,29 @@ class ExcelExporter:
         self, writer: pd.ExcelWriter, sheet_name: str, frame: pd.DataFrame
     ) -> None:
         """Write data, preserving the original sampled openpyxl formatting."""
-        frame.to_excel(writer, sheet_name=sheet_name, index=False)
+        direct = writer.engine == "xlsxwriter" and (
+            sheet_name.startswith("Workforce_") or sheet_name == "Events_Detail"
+        )
+        if direct:
+            rows, columns = frame.shape
+            if rows > ExcelFormatter.max_rows or columns > ExcelFormatter.max_cols:
+                raise ValueError(
+                    f"This sheet is too large! Your sheet size is: {rows}, {columns} "
+                    f"Max sheet size is: {ExcelFormatter.max_rows}, {ExcelFormatter.max_cols}"
+                )
+            writer.book.add_worksheet(sheet_name)
+        else:
+            frame.to_excel(writer, sheet_name=sheet_name, index=False)
         if writer.engine == "openpyxl":
             self._format_worksheet(writer.sheets[sheet_name])
             return
-        # Pandas/xlsxwriter omits unstyled blanks; retain explicit General
-        # cells so null dates and trailing empty rows match openpyxl.
-        blank = writer.book.add_format({"num_format": "General"})
-        for column, name in enumerate(frame.columns):
-            for row in frame[name].isna().to_numpy().nonzero()[0]:
-                writer.sheets[sheet_name].write_blank(int(row) + 1, column, None, blank)
+        if not direct:
+            blank = writer.book.add_format({"num_format": "General"})
+            for column, name in enumerate(frame.columns):
+                for row in frame[name].isna().to_numpy().nonzero()[0]:
+                    writer.sheets[sheet_name].write_blank(
+                        int(row) + 1, column, None, blank
+                    )
         # Use pandas' actual openpyxl conversions, including missing values,
         # Decimal, timestamps and string truncation, on only the bounded sample.
         with pd.ExcelWriter(io.BytesIO(), engine="openpyxl") as sample_writer:
@@ -859,6 +881,87 @@ class ExcelExporter:
             sample = sample_writer.sheets["Sheet1"]
             self._format_worksheet(sample)
             self._format_xlsxwriter(writer, sheet_name, sample)
+        if direct:
+            self._write_direct_columns(writer, sheet_name, frame)
+
+    @staticmethod
+    def _prepare_excel_column(
+        writer: pd.ExcelWriter, sheet: Worksheet, series: pd.Series
+    ) -> list[tuple[Callable[..., int], Any, Any]]:
+        """Convert a column once; keep pandas conversions for heterogeneous data."""
+        blank = writer.book.add_format({"num_format": "General"})
+        values = series.tolist()
+        missing = series.isna().tolist()
+        dtype = series.dtype
+        if pd.api.types.is_bool_dtype(dtype):
+            write, convert = sheet.write_boolean, bool
+        elif pd.api.types.is_integer_dtype(dtype):
+            write, convert = sheet.write_number, int
+        elif pd.api.types.is_float_dtype(dtype):
+            write, convert = sheet.write_number, float
+        else:
+            return ExcelExporter._prepare_mixed_column(writer, sheet, values, missing)
+        return [
+            (
+                (sheet.write_blank, None, blank)
+                if absent
+                else (
+                    (sheet.write_string, str(value), None)
+                    if pd.api.types.is_float(value) and abs(value) == float("inf")
+                    else (write, convert(value), None)
+                )
+            )
+            for value, absent in zip(values, missing)
+        ]
+
+    @staticmethod
+    def _prepare_mixed_column(
+        writer: pd.ExcelWriter,
+        sheet: Worksheet,
+        values: list[Any],
+        missing: list[bool],
+    ) -> list[tuple[Callable[..., int], Any, Any]]:
+        """Use pandas' scalar conversion contract outside homogeneous numerics."""
+        formatter = ExcelFormatter(pd.DataFrame())
+        formats: dict[str | None, Format | None] = {None: None}
+        blank = writer.book.add_format({"num_format": "General"})
+        prepared: list[tuple[Callable[..., int], Any, Any]] = []
+        for value, absent in zip(values, missing):
+            if absent:
+                prepared.append((sheet.write_blank, None, blank))
+                continue
+            value, fmt = writer._value_with_fmt(formatter._format_value(value))
+            if fmt not in formats:
+                formats[fmt] = writer.book.add_format({"num_format": fmt})
+            if fmt:
+                write = sheet.write_number if fmt == "0" else sheet.write_datetime
+            elif isinstance(value, str):
+                write = (
+                    sheet.write if value.startswith(("=", "{=")) else sheet.write_string
+                )
+            elif isinstance(value, bool):
+                write = sheet.write_boolean
+            else:
+                write = sheet.write_number
+            # Empty strings are omitted by pandas/xlsxwriter.
+            if value != "":
+                prepared.append((write, value, formats[fmt]))
+            else:
+                prepared.append((sheet.write_blank, None, None))
+        return prepared
+
+    @staticmethod
+    def _write_direct_columns(
+        writer: pd.ExcelWriter, sheet_name: str, frame: pd.DataFrame
+    ) -> None:
+        """Write typed cells without ExcelCell allocation or per-cell style JSON."""
+        sheet = writer.sheets[sheet_name]
+        for column in range(len(frame.columns)):
+            prepared = ExcelExporter._prepare_excel_column(
+                writer, sheet, frame.iloc[:, column]
+            )
+            for row, (write, value, fmt) in enumerate(prepared, 1):
+                write(row, column, value, fmt)
 
     @staticmethod
     def _format_xlsxwriter(
