@@ -1,6 +1,5 @@
-import { useConfigContext, applyConfigToFormData } from './ConfigContext';
-import { resolveCensusFields } from './censusConfig';
-import { getScenario, getWorkspace, validateFilePath, Scenario } from '../../services/api';
+import { useConfigContext } from './ConfigContext';
+import type { Scenario } from '../../services/api';
 
 interface CopyScenarioModalProps {
   readonly availableScenarios: Scenario[];
@@ -8,7 +7,7 @@ interface CopyScenarioModalProps {
 }
 
 export function CopyScenarioModal({ availableScenarios, onClose }: CopyScenarioModalProps) {
-  const { setFormData, setPromotionHazardConfig, setBandConfig, activeWorkspace } = useConfigContext();
+  const { copyScenarioConfig } = useConfigContext();
 
   return (
     <div className="fixed inset-0 bg-overlay bg-opacity-50 flex items-center justify-center z-50">
@@ -26,39 +25,10 @@ export function CopyScenarioModal({ availableScenarios, onClose }: CopyScenarioM
                 key={scenario.id}
                 onClick={async () => {
                   try {
-                    const [fullScenario, workspace] = await Promise.all([
-                      getScenario(activeWorkspace.id, scenario.id),
-                      getWorkspace(activeWorkspace.id),
-                    ]);
-                    const cfg = fullScenario.config_overrides || {};
-
-                    // Reuse the canonical config→FormData mapper (same logic used on
-                    // normal scenario load) so the copy path can never drift from it and
-                    // silently drop fields (e.g. issue #326: dcVoluntaryEnrollmentRate).
-                    const censusFields = await resolveCensusFields(
-                      cfg, workspace.base_config,
-                      path => validateFilePath(activeWorkspace.id, path),
-                    );
-                    setFormData(prev => ({ ...applyConfigToFormData(cfg, prev), ...censusFields }));
-
-                    // 313: Copy seed configs
-                    if (cfg.promotion_hazard) {
-                      const ph = cfg.promotion_hazard;
-                      setPromotionHazardConfig(prev => {
-                        const baseRate = ph.base_rate ?? prev?.base.base_rate;
-                        const dampener = ph.level_dampener_factor ?? prev?.base.level_dampener_factor;
-                        if (baseRate == null || dampener == null) return prev;
-                        return {
-                          base: { base_rate: baseRate, level_dampener_factor: dampener },
-                          age_multipliers: ph.age_multipliers ?? prev?.age_multipliers ?? [],
-                          tenure_multipliers: ph.tenure_multipliers ?? prev?.tenure_multipliers ?? [],
-                        };
-                      });
-                    }
-                    if (cfg.age_bands && cfg.tenure_bands) {
-                      setBandConfig({ age_bands: cfg.age_bands, tenure_bands: cfg.tenure_bands });
-                    }
-
+                    // Load the source exactly as a normal scenario load does, so newer
+                    // settings (including ones only hydrated from the resolved engine
+                    // config, or not modeled by the form at all) carry over on save.
+                    await copyScenarioConfig(scenario.id);
                     onClose();
                   } catch (error) {
                     console.error('Failed to copy scenario config:', error);
