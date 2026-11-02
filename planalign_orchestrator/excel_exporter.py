@@ -868,10 +868,11 @@ class ExcelExporter:
 
             # Auto-size columns from a row sample (header + first N data rows)
             # rather than scanning every cell — see _AUTOSIZE_SAMPLE_ROWS.
-            for column_cells in worksheet.columns:
-                sample_cells = column_cells[: _AUTOSIZE_SAMPLE_ROWS + 1]
+            for sample_cells in worksheet.iter_cols(
+                max_row=min(worksheet.max_row, _AUTOSIZE_SAMPLE_ROWS + 1)
+            ):
                 length = max(len(str(cell.value or "")) for cell in sample_cells)
-                column_letter = get_column_letter(column_cells[0].column)
+                column_letter = get_column_letter(sample_cells[0].column)
                 # Set reasonable max width
                 worksheet.column_dimensions[column_letter].width = min(length + 2, 50)
 
