@@ -82,7 +82,13 @@ def test_each_trend_has_a_spreadsheet_ready_copy_action() -> None:
     assert "Employer non-elective/core rate" in source
     assert "Total savings rate" in source
     assert "['Average'" in source
-    assert "row.employeeRate + (row.matchRate ?? 0) + (row.coreRate ?? 0)" in source
+    # Contributor-only component rates have different compensation denominators,
+    # so copied totals must use the API total rather than sum the components.
+    assert "totalRate: hasCompensation ? year.total_contribution_rate : null" in source
+    assert "formatRate(row.totalRate)" in source
+    assert "const averageTotal = averageRate('totalRate')" in source
+    assert "formatRate(averageTotal)" in source
+    assert "['Averages', averageBasisLabel]" in source
 
 
 def test_copy_actions_fall_back_for_insecure_remote_pages() -> None:
