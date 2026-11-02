@@ -25,3 +25,15 @@ it.each(['all', 'active', 'terminated'] as const)(
     });
   },
 );
+
+it('sends the exclude-zeros averaging choice to the census API', async () => {
+  const fetchMock = vi.fn().mockResolvedValue(new Response('{}'));
+  vi.stubGlobal('fetch', fetchMock);
+
+  await analyzeCensus('workspace', { file_path: 'census.csv', exclude_zeros: true });
+
+  expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+    file_path: 'census.csv',
+    exclude_zeros: true,
+  });
+});

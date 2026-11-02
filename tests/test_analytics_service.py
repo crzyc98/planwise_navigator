@@ -727,7 +727,7 @@ class TestComputeGrandTotals:
 
     @pytest.mark.fast
     def test_grand_totals_weighted_avg_deferral_rate(self):
-        """Average deferral rate is weighted by participant count."""
+        """Average deferral is weighted by the population each year averaged over."""
         years = [
             ContributionYearSummary(
                 year=2025,
@@ -736,6 +736,7 @@ class TestComputeGrandTotals:
                 total_employer_core=0,
                 total_all_contributions=0,
                 participant_count=10,
+                total_eligible_count=20,
                 average_deferral_rate=0.04,
                 total_compensation=100000.0,
             ),
@@ -746,13 +747,17 @@ class TestComputeGrandTotals:
                 total_employer_core=0,
                 total_all_contributions=0,
                 participant_count=30,
+                total_eligible_count=40,
                 average_deferral_rate=0.08,
                 total_compensation=100000.0,
             ),
         ]
         totals = AnalyticsService._compute_grand_totals(years)
-        # Weighted: (0.04*10 + 0.08*30) / 40 = (0.4 + 2.4) / 40 = 0.07
-        assert abs(totals["avg_deferral_rate"] - 0.07) < 1e-9
+        # Default (zeros included) weights by population: (0.04*20 + 0.08*40) / 60
+        assert totals["avg_deferral_rate"] == pytest.approx(4.0 / 60)
+        totals = AnalyticsService._compute_grand_totals(years, exclude_zeros=True)
+        # Participants only: (0.04*10 + 0.08*30) / 40 = 0.07
+        assert totals["avg_deferral_rate"] == pytest.approx(0.07)
 
     @pytest.mark.fast
     def test_grand_totals_zero_participants(self):
@@ -905,6 +910,7 @@ class TestContributionRates:
                 total_employer_core=2000.0,
                 total_all_contributions=14000.0,
                 participant_count=20,
+                total_eligible_count=20,
                 average_deferral_rate=0.05,
                 total_compensation=200000.0,
             ),
@@ -915,6 +921,7 @@ class TestContributionRates:
                 total_employer_core=3000.0,
                 total_all_contributions=18000.0,
                 participant_count=25,
+                total_eligible_count=25,
                 average_deferral_rate=0.06,
                 total_compensation=300000.0,
             ),

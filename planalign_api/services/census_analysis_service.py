@@ -9,6 +9,7 @@ flags that would otherwise only appear as an import failure.
 
 import csv
 import logging
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from typing import Literal, Optional
@@ -80,6 +81,52 @@ _DEFERRAL_BUCKET_SQL = """
 """
 
 
+@dataclass(frozen=True)
+class _AverageOptions:
+    """How per-employee averages treat employees with a zero value."""
+
+    exclude_zeros: bool
+    has_deferral: bool
+
+
+def _average_sql(options: _AverageOptions) -> dict[str, str]:
+    """Return the average expressions for the selected zero-handling basis.
+
+    By default every eligible employee counts, with a missing deferral rate
+    treated as zero. With ``exclude_zeros`` each average only covers employees
+    whose value for that measure is above zero.
+    """
+    total_rate = "COALESCE(_deferral_rate, 0) + _employer_contribution_rate"
+    if options.exclude_zeros:
+        deferral_value, deferral_where = (
+            "_deferral_rate",
+            "_eligible AND _deferral_rate > 0",
+        )
+        employer_where = "_eligible AND _employer_contribution_rate > 0"
+        total_where = f"_eligible AND {total_rate} > 0"
+    else:
+        deferral_value, deferral_where = "COALESCE(_deferral_rate, 0)", "_eligible"
+        employer_where = "_eligible"
+        total_where = "_eligible AND _employer_contribution_rate IS NOT NULL"
+    no_deferral = "NULL::DOUBLE"
+    return {
+        "avg_deferral": (
+            f"AVG({deferral_value}) FILTER (WHERE {deferral_where})"
+            if options.has_deferral
+            else no_deferral
+        ),
+        "median_deferral": (
+            f"MEDIAN({deferral_value}) FILTER (WHERE {deferral_where})"
+            if options.has_deferral
+            else no_deferral
+        ),
+        "avg_employer_rate": (
+            f"AVG(_employer_contribution_rate) FILTER (WHERE {employer_where})"
+        ),
+        "avg_total_savings": f"AVG({total_rate}) FILTER (WHERE {total_where})",
+    }
+
+
 class CensusAnalysisService:
     """Analyzes a raw census file the same way Overview/DC Plan read simulation output."""
 
@@ -95,6 +142,7 @@ class CensusAnalysisService:
         file_path: str,
         as_of_date: Optional[date] = None,
         employee_status: Literal["all", "active", "terminated"] = "active",
+        exclude_zeros: bool = False,
     ) -> CensusAnalysisResult:
         resolved = self._resolve_path(workspace_id, file_path)
         try:
@@ -155,36 +203,41 @@ class CensusAnalysisService:
                 hce_threshold=hce_threshold,
             )
 
-            overall = self._metrics_for_filter(conn, "1=1")
+            averages = _AverageOptions(
+                exclude_zeros=exclude_zeros, has_deferral=deferral_col is not None
+            )
+            overall = self._metrics_for_filter(conn, "1=1", averages)
 
             segments: list[CensusSegmentMetrics] = []
             available_dimensions: list[str] = []
 
             if department_col:
                 segments.extend(
-                    self._segment_by_column(conn, "department", "_department")
+                    self._segment_by_column(conn, "department", "_department", averages)
                 )
                 available_dimensions.append("department")
             if job_level_col:
                 segments.extend(
-                    self._segment_by_column(conn, "job_level", "_job_level")
+                    self._segment_by_column(conn, "job_level", "_job_level", averages)
                 )
                 available_dimensions.append("job_level")
             if birth_col:
                 segments.extend(
-                    self._segment_by_bands(conn, "age_band", "_age", self._age_bands())
+                    self._segment_by_bands(
+                        conn, "age_band", "_age", self._age_bands(), averages
+                    )
                 )
                 available_dimensions.append("age_band")
             if hire_col:
                 segments.extend(
                     self._segment_by_bands(
-                        conn, "tenure_band", "_tenure", self._tenure_bands()
+                        conn, "tenure_band", "_tenure", self._tenure_bands(), averages
                     )
                 )
                 available_dimensions.append("tenure_band")
             if hce_threshold is not None and comp_col:
                 segments.extend(
-                    self._segment_by_column(conn, "hce_status", "_hce_label")
+                    self._segment_by_column(conn, "hce_status", "_hce_label", averages)
                 )
                 available_dimensions.append("hce_status")
 
@@ -217,6 +270,7 @@ class CensusAnalysisService:
                 total_employees=total_employees,
                 active_employees=active_employees,
                 overall=overall,
+                exclude_zeros=exclude_zeros,
                 segments=segments,
                 available_segment_dimensions=available_dimensions,
                 deferral_rate_distribution=deferral_distribution,
@@ -392,8 +446,9 @@ class CensusAnalysisService:
     # ------------------------------------------------------------------
 
     def _metrics_for_filter(
-        self, conn: duckdb.DuckDBPyConnection, where: str
+        self, conn: duckdb.DuckDBPyConnection, where: str, averages: _AverageOptions
     ) -> CensusMetrics:
+        avg = _average_sql(averages)
         row = conn.execute(f"""
             WITH scoped AS (
               SELECT *,
@@ -410,15 +465,14 @@ class CensusAnalysisService:
               COUNT(*) FILTER (
                 WHERE _eligible AND (_deferral_rate IS NULL OR _deferral_rate = 0)
               ) AS zero_deferral_count,
-              AVG(_deferral_rate) FILTER (WHERE _eligible AND _deferral_rate > 0) AS avg_deferral,
-              MEDIAN(_deferral_rate) FILTER (WHERE _eligible AND _deferral_rate > 0) AS median_deferral,
+              {avg["avg_deferral"]} AS avg_deferral,
+              {avg["median_deferral"]} AS median_deferral,
               COALESCE(SUM(_compensation) FILTER (WHERE _eligible), 0) AS total_comp,
               COALESCE(SUM(_employer_match) FILTER (WHERE _eligible), 0) AS total_match,
               COALESCE(SUM(_employer_core) FILTER (WHERE _eligible), 0) AS total_core,
               COUNT(*) FILTER (WHERE _hce_label = 'HCE') AS hce_count,
-              AVG(_employer_contribution_rate) FILTER (WHERE _eligible) AS avg_employer_rate,
-              AVG(COALESCE(_deferral_rate, 0) + _employer_contribution_rate)
-                FILTER (WHERE _eligible AND _employer_contribution_rate IS NOT NULL) AS avg_total_savings
+              {avg["avg_employer_rate"]} AS avg_employer_rate,
+              {avg["avg_total_savings"]} AS avg_total_savings
             FROM scoped
             """).fetchone()
         assert row is not None
@@ -458,7 +512,11 @@ class CensusAnalysisService:
         )
 
     def _segment_by_column(
-        self, conn: duckdb.DuckDBPyConnection, dimension: str, column: str
+        self,
+        conn: duckdb.DuckDBPyConnection,
+        dimension: str,
+        column: str,
+        averages: _AverageOptions,
     ) -> list[CensusSegmentMetrics]:
         values = [
             row[0]
@@ -469,7 +527,7 @@ class CensusAnalysisService:
         result = []
         for value in values:
             metrics = self._metrics_for_filter(
-                conn, f"{column} = {self._sql_literal(value)}"
+                conn, f"{column} = {self._sql_literal(value)}", averages
             )
             result.append(
                 CensusSegmentMetrics(
@@ -479,12 +537,17 @@ class CensusAnalysisService:
         return result
 
     def _segment_by_bands(
-        self, conn: duckdb.DuckDBPyConnection, dimension: str, column: str, bands
+        self,
+        conn: duckdb.DuckDBPyConnection,
+        dimension: str,
+        column: str,
+        bands,
+        averages: _AverageOptions,
     ) -> list[CensusSegmentMetrics]:
         result = []
         for band in bands:
             where = f"{column} >= {band.min_value} AND {column} < {band.max_value}"
-            metrics = self._metrics_for_filter(conn, where)
+            metrics = self._metrics_for_filter(conn, where, averages)
             if metrics.employee_count == 0:
                 continue
             result.append(

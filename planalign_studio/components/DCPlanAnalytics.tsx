@@ -161,6 +161,7 @@ const SavingsTrendTooltip = ({
   payload,
   label,
   populationLabel,
+  excludeZeros,
 }: any) => {
   if (!active || !payload?.length) return null;
   const row = payload[0].payload;
@@ -174,7 +175,9 @@ const SavingsTrendTooltip = ({
     <div className="bg-surface-raised border border-border rounded-lg shadow-lg px-4 py-3 min-w-[260px]">
       <p className="font-semibold text-ink text-sm">{label} · {populationLabel}</p>
       <p className="text-xs text-ink-muted mt-1 mb-2">
-        Denominator: {formatCurrency(row.totalCompensation)} prorated eligible compensation
+        {excludeZeros
+          ? 'Denominator: prorated compensation of employees receiving each contribution'
+          : `Denominator: ${formatCurrency(row.totalCompensation)} prorated eligible compensation`}
       </p>
       <div className="space-y-1">
         {payload.map((entry: any) => {
@@ -218,6 +221,8 @@ export default function DCPlanAnalytics() {
   // 134-new-hire-cohort (FR-006): population filter, same three values as
   // ScenarioCostComparison's Cost Comparison view.
   const [cohort, setCohort] = useState<DCPlanCohort>('all');
+  // #1055: averages include non-contributors (zeros) unless excluded.
+  const [excludeZeros, setExcludeZeros] = useState(false);
 
   // Deferral distribution view: effective rate for the year vs year-end snapshot
   const [deferralView, setDeferralView] = useState<'effective' | 'yearend'>('yearend');
@@ -300,7 +305,7 @@ export default function DCPlanAnalytics() {
       setAnalytics(null);
       setComparisonData(null);
     }
-  }, [selectedScenarioIds, comparisonMode, activeWorkspace?.id, population, deferralView, cohort]);
+  }, [selectedScenarioIds, comparisonMode, activeWorkspace?.id, population, deferralView, cohort, excludeZeros]);
 
   const fetchScenarios = async (workspaceId: string) => {
     setLoadingScenarios(true);
@@ -331,7 +336,8 @@ export default function DCPlanAnalytics() {
         false,
         deferralView === 'effective',
         cohort,
-        population
+        population,
+        excludeZeros
       );
       if (requestId !== analyticsRequestId.current) return;
       setAnalytics(data);
@@ -362,7 +368,8 @@ export default function DCPlanAnalytics() {
         false,
         deferralView === 'effective',
         cohort,
-        population
+        population,
+        excludeZeros
       );
       if (requestId !== analyticsRequestId.current) return;
       setComparisonData(data);
@@ -414,6 +421,7 @@ export default function DCPlanAnalytics() {
       employeeRate: hasCompensation ? year.employee_contribution_rate : null,
       matchRate: hasCompensation ? year.match_contribution_rate : null,
       coreRate: hasCompensation ? year.core_contribution_rate : null,
+      totalRate: hasCompensation ? year.total_contribution_rate : null,
       participantCount: year.participant_count,
       eligibleCount: year.total_eligible_count,
       totalCompensation: year.total_compensation,
@@ -426,12 +434,16 @@ export default function DCPlanAnalytics() {
   const hasParticipationTrend = trendData.some(row => row.participationRate !== null);
   const hasSavingsTrend = trendData.some(row => row.employeeRate !== null);
   const populationLabel = POPULATION_TOGGLE_LABELS[population];
+  const averageBasisLabel = excludeZeros
+    ? 'Contributors only (zeros excluded)'
+    : 'All employees (zeros included)';
 
   const copyMetadataRows = useCallback(() => [
     ['Scenario', analytics?.scenario_name ?? ''],
     ['Population', populationLabel],
     ['Cohort', COHORT_TOGGLE_LABELS[cohort]],
-  ], [analytics?.scenario_name, populationLabel, cohort]);
+    ['Averages', averageBasisLabel],
+  ], [analytics?.scenario_name, populationLabel, cohort, averageBasisLabel]);
 
   const handleCopyParticipationTrend = useCallback(() => {
     if (!analytics || trendData.length === 0) return;
@@ -458,7 +470,7 @@ export default function DCPlanAnalytics() {
   const handleCopySavingsTrend = useCallback(() => {
     if (!analytics || trendData.length === 0) return;
     const populatedRows = trendData.filter(row => row.employeeRate !== null);
-    const averageRate = (key: 'employeeRate' | 'matchRate' | 'coreRate') => {
+    const averageRate = (key: 'employeeRate' | 'matchRate' | 'coreRate' | 'totalRate') => {
       if (populatedRows.length === 0) return null;
       return populatedRows.reduce((sum, row) => sum + (row[key] ?? 0), 0)
         / populatedRows.length;
@@ -466,6 +478,7 @@ export default function DCPlanAnalytics() {
     const averageEmployee = averageRate('employeeRate');
     const averageMatch = averageRate('matchRate');
     const averageCore = averageRate('coreRate');
+    const averageTotal = averageRate('totalRate');
     const formatRate = (rate: number | null) =>
       rate === null ? 'No eligible compensation' : `${rate.toFixed(2)}%`;
     const lines = [
@@ -477,28 +490,19 @@ export default function DCPlanAnalytics() {
         'Employer non-elective/core rate',
         'Total savings rate',
       ].join('\t'),
-      ...trendData.map(row => {
-        const total = row.employeeRate === null
-          ? null
-          : row.employeeRate + (row.matchRate ?? 0) + (row.coreRate ?? 0);
-        return [
-          row.year,
-          formatRate(row.employeeRate),
-          formatRate(row.matchRate),
-          formatRate(row.coreRate),
-          formatRate(total),
-        ].join('\t');
-      }),
+      ...trendData.map(row => [
+        row.year,
+        formatRate(row.employeeRate),
+        formatRate(row.matchRate),
+        formatRate(row.coreRate),
+        formatRate(row.totalRate),
+      ].join('\t')),
       [
         'Average',
         formatRate(averageEmployee),
         formatRate(averageMatch),
         formatRate(averageCore),
-        formatRate(
-          averageEmployee === null
-            ? null
-            : averageEmployee + (averageMatch ?? 0) + (averageCore ?? 0)
-        ),
+        formatRate(averageTotal),
       ].join('\t'),
     ];
     copySavingsTrend(lines.join('\n'));
@@ -630,6 +634,16 @@ export default function DCPlanAnalytics() {
             ))}
           </div>
 
+          <label className="inline-flex items-center text-xs font-bold text-ink-muted">
+            <input
+              type="checkbox"
+              checked={excludeZeros}
+              onChange={(e) => setExcludeZeros(e.target.checked)}
+              className="mr-2 rounded border-border-strong text-fidelity-green focus:ring-fidelity-green"
+            />
+            Exclude zeros from averages
+          </label>
+
           <button
             onClick={handleRefresh}
             className="flex items-center px-3 py-2 bg-surface-raised border border-border-strong rounded-lg text-sm font-medium hover:bg-surface-subtle text-ink-muted shadow-sm transition-colors"
@@ -649,6 +663,12 @@ export default function DCPlanAnalytics() {
           Showing <span className="font-semibold text-ink">{COHORT_TOGGLE_LABELS[cohort]}</span>
           {' · '}
           <span className="font-semibold text-ink">{POPULATION_TOGGLE_LABELS[population]}</span>
+          {excludeZeros && (
+            <>
+              {' · '}
+              <span className="font-semibold text-ink">Zeros excluded from averages</span>
+            </>
+          )}
         </span>
         {loading && <span className="text-xs font-medium text-fidelity-green">Updating…</span>}
       </div>
@@ -956,8 +976,10 @@ export default function DCPlanAnalytics() {
                 </button>
               </div>
               <p className="text-xs text-ink-muted mt-1 mb-4">
-                Component contributions divided by prorated eligible compensation. Rates are
-                compensation-weighted and additive; gaps indicate no eligible compensation.
+                {excludeZeros
+                  ? 'Each contribution divided by the prorated compensation of employees receiving it, so non-contributors are excluded and rates are not additive.'
+                  : 'Component contributions divided by prorated eligible compensation, including non-contributors. Rates are compensation-weighted and additive.'}
+                {' '}Gaps indicate no eligible compensation.
               </p>
               {savingsTrendCopyError && (
                 <p className="text-xs text-danger-ink mb-3" role="alert">
@@ -977,7 +999,7 @@ export default function DCPlanAnalytics() {
                       />
                       <Tooltip
                         cursor={chartTheme.tooltip.cursorStyle}
-                        content={<SavingsTrendTooltip populationLabel={populationLabel} />}
+                        content={<SavingsTrendTooltip populationLabel={populationLabel} excludeZeros={excludeZeros} />}
                       />
                       <Legend
                         verticalAlign="top"

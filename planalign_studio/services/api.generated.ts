@@ -4099,6 +4099,12 @@ export interface components {
              */
             employee_status?: "all" | "active" | "terminated";
             /**
+             * Exclude Zeros
+             * @description When true, each average (deferral, employer contribution, total savings) only covers eligible employees whose value for that measure is above zero. By default every eligible employee is included, counting non-contributors as 0.
+             * @default false
+             */
+            exclude_zeros?: boolean;
+            /**
              * File Path
              * @description Path to census file (relative to workspace or absolute)
              */
@@ -4142,6 +4148,12 @@ export interface components {
              * @description Distribution of eligible employees' deferral rate across 11 buckets (0%, 1%, ..., 9%, 10%+). Empty when the census has no deferral rate column.
              */
             deferral_rate_distribution: components["schemas"]["CensusDeferralRateBucket"][];
+            /**
+             * Exclude Zeros
+             * @description Echo of the request: whether averages leave out zero values
+             * @default false
+             */
+            exclude_zeros: boolean;
             /**
              * Hce Compensation Threshold
              * @description IRS HCE compensation threshold used for the as-of year, if known
@@ -4239,17 +4251,17 @@ export interface components {
         CensusMetrics: {
             /**
              * Average Deferral Rate
-             * @description Mean deferral rate among enrolled employees, as a decimal
+             * @description Mean deferral rate, as a decimal, across eligible employees (non-deferrers count as 0), or across enrolled employees only when exclude_zeros is set. None when the census has no deferral rate column.
              */
             average_deferral_rate: number | null;
             /**
              * Average Employer Contribution Rate
-             * @description Mean of (employer_match_contribution + employer_core_contribution) / compensation across eligible employees with compensation > 0, as a decimal. An estimate of the employer's contribution rate as loaded in the census, not a plan-design projection.
+             * @description Mean of (employer_match_contribution + employer_core_contribution) / compensation across eligible employees with compensation > 0 (only those with an employer contribution when exclude_zeros is set), as a decimal. An estimate of the employer's contribution rate as loaded in the census, not a plan-design projection.
              */
             average_employer_contribution_rate: number | null;
             /**
              * Average Total Savings Rate
-             * @description Mean, across eligible employees with compensation > 0, of each employee's own (deferral_rate + employer contribution rate). Employees with no deferral rate are treated as deferring 0. None if no eligible employees have compensation.
+             * @description Mean, across eligible employees with compensation > 0, of each employee's own (deferral_rate + employer contribution rate). Employees with no deferral rate are treated as deferring 0. With exclude_zeros, employees whose total is 0 are left out. None if no eligible employees have compensation.
              */
             average_total_savings_rate: number | null;
             /**
@@ -4274,7 +4286,7 @@ export interface components {
             hce_count: number | null;
             /**
              * Median Deferral Rate
-             * @description Median deferral rate among enrolled employees, as a decimal
+             * @description Median deferral rate, as a decimal, on the same basis as average_deferral_rate
              */
             median_deferral_rate: number | null;
             /**
@@ -4315,17 +4327,17 @@ export interface components {
         CensusSegmentMetrics: {
             /**
              * Average Deferral Rate
-             * @description Mean deferral rate among enrolled employees, as a decimal
+             * @description Mean deferral rate, as a decimal, across eligible employees (non-deferrers count as 0), or across enrolled employees only when exclude_zeros is set. None when the census has no deferral rate column.
              */
             average_deferral_rate: number | null;
             /**
              * Average Employer Contribution Rate
-             * @description Mean of (employer_match_contribution + employer_core_contribution) / compensation across eligible employees with compensation > 0, as a decimal. An estimate of the employer's contribution rate as loaded in the census, not a plan-design projection.
+             * @description Mean of (employer_match_contribution + employer_core_contribution) / compensation across eligible employees with compensation > 0 (only those with an employer contribution when exclude_zeros is set), as a decimal. An estimate of the employer's contribution rate as loaded in the census, not a plan-design projection.
              */
             average_employer_contribution_rate: number | null;
             /**
              * Average Total Savings Rate
-             * @description Mean, across eligible employees with compensation > 0, of each employee's own (deferral_rate + employer contribution rate). Employees with no deferral rate are treated as deferring 0. None if no eligible employees have compensation.
+             * @description Mean, across eligible employees with compensation > 0, of each employee's own (deferral_rate + employer contribution rate). Employees with no deferral rate are treated as deferring 0. With exclude_zeros, employees whose total is 0 are left out. None if no eligible employees have compensation.
              */
             average_total_savings_rate: number | null;
             /**
@@ -4355,7 +4367,7 @@ export interface components {
             hce_count: number | null;
             /**
              * Median Deferral Rate
-             * @description Median deferral rate among enrolled employees, as a decimal
+             * @description Median deferral rate, as a decimal, on the same basis as average_deferral_rate
              */
             median_deferral_rate: number | null;
             /**
@@ -4978,19 +4990,19 @@ export interface components {
         ContributionYearSummary: {
             /**
              * Average Deferral Rate
-             * @description Average deferral rate for enrolled participants
+             * @description Average deferral rate across the population (non-participants count as 0), or across enrolled participants only when exclude_zeros is set
              * @default 0
              */
             average_deferral_rate: number;
             /**
              * Core Contribution Rate
-             * @description Employer core as percentage of total compensation
+             * @description Employer core as percentage of total compensation; contributors' compensation only when exclude_zeros is set
              * @default 0
              */
             core_contribution_rate: number;
             /**
              * Employee Contribution Rate
-             * @description Employee deferrals as percentage of total compensation
+             * @description Employee deferrals as percentage of total compensation; contributors' compensation only when exclude_zeros is set
              * @default 0
              */
             employee_contribution_rate: number;
@@ -5008,7 +5020,7 @@ export interface components {
             employer_cost_rate: number;
             /**
              * Match Contribution Rate
-             * @description Employer match as percentage of total compensation
+             * @description Employer match as percentage of total compensation; contributors' compensation only when exclude_zeros is set
              * @default 0
              */
             match_contribution_rate: number;
@@ -5042,7 +5054,7 @@ export interface components {
             total_compensation: number;
             /**
              * Total Contribution Rate
-             * @description All contributions as percentage of total compensation
+             * @description All contributions as percentage of total compensation; contributors' compensation only when exclude_zeros is set
              * @default 0
              */
             total_contribution_rate: number;
@@ -5209,7 +5221,7 @@ export interface components {
         DCPlanAnalytics: {
             /**
              * Average Deferral Rate
-             * @description Average deferral rate across all enrolled participants
+             * @description Average deferral rate across the population (non-participants count as 0), or across enrolled participants only when exclude_zeros is set
              * @default 0
              */
             average_deferral_rate: number;
@@ -5220,7 +5232,7 @@ export interface components {
             contribution_by_year: components["schemas"]["ContributionYearSummary"][];
             /**
              * Core Contribution Rate
-             * @description Aggregate employer core as percentage of total compensation
+             * @description Aggregate employer core as percentage of total compensation; contributors' compensation only when exclude_zeros is set
              * @default 0
              */
             core_contribution_rate: number;
@@ -5236,7 +5248,7 @@ export interface components {
             deferral_rate_distribution: components["schemas"]["DeferralRateBucket"][];
             /**
              * Employee Contribution Rate
-             * @description Aggregate employee deferrals as percentage of total compensation
+             * @description Aggregate employee deferrals as percentage of total compensation; contributors' compensation only when exclude_zeros is set
              * @default 0
              */
             employee_contribution_rate: number;
@@ -5254,11 +5266,17 @@ export interface components {
             employer_cost_rate: number;
             /** @description Escalation statistics */
             escalation_metrics: components["schemas"]["EscalationMetrics"];
+            /**
+             * Exclude Zeros
+             * @description Whether averages leave out zeros: the deferral average covers enrolled participants only, and each contribution rate divides by the compensation of employees who received that contribution
+             * @default false
+             */
+            exclude_zeros: boolean;
             /** @description IRS limit statistics */
             irs_limit_metrics: components["schemas"]["IRSLimitMetrics"];
             /**
              * Match Contribution Rate
-             * @description Aggregate employer match as percentage of total compensation
+             * @description Aggregate employer match as percentage of total compensation; contributors' compensation only when exclude_zeros is set
              * @default 0
              */
             match_contribution_rate: number;
@@ -5305,7 +5323,7 @@ export interface components {
             total_compensation: number;
             /**
              * Total Contribution Rate
-             * @description Aggregate all contributions as percentage of total compensation
+             * @description Aggregate all contributions as percentage of total compensation; contributors' compensation only when exclude_zeros is set
              * @default 0
              */
             total_contribution_rate: number;
@@ -13121,6 +13139,8 @@ export interface operations {
                 effective_rate?: boolean;
                 /** @description Population filter: all employees, employees hired during the simulation, or the starting census. */
                 cohort?: "all" | "new_hires" | "baseline";
+                /** @description If true, average deferral covers enrolled participants only and each contribution rate divides by the compensation of employees who received that contribution. By default non-participants count as 0. */
+                exclude_zeros?: boolean;
             };
             header?: never;
             path: {
@@ -15330,6 +15350,8 @@ export interface operations {
                 effective_rate?: boolean;
                 /** @description Population filter: all employees, employees hired during the simulation, or the starting census. */
                 cohort?: "all" | "new_hires" | "baseline";
+                /** @description If true, average deferral covers enrolled participants only and each contribution rate divides by the compensation of employees who received that contribution. By default non-participants count as 0. */
+                exclude_zeros?: boolean;
             };
             header?: never;
             path: {

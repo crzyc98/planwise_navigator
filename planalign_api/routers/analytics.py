@@ -109,6 +109,14 @@ def get_dc_plan_analytics(
         "all",
         description="Population filter: all employees, employees hired during the simulation, or the starting census.",
     ),
+    exclude_zeros: bool = Query(
+        False,
+        description=(
+            "If true, average deferral covers enrolled participants only and each "
+            "contribution rate divides by the compensation of employees who received "
+            "that contribution. By default non-participants count as 0."
+        ),
+    ),
     storage: WorkspaceStorage = Depends(get_storage),
     analytics_service: AnalyticsService = Depends(get_analytics_service),
 ) -> DCPlanAnalytics:
@@ -155,6 +163,7 @@ def get_dc_plan_analytics(
         effective_rate=effective_rate,
         cohort=cohort,
         population=population,
+        exclude_zeros=exclude_zeros,
     )
 
     if not analytics:
@@ -195,6 +204,14 @@ def compare_dc_plan_analytics(
     cohort: Literal["all", "new_hires", "baseline"] = Query(
         "all",
         description="Population filter: all employees, employees hired during the simulation, or the starting census.",
+    ),
+    exclude_zeros: bool = Query(
+        False,
+        description=(
+            "If true, average deferral covers enrolled participants only and each "
+            "contribution rate divides by the compensation of employees who received "
+            "that contribution. By default non-participants count as 0."
+        ),
     ),
     storage: WorkspaceStorage = Depends(get_storage),
     analytics_service: AnalyticsService = Depends(get_analytics_service),
@@ -246,6 +263,7 @@ def compare_dc_plan_analytics(
             effective_rate=effective_rate,
             cohort=cohort,
             population=population,
+            exclude_zeros=exclude_zeros,
         )
         if analytics:
             analytics_list.append(analytics)

@@ -192,6 +192,7 @@ export default function CensusAnalysis() {
 
   const [censusPath, setCensusPath] = useState('');
   const [employeeStatus, setEmployeeStatus] = useState<NonNullable<CensusAnalysisRequest["employee_status"]>>("active");
+  const [excludeZeros, setExcludeZeros] = useState(false);
   const [asOfDate, setAsOfDate] = useState('');
   const [result, setResult] = useState<CensusAnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -220,6 +221,7 @@ export default function CensusAnalysis() {
       const data = await analyzeCensus(activeWorkspace.id, {
         file_path: censusPath,
         employee_status: employeeStatus,
+        exclude_zeros: excludeZeros,
         as_of_date: asOfDate || undefined,
       });
       setResult(data);
@@ -234,7 +236,7 @@ export default function CensusAnalysis() {
   useEffect(() => {
     if (censusPath) void runAnalysis();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [censusPath, employeeStatus]);
+  }, [censusPath, employeeStatus, excludeZeros]);
 
   const segmentsForDimension = useMemo(
     () => (result?.segments ?? []).filter(s => s.dimension === dimension),
@@ -291,6 +293,16 @@ export default function CensusAnalysis() {
           </button>
         ))}
         <span className="text-xs text-ink-subtle">Uses the census active flag; missing status is treated as active.</span>
+        <label className="ml-2 inline-flex items-center text-sm text-ink-muted">
+          <input
+            type="checkbox"
+            checked={excludeZeros}
+            disabled={loading}
+            onChange={e => setExcludeZeros(e.target.checked)}
+            className="mr-2 rounded border-border-strong text-fidelity-green focus:ring-fidelity-green"
+          />
+          Exclude zeros from averages
+        </label>
         {loading && <Loader2 aria-label="Loading analysis" size={16} className="animate-spin" />}
       </div>
 
@@ -337,7 +349,7 @@ export default function CensusAnalysis() {
             <KPICard
               title="Avg Deferral Rate"
               value={formatPercent(result.overall.average_deferral_rate)}
-              subtext={`Median ${formatPercent(result.overall.median_deferral_rate)}`}
+              subtext={`Median ${formatPercent(result.overall.median_deferral_rate)} · ${result.exclude_zeros ? 'deferrers only' : 'incl. non-deferrers'}`}
               icon={TrendingUp}
               color="green"
               loading={loading}
@@ -345,7 +357,7 @@ export default function CensusAnalysis() {
             <KPICard
               title="Avg Total Savings Rate"
               value={formatPercent(result.overall.average_total_savings_rate)}
-              subtext={`+ ${formatPercent(result.overall.average_employer_contribution_rate)} est. employer`}
+              subtext={`+ ${formatPercent(result.overall.average_employer_contribution_rate)} est. employer · ${result.exclude_zeros ? 'contributors only' : 'incl. zeros'}`}
               icon={PiggyBank}
               color="green"
               loading={loading}
@@ -456,7 +468,7 @@ export default function CensusAnalysis() {
                     data={segmentsForDimension}
                   />
                   <SegmentChart
-                    title="Avg Deferral Rate by Segment"
+                    title={`Avg Deferral Rate by Segment${result.exclude_zeros ? ' (deferrers only)' : ''}`}
                     metric="average_deferral_rate"
                     formatValue={v => `${(v * 100).toFixed(0)}%`}
                     data={segmentsForDimension}

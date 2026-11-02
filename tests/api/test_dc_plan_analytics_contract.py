@@ -527,3 +527,70 @@ def test_api_final_year_distribution_matches_last_year(env, effective_rate):
     ).json()
     assert [y["year"] for y in terms["deferral_distribution_by_year"]] == [2025]
     assert all(b["count"] == 0 for b in terms["deferral_rate_distribution"])
+
+
+@pytest.mark.parametrize("endpoint", ["single", "compare"])
+def test_exclude_zeros_switches_average_basis(env, endpoint):
+    """Zeros count by default; exclude_zeros averages contributors only (#1055).
+
+    2025 holds e1 and e3 (enrolled, contributing) plus p1 (not enrolled, $70k).
+    """
+    client, workspace, scenarios = env
+
+    def fetch(exclude_zeros: bool) -> dict:
+        params: dict[str, str] = {"exclude_zeros": str(exclude_zeros).lower()}
+        if endpoint == "single":
+            url = SINGLE_ENDPOINT.format(
+                workspace_id=workspace.id, scenario_id=scenarios[0].id
+            )
+            response = client.get(url, params=params)
+            assert response.status_code == 200
+            return response.json()
+        params["scenarios"] = ",".join(s.id for s in scenarios)
+        response = client.get(
+            COMPARE_ENDPOINT.format(workspace_id=workspace.id), params=params
+        )
+        assert response.status_code == 200
+        return response.json()["analytics"][0]
+
+    included, excluded = fetch(False), fetch(True)
+    assert included["exclude_zeros"] is False
+    assert excluded["exclude_zeros"] is True
+
+    inc_2025 = {r["year"]: r for r in included["contribution_by_year"]}[2025]
+    exc_2025 = {r["year"]: r for r in excluded["contribution_by_year"]}[2025]
+    assert inc_2025["average_deferral_rate"] == pytest.approx((0.06 + 0.02 + 0) / 3)
+    assert exc_2025["average_deferral_rate"] == pytest.approx(0.04)
+    assert inc_2025["employee_contribution_rate"] == round(4000 / 210000 * 100, 2)
+    assert exc_2025["employee_contribution_rate"] == round(4000 / 140000 * 100, 2)
+    assert exc_2025["match_contribution_rate"] == round(1900 / 140000 * 100, 2)
+    assert exc_2025["core_contribution_rate"] == round(600 / 140000 * 100, 2)
+    assert exc_2025["total_contribution_rate"] == round(6500 / 140000 * 100, 2)
+    # Counts and the headline employer cost rate are unaffected by the basis.
+    assert exc_2025["total_eligible_count"] == inc_2025["total_eligible_count"] == 3
+    assert exc_2025["employer_cost_rate"] == inc_2025["employer_cost_rate"]
+
+    # Grand totals aggregate on the same basis: 2026 has e1, e2, e3, all enrolled.
+    assert included["average_deferral_rate"] == pytest.approx(0.035)
+    assert excluded["average_deferral_rate"] == pytest.approx(0.042)
+    assert included["employee_contribution_rate"] == round(18999 / 430000 * 100, 2)
+    assert excluded["employee_contribution_rate"] == round(18999 / 360000 * 100, 2)
+
+
+def test_exclude_zeros_with_empty_population_year_has_zero_rates(env):
+    """Terminated-only 2026 is empty; excluding zeros must not divide by zero."""
+    client, workspace, scenarios = env
+    response = client.get(
+        SINGLE_ENDPOINT.format(workspace_id=workspace.id, scenario_id=scenarios[0].id),
+        params={"population": "terminated_eligible", "exclude_zeros": "true"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    rows = {row["year"]: row for row in body["contribution_by_year"]}
+    assert rows[2026]["total_eligible_count"] == 0
+    assert rows[2026]["employee_contribution_rate"] == 0.0
+    assert rows[2026]["total_contribution_rate"] == 0.0
+    assert rows[2025]["employee_contribution_rate"] == round(1000 / 40000 * 100, 2)
+    assert body["employee_contribution_rate"] == round(1000 / 40000 * 100, 2)
+    assert body["average_deferral_rate"] == pytest.approx(0.02)

@@ -1041,13 +1041,15 @@ export async function getDCPlanAnalytics(
   activeOnly: boolean = false,
   effectiveRate: boolean = false,
   cohort: DCPlanCohort = 'all',
-  population?: DCPlanPopulation
+  population?: DCPlanPopulation,
+  excludeZeros: boolean = false
 ): Promise<DCPlanAnalytics> {
   const params = new URLSearchParams();
   if (activeOnly) params.set('active_only', 'true');
   if (effectiveRate) params.set('effective_rate', 'true');
   if (cohort !== 'all') params.set('cohort', cohort);
   if (population) params.set('population', population);
+  if (excludeZeros) params.set('exclude_zeros', 'true');
   const qs = params.toString() ? `?${params}` : '';
   const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/scenarios/${scenarioId}/analytics/dc-plan${qs}`
@@ -1061,7 +1063,8 @@ export async function compareDCPlanAnalytics(
   activeOnly: boolean = false,
   effectiveRate: boolean = false,
   cohort: DCPlanCohort = 'all',
-  population?: DCPlanPopulation
+  population?: DCPlanPopulation,
+  excludeZeros: boolean = false
 ): Promise<DCPlanComparisonResponse> {
   const params = new URLSearchParams({
     scenarios: scenarioIds.join(','),
@@ -1070,6 +1073,7 @@ export async function compareDCPlanAnalytics(
   if (effectiveRate) params.set('effective_rate', 'true');
   if (cohort !== 'all') params.set('cohort', cohort);
   if (population) params.set('population', population);
+  if (excludeZeros) params.set('exclude_zeros', 'true');
   const response = await fetchWithAuth(
     `${API_BASE}/api/workspaces/${workspaceId}/analytics/dc-plan/compare?${params}`
   );
@@ -1332,6 +1336,7 @@ export async function analyzeCensus(
       body: JSON.stringify({
         file_path: request.file_path,
         employee_status: request.employee_status,
+        ...(request.exclude_zeros ? { exclude_zeros: true } : {}),
         ...(request.as_of_date ? { as_of_date: request.as_of_date } : {}),
       }),
     }
