@@ -60,6 +60,8 @@ export interface ConfigContextType {
   handleSaveConfig: () => Promise<boolean>;
   saveStatus: 'idle' | 'saving' | 'success' | 'error';
   saveMessage: string;
+  /** Replace this scenario's editor state with another scenario's config (unsaved). */
+  copyScenarioConfig: (sourceScenarioId: string) => Promise<void>;
 
   // Generic handlers
   handleChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
@@ -439,6 +441,80 @@ function validatePromotionHazardConfigFn(config: PromotionHazardConfig): string[
 
 // --- Provider ---
 
+interface LoadedForm {
+  form: FormData;
+  variables: ConfigPreview['engine_variables'];
+  resolved: boolean;
+}
+
+/** Build the editor form for a config exactly as Studio displays it on load:
+ * workspace base, then overrides, then engine-resolved values (several controls
+ * are only hydrated from the resolved engine variables), census and rate modes.
+ */
+async function loadFormFromConfig(
+  workspaceId: string, overrides: Record<string, any> | undefined, base: Record<string, any>, isScenario: boolean,
+): Promise<LoadedForm> {
+  const raw = overrides ?? base;
+  let form = applyConfigToFormData(overrides ?? {}, applyConfigToFormData(base, DEFAULT_FORM_DATA));
+  let variables: ConfigPreview['engine_variables'] = {};
+  let resolved = true;
+  try {
+    variables = (await previewConfiguration(workspaceId, raw, isScenario ? 'scenario' : 'workspace')).engine_variables;
+    form = applyResolvedFormData(variables, form);
+  } catch {
+    resolved = false;
+  }
+  const censusFields = await resolveCensusFields(overrides, base, path => validateFilePath(workspaceId, path));
+  return {
+    form: {
+      ...form,
+      ...censusFields,
+      dcVoluntaryEnrollmentMode: enrollmentRateMode(raw, 'voluntary_enrollment_rate'),
+      dcNewHireOptOutMode: enrollmentRateMode(raw, 'new_hire_opt_out_rate'),
+    },
+    variables,
+    resolved,
+  };
+}
+
+/** Raw config plus the editor state it produced; saves apply form edits onto it. */
+export interface EditBaseline {
+  config: Record<string, any>;
+  form: FormData;
+  promotionHazardConfig: PromotionHazardConfig | null;
+  bandConfig: BandConfig | null;
+}
+
+/** Apply only what changed in the editor since `baseline` onto its raw config. */
+export function draftFromBaseline(
+  baseline: EditBaseline,
+  current: Omit<EditBaseline, 'config'>,
+  target: { isScenario: boolean; workspacePath?: string },
+  variables: ConfigPreview['engine_variables'],
+): Record<string, any> {
+  const before = buildConfigPayload(baseline.form, baseline.promotionHazardConfig, baseline.bandConfig, target);
+  const after = buildConfigPayload(current.form, current.promotionHazardConfig, current.bandConfig, target);
+  const edited = applyConfigEdits(baseline.config, before, after) as Record<string, any>;
+  const withEligibility = preserveDisplayedMatchEligibility(edited, before, after, variables);
+  return synchronizeCompensationAliases(withEligibility, before, after);
+}
+
+/** Seed configs (promotion hazard, bands) from a scenario's merged config. */
+function seedConfigsFrom(merged: Record<string, any>): Pick<EditBaseline, 'promotionHazardConfig' | 'bandConfig'> {
+  const ph = merged.promotion_hazard;
+  return {
+    promotionHazardConfig: ph ? {
+      base: { base_rate: ph.base_rate, level_dampener_factor: ph.level_dampener_factor },
+      age_multipliers: ph.age_multipliers || [],
+      tenure_multipliers: ph.tenure_multipliers || [],
+    } : null,
+    bandConfig: merged.age_bands && merged.tenure_bands
+      ? { age_bands: merged.age_bands, tenure_bands: merged.tenure_bands } : null,
+  };
+}
+
+const UNRESOLVED_WARNING = 'Engine settings could not be resolved. Stored editor values are shown; correct the configuration and review it before saving.';
+
 interface ConfigProviderProps {
   activeWorkspace: Workspace;
   scenarioId: string | undefined;
@@ -477,6 +553,10 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
   const originalConfig = useRef<Record<string, any>>(scenarioId ? {} : structuredClone(activeWorkspace.base_config ?? {}));
   const [resolutionWarning, setResolutionWarning] = useState('');
   const [resolvedEngineVariables, setResolvedEngineVariables] = useState<ConfigPreview['engine_variables']>({});
+  // Set by "Copy from Scenario" until the next save/reload: the copied scenario's raw
+  // overrides and the form they produced. Saving edits on top of this baseline keeps
+  // settings the form doesn't model and drops the target's own overrides.
+  const [copyBaseline, setEditBaseline] = useState<EditBaseline | null>(null);
 
   // --- useEffect 0: Refetch workspace base_config so the form reflects current state ---
   useEffect(() => {
@@ -508,30 +588,16 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
       setResolvedEngineVariables({});
       try {
         const scenario = scenarioId ? await getScenario(activeWorkspace.id, scenarioId) : null;
-        let loaded = applyConfigToFormData(scenario?.config_overrides ?? {}, applyConfigToFormData(freshBaseConfig, DEFAULT_FORM_DATA));
-        try {
-          const resolved = await previewConfiguration(activeWorkspace.id,
-            scenario?.config_overrides ?? freshBaseConfig, scenarioId ? 'scenario' : 'workspace');
-          loaded = applyResolvedFormData(resolved.engine_variables, loaded);
-          if (!cancelled) setResolvedEngineVariables(resolved.engine_variables);
-        } catch {
-          if (!cancelled) setResolutionWarning('Engine settings could not be resolved. Stored editor values are shown; correct the configuration and review it before saving.');
-        }
-        const censusFields = await resolveCensusFields(
-          scenario?.config_overrides, freshBaseConfig,
-          path => validateFilePath(activeWorkspace.id, path),
-        );
+        const overrides = scenario?.config_overrides;
+        const loaded = await loadFormFromConfig(activeWorkspace.id, overrides, freshBaseConfig, !!scenarioId);
         if (cancelled) return;
+        setResolvedEngineVariables(loaded.variables);
+        if (!loaded.resolved) setResolutionWarning(UNRESOLVED_WARNING);
         setCurrentScenario(scenario);
-        originalConfig.current = structuredClone(scenario?.config_overrides ?? freshBaseConfig);
-        const loadedForm = {
-          ...loaded,
-          ...censusFields,
-          dcVoluntaryEnrollmentMode: enrollmentRateMode(originalConfig.current, 'voluntary_enrollment_rate'),
-          dcNewHireOptOutMode: enrollmentRateMode(originalConfig.current, 'new_hire_opt_out_rate'),
-        };
-        setFormData(loadedForm);
-        setSavedFormData({ ...loadedForm });
+        originalConfig.current = structuredClone(overrides ?? freshBaseConfig);
+        setEditBaseline(null);
+        setFormData(loaded.form);
+        setSavedFormData({ ...loaded.form });
       } catch (err) {
         console.error('Failed to load scenario:', err);
         if (!cancelled) {
@@ -552,21 +618,14 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
       if (!activeWorkspace?.id) return;
       try {
         if (scenarioId) {
-          const mergedConfig = await getScenarioConfig(activeWorkspace.id, scenarioId);
-          if (mergedConfig.promotion_hazard) {
-            const ph = mergedConfig.promotion_hazard;
-            const phConfig: PromotionHazardConfig = {
-              base: { base_rate: ph.base_rate, level_dampener_factor: ph.level_dampener_factor },
-              age_multipliers: ph.age_multipliers || [],
-              tenure_multipliers: ph.tenure_multipliers || [],
-            };
+          const { promotionHazardConfig: phConfig, bandConfig: bc } = seedConfigsFrom(await getScenarioConfig(activeWorkspace.id, scenarioId));
+          if (phConfig) {
             setPromotionHazardConfig(phConfig);
-            setSavedPromotionHazardConfig(JSON.parse(JSON.stringify(phConfig)));
+            setSavedPromotionHazardConfig(structuredClone(phConfig));
           }
-          if (mergedConfig.age_bands && mergedConfig.tenure_bands) {
-            const bc: BandConfig = { age_bands: mergedConfig.age_bands, tenure_bands: mergedConfig.tenure_bands };
+          if (bc) {
             setBandConfig(bc);
-            setSavedBandConfig(JSON.parse(JSON.stringify(bc)));
+            setSavedBandConfig(structuredClone(bc));
           }
         } else {
           const [bandCfg, phCfg] = await Promise.all([
@@ -591,8 +650,8 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
     const formDirty = JSON.stringify(formData) !== JSON.stringify(savedFormData);
     const promotionHazardDirty = JSON.stringify(promotionHazardConfig) !== JSON.stringify(savedPromotionHazardConfig);
     const bandDirty = JSON.stringify(bandConfig) !== JSON.stringify(savedBandConfig);
-    return formDirty || promotionHazardDirty || bandDirty;
-  }, [formData, savedFormData, promotionHazardConfig, savedPromotionHazardConfig, bandConfig, savedBandConfig]);
+    return formDirty || promotionHazardDirty || bandDirty || copyBaseline !== null;
+  }, [formData, savedFormData, promotionHazardConfig, savedPromotionHazardConfig, bandConfig, savedBandConfig, copyBaseline]);
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -695,12 +754,31 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
       if (errors.length) throw new Error(errors.join(' '));
     }
     const target = { isScenario: !!scenarioId, workspacePath: extractCensusPath(freshBaseConfig) };
-    const before = buildConfigPayload(savedFormData ?? formData, savedPromotionHazardConfig, savedBandConfig, target);
-    const after = buildConfigPayload(current.formData, current.promotionHazardConfig, current.bandConfig, target);
-    const edited = applyConfigEdits(originalConfig.current, before, after) as Record<string, any>;
-    const withEligibility = preserveDisplayedMatchEligibility(edited, before, after, resolvedEngineVariables);
-    return synchronizeCompensationAliases(withEligibility, before, after);
-  }, [scenarioId, freshBaseConfig, savedFormData, formData, savedPromotionHazardConfig, savedBandConfig, resolvedEngineVariables]);
+    const baseline = copyBaseline ?? {
+      config: originalConfig.current, form: savedFormData ?? formData,
+      promotionHazardConfig: savedPromotionHazardConfig, bandConfig: savedBandConfig,
+    };
+    return draftFromBaseline(baseline, {
+      form: current.formData, promotionHazardConfig: current.promotionHazardConfig, bandConfig: current.bandConfig,
+    }, target, resolvedEngineVariables);
+  }, [scenarioId, freshBaseConfig, savedFormData, formData, savedPromotionHazardConfig, savedBandConfig, resolvedEngineVariables, copyBaseline]);
+
+  const copyScenarioConfig = useCallback(async (sourceId: string) => {
+    if (freshBaseConfig === null) throw new Error('Configuration is still loading.');
+    const [source, merged] = await Promise.all([
+      getScenario(activeWorkspace.id, sourceId),
+      getScenarioConfig(activeWorkspace.id, sourceId),
+    ]);
+    const overrides = source.config_overrides ?? {};
+    const loaded = await loadFormFromConfig(activeWorkspace.id, overrides, freshBaseConfig, true);
+    const seeds = seedConfigsFrom(merged);
+    setEditBaseline({ config: structuredClone(overrides), form: loaded.form, ...seeds });
+    setResolvedEngineVariables(loaded.variables);
+    setResolutionWarning(loaded.resolved ? '' : UNRESOLVED_WARNING);
+    setFormData(loaded.form);
+    if (seeds.promotionHazardConfig) setPromotionHazardConfig(seeds.promotionHazardConfig);
+    if (seeds.bandConfig) setBandConfig(seeds.bandConfig);
+  }, [activeWorkspace.id, freshBaseConfig]);
 
   const handleSaveConfig = useCallback(async () => {
     if (!validateNumericInputs()) return false;
@@ -781,6 +859,7 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
       }
 
       originalConfig.current = structuredClone(configPayload);
+      setEditBaseline(null);
       setSavedFormData({ ...formData });
       if (promotionHazardConfig) {
         setSavedPromotionHazardConfig(JSON.parse(JSON.stringify(promotionHazardConfig)));
@@ -813,7 +892,7 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
     promotionHazardConfig, setPromotionHazardConfig, savedPromotionHazardConfig,
     bandConfig, setBandConfig, savedBandConfig,
     dirtySections, isDirty,
-    handleSaveConfig, saveStatus, saveMessage,
+    handleSaveConfig, saveStatus, saveMessage, copyScenarioConfig,
     handleChange, inputProps,
     activeWorkspace, currentScenario, scenarioId, scenarioLoading,
     originalConfig: originalConfig.current, workspaceConfig: freshBaseConfig ?? {}, buildDraftConfig,
@@ -823,7 +902,7 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
     promotionHazardConfig, savedPromotionHazardConfig,
     bandConfig, savedBandConfig,
     dirtySections, isDirty,
-    handleSaveConfig, saveStatus, saveMessage,
+    handleSaveConfig, saveStatus, saveMessage, copyScenarioConfig,
     handleChange, inputProps,
     activeWorkspace, currentScenario, scenarioId, scenarioLoading,
     freshBaseConfig, buildDraftConfig,
