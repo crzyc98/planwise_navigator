@@ -6,7 +6,9 @@ subgraph + the two marts + the S051 growth mart, and EXCLUDES every DC model.
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
@@ -16,6 +18,7 @@ from planalign_orchestrator.calibration_runner import (
     PerYearCompensationResult,
 )
 from planalign_orchestrator.exceptions import ConfigurationError
+from planalign_orchestrator.config import to_dbt_vars
 from planalign_orchestrator.pipeline.workflow import WorkflowBuilder, WorkflowStage
 
 pytestmark = [pytest.mark.fast]
@@ -120,7 +123,41 @@ def test_calibration_output_contract_is_unchanged() -> None:
     assert row.new_hire_gap == -14_000.0
 
 
-def test_calibration_failure_keeps_stage_and_year_context(tmp_path) -> None:
+@pytest.mark.parametrize("year", [2025, 2026])
+def test_calibration_builds_ordered_union_once_per_year(
+    tmp_path: Path, year: int
+) -> None:
+    runner = CalibrationRunner(
+        CalibrationRun(
+            start_year=2025,
+            end_year=2026,
+            database_path=tmp_path / "calibration.duckdb",
+        ),
+        threads=1,
+    )
+    expected: list[str] = []
+    for stage in WorkflowBuilder.build_calibration_year_workflow(year, 2025):
+        for model in stage.models:
+            if model not in expected:
+                expected.append(model)
+    execute = Mock(return_value=SimpleNamespace(success=True, return_code=0))
+    runner._runner.execute_command = execute
+
+    runner._build_year(year)
+
+    execute.assert_called_once_with(
+        ["run", "--select", *expected],
+        description=f"calibrate {year}",
+        simulation_year=year,
+        dbt_vars=to_dbt_vars(runner._config, database_path=runner.database_path),
+        threads=runner.threads,
+    )
+    if year == 2025:
+        assert expected[:2] == ["staging.*", "int_baseline_workforce"]
+        assert expected.count("int_baseline_workforce") == 1
+
+
+def test_calibration_failure_keeps_year_context(tmp_path: Path) -> None:
     runner = CalibrationRunner(
         CalibrationRun(
             start_year=2025,
@@ -135,7 +172,7 @@ def test_calibration_failure_keeps_stage_and_year_context(tmp_path) -> None:
 
     with pytest.raises(
         ConfigurationError,
-        match="Calibration build failed at initialization for 2025.*17",
+        match="Calibration build failed for 2025.*17",
     ):
         runner._build_year(2025)
     assert not (tmp_path / "current_result.json").exists()
