@@ -58,7 +58,7 @@ const NavItem = ({ to, icon, label, end, collapsed }: Readonly<{ to: string; ico
   </NavLink>
 );
 
-// Sidebar nav grouped by workflow: setup → run → analyze. Dashboard stands alone at top.
+// Sidebar nav grouped by workflow: setup → run → analyze, then advanced tools. Dashboard stands alone at top.
 const NAV_SECTIONS: ReadonlyArray<{
   heading: string | null;
   items: ReadonlyArray<{ to: string; icon: React.ReactNode; label: string; end?: boolean }>;
@@ -80,12 +80,7 @@ const NAV_SECTIONS: ReadonlyArray<{
     items: [
       { to: '/simulate', icon: <PlayCircle size={20} />, label: 'Simulate' },
       { to: '/batch', icon: <Database size={20} />, label: 'Batch Processing' },
-      { to: '/timeline', icon: <Users size={20} />, label: 'Timeline' },
-      { to: '/events', icon: <Search size={20} />, label: 'Event Audit' },
       { to: '/calibrate', icon: <SlidersHorizontal size={20} />, label: 'Calibration' },
-      { to: '/optimize', icon: <Target size={20} />, label: 'Optimizer' },
-      { to: '/ensembles', icon: <Shuffle size={20} />, label: 'Ensembles' },
-      { to: '/fit', icon: <History size={20} />, label: 'Fit & Backtest' },
     ],
   },
   {
@@ -97,6 +92,17 @@ const NAV_SECTIONS: ReadonlyArray<{
       { to: '/analytics/ndt', icon: <Shield size={20} />, label: 'NDT & Compliance' },
       { to: '/analytics/winners-losers', icon: <ArrowLeftRight size={20} />, label: 'Winners & Losers' },
       { to: '/compare', icon: <BarChart3 size={20} />, label: 'Cost Comparison' },
+    ],
+  },
+  {
+    // Specialist diagnostics and modeling tools; kept below the day-to-day workflow.
+    heading: 'Advanced',
+    items: [
+      { to: '/timeline', icon: <Users size={20} />, label: 'Timeline' },
+      { to: '/events', icon: <Search size={20} />, label: 'Event Audit' },
+      { to: '/optimize', icon: <Target size={20} />, label: 'Optimizer' },
+      { to: '/ensembles', icon: <Shuffle size={20} />, label: 'Ensembles' },
+      { to: '/fit', icon: <History size={20} />, label: 'Fit & Backtest' },
     ],
   },
 ];
