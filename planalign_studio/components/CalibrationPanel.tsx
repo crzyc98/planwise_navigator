@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import {
   LineChart, Line, BarChart, Bar,
@@ -17,6 +17,8 @@ import {
   getWorkspace,
   getScenarioConfig,
   listScenarios,
+  startSimulation,
+  getSimulationStatus,
   analyzeCompensation,
   analyzeAgeDistribution,
   analyzeTurnoverRates,
@@ -26,7 +28,7 @@ import {
 } from '../services/api';
 import { extractCensusPath } from './config/ConfigContext';
 import { useChartTheme } from '../hooks/useChartTheme';
-import { baselineScenarioId } from './calibrationScenario';
+import { baselineScenarioId, isMissingRunError } from './calibrationScenario';
 
 interface CalibrationOutletContext {
   activeWorkspace: Workspace | null;
@@ -140,6 +142,8 @@ function errorText(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
+const RUN_POLL_MS = 3000;
+
 const DEFAULT_START_YEAR = new Date().getFullYear();
 const DEFAULT_END_YEAR = DEFAULT_START_YEAR + 1;
 
@@ -246,6 +250,12 @@ export default function CalibrationPanel() {
   const [autoLoading, setAutoLoading] = useState(false);
   const [autoError, setAutoError] = useState<string | null>(null);
   const [recoverableRunId, setRecoverableRunId] = useState<string | null>(null);
+  // Set when calibration failed because the scenario hasn't been run as configured.
+  const [missingRun, setMissingRun] = useState(false);
+  const [runProgress, setRunProgress] = useState<string | null>(null);
+  const [scenarioHorizon, setScenarioHorizon] = useState<{ start: number; end: number } | null>(null);
+  const unmountedRef = useRef(false);
+  useEffect(() => () => { unmountedRef.current = true; }, []);
   const [autoOutcome, setAutoOutcome] = useState<AutoCalibrationOutcome | null>(null);
   const [autoContext, setAutoContext] = useState<CalibrationContext | null>(null);
   const [tolerancePct, setTolerancePct] = useState(0.05);
@@ -335,6 +345,8 @@ export default function CalibrationPanel() {
     setResults([]);
     setRecoverableRunId(null);
     setAutoError(null);
+    setMissingRun(false);
+    setScenarioHorizon(null);
     if (!activeWorkspace?.id || !selectedScenarioId) return;
     const seedFromConfig = (cfg: any, workspaceCfg: any) => {
       setCensusPath(extractCensusPath(workspaceCfg) ?? '');
@@ -344,6 +356,11 @@ export default function CalibrationPanel() {
       const newHire = cfg?.new_hire ?? {};
       if (simulation.start_year != null) setStartYear(simulation.start_year);
       if (simulation.end_year != null) setEndYear(simulation.end_year);
+      setScenarioHorizon(
+        simulation.start_year != null && simulation.end_year != null
+          ? { start: simulation.start_year, end: simulation.end_year }
+          : null
+      );
       setValues((prev) => ({
         ...prev,
         target_growth_pct:
@@ -491,6 +508,7 @@ export default function CalibrationPanel() {
     }
     setAutoLoading(true);
     setAutoError(null);
+    setMissingRun(false);
     setAutoOutcome(null);
     setAutoContext(null);
     setResults([]);
@@ -552,11 +570,48 @@ export default function CalibrationPanel() {
       }
     } catch (e) {
       setRecoverableRunId(e instanceof CalibrationStatusUnavailable ? e.runId : null);
+      setMissingRun(isMissingRunError(e));
       setAutoError(errorText(e) || 'Calibration stopped without a result. Please try again.');
     } finally {
       setAutoLoading(false);
     }
   };
+
+  // Run the selected scenario as currently configured, wait for it, then retry
+  // calibration so a missing/stale run doesn't dead-end the user.
+  const runScenarioThenCalibrate = async () => {
+    if (!selectedScenarioId) return;
+    const scenarioId = selectedScenarioId;
+    setAutoLoading(true);
+    setAutoError(null);
+    setMissingRun(false);
+    setRunProgress('Starting simulation…');
+    try {
+      await startSimulation(scenarioId);
+      for (;;) {
+        await new Promise((resolve) => setTimeout(resolve, RUN_POLL_MS));
+        if (unmountedRef.current) return;
+        const run = await getSimulationStatus(scenarioId);
+        if (run.status === 'completed') break;
+        if (run.status === 'failed' || run.status === 'cancelled') {
+          throw new Error(run.error_message || `The scenario simulation ${run.status}.`);
+        }
+        setRunProgress(
+          `Running scenario${run.current_year ? ` (year ${run.current_year})` : ''}… ${run.progress}%`
+        );
+      }
+    } catch (e) {
+      if (unmountedRef.current) return;
+      setAutoError(`Could not run the scenario: ${errorText(e)}`);
+      setAutoLoading(false);
+      return;
+    } finally {
+      if (!unmountedRef.current) setRunProgress(null);
+    }
+    await runAutoCalibrate();
+  };
+  const horizonMismatch = !!scenarioHorizon
+    && (scenarioHorizon.start !== startYear || scenarioHorizon.end !== endYear);
 
   // Apply the calibrated levers to the workspace base config AND every
   // scenario's overrides -- scenarios override these exact keys, so writing
@@ -1134,7 +1189,7 @@ export default function CalibrationPanel() {
                 className="inline-flex items-center gap-2 rounded-md bg-info-solid px-4 py-2 text-ink-inverse text-sm font-medium hover:bg-info-solid-hover disabled:opacity-50"
               >
                 {autoLoading ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
-                {autoLoading ? 'Searching…' : 'Auto-Calibrate'}
+                {runProgress ? 'Running scenario…' : autoLoading ? 'Searching…' : 'Auto-Calibrate'}
               </button>
               <label className="block">
                 <span className="text-xs font-medium text-info-ink">Tolerance (± pp)</span>
@@ -1154,7 +1209,29 @@ export default function CalibrationPanel() {
               </label>
             </div>
           </div>
-          {autoError && (
+          {runProgress && (
+            <p role="status" className="mt-3 text-sm text-info-ink">{runProgress}</p>
+          )}
+          {autoError && missingRun ? (
+            <div role="alert" className="mt-3 rounded-md border border-warning-border bg-warning-surface p-3 text-sm text-warning-ink">
+              <p className="font-semibold">This scenario hasn't been run with its current settings</p>
+              {horizonMismatch && scenarioHorizon ? (
+                <p>
+                  Calibration years ({startYear}–{endYear}) differ from the scenario's
+                  ({scenarioHorizon.start}–{scenarioHorizon.end}). Match them, or change the
+                  scenario's years, so a run can be calibrated against.
+                </p>
+              ) : (
+                <>
+                  <p>Calibration needs a completed run of the selected scenario as it's configured now.</p>
+                  <button type="button" disabled={autoLoading} onClick={() => void runScenarioThenCalibrate()}
+                    className="mt-2 inline-flex items-center gap-2 rounded-md bg-info-solid px-3 py-1.5 text-ink-inverse font-medium hover:bg-info-solid-hover disabled:opacity-50">
+                    Run scenario as-is, then calibrate
+                  </button>
+                </>
+              )}
+            </div>
+          ) : autoError && (
             <div role="alert" className="mt-3 rounded-md border border-danger-border bg-danger-surface p-3 text-sm text-danger-ink">
               <p className="font-semibold">No calibration result is available to apply</p>
               <p>{autoError}</p>
