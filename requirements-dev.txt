@@ -23,7 +23,7 @@ mypy==1.19.1
 # "Library stubs not installed for 'yaml'" (not suppressed by
 # --ignore-missing-imports because the stub is known to exist on PyPI),
 # keeping the lint job red. See #333.
-types-PyYAML==6.0.12.20260906
+types-PyYAML==6.0.12.20261030
 pylint==4.1.3
 flake8==7.4.1
 pre-commit==4.7.0
