@@ -2012,6 +2012,9 @@ async function awaitCalibrationJob(runId: string): Promise<CalibrationJob> {
       continue;
     }
     if (job.status === 'completed') return job;
+    if (job.status === 'cancelled') {
+      throw new ApiError(409, 'Calibration cancelled');
+    }
     if (job.status === 'failed') {
       throw new ApiError(
         job.error_status ?? 500,
