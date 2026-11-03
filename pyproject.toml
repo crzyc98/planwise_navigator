@@ -1,11 +1,11 @@
 [project]
-name = "fidelity-planalign-engine"
+name = "planalign-engine"
 version = "3.0.0"
-description = "Fidelity PlanAlign Engine - Enterprise workforce simulation platform with immutable event sourcing"
+description = "PlanAlign Engine - Enterprise workforce simulation platform with immutable event sourcing"
 readme = "README.md"
 requires-python = ">=3.12"
 authors = [
-    {name = "Nicholas Amaral", email = "nicholas.amaral@gmail.com"}
+    {name = "crzyc98", email = "crzyc98@gmail.com"}
 ]
 
 dependencies = [
@@ -41,7 +41,7 @@ dependencies = [
     # Corporate network and HTTP client dependencies
     "requests>=2.28.0",
     "urllib3>=1.26.0",
-    # CLI dependencies for Fidelity PlanAlign Engine CLI
+    # CLI dependencies for PlanAlign Engine CLI
     "rich>=13.0.0",
     "typer>=0.9.0",
     "inquirer>=3.1.0",

@@ -128,7 +128,7 @@ export function PromoteCandidateModal({
                       type="checkbox"
                       checked={force}
                       onChange={(event) => setForce(event.target.checked)}
-                      className="mt-0.5 h-4 w-4 rounded border-border-strong text-fidelity-green focus:ring-fidelity-green"
+                      className="mt-0.5 h-4 w-4 rounded border-border-strong text-brand-green focus:ring-brand-green"
                     />
                     <span>I understand this candidate is {candidate.status}; promote anyway.</span>
                   </label>
@@ -147,7 +147,7 @@ export function PromoteCandidateModal({
                   value={sourceScenarioId}
                   onChange={(event) => handleSourceScenarioChange(event.target.value)}
                   disabled={applying}
-                  className="w-full rounded-md border border-border-strong bg-surface-raised p-2 text-sm text-ink shadow-sm focus:border-fidelity-green focus:ring-fidelity-green disabled:cursor-not-allowed"
+                  className="w-full rounded-md border border-border-strong bg-surface-raised p-2 text-sm text-ink shadow-sm focus:border-brand-green focus:ring-brand-green disabled:cursor-not-allowed"
                 >
                   {availableScenarios.map((scenario) => (
                     <option key={scenario.id} value={scenario.id}>
@@ -172,7 +172,7 @@ export function PromoteCandidateModal({
                 }}
                 maxLength={100}
                 disabled={applying}
-                className="w-full rounded-md border border-border-strong bg-surface-raised p-2 text-sm text-ink shadow-sm focus:border-fidelity-green focus:ring-fidelity-green disabled:cursor-not-allowed"
+                className="w-full rounded-md border border-border-strong bg-surface-raised p-2 text-sm text-ink shadow-sm focus:border-brand-green focus:ring-brand-green disabled:cursor-not-allowed"
                 required
               />
             </label>
@@ -184,7 +184,7 @@ export function PromoteCandidateModal({
                 onChange={(event) => setDescription(event.target.value)}
                 disabled={applying}
                 rows={3}
-                className="w-full resize-y rounded-md border border-border-strong bg-surface-raised p-2 text-sm text-ink shadow-sm focus:border-fidelity-green focus:ring-fidelity-green disabled:cursor-not-allowed"
+                className="w-full resize-y rounded-md border border-border-strong bg-surface-raised p-2 text-sm text-ink shadow-sm focus:border-brand-green focus:ring-brand-green disabled:cursor-not-allowed"
               />
             </label>
 
@@ -219,7 +219,7 @@ export function PromoteCandidateModal({
             <button
               type="submit"
               disabled={cannotSubmit}
-              className="rounded-lg bg-fidelity-green px-4 py-2 font-medium text-ink-inverse transition-colors hover:bg-fidelity-dark disabled:cursor-not-allowed disabled:bg-surface-disabled"
+              className="rounded-lg bg-brand-green px-4 py-2 font-medium text-ink-inverse transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:bg-surface-disabled"
             >
               {applying ? 'Creating...' : 'Create scenario'}
             </button>

@@ -1,4 +1,4 @@
-"""Feature 102 — match-magnet dial & ceiling fidelity: config export tests.
+"""Feature 102 — match-magnet dial & ceiling accuracy: config export tests.
 
 Covers:
   - US1: always-on `employer_match_max_deferral_rate` (independent of
@@ -28,7 +28,7 @@ def _make_config():
 
 
 # ---------------------------------------------------------------------------
-# US1 — ceiling fidelity (FR-001/002/003)
+# US1 — ceiling accuracy (FR-001/002/003)
 # ---------------------------------------------------------------------------
 
 

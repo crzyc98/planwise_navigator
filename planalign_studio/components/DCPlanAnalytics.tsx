@@ -92,7 +92,7 @@ const EmptyState = ({ onRefresh }: { onRefresh: () => void }) => (
     </p>
     <button
       onClick={onRefresh}
-      className="flex items-center px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-fidelity-dark transition-colors"
+      className="flex items-center px-4 py-2 bg-brand-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-brand-dark transition-colors"
     >
       <RefreshCw size={16} className="mr-2" />
       Refresh Data
@@ -127,7 +127,7 @@ const DeferralTooltip = ({ active, payload, label }: any) => {
           employees
         </p>
         <p className="text-sm text-ink-muted">
-          <span className="font-semibold text-fidelity-green">{percentage.toFixed(1)}%</span>{' '}
+          <span className="font-semibold text-brand-green">{percentage.toFixed(1)}%</span>{' '}
           of participants
         </p>
       </div>
@@ -548,7 +548,7 @@ export default function DCPlanAnalytics() {
               value={comparisonMode ? '' : selectedScenarioIds[0] || ''}
               onChange={(e) => handleScenarioToggle(e.target.value)}
               disabled={!activeWorkspace?.id || loadingScenarios || comparisonMode}
-              className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[200px] disabled:bg-surface-subtle disabled:text-ink-subtle"
+              className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-brand-green focus:border-brand-green shadow-sm min-w-[200px] disabled:bg-surface-subtle disabled:text-ink-subtle"
             >
               <option value="">
                 {loadingScenarios ? 'Loading...' : completedScenarios.length === 0 ? 'No completed runs' : 'Select Scenario'}
@@ -570,7 +570,7 @@ export default function DCPlanAnalytics() {
                 onChange={(e) =>
                   setSelectedYear(e.target.value ? Number(e.target.value) : null)
                 }
-                className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm"
+                className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-brand-green focus:border-brand-green shadow-sm"
               >
                 <option value="">All Years</option>
                 {availableYears.map((year) => (
@@ -591,7 +591,7 @@ export default function DCPlanAnalytics() {
                 setSelectedScenarioIds([]);
               }
             }}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${comparisonMode ? 'bg-fidelity-green text-ink-inverse' : 'bg-surface-raised border border-border-strong text-ink-muted hover:bg-surface-subtle'}`}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${comparisonMode ? 'bg-brand-green text-ink-inverse' : 'bg-surface-raised border border-border-strong text-ink-muted hover:bg-surface-subtle'}`}
           >
             Compare {comparisonMode && `(${selectedScenarioIds.length}/3)`}
           </button>
@@ -639,7 +639,7 @@ export default function DCPlanAnalytics() {
               type="checkbox"
               checked={excludeZeros}
               onChange={(e) => setExcludeZeros(e.target.checked)}
-              className="mr-2 rounded border-border-strong text-fidelity-green focus:ring-fidelity-green"
+              className="mr-2 rounded border-border-strong text-brand-green focus:ring-brand-green"
             />
             Exclude zeros from averages
           </label>
@@ -670,7 +670,7 @@ export default function DCPlanAnalytics() {
             </>
           )}
         </span>
-        {loading && <span className="text-xs font-medium text-fidelity-green">Updating…</span>}
+        {loading && <span className="text-xs font-medium text-brand-green">Updating…</span>}
       </div>
 
       {/* Comparison Mode Scenario Selection */}
@@ -685,7 +685,7 @@ export default function DCPlanAnalytics() {
                 key={scenario.id}
                 onClick={() => handleScenarioToggle(scenario.id)}
                 disabled={!selectedScenarioIds.includes(scenario.id) && selectedScenarioIds.length >= MAX_SCENARIO_SELECTION}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${selectedScenarioIds.includes(scenario.id) ? 'bg-fidelity-green text-ink-inverse' : 'bg-surface-raised border border-border-strong text-ink-muted hover:bg-surface-subtle disabled:opacity-50 disabled:cursor-not-allowed'}`}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${selectedScenarioIds.includes(scenario.id) ? 'bg-brand-green text-ink-inverse' : 'bg-surface-raised border border-border-strong text-ink-muted hover:bg-surface-subtle disabled:opacity-50 disabled:cursor-not-allowed'}`}
               >
                 {scenario.name}
               </button>
@@ -697,7 +697,7 @@ export default function DCPlanAnalytics() {
       {/* Content Area */}
       {loading ? (
         <div className="flex items-center justify-center h-96">
-          <Loader2 size={48} className="animate-spin text-fidelity-green" />
+          <Loader2 size={48} className="animate-spin text-brand-green" />
         </div>
       ) : error ? (
         <ErrorState message={error} onRetry={handleRefresh} />
@@ -780,7 +780,7 @@ export default function DCPlanAnalytics() {
                         ? a.contribution_by_year.find((y) => y.year === selectedYear)
                         : null;
                       return (
-                        <td key={a.scenario_id} className="py-3 px-4 text-right font-bold text-fidelity-green">
+                        <td key={a.scenario_id} className="py-3 px-4 text-right font-bold text-brand-green">
                           {formatCurrency(yd?.total_all_contributions ?? a.total_all_contributions)}
                         </td>
                       );

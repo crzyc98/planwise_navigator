@@ -26,7 +26,7 @@ export function WorkforceParametersSection() {
     <div className="space-y-10 animate-fadeIn">
       <div className="border-b border-border pb-4">
         <div className="flex items-center gap-2">
-          <Gauge className="h-5 w-5 text-fidelity-green" />
+          <Gauge className="h-5 w-5 text-brand-green" />
           <h2 className="text-lg font-bold text-ink">Workforce Parameters</h2>
         </div>
         <p className="text-sm text-ink-muted">

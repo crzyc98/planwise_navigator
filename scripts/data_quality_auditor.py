@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Data Quality Auditor for Fidelity PlanAlign Engine Simulation Database
+Data Quality Auditor for PlanAlign Engine Simulation Database
 
 This script performs comprehensive data quality checks on the simulation database,
 focusing on NaN values, type mismatches, and DOUBLE to INT64 casting issues.

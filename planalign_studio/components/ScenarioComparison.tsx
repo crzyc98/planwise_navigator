@@ -163,7 +163,7 @@ export default function ScenarioComparison() {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
-          <Loader2 size={48} className="animate-spin text-fidelity-green mx-auto mb-4" />
+          <Loader2 size={48} className="animate-spin text-brand-green mx-auto mb-4" />
           <p className="text-ink-muted">Loading scenario data...</p>
         </div>
       </div>
@@ -194,7 +194,7 @@ export default function ScenarioComparison() {
         <p className="text-sm text-ink-muted mb-4">Select scenarios from a batch to compare.</p>
         <button
           onClick={() => navigate('/batch')}
-          className="px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg hover:bg-fidelity-dark"
+          className="px-4 py-2 bg-brand-green text-ink-inverse rounded-lg hover:bg-brand-dark"
         >
           Go to Batches
         </button>
@@ -224,7 +224,7 @@ export default function ScenarioComparison() {
           {scenarioIds.length === 2 && (
             <Link
               to={`${analyticsPath}/diff?a=${scenarioIds[0]}&b=${scenarioIds[1]}`}
-              className="flex items-center px-4 py-2 bg-fidelity-green rounded-lg text-ink-inverse hover:bg-fidelity-dark"
+              className="flex items-center px-4 py-2 bg-brand-green rounded-lg text-ink-inverse hover:bg-brand-dark"
             >
               Diff A vs B
             </Link>

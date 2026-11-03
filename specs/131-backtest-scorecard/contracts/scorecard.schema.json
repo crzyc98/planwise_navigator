@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://planalign.fidelity.internal/schemas/backtest-scorecard/1.0.0.json",
+  "$id": "https://planalign.example.com/schemas/backtest-scorecard/1.0.0.json",
   "title": "Backtest Scorecard",
   "description": "Predicted-vs-actual scores for a parameter pack fitted on early census snapshots and evaluated against held-out later years. Generated from planalign_backtest.models.Scorecard; do not hand-edit.",
   "type": "object",

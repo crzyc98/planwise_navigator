@@ -1,7 +1,7 @@
 """
-Fidelity PlanAlign Engine CLI Package
+PlanAlign Engine CLI Package
 
-A Rich-based CLI wrapper for Fidelity PlanAlign Engine providing enhanced user experience
+A Rich-based CLI wrapper for PlanAlign Engine providing enhanced user experience
 with beautiful terminal interfaces, progress bars, and interactive commands.
 """
 

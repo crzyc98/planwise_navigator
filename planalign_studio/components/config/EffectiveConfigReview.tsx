@@ -423,7 +423,7 @@ export function EffectiveConfigReview({ review, stale, saving, onClose, onSave, 
       </div>
       <div className="p-5 border-t border-border flex flex-wrap justify-end gap-3">
         <button type="button" onClick={onClose} disabled={busy} className="px-4 py-2 border border-border rounded-lg text-sm disabled:opacity-50">Back to editing</button>
-        <button type="button" onClick={save} disabled={!resolved || !!error || stale || busy} className="px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg text-sm disabled:opacity-50">{busy ? 'Saving…' : review.runAfterSave ? 'Save configuration & Run' : 'Save configuration'}</button>
+        <button type="button" onClick={save} disabled={!resolved || !!error || stale || busy} className="px-4 py-2 bg-brand-green text-ink-inverse rounded-lg text-sm disabled:opacity-50">{busy ? 'Saving…' : review.runAfterSave ? 'Save configuration & Run' : 'Save configuration'}</button>
       </div>
     </div>
   </div>;

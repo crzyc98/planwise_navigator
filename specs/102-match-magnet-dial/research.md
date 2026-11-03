@@ -1,4 +1,4 @@
-# Phase 0 Research: Match-Magnet Dial & Ceiling Fidelity
+# Phase 0 Research: Match-Magnet Dial & Ceiling accuracy
 
 All Technical Context items are known from the existing codebase; no external technology choices required. Research focused on resolving the design unknowns from the spec + clarifications.
 

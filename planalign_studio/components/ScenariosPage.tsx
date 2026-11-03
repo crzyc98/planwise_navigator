@@ -196,7 +196,7 @@ export default function ScenariosPage() {
                 onClick={handleDiff}
                 disabled={!canDiff}
                 title={canDiff ? 'Open focused scenario diff' : 'Select exactly two scenarios with successful results'}
-                className={`px-4 py-2 rounded-lg flex items-center font-medium shadow-sm transition-colors ${canDiff ? 'bg-fidelity-green text-ink-inverse hover:bg-fidelity-dark' : 'bg-surface-disabled text-ink-subtle cursor-not-allowed'}`}
+                className={`px-4 py-2 rounded-lg flex items-center font-medium shadow-sm transition-colors ${canDiff ? 'bg-brand-green text-ink-inverse hover:bg-brand-dark' : 'bg-surface-disabled text-ink-subtle cursor-not-allowed'}`}
               >
                 <ArrowLeftRight size={18} className="mr-2" />
                 Diff A vs B
@@ -230,7 +230,7 @@ export default function ScenariosPage() {
               )}
               <button
                 onClick={() => setShowCreateForm(true)}
-                className="px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg flex items-center font-medium shadow-sm hover:bg-fidelity-dark transition-colors"
+                className="px-4 py-2 bg-brand-green text-ink-inverse rounded-lg flex items-center font-medium shadow-sm hover:bg-brand-dark transition-colors"
               >
                 <Plus size={18} className="mr-2" />
                 New Scenario
@@ -255,7 +255,7 @@ export default function ScenariosPage() {
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="e.g., Baseline 2025, High Growth"
-                className="w-full px-3 py-2 border border-border-strong rounded-lg text-sm focus:ring-fidelity-green focus:border-fidelity-green"
+                className="w-full px-3 py-2 border border-border-strong rounded-lg text-sm focus:ring-brand-green focus:border-brand-green"
                 autoFocus
               />
             </div>
@@ -267,7 +267,7 @@ export default function ScenariosPage() {
                 value={newDesc}
                 onChange={(e) => setNewDesc(e.target.value)}
                 placeholder="Brief description..."
-                className="w-full px-3 py-2 border border-border-strong rounded-lg text-sm focus:ring-fidelity-green focus:border-fidelity-green"
+                className="w-full px-3 py-2 border border-border-strong rounded-lg text-sm focus:ring-brand-green focus:border-brand-green"
               />
             </div>
           </div>
@@ -275,7 +275,7 @@ export default function ScenariosPage() {
             <button
               onClick={handleCreate}
               disabled={!newName.trim() || creating}
-              className="px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-fidelity-dark disabled:bg-surface-disabled disabled:cursor-not-allowed flex items-center"
+              className="px-4 py-2 bg-brand-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-brand-dark disabled:bg-surface-disabled disabled:cursor-not-allowed flex items-center"
             >
               {creating ? (
                 <>
@@ -308,7 +308,7 @@ export default function ScenariosPage() {
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-fidelity-green mx-auto mb-3"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-green mx-auto mb-3"></div>
               <p className="text-sm text-ink-muted">Loading scenarios...</p>
             </div>
           </div>
@@ -327,7 +327,7 @@ export default function ScenariosPage() {
               <p className="text-sm text-ink-muted mb-4">Create your first scenario to get started.</p>
               <button
                 onClick={() => setShowCreateForm(true)}
-                className="px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-fidelity-dark inline-flex items-center"
+                className="px-4 py-2 bg-brand-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-brand-dark inline-flex items-center"
               >
                 <Plus size={16} className="mr-2" />
                 Create Scenario
@@ -344,7 +344,7 @@ export default function ScenariosPage() {
                   className="flex items-center text-sm text-ink-muted hover:text-ink"
                 >
                   {selectedIds.size === scenarios.length ? (
-                    <CheckSquare size={18} className="mr-2 text-fidelity-green" />
+                    <CheckSquare size={18} className="mr-2 text-brand-green" />
                   ) : (
                     <Square size={18} className="mr-2" />
                   )}
@@ -373,7 +373,7 @@ export default function ScenariosPage() {
                           type="text"
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
-                          className="w-full px-3 py-2 border border-border-strong rounded-lg text-sm focus:ring-fidelity-green focus:border-fidelity-green"
+                          className="w-full px-3 py-2 border border-border-strong rounded-lg text-sm focus:ring-brand-green focus:border-brand-green"
                           autoFocus
                         />
                       </div>
@@ -384,7 +384,7 @@ export default function ScenariosPage() {
                           type="text"
                           value={editDesc}
                           onChange={(e) => setEditDesc(e.target.value)}
-                          className="w-full px-3 py-2 border border-border-strong rounded-lg text-sm focus:ring-fidelity-green focus:border-fidelity-green"
+                          className="w-full px-3 py-2 border border-border-strong rounded-lg text-sm focus:ring-brand-green focus:border-brand-green"
                         />
                       </div>
                     </div>
@@ -392,7 +392,7 @@ export default function ScenariosPage() {
                       <button
                         onClick={handleSaveEdit}
                         disabled={!editName.trim()}
-                        className="px-3 py-1.5 bg-fidelity-green text-ink-inverse rounded-lg text-sm hover:bg-fidelity-dark flex items-center disabled:bg-surface-disabled"
+                        className="px-3 py-1.5 bg-brand-green text-ink-inverse rounded-lg text-sm hover:bg-brand-dark flex items-center disabled:bg-surface-disabled"
                       >
                         <Check size={14} className="mr-1" />
                         Save
@@ -413,7 +413,7 @@ export default function ScenariosPage() {
                     {selectMode && (
                       <div className="mr-4">
                         {selectedIds.has(scenario.id) ? (
-                          <CheckSquare size={20} className="text-fidelity-green" />
+                          <CheckSquare size={20} className="text-brand-green" />
                         ) : (
                           <Square size={20} className="text-ink-subtle" />
                         )}
@@ -453,7 +453,7 @@ export default function ScenariosPage() {
                       <button
                         onClick={() => navigate(`/simulate?scenario=${scenario.id}`)}
                         disabled={isSimulationRunning}
-                        className={`px-3 py-1.5 rounded-lg text-sm flex items-center ${isSimulationRunning ? 'bg-surface-disabled text-ink-muted cursor-not-allowed' : 'bg-fidelity-green text-ink-inverse hover:bg-fidelity-dark'}`}
+                        className={`px-3 py-1.5 rounded-lg text-sm flex items-center ${isSimulationRunning ? 'bg-surface-disabled text-ink-muted cursor-not-allowed' : 'bg-brand-green text-ink-inverse hover:bg-brand-dark'}`}
                         title={isSimulationRunning ? 'A simulation is already running' : 'Run simulation'}
                       >
                         {isSimulationRunning && scenario.id === runningScenarioId ? (

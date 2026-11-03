@@ -2,7 +2,7 @@
 
 ## What it is
 
-Fidelity PlanAlign Engine is an on-premises workforce-simulation platform. It projects
+PlanAlign Engine is an on-premises workforce-simulation platform. It projects
 a workforce forward year by year — hires, terminations, promotions, raises — together
 with the full DC-plan (401(k)) lifecycle: eligibility, enrollment, deferrals, employer
 match, vesting, and compliance events. Every simulated decision is recorded as an

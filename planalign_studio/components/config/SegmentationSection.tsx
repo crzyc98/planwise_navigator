@@ -104,13 +104,13 @@ export function SegmentationSection() {
           <div className="bg-surface-subtle rounded-xl p-6 border border-border">
             <div className="flex flex-wrap gap-3 items-center justify-between mb-4">
               <div className="flex items-center">
-                <Users className="w-5 h-5 text-fidelity-green mr-3" />
+                <Users className="w-5 h-5 text-brand-green mr-3" />
                 <h3 className="font-semibold text-ink">Age Bands</h3>
               </div>
               <button
                 onClick={handleMatchCensusAgeBands}
                 disabled={ageBandAnalyzing || !formData.censusDataPath || scenarioLoading}
-                className="flex items-center px-3 py-1.5 text-sm bg-fidelity-green text-ink-inverse rounded-lg hover:bg-fidelity-green-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center px-3 py-1.5 text-sm bg-brand-green text-ink-inverse rounded-lg hover:bg-brand-green-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {ageBandAnalyzing ? (
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-border mr-2" />
@@ -191,13 +191,13 @@ export function SegmentationSection() {
           <div className="bg-surface-subtle rounded-xl p-6 border border-border">
             <div className="flex flex-wrap gap-3 items-center justify-between mb-4">
               <div className="flex items-center">
-                <TrendingUp className="w-5 h-5 text-fidelity-green mr-3" />
+                <TrendingUp className="w-5 h-5 text-brand-green mr-3" />
                 <h3 className="font-semibold text-ink">Tenure Bands</h3>
               </div>
               <button
                 onClick={handleMatchCensusTenureBands}
                 disabled={tenureBandAnalyzing || !formData.censusDataPath || scenarioLoading}
-                className="flex items-center px-3 py-1.5 text-sm bg-fidelity-green text-ink-inverse rounded-lg hover:bg-fidelity-green-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center px-3 py-1.5 text-sm bg-brand-green text-ink-inverse rounded-lg hover:bg-brand-green-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {tenureBandAnalyzing ? (
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-border mr-2" />

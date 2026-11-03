@@ -16,7 +16,7 @@ description: "Task list for 133-seed-ensemble-bands"
 
 - **[P]**: Can run in parallel (different files, no dependencies on incomplete tasks)
 - **[Story]**: US1–US4, mapping to spec.md user stories
-- All paths are repository-relative from `/Users/nicholasamaral/Developer/fidelity_planalign`
+- All paths are repository-relative from `<repo>`
 
 **Phase ordering note**: US3 (attribution) and US4 (export) are both P3. US4 runs first because US3 depends on the dbt seed refactor — the feature's single largest risk — and plan.md sequences the risky work last so it can never block delivery of the other three stories.
 

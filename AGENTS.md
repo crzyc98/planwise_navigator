@@ -1,4 +1,4 @@
-# Fidelity PlanAlign Engine – AGENTS.md
+# PlanAlign Engine – AGENTS.md
 
 Guidance for Codex and other coding agents. `CLAUDE.md` (root) and `dbt/CLAUDE.md` hold the full project rules. When they disagree with this file, they win.
 

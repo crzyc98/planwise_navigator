@@ -1,6 +1,6 @@
 # filename: config/events/__init__.py
 """
-Events package for Fidelity PlanAlign Engine.
+Events package for PlanAlign Engine.
 
 This package contains modularized event payloads, validators, and factories
 organized by domain (workforce, dc_plan, admin).

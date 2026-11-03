@@ -1,5 +1,5 @@
 """
-Calibrate command for Fidelity PlanAlign Engine CLI (Feature 105).
+Calibrate command for PlanAlign Engine CLI (Feature 105).
 
 Fast Compensation Calibration Mode: rebuild only the compensation/workforce
 subgraph per year, reuse the validated comp math (E077 solver, proration, S051

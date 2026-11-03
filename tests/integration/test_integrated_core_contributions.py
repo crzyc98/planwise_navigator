@@ -20,8 +20,8 @@ FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures/integrated_core"
 CENSUS = FIXTURE_ROOT / "integrated_core.csv"
 INTEGRATED_CONFIG = FIXTURE_ROOT / "integrated_core.yaml"
 BASELINE_CONFIG = FIXTURE_ROOT / "flat_core_baseline.yaml"
-TUFTS_CONFIG = FIXTURE_ROOT / "tufts_cross_tested.yaml"
-TUFTS_CENSUS = FIXTURE_ROOT / "tufts_cross_tested.csv"
+TWOBAND_CONFIG = FIXTURE_ROOT / "two_band_cross_tested.yaml"
+TWOBAND_CENSUS = FIXTURE_ROOT / "two_band_cross_tested.csv"
 MODE_CONFIGS = tuple(
     FIXTURE_ROOT / f"core_mode_{mode}_integrated.yaml"
     for mode in ("flat", "graded_by_service", "points_based", "age_banded")
@@ -315,17 +315,17 @@ def test_disabled_integration_matches_an_omitted_integration_block(
 
 
 @pytest.fixture(scope="session")
-def tufts_db(
+def two_band_db(
     tmp_path_factory: pytest.TempPathFactory,
     shared_db_signature: tuple[int, str] | None,
 ) -> Iterator[Path]:
-    database = tmp_path_factory.mktemp("tufts") / "tufts.duckdb"
-    yield _run(TUFTS_CONFIG, database, census=TUFTS_CENSUS)
+    database = tmp_path_factory.mktemp("two_band") / "two_band.duckdb"
+    yield _run(TWOBAND_CONFIG, database, census=TWOBAND_CENSUS)
     assert file_signature(SHARED_DEV_DB) == shared_db_signature
 
 
 def test_age_banded_integration_reproduces_a_real_two_band_design(
-    tufts_db: Path,
+    two_band_db: Path,
 ) -> None:
     """An age-banded base rate composes with integration into a step-rate design.
 
@@ -339,7 +339,7 @@ def test_age_banded_integration_reproduces_a_real_two_band_design(
     regression in how the base rate and the disparity compose cannot pass.
     """
     rows = _query(
-        tufts_db,
+        two_band_db,
         """
         SELECT employee_id, core_contribution_rate, ss_wage_base,
                eligible_compensation, excess_compensation,
@@ -348,7 +348,7 @@ def test_age_banded_integration_reproduces_a_real_two_band_design(
         ORDER BY employee_id
         """,
     )
-    assert rows, "the Tufts fixture produced no core contribution rows"
+    assert rows, "the two-band fixture produced no core contribution rows"
 
     for row in rows:
         employee_id = row[0]
@@ -370,11 +370,11 @@ def test_age_banded_integration_reproduces_a_real_two_band_design(
 
 
 def test_age_banded_integration_doubles_the_base_rate_across_the_band(
-    tufts_db: Path,
+    two_band_db: Path,
 ) -> None:
     """The older band receives exactly double the younger band below the level."""
     below_level = _query(
-        tufts_db,
+        two_band_db,
         """
         SELECT core_contribution_rate, MIN(base_core_amount / eligible_compensation)
         FROM int_employer_core_contributions

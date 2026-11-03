@@ -205,7 +205,7 @@ export default function ForfeitureProjection({
                 setScheduleType(e.target.value as VestingScheduleType);
                 setData(null);
               }}
-              className="w-full bg-surface-raised border border-border-strong rounded-lg px-3 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm"
+              className="w-full bg-surface-raised border border-border-strong rounded-lg px-3 py-2 text-sm focus:ring-brand-green focus:border-brand-green shadow-sm"
             >
               {schedules.map(schedule => (
                 <option key={schedule.schedule_type} value={schedule.schedule_type}>
@@ -243,7 +243,7 @@ export default function ForfeitureProjection({
                   setRequireHoursCredit(e.target.checked);
                   setData(null);
                 }}
-                className="rounded border-border-strong text-fidelity-green focus:ring-fidelity-green"
+                className="rounded border-border-strong text-brand-green focus:ring-brand-green"
               />
               Require hours credit
             </label>
@@ -278,7 +278,7 @@ export default function ForfeitureProjection({
                       checked={checked}
                       disabled={!checked && atSelectionLimit}
                       onChange={() => toggleScenario(scenario.id)}
-                      className="rounded border-border-strong text-fidelity-green focus:ring-fidelity-green"
+                      className="rounded border-border-strong text-brand-green focus:ring-brand-green"
                     />
                     {checked && (
                       <span
@@ -298,7 +298,7 @@ export default function ForfeitureProjection({
           <button
             onClick={runReport}
             disabled={loading || selectedIds.length === 0}
-            className="flex items-center gap-2 px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-fidelity-dark disabled:bg-surface-disabled transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-brand-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-brand-dark disabled:bg-surface-disabled transition-colors"
           >
             {loading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
             {loading ? 'Running...' : 'Run Report'}
@@ -354,7 +354,7 @@ export default function ForfeitureProjection({
                     onClick={() => setCumulative(mode === 'cumulative')}
                     className={`px-3 py-1.5 capitalize transition-colors ${
                       (mode === 'cumulative') === cumulative
-                        ? 'bg-fidelity-green text-ink-inverse'
+                        ? 'bg-brand-green text-ink-inverse'
                         : 'bg-surface-raised text-ink-muted hover:bg-surface-subtle'
                     }`}
                   >

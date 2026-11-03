@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Fidelity PlanAlign Engine will be documented in this file.
+All notable changes to PlanAlign Engine will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -363,11 +363,11 @@ _Consolidates all work since 2.1.0 (March–July 2026, ~258 commits), reconstruc
 ## [2.0.0] - 2025-11-24 "PlanAlign Engine"
 
 ### BREAKING CHANGES
-- **Project Renamed**: PlanWise Navigator → Fidelity PlanAlign Engine
+- **Project Renamed**: PlanWise Navigator → PlanAlign Engine
 - **CLI Command Renamed**: `planwise` → `planalign`
 - **Package Renamed**: `navigator_orchestrator` → `planalign_orchestrator`
 - **Package Renamed**: `planwise_cli` → `planalign_cli`
-- **dbt Project Name**: `planwise_navigator` → `fidelity_planalign_engine`
+- **dbt Project Name**: `planwise_navigator` → `planalign_engine`
 
 ### Migration Guide
 1. Update all imports:
@@ -377,7 +377,7 @@ _Consolidates all work since 2.1.0 (March–July 2026, ~258 commits), reconstruc
    - `planwise simulate` → `planalign simulate`
    - `planwise batch` → `planalign batch`
    - `planwise status` → `planalign status`
-3. Update dbt profiles to reference `fidelity_planalign_engine` profile
+3. Update dbt profiles to reference `planalign_engine` profile
 4. Reinstall package: `uv pip install -e ".[dev]"`
 
 ---
@@ -488,5 +488,5 @@ _Consolidates all work since 2.1.0 (March–July 2026, ~258 commits), reconstruc
 
 - [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
-- [Fidelity PlanAlign Engine Documentation](./docs/)
+- [PlanAlign Engine Documentation](./docs/)
 - [Project Status](./CLAUDE.md#12-project-status)

@@ -93,7 +93,7 @@ const EmptyState = ({ onRefresh }: Readonly<{ onRefresh: () => void }>) => (
     </p>
     <button
       onClick={onRefresh}
-      className="flex items-center px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-fidelity-dark transition-colors"
+      className="flex items-center px-4 py-2 bg-brand-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-brand-dark transition-colors"
     >
       <RefreshCw size={16} className="mr-2" />
       Refresh Data
@@ -131,9 +131,9 @@ const SortHeader = ({ field, label, sortField, sortDirection, onSort }: Readonly
       {label}
       {sortField === field ? (
         sortDirection === 'asc' ? (
-          <ChevronUp size={14} className="text-fidelity-green" />
+          <ChevronUp size={14} className="text-brand-green" />
         ) : (
-          <ChevronDown size={14} className="text-fidelity-green" />
+          <ChevronDown size={14} className="text-brand-green" />
         )
       ) : (
         <ChevronDown size={14} className="text-ink-subtle" />
@@ -406,7 +406,7 @@ export default function VestingAnalysis() {
               aria-current={view === id ? 'page' : undefined}
               className={`pb-3 -mb-px text-sm font-medium border-b-2 transition-colors ${
                 view === id
-                  ? 'border-fidelity-green text-fidelity-green'
+                  ? 'border-brand-green text-brand-green'
                   : 'border-transparent text-ink-muted hover:text-ink-muted'
               }`}
             >
@@ -427,7 +427,7 @@ export default function VestingAnalysis() {
                 id="forfeiture-workspace"
                 value={selectedWorkspaceId}
                 onChange={(e) => setSelectedWorkspaceId(e.target.value)}
-                className="appearance-none w-full bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm"
+                className="appearance-none w-full bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-brand-green focus:border-brand-green shadow-sm"
               >
                 <option value="">Select Workspace</option>
                 {workspaces.map(ws => (
@@ -465,7 +465,7 @@ export default function VestingAnalysis() {
                   setSelectedScenarioId('');
                   setAnalysisResult(null);
                 }}
-                className="appearance-none w-full bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm"
+                className="appearance-none w-full bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-brand-green focus:border-brand-green shadow-sm"
               >
                 <option value="">Select Workspace</option>
                 {workspaces.map(ws => (
@@ -490,7 +490,7 @@ export default function VestingAnalysis() {
                   setAnalysisResult(null);
                 }}
                 disabled={!selectedWorkspaceId || loadingScenarios}
-                className="appearance-none w-full bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm disabled:bg-surface-subtle disabled:text-ink-subtle"
+                className="appearance-none w-full bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-brand-green focus:border-brand-green shadow-sm disabled:bg-surface-subtle disabled:text-ink-subtle"
               >
                 <option value="">
                   {loadingScenarios && 'Loading...'}
@@ -515,7 +515,7 @@ export default function VestingAnalysis() {
                 id="vesting-current-schedule"
                 value={currentSchedule?.schedule_type || ''}
                 onChange={(e) => handleScheduleChange('current', e.target.value)}
-                className="appearance-none w-full bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm"
+                className="appearance-none w-full bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-brand-green focus:border-brand-green shadow-sm"
               >
                 <option value="">Select Schedule</option>
                 {schedules.map(schedule => (
@@ -534,7 +534,7 @@ export default function VestingAnalysis() {
                   type="checkbox"
                   checked={currentSchedule?.require_hours_credit ?? false}
                   onChange={(e) => handleHoursToggle('current', e.target.checked)}
-                  className="mr-2 rounded border-border-strong text-fidelity-green focus:ring-fidelity-green"
+                  className="mr-2 rounded border-border-strong text-brand-green focus:ring-brand-green"
                 />{' '}
                 <span>Require 1,000 hours</span>
               </label>
@@ -546,7 +546,7 @@ export default function VestingAnalysis() {
                     max={2080}
                     value={currentSchedule.hours_threshold ?? 1000}
                     onChange={(e) => handleHoursThresholdChange('current', parseInt(e.target.value) || 0)}
-                    className="w-20 px-2 py-1 text-sm border border-border-strong rounded focus:ring-fidelity-green focus:border-fidelity-green"
+                    className="w-20 px-2 py-1 text-sm border border-border-strong rounded focus:ring-brand-green focus:border-brand-green"
                   />
                   <span className="text-xs text-ink-muted">hours/year</span>
                 </div>
@@ -565,7 +565,7 @@ export default function VestingAnalysis() {
                 id="vesting-proposed-schedule"
                 value={proposedSchedule?.schedule_type || ''}
                 onChange={(e) => handleScheduleChange('proposed', e.target.value)}
-                className="appearance-none w-full bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm"
+                className="appearance-none w-full bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-brand-green focus:border-brand-green shadow-sm"
               >
                 <option value="">Select Schedule</option>
                 {schedules.map(schedule => (
@@ -584,7 +584,7 @@ export default function VestingAnalysis() {
                   type="checkbox"
                   checked={proposedSchedule?.require_hours_credit ?? false}
                   onChange={(e) => handleHoursToggle('proposed', e.target.checked)}
-                  className="mr-2 rounded border-border-strong text-fidelity-green focus:ring-fidelity-green"
+                  className="mr-2 rounded border-border-strong text-brand-green focus:ring-brand-green"
                 />{' '}
                 <span>Require 1,000 hours</span>
               </label>
@@ -596,7 +596,7 @@ export default function VestingAnalysis() {
                     max={2080}
                     value={proposedSchedule.hours_threshold ?? 1000}
                     onChange={(e) => handleHoursThresholdChange('proposed', parseInt(e.target.value) || 0)}
-                    className="w-20 px-2 py-1 text-sm border border-border-strong rounded focus:ring-fidelity-green focus:border-fidelity-green"
+                    className="w-20 px-2 py-1 text-sm border border-border-strong rounded focus:ring-brand-green focus:border-brand-green"
                   />
                   <span className="text-xs text-ink-muted">hours/year</span>
                 </div>
@@ -624,7 +624,7 @@ export default function VestingAnalysis() {
                   setAnalysisResult(null);
                 }}
                 disabled={!selectedScenarioId || loadingYears || availableYears.length === 0}
-                className="appearance-none w-full bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm disabled:bg-surface-subtle disabled:text-ink-subtle"
+                className="appearance-none w-full bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-brand-green focus:border-brand-green shadow-sm disabled:bg-surface-subtle disabled:text-ink-subtle"
               >
                 {loadingYears ? (
                   <option value="">Loading...</option>
@@ -644,7 +644,7 @@ export default function VestingAnalysis() {
           <button
             onClick={handleAnalyze}
             disabled={!canAnalyze || analyzing}
-            className="flex items-center px-6 py-2 bg-fidelity-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-fidelity-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center px-6 py-2 bg-brand-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-brand-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {analyzing ? (
               <>
@@ -664,7 +664,7 @@ export default function VestingAnalysis() {
       {/* Content Area */}
       {analyzing ? (
         <div className="flex items-center justify-center h-96">
-          <Loader2 size={48} className="animate-spin text-fidelity-green" />
+          <Loader2 size={48} className="animate-spin text-brand-green" />
         </div>
       ) : error ? (
         <ErrorState message={error} onRetry={handleAnalyze} />
@@ -850,9 +850,9 @@ export default function VestingAnalysis() {
                           Employee ID
                           {sortField === 'employee_id' ? (
                             sortDirection === 'asc' ? (
-                              <ChevronUp size={14} className="text-fidelity-green" />
+                              <ChevronUp size={14} className="text-brand-green" />
                             ) : (
-                              <ChevronDown size={14} className="text-fidelity-green" />
+                              <ChevronDown size={14} className="text-brand-green" />
                             )
                           ) : (
                             <ChevronDown size={14} className="text-ink-subtle" />

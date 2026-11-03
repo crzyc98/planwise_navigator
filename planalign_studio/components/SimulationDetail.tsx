@@ -212,7 +212,7 @@ export default function SimulationDetail() {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-fidelity-green mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-green mx-auto mb-4"></div>
           <p className="text-ink-muted">Loading simulation details...</p>
         </div>
       </div>
@@ -228,7 +228,7 @@ export default function SimulationDetail() {
           <p className="text-ink-muted mb-4">{error || 'Simulation details not found'}</p>
           <button
             onClick={() => navigate('/simulate')}
-            className="px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg hover:bg-fidelity-dark"
+            className="px-4 py-2 bg-brand-green text-ink-inverse rounded-lg hover:bg-brand-dark"
           >
             Back to Simulations
           </button>
@@ -265,7 +265,7 @@ export default function SimulationDetail() {
             {details.status === 'completed' && (
               <Link
                 to={`/analytics?scenario=${details.scenario_id}`}
-                className="flex items-center px-4 py-2 bg-fidelity-green text-ink-inverse hover:bg-fidelity-dark rounded-lg font-medium shadow-sm"
+                className="flex items-center px-4 py-2 bg-brand-green text-ink-inverse hover:bg-brand-dark rounded-lg font-medium shadow-sm"
               >
                 <Activity size={18} className="mr-2" />
                 View Analytics
@@ -382,7 +382,7 @@ export default function SimulationDetail() {
             {runs.map((run, index) => (
               <div
                 key={run.id}
-                className={`border rounded-lg overflow-hidden ${index === 0 ? 'border-fidelity-green' : 'border-border'}`}
+                className={`border rounded-lg overflow-hidden ${index === 0 ? 'border-brand-green' : 'border-border'}`}
               >
                 {/* Run Header */}
                 <button
@@ -402,7 +402,7 @@ export default function SimulationDetail() {
                           {run.status.toUpperCase()}
                         </span>
                         {index === 0 && (
-                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-fidelity-green/10 text-fidelity-green">
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-brand-green/10 text-brand-green">
                             Latest
                           </span>
                         )}
@@ -444,7 +444,7 @@ export default function SimulationDetail() {
                         onClick={() => setActiveRunTab(t => ({ ...t, [run.id]: 'artifacts' }))}
                         className={`flex items-center px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                           (activeRunTab[run.id] ?? 'artifacts') === 'artifacts'
-                            ? 'border-fidelity-green text-fidelity-green'
+                            ? 'border-brand-green text-brand-green'
                             : 'border-transparent text-ink-muted hover:text-ink-muted'
                         }`}
                       >
@@ -455,7 +455,7 @@ export default function SimulationDetail() {
                         onClick={() => setActiveRunTab(t => ({ ...t, [run.id]: 'logs' }))}
                         className={`flex items-center px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                           activeRunTab[run.id] === 'logs'
-                            ? 'border-fidelity-green text-fidelity-green'
+                            ? 'border-brand-green text-brand-green'
                             : 'border-transparent text-ink-muted hover:text-ink-muted'
                         }`}
                       >
@@ -465,7 +465,7 @@ export default function SimulationDetail() {
                       {run.status === 'completed' && index === 0 && run.start_year !== null && run.end_year !== null && (
                         <button
                           onClick={() => setActiveRunTab(t => ({ ...t, [run.id]: 'evidence' }))}
-                          className={`flex items-center px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeRunTab[run.id] === 'evidence' ? 'border-fidelity-green text-fidelity-green' : 'border-transparent text-ink-muted hover:text-ink-muted'}`}
+                          className={`flex items-center px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeRunTab[run.id] === 'evidence' ? 'border-brand-green text-brand-green' : 'border-transparent text-ink-muted hover:text-ink-muted'}`}
                         >
                           <FileText size={14} className="mr-1.5" />Evidence Pack
                         </button>
@@ -480,13 +480,13 @@ export default function SimulationDetail() {
                       )}
                       {isArchivedProvenanceRun(run) && (
                         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-success-border bg-success-surface p-3">
-                          <ShieldCheck size={18} className="text-fidelity-green" />
+                          <ShieldCheck size={18} className="text-brand-green" />
                           <span className="mr-auto text-sm text-success-ink">
                             Review the execution evidence and integrity digest for this archived run.
                           </span>
                           <Link
                             to={`/simulate/${details.scenario_id}/runs/${run.id}/provenance`}
-                            className="flex items-center rounded-lg border border-fidelity-green bg-surface-raised px-3 py-2 text-sm font-medium text-fidelity-green hover:bg-success-surface"
+                            className="flex items-center rounded-lg border border-brand-green bg-surface-raised px-3 py-2 text-sm font-medium text-brand-green hover:bg-success-surface"
                           >
                             <ShieldCheck size={15} className="mr-1.5" />
                             View Provenance
@@ -494,7 +494,7 @@ export default function SimulationDetail() {
                           <button
                             onClick={() => void handleProvenanceDownload(run.id)}
                             disabled={provenanceDownloadRun !== null}
-                            className="flex items-center rounded-lg bg-fidelity-green px-3 py-2 text-sm font-medium text-ink-inverse hover:bg-fidelity-dark disabled:opacity-60"
+                            className="flex items-center rounded-lg bg-brand-green px-3 py-2 text-sm font-medium text-ink-inverse hover:bg-brand-dark disabled:opacity-60"
                           >
                             {provenanceDownloadRun === run.id ? (
                               <Loader2 size={15} className="mr-1.5 animate-spin" />
@@ -526,7 +526,7 @@ export default function SimulationDetail() {
                                   >
                                     {getArtifactIcon(artifact.type)}
                                     <div className="ml-3 flex-1 min-w-0">
-                                      <p className="font-medium text-sm text-ink group-hover:text-fidelity-green truncate">
+                                      <p className="font-medium text-sm text-ink group-hover:text-brand-green truncate">
                                         {artifact.name}
                                       </p>
                                       <p className="text-xs text-ink-muted">
@@ -535,9 +535,9 @@ export default function SimulationDetail() {
                                       </p>
                                     </div>
                                     {downloadingArtifact === artifact.path ? (
-                                      <Loader2 size={14} className="text-fidelity-green ml-2 animate-spin" />
+                                      <Loader2 size={14} className="text-brand-green ml-2 animate-spin" />
                                     ) : (
-                                      <Download size={14} className="text-ink-subtle group-hover:text-fidelity-green ml-2" />
+                                      <Download size={14} className="text-ink-subtle group-hover:text-brand-green ml-2" />
                                     )}
                                   </button>
                                 ))}
@@ -547,7 +547,7 @@ export default function SimulationDetail() {
                             )
                           ) : (
                             <div className="flex items-center justify-center py-2">
-                              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-fidelity-green"></div>
+                              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-brand-green"></div>
                               <span className="ml-2 text-sm text-ink-muted">Loading artifacts...</span>
                             </div>
                           )}
@@ -698,7 +698,7 @@ export default function SimulationDetail() {
             {details.status === 'completed' && (
               <Link
                 to={`/analytics?scenario=${details.scenario_id}`}
-                className="flex items-center px-4 py-2 bg-fidelity-green text-ink-inverse hover:bg-fidelity-dark rounded-lg font-medium"
+                className="flex items-center px-4 py-2 bg-brand-green text-ink-inverse hover:bg-brand-dark rounded-lg font-medium"
               >
                 <Activity size={18} className="mr-2" />
                 View Analytics

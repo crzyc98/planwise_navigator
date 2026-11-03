@@ -51,7 +51,7 @@ def test_collapsed_state_failure_keeps_context_and_partial_outputs(tmp_path):
     config.simulation.start_year = 2025
     runner = MagicMock()
     runner.execute_command.side_effect = DbtExecutionError(
-        "model.fidelity_planalign_engine.int_employee_contributions: injected failure"
+        "model.planalign_engine.int_employee_contributions: injected failure"
     )
     executor = YearExecutor(
         config=config,

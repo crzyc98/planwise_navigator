@@ -1,4 +1,4 @@
-# Fidelity PlanAlign Engine Testing Infrastructure
+# PlanAlign Engine Testing Infrastructure
 
 Enterprise-grade testing framework with **90%+ coverage target** and **fast test suite** for optimal developer productivity.
 

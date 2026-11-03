@@ -40,7 +40,7 @@ export function PromotionHazardEditor() {
       <div className="bg-surface-subtle p-6 rounded-lg border border-border mt-6">
         <h3 className="text-sm font-semibold text-ink mb-2">Promotion Hazard</h3>
         <div className="flex items-center justify-center py-6">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-fidelity-green"></div>
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-brand-green"></div>
           <span className="ml-3 text-ink-muted text-sm">Loading promotion hazard config...</span>
         </div>
       </div>
@@ -95,7 +95,7 @@ export function PromotionHazardEditor() {
               max="100"
               value={parseFloat((promotionHazardConfig.base.base_rate * 100).toFixed(10))}
               onChange={(e) => handleBaseChange('base_rate', e.target.value)}
-              className="w-full shadow-sm focus:ring-fidelity-green focus:border-fidelity-green text-sm border-border-strong rounded-md p-2 border"
+              className="w-full shadow-sm focus:ring-brand-green focus:border-brand-green text-sm border-border-strong rounded-md p-2 border"
             />
             <p className="mt-1 text-xs text-ink-subtle">Stored as {promotionHazardConfig.base.base_rate}</p>
           </div>
@@ -109,7 +109,7 @@ export function PromotionHazardEditor() {
               max="100"
               value={parseFloat((promotionHazardConfig.base.level_dampener_factor * 100).toFixed(10))}
               onChange={(e) => handleBaseChange('level_dampener_factor', e.target.value)}
-              className="w-full shadow-sm focus:ring-fidelity-green focus:border-fidelity-green text-sm border-border-strong rounded-md p-2 border"
+              className="w-full shadow-sm focus:ring-brand-green focus:border-brand-green text-sm border-border-strong rounded-md p-2 border"
             />
             <p className="mt-1 text-xs text-ink-subtle">Stored as {promotionHazardConfig.base.level_dampener_factor}</p>
           </div>

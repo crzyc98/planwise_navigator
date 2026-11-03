@@ -5,7 +5,7 @@ This guide proves execution-time capture, exact run binding, cross-channel parit
 ## Prerequisites
 
 ```bash
-cd /Users/nicholasamaral/Developer/fidelity_planalign
+cd <repo>
 source .venv/bin/activate
 ```
 

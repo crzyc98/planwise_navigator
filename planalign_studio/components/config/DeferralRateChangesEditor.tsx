@@ -76,7 +76,7 @@ export function DeferralRateChangesEditor({ form, onChange }: Props) {
             onChange={event => onChange({ dcDeferralRateChangesPostEscalationDecreaseWindowDays: Number(event.target.value) })} /> days of it
         </label>
         <label htmlFor="dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation" className="flex items-center gap-2 text-sm text-ink-muted">
-          <input id="dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation" name="dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation" type="checkbox" checked={form.dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation} className="h-4 w-4 text-fidelity-green rounded"
+          <input id="dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation" name="dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation" type="checkbox" checked={form.dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation} className="h-4 w-4 text-brand-green rounded"
             onChange={event => onChange({ dcDeferralRateChangesPostEscalationDecreaseLeavesEscalation: event.target.checked })} />
           These people also leave automatic increases
         </label>

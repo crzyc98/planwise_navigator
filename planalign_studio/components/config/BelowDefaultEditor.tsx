@@ -88,7 +88,7 @@ export function BelowDefaultEditor({ form, onChange }: Props) {
         <p id="dcplan-below-default-share-help" className="text-xs text-ink-muted">At the current {form.dcDefaultDeferral}% default.</p>
       </div> : renderShareTiers({ form, onChange, applicable })}
       </div>
-      {singleTier && <button type="button" aria-expanded={showTiers} aria-controls="dcplan-below-default-shares" className="text-sm text-fidelity-green underline disabled:opacity-50" onClick={() => setShowTiers(!showTiers)}>
+      {singleTier && <button type="button" aria-expanded={showTiers} aria-controls="dcplan-below-default-shares" className="text-sm text-brand-green underline disabled:opacity-50" onClick={() => setShowTiers(!showTiers)}>
         {showTiers ? 'Use one share for all defaults' : 'Vary by auto-enrollment default…'}
       </button>}
       {renderSteps({ form, onChange })}

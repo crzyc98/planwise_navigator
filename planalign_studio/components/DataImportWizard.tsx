@@ -30,12 +30,12 @@ function StepIndicator({ current }: { current: WizardStep }) {
         return (
           <React.Fragment key={step.id}>
             <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors
-              ${isActive ? 'bg-fidelity-green text-ink-inverse' : isDone ? 'text-fidelity-green' : 'text-ink-subtle'}`}>
+              ${isActive ? 'bg-brand-green text-ink-inverse' : isDone ? 'text-brand-green' : 'text-ink-subtle'}`}>
               {step.icon}
               <span className="hidden sm:inline">{step.label}</span>
             </div>
             {i < STEPS.length - 1 && (
-              <div className={`h-0.5 w-6 ${isDone ? 'bg-fidelity-green' : 'bg-surface-disabled'}`} />
+              <div className={`h-0.5 w-6 ${isDone ? 'bg-brand-green' : 'bg-surface-disabled'}`} />
             )}
           </React.Fragment>
         );
@@ -107,7 +107,7 @@ export default function DataImportWizard() {
       <div className="p-6 space-y-4">
         <button
           onClick={() => setShowFilesView(false)}
-          className="flex items-center gap-1 text-sm text-fidelity-green hover:underline"
+          className="flex items-center gap-1 text-sm text-brand-green hover:underline"
         >
           <ArrowLeft size={14} /> Back to Import Wizard
         </button>
@@ -125,7 +125,7 @@ export default function DataImportWizard() {
         </div>
         <button
           onClick={() => setShowFilesView(true)}
-          className="text-sm text-fidelity-green hover:underline"
+          className="text-sm text-brand-green hover:underline"
         >
           View Imported Files
         </button>
@@ -154,7 +154,7 @@ export default function DataImportWizard() {
         )}
         {step === 'done' && parquetResult && (
           <div className="text-center space-y-4 py-6">
-            <CheckCircle2 size={48} className="mx-auto text-fidelity-green" />
+            <CheckCircle2 size={48} className="mx-auto text-brand-green" />
             <h2 className="text-lg font-semibold text-ink">Census Data Ready</h2>
             <p className="text-sm text-ink-muted">
               <span className="font-mono">{parquetResult.file_name}</span> — {parquetResult.row_count.toLocaleString()} rows
@@ -169,7 +169,7 @@ export default function DataImportWizard() {
               </button>
               <Link
                 to={configPath}
-                className="px-4 py-2 text-sm bg-fidelity-green text-ink-inverse rounded-lg hover:bg-fidelity-dark"
+                className="px-4 py-2 text-sm bg-brand-green text-ink-inverse rounded-lg hover:bg-brand-dark"
               >
                 View in Configure
               </Link>
@@ -178,7 +178,7 @@ export default function DataImportWizard() {
         )}
         {step === 'done' && generatedFile && (
           <div className="text-center space-y-4 py-6">
-            <CheckCircle2 size={48} className="mx-auto text-fidelity-green" />
+            <CheckCircle2 size={48} className="mx-auto text-brand-green" />
             <h2 className="text-lg font-semibold text-ink">Parquet File Generated!</h2>
             <p className="text-sm text-ink-muted">
               <span className="font-mono">{generatedFile.filename}</span> — {generatedFile.row_count.toLocaleString()} rows
@@ -195,7 +195,7 @@ export default function DataImportWizard() {
               </button>
               <button
                 onClick={() => setShowFilesView(true)}
-                className="px-4 py-2 text-sm bg-fidelity-green text-ink-inverse rounded-lg hover:bg-fidelity-dark"
+                className="px-4 py-2 text-sm bg-brand-green text-ink-inverse rounded-lg hover:bg-brand-dark"
               >
                 View All Files
               </button>

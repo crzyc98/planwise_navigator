@@ -22,7 +22,7 @@ interface ApplyPackModalProps {
 }
 
 const fieldClass =
-  'w-full rounded-md border border-border-strong bg-surface-raised p-2 text-sm text-ink shadow-sm focus:border-fidelity-green focus:ring-fidelity-green disabled:cursor-not-allowed';
+  'w-full rounded-md border border-border-strong bg-surface-raised p-2 text-sm text-ink shadow-sm focus:border-brand-green focus:ring-brand-green disabled:cursor-not-allowed';
 
 function formatValue(value: unknown): string {
   if (value === null || value === undefined) return '—';
@@ -194,7 +194,7 @@ export function ApplyPackModal({ workspaceId, job, scenarios, onClose, onApplied
             <button
               type="submit"
               disabled={cannotSubmit}
-              className="rounded-lg bg-fidelity-green px-4 py-2 font-medium text-ink-inverse transition-colors hover:bg-fidelity-dark disabled:cursor-not-allowed disabled:bg-surface-disabled"
+              className="rounded-lg bg-brand-green px-4 py-2 font-medium text-ink-inverse transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:bg-surface-disabled"
             >
               {applying ? 'Creating…' : 'Create scenario'}
             </button>

@@ -5,7 +5,7 @@ All behavioral checks use isolated databases. Never point these commands at `dbt
 ## 1. Activate the repository environment
 
 ```bash
-cd /Users/nicholasamaral/Developer/fidelity_planalign
+cd <repo>
 source .venv/bin/activate
 ```
 
@@ -106,13 +106,13 @@ DATABASE_PATH=/tmp/planalign-f122.ABC123/candidate.duckdb \
 Run dbt commands only from `dbt/`, single-threaded, and against the isolated DB:
 
 ```bash
-cd /Users/nicholasamaral/Developer/fidelity_planalign/dbt
+cd <repo>/dbt
 DATABASE_PATH=/tmp/planalign-f122.ABC123/candidate.duckdb \
   dbt test \
     --select int_workforce_state_accumulator fct_yearly_events fct_workforce_snapshot \
     --exclude test_type:singular \
     --threads 1
-cd /Users/nicholasamaral/Developer/fidelity_planalign
+cd <repo>
 ```
 
 ## 5. Run a migration phase gate

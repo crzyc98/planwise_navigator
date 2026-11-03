@@ -163,7 +163,7 @@ Failure in model int_example (models/intermediate/int_example.sql)
   Runtime Error in model int_example (models/intermediate/int_example.sql)
     Out of Memory Error: failed to allocate data of size 256.0 MiB
     > in macro __create_table_as (macros/adapters.sql)
-  compiled code at target/run/fidelity/models/intermediate/int_example.sql
+  compiled code at target/run/planalign_engine/models/intermediate/int_example.sql
 Done. PASS=30 WARN=0 ERROR=1 SKIP=0 TOTAL=31
 """
 

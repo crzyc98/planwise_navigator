@@ -174,7 +174,7 @@ workstation the existing cached build was selected with:
 
 ```bash
 source .venv/bin/activate
-export PYTHONPATH=/Users/nicholasamaral/.cache/uv/archive-v0/RHpthCeOXh7fvwvFKILmu:$PWD
+export PYTHONPATH=$HOME/.cache/uv/archive-v0/RHpthCeOXh7fvwvFKILmu:$PWD
 python -m scripts.perf_profile.hash_ab \
   --config config/simulation_config.yaml \
   --census workspaces/1497b19c-b212-4c67-82d3-bc0455b637e0/data/census.parquet \

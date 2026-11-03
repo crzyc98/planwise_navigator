@@ -1,9 +1,9 @@
-# Fidelity PlanAlign Engine Testing Guide
+# PlanAlign Engine Testing Guide
 
 **Test Suite**: 19 test files | 8,450 lines | 45+ test cases
 **Framework**: pytest 7.4.0 | Coverage: pytest-cov 4.1.0
 
-This comprehensive testing framework validates all aspects of the Fidelity PlanAlign Engine platform, from event sourcing to optimization and multi-year simulation.
+This comprehensive testing framework validates all aspects of the PlanAlign Engine platform, from event sourcing to optimization and multi-year simulation.
 
 ## Quick Start
 

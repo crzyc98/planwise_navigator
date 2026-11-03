@@ -68,7 +68,7 @@ function CompensationInput({ value, onCommit, hasError, step = 500, min = 0 }: {
       onChange={(e) => setLocalValue(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => { if (e.key === 'Enter') commit(); }}
-      className={`w-36 shadow-sm sm:text-sm rounded-md p-1 border text-right focus:ring-fidelity-green focus:border-fidelity-green ${
+      className={`w-36 shadow-sm sm:text-sm rounded-md p-1 border text-right focus:ring-brand-green focus:border-brand-green ${
         hasError ? 'border-red-500' : 'border-gray-300'
       }`}
     />

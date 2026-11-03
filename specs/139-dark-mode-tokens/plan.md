@@ -125,7 +125,7 @@ component styling uses semantic Tailwind roles:
 
 Components choose the role that describes the element. They do not choose a
 gray step or theme-specific value. Brand utilities remain for intentional
-Fidelity identity and primary actions, but their contrast is checked in both
+PlanAlign identity and primary actions, but their contrast is checked in both
 themes.
 
 ### Theme preference state machine

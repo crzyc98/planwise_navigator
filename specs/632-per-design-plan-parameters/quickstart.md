@@ -5,7 +5,7 @@ All behavioral runs use fresh isolated DuckDB files. Never point these commands 
 ## Prerequisites
 
 ```bash
-cd /Users/nicholasamaral/Developer/fidelity_planalign
+cd <repo>
 source .venv/bin/activate
 ```
 
