@@ -59,7 +59,7 @@ export function HistoryStep({ workspaceId, histories, selectedId, onSelect, onCh
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={uploading}
-          className="inline-flex items-center gap-2 rounded-lg bg-fidelity-green px-4 py-2 text-sm font-medium text-ink-inverse transition-colors hover:bg-fidelity-dark disabled:cursor-not-allowed disabled:bg-surface-disabled"
+          className="inline-flex items-center gap-2 rounded-lg bg-brand-green px-4 py-2 text-sm font-medium text-ink-inverse transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:bg-surface-disabled"
         >
           {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
           {uploading ? 'Validating…' : 'Upload census snapshots'}
@@ -79,7 +79,7 @@ export function HistoryStep({ workspaceId, histories, selectedId, onSelect, onCh
           <select
             value={selectedId ?? ''}
             onChange={(event) => onSelect(event.target.value)}
-            className="w-full rounded-md border border-border-strong bg-surface-raised p-2 text-sm text-ink shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+            className="w-full rounded-md border border-border-strong bg-surface-raised p-2 text-sm text-ink shadow-sm focus:border-brand-green focus:ring-brand-green"
           >
             {histories.map((history) => (
               <option key={history.history_id} value={history.history_id}>

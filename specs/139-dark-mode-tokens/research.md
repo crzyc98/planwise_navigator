@@ -6,7 +6,7 @@
 `:root[data-theme='dark']` in `planalign_studio/index.css`. Expose those values
 to Tailwind v4 through `@theme inline`, producing role-based utilities such as
 `bg-surface`, `bg-surface-raised`, `text-ink`, `text-ink-muted`, and
-`border-border`. Keep Fidelity brand colors separate from neutral and status
+`border-border`. Keep PlanAlign brand colors separate from neutral and status
 roles.
 
 The minimum product vocabulary is expanded just enough to preserve the current

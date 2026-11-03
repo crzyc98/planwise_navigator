@@ -1,5 +1,5 @@
 """
-Orchestrator wrapper for Fidelity PlanAlign Engine CLI
+Orchestrator wrapper for PlanAlign Engine CLI
 
 Wraps existing planalign_orchestrator components with enhanced error handling,
 progress reporting, and user-friendly interfaces.

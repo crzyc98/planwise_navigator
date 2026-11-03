@@ -206,7 +206,7 @@ export default function BatchProcessing() {
             id="batch-name"
             type="text"
             placeholder="e.g., Q3 Planning Scenarios"
-            className="w-full p-2 border border-border-strong rounded-md focus:ring-fidelity-green focus:border-fidelity-green"
+            className="w-full p-2 border border-border-strong rounded-md focus:ring-brand-green focus:border-brand-green"
             value={newBatchName}
             onChange={e => setNewBatchName(e.target.value)}
           />
@@ -227,7 +227,7 @@ export default function BatchProcessing() {
               <button
                 type="button"
                 onClick={() => setExecutionMode('sequential')}
-                className={`flex-1 px-4 py-2 text-sm font-medium border rounded-r-lg ${executionMode === 'sequential' ? 'bg-fidelity-green text-ink-inverse border-fidelity-green' : 'bg-surface-raised text-ink-muted border-border-strong hover:bg-surface-subtle'}`}
+                className={`flex-1 px-4 py-2 text-sm font-medium border rounded-r-lg ${executionMode === 'sequential' ? 'bg-brand-green text-ink-inverse border-brand-green' : 'bg-surface-raised text-ink-muted border-border-strong hover:bg-surface-subtle'}`}
               >
                 Sequential
               </button>
@@ -241,14 +241,14 @@ export default function BatchProcessing() {
               <button
                 type="button"
                 onClick={() => setExportFormat('excel')}
-                className={`flex-1 px-4 py-2 text-sm font-medium border rounded-l-lg ${exportFormat === 'excel' ? 'bg-fidelity-green text-ink-inverse border-fidelity-green' : 'bg-surface-raised text-ink-muted border-border-strong hover:bg-surface-subtle'}`}
+                className={`flex-1 px-4 py-2 text-sm font-medium border rounded-l-lg ${exportFormat === 'excel' ? 'bg-brand-green text-ink-inverse border-brand-green' : 'bg-surface-raised text-ink-muted border-border-strong hover:bg-surface-subtle'}`}
               >
                 Excel (.xlsx)
               </button>
               <button
                 type="button"
                 onClick={() => setExportFormat('csv')}
-                className={`flex-1 px-4 py-2 text-sm font-medium border rounded-r-lg ${exportFormat === 'csv' ? 'bg-fidelity-green text-ink-inverse border-fidelity-green' : 'bg-surface-raised text-ink-muted border-border-strong hover:bg-surface-subtle'}`}
+                className={`flex-1 px-4 py-2 text-sm font-medium border rounded-r-lg ${exportFormat === 'csv' ? 'bg-brand-green text-ink-inverse border-brand-green' : 'bg-surface-raised text-ink-muted border-border-strong hover:bg-surface-subtle'}`}
               >
                 CSV (.zip)
               </button>
@@ -266,7 +266,7 @@ export default function BatchProcessing() {
               <p>No scenarios available.</p>
               <button
                 onClick={() => navigate('/scenarios')}
-                className="mt-2 text-fidelity-green hover:underline text-sm"
+                className="mt-2 text-brand-green hover:underline text-sm"
               >
                 Create a scenario first
               </button>
@@ -282,7 +282,7 @@ export default function BatchProcessing() {
                   tabIndex={0}
                   onClick={() => toggleScenarioSelection(scenario.id)}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleScenarioSelection(scenario.id); } }}
-                  className={`cursor-pointer p-4 rounded-lg border-2 transition-all ${selectedScenarioIds.includes(scenario.id) ? 'border-fidelity-green bg-success-surface' : 'border-border hover:border-border-strong'}`}
+                  className={`cursor-pointer p-4 rounded-lg border-2 transition-all ${selectedScenarioIds.includes(scenario.id) ? 'border-brand-green bg-success-surface' : 'border-border hover:border-border-strong'}`}
                 >
                   <div className="flex justify-between items-start">
                     <div className="flex-1 min-w-0">
@@ -302,7 +302,7 @@ export default function BatchProcessing() {
                       </div>
                     </div>
                     {selectedScenarioIds.includes(scenario.id) && (
-                      <CheckCircle className="text-fidelity-green flex-shrink-0 ml-2" size={20} />
+                      <CheckCircle className="text-brand-green flex-shrink-0 ml-2" size={20} />
                     )}
                   </div>
                 </div>
@@ -315,7 +315,7 @@ export default function BatchProcessing() {
           <button
             disabled={selectedScenarioIds.length === 0 || isSubmitting}
             onClick={handleStartBatch}
-            className={`flex items-center px-6 py-3 rounded-lg font-medium shadow-md transition-colors ${selectedScenarioIds.length === 0 || isSubmitting ? 'bg-surface-disabled text-ink-muted cursor-not-allowed' : 'bg-fidelity-green text-ink-inverse hover:bg-fidelity-dark'}`}
+            className={`flex items-center px-6 py-3 rounded-lg font-medium shadow-md transition-colors ${selectedScenarioIds.length === 0 || isSubmitting ? 'bg-surface-disabled text-ink-muted cursor-not-allowed' : 'bg-brand-green text-ink-inverse hover:bg-brand-dark'}`}
           >
             {isSubmitting ? (
               <>
@@ -380,7 +380,7 @@ export default function BatchProcessing() {
 
           <div className="w-full bg-surface-subtle rounded-full h-3 mb-6">
             <div
-              className="bg-fidelity-green h-3 rounded-full transition-all duration-500"
+              className="bg-brand-green h-3 rounded-full transition-all duration-500"
               style={{ width: `${progress}%` }}
             ></div>
           </div>
@@ -464,7 +464,7 @@ export default function BatchProcessing() {
           </div>
           <button
             onClick={() => setView('create')}
-            className="flex items-center px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg hover:bg-fidelity-dark transition-colors shadow-sm"
+            className="flex items-center px-4 py-2 bg-brand-green text-ink-inverse rounded-lg hover:bg-brand-dark transition-colors shadow-sm"
           >
             <Plus size={20} className="mr-2" />
             Create New Batch
@@ -474,7 +474,7 @@ export default function BatchProcessing() {
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-fidelity-green mx-auto mb-3"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-green mx-auto mb-3"></div>
               <p className="text-sm text-ink-muted">Loading batches...</p>
             </div>
           </div>
@@ -562,7 +562,7 @@ export default function BatchProcessing() {
                   <p className="text-sm text-ink-muted mb-4">Create a batch to run multiple scenarios together.</p>
                   <button
                     onClick={() => setView('create')}
-                    className="px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-fidelity-dark inline-flex items-center"
+                    className="px-4 py-2 bg-brand-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-brand-dark inline-flex items-center"
                   >
                     <Plus size={16} className="mr-2" />
                     Create Batch
@@ -605,14 +605,14 @@ export default function BatchProcessing() {
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <button
                             onClick={(e) => handleRerun(job, e)}
-                            className="text-ink-muted hover:text-fidelity-green mr-4"
+                            className="text-ink-muted hover:text-brand-green mr-4"
                             title="Re-run Batch"
                           >
                             <RotateCw size={16} />
                           </button>
                           <button
                             onClick={() => handleViewDetails(job)}
-                            className="text-fidelity-green hover:text-fidelity-dark mr-4"
+                            className="text-brand-green hover:text-brand-dark mr-4"
                           >
                             View
                           </button>

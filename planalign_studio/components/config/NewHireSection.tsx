@@ -132,7 +132,7 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
       <div className="space-y-2">
         <label htmlFor="newhire-salary-growth" className="block text-sm font-medium text-ink">Annual starting-pay growth (%)</label>
         <div className="flex items-center gap-2">
-          <NumericInput id="newhire-salary-growth" type="number" min="0" max="25" step="0.1" value={formData.newHireSalaryGrowthPercent} onChange={(e) => setFormData(prev => ({ ...prev, newHireSalaryGrowthPercent: parseFloat(e.target.value) }))} className="focus:ring-fidelity-green focus:border-fidelity-green block w-full sm:text-sm border-border rounded-md p-2" />
+          <NumericInput id="newhire-salary-growth" type="number" min="0" max="25" step="0.1" value={formData.newHireSalaryGrowthPercent} onChange={(e) => setFormData(prev => ({ ...prev, newHireSalaryGrowthPercent: parseFloat(e.target.value) }))} className="focus:ring-brand-green focus:border-brand-green block w-full sm:text-sm border-border rounded-md p-2" />
           <button type="button" onClick={() => setFormData(prev => ({ ...prev, newHireSalaryGrowthPercent: prev.colaRate }))} className="px-3 py-2 rounded bg-surface-disabled text-sm whitespace-nowrap">Match COLA</button>
         </div>
         <p className="text-xs text-ink-muted">Raises new-hire salary ranges each year after the first simulation year. Ranges are entered in first-year dollars.</p>
@@ -144,15 +144,15 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
         <p className="text-xs text-ink-muted">Strategy, target percentile and offer variance are retained from configuration but are not used by the current engine. These values are read-only.</p>
         {/* Strategy Selector */}
         <div className="flex items-center space-x-4 mb-6">
-          <label htmlFor="newhire-strategy-percentile" className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors w-1/2 ${formData.newHireStrategy === 'percentile' ? 'bg-success-surface border-fidelity-green ring-1 ring-fidelity-green' : 'bg-surface-raised border-border hover:bg-surface-subtle'}`}>
-            <input id="newhire-strategy-percentile" type="radio" name="newHireStrategy" value="percentile" checked={formData.newHireStrategy === 'percentile'} onChange={handleChange} className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-border-strong" />
+          <label htmlFor="newhire-strategy-percentile" className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors w-1/2 ${formData.newHireStrategy === 'percentile' ? 'bg-success-surface border-brand-green ring-1 ring-brand-green' : 'bg-surface-raised border-border hover:bg-surface-subtle'}`}>
+            <input id="newhire-strategy-percentile" type="radio" name="newHireStrategy" value="percentile" checked={formData.newHireStrategy === 'percentile'} onChange={handleChange} className="h-4 w-4 text-brand-green focus:ring-brand-green border-border-strong" />
             <div className="ml-3">
               <span className="block text-sm font-medium text-ink">Percentile Based</span>
               <span className="block text-xs text-ink-muted">Offers target market percentiles (e.g., P50)</span>
             </div>
           </label>
-          <label htmlFor="newhire-strategy-fixed" className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors w-1/2 ${formData.newHireStrategy === 'fixed' ? 'bg-success-surface border-fidelity-green ring-1 ring-fidelity-green' : 'bg-surface-raised border-border hover:bg-surface-subtle'}`}>
-            <input id="newhire-strategy-fixed" type="radio" name="newHireStrategy" value="fixed" checked={formData.newHireStrategy === 'fixed'} onChange={handleChange} className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-border-strong" />
+          <label htmlFor="newhire-strategy-fixed" className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors w-1/2 ${formData.newHireStrategy === 'fixed' ? 'bg-success-surface border-brand-green ring-1 ring-brand-green' : 'bg-surface-raised border-border hover:bg-surface-subtle'}`}>
+            <input id="newhire-strategy-fixed" type="radio" name="newHireStrategy" value="fixed" checked={formData.newHireStrategy === 'fixed'} onChange={handleChange} className="h-4 w-4 text-brand-green focus:ring-brand-green border-border-strong" />
             <div className="ml-3">
               <span className="block text-sm font-medium text-ink">Fixed Bands</span>
               <span className="block text-xs text-ink-muted">Offers use rigid salary structures</span>
@@ -231,7 +231,7 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
                   <tr key={row.age}>
                     <td className="px-4 py-2 text-sm text-ink font-medium">{row.age}</td>
                     <td className="px-4 py-2">
-                      <NumericInput type="number" step="1" min="0" max="100" value={Number((row.weight * 100).toFixed(10))} onChange={(e) => handleAgeWeightChange(idx, e.target.value)} className="w-20 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-right" />
+                      <NumericInput type="number" step="1" min="0" max="100" value={Number((row.weight * 100).toFixed(10))} onChange={(e) => handleAgeWeightChange(idx, e.target.value)} className="w-20 shadow-sm focus:ring-brand-green focus:border-brand-green sm:text-sm border-border-strong rounded-md p-1 border text-right" />
                     </td>
                     <td className="px-4 py-2 text-sm text-ink-muted">{row.description}</td>
                   </tr>
@@ -301,7 +301,7 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
               max="100"
               value={formData.partTimeNewHirePct}
               onChange={(e) => setFormData(prev => ({ ...prev, partTimeNewHirePct: parseFloat(e.target.value) || 0 }))}
-              className="w-24 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1.5 border text-right"
+              className="w-24 shadow-sm focus:ring-brand-green focus:border-brand-green sm:text-sm border-border-strong rounded-md p-1.5 border text-right"
             />
             <span className="text-sm text-ink-muted">%</span>
           </div>
@@ -312,15 +312,15 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
           <legend className="text-sm font-semibold text-ink">Legacy level distribution (unsupported)</legend>
           <p className="text-xs text-ink-muted mb-4">Stored mode and percentages are retained for compatibility. They are not passed to the current engine and are read-only.</p>
           <div className="flex items-center space-x-4 mb-4">
-            <label htmlFor="newhire-level-dist-adaptive" className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${formData.levelDistributionMode === 'adaptive' ? 'bg-success-surface border-fidelity-green ring-1 ring-fidelity-green' : 'bg-surface-raised border-border hover:bg-surface-subtle'}`}>
-              <input id="newhire-level-dist-adaptive" type="radio" name="levelDistributionMode" value="adaptive" checked={formData.levelDistributionMode === 'adaptive'} onChange={(e) => setFormData({...formData, levelDistributionMode: e.target.value})} className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-border-strong" />
+            <label htmlFor="newhire-level-dist-adaptive" className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${formData.levelDistributionMode === 'adaptive' ? 'bg-success-surface border-brand-green ring-1 ring-brand-green' : 'bg-surface-raised border-border hover:bg-surface-subtle'}`}>
+              <input id="newhire-level-dist-adaptive" type="radio" name="levelDistributionMode" value="adaptive" checked={formData.levelDistributionMode === 'adaptive'} onChange={(e) => setFormData({...formData, levelDistributionMode: e.target.value})} className="h-4 w-4 text-brand-green focus:ring-brand-green border-border-strong" />
               <div className="ml-2">
                 <span className="block text-sm font-medium text-ink">Adaptive</span>
                 <span className="block text-xs text-ink-muted">Maintain current workforce composition</span>
               </div>
             </label>
-            <label htmlFor="newhire-level-dist-fixed" className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${formData.levelDistributionMode === 'fixed' ? 'bg-success-surface border-fidelity-green ring-1 ring-fidelity-green' : 'bg-surface-raised border-border hover:bg-surface-subtle'}`}>
-              <input id="newhire-level-dist-fixed" type="radio" name="levelDistributionMode" value="fixed" checked={formData.levelDistributionMode === 'fixed'} onChange={(e) => setFormData({...formData, levelDistributionMode: e.target.value})} className="h-4 w-4 text-fidelity-green focus:ring-fidelity-green border-border-strong" />
+            <label htmlFor="newhire-level-dist-fixed" className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${formData.levelDistributionMode === 'fixed' ? 'bg-success-surface border-brand-green ring-1 ring-brand-green' : 'bg-surface-raised border-border hover:bg-surface-subtle'}`}>
+              <input id="newhire-level-dist-fixed" type="radio" name="levelDistributionMode" value="fixed" checked={formData.levelDistributionMode === 'fixed'} onChange={(e) => setFormData({...formData, levelDistributionMode: e.target.value})} className="h-4 w-4 text-brand-green focus:ring-brand-green border-border-strong" />
               <div className="ml-2">
                 <span className="block text-sm font-medium text-ink">Fixed Percentages</span>
                 <span className="block text-xs text-ink-muted">Specify exact distribution below</span>
@@ -344,7 +344,7 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
                       <td className="px-4 py-2 text-sm text-ink font-medium">{row.level}</td>
                       <td className="px-4 py-2 text-sm text-ink-muted">{row.name}</td>
                       <td className="px-4 py-2">
-                        <NumericInput type="number" step="1" min="0" max="100" value={row.percentage} onChange={(e) => handleLevelPercentageChange(idx, e.target.value)} className="w-20 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-right" />
+                        <NumericInput type="number" step="1" min="0" max="100" value={row.percentage} onChange={(e) => handleLevelPercentageChange(idx, e.target.value)} className="w-20 shadow-sm focus:ring-brand-green focus:border-brand-green sm:text-sm border-border-strong rounded-md p-1 border text-right" />
                       </td>
                     </tr>
                   ))}
@@ -517,7 +517,7 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
                 <div key={row.level} className="bg-surface-raised p-2 rounded border border-border">
                   <label htmlFor={`newhire-level-adj-${row.level}`} className="block text-xs text-ink-muted mb-1 text-center">Level {row.level}</label>
                   <div className="relative">
-                    <NumericInput id={`newhire-level-adj-${row.level}`} type="number" step="1" value={row.adjustment} onChange={(e) => handleLevelAdjustmentChange(idx, e.target.value)} className="w-full shadow-sm focus:ring-fidelity-green focus:border-fidelity-green text-xs border-border-strong rounded-md p-1 border text-center" />
+                    <NumericInput id={`newhire-level-adj-${row.level}`} type="number" step="1" value={row.adjustment} onChange={(e) => handleLevelAdjustmentChange(idx, e.target.value)} className="w-full shadow-sm focus:ring-brand-green focus:border-brand-green text-xs border-border-strong rounded-md p-1 border text-center" />
                     <span className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-subtle text-xs">%</span>
                   </div>
                 </div>

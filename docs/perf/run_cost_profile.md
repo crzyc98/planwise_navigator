@@ -80,9 +80,9 @@ Assumptions:
 
 Top computation hotspots at the decision size (execute time summed over the full multi-year run; median across reps):
 
-1. `model.fidelity_planalign_engine.fct_yearly_events` — 462.0s
-2. `model.fidelity_planalign_engine.fct_workforce_snapshot` — 1.6s
-3. `model.fidelity_planalign_engine.int_deferral_rate_state_accumulator` — 0.7s
+1. `model.planalign_engine.fct_yearly_events` — 462.0s
+2. `model.planalign_engine.fct_workforce_snapshot` — 1.6s
+3. `model.planalign_engine.int_deferral_rate_state_accumulator` — 0.7s
 
 ## 9. Recommendation
 

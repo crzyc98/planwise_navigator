@@ -1107,7 +1107,7 @@ wheels = [
 ]
 
 [[package]]
-name = "fidelity-planalign-engine"
+name = "planalign-engine"
 version = "3.0.0"
 source = { editable = "." }
 dependencies = [

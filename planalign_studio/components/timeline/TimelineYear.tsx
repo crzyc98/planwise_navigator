@@ -13,12 +13,12 @@ export default function TimelineYear({ year }: Readonly<{ year: TimelineYearData
         {year.events.length === 0 ? (
           <p className="rounded-lg bg-surface-subtle p-3 text-sm text-ink-muted">No events this year</p>
         ) : (
-          <ol className="relative ml-2 space-y-4 border-l-2 border-fidelity-green/30 pl-5">
+          <ol className="relative ml-2 space-y-4 border-l-2 border-brand-green/30 pl-5">
             {year.events.map((event) => (
               <li key={`${event.source}-${event.event_id}`}>
-                <span className="absolute -left-1.5 mt-1.5 h-2.5 w-2.5 rounded-full bg-fidelity-green" />
+                <span className="absolute -left-1.5 mt-1.5 h-2.5 w-2.5 rounded-full bg-brand-green" />
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-success-surface px-2 py-0.5 text-xs font-semibold text-fidelity-green">{event.event_type.replaceAll('_', ' ')}</span>
+                  <span className="rounded-full bg-success-surface px-2 py-0.5 text-xs font-semibold text-brand-green">{event.event_type.replaceAll('_', ' ')}</span>
                   <time className="text-xs text-ink-muted">{event.effective_date}</time>
                 </div>
                 {event.event_details && (

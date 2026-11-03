@@ -1,6 +1,6 @@
 # filename: config/events/core.py
 """
-Core event model and factory classes for Fidelity PlanAlign Engine.
+Core event model and factory classes for PlanAlign Engine.
 
 Contains:
 - SimulationEvent: Unified event model with discriminated union payload

@@ -25,7 +25,7 @@ def git_path(argument: str) -> Path:
 def dependency_contract(root: Path) -> dict:
     config = tomllib.loads((root / "pyproject.toml").read_text())
     project = config["project"]
-    if project["name"] != "fidelity-planalign-engine":
+    if project["name"] != "planalign-engine":
         raise ValueError(f"Not a PlanAlign checkout: {root}")
     return {
         key: project.get(key)

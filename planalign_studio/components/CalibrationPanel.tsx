@@ -174,7 +174,7 @@ function StepHeader({
 }) {
   return (
     <div className="flex items-start gap-3">
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-fidelity-green text-sm font-semibold text-ink-inverse">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-green text-sm font-semibold text-ink-inverse">
         {n}
       </span>
       <div>
@@ -202,7 +202,7 @@ function SliderRow({
           {s.label}
           {s.hint && <span className="ml-2 text-xs font-normal text-ink-subtle">{s.hint}</span>}
         </span>
-        <span className="text-fidelity-green">{pct(value)}</span>
+        <span className="text-brand-green">{pct(value)}</span>
       </div>
       <input
         type="range"
@@ -211,7 +211,7 @@ function SliderRow({
         step={s.step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-fidelity-green"
+        className="w-full accent-brand-green"
       />
     </div>
   );
@@ -653,7 +653,7 @@ export default function CalibrationPanel() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-2">
-        <SlidersHorizontal className="text-fidelity-green" size={24} />
+        <SlidersHorizontal className="text-brand-green" size={24} />
         <h1 className="text-2xl font-bold text-ink">Compensation Calibration</h1>
       </div>
       <p className="text-ink-muted">
@@ -695,7 +695,7 @@ export default function CalibrationPanel() {
               value={selectedScenarioId}
               onChange={(event) => setSelection({ workspaceId: activeWorkspace!.id, id: event.target.value })}
               disabled={!scenariosLoaded || scenarios.length === 0 || autoLoading}
-              className="mt-1 w-full rounded-md border border-border-strong bg-surface-raised p-2 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+              className="mt-1 w-full rounded-md border border-border-strong bg-surface-raised p-2 text-sm shadow-sm focus:border-brand-green focus:ring-brand-green"
             >
               <option value="" disabled>Select a scenario</option>
               {scenarios.map((scenario) => (
@@ -758,7 +758,7 @@ export default function CalibrationPanel() {
               />
             ))}
           </div>
-          <div className="rounded-md bg-fidelity-green/5 border border-fidelity-green/20 px-3 py-2 text-xs text-fidelity-dark">
+          <div className="rounded-md bg-brand-green/5 border border-brand-green/20 px-3 py-2 text-xs text-brand-dark">
             <span className="font-semibold">Target Salary Growth is the objective.</span>{' '}
             Calibration auto-tunes your chosen lever (Step 2) until per-year salary
             growth lands on this target.
@@ -783,13 +783,13 @@ export default function CalibrationPanel() {
                   disabled={autoLoading}
                   className={`text-left rounded-lg border p-4 transition ${
                     selected
-                      ? 'border-fidelity-green ring-2 ring-fidelity-green/30 bg-success-surface'
+                      ? 'border-brand-green ring-2 ring-brand-green/30 bg-success-surface'
                       : 'border-border hover:border-border-strong'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm font-semibold text-ink">{m.title}</span>
-                    {selected && <Check size={16} className="text-fidelity-green shrink-0" />}
+                    {selected && <Check size={16} className="text-brand-green shrink-0" />}
                   </div>
                   <p className="mt-1 text-xs text-ink-muted">{m.description}</p>
                 </button>
@@ -811,7 +811,7 @@ export default function CalibrationPanel() {
               something the solver derives. When held fixed, the full editor shows. */}
           {solvingNewHireRanges ? (
             <div className="rounded-md border border-dashed border-border-strong bg-surface-subtle p-4 flex items-start gap-2">
-              <Sparkles size={16} className="mt-0.5 shrink-0 text-fidelity-green" />
+              <Sparkles size={16} className="mt-0.5 shrink-0 text-brand-green" />
               <div className="text-sm text-ink-muted">
                 <span className="font-medium text-ink">Job Level Compensation Ranges — solved automatically.</span>{' '}
                 Calibration scales census-derived new-hire ranges to hit your target,
@@ -836,7 +836,7 @@ export default function CalibrationPanel() {
                   <input
                     type="number" step="0.1" min={0.1} max={3.0} value={scaleFactor}
                     onChange={(e) => setScaleFactor(Number(e.target.value))}
-                    className="mt-1 w-24 rounded-md border border-border-strong p-1.5 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+                    className="mt-1 w-24 rounded-md border border-border-strong p-1.5 text-sm shadow-sm focus:border-brand-green focus:ring-brand-green"
                   />
                 </label>
                 <label className="block">
@@ -844,7 +844,7 @@ export default function CalibrationPanel() {
                   <input
                     type="number" min={0} max={20} value={lookbackYears}
                     onChange={(e) => setLookbackYears(Number(e.target.value))}
-                    className="mt-1 w-28 rounded-md border border-border-strong p-1.5 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+                    className="mt-1 w-28 rounded-md border border-border-strong p-1.5 text-sm shadow-sm focus:border-brand-green focus:ring-brand-green"
                   />
                 </label>
                 <button
@@ -894,7 +894,7 @@ export default function CalibrationPanel() {
                   name="ageDistMode"
                   checked={ageDistMode === 'default'}
                   onChange={() => handleAgeDistModeChange('default')}
-                  className="accent-fidelity-green"
+                  className="accent-brand-green"
                 />
                 Scenario/seed defaults
               </label>
@@ -905,7 +905,7 @@ export default function CalibrationPanel() {
                   checked={ageDistMode === 'census'}
                   onChange={() => handleAgeDistModeChange('census')}
                   disabled={!censusPath}
-                  className="accent-fidelity-green"
+                  className="accent-brand-green"
                 />
                 Match census
                 {ageDistLoading && ageDistMode === 'census' && (
@@ -918,7 +918,7 @@ export default function CalibrationPanel() {
                   name="ageDistMode"
                   checked={ageDistMode === 'custom'}
                   onChange={() => handleAgeDistModeChange('custom')}
-                  className="accent-fidelity-green"
+                  className="accent-brand-green"
                 />
                 Custom
               </label>
@@ -938,13 +938,13 @@ export default function CalibrationPanel() {
                       <input
                         type="number" min={16} max={80} value={row.age}
                         onChange={(e) => setAgeRow(idx, { age: Number(e.target.value) })}
-                        className="w-16 rounded-md border border-border-strong p-1 text-xs shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+                        className="w-16 rounded-md border border-border-strong p-1 text-xs shadow-sm focus:border-brand-green focus:ring-brand-green"
                       />
                     </label>
                     <input
                       type="range" min={0} max={0.5} step={0.01} value={row.weight}
                       onChange={(e) => setAgeRow(idx, { weight: Number(e.target.value) })}
-                      className="flex-1 accent-fidelity-green"
+                      className="flex-1 accent-brand-green"
                     />
                     <span className="w-12 text-right text-xs text-ink-muted">{pct(row.weight)}</span>
                     <button
@@ -965,7 +965,7 @@ export default function CalibrationPanel() {
                         { age: (prev[prev.length - 1]?.age ?? 30) + 5, weight: 0.05 },
                       ])
                     }
-                    className="inline-flex items-center gap-1 text-xs text-fidelity-green hover:text-fidelity-dark"
+                    className="inline-flex items-center gap-1 text-xs text-brand-green hover:text-brand-dark"
                   >
                     <Plus size={14} /> Add age bucket
                   </button>
@@ -1088,7 +1088,7 @@ export default function CalibrationPanel() {
                     type="number" step="0.1" min={0} max={100}
                     value={Number((values.total_termination_rate * 100).toFixed(1))}
                     onChange={(e) => setValue('total_termination_rate', Number(e.target.value) / 100)}
-                    className="w-24 rounded-md border border-border-strong p-1.5 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+                    className="w-24 rounded-md border border-border-strong p-1.5 text-sm shadow-sm focus:border-brand-green focus:ring-brand-green"
                   />
                   <span className="text-xs text-ink-muted">%</span>
                 </div>
@@ -1100,7 +1100,7 @@ export default function CalibrationPanel() {
                     type="number" step="0.1" min={0} max={100}
                     value={Number((values.new_hire_termination_rate * 100).toFixed(1))}
                     onChange={(e) => setValue('new_hire_termination_rate', Number(e.target.value) / 100)}
-                    className="w-24 rounded-md border border-border-strong p-1.5 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+                    className="w-24 rounded-md border border-border-strong p-1.5 text-sm shadow-sm focus:border-brand-green focus:ring-brand-green"
                   />
                   <span className="text-xs text-ink-muted">%</span>
                 </div>
@@ -1139,7 +1139,7 @@ export default function CalibrationPanel() {
             </div>
           ) : (
             <div className="rounded-md border border-dashed border-border-strong bg-surface-subtle p-4 flex items-start gap-2">
-              <Sparkles size={16} className="mt-0.5 shrink-0 text-fidelity-green" />
+              <Sparkles size={16} className="mt-0.5 shrink-0 text-brand-green" />
               <div className="text-sm text-ink-muted">
                 <span className="font-medium text-ink">COLA &amp; merit — solved automatically.</span>{' '}
                 Calibration finds the COLA and merit budget that hit your Target Salary
@@ -1305,7 +1305,7 @@ export default function CalibrationPanel() {
                 onClick={handleApplyToWorkspace}
                 disabled={autoLoading || applyStatus === 'applying' || !activeWorkspace?.id || !autoOutcome || !autoContext || results.length === 0}
                 title={results.length === 0 ? 'Auto-calibrate first' : 'Write these levers to the workspace base config and all its scenarios'}
-                className="inline-flex items-center gap-2 rounded bg-fidelity-green px-4 py-2 text-ink-inverse font-medium hover:bg-fidelity-dark disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded bg-brand-green px-4 py-2 text-ink-inverse font-medium hover:bg-brand-dark disabled:opacity-50"
               >
                 {applyStatus === 'applying' ? <Loader2 className="animate-spin" size={18} /> : <Database size={18} />}
                 {applyStatus === 'applying'

@@ -128,7 +128,7 @@ export default function RunProvenanceReport() {
   if (loading) {
     return (
       <div className="flex h-96 items-center justify-center">
-        <Loader2 className="animate-spin text-fidelity-green" size={44} />
+        <Loader2 className="animate-spin text-brand-green" size={44} />
       </div>
     );
   }
@@ -141,7 +141,7 @@ export default function RunProvenanceReport() {
         <p className="mt-2 max-w-xl text-ink-muted">{error ?? 'The archived report is unavailable.'}</p>
         <button
           onClick={() => navigate(scenarioId ? `/simulate/${scenarioId}` : '/simulate')}
-          className="mt-5 rounded-lg bg-fidelity-green px-4 py-2 font-medium text-ink-inverse"
+          className="mt-5 rounded-lg bg-brand-green px-4 py-2 font-medium text-ink-inverse"
         >
           Back to Run History
         </button>
@@ -165,7 +165,7 @@ export default function RunProvenanceReport() {
               <ArrowLeft size={20} />
             </button>
             <div>
-              <p className="text-sm font-medium uppercase tracking-wide text-fidelity-green">Run provenance</p>
+              <p className="text-sm font-medium uppercase tracking-wide text-brand-green">Run provenance</p>
               <h1 className="mt-1 text-2xl font-bold text-ink">Audit Report</h1>
               <p className="mt-2 break-all font-mono text-xs text-ink-muted">{evidence.run.run_id}</p>
             </div>
@@ -174,7 +174,7 @@ export default function RunProvenanceReport() {
             <button
               onClick={() => void handleDownload('zip')}
               disabled={download !== null}
-              className="flex items-center rounded-lg bg-fidelity-green px-4 py-2 text-sm font-medium text-ink-inverse hover:bg-fidelity-dark disabled:opacity-60"
+              className="flex items-center rounded-lg bg-brand-green px-4 py-2 text-sm font-medium text-ink-inverse hover:bg-brand-dark disabled:opacity-60"
             >
               {download === 'zip' ? <Loader2 className="mr-2 animate-spin" size={16} /> : <Download className="mr-2" size={16} />}
               Download Audit Report
@@ -333,7 +333,7 @@ export default function RunProvenanceReport() {
 
       <Section title="Integrity Verification and Reviewer Sign-Off">
         <div className="flex items-start gap-3 rounded-lg bg-surface-subtle p-4">
-          <ShieldCheck className="mt-0.5 shrink-0 text-fidelity-green" size={24} />
+          <ShieldCheck className="mt-0.5 shrink-0 text-brand-green" size={24} />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-ink">{report.digest.algorithm} · {report.digest.canonicalization}</p>
             <code className="mt-2 block break-all text-xs text-ink-muted">{report.digest.value}</code>

@@ -1,5 +1,5 @@
 """
-Batch command for Fidelity PlanAlign Engine CLI
+Batch command for PlanAlign Engine CLI
 
 Run multiple scenarios with Excel export and enhanced progress tracking.
 """

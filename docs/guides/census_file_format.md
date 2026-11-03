@@ -3,7 +3,7 @@
 This document is meant to be handed to an LLM together with a raw/arbitrary
 census export. The LLM should use it to map the source file's columns onto
 the canonical schema below and produce a cleaned CSV or XLSX file ready for
-upload to Fidelity PlanAlign Engine.
+upload to PlanAlign Engine.
 
 Source of truth in the codebase: `planalign_api/services/census_schema.py`
 (canonical fields + aliases) and `dbt/models/staging/stg_census_data.sql`

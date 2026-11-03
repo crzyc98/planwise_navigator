@@ -313,7 +313,7 @@ const EmptyState = ({ message, onRefresh }: { message: string; onRefresh?: () =>
     {onRefresh && (
       <button
         onClick={onRefresh}
-        className="flex items-center px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-fidelity-dark transition-colors"
+        className="flex items-center px-4 py-2 bg-brand-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-brand-dark transition-colors"
       >
         <RefreshCw size={16} className="mr-2" />
         Refresh Data
@@ -1277,7 +1277,7 @@ export default function ScenarioCostComparison() {
               <Filter size={18} className="mr-2 text-ink-muted" />
               Scenarios
             </h3>
-            <span className="text-[10px] font-bold bg-fidelity-green text-ink-inverse px-1.5 py-0.5 rounded">
+            <span className="text-[10px] font-bold bg-brand-green text-ink-inverse px-1.5 py-0.5 rounded">
               {selectedScenarioIds.length} SELECTED
             </span>
           </div>
@@ -1290,7 +1290,7 @@ export default function ScenarioCostComparison() {
               placeholder="Search scenarios..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 text-xs bg-surface-raised border border-border rounded-md focus:ring-1 focus:ring-fidelity-green outline-none"
+              className="w-full pl-8 pr-3 py-1.5 text-xs bg-surface-raised border border-border rounded-md focus:ring-1 focus:ring-brand-green outline-none"
             />
           </div>
         </div>
@@ -1328,17 +1328,17 @@ export default function ScenarioCostComparison() {
                     return (
                       <div
                         key={id}
-                        className={`group w-full text-left px-3 py-2 rounded-lg flex items-center justify-between transition-all border ${isAnchor ? 'bg-info-surface border-info-border shadow-sm' : 'bg-fidelity-green/5 border-fidelity-green/20'}`}
+                        className={`group w-full text-left px-3 py-2 rounded-lg flex items-center justify-between transition-all border ${isAnchor ? 'bg-info-surface border-info-border shadow-sm' : 'bg-brand-green/5 border-brand-green/20'}`}
                       >
                         <button
                           onClick={() => toggleSelection(id)}
                           className="flex items-start flex-1 min-w-0"
                         >
                           <div className="mt-1 mr-3 flex-shrink-0">
-                            <CheckSquare size={16} className={isAnchor ? 'text-info-ink' : 'text-fidelity-green'} />
+                            <CheckSquare size={16} className={isAnchor ? 'text-info-ink' : 'text-brand-green'} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <span className={`text-xs font-semibold block truncate ${isAnchor ? 'text-info-ink' : 'text-fidelity-green'}`}>
+                            <span className={`text-xs font-semibold block truncate ${isAnchor ? 'text-info-ink' : 'text-brand-green'}`}>
                               {scenario.name}
                             </span>
                             <p className="text-[9px] text-ink-muted uppercase tracking-tight">
@@ -1603,7 +1603,7 @@ export default function ScenarioCostComparison() {
                     type="checkbox"
                     checked={grandfatherExisting}
                     onChange={event => setGrandfatherExisting(event.target.checked)}
-                    className="h-4 w-4 rounded border-border text-fidelity-green"
+                    className="h-4 w-4 rounded border-border text-brand-green"
                   />
                   Grandfather existing employees
                 </label>
@@ -1620,7 +1620,7 @@ export default function ScenarioCostComparison() {
                           const value = event.target.valueAsNumber;
                           setGrandfatherCutoffYear(Number.isFinite(value) ? value : null);
                         }}
-                        className="w-24 rounded-md border border-border bg-surface-raised px-2 py-1 text-xs font-medium normal-case text-ink outline-none focus:ring-1 focus:ring-fidelity-green"
+                        className="w-24 rounded-md border border-border bg-surface-raised px-2 py-1 text-xs font-medium normal-case text-ink outline-none focus:ring-1 focus:ring-brand-green"
                       />
                     </label>
                     <span className="text-xs text-ink-muted">
@@ -1654,7 +1654,7 @@ export default function ScenarioCostComparison() {
                     <select
                       value={vestingSchedule}
                       onChange={e => setVestingSchedule(e.target.value as VestingScheduleType)}
-                      className="rounded-md border border-border bg-surface-raised px-2 py-1 text-xs font-medium normal-case text-ink outline-none focus:ring-1 focus:ring-fidelity-green"
+                      className="rounded-md border border-border bg-surface-raised px-2 py-1 text-xs font-medium normal-case text-ink outline-none focus:ring-1 focus:ring-brand-green"
                     >
                       {schedules.length === 0 ? (
                         <option value={vestingSchedule}>Loading…</option>
@@ -1673,7 +1673,7 @@ export default function ScenarioCostComparison() {
                     <select
                       value={forfeiturePolicy}
                       onChange={e => setForfeiturePolicy(e.target.value as ForfeiturePolicy)}
-                      className="rounded-md border border-border bg-surface-raised px-2 py-1 text-xs font-medium normal-case text-ink outline-none focus:ring-1 focus:ring-fidelity-green"
+                      className="rounded-md border border-border bg-surface-raised px-2 py-1 text-xs font-medium normal-case text-ink outline-none focus:ring-1 focus:ring-brand-green"
                     >
                       {VALID_POLICIES.map(value => (
                         <option key={value} value={value}>{POLICY_LABELS[value]}</option>
@@ -1993,7 +1993,7 @@ export default function ScenarioCostComparison() {
                         <tr key={id} className={`hover:bg-surface-subtle transition-colors ${isAnchor ? 'bg-info-surface/30' : ''}`}>
                           <td className="px-6 py-4 whitespace-nowrap border-r border-border">
                             <div className="flex items-center">
-                              <div className={`w-2 h-2 rounded-full mr-2 ${isAnchor ? 'bg-info-solid' : 'bg-fidelity-green'}`} />
+                              <div className={`w-2 h-2 rounded-full mr-2 ${isAnchor ? 'bg-info-solid' : 'bg-brand-green'}`} />
                               <span className={`text-sm font-bold ${isAnchor ? 'text-info-ink' : 'text-ink'}`}>
                                 {comparisonData.scenario_names[id] || analytics.scenario_name || id}
                                 {isAnchor && (
@@ -2281,7 +2281,7 @@ export default function ScenarioCostComparison() {
                         <tr key={id} className={`hover:bg-surface-subtle transition-colors ${isAnchor ? 'bg-info-surface/30' : ''}`}>
                           <td className="px-6 py-4 whitespace-nowrap border-r border-border">
                             <div className="flex items-center">
-                              <div className={`w-2 h-2 rounded-full mr-2 ${isAnchor ? 'bg-info-solid' : 'bg-fidelity-green'}`} />
+                              <div className={`w-2 h-2 rounded-full mr-2 ${isAnchor ? 'bg-info-solid' : 'bg-brand-green'}`} />
                               <span className={`text-sm font-bold ${isAnchor ? 'text-info-ink' : 'text-ink'}`}>
                                 {comparisonData.scenario_names[id] || analytics.scenario_name || id}
                                 {isAnchor && (
@@ -2323,7 +2323,7 @@ export default function ScenarioCostComparison() {
             {/* Methodology Footer Section */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-surface-inverse text-ink-subtle p-6 rounded-xl border border-border-strong shadow-lg">
-                <div className="flex items-center text-fidelity-light mb-4 font-bold">
+                <div className="flex items-center text-brand-light mb-4 font-bold">
                   <TrendingDown size={18} className="mr-2" />
                   How these figures are measured
                 </div>

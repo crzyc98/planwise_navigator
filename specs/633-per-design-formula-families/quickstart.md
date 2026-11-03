@@ -10,7 +10,7 @@ both so every code path is exercised at once.
 Activate the checked-in environment first:
 
 ```bash
-cd /Users/nicholasamaral/Developer/fidelity_planalign
+cd <repo>
 source .venv/bin/activate
 ```
 
@@ -270,7 +270,7 @@ Then run and time the complete fast suite from the repository root. It must fini
 seconds:
 
 ```bash
-cd /Users/nicholasamaral/Developer/fidelity_planalign
+cd <repo>
 time pytest -m fast -q
 ```
 

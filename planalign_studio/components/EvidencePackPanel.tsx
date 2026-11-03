@@ -98,7 +98,7 @@ export default function EvidencePackPanel({ workspaceId, scenarioId, startYear, 
           </select>
         </label>
         <div className="flex items-end">
-          <button onClick={() => void load()} disabled={loading || !validYears} className="flex w-full items-center justify-center rounded bg-fidelity-green px-3 py-2 text-sm font-medium text-ink-inverse disabled:opacity-50">
+          <button onClick={() => void load()} disabled={loading || !validYears} className="flex w-full items-center justify-center rounded bg-brand-green px-3 py-2 text-sm font-medium text-ink-inverse disabled:opacity-50">
             {loading ? <Loader2 size={15} className="mr-2 animate-spin" /> : <RefreshCw size={15} className="mr-2" />}
             {loading ? 'Computing evidence pack…' : 'Build evidence pack'}
           </button>
@@ -123,7 +123,7 @@ export default function EvidencePackPanel({ workspaceId, scenarioId, startYear, 
               <p className="mt-1 text-sm text-ink-muted">Base population: <FigureValue figure={envelope.pack.change.base_population} /> · Target population: <FigureValue figure={envelope.pack.change.target_population} /></p>
               <p className="mt-1 text-xs text-ink-muted">Run {envelope.pack.provenance.run_id} · {envelope.pack.provenance.verification_disposition}</p>
             </div>
-            <button onClick={() => downloadEvidencePack(envelope)} disabled={loading} className="flex items-center rounded border border-fidelity-green px-3 py-2 text-sm font-medium text-fidelity-green disabled:opacity-50"><Download size={15} className="mr-2" />Export Evidence Pack</button>
+            <button onClick={() => downloadEvidencePack(envelope)} disabled={loading} className="flex items-center rounded border border-brand-green px-3 py-2 text-sm font-medium text-brand-green disabled:opacity-50"><Download size={15} className="mr-2" />Export Evidence Pack</button>
           </div>
           <div className="rounded-lg border border-success-border bg-success-surface p-4">
             <h4 className="font-semibold text-success-ink">Executive interpretation</h4>

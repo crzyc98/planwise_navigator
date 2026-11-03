@@ -108,7 +108,7 @@ An analyst who has customized opt-out rates wants to return to the system defaul
 ### Measurable Outcomes
 
 - **SC-001**: Analysts can view and modify all 8 opt-out rate fields within 30 seconds of opening the DC Plan configuration panel.
-- **SC-002**: Custom opt-out rates persist correctly across scenario save/reload cycles with 100% fidelity.
+- **SC-002**: Custom opt-out rates persist correctly across scenario save/reload cycles with 100% accuracy.
 - **SC-003**: Simulations using custom opt-out rates produce measurably different enrollment participation compared to default rates (verifiable by comparing two simulation runs).
 - **SC-004**: Existing scenarios without custom opt-out rates continue to produce identical simulation results as before this feature (zero regression).
 - **SC-005**: All 8 opt-out rate fields reject values outside the 0.00-1.00 range with clear user feedback.

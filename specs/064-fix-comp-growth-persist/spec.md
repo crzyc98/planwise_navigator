@@ -68,7 +68,7 @@ As the system, when a scenario is saved, the target compensation growth value mu
 
 ### Measurable Outcomes
 
-- **SC-001**: Target compensation growth value survives a full save-navigate-reload cycle with 100% fidelity (value set equals value displayed on return).
+- **SC-001**: Target compensation growth value survives a full save-navigate-reload cycle with 100% accuracy (value set equals value displayed on return).
 - **SC-002**: Scenarios saved before this fix load without errors, displaying the default 5.0% target growth.
 - **SC-003**: The "Calculate Settings" function produces correct derived rates based on the persisted target growth value, not a hardcoded default.
 - **SC-004**: The target compensation growth value round-trips through the API (frontend to backend to frontend) without data loss or transformation errors.

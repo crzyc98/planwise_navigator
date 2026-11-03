@@ -12,7 +12,7 @@
 **Behavior**:
 | State | Label | Visual |
 |-------|-------|--------|
-| Active (selected) | Filled background (fidelity-green), white text |
+| Active (selected) | Filled background (brand-green), white text |
 | Inactive | White/transparent background, gray text, border |
 
 **Options**:

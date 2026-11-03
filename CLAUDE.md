@@ -1,4 +1,4 @@
-# Fidelity PlanAlign Engine
+# PlanAlign Engine
 
 Event-sourced workforce and DC-plan simulation: DuckDB + dbt, driven by a Python orchestrator, with PlanAlign Studio (FastAPI + React/Vite + Tailwind v4) as the product UI. The team uses Studio, not the CLI; the CLI is the execution engine and dev tool. dbt-specific guidance lives in `dbt/CLAUDE.md`.
 

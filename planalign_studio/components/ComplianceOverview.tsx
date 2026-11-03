@@ -61,7 +61,7 @@ export default function ComplianceOverview({ workspaceId, summary, onOpenTest }:
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {measures.map(({ metric, title, values }) => <div key={metric} className="bg-surface-raised border border-border rounded-xl p-4 space-y-2">
           <h3 className="font-semibold text-ink">{title}</h3>
-          {(Object.keys(labels) as ComplianceStatus[]).map(status => <button key={status} type="button" onClick={() => select(metric, status)} className="w-full flex justify-between text-sm text-ink-muted rounded p-2 hover:bg-surface-subtle focus-visible:outline focus-visible:outline-2 focus-visible:outline-fidelity-green">
+          {(Object.keys(labels) as ComplianceStatus[]).map(status => <button key={status} type="button" onClick={() => select(metric, status)} className="w-full flex justify-between text-sm text-ink-muted rounded p-2 hover:bg-surface-subtle focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-green">
             <span>{metric === '401a17' && status === 'over_limit' ? 'Compensation above cap' : labels[status]}</span><span>{values[status]}</span>
           </button>)}
           <p className="text-sm text-ink">{metric === '401a17' ? 'Compensation excluded by cap' : 'Excess contributions'}: {money(values.excess)}</p>
@@ -69,7 +69,7 @@ export default function ComplianceOverview({ workspaceId, summary, onOpenTest }:
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {([{ metric: 'catch_up' as const, title: ordinaryTitle, values: summary.catch_up }, { metric: 'super_catch_up' as const, title: superTitle, values: summary.super_catch_up }]).map(({ metric, title, values }) => <div key={metric} className="bg-surface-raised border border-border rounded-xl p-4 space-y-2">
-          <button type="button" className="font-semibold text-fidelity-green hover:underline" onClick={() => select(metric)}>{title}</button>
+          <button type="button" className="font-semibold text-brand-green hover:underline" onClick={() => select(metric)}>{title}</button>
           <p className="text-sm text-ink-muted">{values.eligible_count} age-eligible · {values.utilizing_count} utilizing · {values.available_count} with available contribution data</p>
           <p className="text-sm text-ink">Modeled usage {money(values.used)} / {money(values.capacity)} ({percent(values.utilization)})</p>
           <p className="text-sm text-ink-muted">Remaining catch-up capacity: {money(values.remaining_capacity)}</p>
@@ -77,7 +77,7 @@ export default function ComplianceOverview({ workspaceId, summary, onOpenTest }:
       </div>
       <div className="bg-surface-raised border border-border rounded-xl p-4 space-y-2">
         <h3 className="font-semibold text-ink">Existing NDT results</h3>
-        <div className="flex flex-wrap gap-4">{summary.ndt.map(test => <button type="button" key={test.test_type} onClick={() => onOpenTest(test.test_type)} className="text-sm text-fidelity-green hover:underline">
+        <div className="flex flex-wrap gap-4">{summary.ndt.map(test => <button type="button" key={test.test_type} onClick={() => onOpenTest(test.test_type)} className="text-sm text-brand-green hover:underline">
           {test.test_type.toUpperCase()}: {test.result.toUpperCase()}{test.margin != null && ` · Margin ${percent(test.margin)}`}
           {test.message && <span className="block text-xs text-ink-muted">{test.message}</span>}
         </button>)}</div>

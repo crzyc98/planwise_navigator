@@ -110,7 +110,7 @@ ResolutionHint(
         "3. Upload a valid census parquet file using the 'Upload Files' button",
         "4. Retry the simulation"
     ],
-    documentation_url="https://docs.fidelity.com/planalign/census-upload",
+    documentation_url="https://docs.example.com/planalign/census-upload",
     automation_available=False,
     estimated_resolution_time="2-3 minutes"
 )

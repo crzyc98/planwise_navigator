@@ -167,7 +167,7 @@ export default function PreviewStep({ workspaceId, session, onGenerated, dataQua
 
       <div className="flex justify-end">
         {isGenerating ? (
-          <div className="flex items-center gap-2 text-sm text-fidelity-green">
+          <div className="flex items-center gap-2 text-sm text-brand-green">
             <Loader2 size={16} className="animate-spin" />
             Generating Parquet file…
           </div>
@@ -175,7 +175,7 @@ export default function PreviewStep({ workspaceId, session, onGenerated, dataQua
           <button
             onClick={handleGenerate}
             disabled={isLoadingPreview || !!previewError}
-            className="flex items-center gap-2 px-5 py-2 bg-fidelity-green text-ink-inverse text-sm rounded-lg hover:bg-fidelity-dark disabled:opacity-50"
+            className="flex items-center gap-2 px-5 py-2 bg-brand-green text-ink-inverse text-sm rounded-lg hover:bg-brand-dark disabled:opacity-50"
           >
             <CheckCircle2 size={16} />
             Generate Parquet File

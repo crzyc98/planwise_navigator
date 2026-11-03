@@ -69,7 +69,7 @@ Templates Requiring Updates: None
 Follow-up TODOs: Review warning frequency and re-profile if timings keep rising.
 -->
 
-# Fidelity PlanAlign Engine Constitution
+# PlanAlign Engine Constitution
 
 ## Core Principles
 
@@ -134,7 +134,7 @@ Systems MUST handle 100K+ employee records without memory errors. Dashboard quer
 
 ## Governance
 
-This constitution supersedes all other development practices for Fidelity PlanAlign Engine. All pull requests and code reviews MUST verify compliance with these principles.
+This constitution supersedes all other development practices for PlanAlign Engine. All pull requests and code reviews MUST verify compliance with these principles.
 
 ### Amendment Procedure
 

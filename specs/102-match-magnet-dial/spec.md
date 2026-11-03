@@ -1,4 +1,4 @@
-# Feature Specification: Voluntary-Enrollment Match-Magnet Dial & Match-Ceiling Fidelity
+# Feature Specification: Voluntary-Enrollment Match-Magnet Dial & Match-Ceiling accuracy
 
 **Feature Branch**: `102-match-magnet-dial`
 **Created**: 2026-06-24

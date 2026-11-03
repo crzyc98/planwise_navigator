@@ -34,7 +34,7 @@
 
 ### Implementation for User Story 1
 
-- [x] T003 [US1] Add segmented toggle button (Average / Total) to the compensation chart card header, right-aligned next to the title, styled with Tailwind CSS (fidelity-green active state, gray inactive) in `planalign_studio/components/AnalyticsDashboard.tsx` (lines 504-506)
+- [x] T003 [US1] Add segmented toggle button (Average / Total) to the compensation chart card header, right-aligned next to the title, styled with Tailwind CSS (brand-green active state, gray inactive) in `planalign_studio/components/AnalyticsDashboard.tsx` (lines 504-506)
 - [x] T004 [US1] Make chart `dataKey` dynamic: use `avgCompensation` when `compMetric === 'average'` and `totalCompensation` when `compMetric === 'total'` in `planalign_studio/components/AnalyticsDashboard.tsx` (line 519)
 - [x] T005 [US1] Make Y-axis `tickFormatter` dynamic: use `$XXK` format for average, auto-detect `$XXK` or `$X.XM` for total based on max value in `planalign_studio/components/AnalyticsDashboard.tsx` (line 513)
 - [x] T006 [US1] Make tooltip `formatter` dynamic: match Y-axis formatting for the selected metric, update label to "Avg Compensation" or "Total Compensation" in `planalign_studio/components/AnalyticsDashboard.tsx` (line 516)

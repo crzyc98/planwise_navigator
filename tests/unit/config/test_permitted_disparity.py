@@ -125,7 +125,7 @@ def test_a_percentage_base_rate_is_rejected_rather_than_validated_against() -> N
         validate_core_integration(config, 2026, 2026)
 
 
-def test_tufts_style_two_band_integrated_design_is_permitted() -> None:
+def test_two_band_integrated_design_is_permitted() -> None:
     """Age-banded base rates compose with one disparity rate under §401(l).
 
     5%/10% below the wage base and 10%/15% above is a uniform 5-point disparity,

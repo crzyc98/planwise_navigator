@@ -1,6 +1,6 @@
 # Security Policy
 
-Fidelity PlanAlign Engine is an **on-premises** workforce and DC-plan simulation platform. It processes employee census data (PII and compensation data) and is designed to run entirely inside a controlled network with **zero cloud dependencies**.
+PlanAlign Engine is an **on-premises** workforce and DC-plan simulation platform. It processes employee census data (PII and compensation data) and is designed to run entirely inside a controlled network with **zero cloud dependencies**.
 
 ## Supported Versions
 

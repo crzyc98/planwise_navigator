@@ -2,7 +2,7 @@
 # Optimized for Epic E067: Multi-Threading PlanAlign Orchestrator
 # Configuration enhanced for multi-threaded execution with PlanAlign Orchestrator
 
-fidelity_planalign_engine:
+planalign_engine:
   target: dev # E067-ready target for multi-threading support
   outputs:
     dev:
