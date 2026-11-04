@@ -35,6 +35,12 @@ ROW = PerYearCompensationResult(
 )
 
 
+@pytest.fixture(autouse=True)
+def isolate_worker_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Direct main() tests must not enable in-process dbt for later API tests."""
+    monkeypatch.setenv("PLANALIGN_DBT_IN_PROCESS", "0")
+
+
 def request(kind: str = "run") -> worker.WorkerRequest:
     return worker.WorkerRequest.model_validate(
         {

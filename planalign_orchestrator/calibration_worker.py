@@ -69,5 +69,13 @@ def main(job_dir: Path) -> int:
     return 1
 
 
+def run_as_worker(job_dir: Path) -> int:
+    """Child-process entry: this process runs one job serially, so dbt can run
+    in-process (PLANALIGN_DBT_IN_PROCESS). Never set by main(), so in-process
+    callers (tests, the API) keep subprocess dbt."""
+    os.environ["PLANALIGN_DBT_IN_PROCESS"] = "1"
+    return main(job_dir)
+
+
 if __name__ == "__main__":
-    sys.exit(main(Path(sys.argv[1])))
+    sys.exit(run_as_worker(Path(sys.argv[1])))

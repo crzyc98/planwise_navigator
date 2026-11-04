@@ -12,6 +12,7 @@ Provides a `DbtRunner` with:
 from __future__ import annotations
 
 import json
+import os
 import re
 import secrets
 import subprocess
@@ -555,6 +556,22 @@ class DbtRunner:
                     "Non-fatal: failed to close DB connections before dbt subprocess: %s",
                     e,
                 )
+
+        if os.environ.get("PLANALIGN_DBT_IN_PROCESS") == "1":
+            from .dbt_in_process import invoke_dbt
+
+            result = invoke_dbt(
+                cmd,
+                self.working_dir,
+                self._build_subprocess_env() or dict(os.environ),
+                start_ts=start,
+            )
+            # In-process output is buffered: callbacks receive lines after invoke.
+            # Studio calibration supplies no callback and needs no live streaming.
+            if stream_output and on_line:
+                for line in result.stdout.splitlines():
+                    on_line(line)
+            return result
 
         if stream_output:
             return self._execute_with_streaming(cmd, on_line=on_line, start_ts=start)
