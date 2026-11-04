@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  ApiError, CalibrationStatusUnavailable, optimizeCalibration, retrieveCalibrationResult,
+  ApiError, CalibrationCancelled, CalibrationStatusUnavailable, cancelCalibrationRun, optimizeCalibration, retrieveCalibrationResult,
   type AutoCalibrationRequest,
 } from './api';
 
@@ -97,4 +97,35 @@ it.each([true, false])('serializes solve_salary_growth=%s in the optimizer reque
   await vi.runAllTimersAsync();
   await pending;
   expect(JSON.parse(fetchMock.mock.calls[0][1].body).settings.solve_salary_growth).toBe(solve);
+});
+
+it('posts cancellation to the run endpoint and returns the job', async () => {
+  const cancelled = { run_id: 'autocal-test', status: 'cancelled' };
+  fetchMock.mockResolvedValueOnce(json(cancelled));
+  expect(await cancelCalibrationRun('autocal-test')).toEqual(cancelled);
+  expect(fetchMock).toHaveBeenCalledWith(
+    expect.stringContaining('/api/calibration/runs/autocal-test/cancel'),
+    expect.objectContaining({ method: 'POST' }),
+  );
+});
+
+it('reports the enqueued run ID before polling', async () => {
+  const onStarted = vi.fn();
+  fetchMock.mockResolvedValueOnce(json({ run_id: 'autocal-test' }))
+    .mockImplementationOnce(() => {
+      expect(onStarted).toHaveBeenCalledExactlyOnceWith('autocal-test');
+      return Promise.resolve(json(completed));
+    });
+  await optimizeCalibration({} as AutoCalibrationRequest, onStarted);
+  expect(onStarted).toHaveBeenCalledExactlyOnceWith('autocal-test');
+});
+
+it('reports cancellation without offering result recovery', async () => {
+  fetchMock.mockResolvedValueOnce(json({ status: 'cancelled' }));
+  const error: unknown = await retrieveCalibrationResult('autocal-test').catch((cause: unknown) => cause);
+  expect(error).toBeInstanceOf(CalibrationCancelled);
+  expect(error).toBeInstanceOf(ApiError);
+  expect(error).not.toBeInstanceOf(CalibrationStatusUnavailable);
+  expect(error).toMatchObject({ status: 409, message: 'Calibration cancelled' });
+  expect(fetchMock).toHaveBeenCalledTimes(1);
 });

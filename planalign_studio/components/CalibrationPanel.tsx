@@ -7,6 +7,8 @@ import {
 import { SlidersHorizontal, Loader2, Database, Sparkles, Plus, X, Check } from 'lucide-react';
 import {
   optimizeCalibration,
+  cancelCalibrationRun,
+  CalibrationCancelled,
   retrieveCalibrationResult,
   CalibrationStatusUnavailable,
   applyCalibrationCandidate,
@@ -248,6 +250,9 @@ export default function CalibrationPanel() {
   // Auto-calibrate: iterated comp-only runs that SOLVE for COLA/merit given
   // the two targets (workforce growth is set exactly; comp growth is searched).
   const [autoLoading, setAutoLoading] = useState(false);
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [autoCancelled, setAutoCancelled] = useState(false);
   const [autoError, setAutoError] = useState<string | null>(null);
   const [recoverableRunId, setRecoverableRunId] = useState<string | null>(null);
   // Set when calibration failed because the scenario hasn't been run as configured.
@@ -507,6 +512,10 @@ export default function CalibrationPanel() {
       return;
     }
     setAutoLoading(true);
+    setActiveRunId(resumeRunId ?? null);
+    setCancelling(false);
+    setAutoCancelled(false);
+    setRecoverableRunId(null);
     setAutoError(null);
     setMissingRun(false);
     setAutoOutcome(null);
@@ -552,7 +561,7 @@ export default function CalibrationPanel() {
           total_termination_rate: values.total_termination_rate,
           new_hire_termination_rate: values.new_hire_termination_rate,
         },
-      });
+      }, setActiveRunId);
       const outcome = response.outcome;
       setRecoverableRunId(null);
       setAutoContext(response.context);
@@ -570,10 +579,27 @@ export default function CalibrationPanel() {
       }
     } catch (e) {
       setRecoverableRunId(e instanceof CalibrationStatusUnavailable ? e.runId : null);
-      setMissingRun(isMissingRunError(e));
-      setAutoError(errorText(e) || 'Calibration stopped without a result. Please try again.');
+      if (e instanceof CalibrationCancelled) {
+        setAutoCancelled(true);
+        setAutoError(null);
+      } else {
+        setMissingRun(isMissingRunError(e));
+        setAutoError(errorText(e) || 'Calibration stopped without a result. Please try again.');
+      }
     } finally {
       setAutoLoading(false);
+      setActiveRunId(null);
+    }
+  };
+
+  const handleCancelCalibration = async () => {
+    if (!activeRunId || cancelling) return;
+    setCancelling(true);
+    try {
+      await cancelCalibrationRun(activeRunId);
+    } catch (e) {
+      setAutoError(errorText(e));
+      setCancelling(false);
     }
   };
 
@@ -1191,6 +1217,17 @@ export default function CalibrationPanel() {
                 {autoLoading ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
                 {runProgress ? 'Running scenario…' : autoLoading ? 'Searching…' : 'Auto-Calibrate'}
               </button>
+              {autoLoading && (
+                <button
+                  type="button"
+                  onClick={() => void handleCancelCalibration()}
+                  disabled={!activeRunId || cancelling}
+                  className="inline-flex items-center gap-2 rounded-md border border-border-strong bg-surface-raised px-4 py-2 text-sm font-medium text-ink-muted hover:bg-surface-subtle disabled:opacity-50"
+                >
+                  <X size={16} />
+                  {cancelling ? 'Cancelling…' : 'Cancel'}
+                </button>
+              )}
               <label className="block">
                 <span className="text-xs font-medium text-info-ink">Tolerance (± pp)</span>
                 <input
@@ -1209,6 +1246,9 @@ export default function CalibrationPanel() {
               </label>
             </div>
           </div>
+          {autoCancelled && (
+            <p role="status" className="mt-3 text-sm text-ink-muted">Calibration cancelled.</p>
+          )}
           {runProgress && (
             <p role="status" className="mt-3 text-sm text-info-ink">{runProgress}</p>
           )}
