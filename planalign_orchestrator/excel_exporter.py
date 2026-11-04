@@ -893,6 +893,7 @@ class ExcelExporter:
         values = series.tolist()
         missing = series.isna().tolist()
         dtype = series.dtype
+        convert: Callable[[Any], Any]
         if pd.api.types.is_bool_dtype(dtype):
             write, convert = sheet.write_boolean, bool
         elif pd.api.types.is_integer_dtype(dtype):
