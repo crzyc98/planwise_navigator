@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { previewConfiguration, type ConfigPreview } from '../../services/api';
 import { ELIGIBILITY_DEFAULTS, MATCH_TEMPLATES } from './constants';
+import { describeConfigValue, isStructuredValue } from './describeConfigValue';
+import { ConfigTree } from './ConfigTree';
 
 type Config = Record<string, unknown>;
 const asConfig = (value: unknown): Config => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Config : {};
@@ -39,7 +41,11 @@ export function reviewChanges(saved: Config, draft: Config) {
     .map(key => ({ key, before: redactReviewValue(before[key], key), after: redactReviewValue(after[key], key) }));
 }
 
-const showValue = (value: unknown) => value === undefined ? 'Inherited / default' : JSON.stringify(value);
+const showValue = (value: unknown, key = '') => {
+  if (value === undefined) return 'Inherited / default';
+  if (typeof value === 'string') return value;
+  return isStructuredValue(value) ? describeConfigValue(key, value) : String(value);
+};
 const matchEligibilityFields: Record<string, [string, string]> = {
   match_min_tenure_years: ['minimum_tenure_years', 'Match minimum service'],
   match_min_hours_annual: ['minimum_hours_annual', 'Match minimum annual hours'],
@@ -181,7 +187,7 @@ const formatVariable = (key: string, value: unknown) => {
   if (typeof value === 'number' && (percentVariables.has(key) || /^deferral_match_response_.*(rate|factor)$/.test(key))) return `${Number((value * 100).toFixed(3))}%`;
   if (value === 'new_hires_only') return 'New hires only';
   if (value === 'all_eligible_employees' || value === 'all_eligible') return 'All eligible employees';
-  return showValue(redactReviewValue(value, key));
+  return showValue(redactReviewValue(value, key), key);
 };
 const percentagePointPaths = new Set([
   ...['target_compensation_growth', 'merit_budget', 'cola_rate', 'promotion_increase', 'promotion_distribution_range', 'promotion_budget'].map(key => `compensation.${key}_percent`),
@@ -208,7 +214,7 @@ export function formatDraftValue(key: string, value: unknown) {
   if (key === 'dc_plan.match_template' && typeof value === 'string' && Object.prototype.hasOwnProperty.call(MATCH_TEMPLATES, value)) {
     return MATCH_TEMPLATES[value as keyof typeof MATCH_TEMPLATES].name;
   }
-  if (typeof value !== 'number') return showValue(value);
+  if (typeof value !== 'number') return showValue(value, key);
   if (percentagePointPaths.has(key)) return `${Number(value.toFixed(3))}%`;
   if (decimalRatePaths.has(key) || key.startsWith('dc_plan.voluntary_deferral_base_rates.')) return `${Number((value * 100).toFixed(3))}%`;
   return showValue(value);
@@ -262,12 +268,6 @@ function inactiveVariable(key: string, variables: Config): string | null {
     ? 'Inactive while automatic enrollment is off; saved value retained.' : null;
 }
 
-function describeSettings(value: unknown): string {
-  if (Array.isArray(value)) return `${value.length} rows: ${value.map(row => describeSettings(row)).join('; ')}`;
-  if (value && typeof value === 'object') return Object.entries(value).map(([key, child]) => `${labelFor(key)}: ${describeSettings(child)}`).join(', ');
-  return value === undefined ? 'Inherited / default' : String(value);
-}
-
 export function matchEligibilityReview(value: Config): string {
   const legacy = value.apply_eligibility === false;
   const rules: Config = { ...ELIGIBILITY_DEFAULTS.Match, ...(legacy ? {} : asConfig(value.eligibility)) };
@@ -282,7 +282,7 @@ export function matchEligibilityReview(value: Config): string {
 function formatActiveSetting(key: string, value: unknown): string {
   if (key === 'employer_match' && value && typeof value === 'object') return matchEligibilityReview(value as Config);
   if (key === 'match_tiers') return formatMatchTiers(value);
-  return value && typeof value === 'object' ? describeSettings(redactReviewValue(value, key)) : formatVariable(key, value);
+  return value && typeof value === 'object' ? describeConfigValue(key, redactReviewValue(value, key)) : formatVariable(key, value);
 }
 
 export function matchRuleSummary(variables: Config): string | null {
@@ -310,7 +310,7 @@ function ActiveSettings({ variables, configuration }: { variables: Config; confi
   return <div className="space-y-3">
     {matchRuleSummary(variables) && <p className="text-sm border border-info-border bg-info-surface p-3 rounded">{matchRuleSummary(variables)}</p>}
     {groups.map(group => <div key={group.title} className="border border-border rounded p-3"><h4 className="font-medium text-sm">{group.title}</h4><dl className="space-y-1 mt-2 text-sm">{group.keys.filter(key => key in variables).map(key => <div key={key}><dt className="inline text-ink-muted capitalize">{key === 'employer_match' ? 'Match eligibility' : labelFor(key)}: </dt><dd className="inline break-words">{formatActiveSetting(key, variables[key])}</dd></div>)}</dl></div>)}
-    {['promotion_hazard', 'promotion_hazards', 'bands', 'plan_designs', 'plan_design_assignment'].filter(key => key in configuration).map(key => <div key={key} className="border border-border rounded p-3 text-sm"><h4 className="font-medium capitalize">{labelFor(key)}</h4><p className="mt-2 break-words">{describeSettings(redactReviewValue(configuration[key], key))}</p></div>)}
+    {['promotion_hazard', 'promotion_hazards', 'bands', 'plan_designs', 'plan_design_assignment'].filter(key => key in configuration).map(key => <div key={key} className="border border-border rounded p-3 text-sm"><h4 className="font-medium capitalize">{labelFor(key)}</h4><p className="mt-2 break-words">{describeConfigValue(key, redactReviewValue(configuration[key], key))}</p></div>)}
   </div>;
 }
 
@@ -406,16 +406,16 @@ export function EffectiveConfigReview({ review, stale, saving, onClose, onSave, 
             <div className="mt-3"><ActiveSettings variables={variables} configuration={resolved.after.configuration} /></div>
             <details className="mt-2 border border-border rounded p-3"><summary className="cursor-pointer font-medium">Complete resolved configuration and engine variables</summary>
               <p className="text-xs text-ink-muted my-2">{review.scenarioId ? 'Scenario override: keys explicitly stored in this draft. Inherited: remaining workspace or engine defaults.' : 'Workspace configuration with engine defaults.'} Paths and sensitive values are hidden.</p>
-              <div className="space-y-2">{Object.entries(resolved.after.configuration).map(([key, value]) => <details key={key} className="border-t border-border pt-2"><summary className="cursor-pointer capitalize">{labelFor(key)} <span className="text-xs text-ink-muted">{review.scenarioId ? (key in review.draft ? 'Scenario override / inherited nested values' : 'Inherited') : 'Workspace / engine default'}</span></summary><pre className="text-xs whitespace-pre-wrap break-all mt-2">{JSON.stringify(redactReviewValue(value, key), null, 2)}</pre></details>)}</div>
-              <details className="mt-3 border-t border-border pt-2"><summary className="cursor-pointer font-medium">All exported engine variables</summary><pre className="text-xs whitespace-pre-wrap break-all mt-2">{JSON.stringify(redactReviewValue(variables), null, 2)}</pre></details>
+              <div className="space-y-2">{Object.entries(resolved.after.configuration).map(([key, value]) => <details key={key} className="border-t border-border pt-2"><summary className="cursor-pointer capitalize">{labelFor(key)} <span className="text-xs text-ink-muted">{review.scenarioId ? (key in review.draft ? 'Scenario override / inherited nested values' : 'Inherited') : 'Workspace / engine default'}</span></summary><ConfigTree className="mt-2" name={key} value={redactReviewValue(value, key)} /></details>)}</div>
+              <details className="mt-3 border-t border-border pt-2"><summary className="cursor-pointer font-medium">All exported engine variables</summary><ConfigTree className="mt-2" value={redactReviewValue(variables)} /></details>
             </details>
           </section>
         </>}
         <section><h3 className="font-semibold mb-2">Inactive saved settings</h3>
-          {inactive.length ? <><p className="text-sm text-ink-muted">These retained new-hire settings, including inherited values, have no active engine mapping or consumer:</p><ul className="list-disc pl-5 text-sm">{inactive.map(key => <li key={key}>{labelFor(key)}: {showValue(redactReviewValue(effectiveNewHire[key], key))} <span className="text-xs">Inactive</span></li>)}</ul><button type="button" disabled={busy} onClick={() => onEdit('newhire')} className="text-sm text-info-ink underline mt-2">Review new-hire assumptions</button></> : <p className="text-sm text-ink-muted">No retained unsupported new-hire settings in this draft.</p>}
+          {inactive.length ? <><p className="text-sm text-ink-muted">These retained new-hire settings, including inherited values, have no active engine mapping or consumer:</p><ul className="list-disc pl-5 text-sm">{inactive.map(key => <li key={key}>{labelFor(key)}: {showValue(redactReviewValue(effectiveNewHire[key], key), key)} <span className="text-xs">Inactive</span></li>)}</ul><button type="button" disabled={busy} onClick={() => onEdit('newhire')} className="text-sm text-info-ink underline mt-2">Review new-hire assumptions</button></> : <p className="text-sm text-ink-muted">No retained unsupported new-hire settings in this draft.</p>}
           {asConfig(review.draft.compensation).promotion_budget !== undefined || asConfig(review.draft.compensation).promotion_budget_percent !== undefined ? <p className="mt-2 text-sm text-ink-muted">Promotion budget is saved for reference and is not enforced by the engine.</p> : null}
         </section>
-        <details className="border border-border rounded p-3"><summary className="cursor-pointer font-medium">Additional configured settings — mapping unverified</summary><p className="text-xs text-ink-muted my-2">All preserved draft settings, including legacy and unknown keys. Unsupported and unmapped settings do not imply an effect on outputs. Paths and sensitive fields are hidden.</p><pre className="text-xs whitespace-pre-wrap break-all">{JSON.stringify(redactReviewValue(review.draft), null, 2)}</pre></details>
+        <details className="border border-border rounded p-3"><summary className="cursor-pointer font-medium">Additional configured settings — mapping unverified</summary><p className="text-xs text-ink-muted my-2">All preserved draft settings, including legacy and unknown keys. Unsupported and unmapped settings do not imply an effect on outputs. Paths and sensitive fields are hidden.</p><ConfigTree value={redactReviewValue(review.draft)} /></details>
         <section><h3 className="font-semibold mb-2">Items requiring attention</h3><p className="text-sm text-ink-muted">Suggestions require explicit application in their editor. Review does not calculate or apply suggestions. A changed-input suggestion must be recalculated before applying.</p>
           <button type="button" disabled={busy} onClick={() => onEdit('compensation')} className="text-sm text-info-ink underline mt-2">Review compensation inputs and nested override limitations</button>
         </section>

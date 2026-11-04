@@ -32,6 +32,7 @@ import {
 import { useWorkspaceNavigate } from '../hooks/useWorkspaceNavigation';
 import CrossScenarioEvidencePanel from './CrossScenarioEvidencePanel';
 import { splitConfigDeltas, UNRECORDED_NOTE } from './configDiff';
+import { formatDraftValue } from './config/EffectiveConfigReview';
 import { LayoutContextType } from './Layout';
 import { loadDiffSelection } from './comparisonSelection';
 import SelectedComparisonRuns from './SelectedComparisonRuns';
@@ -93,11 +94,10 @@ function formatMetric(value: number, format: MetricDefinition['format']): string
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value);
 }
 
-function displayConfigValue(value: unknown): string {
+function displayConfigValue(path: string, value: unknown): string {
   if (value === null || value === undefined) return '—';
   if (typeof value === 'boolean') return value ? 'Enabled' : 'Disabled';
-  if (typeof value === 'object') return JSON.stringify(value);
-  return String(value);
+  return formatDraftValue(path, value);
 }
 
 function buildChartData(
@@ -171,6 +171,16 @@ function MetricPanel({
   );
 }
 
+/** Schedules are joined with "; " — show one row per line. */
+function ConfigValueCell({ path, value }: Readonly<{ path: string; value: unknown }>) {
+  const lines = displayConfigValue(path, value).split('; ');
+  return (
+    <td className="px-4 py-3 text-sm text-ink-muted">
+      {lines.map((line, index) => <div key={index}>{line}</div>)}
+    </td>
+  );
+}
+
 function ConfigDeltaRow({ delta }: Readonly<{ delta: ConfigDelta }>) {
   const statusLabel = {
     changed: 'Changed',
@@ -186,8 +196,8 @@ function ConfigDeltaRow({ delta }: Readonly<{ delta: ConfigDelta }>) {
         </div>
         <code className="text-xs text-ink-muted">{delta.path}</code>
       </td>
-      <td className="px-4 py-3 text-sm text-ink-muted">{displayConfigValue(delta.a)}</td>
-      <td className="px-4 py-3 text-sm text-ink-muted">{displayConfigValue(delta.b)}</td>
+      <ConfigValueCell path={delta.path} value={delta.a} />
+      <ConfigValueCell path={delta.path} value={delta.b} />
     </tr>
   );
 }

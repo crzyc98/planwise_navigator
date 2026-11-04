@@ -389,6 +389,6 @@ it('retains gaps, custom details and inherited values in match review', () => {
   expect(formatDraftValue('dc_plan.match_tiers', [])).toBe('No explicit match tiers');
   expect(formatDraftValue('dc_plan.match_tiers', [
     { employee_min: 0.02, employee_max: 0.04, match_rate: 0.5, note: 'retain', file: '/private/x' },
-  ])).toBe('50% on employee contributions from 2% to 4% (additional row settings: {"note":"retain","file":"[hidden]"})');
-  expect(formatDraftValue('dc_plan.match_tiers', [{ unsupported: true }])).toContain('unsupported');
+  ])).toBe('50% on employee contributions from 2% to 4% (additional row settings: Note: retain, File: [hidden])');
+  expect(formatDraftValue('dc_plan.match_tiers', [{ unsupported: true }])).toBe('Unsupported: Yes');
 });
