@@ -11,7 +11,9 @@ pytestmark = pytest.mark.fast
 DBT = Path(__file__).resolve().parents[1] / "dbt"
 
 
-def render_ctes(path: str, start: str, end: str, year: int) -> str:
+def render_ctes(
+    path: str, start: str, end: str, year: int, census_pay_basis: str = "earnings"
+) -> str:
     source = (DBT / path).read_text().split(start, 1)[1].split(end, 1)[0]
     return (
         Environment(undefined=StrictUndefined)
@@ -19,6 +21,7 @@ def render_ctes(path: str, start: str, end: str, year: int) -> str:
         .render(
             simulation_year=year,
             var=lambda name, default=None: {
+                "census_pay_basis": census_pay_basis,
                 "plan_year_start_date": f"{year}-01-01",
                 "plan_year_end_date": f"{year}-12-31",
             }.get(name, default),
@@ -107,6 +110,7 @@ def test_census_plan_year_compensation(year: int) -> None:
             "{% set census_pay_basis",
             "-- Calculate eligibility and enrollment fields",
             year,
+            census_pay_basis="annual_rate",
         )
         .rstrip()
         .removesuffix(",")

@@ -44,7 +44,7 @@ raw_data AS (
       CAST(employee_gross_compensation AS DOUBLE) AS employee_gross_compensation,
       active,
 
-      -- Use gross compensation as plan year compensation when specific column missing
+      -- Preserve source compensation; comp_data applies the configured pay basis.
       CAST(employee_gross_compensation AS DOUBLE) AS raw_plan_year_compensation,
 
       -- DC plan fields (now safely available via schema scaffold)
@@ -80,11 +80,13 @@ raw_data AS (
   FROM parquet_with_schema
 ),
 
-{% set census_pay_basis = var('census_pay_basis', 'annual_rate') %}
+-- Census compensation defaults to earnings; annual_rate is an explicit opt-in.
+{% set census_pay_basis = var('census_pay_basis', 'earnings') %}
 {% if census_pay_basis not in ['annual_rate', 'earnings'] %}
   {{ exceptions.raise_compiler_error('census_pay_basis must be annual_rate or earnings') }}
 {% endif %}
 {% if census_pay_basis == 'earnings' %}
+-- Preserve census-year earnings and infer annual rates for active census-year hires.
 census_hire_years AS (
   SELECT YEAR(employee_hire_date) AS hire_year, COUNT(*) AS hire_count
   FROM raw_data

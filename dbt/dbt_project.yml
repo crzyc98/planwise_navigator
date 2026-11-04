@@ -185,6 +185,10 @@ vars:
   # When running dbt from the /dbt directory, ../data points to the repo's data folder
   census_parquet_path: "{{ env_var('DATA_PATH', '../data') }}/census_preprocessed.parquet"
 
+  # Census compensation defaults to earnings; use annual_rate for true salary rates.
+  census_pay_basis: earnings
+  census_pay_min_days: 30
+
   # Simulation parameters
   simulation_year: 2025
   simulation_effective_date: '2024-12-31'

@@ -92,7 +92,7 @@ models:
           - not_null
           - dbt_utils.expression_is_true:
               arguments:
-                expression: "= employee_gross_compensation OR '{{ var('census_pay_basis', 'annual_rate') }}' = 'earnings'"
+                expression: "= employee_gross_compensation OR '{{ var('census_pay_basis', 'earnings') }}' = 'earnings'"
               name: "annualized_comp_equals_gross"
       - name: employee_capped_compensation
         description: "Capped compensation for benefit calculations."

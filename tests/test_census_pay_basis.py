@@ -18,7 +18,7 @@ def test_config(basis: str) -> None:
     cfg = load_simulation_config("config/simulation_config.yaml").model_dump()
     cfg["setup"]["census_pay_basis"] = basis
     exported = to_dbt_vars(SimulationConfig.model_validate(cfg))
-    if basis == "annual_rate":
+    if basis == "earnings":
         assert "census_pay_basis" not in exported
     else:
         assert exported["census_pay_basis"] == basis
@@ -41,18 +41,17 @@ def seed(conn: duckdb.DuckDBPyConnection) -> None:
         employee_gross_compensation, active)""")
 
 
-@pytest.mark.parametrize("basis", ["annual_rate", "earnings"])
-def test_staging(basis: str) -> None:
+@pytest.mark.parametrize("basis", [None, "annual_rate", "earnings"])
+def test_staging(basis: str | None) -> None:
     source = Path("dbt/models/staging/stg_census_data.sql").read_text()
     source = source.split("{% set census_pay_basis", 1)[1].split(
         "-- Calculate eligibility", 1
     )[0]
+    exported = {} if basis is None else {"census_pay_basis": basis}
     sql = (
         Environment()
         .from_string("{% set census_pay_basis" + source)
-        .render(
-            var=lambda key, default=None: {"census_pay_basis": basis}.get(key, default)
-        )
+        .render(var=lambda key, default=None: exported.get(key, default))
     )
     with duckdb.connect(":memory:") as conn:
         seed(conn)
@@ -63,11 +62,11 @@ def test_staging(basis: str) -> None:
             "computed_plan_year_compensation FROM comp_data"
         ).fetchall()
         actual = {row[0]: row[1:] for row in rows}
-    expected = 36600 if basis == "earnings" else 18400
+    expected = 18400 if basis == "annual_rate" else 36600
     assert actual["july"][0] == pytest.approx(expected)
     assert actual["full"][0] == 50000
     assert actual["leaver"][0] == 10000
-    if basis == "earnings":
+    if basis != "annual_rate":
         assert actual["dec"] == (36600, 1000)
         assert actual["zero"] == (36600, 0)
         assert actual["july"][1] == 18400
