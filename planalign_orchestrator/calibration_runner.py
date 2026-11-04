@@ -467,21 +467,21 @@ class CalibrationRunner:
         stages = WorkflowBuilder.build_calibration_year_workflow(
             year, self.run.start_year
         )
-        for stage in stages:
-            if not stage.models:
-                continue
-            result = self._runner.execute_command(
-                ["run", "--select", *stage.models],
-                description=f"calibrate {year}: {stage.name.value}",
-                simulation_year=year,
-                dbt_vars=dbt_vars,
-                threads=self.threads,
+        models = list(
+            dict.fromkeys(model for stage in stages for model in stage.models)
+        )
+        result = self._runner.execute_command(
+            ["run", "--select", *models],
+            description=f"calibrate {year}",
+            simulation_year=year,
+            dbt_vars=dbt_vars,
+            threads=self.threads,
+        )
+        if not result.success:
+            raise ConfigurationError(
+                f"Calibration build failed for {year} "
+                f"(return code {result.return_code})"
             )
-            if not result.success:
-                raise ConfigurationError(
-                    f"Calibration build failed at {stage.name.value} for {year} "
-                    f"(return code {result.return_code})"
-                )
 
     def _read_year(self, year: int) -> PerYearCompensationResult:
         target = self._compensation_target()
