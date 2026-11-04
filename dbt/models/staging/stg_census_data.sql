@@ -80,8 +80,51 @@ raw_data AS (
   FROM parquet_with_schema
 ),
 
+{% set census_pay_basis = var('census_pay_basis', 'annual_rate') %}
+{% if census_pay_basis not in ['annual_rate', 'earnings'] %}
+  {{ exceptions.raise_compiler_error('census_pay_basis must be annual_rate or earnings') }}
+{% endif %}
+{% if census_pay_basis == 'earnings' %}
+census_hire_years AS (
+  SELECT YEAR(employee_hire_date) AS hire_year, COUNT(*) AS hire_count
+  FROM raw_data
+  GROUP BY YEAR(employee_hire_date)
+),
+census_calendar AS (
+  SELECT MAKE_DATE(MAX(hire_year), 1, 1) AS year_start,
+    MAKE_DATE(MAX(hire_year) + 1, 1, 1) AS year_end
+  FROM census_hire_years
+  WHERE hire_count >= GREATEST(1, (SELECT COUNT(*) FROM raw_data) * 0.01)
+),
+earnings_days AS (
+  SELECT r.*,
+    YEAR(r.employee_hire_date) = YEAR(c.year_start) AND r.employee_termination_date IS NULL AS census_year_active_hire,
+    DATE_DIFF('day', c.year_start, c.year_end) AS days_in_year,
+    GREATEST(0, DATE_DIFF('day', GREATEST(r.employee_hire_date, c.year_start),
+      LEAST(COALESCE(r.employee_termination_date, c.year_end - INTERVAL 1 DAY),
+        c.year_end - INTERVAL 1 DAY)) + 1) AS days_employed
+  FROM raw_data r CROSS JOIN census_calendar c
+  WHERE r.rn = 1
+),
+earnings_rates AS (
+  SELECT *, CASE WHEN census_year_active_hire
+      AND days_employed >= {{ var('census_pay_min_days', 30) }}
+      AND employee_gross_compensation > 0
+    THEN employee_gross_compensation * days_in_year / days_employed
+    END AS qualifying_rate
+  FROM earnings_days
+),
+comp_data AS (
+  SELECT *, employee_gross_compensation AS computed_plan_year_compensation,
+    CASE WHEN census_year_active_hire
+      THEN COALESCE(qualifying_rate, MEDIAN(qualifying_rate) OVER (), employee_gross_compensation)
+      ELSE employee_gross_compensation
+    END AS employee_annualized_compensation
+  FROM earnings_rates
+),
+{% else %}
 -- Plan year proration and active-days calculation
--- DATA CONTRACT: `employee_gross_compensation` is the annual salary rate (not prorated plan-year earnings).
+-- In annual_rate mode, gross compensation is treated as an annual salary rate.
 -- This CTE computes the employee's active window within the plan year to derive days_active_in_year,
 -- which is used downstream to calculate plan-year compensation (prorated portion of the annual rate).
 annualized_data AS (
@@ -114,7 +157,7 @@ annualized_data AS (
 --   1. computed_plan_year_compensation: prorated amount for the active portion of the plan year
 --      (annual rate * days_active_in_year / days_in_plan_year). Equals 0 when employee has no plan-year overlap.
 --   2. employee_annualized_compensation: full-year equivalent salary rate, equal to
---      employee_gross_compensation per the data contract (annual rate, not prorated).
+--      employee_gross_compensation in annual_rate mode.
 comp_data AS (
   SELECT
     ad.*,
@@ -124,10 +167,12 @@ comp_data AS (
       ELSE ad.employee_gross_compensation * (ad.days_active_in_year / DATE_DIFF('day',
         MAKE_DATE(YEAR(ad.plan_start), 1, 1), MAKE_DATE(YEAR(ad.plan_start) + 1, 1, 1)))
     END AS computed_plan_year_compensation,
-    -- Annualized compensation: the full-year salary rate (equals gross per data contract)
+    -- Annualized compensation: the full-year salary rate (equals gross in annual_rate mode)
     ad.employee_gross_compensation AS employee_annualized_compensation
   FROM annualized_data ad
 ),
+
+{% endif %}
 
 -- Calculate eligibility and enrollment fields
 eligibility_data AS (

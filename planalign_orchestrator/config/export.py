@@ -680,6 +680,10 @@ def _export_legacy_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                     cpp_path = (repo_root / cpp_path).resolve()
                 dbt_vars["census_parquet_path"] = str(cpp_path)
 
+            census_pay_basis = setup.get("census_pay_basis", "annual_rate")
+            if census_pay_basis != "annual_rate":
+                dbt_vars["census_pay_basis"] = census_pay_basis
+
             # Optional plan-year & eligibility vars
             pysd = setup.get("plan_year_start_date")
             pyed = setup.get("plan_year_end_date")

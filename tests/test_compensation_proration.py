@@ -104,7 +104,7 @@ def test_census_plan_year_compensation(year: int) -> None:
     ctes = (
         render_ctes(
             "models/staging/stg_census_data.sql",
-            "annualized_data AS (",
+            "{% set census_pay_basis",
             "-- Calculate eligibility and enrollment fields",
             year,
         )
