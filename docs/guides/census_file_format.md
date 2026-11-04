@@ -60,7 +60,7 @@ These five fields must be present and populated for every employee row.
 | `employee_id` | string | Unique employee identifier — primary key across all simulation events | `empid`, `emp_id`, `id`, `employeeid`, `employee_number`, `emp_no`, `empno`, `employee_no`, `staff_id`, `staffid`, `worker_id`, `workerid` |
 | `employee_birth_date` | date | Date of birth — drives age bands and age-based parameters | `dob`, `date_of_birth`, `birthdate`, `birth_date`, `dateofbirth`, `birth`, `bdate`, `born` |
 | `employee_hire_date` | date | Original hire date — drives tenure and plan eligibility | `hire_date`, `hiredate`, `date_of_hire`, `dateofhire`, `start_date`, `startdate`, `hire`, `employment_date`, `employmentdate`, `date_hired` |
-| `employee_gross_compensation` | decimal | **Annual salary rate** (not prorated/YTD earnings) — drives comp growth and DC plan contributions | `salary`, `annual_salary`, `base_pay`, `gross_comp`, `compensation`, `base_salary`, `annualsalary`, `basepay`, `grosscomp`, `annual_compensation`, `annualcompensation`, `base_compensation`, `pay`, `wages`, `annualpay`, `annual_pay`, `total_comp`, `totalcomp` |
+| `employee_gross_compensation` | decimal | Actual plan-eligible earnings for the plan year, as supplied by the sponsor; part-year for hires and leavers. See the known limitation below — drives comp growth and DC plan contributions | `salary`, `annual_salary`, `base_pay`, `gross_comp`, `compensation`, `base_salary`, `annualsalary`, `basepay`, `grosscomp`, `annual_compensation`, `annualcompensation`, `base_compensation`, `pay`, `wages`, `annualpay`, `annual_pay`, `total_comp`, `totalcomp` |
 | `active` | boolean | Whether the employee is currently employed | `status`, `is_active`, `isactive`, `employment_status`, `employmentstatus`, `employed`, `current`, `active_flag`, `activeflag` |
 
 ### Optional
@@ -104,11 +104,18 @@ below); they don't block ingestion.
 - **Decimals (compensation, contributions, rates):** plain numbers, no `$`,
   no thousands separators, no `%` sign. `employee_deferral_rate` is a
   fraction of 1 (`0.06`, not `6`).
-- **`employee_gross_compensation` is always the annual salary rate**, not
-  year-to-date or prorated earnings — if the source only provides YTD pay
-  and a hire/term date, do not attempt to back into an annual rate by
-  simple extrapolation; flag it for the user instead, since the pipeline
-  prorates the annual rate itself using hire/termination dates.
+- **`employee_gross_compensation` holds actual plan-eligible earnings** for the
+  plan year, exactly as the sponsor supplied them. Hires and leavers therefore
+  show part-year pay, and full-year employees show a blend of pay before and
+  after any raise. Load the value as received: do not annualize or adjust it by
+  hand. Hours, full/part-time flags and bonus or overtime detail are rarely or
+  never available, so they cannot be separated out.
+- **Known limitation ([#1071](https://github.com/crzyc98/planwise_navigator/issues/1071)):**
+  the engine currently reads this column as an annual rate and prorates it
+  again using hire and termination dates. Employees hired during the census
+  year therefore enter the projection at their part-year earnings, which
+  understates their pay and can place them in too low a job level. Leavers do
+  not enter the projection.
 - **IDs:** treat as strings even if numeric-looking (leading zeros must be
   preserved — don't let a spreadsheet tool strip them).
 
