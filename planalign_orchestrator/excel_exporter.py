@@ -16,15 +16,19 @@ Features:
 
 from __future__ import annotations
 
+import io
 import json
 import logging
 import re
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 import duckdb
 import pandas as pd
+from pandas.io.formats.excel import ExcelFormatter
+from xlsxwriter.format import Format
+from xlsxwriter.worksheet import Worksheet
 
 from planalign_core.constants import (
     COL_EMPLOYEE_ID,
@@ -351,15 +355,24 @@ class ExcelExporter:
         """
         excel_path = output_dir / f"{scenario_name}_results.xlsx"
 
-        with pd.ExcelWriter(excel_path, engine="openpyxl") as writer:
+        with pd.ExcelWriter(
+            excel_path,
+            engine="xlsxwriter",
+            engine_kwargs={
+                "options": {
+                    "strings_to_urls": False,
+                    "strings_to_formulas": True,
+                    "strings_to_numbers": False,
+                }
+            },
+        ) as writer:
             # Workforce Snapshot (single sheet or per-year)
             self._write_workforce_sheets(writer, conn, split)
 
             # Summary Metrics by Year
             df_summary = self._calculate_summary_metrics(conn)
             df_summary = self._sanitize_for_excel(df_summary)
-            df_summary.to_excel(writer, sheet_name="Summary_Metrics", index=False)
-            self._format_worksheet(writer.book["Summary_Metrics"])
+            self._write_formatted_sheet(writer, "Summary_Metrics", df_summary)
 
             # Events Detail and Summary (if events table exists)
             if self._check_table_exists(conn, TABLE_FCT_YEARLY_EVENTS):
@@ -369,16 +382,14 @@ class ExcelExporter:
                 # Aggregated summary
                 df_events = self._calculate_events_summary(conn)
                 df_events = self._sanitize_for_excel(df_events)
-                df_events.to_excel(writer, sheet_name="Events_Summary", index=False)
-                self._format_worksheet(writer.book["Events_Summary"])
+                self._write_formatted_sheet(writer, "Events_Summary", df_events)
 
             # Metadata sheet
             df_metadata = self._build_metadata_dataframe(
                 config, seed, conn, total_rows, split
             )
             df_metadata = self._sanitize_for_excel(df_metadata)
-            df_metadata.to_excel(writer, sheet_name="Metadata", index=False)
-            self._format_worksheet(writer.book["Metadata"])
+            self._write_formatted_sheet(writer, "Metadata", df_metadata)
 
             self._write_ensemble_sheets(writer, ensemble_db_path)
 
@@ -398,10 +409,9 @@ class ExcelExporter:
                 self._format_worksheet(writer.book["Status"])
             else:
                 distributions = self._sanitize_for_excel(distributions)
-                distributions.to_excel(
-                    writer, sheet_name="Metric_Distributions", index=False
+                self._write_formatted_sheet(
+                    writer, "Metric_Distributions", distributions
                 )
-                self._format_worksheet(writer.book["Metric_Distributions"])
             self._write_attribution_sheet(writer, ensemble_db_path)
         return excel_path
 
@@ -410,10 +420,7 @@ class ExcelExporter:
         distributions = self._read_ensemble_distributions(ensemble_db_path)
         if distributions is not None:
             distributions = self._sanitize_for_excel(distributions)
-            distributions.to_excel(
-                writer, sheet_name="Metric_Distributions", index=False
-            )
-            self._format_worksheet(writer.book["Metric_Distributions"])
+            self._write_formatted_sheet(writer, "Metric_Distributions", distributions)
         self._write_attribution_sheet(writer, ensemble_db_path)
 
     def _write_attribution_sheet(
@@ -431,8 +438,7 @@ class ExcelExporter:
         attribution = self._read_ensemble_attribution(ensemble_db_path)
         if attribution is not None and not attribution.empty:
             attribution = self._sanitize_for_excel(attribution)
-            attribution.to_excel(writer, sheet_name="Variance_Attribution", index=False)
-            self._format_worksheet(writer.book["Variance_Attribution"])
+            self._write_formatted_sheet(writer, "Variance_Attribution", attribution)
 
     @staticmethod
     def _read_ensemble_distributions(
@@ -504,8 +510,7 @@ class ExcelExporter:
                 )
                 sheet_name = f"Workforce_{year}"
                 df_year = self._sanitize_for_excel(df_year)
-                df_year.to_excel(writer, sheet_name=sheet_name, index=False)
-                self._format_worksheet(writer.book[sheet_name])
+                self._write_formatted_sheet(writer, sheet_name, df_year)
         else:
             # Single workforce snapshot sheet
             df_workforce = self._query_to_df(
@@ -513,8 +518,7 @@ class ExcelExporter:
                 f"SELECT * FROM {TABLE_FCT_WORKFORCE_SNAPSHOT} ORDER BY {COL_SIMULATION_YEAR}, {COL_EMPLOYEE_ID}",
             )
             df_workforce = self._sanitize_for_excel(df_workforce)
-            df_workforce.to_excel(writer, sheet_name="Workforce_Snapshot", index=False)
-            self._format_worksheet(writer.book["Workforce_Snapshot"])
+            self._write_formatted_sheet(writer, "Workforce_Snapshot", df_workforce)
 
     def _write_events_detail_sheets(self, writer, conn) -> None:
         """Write event-level detail from fct_yearly_events to Excel sheets.
@@ -528,8 +532,7 @@ class ExcelExporter:
             f"SELECT * FROM {TABLE_FCT_YEARLY_EVENTS} ORDER BY {COL_SIMULATION_YEAR}, {COL_EMPLOYEE_ID}, {COL_EVENT_TYPE}",
         )
         df_events = self._sanitize_for_excel(df_events)
-        df_events.to_excel(writer, sheet_name="Events_Detail", index=False)
-        self._format_worksheet(writer.book["Events_Detail"])
+        self._write_formatted_sheet(writer, "Events_Detail", df_events)
 
     def _sanitize_for_excel(self, df: pd.DataFrame) -> pd.DataFrame:
         """Ensure DataFrame is compatible with Excel writer.
@@ -844,6 +847,146 @@ class ExcelExporter:
             except Exception:
                 return []
 
+    def _write_formatted_sheet(
+        self, writer: pd.ExcelWriter, sheet_name: str, frame: pd.DataFrame
+    ) -> None:
+        """Write data, preserving the original sampled openpyxl formatting."""
+        direct = writer.engine == "xlsxwriter" and (
+            sheet_name.startswith("Workforce_") or sheet_name == "Events_Detail"
+        )
+        if direct:
+            rows, columns = frame.shape
+            if rows > ExcelFormatter.max_rows or columns > ExcelFormatter.max_cols:
+                raise ValueError(
+                    f"This sheet is too large! Your sheet size is: {rows}, {columns} "
+                    f"Max sheet size is: {ExcelFormatter.max_rows}, {ExcelFormatter.max_cols}"
+                )
+            writer.book.add_worksheet(sheet_name)
+        else:
+            frame.to_excel(writer, sheet_name=sheet_name, index=False)
+        if writer.engine == "openpyxl":
+            self._format_worksheet(writer.sheets[sheet_name])
+            return
+        if not direct:
+            blank = writer.book.add_format({"num_format": "General"})
+            for column, name in enumerate(frame.columns):
+                for row in frame[name].isna().to_numpy().nonzero()[0]:
+                    writer.sheets[sheet_name].write_blank(
+                        int(row) + 1, column, None, blank
+                    )
+        # Use pandas' actual openpyxl conversions, including missing values,
+        # Decimal, timestamps and string truncation, on only the bounded sample.
+        with pd.ExcelWriter(io.BytesIO(), engine="openpyxl") as sample_writer:
+            frame.head(_AUTOSIZE_SAMPLE_ROWS).to_excel(sample_writer, index=False)
+            sample = sample_writer.sheets["Sheet1"]
+            self._format_worksheet(sample)
+            self._format_xlsxwriter(writer, sheet_name, sample)
+        if direct:
+            self._write_direct_columns(writer, sheet_name, frame)
+
+    @staticmethod
+    def _prepare_excel_column(
+        writer: pd.ExcelWriter, sheet: Worksheet, series: pd.Series
+    ) -> list[tuple[Callable[..., int], Any, Any]]:
+        """Convert a column once; keep pandas conversions for heterogeneous data."""
+        blank = writer.book.add_format({"num_format": "General"})
+        values = series.tolist()
+        missing = series.isna().tolist()
+        dtype = series.dtype
+        convert: Callable[[Any], Any]
+        if pd.api.types.is_bool_dtype(dtype):
+            write, convert = sheet.write_boolean, bool
+        elif pd.api.types.is_integer_dtype(dtype):
+            write, convert = sheet.write_number, int
+        elif pd.api.types.is_float_dtype(dtype):
+            write, convert = sheet.write_number, float
+        else:
+            return ExcelExporter._prepare_mixed_column(writer, sheet, values, missing)
+        return [
+            (
+                (sheet.write_blank, None, blank)
+                if absent
+                else (
+                    (sheet.write_string, str(value), None)
+                    if pd.api.types.is_float(value) and abs(value) == float("inf")
+                    else (write, convert(value), None)
+                )
+            )
+            for value, absent in zip(values, missing)
+        ]
+
+    @staticmethod
+    def _prepare_mixed_column(
+        writer: pd.ExcelWriter,
+        sheet: Worksheet,
+        values: list[Any],
+        missing: list[bool],
+    ) -> list[tuple[Callable[..., int], Any, Any]]:
+        """Use pandas' scalar conversion contract outside homogeneous numerics."""
+        formatter = ExcelFormatter(pd.DataFrame())
+        formats: dict[str | None, Format | None] = {None: None}
+        blank = writer.book.add_format({"num_format": "General"})
+        prepared: list[tuple[Callable[..., int], Any, Any]] = []
+        for value, absent in zip(values, missing):
+            if absent:
+                prepared.append((sheet.write_blank, None, blank))
+                continue
+            value, fmt = writer._value_with_fmt(formatter._format_value(value))
+            if fmt not in formats:
+                formats[fmt] = writer.book.add_format({"num_format": fmt})
+            if fmt:
+                write = sheet.write_number if fmt == "0" else sheet.write_datetime
+            elif isinstance(value, str):
+                write = (
+                    sheet.write if value.startswith(("=", "{=")) else sheet.write_string
+                )
+            elif isinstance(value, bool):
+                write = sheet.write_boolean
+            else:
+                write = sheet.write_number
+            # Empty strings are omitted by pandas/xlsxwriter.
+            if value != "":
+                prepared.append((write, value, formats[fmt]))
+            else:
+                prepared.append((sheet.write_blank, None, None))
+        return prepared
+
+    @staticmethod
+    def _write_direct_columns(
+        writer: pd.ExcelWriter, sheet_name: str, frame: pd.DataFrame
+    ) -> None:
+        """Write typed cells without ExcelCell allocation or per-cell style JSON."""
+        sheet = writer.sheets[sheet_name]
+        for column in range(len(frame.columns)):
+            prepared = ExcelExporter._prepare_excel_column(
+                writer, sheet, frame.iloc[:, column]
+            )
+            for row, (write, value, fmt) in enumerate(prepared, 1):
+                write(row, column, value, fmt)
+
+    @staticmethod
+    def _format_xlsxwriter(
+        writer: pd.ExcelWriter, sheet_name: str, sample: Any
+    ) -> None:
+        """Translate the sampled header, widths and pane to xlsxwriter."""
+        sheet = writer.sheets[sheet_name]
+        header = writer.book.add_format(
+            {
+                "bold": True,
+                "fg_color": "E6E6FA",
+                "align": "center",
+                "border": 1,
+                "text_wrap": False,
+            }
+        )
+        for index, cell in enumerate(sample[1]):
+            sheet.write(0, index, cell.value, header)
+            width = sample.column_dimensions[cell.column_letter].width
+            # Xlsxwriter adds five pixels of padding; openpyxl stores the
+            # requested OOXML character width directly (default font: 7 px).
+            sheet.set_column(index, index, width - 5 / 7)
+        sheet.freeze_panes(1, 0)
+
     def _format_worksheet(self, worksheet) -> None:
         """Apply professional formatting to an Excel worksheet.
 
@@ -868,10 +1011,11 @@ class ExcelExporter:
 
             # Auto-size columns from a row sample (header + first N data rows)
             # rather than scanning every cell — see _AUTOSIZE_SAMPLE_ROWS.
-            for column_cells in worksheet.columns:
-                sample_cells = column_cells[: _AUTOSIZE_SAMPLE_ROWS + 1]
+            for sample_cells in worksheet.iter_cols(
+                max_row=min(worksheet.max_row, _AUTOSIZE_SAMPLE_ROWS + 1)
+            ):
                 length = max(len(str(cell.value or "")) for cell in sample_cells)
-                column_letter = get_column_letter(column_cells[0].column)
+                column_letter = get_column_letter(sample_cells[0].column)
                 # Set reasonable max width
                 worksheet.column_dimensions[column_letter].width = min(length + 2, 50)
 
@@ -935,10 +1079,9 @@ class ExcelExporter:
                 with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
                     # Main comparison sheet
                     comparison_df = self._sanitize_for_excel(comparison_df)
-                    comparison_df.to_excel(
-                        writer, sheet_name="Scenario_Comparison", index=False
+                    self._write_formatted_sheet(
+                        writer, "Scenario_Comparison", comparison_df
                     )
-                    self._format_worksheet(writer.book["Scenario_Comparison"])
 
                     # Pivot table by scenario and year
                     pivot_df = comparison_df.pivot_table(
