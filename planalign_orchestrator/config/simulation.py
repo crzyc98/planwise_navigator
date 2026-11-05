@@ -88,8 +88,9 @@ class CompensationSettings(BaseModel):
 
     cola_rate: float = Field(default=0.02, ge=0, le=1)
     merit_budget: float = Field(default=0.035, ge=0, le=1)
-    # One annual raise budget. When set it replaces merit and COLA, which act
-    # identically on growth. Unset keeps both exactly as configured.
+    # One annual raise budget, as total spend on eligible pay. When set it
+    # replaces merit and COLA, keeps level differences, and scales rates to the
+    # budget. Unset keeps both exactly as configured.
     raise_budget: Optional[float] = Field(default=None, ge=0, le=1)
     # Share of eligible employees who receive a raise. The budget is total
     # spend, so a lower share raises each recipient's percentage.

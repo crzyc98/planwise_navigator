@@ -6,9 +6,10 @@
 {% set simulation_year = var('simulation_year') %}
 {% set raise_budget = var('raise_budget', none) %}
 {% set raise_coverage = var('raise_coverage', 1.0) | float %}
-{# A raise budget is total spend: everyone in coverage shares it evenly, so a lower
-   coverage gives each recipient a larger raise. Unset keeps merit plus COLA. #}
-{% set raise_rate = '(e.merit_raise + c.cola_rate)' if raise_budget is none else '(' ~ (raise_budget | float / raise_coverage) ~ ')' %}
+{# A raise budget is total spend. Level differences stay: one factor scales every
+   rate so spend across eligible pay equals the budget, and a lower coverage gives
+   each recipient a larger raise. Unset keeps merit plus COLA. #}
+{% set raise_rate = '(e.merit_raise + c.cola_rate)' if raise_budget is none else '(e.merit_raise * b.budget_factor / ' ~ raise_coverage ~ ')' %}
 
 -- Generate merit increase events for active workforce based on hazard rates
 -- Applies merit raise percentages from dim_hazard_table to eligible employees
@@ -84,6 +85,15 @@ eligible_for_merit AS (
     WHERE termination_date IS NULL OR termination_date >= raise_effective_date
 ),
 
+{% if raise_budget is not none %}
+-- One factor per year turns level rates into exactly the budgeted spend.
+budget_scale AS (
+    SELECT {{ raise_budget }} * SUM(employee_gross_compensation)
+        / NULLIF(SUM(merit_raise * employee_gross_compensation), 0) AS budget_factor
+    FROM eligible_for_merit
+),
+{% endif %}
+
 -- Apply COLA adjustments using dynamic parameter system
 cola_adjustments AS (
     SELECT
@@ -131,6 +141,9 @@ SELECT
     'raise' AS event_category
 FROM eligible_for_merit e
 CROSS JOIN cola_adjustments c
+{% if raise_budget is not none %}
+CROSS JOIN budget_scale b
+{% endif %}
 {% if raise_budget is not none and raise_coverage < 1 %}
 WHERE (ABS(PLANALIGN_HASH(e.employee_id || '{{ simulation_year }}' || 'raise_coverage' || '{{ subsystem_seed('raise_coverage') }}')) % 1000000) / 1000000.0 < {{ raise_coverage }}
 {% endif %}
