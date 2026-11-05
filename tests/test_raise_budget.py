@@ -94,14 +94,14 @@ def test_calibration_levers_move_a_set_budget(tmp_path) -> None:
 def test_apply_writes_the_budget_when_one_is_set() -> None:
     compensation = {"raise_budget_percent": 4.0}
     params = CalibrationParameterSet(merit_budget=0.045, cola_rate=0.0)
-    _merge_raise_budget(compensation, params)
+    _merge_raise_budget(compensation, params, True)
     assert compensation["raise_budget"] == pytest.approx(0.045)
     assert compensation["raise_budget_percent"] == pytest.approx(4.5)
 
 
 def test_apply_leaves_merit_and_cola_configs_alone() -> None:
     compensation = {"merit_budget": 0.035}
-    _merge_raise_budget(compensation, CalibrationParameterSet(merit_budget=0.04))
+    _merge_raise_budget(compensation, CalibrationParameterSet(merit_budget=0.04), False)
     assert "raise_budget" not in compensation
 
 
@@ -186,4 +186,17 @@ def test_apply_keeps_merit_and_cola_as_the_budget_shape() -> None:
     }
     merged = _merge_calibration_candidate(saved, request)["compensation"]
     assert (merged["merit_budget"], merged["cola_rate"]) == (0.035, 0.02)
+    assert merged["raise_budget"] == pytest.approx(0.045)
+
+
+def test_apply_keeps_the_shape_in_scenario_overrides() -> None:
+    """Overrides inherit the budget, so merit and COLA there would wipe the shape."""
+    request = SimpleNamespace(
+        best_params=CalibrationParameterSet(merit_budget=0.045, cola_rate=0.0),
+        context=SimpleNamespace(start_year=2026, end_year=2030),
+        target_comp_growth_pct=3.0,
+    )
+    merged = _merge_calibration_candidate({}, request, True)["compensation"]
+    assert "merit_budget" not in merged
+    assert "cola_rate" not in merged
     assert merged["raise_budget"] == pytest.approx(0.045)
