@@ -6,6 +6,8 @@ import pytest
 import yaml
 
 from planalign_api.routers.calibration import _merge_raise_budget
+from planalign_api.services.template_service import TemplateService
+from planalign_api.services.workspace_service import with_raise_budget
 from planalign_orchestrator.calibration_runner import (
     CalibrationParameterSet,
     CalibrationRun,
@@ -108,3 +110,36 @@ def test_clearing_the_budget_returns_to_merit_and_cola() -> None:
     )
     assert settings.raise_budget is None
     assert (settings.cola_rate, settings.merit_budget) == (0.02, 0.035)
+
+
+def test_new_workspaces_start_on_one_budget_at_the_same_level() -> None:
+    config = with_raise_budget(
+        {"compensation": {"merit_budget": 0.035, "cola_rate": 0.02}}
+    )
+    assert config["compensation"]["raise_budget"] == 0.055
+
+
+def test_a_chosen_budget_is_not_replaced() -> None:
+    config = with_raise_budget({"compensation": {"raise_budget": 0.04}})
+    assert config["compensation"]["raise_budget"] == 0.04
+
+
+def test_defaults_are_not_mutated() -> None:
+    source = {"compensation": {"merit_budget": 0.035, "cola_rate": 0.02}}
+    with_raise_budget(source)
+    assert "raise_budget" not in source["compensation"]
+
+
+def test_shared_config_stays_on_merit_and_cola() -> None:
+    """Scenario files override merit on this base, so a budget here would mute them."""
+    config = yaml.safe_load(Path("config/simulation_config.yaml").read_text())
+    assert "raise_budget" not in config["compensation"]
+
+
+def test_every_template_budget_matches_its_merit_and_cola() -> None:
+    templates = TemplateService().list_templates()
+    assert templates
+    for template in templates:
+        compensation = template.config["compensation"]
+        total = compensation["merit_budget_percent"] + compensation["cola_rate_percent"]
+        assert compensation["raise_budget"] == pytest.approx(total / 100)

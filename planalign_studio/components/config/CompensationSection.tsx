@@ -55,7 +55,7 @@ export function CompensationSection({ variant = 'full' }: { variant?: 'full' | '
             {result.warnings.map((warning, index) => <p key={index} className="text-xs text-warning-ink">{warning}</p>)}
             <div className="flex flex-wrap gap-2">
               <button type="button" disabled={preview.stale} className="px-3 py-2 rounded bg-info-solid text-ink-inverse text-sm disabled:opacity-50"
-                onClick={() => preview.apply(suggestion => setFormData(previous => ({ ...previous, colaRate: suggestion.cola_rate, meritBudget: suggestion.merit_budget, promoIncrease: suggestion.promotion_increase, promoBudget: suggestion.promotion_budget })))}>Apply suggested settings</button>
+                onClick={() => preview.apply(suggestion => setFormData(previous => ({ ...previous, colaRate: suggestion.cola_rate, meritBudget: suggestion.merit_budget, raiseBudget: Number((suggestion.cola_rate + suggestion.merit_budget).toFixed(4)), promoIncrease: suggestion.promotion_increase, promoBudget: suggestion.promotion_budget })))}>Apply suggested settings</button>
               <button type="button" onClick={preview.cancel} className="px-3 py-2 rounded border border-border text-sm">Cancel</button>
             </div>
           </div>
