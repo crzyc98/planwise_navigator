@@ -27,6 +27,7 @@ class TemplateService:
                 "compensation": {
                     "merit_budget_percent": 3.5,
                     "cola_rate_percent": 2.0,
+                    "raise_budget": 0.055,
                 },
                 "dc_plan": {
                     "auto_enroll": True,
@@ -52,6 +53,7 @@ class TemplateService:
                 "compensation": {
                     "merit_budget_percent": 4.5,
                     "cola_rate_percent": 2.5,
+                    "raise_budget": 0.07,
                 },
                 "dc_plan": {
                     "auto_enroll": True,
@@ -76,6 +78,7 @@ class TemplateService:
                 "compensation": {
                     "merit_budget_percent": 2.5,
                     "cola_rate_percent": 1.5,
+                    "raise_budget": 0.04,
                 },
                 "dc_plan": {
                     "auto_enroll": False,
@@ -101,6 +104,7 @@ class TemplateService:
                 "compensation": {
                     "merit_budget_percent": 4.0,
                     "cola_rate_percent": 2.5,
+                    "raise_budget": 0.065,
                 },
                 "dc_plan": {
                     "auto_enroll": True,
@@ -127,6 +131,7 @@ class TemplateService:
                 "compensation": {
                     "merit_budget_percent": 5.0,
                     "cola_rate_percent": 3.0,
+                    "raise_budget": 0.08,
                 },
                 "dc_plan": {
                     "auto_enroll": True,
@@ -171,6 +176,7 @@ class TemplateService:
                 "compensation": {
                     "merit_budget_percent": 3.0,
                     "cola_rate_percent": 2.0,
+                    "raise_budget": 0.05,
                 },
                 "dc_plan": {
                     "auto_enroll": True,

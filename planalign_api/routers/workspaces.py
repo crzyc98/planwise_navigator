@@ -44,6 +44,7 @@ from ..services.export_service import (
 from ..services.seed_config_validator import validate_seed_configs
 from ..services.path_guard import PathGuardError, ProtectedPathError
 from ..services.upload_stream import stream_upload_to_tempfile
+from ..services.workspace_service import with_raise_budget
 from ..storage.workspace_storage import WorkspaceStorage
 
 router = APIRouter()
@@ -77,48 +78,50 @@ async def get_default_config(
 
     if settings.default_config_path.exists():
         with open(settings.default_config_path) as f:
-            return yaml.safe_load(f)
+            return with_raise_budget(yaml.safe_load(f))
 
     # Built-in defaults
-    return {
-        "simulation": {
-            "start_year": 2025,
-            "end_year": 2027,
-            "random_seed": 42,
-            "target_growth_rate": 0.03,
-        },
-        "compensation": {
-            "cola_rate": 0.02,
-            "merit_budget": 0.035,
-        },
-        "workforce": {
-            "total_termination_rate": 0.12,
-        },
-        "enrollment": {
-            "auto_enrollment": {"enabled": True},
-        },
-        "employer_match": {
-            "active_formula": "simple_match",
-            "formulas": {
-                "simple_match": {
-                    "name": "Simple Match",
-                    "type": "simple",
-                    "match_rate": 0.50,
-                    "max_match_percentage": 0.06,
-                },
+    return with_raise_budget(
+        {
+            "simulation": {
+                "start_year": 2025,
+                "end_year": 2027,
+                "random_seed": 42,
+                "target_growth_rate": 0.03,
             },
-            # E046: New match mode defaults (empty tiers = not configured)
-            "tenure_match_tiers": [],
-            "points_match_tiers": [],
-            # Feature 099: tenure-graded multi-tier defaults (empty bands = not configured)
-            "tenure_graded_bands": [],
-        },
-        "employer_core_contribution": {
-            "enabled": True,
-            "status": "flat",
-            "contribution_rate": 0.03,
-        },
-    }
+            "compensation": {
+                "cola_rate": 0.02,
+                "merit_budget": 0.035,
+            },
+            "workforce": {
+                "total_termination_rate": 0.12,
+            },
+            "enrollment": {
+                "auto_enrollment": {"enabled": True},
+            },
+            "employer_match": {
+                "active_formula": "simple_match",
+                "formulas": {
+                    "simple_match": {
+                        "name": "Simple Match",
+                        "type": "simple",
+                        "match_rate": 0.50,
+                        "max_match_percentage": 0.06,
+                    },
+                },
+                # E046: New match mode defaults (empty tiers = not configured)
+                "tenure_match_tiers": [],
+                "points_match_tiers": [],
+                # Feature 099: tenure-graded multi-tier defaults (empty bands = not configured)
+                "tenure_graded_bands": [],
+            },
+            "employer_core_contribution": {
+                "enabled": True,
+                "status": "flat",
+                "contribution_rate": 0.03,
+            },
+        }
+    )
 
 
 @router.get("", response_model=WorkspacePage)
