@@ -41,7 +41,7 @@ export default function EmployeeTimelinePage() {
   return (
     <main className="space-y-5 p-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <div><h1 className="flex items-center gap-2 text-2xl font-bold text-ink"><Users className="text-brand-green" />Employee Timeline</h1><p className="text-sm text-ink-muted">Read the event story alongside each year-end state.</p></div>
+        <div><h1 className="flex items-center gap-2 text-2xl font-bold text-ink"><Users className="text-brand-ink" />Employee Timeline</h1><p className="text-sm text-ink-muted">Read the event story alongside each year-end state.</p></div>
         {employeeId && <button onClick={copyLink} className="flex items-center gap-2 rounded border px-3 py-2 text-sm"><Copy size={16} />Copy link</button>}
       </header>
       <div className="grid gap-3 md:grid-cols-2">

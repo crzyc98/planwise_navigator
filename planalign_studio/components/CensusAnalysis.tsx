@@ -94,7 +94,7 @@ const SegmentTooltip = ({ active, payload, label }: any) => {
       <div className="space-y-1 text-sm text-ink-muted">
         <p>{row.employee_count.toLocaleString()} employees</p>
         <p>
-          Participation: <span className="font-semibold text-brand-green">{formatPercent(row.participation_rate)}</span>
+          Participation: <span className="font-semibold text-brand-ink">{formatPercent(row.participation_rate)}</span>
         </p>
         <p>
           Avg deferral: <span className="font-semibold text-ink">{formatPercent(row.average_deferral_rate)}</span>
@@ -153,7 +153,7 @@ const DeferralBucketTooltip = ({ active, payload, label }: any) => {
       <p className="font-semibold text-ink mb-2 text-sm">{label} deferral</p>
       <div className="space-y-1 text-sm text-ink-muted">
         <p><span className="font-semibold text-ink">{row.count.toLocaleString()}</span> employees</p>
-        <p><span className="font-semibold text-brand-green">{row.percentage.toFixed(1)}%</span> of eligible</p>
+        <p><span className="font-semibold text-brand-ink">{row.percentage.toFixed(1)}%</span> of eligible</p>
       </div>
     </div>
   );
@@ -167,7 +167,7 @@ function DeferralDistributionChart({ data, context }: { data: CensusDeferralRate
     <div className="bg-surface-raised p-5 rounded-xl shadow-sm border border-border">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-ink">Deferral Rate Distribution</h3>
-        <button type="button" className="text-sm text-brand-green" onClick={() => void copy([
+        <button type="button" className="text-sm text-brand-ink" onClick={() => void copy([
           'Deferral Rate Distribution', context,
           'Deferral bucket\tEmployees\tPercent of eligible',
           ...data.map(row => `${row.bucket}\t${row.count}\t${row.percentage}%`),
@@ -299,7 +299,7 @@ export default function CensusAnalysis() {
             checked={excludeZeros}
             disabled={loading}
             onChange={e => setExcludeZeros(e.target.checked)}
-            className="mr-2 rounded border-border-strong text-brand-green focus:ring-brand-green"
+            className="mr-2 rounded border-border-strong text-brand-ink focus:ring-brand-green"
           />
           Exclude zeros from averages
         </label>

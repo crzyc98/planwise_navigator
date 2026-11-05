@@ -15,6 +15,8 @@
   --studio-ink-disabled: #9ca3af;
   --studio-border: #e5e7eb;
   --studio-border-strong: #d1d5db;
+  --studio-brand-ink: #047857;
+  --studio-brand-ink-strong: #064e3b;
   --studio-focus: #047857;
   --studio-overlay: rgb(17 24 39 / 52%);
   --studio-success-surface: #ecfdf5;
@@ -54,6 +56,8 @@
   --studio-ink-disabled: #73776f;
   --studio-border: #343633;
   --studio-border-strong: #4b4d48;
+  --studio-brand-ink: #34d399;
+  --studio-brand-ink-strong: #6ee7b7;
   --studio-focus: #10b981;
   --studio-overlay: rgb(0 0 0 / 68%);
   --studio-success-surface: #102a21;
@@ -83,6 +87,8 @@
   --color-brand-green-dark: #065f46;
   --color-brand-dark: #064e3b;
   --color-brand-light: #10b981;
+  --color-brand-ink: var(--studio-brand-ink);
+  --color-brand-ink-strong: var(--studio-brand-ink-strong);
   --color-surface: var(--studio-surface);
   --color-surface-raised: var(--studio-surface-raised);
   --color-surface-subtle: var(--studio-surface-subtle);

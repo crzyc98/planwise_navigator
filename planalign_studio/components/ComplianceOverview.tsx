@@ -69,7 +69,7 @@ export default function ComplianceOverview({ workspaceId, summary, onOpenTest }:
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {([{ metric: 'catch_up' as const, title: ordinaryTitle, values: summary.catch_up }, { metric: 'super_catch_up' as const, title: superTitle, values: summary.super_catch_up }]).map(({ metric, title, values }) => <div key={metric} className="bg-surface-raised border border-border rounded-xl p-4 space-y-2">
-          <button type="button" className="font-semibold text-brand-green hover:underline" onClick={() => select(metric)}>{title}</button>
+          <button type="button" className="font-semibold text-brand-ink hover:underline" onClick={() => select(metric)}>{title}</button>
           <p className="text-sm text-ink-muted">{values.eligible_count} age-eligible · {values.utilizing_count} utilizing · {values.available_count} with available contribution data</p>
           <p className="text-sm text-ink">Modeled usage {money(values.used)} / {money(values.capacity)} ({percent(values.utilization)})</p>
           <p className="text-sm text-ink-muted">Remaining catch-up capacity: {money(values.remaining_capacity)}</p>
@@ -77,7 +77,7 @@ export default function ComplianceOverview({ workspaceId, summary, onOpenTest }:
       </div>
       <div className="bg-surface-raised border border-border rounded-xl p-4 space-y-2">
         <h3 className="font-semibold text-ink">Existing NDT results</h3>
-        <div className="flex flex-wrap gap-4">{summary.ndt.map(test => <button type="button" key={test.test_type} onClick={() => onOpenTest(test.test_type)} className="text-sm text-brand-green hover:underline">
+        <div className="flex flex-wrap gap-4">{summary.ndt.map(test => <button type="button" key={test.test_type} onClick={() => onOpenTest(test.test_type)} className="text-sm text-brand-ink hover:underline">
           {test.test_type.toUpperCase()}: {test.result.toUpperCase()}{test.margin != null && ` · Margin ${percent(test.margin)}`}
           {test.message && <span className="block text-xs text-ink-muted">{test.message}</span>}
         </button>)}</div>

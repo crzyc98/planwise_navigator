@@ -167,7 +167,7 @@ export default function PreviewStep({ workspaceId, session, onGenerated, dataQua
 
       <div className="flex justify-end">
         {isGenerating ? (
-          <div className="flex items-center gap-2 text-sm text-brand-green">
+          <div className="flex items-center gap-2 text-sm text-brand-ink">
             <Loader2 size={16} className="animate-spin" />
             Generating Parquet file…
           </div>

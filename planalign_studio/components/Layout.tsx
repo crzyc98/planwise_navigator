@@ -50,7 +50,7 @@ const NavItem = ({ to, icon, label, end, collapsed }: Readonly<{ to: string; ico
     end={end}
     title={collapsed ? label : undefined}
     className={({ isActive }) =>
-      `flex items-center ${collapsed ? 'justify-center px-2' : 'px-4'} py-3 text-sm font-medium transition-colors rounded-lg mb-1 ${isActive ? 'bg-brand-green text-ink-inverse shadow-md' : 'text-ink-muted hover:bg-surface-subtle hover:text-brand-green'}`
+      `flex items-center ${collapsed ? 'justify-center px-2' : 'px-4'} py-3 text-sm font-medium transition-colors rounded-lg mb-1 ${isActive ? 'bg-brand-green text-ink-inverse shadow-md' : 'text-ink-muted hover:bg-surface-subtle hover:text-brand-ink'}`
     }
   >
     <span className={collapsed ? '' : 'mr-3'}>{icon}</span>
@@ -646,7 +646,7 @@ export default function Layout() {
     return (
       <div className="flex h-screen bg-surface-subtle items-center justify-center">
         <div className="flex flex-col items-center">
-          <Loader2 className="w-10 h-10 text-brand-green animate-spin mb-3" />
+          <Loader2 className="w-10 h-10 text-brand-ink animate-spin mb-3" />
           <p className="text-sm font-medium text-ink-muted">Loading workspaces...</p>
         </div>
       </div>
@@ -798,7 +798,7 @@ export default function Layout() {
       {isWorkspaceLoading && workspaces.length > 0 && (
         <div className="absolute inset-0 bg-surface-raised/80 z-50 flex items-center justify-center backdrop-blur-sm animate-fadeIn">
           <div className="flex flex-col items-center">
-            <Loader2 className="w-10 h-10 text-brand-green animate-spin mb-3" />
+            <Loader2 className="w-10 h-10 text-brand-ink animate-spin mb-3" />
             <p className="text-sm font-medium text-ink-muted">Switching Workspace...</p>
           </div>
         </div>
@@ -866,14 +866,14 @@ export default function Layout() {
           {sidebarCollapsed ? (
             <button
               onClick={() => setSidebarCollapsed(false)}
-              className="p-1.5 rounded-lg text-ink-muted hover:bg-surface-subtle hover:text-brand-green transition-colors"
+              className="p-1.5 rounded-lg text-ink-muted hover:bg-surface-subtle hover:text-brand-ink transition-colors"
               title="Expand sidebar"
             >
               <PanelLeftOpen size={20} />
             </button>
           ) : (
             <>
-              <Activity className="w-8 h-8 text-brand-green mr-3 flex-shrink-0" />
+              <Activity className="w-8 h-8 text-brand-ink mr-3 flex-shrink-0" />
               <span className="text-lg font-bold text-ink tracking-tight flex-1 truncate">{APP_NAME}</span>
               <button
                 onClick={() => setSidebarCollapsed(true)}
@@ -994,10 +994,10 @@ export default function Layout() {
                             <span className={`w-7 h-7 flex-shrink-0 flex items-center justify-center rounded text-[10px] font-bold ${identity.color}`}>
                               {identity.initials}
                             </span>
-                            <span className={`flex-1 min-w-0 truncate text-sm font-medium ${activeWorkspace.id === workspace.id ? 'text-brand-green' : 'text-ink'}`}>
+                            <span className={`flex-1 min-w-0 truncate text-sm font-medium ${activeWorkspace.id === workspace.id ? 'text-brand-ink' : 'text-ink'}`}>
                               <HighlightedName name={workspace.name} query={workspaceQuery} />
                             </span>
-                            {activeWorkspace.id === workspace.id && <Check size={14} className="text-brand-green flex-shrink-0" />}
+                            {activeWorkspace.id === workspace.id && <Check size={14} className="text-brand-ink flex-shrink-0" />}
                           </button>
                         </React.Fragment>
                       );
@@ -1038,7 +1038,7 @@ export default function Layout() {
              <div className="relative" ref={notificationDropdownRef}>
                <button
                  onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
-                 className={`relative p-2 text-ink-muted hover:text-brand-green hover:bg-surface-subtle rounded-full transition-colors ${isNotificationsOpen ? 'bg-surface-subtle text-brand-green' : ''}`}
+                 className={`relative p-2 text-ink-muted hover:text-brand-ink hover:bg-surface-subtle rounded-full transition-colors ${isNotificationsOpen ? 'bg-surface-subtle text-brand-ink' : ''}`}
                >
                  <Bell size={20} />
                  {unreadCount > 0 && (
@@ -1097,7 +1097,7 @@ export default function Layout() {
                        )}
                     </div>
                     <div className="p-2 border-t border-border bg-surface-subtle text-center">
-                      <button className="text-xs font-medium text-brand-green hover:underline">View All Notifications</button>
+                      <button className="text-xs font-medium text-brand-ink hover:underline">View All Notifications</button>
                     </div>
                  </div>
                )}
@@ -1109,7 +1109,7 @@ export default function Layout() {
                  onClick={() => setIsSettingsOpen(!isSettingsOpen)}
                  aria-label="Open settings"
                  aria-expanded={isSettingsOpen}
-                 className={`p-2 text-ink-muted hover:text-brand-green hover:bg-surface-subtle rounded-full transition-colors ${isSettingsOpen ? 'bg-surface-subtle text-brand-green' : ''}`}
+                 className={`p-2 text-ink-muted hover:text-brand-ink hover:bg-surface-subtle rounded-full transition-colors ${isSettingsOpen ? 'bg-surface-subtle text-brand-ink' : ''}`}
                >
                  <Settings size={20} />
                </button>
@@ -1122,7 +1122,7 @@ export default function Layout() {
                     <div className="p-2 space-y-1">
                        <button className="w-full text-left px-3 py-2 text-sm text-ink-muted hover:bg-surface-subtle rounded-lg flex items-center justify-between group">
                           <span className="flex items-center">
-                            <Activity size={16} className="mr-3 text-ink-subtle group-hover:text-brand-green" />
+                            <Activity size={16} className="mr-3 text-ink-subtle group-hover:text-brand-ink" />
                             System Preferences
                           </span>
                        </button>
@@ -1139,7 +1139,7 @@ export default function Layout() {
                              <Activity size={16} className="mr-3 text-ink-subtle" />
                              System
                            </span>
-                           {preference === 'system' && <Check size={16} className="text-brand-green" />}
+                           {preference === 'system' && <Check size={16} className="text-brand-ink" />}
                          </button>
                          <button
                            type="button"
@@ -1152,7 +1152,7 @@ export default function Layout() {
                              <Sun size={16} className="mr-3 text-ink-subtle" />
                              Light
                            </span>
-                           {preference === 'light' && <Check size={16} className="text-brand-green" />}
+                           {preference === 'light' && <Check size={16} className="text-brand-ink" />}
                          </button>
                          <button
                            type="button"
@@ -1165,7 +1165,7 @@ export default function Layout() {
                              <Moon size={16} className="mr-3 text-ink-subtle" />
                              Dark
                            </span>
-                           {preference === 'dark' && <Check size={16} className="text-brand-green" />}
+                           {preference === 'dark' && <Check size={16} className="text-brand-ink" />}
                          </button>
                        </div>
                     </div>

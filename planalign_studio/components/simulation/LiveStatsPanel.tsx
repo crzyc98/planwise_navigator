@@ -49,7 +49,7 @@ export default function LiveStatsPanel({ snapshot }: LiveStatsPanelProps) {
       {/* Year progress header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center text-sm font-medium text-ink-muted">
-          <CalendarRange size={16} className="mr-2 text-brand-green" />
+          <CalendarRange size={16} className="mr-2 text-brand-ink" />
           {yearIndex > 0 ? (
             <span>
               Simulating year <span className="font-bold">{snapshot.current_year}</span>
@@ -107,10 +107,10 @@ export default function LiveStatsPanel({ snapshot }: LiveStatsPanelProps) {
         ))}
         <div className="p-3 bg-brand-green/5 rounded-lg border border-brand-green/20">
           <div className="flex items-center mb-1">
-            <Sigma size={16} className="mr-2 text-brand-green" />
+            <Sigma size={16} className="mr-2 text-brand-ink" />
             <p className="text-xs text-ink-muted">Total Events</p>
           </div>
-          <p className="text-lg font-bold text-brand-dark">
+          <p className="text-lg font-bold text-brand-ink-strong">
             {counts.total.toLocaleString()}
           </p>
         </div>

@@ -243,7 +243,7 @@ export default function ForfeitureProjection({
                   setRequireHoursCredit(e.target.checked);
                   setData(null);
                 }}
-                className="rounded border-border-strong text-brand-green focus:ring-brand-green"
+                className="rounded border-border-strong text-brand-ink focus:ring-brand-green"
               />
               Require hours credit
             </label>
@@ -278,7 +278,7 @@ export default function ForfeitureProjection({
                       checked={checked}
                       disabled={!checked && atSelectionLimit}
                       onChange={() => toggleScenario(scenario.id)}
-                      className="rounded border-border-strong text-brand-green focus:ring-brand-green"
+                      className="rounded border-border-strong text-brand-ink focus:ring-brand-green"
                     />
                     {checked && (
                       <span

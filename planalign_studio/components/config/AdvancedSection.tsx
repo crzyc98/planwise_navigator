@@ -30,7 +30,7 @@ export function AdvancedSection() {
                 name="enableMultithreading"
                 checked={formData.enableMultithreading}
                 onChange={handleChange}
-                className="h-5 w-5 text-brand-green focus:ring-brand-green border-border-strong rounded"
+                className="h-5 w-5 text-brand-ink focus:ring-brand-green border-border-strong rounded"
               />
             </label>
             <div className="flex items-center justify-between">
@@ -73,7 +73,7 @@ export function AdvancedSection() {
                 name="strictValidation"
                 checked={formData.strictValidation}
                 onChange={handleChange}
-                className="h-5 w-5 text-brand-green focus:ring-brand-green border-border-strong rounded"
+                className="h-5 w-5 text-brand-ink focus:ring-brand-green border-border-strong rounded"
               />
             </label>
             <div className="flex items-center justify-between">

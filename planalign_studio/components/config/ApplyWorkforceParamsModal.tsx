@@ -204,7 +204,7 @@ function SelectStep({
         </span>
         <button
           onClick={onToggleAll}
-          className="text-sm text-brand-green hover:text-brand-dark font-medium"
+          className="text-sm text-brand-ink hover:text-brand-ink-strong font-medium"
         >
           {allSelected ? 'Deselect All' : 'Select All'}
         </button>
@@ -222,7 +222,7 @@ function SelectStep({
             type="checkbox"
             checked={selectedIds.has(scenario.id)}
             onChange={() => onToggle(scenario.id)}
-            className="mt-1 mr-3 h-4 w-4 text-brand-green rounded border-border-strong focus:ring-brand-green"
+            className="mt-1 mr-3 h-4 w-4 text-brand-ink rounded border-border-strong focus:ring-brand-green"
           />
           <div className="flex-1">
             <div className="flex justify-between items-start">

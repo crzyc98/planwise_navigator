@@ -432,7 +432,7 @@ export default function FieldMappingStep({ workspaceId, session, onSaved }: Prop
                       <button
                         onClick={() => toggleExpand(m.input_column)}
                         disabled={m.is_excluded}
-                        className="flex items-center gap-1 text-xs text-brand-green hover:underline disabled:opacity-40"
+                        className="flex items-center gap-1 text-xs text-brand-ink hover:underline disabled:opacity-40"
                       >
                         {m.transformations.length > 0 ? `${m.transformations.length} transform(s)` : 'Add'}
                         {expandedRows.has(m.input_column) ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
@@ -470,7 +470,7 @@ export default function FieldMappingStep({ workspaceId, session, onSaved }: Prop
                           {m.transformations.length < 5 && (
                             <button
                               onClick={() => addTransform(idx)}
-                              className="text-xs text-brand-green hover:underline"
+                              className="text-xs text-brand-ink hover:underline"
                             >
                               + Add transform
                             </button>

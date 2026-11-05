@@ -128,7 +128,7 @@ export default function RunProvenanceReport() {
   if (loading) {
     return (
       <div className="flex h-96 items-center justify-center">
-        <Loader2 className="animate-spin text-brand-green" size={44} />
+        <Loader2 className="animate-spin text-brand-ink" size={44} />
       </div>
     );
   }
@@ -165,7 +165,7 @@ export default function RunProvenanceReport() {
               <ArrowLeft size={20} />
             </button>
             <div>
-              <p className="text-sm font-medium uppercase tracking-wide text-brand-green">Run provenance</p>
+              <p className="text-sm font-medium uppercase tracking-wide text-brand-ink">Run provenance</p>
               <h1 className="mt-1 text-2xl font-bold text-ink">Audit Report</h1>
               <p className="mt-2 break-all font-mono text-xs text-ink-muted">{evidence.run.run_id}</p>
             </div>
@@ -333,7 +333,7 @@ export default function RunProvenanceReport() {
 
       <Section title="Integrity Verification and Reviewer Sign-Off">
         <div className="flex items-start gap-3 rounded-lg bg-surface-subtle p-4">
-          <ShieldCheck className="mt-0.5 shrink-0 text-brand-green" size={24} />
+          <ShieldCheck className="mt-0.5 shrink-0 text-brand-ink" size={24} />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-ink">{report.digest.algorithm} · {report.digest.canonicalization}</p>
             <code className="mt-2 block break-all text-xs text-ink-muted">{report.digest.value}</code>

@@ -324,7 +324,7 @@ export default function SimulationControl() {
                   <p className="text-ink-muted font-medium">
                     Last run: <span className="text-ink">{lastRunScenario.name}</span>
                     {' — '}
-                    <span className={lastRunScenario.status === 'completed' ? 'text-brand-green' : 'text-danger-ink'}>
+                    <span className={lastRunScenario.status === 'completed' ? 'text-brand-ink' : 'text-danger-ink'}>
                       {lastRunScenario.status.toUpperCase()}
                     </span>
                   </p>
@@ -333,7 +333,7 @@ export default function SimulationControl() {
                   </p>
                   <button
                     onClick={() => navigate(`/simulate/${lastRunScenario.id}`)}
-                    className="mt-4 text-sm text-brand-green hover:text-brand-dark font-medium"
+                    className="mt-4 text-sm text-brand-ink hover:text-brand-ink-strong font-medium"
                   >
                     View results →
                   </button>
@@ -390,14 +390,14 @@ export default function SimulationControl() {
                     <td className="py-3 px-4">
                       <div className="flex items-center">
                         <div className="flex-1">
-                          <p className="font-medium text-ink group-hover:text-brand-green transition-colors">
+                          <p className="font-medium text-ink group-hover:text-brand-ink transition-colors">
                             {scenario.name}
                           </p>
                           {scenario.description && (
                             <p className="text-xs text-ink-muted mt-0.5">{scenario.description}</p>
                           )}
                         </div>
-                        <ExternalLink size={14} className="text-ink-subtle group-hover:text-brand-green ml-2 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <ExternalLink size={14} className="text-ink-subtle group-hover:text-brand-ink ml-2 opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
                     </td>
                     <td className="py-3 px-4">

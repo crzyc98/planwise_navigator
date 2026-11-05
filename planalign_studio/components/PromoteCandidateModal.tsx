@@ -128,7 +128,7 @@ export function PromoteCandidateModal({
                       type="checkbox"
                       checked={force}
                       onChange={(event) => setForce(event.target.checked)}
-                      className="mt-0.5 h-4 w-4 rounded border-border-strong text-brand-green focus:ring-brand-green"
+                      className="mt-0.5 h-4 w-4 rounded border-border-strong text-brand-ink focus:ring-brand-green"
                     />
                     <span>I understand this candidate is {candidate.status}; promote anyway.</span>
                   </label>

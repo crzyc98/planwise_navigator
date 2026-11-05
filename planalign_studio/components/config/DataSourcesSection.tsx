@@ -26,7 +26,7 @@ export function DataSourcesSection() {
       <div className="bg-surface-subtle rounded-xl p-6 border border-border">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center">
-            <Database className="w-5 h-5 text-brand-green mr-3" />
+            <Database className="w-5 h-5 text-brand-ink mr-3" />
             <h3 className="font-semibold text-ink">Census Data</h3>
           </div>
           {censusInfo && !loading && (
@@ -49,7 +49,7 @@ export function DataSourcesSection() {
             </div>
             <Link
               to={importPath}
-              className="inline-flex items-center gap-1 text-sm font-medium text-brand-green hover:underline"
+              className="inline-flex items-center gap-1 text-sm font-medium text-brand-ink hover:underline"
             >
               <FileUp size={14} /> Import a new census file
             </Link>
@@ -74,7 +74,7 @@ export function DataSourcesSection() {
             </div>
             <Link
               to={importPath}
-              className="inline-flex items-center gap-1 text-sm text-brand-green hover:underline"
+              className="inline-flex items-center gap-1 text-sm text-brand-ink hover:underline"
             >
               <FileUp size={14} /> Change census file via Import
             </Link>

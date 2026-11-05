@@ -104,7 +104,7 @@ export function SegmentationSection() {
           <div className="bg-surface-subtle rounded-xl p-6 border border-border">
             <div className="flex flex-wrap gap-3 items-center justify-between mb-4">
               <div className="flex items-center">
-                <Users className="w-5 h-5 text-brand-green mr-3" />
+                <Users className="w-5 h-5 text-brand-ink mr-3" />
                 <h3 className="font-semibold text-ink">Age Bands</h3>
               </div>
               <button
@@ -191,7 +191,7 @@ export function SegmentationSection() {
           <div className="bg-surface-subtle rounded-xl p-6 border border-border">
             <div className="flex flex-wrap gap-3 items-center justify-between mb-4">
               <div className="flex items-center">
-                <TrendingUp className="w-5 h-5 text-brand-green mr-3" />
+                <TrendingUp className="w-5 h-5 text-brand-ink mr-3" />
                 <h3 className="font-semibold text-ink">Tenure Bands</h3>
               </div>
               <button

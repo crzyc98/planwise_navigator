@@ -113,7 +113,7 @@ export function EmployerEligibilityEditor({ kind, config }: { kind: Contribution
       {flags.map(([suffix, label]) => {
         const name = `${prefix}${suffix}` as const;
         return <label key={name} htmlFor={name} className="flex items-center gap-2 text-sm text-ink-muted">
-          <input id={name} name={name} type="checkbox" checked={formData[name]} onChange={handleChange} className="h-4 w-4 shrink-0 text-brand-green rounded" />
+          <input id={name} name={name} type="checkbox" checked={formData[name]} onChange={handleChange} className="h-4 w-4 shrink-0 text-brand-ink rounded" />
           {label}
         </label>;
       })}

@@ -252,7 +252,7 @@ export default function NDTTesting() {
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-ink flex items-center">
-            <Shield size={28} className="mr-3 text-brand-green" />
+            <Shield size={28} className="mr-3 text-brand-ink" />
             NDT & Compliance
           </h1>
           <p className="text-ink-muted mt-1">
@@ -354,7 +354,7 @@ export default function NDTTesting() {
                   type="checkbox"
                   checked={includeMatch}
                   onChange={(e) => setIncludeMatch(e.target.checked)}
-                  className="mr-2 rounded border-border-strong text-brand-green focus:ring-brand-green"
+                  className="mr-2 rounded border-border-strong text-brand-ink focus:ring-brand-green"
                 />
                 <span className="text-sm text-ink-muted">Include Match</span>
               </label>
@@ -391,7 +391,7 @@ export default function NDTTesting() {
                   type="checkbox"
                   checked={safeHarbor}
                   onChange={(e) => setSafeHarbor(e.target.checked)}
-                  className="mr-2 rounded border-border-strong text-brand-green focus:ring-brand-green"
+                  className="mr-2 rounded border-border-strong text-brand-ink focus:ring-brand-green"
                 />
                 <span className="text-sm text-ink-muted">Safe Harbor</span>
               </label>
@@ -476,8 +476,8 @@ export default function NDTTesting() {
                         onClick={() => handleScenarioToggle(id)}
                         className="flex items-center flex-1 min-w-0"
                       >
-                        <CheckSquare size={16} className="text-brand-green mr-3 flex-shrink-0" />
-                        <span className="text-xs font-semibold text-brand-green truncate">
+                        <CheckSquare size={16} className="text-brand-ink mr-3 flex-shrink-0" />
+                        <span className="text-xs font-semibold text-brand-ink truncate">
                           {scenario.name}
                         </span>
                       </button>
@@ -547,7 +547,7 @@ export default function NDTTesting() {
       {loading ? (
         <div className="flex items-center justify-center h-64">
           <div className="flex flex-col items-center">
-            <Loader2 size={48} className="animate-spin text-brand-green mb-3" />
+            <Loader2 size={48} className="animate-spin text-brand-ink mb-3" />
             <p className="text-sm text-ink-muted">Running {TEST_TYPE_LABELS[testType]}...</p>
           </div>
         </div>
@@ -739,14 +739,14 @@ function ACPSingleResult({
         <div className="bg-surface-subtle rounded-lg p-4 space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-ink-muted">Basic Test (NHCE x 1.25)</span>
-            <span className={`font-medium ${result.applied_test === 'basic' ? 'text-brand-green font-bold' : 'text-ink-muted'}`}>
+            <span className={`font-medium ${result.applied_test === 'basic' ? 'text-brand-ink font-bold' : 'text-ink-muted'}`}>
               {formatPercent(result.basic_test_threshold)}
               {result.applied_test === 'basic' && ' (applied)'}
             </span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-ink-muted">Alternative Test (min of NHCE x 2, NHCE + 2%)</span>
-            <span className={`font-medium ${result.applied_test === 'alternative' ? 'text-brand-green font-bold' : 'text-ink-muted'}`}>
+            <span className={`font-medium ${result.applied_test === 'alternative' ? 'text-brand-ink font-bold' : 'text-ink-muted'}`}>
               {formatPercent(result.alternative_test_threshold)}
               {result.applied_test === 'alternative' && ' (applied)'}
             </span>
@@ -1446,14 +1446,14 @@ function ADPSingleResult({
         <div className="bg-surface-subtle rounded-lg p-4 space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-ink-muted">Basic Test (NHCE x 1.25)</span>
-            <span className={`font-medium ${result.applied_test === 'basic' ? 'text-brand-green font-bold' : 'text-ink-muted'}`}>
+            <span className={`font-medium ${result.applied_test === 'basic' ? 'text-brand-ink font-bold' : 'text-ink-muted'}`}>
               {formatPercent(result.basic_test_threshold)}
               {result.applied_test === 'basic' && ' (applied)'}
             </span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-ink-muted">Alternative Test (min of NHCE x 2, NHCE + 2%)</span>
-            <span className={`font-medium ${result.applied_test === 'alternative' ? 'text-brand-green font-bold' : 'text-ink-muted'}`}>
+            <span className={`font-medium ${result.applied_test === 'alternative' ? 'text-brand-ink font-bold' : 'text-ink-muted'}`}>
               {formatPercent(result.alternative_test_threshold)}
               {result.applied_test === 'alternative' && ' (applied)'}
             </span>

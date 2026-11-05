@@ -280,7 +280,7 @@ export default function EnsemblesPage() {
           <button
             type="button"
             onClick={addThresholdRow}
-            className="flex items-center gap-1 text-sm text-brand-green hover:underline"
+            className="flex items-center gap-1 text-sm text-brand-ink hover:underline"
           >
             <Plus size={14} /> Add threshold
           </button>

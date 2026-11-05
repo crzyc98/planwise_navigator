@@ -415,7 +415,7 @@ export function WorkspaceManagerContent({
                   {activeWorkspace?.id !== ws.id && ws.lifecycle === 'active' && (
                     <button
                       onClick={() => switchToWorkspace(ws)}
-                      className="mr-1 inline-flex items-center rounded-md px-2 py-1.5 text-sm font-medium text-brand-green hover:bg-success-surface"
+                      className="mr-1 inline-flex items-center rounded-md px-2 py-1.5 text-sm font-medium text-brand-ink hover:bg-success-surface"
                       aria-label={`Switch to ${ws.name}`}
                     >
                       Switch <ArrowRight size={14} className="ml-1" />

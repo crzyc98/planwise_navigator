@@ -127,7 +127,7 @@ const DeferralTooltip = ({ active, payload, label }: any) => {
           employees
         </p>
         <p className="text-sm text-ink-muted">
-          <span className="font-semibold text-brand-green">{percentage.toFixed(1)}%</span>{' '}
+          <span className="font-semibold text-brand-ink">{percentage.toFixed(1)}%</span>{' '}
           of participants
         </p>
       </div>
@@ -639,7 +639,7 @@ export default function DCPlanAnalytics() {
               type="checkbox"
               checked={excludeZeros}
               onChange={(e) => setExcludeZeros(e.target.checked)}
-              className="mr-2 rounded border-border-strong text-brand-green focus:ring-brand-green"
+              className="mr-2 rounded border-border-strong text-brand-ink focus:ring-brand-green"
             />
             Exclude zeros from averages
           </label>
@@ -670,7 +670,7 @@ export default function DCPlanAnalytics() {
             </>
           )}
         </span>
-        {loading && <span className="text-xs font-medium text-brand-green">Updating…</span>}
+        {loading && <span className="text-xs font-medium text-brand-ink">Updating…</span>}
       </div>
 
       {/* Comparison Mode Scenario Selection */}
@@ -697,7 +697,7 @@ export default function DCPlanAnalytics() {
       {/* Content Area */}
       {loading ? (
         <div className="flex items-center justify-center h-96">
-          <Loader2 size={48} className="animate-spin text-brand-green" />
+          <Loader2 size={48} className="animate-spin text-brand-ink" />
         </div>
       ) : error ? (
         <ErrorState message={error} onRetry={handleRefresh} />
@@ -780,7 +780,7 @@ export default function DCPlanAnalytics() {
                         ? a.contribution_by_year.find((y) => y.year === selectedYear)
                         : null;
                       return (
-                        <td key={a.scenario_id} className="py-3 px-4 text-right font-bold text-brand-green">
+                        <td key={a.scenario_id} className="py-3 px-4 text-right font-bold text-brand-ink">
                           {formatCurrency(yd?.total_all_contributions ?? a.total_all_contributions)}
                         </td>
                       );

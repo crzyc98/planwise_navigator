@@ -56,7 +56,7 @@ export default function TimelineColumn({ workspaceId, scenarioId, employeeId, sc
         : data.available_years.includes(year)
           ? null
           : <div key={year} className="rounded-xl border border-dashed border-border-strong p-4 text-sm text-ink-muted"><strong>{year}</strong>: not simulated in this scenario</div>)}
-      {nextYear !== undefined && <button onClick={loadMore} className="w-full rounded-lg border border-brand-green px-4 py-2 text-sm font-medium text-brand-green">Load more years</button>}
+      {nextYear !== undefined && <button onClick={loadMore} className="w-full rounded-lg border border-brand-green px-4 py-2 text-sm font-medium text-brand-ink">Load more years</button>}
     </div>
   );
 }

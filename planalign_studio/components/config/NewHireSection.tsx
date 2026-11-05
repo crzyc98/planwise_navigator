@@ -145,14 +145,14 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
         {/* Strategy Selector */}
         <div className="flex items-center space-x-4 mb-6">
           <label htmlFor="newhire-strategy-percentile" className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors w-1/2 ${formData.newHireStrategy === 'percentile' ? 'bg-success-surface border-brand-green ring-1 ring-brand-green' : 'bg-surface-raised border-border hover:bg-surface-subtle'}`}>
-            <input id="newhire-strategy-percentile" type="radio" name="newHireStrategy" value="percentile" checked={formData.newHireStrategy === 'percentile'} onChange={handleChange} className="h-4 w-4 text-brand-green focus:ring-brand-green border-border-strong" />
+            <input id="newhire-strategy-percentile" type="radio" name="newHireStrategy" value="percentile" checked={formData.newHireStrategy === 'percentile'} onChange={handleChange} className="h-4 w-4 text-brand-ink focus:ring-brand-green border-border-strong" />
             <div className="ml-3">
               <span className="block text-sm font-medium text-ink">Percentile Based</span>
               <span className="block text-xs text-ink-muted">Offers target market percentiles (e.g., P50)</span>
             </div>
           </label>
           <label htmlFor="newhire-strategy-fixed" className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors w-1/2 ${formData.newHireStrategy === 'fixed' ? 'bg-success-surface border-brand-green ring-1 ring-brand-green' : 'bg-surface-raised border-border hover:bg-surface-subtle'}`}>
-            <input id="newhire-strategy-fixed" type="radio" name="newHireStrategy" value="fixed" checked={formData.newHireStrategy === 'fixed'} onChange={handleChange} className="h-4 w-4 text-brand-green focus:ring-brand-green border-border-strong" />
+            <input id="newhire-strategy-fixed" type="radio" name="newHireStrategy" value="fixed" checked={formData.newHireStrategy === 'fixed'} onChange={handleChange} className="h-4 w-4 text-brand-ink focus:ring-brand-green border-border-strong" />
             <div className="ml-3">
               <span className="block text-sm font-medium text-ink">Fixed Bands</span>
               <span className="block text-xs text-ink-muted">Offers use rigid salary structures</span>
@@ -313,14 +313,14 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
           <p className="text-xs text-ink-muted mb-4">Stored mode and percentages are retained for compatibility. They are not passed to the current engine and are read-only.</p>
           <div className="flex items-center space-x-4 mb-4">
             <label htmlFor="newhire-level-dist-adaptive" className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${formData.levelDistributionMode === 'adaptive' ? 'bg-success-surface border-brand-green ring-1 ring-brand-green' : 'bg-surface-raised border-border hover:bg-surface-subtle'}`}>
-              <input id="newhire-level-dist-adaptive" type="radio" name="levelDistributionMode" value="adaptive" checked={formData.levelDistributionMode === 'adaptive'} onChange={(e) => setFormData({...formData, levelDistributionMode: e.target.value})} className="h-4 w-4 text-brand-green focus:ring-brand-green border-border-strong" />
+              <input id="newhire-level-dist-adaptive" type="radio" name="levelDistributionMode" value="adaptive" checked={formData.levelDistributionMode === 'adaptive'} onChange={(e) => setFormData({...formData, levelDistributionMode: e.target.value})} className="h-4 w-4 text-brand-ink focus:ring-brand-green border-border-strong" />
               <div className="ml-2">
                 <span className="block text-sm font-medium text-ink">Adaptive</span>
                 <span className="block text-xs text-ink-muted">Maintain current workforce composition</span>
               </div>
             </label>
             <label htmlFor="newhire-level-dist-fixed" className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${formData.levelDistributionMode === 'fixed' ? 'bg-success-surface border-brand-green ring-1 ring-brand-green' : 'bg-surface-raised border-border hover:bg-surface-subtle'}`}>
-              <input id="newhire-level-dist-fixed" type="radio" name="levelDistributionMode" value="fixed" checked={formData.levelDistributionMode === 'fixed'} onChange={(e) => setFormData({...formData, levelDistributionMode: e.target.value})} className="h-4 w-4 text-brand-green focus:ring-brand-green border-border-strong" />
+              <input id="newhire-level-dist-fixed" type="radio" name="levelDistributionMode" value="fixed" checked={formData.levelDistributionMode === 'fixed'} onChange={(e) => setFormData({...formData, levelDistributionMode: e.target.value})} className="h-4 w-4 text-brand-ink focus:ring-brand-green border-border-strong" />
               <div className="ml-2">
                 <span className="block text-sm font-medium text-ink">Fixed Percentages</span>
                 <span className="block text-xs text-ink-muted">Specify exact distribution below</span>

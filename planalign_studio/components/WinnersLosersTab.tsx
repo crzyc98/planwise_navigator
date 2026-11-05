@@ -262,7 +262,7 @@ export default function WinnersLosersTab() {
         />
       ) : loading ? (
         <div className="flex items-center justify-center h-96">
-          <Loader2 size={48} className="animate-spin text-brand-green" />
+          <Loader2 size={48} className="animate-spin text-brand-ink" />
         </div>
       ) : error ? (
         <ErrorState message={error} onRetry={fetchComparison} />
@@ -289,7 +289,7 @@ export default function WinnersLosersTab() {
             <KPICard title="Average Change per Employee" value={impactCurrency(results.average_change)} icon={Users} color="gray" />
           </div>
           {results.total_compared === 0 && <p className="text-ink-muted">No active employees are present in both plans for this year. Dollar impact and average change are $0.00.</p>}
-          <button className="text-brand-green underline" onClick={() => setDetailFilters({})}>View all compared employees</button>
+          <button className="text-brand-ink underline" onClick={() => setDetailFilters({})}>View all compared employees</button>
           {detailFilters && <WinnersLosersDetails
             key={JSON.stringify(detailFilters)}
             workspaceId={activeWorkspace.id} comparison={results} filters={detailFilters}
