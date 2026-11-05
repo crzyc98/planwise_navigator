@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { baselineScenarioId, isMissingRunError } from './calibrationScenario';
+import { baselineScenarioId, growthMetricSettings, isMissingRunError } from './calibrationScenario';
 import { ApiError } from '../services/api';
 import CalibrationPanel from './CalibrationPanel';
 
@@ -10,6 +10,26 @@ vi.mock('react-router-dom', () => ({ useOutletContext: () => ({
 }) }));
 vi.mock('../hooks/useChartTheme', () => ({ useChartTheme: () => ({}) }));
 vi.mock('./config/ConfigContext', () => ({ extractCensusPath: () => null }));
+
+describe('growth metric settings', () => {
+  it('leaves the active metric request unchanged', () => {
+    expect(growthMetricSettings('active_average', true)).toEqual({});
+  });
+
+  it('sends the validated band and cap with two-dial total pay per head', () => {
+    expect(growthMetricSettings('payroll_per_head', true)).toEqual({
+      growth_metric: 'payroll_per_head',
+      compound_band_pct: 0.04,
+      salary_growth_max: 0.05,
+    });
+  });
+
+  it('sends only the metric when starting-pay growth is not solved', () => {
+    expect(growthMetricSettings('payroll_per_head', false)).toEqual({
+      growth_metric: 'payroll_per_head',
+    });
+  });
+});
 
 describe('calibration scenario defaults', () => {
   it('selects the real Baseline ID even when another scenario is first', () => {

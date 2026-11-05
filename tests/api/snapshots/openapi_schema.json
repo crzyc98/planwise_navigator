@@ -1331,6 +1331,15 @@
             "title": "End Year",
             "type": "integer"
           },
+          "growth_metric": {
+            "default": "active_average",
+            "enum": [
+              "active_average",
+              "payroll_per_head"
+            ],
+            "title": "Growth Metric",
+            "type": "string"
+          },
           "iterations": {
             "items": {
               "$ref": "#/components/schemas/OptimizationIteration"
@@ -1401,6 +1410,7 @@
           "target_comp_growth_pct",
           "max_abs_error_pct",
           "objective",
+          "growth_metric",
           "start_year",
           "end_year",
           "iterations",
@@ -11925,6 +11935,28 @@
       "PerYearCompensationResult": {
         "description": "Per-year compensation-growth result row (one per simulation year).",
         "properties": {
+          "active_avg_compensation": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Avg Compensation"
+          },
+          "active_growth_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Growth Pct"
+          },
           "avg_compensation": {
             "title": "Avg Compensation",
             "type": "number"
@@ -12043,7 +12075,9 @@
           "total_comp_growth_pct",
           "new_hire_avg_comp",
           "existing_avg_comp",
-          "new_hire_gap"
+          "new_hire_gap",
+          "active_avg_compensation",
+          "active_growth_pct"
         ],
         "title": "PerYearCompensationResult",
         "type": "object"

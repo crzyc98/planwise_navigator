@@ -11,3 +11,18 @@ export function isMissingRunError(e: unknown): boolean {
   return e instanceof ApiError && e.status === 409
     && typeof e.detail === 'string' && e.detail.startsWith('No completed simulation matches');
 }
+
+export type GrowthMetric = 'active_average' | 'payroll_per_head';
+
+/**
+ * Optimizer settings for a metric. Total pay per head runs with the compound
+ * band and starting-pay cap it was validated with (#1073); the active metric
+ * adds nothing, so its request is unchanged.
+ */
+export function growthMetricSettings(metric: GrowthMetric, solveSalaryGrowth: boolean) {
+  if (metric === 'active_average') return {};
+  return {
+    growth_metric: metric,
+    ...(solveSalaryGrowth ? { compound_band_pct: 0.04, salary_growth_max: 0.05 } : {}),
+  };
+}
