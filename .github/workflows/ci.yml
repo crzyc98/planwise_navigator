@@ -1,9 +1,9 @@
 # filename: .github/workflows/ci.yml
 name: CI Pipeline
 
-# All PRs retain the existing required checks. Backend/unknown changes also run
-# multi-year and edge-config simulations; prose/frontend-only changes omit them.
-# Full integration + coverage runs on main/develop, nightly, dispatch, or full-ci.
+# PRs run lint, Studio, fast tests, the dependency audit and model validation.
+# Simulations, full integration and coverage run on main/develop, nightly,
+# dispatch, or with the full-ci label. A failed nightly run opens an issue.
 # Require `CI Gate` in repository rulesets to enforce this conditional policy.
 on:
   push:
@@ -196,27 +196,21 @@ jobs:
           # suite must never reach the global database either.
           DATABASE_PATH: ${{ runner.temp }}/planalign-ci-fast.duckdb
         run: |
-          # Constitution III caps the fast suite's wall-clock time (see #648).
-          # Warn above 450s to track drift; fail above 540s to allow for runner
-          # variance observed on GitHub-hosted runners (see #928).
+          # Constitution III tracks the fast suite's wall-clock time (see #648).
+          # Runner speed swings it widely (#928, #1083), so drift only warns.
           # --dist load: tests must not depend on sharing a worker with their
           # file-mates; keep collection deterministic (no uuid4() in IDs).
-          FAST_SUITE_BUDGET_SECONDS=540
-          FAST_SUITE_WARNING_SECONDS=450
+          FAST_SUITE_WARNING_SECONDS=540
           start=$(date +%s)
           pytest -m fast -q -n 4 --dist load --durations=40
           status=$?
           elapsed=$(( $(date +%s) - start ))
-          echo "Fast suite took ${elapsed}s (budget: ${FAST_SUITE_BUDGET_SECONDS}s)"
+          echo "Fast suite took ${elapsed}s (warning above: ${FAST_SUITE_WARNING_SECONDS}s)"
           if [ "$status" -ne 0 ]; then
             exit "$status"
           fi
           if [ "$elapsed" -gt "$FAST_SUITE_WARNING_SECONDS" ]; then
-            echo "::warning::Fast suite took ${elapsed}s, above the ${FAST_SUITE_WARNING_SECONDS}s warning threshold and drifting toward the ${FAST_SUITE_BUDGET_SECONDS}s budget."
-          fi
-          if [ "$elapsed" -gt "$FAST_SUITE_BUDGET_SECONDS" ]; then
-            echo "::error::Fast suite took ${elapsed}s, exceeding the ${FAST_SUITE_BUDGET_SECONDS}s budget in constitution.md III. Re-profile with 'pytest -m fast --durations=50' and either fix the regression or re-baseline the budget."
-            exit 1
+            echo "::warning::Fast suite took ${elapsed}s, above the ${FAST_SUITE_WARNING_SECONDS}s warning threshold. Re-profile with 'pytest -m fast --durations=50' if this persists."
           fi
 
       - name: Assert default database sentinel remains unused
@@ -587,3 +581,25 @@ jobs:
         env:
           CI_NEEDS: ${{ toJSON(needs) }}
         run: python3 scripts/ci_policy.py gate
+
+  nightly-alert:
+    name: Report nightly failure
+    runs-on: ubuntu-latest
+    needs: [ci-gate]
+    if: always() && github.event_name == 'schedule' && needs.ci-gate.result == 'failure'
+    permissions:
+      issues: write
+    steps:
+      - name: Open one issue for a failed nightly run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Nightly CI failed"
+          open=$(gh issue list --state open --search "\"$title\" in:title" --json number --jq 'length')
+          if [ "$open" -eq 0 ]; then
+            gh issue create --title "$title" --body "Simulations or integration tests failed on main: $RUN_URL"
+          else
+            echo "An open issue already tracks nightly failures."
+          fi
