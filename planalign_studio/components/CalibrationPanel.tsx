@@ -71,6 +71,9 @@ const SLIDERS: SliderConfig[] = [
   { key: 'merit_budget', label: 'Merit', min: 0, max: 0.1, step: 0.005 },
 ];
 
+// A set budget travels in the merit field with COLA at zero; see CompensationSettings.
+const RAISE_BUDGET_SLIDER: SliderConfig = { key: 'merit_budget', label: 'Raise Budget', min: 0, max: 0.1, step: 0.005 };
+
 const GROWTH_KEYS = new Set<SliderConfig['key']>(['target_growth_pct', 'workforce_growth_rate']);
 const POLICY_KEYS = new Set<SliderConfig['key']>(['cola_rate', 'merit_budget']);
 
@@ -273,8 +276,10 @@ export default function CalibrationPanel() {
   const [searchMode, setSearchMode] = useState<SolveMode>('new_hire_scale');
   const [solveSalaryGrowth, setSolveSalaryGrowth] = useState(true);
   const [growthMetric, setGrowthMetric] = useState<GrowthMetric>('active_average');
-  const [solveRaiseBudget, setSolveRaiseBudget] = useState(false);
+  const [solveRaiseBudget, setSolveRaiseBudget] = useState(true);
+  const [usesRaiseBudget, setUsesRaiseBudget] = useState(false);
   const solvingNewHireRanges = searchMode === 'new_hire_scale';
+  const raiseSolved = solvingNewHireRanges && solveSalaryGrowth && solveRaiseBudget;
 
   // Use an actual scenario from the active workspace; prefer Baseline.
   const { activeWorkspace } = useOutletContext<CalibrationOutletContext>();
@@ -373,6 +378,7 @@ export default function CalibrationPanel() {
       );
       const raiseBudget = compensation.raise_budget
         ?? (compensation.raise_budget_percent != null ? compensation.raise_budget_percent / 100 : null);
+      setUsesRaiseBudget(raiseBudget != null);
       setValues((prev) => ({
         ...prev,
         target_growth_pct:
@@ -1153,16 +1159,18 @@ export default function CalibrationPanel() {
           {solvingNewHireRanges ? (
             <div className="rounded-md border border-border p-4">
               <div className="text-sm font-medium text-ink-muted mb-2 flex flex-wrap items-center gap-2">
-                COLA &amp; Merit
+                {usesRaiseBudget ? 'Raise Budget' : <>COLA &amp; Merit</>}
                 <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs font-medium text-ink-muted">
-                  Held fixed
+                  {raiseSolved ? 'Starting point' : 'Held fixed'}
                 </span>
                 <span className="text-xs font-normal text-ink-muted">
-                  the annual policy calibration keeps constant while it scales new-hire ranges
+                  {raiseSolved
+                    ? 'calibration sets this from the target, within 1pp, then scales new-hire ranges'
+                    : 'the annual policy calibration keeps constant while it scales new-hire ranges'}
                 </span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {SLIDERS.filter((s) => POLICY_KEYS.has(s.key)).map((s) => (
+                {(usesRaiseBudget ? [RAISE_BUDGET_SLIDER] : SLIDERS.filter((s) => POLICY_KEYS.has(s.key))).map((s) => (
                   <SliderRow
                     key={s.key}
                     s={s}
@@ -1224,11 +1232,11 @@ export default function CalibrationPanel() {
                 Also solve starting-pay growth
               </label>
             )}
-            {solvingNewHireRanges && solveSalaryGrowth && growthMetric === 'payroll_per_head' && (
+            {solvingNewHireRanges && solveSalaryGrowth && (
               <label className="flex items-center gap-2 text-sm text-info-ink">
                 <input type="checkbox" checked={solveRaiseBudget} disabled={autoLoading}
                   onChange={event => setSolveRaiseBudget(event.target.checked)} />
-                Also set the raise budget from the target (within 1pp of configured)
+                Set the raise budget from the target (within 1pp of configured)
               </label>
             )}
             {solvingNewHireRanges && baseRanges.length === 0 && (
@@ -1329,8 +1337,9 @@ export default function CalibrationPanel() {
                 {autoOutcome.max_abs_error_pct.toFixed(2)}pp.
               </p>
               <p className="mt-1 text-xs text-info-ink">
-                Best config: COLA {pct(autoOutcome.best_params.cola_rate ?? 0)}, merit{' '}
-                {pct(autoOutcome.best_params.merit_budget ?? 0)}
+                {usesRaiseBudget
+                  ? <>Best config: raise budget {pct(autoOutcome.best_params.merit_budget ?? 0)}</>
+                  : <>Best config: COLA {pct(autoOutcome.best_params.cola_rate ?? 0)}, merit {pct(autoOutcome.best_params.merit_budget ?? 0)}</>}
                 {autoOutcome.best_salary_growth_rate != null && (
                   <>, Starting-pay growth: {(autoOutcome.best_salary_growth_rate * 100).toFixed(1)}%/yr</>
                 )}
@@ -1344,8 +1353,8 @@ export default function CalibrationPanel() {
                 <thead className="text-info-ink">
                   <tr>
                     <th className="text-left">Run</th>
-                    <th className="text-right">COLA</th>
-                    <th className="text-right">Merit</th>
+                    {!usesRaiseBudget && <th className="text-right">COLA</th>}
+                    <th className="text-right">{usesRaiseBudget ? 'Raise Budget' : 'Merit'}</th>
                     <th className="text-right">Scale</th>
                     <th className="text-right">Starting-Pay Growth</th>
                     <th className="text-right">Comp Growth</th>
@@ -1356,7 +1365,7 @@ export default function CalibrationPanel() {
                   {autoOutcome.iterations.map((it) => (
                     <tr key={it.iteration} className="border-t border-info-border">
                       <td>{it.iteration}</td>
-                      <td className="text-right">{pct(it.cola_rate)}</td>
+                      {!usesRaiseBudget && <td className="text-right">{pct(it.cola_rate)}</td>}
                       <td className="text-right">{pct(it.merit_budget)}</td>
                       <td className="text-right">{it.scale != null ? `${it.scale.toFixed(2)}×` : '—'}</td>
                       <td className="text-right">{it.salary_growth_rate != null ? pct(it.salary_growth_rate) : '—'}</td>

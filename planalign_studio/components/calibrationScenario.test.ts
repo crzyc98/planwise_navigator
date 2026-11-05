@@ -12,8 +12,13 @@ vi.mock('../hooks/useChartTheme', () => ({ useChartTheme: () => ({}) }));
 vi.mock('./config/ConfigContext', () => ({ extractCensusPath: () => null }));
 
 describe('growth metric settings', () => {
-  it('leaves the active metric request unchanged', () => {
+  it('leaves the active metric request unchanged without a budget', () => {
     expect(growthMetricSettings('active_average', true)).toEqual({});
+  });
+
+  it('sets the raise budget from the target under the active metric too', () => {
+    expect(growthMetricSettings('active_average', true, true)).toEqual({ solve_raise_budget: true });
+    expect(growthMetricSettings('active_average', false, true)).toEqual({});
   });
 
   it('sends the validated band and cap with two-dial total pay per head', () => {
