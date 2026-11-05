@@ -63,6 +63,8 @@ def _run(
     with duckdb.connect() as connection:
         connection.read_csv(str(census)).write_parquet(str(census_parquet))
     config.setup["census_parquet_path"] = str(census_parquet)
+    # Fixture pay is an annual rate; sponsor files default to earnings (#1085).
+    config.setup["census_pay_basis"] = "annual_rate"
     with _database_environment(database):
         orchestrator = build_orchestrator(
             ConstructionSpec(

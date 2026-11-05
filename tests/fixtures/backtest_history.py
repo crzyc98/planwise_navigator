@@ -208,6 +208,14 @@ def _overlay_project(workdir: Path, year: int) -> Path:
     return overlay
 
 
+def write_annual_rate_base_config(path: Path) -> Path:
+    """The base config for backtesting these censuses, which hold annual rates."""
+    config = yaml.safe_load(BASE_CONFIG.read_text(encoding="utf-8")) or {}
+    config.setdefault("setup", {})["census_pay_basis"] = "annual_rate"
+    path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+    return path
+
+
 def _write_config(workdir: Path, census: Path, year: int) -> Path:
     """The base config, pointed at one census and one simulated year.
 
@@ -217,6 +225,8 @@ def _write_config(workdir: Path, census: Path, year: int) -> Path:
     config = yaml.safe_load(BASE_CONFIG.read_text(encoding="utf-8")) or {}
     setup = config.setdefault("setup", {})
     setup["census_parquet_path"] = str(census)
+    # Exported censuses hold current_compensation, an annual rate (#1085).
+    setup["census_pay_basis"] = "annual_rate"
     setup["plan_year_start_date"] = f"{year}-01-01"
     setup["plan_year_end_date"] = f"{year}-12-31"
     simulation = config.setdefault("simulation", {})
