@@ -30,7 +30,7 @@ import {
 } from '../services/api';
 import { extractCensusPath } from './config/ConfigContext';
 import { useChartTheme } from '../hooks/useChartTheme';
-import { baselineScenarioId, growthMetricSettings, isMissingRunError, type GrowthMetric } from './calibrationScenario';
+import { baselineScenarioId, costSummary, growthMetricSettings, isMissingRunError, type GrowthMetric } from './calibrationScenario';
 
 interface CalibrationOutletContext {
   activeWorkspace: Workspace | null;
@@ -686,6 +686,7 @@ export default function CalibrationPanel() {
   };
 
   const showsPayPerHead = results.some(row => row.active_avg_compensation !== null);
+  const cost = costSummary(autoOutcome?.cost_estimate ?? []);
   const targetLine =
     results.length > 0 && results[0].target_growth_pct !== null
       ? results[0].target_growth_pct
@@ -1378,6 +1379,39 @@ export default function CalibrationPanel() {
             </div>
           )}
         </div>
+
+          {cost && (
+            <div className="rounded-md border border-border p-3 text-sm">
+              <div className="mb-1 font-medium text-ink">Cost of these changes</div>
+              <table className="w-full text-xs text-ink-muted">
+                <thead>
+                  <tr>
+                    <th className="text-left font-medium">Measure</th>
+                    <th className="text-right font-medium">Current settings</th>
+                    <th className="text-right font-medium">After calibration</th>
+                    <th className="text-right font-medium">Change</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { label: `Total pay, ${cost.lastYear}`, values: cost.pay },
+                    { label: `Employer contributions, ${cost.lastYear} (estimate)`, values: cost.cost },
+                    { label: `Employer contributions, ${cost.firstYear}–${cost.lastYear} (estimate)`, values: cost.horizonCost },
+                  ].map(({ label, values }) => (
+                    <tr key={label} className="border-t border-border">
+                      <td className="py-1">{label}</td>
+                      <td className="text-right">{compactMoney(values[0])}</td>
+                      <td className="text-right">{compactMoney(values[1])}</td>
+                      <td className="text-right">{values[1] >= values[0] ? '+' : '−'}{compactMoney(Math.abs(values[1] - values[0]))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mt-2 text-xs text-ink-muted">
+                Estimate: employer contributions stay the same share of pay as the current run. Run the scenario after applying for the exact cost.
+              </p>
+            </div>
+          )}
 
           {/* Apply the calibrated levers to the workspace base config AND every
               scenario's overrides (which otherwise shadow the base). */}

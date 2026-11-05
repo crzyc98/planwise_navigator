@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, NamedTuple, Optional, Union
 
 import duckdb
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -208,6 +208,22 @@ class PerYearCompensationResult(BaseModel):
     # figure can sit beside the solved one.
     active_avg_compensation: Optional[float] = None
     active_growth_pct: Optional[float] = None
+    # All pay for the year, leavers included, under either metric.
+    total_pay: Optional[float] = None
+
+
+_COST_COLUMNS = {
+    "prorated_annual_compensation",
+    "employer_match_amount",
+    "employer_core_amount",
+}
+
+
+class BaselineCost(NamedTuple):
+    """One year of the completed run that calibration started from."""
+
+    pay: float
+    employer_cost: float
 
 
 # ---------------------------------------------------------------------------
@@ -300,6 +316,7 @@ class CalibrationRunner:
         self.threads = threads
         self.verbose = verbose
         self.database_path = resolve_calibration_database(run.database_path)
+        self.baseline_costs: Dict[int, BaselineCost] = {}
         self._config = (
             load_simulation_config(run.config_path)
             if run.config_path is not None
@@ -324,7 +341,34 @@ class CalibrationRunner:
         verify_dc_prerequisites(self.database_path)
         self._ensure_projection_tables()
         self._record_run_provenance()
+        self.baseline_costs = self._read_baseline_costs()
         return self._build_all_years()
+
+    def _read_baseline_costs(self) -> Dict[int, BaselineCost]:
+        """Capture pay and employer cost by year before any rebuild replaces them.
+
+        Calibration skips the plan calculations, so the completed run it starts
+        from is the only source of employer cost.
+        """
+        with duckdb.connect(str(self.database_path), read_only=True) as conn:
+            columns = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = 'fct_workforce_snapshot'"
+                ).fetchall()
+            }
+            if not _COST_COLUMNS <= columns:
+                return {}  # An older run: the estimate is simply left out.
+            rows = conn.execute("""
+                SELECT simulation_year,
+                       SUM(prorated_annual_compensation),
+                       SUM(COALESCE(employer_match_amount, 0)
+                           + COALESCE(employer_core_amount, 0))
+                FROM fct_workforce_snapshot
+                GROUP BY simulation_year
+                """).fetchall()
+        return {year: BaselineCost(pay, cost) for year, pay, cost in rows}
 
     def _ensure_projection_tables(self) -> None:
         """Create or repair disposable prior-state sources used by shared models."""
@@ -511,9 +555,11 @@ class CalibrationRunner:
                 growth["yoy_growth_pct"] = None
                 active["yoy_growth_pct"] = None
             gap = self._read_snapshot_gap(conn, year)
+            total_pay = self._read_total_pay(conn, year)
         finally:
             conn.close()
         row = self._assemble_row(year, growth, gap, target)
+        row.total_pay = total_pay
         if per_head:
             row.active_avg_compensation = active["avg_compensation"]
             row.active_growth_pct = active["yoy_growth_pct"]
@@ -605,6 +651,15 @@ class CalibrationRunner:
         return dict(
             zip(("avg_compensation", "yoy_growth_pct", "headcount", "total_comp"), row)
         )
+
+    @staticmethod
+    def _read_total_pay(conn: duckdb.DuckDBPyConnection, year: int) -> Optional[float]:
+        row = conn.execute(
+            "SELECT SUM(prorated_annual_compensation) FROM fct_workforce_snapshot "
+            "WHERE simulation_year = ?",
+            [year],
+        ).fetchone()
+        return row[0] if row else None
 
     @staticmethod
     def _read_snapshot_gap(

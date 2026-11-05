@@ -139,6 +139,20 @@ class OptimizationIteration(BaseModel):
     max_abs_error_pct: float
 
 
+class CostEstimateRow(BaseModel):
+    """Pay and estimated employer cost for one year, before and after solving.
+
+    Calibration skips the plan calculations, so employer cost is estimated: it
+    stays the same share of pay as in the run calibration started from.
+    """
+
+    simulation_year: int
+    current_total_pay: float
+    solved_total_pay: float
+    current_employer_cost: float
+    estimated_employer_cost: float
+
+
 class AutoCalibrationResult(BaseModel):
     """Outcome of the search: best params + the run that produced them."""
 
@@ -160,6 +174,7 @@ class AutoCalibrationResult(BaseModel):
     end_year: int
     iterations: List[OptimizationIteration]
     results: List[PerYearCompensationResult]
+    cost_estimate: List[CostEstimateRow] = Field(default_factory=list)
 
 
 def _annual_objective(
@@ -797,6 +812,26 @@ class AutoCalibrator:
             f"{best.achieved_pct:.2f}% vs target {target_pct:.2f}%)"
         )
 
+    def _cost_estimate(
+        self, results: List[PerYearCompensationResult]
+    ) -> List[CostEstimateRow]:
+        rows = []
+        for result in results:
+            baseline = self._runner.baseline_costs.get(result.simulation_year)
+            if baseline and baseline.pay and result.total_pay is not None:
+                rows.append(
+                    CostEstimateRow(
+                        simulation_year=result.simulation_year,
+                        current_total_pay=baseline.pay,
+                        solved_total_pay=result.total_pay,
+                        current_employer_cost=baseline.employer_cost,
+                        estimated_employer_cost=baseline.employer_cost
+                        * result.total_pay
+                        / baseline.pay,
+                    )
+                )
+        return rows
+
     def _finish(
         self,
         converged: bool,
@@ -829,4 +864,5 @@ class AutoCalibrator:
             end_year=self.run.end_year,
             iterations=self._iterations,
             results=best.results,
+            cost_estimate=self._cost_estimate(best.results),
         )

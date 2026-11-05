@@ -450,3 +450,32 @@ def test_payroll_per_head_rows_keep_the_active_figure_beside_them(tmp_path) -> N
     assert second.yoy_growth_pct == pytest.approx(65.0)
     assert second.active_avg_compensation == 110.0
     assert second.active_growth_pct == pytest.approx(10.0)
+
+
+def test_baseline_costs_are_read_by_year(tmp_path) -> None:
+    database = tmp_path / "costs.duckdb"
+    with duckdb.connect(str(database)) as conn:
+        conn.execute(
+            "CREATE TABLE fct_workforce_snapshot (simulation_year INT, "
+            "prorated_annual_compensation DOUBLE, employer_match_amount DOUBLE, "
+            "employer_core_amount DOUBLE)"
+        )
+        conn.executemany(
+            "INSERT INTO fct_workforce_snapshot VALUES (?, ?, ?, ?)",
+            [(2026, 100.0, 3.0, 2.0), (2026, 50.0, None, 1.0), (2027, 80.0, 4.0, 0.0)],
+        )
+    run = CalibrationRun(start_year=2026, end_year=2027, database_path=database)
+    costs = CalibrationRunner(run)._read_baseline_costs()
+    assert costs[2026] == (150.0, 6.0)
+    assert costs[2027] == (80.0, 4.0)
+
+
+def test_an_older_run_without_cost_columns_gives_no_estimate(tmp_path) -> None:
+    database = tmp_path / "old.duckdb"
+    with duckdb.connect(str(database)) as conn:
+        conn.execute(
+            "CREATE TABLE fct_workforce_snapshot (simulation_year INT, "
+            "prorated_annual_compensation DOUBLE)"
+        )
+    run = CalibrationRun(start_year=2026, end_year=2027, database_path=database)
+    assert CalibrationRunner(run)._read_baseline_costs() == {}
