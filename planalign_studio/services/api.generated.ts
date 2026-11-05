@@ -3307,6 +3307,14 @@ export interface components {
             adjust?: "cola" | "merit" | "both";
             /** Base Job Level Compensation */
             base_job_level_compensation?: components["schemas"]["JobLevelRange"][] | null;
+            /** Compound Band Pct */
+            compound_band_pct?: number | null;
+            /**
+             * Growth Metric
+             * @default active_average
+             * @enum {string}
+             */
+            growth_metric?: "active_average" | "payroll_per_head";
             /**
              * Initial Scale
              * @default 1
