@@ -389,15 +389,18 @@ def _resolve_config_path(
     return None, None
 
 
+def _has_raise_budget(compensation: Dict[str, Any]) -> bool:
+    return any(
+        compensation.get(key) is not None
+        for key in ("raise_budget", "raise_budget_percent")
+    )
+
+
 def _merge_raise_budget(
     compensation: Dict[str, Any], params: CalibrationParameterSet
 ) -> None:
     """A set raise budget overrides merit and COLA on load, so it must carry them."""
-    has_budget = any(
-        compensation.get(key) is not None
-        for key in ("raise_budget", "raise_budget_percent")
-    )
-    if has_budget and params.merit_budget is not None:
+    if _has_raise_budget(compensation) and params.merit_budget is not None:
         total = params.merit_budget + (params.cola_rate or 0.0)
         compensation["raise_budget"] = total
         compensation["raise_budget_percent"] = total * 100
@@ -417,9 +420,11 @@ def _merge_calibration_candidate(
 
     compensation = merged.setdefault("compensation", {})
     compensation["target_compensation_growth_percent"] = request.target_comp_growth_pct
+    has_budget = _has_raise_budget(compensation)
     for field in ("cola_rate", "merit_budget", "promotion_increase"):
         value = getattr(params, field)
-        if value is not None:
+        # Saved merit and COLA set a budget's shape, so the budget alone moves.
+        if value is not None and not (has_budget and field != "promotion_increase"):
             compensation[field] = value
             compensation[f"{field}_percent"] = value * 100
     _merge_raise_budget(compensation, params)
