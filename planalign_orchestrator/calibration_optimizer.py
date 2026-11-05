@@ -140,6 +140,7 @@ class AutoCalibrationResult(BaseModel):
     target_comp_growth_pct: float
     max_abs_error_pct: float
     objective: Literal["max_annual_error"] = "max_annual_error"
+    growth_metric: GrowthMetric = "active_average"
     start_year: int
     end_year: int
     iterations: List[OptimizationIteration]
@@ -776,6 +777,7 @@ class AutoCalibrator:
             achieved_comp_growth_pct=best.achieved_pct,
             target_comp_growth_pct=target_pct,
             max_abs_error_pct=best.abs_error,
+            growth_metric=self.settings.growth_metric,
             start_year=self.run.start_year,
             end_year=self.run.end_year,
             iterations=self._iterations,

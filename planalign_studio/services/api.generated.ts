@@ -3268,6 +3268,12 @@ export interface components {
             converged: boolean;
             /** End Year */
             end_year: number;
+            /**
+             * Growth Metric
+             * @default active_average
+             * @enum {string}
+             */
+            growth_metric: "active_average" | "payroll_per_head";
             /** Iterations */
             iterations: components["schemas"]["OptimizationIteration"][];
             /** Max Abs Error Pct */
@@ -8171,6 +8177,10 @@ export interface components {
          * @description Per-year compensation-growth result row (one per simulation year).
          */
         PerYearCompensationResult: {
+            /** Active Avg Compensation */
+            active_avg_compensation: number | null;
+            /** Active Growth Pct */
+            active_growth_pct: number | null;
             /** Avg Compensation */
             avg_compensation: number;
             /** Existing Avg Comp */
