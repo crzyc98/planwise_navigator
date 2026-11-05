@@ -16,15 +16,26 @@ export type GrowthMetric = 'active_average' | 'payroll_per_head';
 
 /**
  * Optimizer settings for a metric. Total pay per head runs with the compound
- * band and starting-pay cap it was validated with (#1073); the active metric
- * adds nothing, so its request is unchanged.
+ * band and starting-pay cap it was validated with (#1073). Setting the raise
+ * budget from the target needs the two-dial search, under either metric.
  */
-export function growthMetricSettings(metric: GrowthMetric, solveSalaryGrowth: boolean) {
-  if (metric === 'active_average') return {};
+export function growthMetricSettings(
+  metric: GrowthMetric,
+  solveSalaryGrowth: boolean,
+  solveRaiseBudget = false,
+) {
+  if (metric === 'active_average') {
+    return solveSalaryGrowth && solveRaiseBudget ? { solve_raise_budget: true } : {};
+  }
   return {
     growth_metric: metric,
     ...(solveSalaryGrowth
-      ? { compound_band_pct: 0.04, salary_growth_max: 0.05, stop_on_plateau: true }
+      ? {
+          compound_band_pct: 0.04,
+          salary_growth_max: 0.05,
+          stop_on_plateau: true,
+          solve_raise_budget: solveRaiseBudget,
+        }
       : {}),
   };
 }

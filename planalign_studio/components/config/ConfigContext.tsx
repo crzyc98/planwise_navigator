@@ -134,6 +134,9 @@ function mapCompensationFields(cfg: any, prev: FormData): Partial<FormData> {
     targetCompensationGrowth: cfg.compensation?.target_compensation_growth_percent ?? prev.targetCompensationGrowth,
     meritBudget: percent('merit_budget', prev.meritBudget),
     colaRate: percent('cola_rate', prev.colaRate),
+    raiseBudgetEnabled: cfg.compensation?.raise_budget != null || cfg.compensation?.raise_budget_percent != null,
+    raiseBudget: percent('raise_budget', prev.raiseBudget),
+    raiseCoverage: percent('raise_coverage', prev.raiseCoverage),
     promoIncrease: promotionPercent('promotion_increase', 'base_increase_pct', 0.125, prev.promoIncrease),
     promoDistributionRange: promotionPercent('promotion_distribution_range', 'distribution_range', 0.05, prev.promoDistributionRange),
     promoBudget: percent('promotion_budget', prev.promoBudget),
@@ -681,6 +684,9 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
     if (formData.targetCompensationGrowth !== savedFormData.targetCompensationGrowth ||
         formData.meritBudget !== savedFormData.meritBudget ||
         formData.colaRate !== savedFormData.colaRate ||
+        formData.raiseBudgetEnabled !== savedFormData.raiseBudgetEnabled ||
+        formData.raiseBudget !== savedFormData.raiseBudget ||
+        formData.raiseCoverage !== savedFormData.raiseCoverage ||
         formData.promoIncrease !== savedFormData.promoIncrease ||
         formData.promoDistributionRange !== savedFormData.promoDistributionRange ||
         formData.promoBudget !== savedFormData.promoBudget ||

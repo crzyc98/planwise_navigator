@@ -446,6 +446,12 @@ class CalibrationRunner:
             self._config.compensation.cola_rate = params.cola_rate
         if params.merit_budget is not None:
             self._config.compensation.merit_budget = params.merit_budget
+        if self._config.compensation.raise_budget is not None:
+            # A set budget drives every raise, so searched levers must move it.
+            compensation = self._config.compensation
+            compensation.raise_budget = (
+                compensation.merit_budget + compensation.cola_rate
+            )
         if params.promotion_increase is not None:
             self._config.compensation.promotion_increase = params.promotion_increase
         # workforce_growth_rate IS the headcount lever, set explicitly by the

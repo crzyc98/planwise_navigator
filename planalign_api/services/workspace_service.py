@@ -1,5 +1,6 @@
 """Workspace service - thin wrapper around storage."""
 
+from copy import deepcopy
 from typing import Any, Dict, List, Optional
 
 from ..models.workspace import (
@@ -51,6 +52,22 @@ _BUILTIN_DEFAULT_CONFIG: Dict[str, Any] = {
 }
 
 
+def with_raise_budget(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Start a new workspace on one raise budget, at the same merit-plus-COLA level.
+
+    Only new workspaces get this. Saved workspaces and scenario files keep merit
+    and COLA, because a budget in shared defaults would silently override them.
+    """
+    merged = deepcopy(config)
+    compensation = merged.setdefault("compensation", {})
+    if compensation.get("raise_budget") is None:
+        total = float(compensation.get("merit_budget", 0.035)) + float(
+            compensation.get("cola_rate", 0.02)
+        )
+        compensation["raise_budget"] = round(total, 6)
+    return merged
+
+
 class WorkspaceService:
     """Service for workspace operations."""
 
@@ -70,7 +87,7 @@ class WorkspaceService:
     ) -> Workspace:
         """Create a new workspace."""
         return self.storage.create_workspace(
-            data, default_config or _BUILTIN_DEFAULT_CONFIG
+            data, with_raise_budget(default_config or _BUILTIN_DEFAULT_CONFIG)
         )
 
     def update_workspace(
