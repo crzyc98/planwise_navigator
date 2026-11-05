@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from planalign_orchestrator.calibration_optimizer import (
@@ -545,3 +546,40 @@ def test_two_dial_flat_response_status(
 def test_salary_growth_parameter_validation(rate) -> None:
     with pytest.raises(ValueError):
         CalibrationParameterSet(new_hire_salary_growth_rate=rate)
+
+
+def _two_dial_settings(**overrides: float) -> AutoCalibrationSettings:
+    return AutoCalibrationSettings(
+        target_workforce_growth=0.03,
+        target_comp_growth=0.03,
+        search_mode="new_hire_scale",
+        base_job_level_compensation=[
+            {"level": 1, "min_compensation": 50000, "max_compensation": 70000}
+        ],
+        solve_salary_growth=True,
+        **overrides,
+    )
+
+
+def test_objective_ignores_compound_without_a_band(tmp_path) -> None:
+    optimizer = _make_optimizer(tmp_path, _two_dial_settings())
+    assert optimizer._objective(0.38, -0.19) == 0.38
+
+
+def test_compound_band_charges_only_the_overrun(tmp_path) -> None:
+    optimizer = _make_optimizer(tmp_path, _two_dial_settings(compound_band_pct=0.04))
+    assert optimizer._objective(0.42, -0.04) == 0.42
+    assert optimizer._objective(0.38, -0.19) == pytest.approx(0.38 + 10 * 0.15)
+
+
+def test_compound_band_step_recentres_a_lopsided_year(tmp_path) -> None:
+    errors = np.array([-0.38, -0.38, 0.38, -0.38])
+    jacobian = np.column_stack((np.ones(4), np.array([-1.5, -0.5, 0.5, 1.5])))
+    trust = np.array([0.5, 0.5])
+    x = np.array([1.0, 0.03])
+    plain = _make_optimizer(tmp_path, _two_dial_settings())
+    banded = _make_optimizer(tmp_path, _two_dial_settings(compound_band_pct=0.04))
+    plain_step = plain._dial_step(x, errors, jacobian, trust)
+    banded_step = banded._dial_step(x, errors, jacobian, trust)
+    assert abs((errors + jacobian @ plain_step).mean()) > 0.04
+    assert abs((errors + jacobian @ banded_step).mean()) <= 0.04 + 1e-9
