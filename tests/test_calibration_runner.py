@@ -378,3 +378,43 @@ def test_salary_growth_override_and_rerun(tmp_path, monkeypatch) -> None:
     runner.rerun_with_params(CalibrationParameterSet(new_hire_salary_growth_rate=0))
     assert runner._config.new_hire["salary_growth_rate"] == 0
     assert "new_hire_salary_growth_rate" not in to_dbt_vars(runner._config)
+
+
+def test_payroll_per_head_counts_leavers_pay_over_year_end_headcount() -> None:
+    conn = duckdb.connect()
+    conn.execute(
+        "CREATE TABLE fct_workforce_snapshot (simulation_year INT, "
+        "employment_status VARCHAR, prorated_annual_compensation DOUBLE)"
+    )
+    conn.executemany(
+        "INSERT INTO fct_workforce_snapshot VALUES (?, ?, ?)",
+        [
+            (2026, "active", 100.0),
+            (2026, "active", 100.0),
+            (2027, "active", 120.0),
+            (2027, "active", 120.0),
+            (2027, "terminated", 60.0),
+        ],
+    )
+    row = CalibrationRunner._read_payroll_per_head(conn, 2027)
+    assert row["avg_compensation"] == 150.0
+    assert row["yoy_growth_pct"] == pytest.approx(50.0)
+    assert row["headcount"] == 2
+    assert row["total_comp"] == 300.0
+
+
+def test_payroll_per_head_needs_year_end_actives() -> None:
+    conn = duckdb.connect()
+    conn.execute(
+        "CREATE TABLE fct_workforce_snapshot (simulation_year INT, "
+        "employment_status VARCHAR, prorated_annual_compensation DOUBLE)"
+    )
+    conn.execute("INSERT INTO fct_workforce_snapshot VALUES (2027, 'terminated', 60.0)")
+    with pytest.raises(ConfigurationError):
+        CalibrationRunner._read_payroll_per_head(conn, 2027)
+
+
+def test_active_average_stays_the_default_metric() -> None:
+    assert CalibrationRun(start_year=2025, end_year=2026).growth_metric == (
+        "active_average"
+    )
