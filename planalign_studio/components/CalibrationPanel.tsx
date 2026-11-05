@@ -30,7 +30,7 @@ import {
 } from '../services/api';
 import { extractCensusPath } from './config/ConfigContext';
 import { useChartTheme } from '../hooks/useChartTheme';
-import { baselineScenarioId, isMissingRunError } from './calibrationScenario';
+import { baselineScenarioId, growthMetricSettings, isMissingRunError, type GrowthMetric } from './calibrationScenario';
 
 interface CalibrationOutletContext {
   activeWorkspace: Workspace | null;
@@ -114,6 +114,9 @@ const DEFAULT_AGE_DIST: AgeRow[] = [
 ];
 
 const pct = (v: number): string => `${(v * 100).toFixed(1)}%`;
+const PAY_PER_HEAD_ASSUMPTION =
+  'Assumption: average pay is total pay for the year, including people who left, divided by active headcount at year end.';
+
 const money = (v: number | null): string =>
   v === null ? '—' : `$${Math.round(v).toLocaleString()}`;
 const growthPct = (v: number | null): string =>
@@ -269,6 +272,7 @@ export default function CalibrationPanel() {
   // papered over with raises (COLA/merit stay as set). Needs Match Census.
   const [searchMode, setSearchMode] = useState<SolveMode>('new_hire_scale');
   const [solveSalaryGrowth, setSolveSalaryGrowth] = useState(true);
+  const [growthMetric, setGrowthMetric] = useState<GrowthMetric>('active_average');
   const solvingNewHireRanges = searchMode === 'new_hire_scale';
 
   // Use an actual scenario from the active workspace; prefer Baseline.
@@ -541,6 +545,7 @@ export default function CalibrationPanel() {
           tolerance_pct: tolerancePct,
           max_iterations: maxIterations,
           search_mode: searchMode,
+          ...growthMetricSettings(growthMetric, searchMode === 'new_hire_scale' && solveSalaryGrowth),
           ...(searchMode === 'new_hire_scale'
             ? {
                 base_job_level_compensation: scaleBases,
@@ -671,6 +676,7 @@ export default function CalibrationPanel() {
     }
   };
 
+  const showsPayPerHead = results.some(row => row.active_avg_compensation !== null);
   const targetLine =
     results.length > 0 && results[0].target_growth_pct !== null
       ? results[0].target_growth_pct
@@ -1193,6 +1199,21 @@ export default function CalibrationPanel() {
               ({pct(values.workforce_growth_rate)}) by running real comp-only simulations.
               Typically 3–6 runs (a few minutes).
             </p>
+            <label className="block text-sm text-info-ink">
+              Average pay means
+              <select
+                value={growthMetric}
+                disabled={autoLoading}
+                onChange={event => setGrowthMetric(event.target.value as GrowthMetric)}
+                className="mt-1 block w-full max-w-sm rounded-md border border-border-strong bg-surface-raised p-2 text-sm text-ink shadow-sm focus:border-brand-green focus:ring-brand-green"
+              >
+                <option value="active_average">Average pay of active employees</option>
+                <option value="payroll_per_head">Total pay ÷ year-end headcount</option>
+              </select>
+            </label>
+            {growthMetric === 'payroll_per_head' && (
+              <p className="text-xs text-info-ink">{PAY_PER_HEAD_ASSUMPTION}</p>
+            )}
             {solvingNewHireRanges && (
               <label className="flex items-center gap-2 text-sm text-info-ink">
                 <input type="checkbox" checked={solveSalaryGrowth} disabled={autoLoading}
@@ -1376,7 +1397,7 @@ export default function CalibrationPanel() {
         <>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="bg-surface-raised rounded-lg shadow p-4">
-              <h2 className="font-semibold text-ink mb-2">Average Compensation</h2>
+              <h2 className="font-semibold text-ink mb-2">{showsPayPerHead ? 'Pay per Head' : 'Average Compensation'}</h2>
               <ResponsiveContainer width="100%" height={260}>
                 <LineChart data={results}>
                   <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid.line} />
@@ -1387,7 +1408,7 @@ export default function CalibrationPanel() {
                   <Line
                     type="monotone"
                     dataKey="avg_compensation"
-                    name="Avg Comp"
+                    name={showsPayPerHead ? 'Pay per Head' : 'Avg Comp'}
                     stroke={chartTheme.semantic.primary}
                     strokeWidth={2}
                   />
@@ -1418,14 +1439,20 @@ export default function CalibrationPanel() {
             </div>
           </div>
 
+          {showsPayPerHead && (
+            <p className="text-xs text-ink-muted">{PAY_PER_HEAD_ASSUMPTION}</p>
+          )}
+
           {/* Per-year table */}
           <div className="bg-surface-raised rounded-lg shadow overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead className="bg-surface-subtle text-ink-muted">
                 <tr>
                   <th className="px-4 py-2 text-left">Year</th>
-                  <th className="px-4 py-2 text-right">Avg Comp</th>
-                  <th className="px-4 py-2 text-right">Avg Growth</th>
+                  <th className="px-4 py-2 text-right">{showsPayPerHead ? 'Pay per Head' : 'Avg Comp'}</th>
+                  <th className="px-4 py-2 text-right">{showsPayPerHead ? 'Growth' : 'Avg Growth'}</th>
+                  {showsPayPerHead && <th className="px-4 py-2 text-right">Active Avg</th>}
+                  {showsPayPerHead && <th className="px-4 py-2 text-right">Active Growth</th>}
                   <th className="px-4 py-2 text-right">Δ vs Target</th>
                   <th className="px-4 py-2 text-right">Headcount</th>
                   <th className="px-4 py-2 text-right">HC Growth</th>
@@ -1440,6 +1467,8 @@ export default function CalibrationPanel() {
                     <td className="px-4 py-2">{r.simulation_year}</td>
                     <td className="px-4 py-2 text-right">{money(r.avg_compensation)}</td>
                     <td className="px-4 py-2 text-right">{growthPct(r.yoy_growth_pct)}</td>
+                    {showsPayPerHead && <td className="px-4 py-2 text-right">{money(r.active_avg_compensation)}</td>}
+                    {showsPayPerHead && <td className="px-4 py-2 text-right">{growthPct(r.active_growth_pct)}</td>}
                     <td className="px-4 py-2 text-right">
                       {r.growth_delta_pct === null
                         ? '—'

@@ -418,3 +418,35 @@ def test_active_average_stays_the_default_metric() -> None:
     assert CalibrationRun(start_year=2025, end_year=2026).growth_metric == (
         "active_average"
     )
+
+
+def test_payroll_per_head_rows_keep_the_active_figure_beside_them(tmp_path) -> None:
+    database = tmp_path / "metric.duckdb"
+    with duckdb.connect(str(database)) as conn:
+        conn.execute(
+            "CREATE TABLE fct_workforce_snapshot (simulation_year INT, "
+            "employment_status VARCHAR, detailed_status_code VARCHAR, "
+            "prorated_annual_compensation DOUBLE, "
+            "full_year_equivalent_compensation DOUBLE)"
+        )
+        conn.executemany(
+            "INSERT INTO fct_workforce_snapshot VALUES (?, ?, 'continuous_active', ?, ?)",
+            [
+                (2025, "active", 100.0, 100.0),
+                (2026, "active", 110.0, 110.0),
+                (2026, "terminated", 55.0, 110.0),
+            ],
+        )
+    run = CalibrationRun(
+        start_year=2025,
+        end_year=2026,
+        database_path=database,
+        growth_metric="payroll_per_head",
+    )
+    runner = CalibrationRunner(run)
+    first, second = runner._read_year(2025), runner._read_year(2026)
+    assert first.active_growth_pct is None
+    assert second.avg_compensation == 165.0
+    assert second.yoy_growth_pct == pytest.approx(65.0)
+    assert second.active_avg_compensation == 110.0
+    assert second.active_growth_pct == pytest.approx(10.0)

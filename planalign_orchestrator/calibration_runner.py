@@ -204,6 +204,10 @@ class PerYearCompensationResult(BaseModel):
     new_hire_avg_comp: Optional[float] = None
     existing_avg_comp: Optional[float] = None
     new_hire_gap: Optional[float] = None
+    # Set only when the target is payroll_per_head, so the familiar active-only
+    # figure can sit beside the solved one.
+    active_avg_compensation: Optional[float] = None
+    active_growth_pct: Optional[float] = None
 
 
 # ---------------------------------------------------------------------------
@@ -494,17 +498,20 @@ class CalibrationRunner:
         target = self._compensation_target()
         conn = duckdb.connect(str(self.database_path), read_only=True)
         try:
-            growth = (
-                self._read_payroll_per_head(conn, year)
-                if self.run.growth_metric == "payroll_per_head"
-                else self._read_growth(conn, year)
-            )
+            active = self._read_growth(conn, year)
+            per_head = self.run.growth_metric == "payroll_per_head"
+            growth = self._read_payroll_per_head(conn, year) if per_head else active
             if year == self.run.start_year:
                 growth["yoy_growth_pct"] = None
+                active["yoy_growth_pct"] = None
             gap = self._read_snapshot_gap(conn, year)
         finally:
             conn.close()
-        return self._assemble_row(year, growth, gap, target)
+        row = self._assemble_row(year, growth, gap, target)
+        if per_head:
+            row.active_avg_compensation = active["avg_compensation"]
+            row.active_growth_pct = active["yoy_growth_pct"]
+        return row
 
     def _compensation_target(self) -> Optional[float]:
         """Return the average-compensation target as a decimal rate.
