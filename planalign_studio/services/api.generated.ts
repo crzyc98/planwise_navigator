@@ -3337,6 +3337,11 @@ export interface components {
              */
             max_iterations?: number;
             /**
+             * Raise Budget Limit Pct
+             * @default 1
+             */
+            raise_budget_limit_pct?: number;
+            /**
              * Salary Growth Max
              * @default 0.08
              */
@@ -3362,6 +3367,11 @@ export interface components {
              * @enum {string}
              */
             search_mode?: "levers" | "new_hire_scale";
+            /**
+             * Solve Raise Budget
+             * @default false
+             */
+            solve_raise_budget?: boolean;
             /**
              * Solve Salary Growth
              * @default false

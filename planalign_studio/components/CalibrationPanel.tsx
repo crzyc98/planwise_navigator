@@ -273,6 +273,7 @@ export default function CalibrationPanel() {
   const [searchMode, setSearchMode] = useState<SolveMode>('new_hire_scale');
   const [solveSalaryGrowth, setSolveSalaryGrowth] = useState(true);
   const [growthMetric, setGrowthMetric] = useState<GrowthMetric>('active_average');
+  const [solveRaiseBudget, setSolveRaiseBudget] = useState(false);
   const solvingNewHireRanges = searchMode === 'new_hire_scale';
 
   // Use an actual scenario from the active workspace; prefer Baseline.
@@ -547,7 +548,7 @@ export default function CalibrationPanel() {
           tolerance_pct: tolerancePct,
           max_iterations: maxIterations,
           search_mode: searchMode,
-          ...growthMetricSettings(growthMetric, searchMode === 'new_hire_scale' && solveSalaryGrowth),
+          ...growthMetricSettings(growthMetric, searchMode === 'new_hire_scale' && solveSalaryGrowth, solveRaiseBudget),
           ...(searchMode === 'new_hire_scale'
             ? {
                 base_job_level_compensation: scaleBases,
@@ -1221,6 +1222,13 @@ export default function CalibrationPanel() {
                 <input type="checkbox" checked={solveSalaryGrowth} disabled={autoLoading}
                   onChange={event => setSolveSalaryGrowth(event.target.checked)} />
                 Also solve starting-pay growth
+              </label>
+            )}
+            {solvingNewHireRanges && solveSalaryGrowth && growthMetric === 'payroll_per_head' && (
+              <label className="flex items-center gap-2 text-sm text-info-ink">
+                <input type="checkbox" checked={solveRaiseBudget} disabled={autoLoading}
+                  onChange={event => setSolveRaiseBudget(event.target.checked)} />
+                Also set the raise budget from the target (within 1pp of configured)
               </label>
             )}
             {solvingNewHireRanges && baseRanges.length === 0 && (

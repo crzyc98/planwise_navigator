@@ -632,3 +632,64 @@ def test_plateau_stop_keeps_the_answer_and_saves_runs(tmp_path, stop: bool) -> N
     assert (len(outcome.iterations) < 8) is stop
     if stop:
         assert outcome.status == "best_achievable"
+
+
+@pytest.mark.parametrize(
+    ("target", "budget"),
+    [(0.05, 0.06), (0.03, 0.045), (0.07, 0.065)],
+)
+def test_raise_budget_follows_the_target_within_its_limit(
+    tmp_path, target: float, budget: float
+) -> None:
+    settings = _two_dial_settings(solve_raise_budget=True)
+    settings.target_comp_growth = target
+    optimizer = _make_optimizer(tmp_path, settings)
+    optimizer._base_levers = optimizer._starting_levers()
+    shift = optimizer._target_raise_shift(target * 100)
+    assert sum(optimizer._base_levers) + shift == pytest.approx(budget)
+
+
+def test_raise_budget_note_reports_the_limit(tmp_path) -> None:
+    optimizer = _make_optimizer(tmp_path, _two_dial_settings(solve_raise_budget=True))
+    optimizer._base_levers = optimizer._starting_levers()
+    optimizer._raise_shift = optimizer._target_raise_shift(3.0)
+    assert optimizer._raise_note(3.0) == (
+        " Raise budget moved from 5.50% to 4.50%. It stopped at the 1.0pp limit."
+    )
+
+
+def test_raise_budget_stays_put_unless_asked(tmp_path) -> None:
+    optimizer = _make_optimizer(tmp_path, _two_dial_settings())
+    assert optimizer._target_raise_shift(3.0) == 0.0
+    assert optimizer._raise_note(3.0) == ""
+
+
+def test_solving_the_raise_budget_needs_the_two_dial_search() -> None:
+    with pytest.raises(ValueError):
+        AutoCalibrationSettings(
+            target_workforce_growth=0.03,
+            target_comp_growth=0.03,
+            solve_raise_budget=True,
+        )
+
+
+def test_raise_budget_shift_does_not_compound_across_evaluations(tmp_path) -> None:
+    run = CalibrationRun(
+        start_year=2025, end_year=2028, database_path=tmp_path / "cal.duckdb"
+    )
+    settings = _two_dial_settings(initial_scale=1.2, solve_raise_budget=True)
+    optimizer = AutoCalibrator(run, settings, threads=1)
+    optimizer.run.params.new_hire_salary_growth_rate = 0.03
+    _balanced_response(optimizer)
+    plain_evaluate = optimizer._evaluate
+
+    def evaluate(params: CalibrationParameterSet) -> list[PerYearCompensationResult]:
+        optimizer._runner._apply_param_overrides(params)
+        return plain_evaluate(params)
+
+    optimizer._evaluate = evaluate  # type: ignore[method-assign]
+    outcome = optimizer.optimize()
+    budgets = {
+        round(item.cola_rate + item.merit_budget, 6) for item in outcome.iterations
+    }
+    assert budgets == {0.045}

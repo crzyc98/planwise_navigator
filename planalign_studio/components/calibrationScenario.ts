@@ -19,12 +19,21 @@ export type GrowthMetric = 'active_average' | 'payroll_per_head';
  * band and starting-pay cap it was validated with (#1073); the active metric
  * adds nothing, so its request is unchanged.
  */
-export function growthMetricSettings(metric: GrowthMetric, solveSalaryGrowth: boolean) {
+export function growthMetricSettings(
+  metric: GrowthMetric,
+  solveSalaryGrowth: boolean,
+  solveRaiseBudget = false,
+) {
   if (metric === 'active_average') return {};
   return {
     growth_metric: metric,
     ...(solveSalaryGrowth
-      ? { compound_band_pct: 0.04, salary_growth_max: 0.05, stop_on_plateau: true }
+      ? {
+          compound_band_pct: 0.04,
+          salary_growth_max: 0.05,
+          stop_on_plateau: true,
+          solve_raise_budget: solveRaiseBudget,
+        }
       : {}),
   };
 }

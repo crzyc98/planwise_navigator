@@ -22,6 +22,16 @@ describe('growth metric settings', () => {
       compound_band_pct: 0.04,
       salary_growth_max: 0.05,
       stop_on_plateau: true,
+      solve_raise_budget: false,
+    });
+  });
+
+  it('sets the raise budget from the target only when asked', () => {
+    expect(growthMetricSettings('payroll_per_head', true, true)).toMatchObject({
+      solve_raise_budget: true,
+    });
+    expect(growthMetricSettings('payroll_per_head', false, true)).toEqual({
+      growth_metric: 'payroll_per_head',
     });
   });
 
