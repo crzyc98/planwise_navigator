@@ -389,8 +389,27 @@ def _resolve_config_path(
     return None, None
 
 
+def _has_raise_budget(compensation: Dict[str, Any]) -> bool:
+    return any(
+        compensation.get(key) is not None
+        for key in ("raise_budget", "raise_budget_percent")
+    )
+
+
+def _merge_raise_budget(
+    compensation: Dict[str, Any], params: CalibrationParameterSet, has_budget: bool
+) -> None:
+    """A set raise budget overrides merit and COLA on load, so it must carry them."""
+    if has_budget and params.merit_budget is not None:
+        total = params.merit_budget + (params.cola_rate or 0.0)
+        compensation["raise_budget"] = total
+        compensation["raise_budget_percent"] = total * 100
+
+
 def _merge_calibration_candidate(
-    config: Dict[str, Any], request: CalibrationApplyRequest
+    config: Dict[str, Any],
+    request: CalibrationApplyRequest,
+    inherited_budget: bool = False,
 ) -> Dict[str, Any]:
     """Persist exactly the evaluated candidate without display-derived rounding."""
     merged = deepcopy(config)
@@ -403,11 +422,15 @@ def _merge_calibration_candidate(
 
     compensation = merged.setdefault("compensation", {})
     compensation["target_compensation_growth_percent"] = request.target_comp_growth_pct
+    # Scenario overrides inherit the workspace's budget without repeating it.
+    has_budget = inherited_budget or _has_raise_budget(compensation)
     for field in ("cola_rate", "merit_budget", "promotion_increase"):
         value = getattr(params, field)
-        if value is not None:
+        # Saved merit and COLA set a budget's shape, so the budget alone moves.
+        if value is not None and not (has_budget and field != "promotion_increase"):
             compensation[field] = value
             compensation[f"{field}_percent"] = value * 100
+    _merge_raise_budget(compensation, params, has_budget)
 
     workforce = merged.setdefault("workforce", {})
     for field in ("total_termination_rate", "new_hire_termination_rate"):
@@ -614,6 +637,9 @@ def apply_calibration(
     _verify_apply_context(request.context, storage)
     workspace = storage.get_workspace(request.context.workspace_id)
     assert workspace is not None
+    inherited_budget = _has_raise_budget(
+        workspace.base_config.get("compensation") or {}
+    )
     base_config = _merge_calibration_candidate(workspace.base_config, request)
     workspace_updated = storage.update_workspace(
         request.context.workspace_id, base_config=base_config
@@ -625,7 +651,7 @@ def apply_calibration(
     for scenario in storage.list_scenarios(request.context.workspace_id):
         try:
             overrides = _merge_calibration_candidate(
-                scenario.config_overrides or {}, request
+                scenario.config_overrides or {}, request, inherited_budget
             )
             updated = storage.update_scenario(
                 request.context.workspace_id,

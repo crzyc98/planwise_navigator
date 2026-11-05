@@ -370,6 +370,8 @@ export default function CalibrationPanel() {
           ? { start: simulation.start_year, end: simulation.end_year }
           : null
       );
+      const raiseBudget = compensation.raise_budget
+        ?? (compensation.raise_budget_percent != null ? compensation.raise_budget_percent / 100 : null);
       setValues((prev) => ({
         ...prev,
         target_growth_pct:
@@ -378,12 +380,12 @@ export default function CalibrationPanel() {
             : prev.target_growth_pct,
         workforce_growth_rate:
           simulation.target_growth_rate ?? prev.workforce_growth_rate,
-        cola_rate:
+        cola_rate: raiseBudget != null ? 0 :
           compensation.cola_rate ??
           (compensation.cola_rate_percent != null
             ? compensation.cola_rate_percent / 100
             : prev.cola_rate),
-        merit_budget:
+        merit_budget: raiseBudget ??
           compensation.merit_budget ??
           (compensation.merit_budget_percent != null
             ? compensation.merit_budget_percent / 100
