@@ -89,12 +89,15 @@ class CompensationSettings(BaseModel):
     cola_rate: float = Field(default=0.02, ge=0, le=1)
     merit_budget: float = Field(default=0.035, ge=0, le=1)
     # One annual raise budget, as total spend on eligible pay. When set it
-    # replaces merit and COLA, keeps level differences, and scales rates to the
+    # replaces merit and COLA but keeps their shape, and scales rates to the
     # budget. Unset keeps both exactly as configured.
     raise_budget: Optional[float] = Field(default=None, ge=0, le=1)
     # Share of eligible employees who receive a raise. The budget is total
     # spend, so a lower share raises each recipient's percentage.
     raise_coverage: float = Field(default=1.0, gt=0, le=1)
+    # Part of a budget everyone receives equally, as COLA did. Taken from merit
+    # and COLA when the budget is set, so level differences match today's.
+    raise_flat_share: Optional[float] = Field(default=None, ge=0, le=1)
     promotion_increase: float = Field(default=0.125, ge=0, le=1)
     promotion_budget: float = Field(default=0.015, ge=0, le=1)
     promotion_distribution_range: float = Field(default=0.05, ge=0, le=1)
@@ -130,6 +133,9 @@ class CompensationSettings(BaseModel):
     def apply_raise_budget(self) -> "CompensationSettings":
         """Fold a set raise budget into merit so one input drives every raise."""
         if self.raise_budget is not None:
+            if self.raise_flat_share is None:
+                total = self.merit_budget + self.cola_rate
+                self.raise_flat_share = self.cola_rate / total if total else 0.0
             self.merit_budget = self.raise_budget
             self.cola_rate = 0.0
         return self

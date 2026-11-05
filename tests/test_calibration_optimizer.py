@@ -18,6 +18,7 @@ from planalign_orchestrator.calibration_optimizer import (
     AutoCalibrator,
 )
 from planalign_orchestrator.calibration_runner import (
+    BaselineCost,
     CalibrationParameterSet,
     CalibrationRun,
     PerYearCompensationResult,
@@ -693,3 +694,35 @@ def test_raise_budget_shift_does_not_compound_across_evaluations(tmp_path) -> No
         round(item.cola_rate + item.merit_budget, 6) for item in outcome.iterations
     }
     assert budgets == {0.045}
+
+
+def test_cost_estimate_keeps_employer_cost_a_constant_share_of_pay(tmp_path) -> None:
+    optimizer = _make_optimizer(tmp_path, _two_dial_settings())
+    optimizer._runner.baseline_costs = {2026: BaselineCost(1000.0, 60.0)}
+    rows = optimizer._cost_estimate(
+        [
+            PerYearCompensationResult(
+                simulation_year=2026,
+                avg_compensation=100,
+                headcount=10,
+                total_pay=900.0,
+            )
+        ]
+    )
+    assert rows[0].current_employer_cost == 60.0
+    assert rows[0].estimated_employer_cost == pytest.approx(54.0)
+
+
+def test_cost_estimate_skips_years_without_a_baseline(tmp_path) -> None:
+    optimizer = _make_optimizer(tmp_path, _two_dial_settings())
+    rows = optimizer._cost_estimate(
+        [
+            PerYearCompensationResult(
+                simulation_year=2026,
+                avg_compensation=100,
+                headcount=10,
+                total_pay=900.0,
+            )
+        ]
+    )
+    assert rows == []
