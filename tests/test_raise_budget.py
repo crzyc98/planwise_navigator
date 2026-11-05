@@ -1,11 +1,15 @@
 """One raise budget, with the share of employees receiving a raise (#1074)."""
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
 
-from planalign_api.routers.calibration import _merge_raise_budget
+from planalign_api.routers.calibration import (
+    _merge_calibration_candidate,
+    _merge_raise_budget,
+)
 from planalign_api.services.template_service import TemplateService
 from planalign_api.services.workspace_service import with_raise_budget
 from planalign_orchestrator.calibration_runner import (
@@ -143,3 +147,43 @@ def test_every_template_budget_matches_its_merit_and_cola() -> None:
         compensation = template.config["compensation"]
         total = compensation["merit_budget_percent"] + compensation["cola_rate_percent"]
         assert compensation["raise_budget"] == pytest.approx(total / 100)
+
+
+def test_a_budget_keeps_the_merit_and_cola_shape() -> None:
+    settings = CompensationSettings(
+        merit_budget=0.035, cola_rate=0.02, raise_budget=0.045
+    )
+    assert settings.raise_flat_share == pytest.approx(0.02 / 0.055)
+
+
+def test_the_shape_survives_a_config_round_trip() -> None:
+    settings = CompensationSettings(
+        merit_budget=0.035, cola_rate=0.02, raise_budget=0.045
+    )
+    reloaded = CompensationSettings.model_validate(settings.model_dump())
+    assert reloaded.raise_flat_share == pytest.approx(0.02 / 0.055)
+
+
+def test_shape_reaches_dbt_only_with_a_budget() -> None:
+    assert "raise_flat_share" not in _exported()
+    assert _exported(raise_budget=0.04)["raise_flat_share"] == pytest.approx(
+        0.02 / 0.055
+    )
+
+
+def test_apply_keeps_merit_and_cola_as_the_budget_shape() -> None:
+    request = SimpleNamespace(
+        best_params=CalibrationParameterSet(merit_budget=0.045, cola_rate=0.0),
+        context=SimpleNamespace(start_year=2026, end_year=2030),
+        target_comp_growth_pct=3.0,
+    )
+    saved = {
+        "compensation": {
+            "merit_budget": 0.035,
+            "cola_rate": 0.02,
+            "raise_budget": 0.055,
+        }
+    }
+    merged = _merge_calibration_candidate(saved, request)["compensation"]
+    assert (merged["merit_budget"], merged["cola_rate"]) == (0.035, 0.02)
+    assert merged["raise_budget"] == pytest.approx(0.045)
