@@ -79,6 +79,8 @@ def load_wait_config(
     config = load_simulation_config(config_path, env_overrides=False)
     config.simulation.end_year = end_year
     config.setup["census_parquet_path"] = str(census_parquet)
+    # Fixture pay is an annual rate; sponsor files default to earnings (#1085).
+    config.setup["census_pay_basis"] = "annual_rate"
     _pin_pre_986_deferral_behaviors(config)
     return config
 
