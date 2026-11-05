@@ -41,6 +41,7 @@ from planalign_orchestrator.calibration_runner import (
     CalibrationParameterSet,
     CalibrationRun,
     CalibrationRunner,
+    GrowthMetric,
     JobLevelRange,
     PerYearCompensationResult,
 )
@@ -55,6 +56,8 @@ _LEVER_SENSITIVITY_PP = 100.0  # pp of growth per 1.0 (decimal) lever shift
 # Per-year growth may dip this much as scale rises (range rounding noise)
 # before the search reports the monotonicity assumption as violated.
 _MONOTONE_SLACK_PP = 0.01
+# Worst-year pp one pp of horizon-mean overrun costs in the two-dial objective.
+_COMPOUND_PENALTY = 10.0
 
 
 class AutoCalibrationSettings(BaseModel):
@@ -69,6 +72,8 @@ class AutoCalibrationSettings(BaseModel):
     max_iterations: int = Field(default=8, ge=1, le=25)
     # Which raise levers absorb a lever-stage shift.
     adjust: Literal["cola", "merit", "both"] = "both"
+    # What "average pay" means for the target; see GrowthMetric.
+    growth_metric: GrowthMetric = "active_average"
 
     # -- new_hire_scale mode ------------------------------------------------
     search_mode: Literal["levers", "new_hire_scale"] = "levers"
@@ -83,6 +88,9 @@ class AutoCalibrationSettings(BaseModel):
     solve_salary_growth: bool = False
     salary_growth_min: float = Field(default=0.0, ge=0, le=0.25)
     salary_growth_max: float = Field(default=0.08, ge=0, le=0.25)
+    # Two-dial search only: also hold horizon-mean growth within this many pp of
+    # target, so one noisy year cannot pull the whole horizon off target.
+    compound_band_pct: Optional[float] = Field(default=None, gt=0, le=5.0)
 
     @model_validator(mode="after")
     def _validate_scale_mode(self) -> "AutoCalibrationSettings":
@@ -153,6 +161,15 @@ def _annual_objective(
     return sum(growths) / len(growths), worst, abs(worst)
 
 
+def _compound_rows(
+    jacobian: NDArray[np.float64], errors: NDArray[np.float64], band: float
+) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """Linear limits on horizon-mean error; a slack column prices any overrun."""
+    slope, level = jacobian.mean(axis=0), float(errors.mean())
+    rows = np.array([[*slope, 0.0, -1.0], [*-slope, 0.0, -1.0]])
+    return rows, np.array([band - level, band + level])
+
+
 def _clamp_lever(value: float) -> float:
     return min(max(value, _LEVER_MIN), _LEVER_MAX)
 
@@ -165,6 +182,7 @@ class _BestCandidate(NamedTuple):
     achieved_pct: float
     results: List[PerYearCompensationResult]
     scale: Optional[float]
+    objective: float
 
 
 class _DialOutcome(NamedTuple):
@@ -234,7 +252,9 @@ class AutoCalibrator:
         params = run.params.model_copy(
             update={"workforce_growth_rate": settings.target_workforce_growth}
         )
-        self.run = run.model_copy(update={"params": params})
+        self.run = run.model_copy(
+            update={"params": params, "growth_metric": settings.growth_metric}
+        )
         self._runner = CalibrationRunner(self.run, threads=threads, verbose=verbose)
         # Weights for distributing a lever-stage shift across COLA/merit.
         self._weights = {
@@ -337,11 +357,23 @@ class AutoCalibrator:
                 -np.ones(2 * len(errors)),
             )
         )
+        limits = np.concatenate((-errors, errors))
+        cost = [0.0, 0.0, 1.0]
+        variable_bounds = [*zip(lower, upper), (0, None)]
+        band = self.settings.compound_band_pct
+        if band is not None:
+            rows, row_limits = _compound_rows(jacobian, errors, band)
+            constraints = np.vstack(
+                (np.pad(constraints, ((0, 0), (0, 1))), rows),
+            )
+            limits = np.concatenate((limits, row_limits))
+            cost.append(_COMPOUND_PENALTY)
+            variable_bounds.append((0, None))
         solution = linprog(
-            [0, 0, 1],
+            cost,
             A_ub=constraints,
-            b_ub=np.concatenate((-errors, errors)),
-            bounds=[*zip(lower, upper), (0, None)],
+            b_ub=limits,
+            bounds=variable_bounds,
             method="highs",
         )
         if not solution.success:
@@ -352,15 +384,25 @@ class AutoCalibrator:
     def _dials_converged(self) -> bool:
         return self._require_best().abs_error <= self.settings.tolerance_pct
 
-    @staticmethod
+    def _objective(self, worst: float, mean_error: float) -> float:
+        """Worst-year error, plus a charge for leaving the compound band."""
+        band = self.settings.compound_band_pct
+        if band is None:
+            return worst
+        return worst + _COMPOUND_PENALTY * max(0.0, abs(mean_error) - band)
+
+    def _dial_objective(self, errors: NDArray[np.float64]) -> float:
+        return self._objective(float(np.max(np.abs(errors))), float(errors.mean()))
+
     def _update_dial_jacobian(
+        self,
         jacobian: NDArray[np.float64],
         step: NDArray[np.float64],
         errors: NDArray[np.float64],
         new_errors: NDArray[np.float64],
     ) -> Optional[NDArray[np.float64]]:
         """Accept an improving step with a Broyden update; otherwise recompute."""
-        if np.max(np.abs(new_errors)) >= np.max(np.abs(errors)):
+        if self._dial_objective(new_errors) >= self._dial_objective(errors):
             return None
         residual = new_errors - errors - jacobian @ step
         return jacobian + np.outer(residual, step) / float(step @ step)
@@ -664,8 +706,11 @@ class AutoCalibrator:
                 max_abs_error_pct=max_abs_error,
             )
         )
-        if self._best is None or max_abs_error < self._best.abs_error:
-            self._best = _BestCandidate(max_abs_error, params, achieved, results, scale)
+        objective = self._objective(max_abs_error, achieved - target_pct)
+        if self._best is None or objective < self._best.objective:
+            self._best = _BestCandidate(
+                max_abs_error, params, achieved, results, scale, objective
+            )
         return error
 
     def _evaluate(

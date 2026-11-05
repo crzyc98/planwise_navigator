@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 import duckdb
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -159,6 +159,12 @@ class CalibrationParameterSet(BaseModel):
         return value
 
 
+# ``active_average``: average prorated pay of active employees.
+# ``payroll_per_head``: total pay for the year (leavers included) divided by
+# year-end active headcount, a figure a sponsor can reproduce from their data.
+GrowthMetric = Literal["active_average", "payroll_per_head"]
+
+
 class CalibrationRun(BaseModel):
     """One calibration execution over a year range against a target database."""
 
@@ -168,6 +174,7 @@ class CalibrationRun(BaseModel):
     database_path: Optional[Path] = None
     interactive: bool = False
     params: CalibrationParameterSet = Field(default_factory=CalibrationParameterSet)
+    growth_metric: GrowthMetric = "active_average"
 
     @model_validator(mode="after")
     def _range_ordered(self) -> "CalibrationRun":
@@ -493,7 +500,11 @@ class CalibrationRunner:
         target = self._compensation_target()
         conn = duckdb.connect(str(self.database_path), read_only=True)
         try:
-            growth = self._read_growth(conn, year)
+            growth = (
+                self._read_payroll_per_head(conn, year)
+                if self.run.growth_metric == "payroll_per_head"
+                else self._read_growth(conn, year)
+            )
             if year == self.run.start_year:
                 growth["yoy_growth_pct"] = None
             gap = self._read_snapshot_gap(conn, year)
@@ -538,6 +549,45 @@ class CalibrationRunner:
             LEFT JOIN annual AS prior
               ON prior.simulation_year = current.simulation_year - 1
             WHERE current.simulation_year = ?
+            """,
+            [year - 1, year, year],
+        ).fetchone()
+        if row is None:
+            raise ConfigurationError(
+                f"No active workforce snapshot rows produced for {year}"
+            )
+        return dict(
+            zip(("avg_compensation", "yoy_growth_pct", "headcount", "total_comp"), row)
+        )
+
+    @staticmethod
+    def _read_payroll_per_head(
+        conn: duckdb.DuckDBPyConnection, year: int
+    ) -> Dict[str, Any]:
+        """Read total pay for the year divided by year-end active headcount."""
+        row = conn.execute(
+            """
+            WITH annual AS (
+                SELECT simulation_year,
+                       SUM(prorated_annual_compensation) AS total_comp,
+                       COUNT(*) FILTER (
+                           WHERE LOWER(employment_status) = 'active'
+                       ) AS headcount
+                FROM fct_workforce_snapshot
+                WHERE simulation_year IN (?, ?)
+                GROUP BY simulation_year
+            ),
+            per_head AS (
+                SELECT *, total_comp / NULLIF(headcount, 0) AS avg_compensation
+                FROM annual
+            )
+            SELECT current.avg_compensation,
+                   (current.avg_compensation / NULLIF(prior.avg_compensation, 0) - 1) * 100,
+                   current.headcount, current.total_comp
+            FROM per_head AS current
+            LEFT JOIN per_head AS prior
+              ON prior.simulation_year = current.simulation_year - 1
+            WHERE current.simulation_year = ? AND current.headcount > 0
             """,
             [year - 1, year, year],
         ).fetchone()

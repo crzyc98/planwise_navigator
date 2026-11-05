@@ -1436,6 +1436,28 @@
             ],
             "title": "Base Job Level Compensation"
           },
+          "compound_band_pct": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 5.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compound Band Pct"
+          },
+          "growth_metric": {
+            "default": "active_average",
+            "enum": [
+              "active_average",
+              "payroll_per_head"
+            ],
+            "title": "Growth Metric",
+            "type": "string"
+          },
           "initial_scale": {
             "default": 1.0,
             "exclusiveMinimum": 0.0,
