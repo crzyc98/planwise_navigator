@@ -47,6 +47,9 @@ export function buildConfigPayload(
       target_compensation_growth_percent: Number(formData.targetCompensationGrowth),
       merit_budget_percent: Number(formData.meritBudget),
       cola_rate_percent: Number(formData.colaRate),
+      raise_budget: formData.raiseBudgetEnabled ? Number(formData.raiseBudget) / 100 : null,
+      raise_budget_percent: formData.raiseBudgetEnabled ? Number(formData.raiseBudget) : null,
+      raise_coverage_percent: formData.raiseBudgetEnabled ? Number(formData.raiseCoverage) : 100,
       promotion_compensation: {
         base_increase_pct: Number(formData.promoIncrease) / 100,
         distribution_range: Number(formData.promoDistributionRange) / 100,

@@ -55,7 +55,7 @@ export function CompensationSection({ variant = 'full' }: { variant?: 'full' | '
             {result.warnings.map((warning, index) => <p key={index} className="text-xs text-warning-ink">{warning}</p>)}
             <div className="flex flex-wrap gap-2">
               <button type="button" disabled={preview.stale} className="px-3 py-2 rounded bg-info-solid text-ink-inverse text-sm disabled:opacity-50"
-                onClick={() => preview.apply(suggestion => setFormData(previous => ({ ...previous, colaRate: suggestion.cola_rate, meritBudget: suggestion.merit_budget, promoIncrease: suggestion.promotion_increase, promoBudget: suggestion.promotion_budget })))}>Apply suggested settings</button>
+                onClick={() => preview.apply(suggestion => setFormData(previous => ({ ...previous, colaRate: suggestion.cola_rate, meritBudget: suggestion.merit_budget, raiseBudget: Number((suggestion.cola_rate + suggestion.merit_budget).toFixed(4)), promoIncrease: suggestion.promotion_increase, promoBudget: suggestion.promotion_budget })))}>Apply suggested settings</button>
               <button type="button" onClick={preview.cancel} className="px-3 py-2 rounded border border-border text-sm">Cancel</button>
             </div>
           </div>
@@ -65,8 +65,21 @@ export function CompensationSection({ variant = 'full' }: { variant?: 'full' | '
         <h3 className="text-sm font-semibold text-ink">Current draft pay assumptions</h3>
         <p className="text-xs text-ink-muted">These inputs are saved when you choose Save. Applying a suggestion only updates this draft. Promotion increase and spread can be superseded by nested configuration overrides; the run's resolved configuration determines engine behavior.</p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-6">
-          <InputField label="COLA / Inflation" {...inputProps('colaRate')} type="number" step="0.1" suffix="%" />
-          <InputField label="Merit Budget" {...inputProps('meritBudget')} type="number" step="0.1" suffix="%" />
+          <label className="flex items-center gap-2 text-sm text-ink sm:col-span-6">
+            <input type="checkbox" checked={formData.raiseBudgetEnabled} onChange={event => setFormData(previous => ({ ...previous, raiseBudgetEnabled: event.target.checked }))} />
+            Use one raise budget instead of COLA and merit
+          </label>
+          {formData.raiseBudgetEnabled ? (
+            <>
+              <InputField label="Raise Budget" {...inputProps('raiseBudget')} type="number" step="0.1" suffix="%" helper="Replaces COLA and merit." />
+              <InputField label="Share Receiving a Raise" {...inputProps('raiseCoverage')} type="number" step="1" min={1} max={100} suffix="%" helper="The budget stays the same, so a lower share means larger raises." />
+            </>
+          ) : (
+            <>
+              <InputField label="COLA / Inflation" {...inputProps('colaRate')} type="number" step="0.1" suffix="%" />
+              <InputField label="Merit Budget" {...inputProps('meritBudget')} type="number" step="0.1" suffix="%" />
+            </>
+          )}
           <InputField label="Avg. Promotion Increase" {...inputProps('promoIncrease')} type="number" step="0.5" suffix="%" helper="Base promotion pay increase." />
           <InputField label="Promotion increase spread" {...inputProps('promoDistributionRange')} type="number" step="0.5" suffix="± %" />
           <InputField label="Promotion Budget" {...inputProps('promoBudget')} type="number" step="0.1" suffix="% of payroll" helper="Saved for reference; not enforced by the engine." />
