@@ -3266,6 +3266,8 @@ export interface components {
             best_scale: number | null;
             /** Converged */
             converged: boolean;
+            /** Cost Estimate */
+            cost_estimate: components["schemas"]["CostEstimateRow"][];
             /** End Year */
             end_year: number;
             /**
@@ -3337,6 +3339,11 @@ export interface components {
              */
             max_iterations?: number;
             /**
+             * Raise Budget Limit Pct
+             * @default 1
+             */
+            raise_budget_limit_pct?: number;
+            /**
              * Salary Growth Max
              * @default 0.08
              */
@@ -3363,10 +3370,20 @@ export interface components {
              */
             search_mode?: "levers" | "new_hire_scale";
             /**
+             * Solve Raise Budget
+             * @default false
+             */
+            solve_raise_budget?: boolean;
+            /**
              * Solve Salary Growth
              * @default false
              */
             solve_salary_growth?: boolean;
+            /**
+             * Stop On Plateau
+             * @default false
+             */
+            stop_on_plateau?: boolean;
             /** Target Comp Growth */
             target_comp_growth: number;
             /** Target Workforce Growth */
@@ -5124,6 +5141,25 @@ export interface components {
              * @description Simulation year
              */
             year: number;
+        };
+        /**
+         * CostEstimateRow
+         * @description Pay and estimated employer cost for one year, before and after solving.
+         *
+         *     Calibration skips the plan calculations, so employer cost is estimated: it
+         *     stays the same share of pay as in the run calibration started from.
+         */
+        CostEstimateRow: {
+            /** Current Employer Cost */
+            current_employer_cost: number;
+            /** Current Total Pay */
+            current_total_pay: number;
+            /** Estimated Employer Cost */
+            estimated_employer_cost: number;
+            /** Simulation Year */
+            simulation_year: number;
+            /** Solved Total Pay */
+            solved_total_pay: number;
         };
         /** CrossCitation */
         CrossCitation: {
@@ -8206,6 +8242,8 @@ export interface components {
              * @default 0
              */
             total_compensation: number;
+            /** Total Pay */
+            total_pay: number | null;
             /** Yoy Growth Pct */
             yoy_growth_pct: number | null;
         };

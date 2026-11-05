@@ -58,6 +58,12 @@ _LEVER_SENSITIVITY_PP = 100.0  # pp of growth per 1.0 (decimal) lever shift
 _MONOTONE_SLACK_PP = 0.01
 # Worst-year pp one pp of horizon-mean overrun costs in the two-dial objective.
 _COMPOUND_PENALTY = 10.0
+# A proposed two-dial step smaller than this in both dials cannot change the
+# result: real searches had stopped improving by the time steps got this small.
+_PLATEAU_STEP = np.array([0.001, 0.0002])
+# Raises run this far above the growth target: leavers and cheaper hires dilute
+# them, so a budget equal to the target would leave growth short.
+_RAISE_MARGIN_PP = 1.0
 
 
 class AutoCalibrationSettings(BaseModel):
@@ -91,11 +97,20 @@ class AutoCalibrationSettings(BaseModel):
     # Two-dial search only: also hold horizon-mean growth within this many pp of
     # target, so one noisy year cannot pull the whole horizon off target.
     compound_band_pct: Optional[float] = Field(default=None, gt=0, le=5.0)
+    # Two-dial search only: stop once the next step would be negligible,
+    # instead of spending the remaining budget on identical candidates.
+    stop_on_plateau: bool = False
+    # Two-dial search only: set the raise budget from the target first, within
+    # this limit of configured, then solve hiring pay. Moves merit; COLA stays.
+    solve_raise_budget: bool = False
+    raise_budget_limit_pct: float = Field(default=1.0, gt=0, le=5.0)
 
     @model_validator(mode="after")
     def _validate_scale_mode(self) -> "AutoCalibrationSettings":
         if self.solve_salary_growth and self.search_mode != "new_hire_scale":
             raise ValueError("solve_salary_growth requires new_hire_scale search")
+        if self.solve_raise_budget and not self.solve_salary_growth:
+            raise ValueError("solve_raise_budget requires solve_salary_growth")
         if self.salary_growth_min >= self.salary_growth_max:
             raise ValueError("salary_growth_min must be < salary_growth_max")
         if self.scale_min >= self.scale_max:
@@ -124,6 +139,20 @@ class OptimizationIteration(BaseModel):
     max_abs_error_pct: float
 
 
+class CostEstimateRow(BaseModel):
+    """Pay and estimated employer cost for one year, before and after solving.
+
+    Calibration skips the plan calculations, so employer cost is estimated: it
+    stays the same share of pay as in the run calibration started from.
+    """
+
+    simulation_year: int
+    current_total_pay: float
+    solved_total_pay: float
+    current_employer_cost: float
+    estimated_employer_cost: float
+
+
 class AutoCalibrationResult(BaseModel):
     """Outcome of the search: best params + the run that produced them."""
 
@@ -145,6 +174,7 @@ class AutoCalibrationResult(BaseModel):
     end_year: int
     iterations: List[OptimizationIteration]
     results: List[PerYearCompensationResult]
+    cost_estimate: List[CostEstimateRow] = Field(default_factory=list)
 
 
 def _annual_objective(
@@ -267,6 +297,8 @@ class AutoCalibrator:
         self._iterations: List[OptimizationIteration] = []
         self._best: Optional[_BestCandidate] = None
         self._last_errors: Dict[int, float] = {}
+        self._raise_shift = 0.0
+        self._base_levers: Tuple[float, float] = (0.0, 0.0)
 
     @property
     def database_path(self) -> Path:
@@ -313,8 +345,8 @@ class AutoCalibrator:
     def _evaluate_dials(
         self, x: NDArray[np.float64], target_pct: float
     ) -> NDArray[np.float64]:
-        cola, merit = self._starting_levers()
-        params = self._candidate(cola, merit, 0.0, float(x[0]))
+        cola, merit = self._base_levers
+        params = self._candidate(cola, merit + self._raise_shift, 0.0, float(x[0]))
         params.new_hire_salary_growth_rate = float(x[1])
         self._try_candidate(params, target_pct, float(x[0]))
         years = sorted(self._last_errors)
@@ -437,6 +469,11 @@ class AutoCalibrator:
                 )
             candidate = np.clip(x + step, *self._dial_bounds().T)
             step = candidate - x
+            if self.settings.stop_on_plateau and np.all(np.abs(step) < _PLATEAU_STEP):
+                return _DialOutcome(
+                    "best_achievable",
+                    "Stopped early: the next change would be negligible.",
+                )
             new_errors = self._evaluate_dials(candidate, target_pct)
             jacobian = self._update_dial_jacobian(jacobian, step, errors, new_errors)
             if jacobian is None:
@@ -451,7 +488,32 @@ class AutoCalibrator:
             "not_converged", "Evaluation budget exhausted before convergence."
         )
 
+    def _target_raise_shift(self, target_pct: float) -> float:
+        """Decimal merit change that puts the raise budget where the target needs it."""
+        if not self.settings.solve_raise_budget:
+            return 0.0
+        cola, merit = self._base_levers
+        total = (cola + merit) * 100
+        limit = self.settings.raise_budget_limit_pct
+        wanted = min(max(target_pct + _RAISE_MARGIN_PP, total - limit), total + limit)
+        return max((wanted - total) / 100, -merit)
+
+    def _raise_note(self, target_pct: float) -> str:
+        """Say what moved, and when the limit stopped it short of the target's need."""
+        if not self.settings.solve_raise_budget:
+            return ""
+        cola, merit = self._base_levers
+        before = (cola + merit) * 100
+        after = before + self._raise_shift * 100
+        note = f" Raise budget moved from {before:.2f}% to {after:.2f}%."
+        if abs(target_pct + _RAISE_MARGIN_PP - after) > 1e-9:
+            note += f" It stopped at the {self.settings.raise_budget_limit_pct:.1f}pp limit."
+        return note
+
     def _optimize_two_dials(self, target_pct: float) -> AutoCalibrationResult:
+        # Each evaluation overwrites the runner's config, so read the levers once.
+        self._base_levers = self._starting_levers()
+        self._raise_shift = self._target_raise_shift(target_pct)
         outcome = self._search_dials(target_pct)
         converged = self._dials_converged()
         message = self._summary(converged, target_pct)
@@ -479,7 +541,7 @@ class AutoCalibrator:
             )
         return self._finish(
             converged,
-            message,
+            message + self._raise_note(target_pct),
             target_pct,
             status=status,
             reason=None if converged else reason,
@@ -750,6 +812,26 @@ class AutoCalibrator:
             f"{best.achieved_pct:.2f}% vs target {target_pct:.2f}%)"
         )
 
+    def _cost_estimate(
+        self, results: List[PerYearCompensationResult]
+    ) -> List[CostEstimateRow]:
+        rows = []
+        for result in results:
+            baseline = self._runner.baseline_costs.get(result.simulation_year)
+            if baseline and baseline.pay and result.total_pay is not None:
+                rows.append(
+                    CostEstimateRow(
+                        simulation_year=result.simulation_year,
+                        current_total_pay=baseline.pay,
+                        solved_total_pay=result.total_pay,
+                        current_employer_cost=baseline.employer_cost,
+                        estimated_employer_cost=baseline.employer_cost
+                        * result.total_pay
+                        / baseline.pay,
+                    )
+                )
+        return rows
+
     def _finish(
         self,
         converged: bool,
@@ -782,4 +864,5 @@ class AutoCalibrator:
             end_year=self.run.end_year,
             iterations=self._iterations,
             results=best.results,
+            cost_estimate=self._cost_estimate(best.results),
         )

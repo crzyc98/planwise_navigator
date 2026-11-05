@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { baselineScenarioId, growthMetricSettings, isMissingRunError } from './calibrationScenario';
+import { baselineScenarioId, costSummary, growthMetricSettings, isMissingRunError } from './calibrationScenario';
 import { ApiError } from '../services/api';
 import CalibrationPanel from './CalibrationPanel';
 
@@ -12,8 +12,13 @@ vi.mock('../hooks/useChartTheme', () => ({ useChartTheme: () => ({}) }));
 vi.mock('./config/ConfigContext', () => ({ extractCensusPath: () => null }));
 
 describe('growth metric settings', () => {
-  it('leaves the active metric request unchanged', () => {
+  it('leaves the active metric request unchanged without a budget', () => {
     expect(growthMetricSettings('active_average', true)).toEqual({});
+  });
+
+  it('sets the raise budget from the target under the active metric too', () => {
+    expect(growthMetricSettings('active_average', true, true)).toEqual({ solve_raise_budget: true });
+    expect(growthMetricSettings('active_average', false, true)).toEqual({});
   });
 
   it('sends the validated band and cap with two-dial total pay per head', () => {
@@ -21,6 +26,17 @@ describe('growth metric settings', () => {
       growth_metric: 'payroll_per_head',
       compound_band_pct: 0.04,
       salary_growth_max: 0.05,
+      stop_on_plateau: true,
+      solve_raise_budget: false,
+    });
+  });
+
+  it('sets the raise budget from the target only when asked', () => {
+    expect(growthMetricSettings('payroll_per_head', true, true)).toMatchObject({
+      solve_raise_budget: true,
+    });
+    expect(growthMetricSettings('payroll_per_head', false, true)).toEqual({
+      growth_metric: 'payroll_per_head',
     });
   });
 
@@ -28,6 +44,27 @@ describe('growth metric settings', () => {
     expect(growthMetricSettings('payroll_per_head', false)).toEqual({
       growth_metric: 'payroll_per_head',
     });
+  });
+});
+
+describe('cost summary', () => {
+  const row = (year: number, pay: number, cost: number) => ({
+    simulation_year: year,
+    current_total_pay: pay,
+    solved_total_pay: pay * 0.9,
+    current_employer_cost: cost,
+    estimated_employer_cost: cost * 0.9,
+  });
+
+  it('shows nothing when no estimate is available', () => {
+    expect(costSummary([])).toBeNull();
+  });
+
+  it('reports the final year and the whole horizon', () => {
+    const summary = costSummary([row(2027, 200, 20), row(2026, 100, 10)]);
+    expect(summary).toMatchObject({ firstYear: 2026, lastYear: 2027, pay: [200, 180], cost: [20, 18] });
+    expect(summary?.horizonCost[0]).toBeCloseTo(30);
+    expect(summary?.horizonCost[1]).toBeCloseTo(27);
   });
 });
 
