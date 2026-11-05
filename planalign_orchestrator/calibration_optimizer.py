@@ -58,6 +58,9 @@ _LEVER_SENSITIVITY_PP = 100.0  # pp of growth per 1.0 (decimal) lever shift
 _MONOTONE_SLACK_PP = 0.01
 # Worst-year pp one pp of horizon-mean overrun costs in the two-dial objective.
 _COMPOUND_PENALTY = 10.0
+# A proposed two-dial step smaller than this in both dials cannot change the
+# result: real searches had stopped improving by the time steps got this small.
+_PLATEAU_STEP = np.array([0.001, 0.0002])
 
 
 class AutoCalibrationSettings(BaseModel):
@@ -91,6 +94,9 @@ class AutoCalibrationSettings(BaseModel):
     # Two-dial search only: also hold horizon-mean growth within this many pp of
     # target, so one noisy year cannot pull the whole horizon off target.
     compound_band_pct: Optional[float] = Field(default=None, gt=0, le=5.0)
+    # Two-dial search only: stop once the next step would be negligible,
+    # instead of spending the remaining budget on identical candidates.
+    stop_on_plateau: bool = False
 
     @model_validator(mode="after")
     def _validate_scale_mode(self) -> "AutoCalibrationSettings":
@@ -437,6 +443,11 @@ class AutoCalibrator:
                 )
             candidate = np.clip(x + step, *self._dial_bounds().T)
             step = candidate - x
+            if self.settings.stop_on_plateau and np.all(np.abs(step) < _PLATEAU_STEP):
+                return _DialOutcome(
+                    "best_achievable",
+                    "Stopped early: the next change would be negligible.",
+                )
             new_errors = self._evaluate_dials(candidate, target_pct)
             jacobian = self._update_dial_jacobian(jacobian, step, errors, new_errors)
             if jacobian is None:

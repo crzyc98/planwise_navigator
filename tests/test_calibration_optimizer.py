@@ -583,3 +583,52 @@ def test_compound_band_step_recentres_a_lopsided_year(tmp_path) -> None:
     banded_step = banded._dial_step(x, errors, jacobian, trust)
     assert abs((errors + jacobian @ plain_step).mean()) > 0.04
     assert abs((errors + jacobian @ banded_step).mean()) <= 0.04 + 1e-9
+
+
+def _balanced_response(optimizer: AutoCalibrator) -> None:
+    """Dials set level and slope, but a +/-0.3pp zigzag cannot be solved."""
+
+    def evaluate(params: CalibrationParameterSet) -> list[PerYearCompensationResult]:
+        optimizer._evals += 1
+        scale = params.job_level_compensation[0]["min_compensation"] / 50000
+        rate = params.new_hire_salary_growth_rate - 0.03
+        jitter = 0.0005 * (optimizer._evals % 2)  # rebuilds never repeat exactly
+        rows = [
+            PerYearCompensationResult(
+                simulation_year=2025, avg_compensation=100, headcount=10
+            )
+        ]
+        for index, swing in enumerate((0.3, -0.3, 0.3), start=1):
+            rows.append(
+                PerYearCompensationResult(
+                    simulation_year=2025 + index,
+                    avg_compensation=100,
+                    headcount=10,
+                    yoy_growth_pct=3
+                    + 6 * (scale - 1)
+                    + 10 * index * rate
+                    + swing
+                    + jitter,
+                )
+            )
+        return rows
+
+    optimizer._evaluate = evaluate  # type: ignore[method-assign]
+
+
+@pytest.mark.parametrize("stop", [True, False])
+def test_plateau_stop_keeps_the_answer_and_saves_runs(tmp_path, stop: bool) -> None:
+    run = CalibrationRun(
+        start_year=2025, end_year=2028, database_path=tmp_path / "cal.duckdb"
+    )
+    settings = _two_dial_settings(
+        initial_scale=1.2, stop_on_plateau=stop, max_iterations=8
+    )
+    optimizer = AutoCalibrator(run, settings, threads=1)
+    optimizer.run.params.new_hire_salary_growth_rate = 0.03
+    _balanced_response(optimizer)
+    outcome = optimizer.optimize()
+    assert outcome.max_abs_error_pct == pytest.approx(0.3, abs=0.02)
+    assert (len(outcome.iterations) < 8) is stop
+    if stop:
+        assert outcome.status == "best_achievable"

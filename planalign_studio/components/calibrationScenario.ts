@@ -23,6 +23,8 @@ export function growthMetricSettings(metric: GrowthMetric, solveSalaryGrowth: bo
   if (metric === 'active_average') return {};
   return {
     growth_metric: metric,
-    ...(solveSalaryGrowth ? { compound_band_pct: 0.04, salary_growth_max: 0.05 } : {}),
+    ...(solveSalaryGrowth
+      ? { compound_band_pct: 0.04, salary_growth_max: 0.05, stop_on_plateau: true }
+      : {}),
   };
 }

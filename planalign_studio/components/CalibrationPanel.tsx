@@ -1337,6 +1337,7 @@ export default function CalibrationPanel() {
                     <th className="text-right">COLA</th>
                     <th className="text-right">Merit</th>
                     <th className="text-right">Scale</th>
+                    <th className="text-right">Starting-Pay Growth</th>
                     <th className="text-right">Comp Growth</th>
                     <th className="text-right">Worst annual error</th>
                   </tr>
@@ -1348,6 +1349,7 @@ export default function CalibrationPanel() {
                       <td className="text-right">{pct(it.cola_rate)}</td>
                       <td className="text-right">{pct(it.merit_budget)}</td>
                       <td className="text-right">{it.scale != null ? `${it.scale.toFixed(2)}×` : '—'}</td>
+                      <td className="text-right">{it.salary_growth_rate != null ? pct(it.salary_growth_rate) : '—'}</td>
                       <td className="text-right">{it.achieved_growth_pct.toFixed(2)}%</td>
                       <td className="text-right">{it.max_abs_error_pct.toFixed(2)}pp</td>
                     </tr>

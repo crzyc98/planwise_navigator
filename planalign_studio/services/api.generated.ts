@@ -3367,6 +3367,11 @@ export interface components {
              * @default false
              */
             solve_salary_growth?: boolean;
+            /**
+             * Stop On Plateau
+             * @default false
+             */
+            stop_on_plateau?: boolean;
             /** Target Comp Growth */
             target_comp_growth: number;
             /** Target Workforce Growth */

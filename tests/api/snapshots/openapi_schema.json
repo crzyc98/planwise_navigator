@@ -1527,6 +1527,11 @@
             "title": "Solve Salary Growth",
             "type": "boolean"
           },
+          "stop_on_plateau": {
+            "default": false,
+            "title": "Stop On Plateau",
+            "type": "boolean"
+          },
           "target_comp_growth": {
             "maximum": 1.0,
             "minimum": -1.0,

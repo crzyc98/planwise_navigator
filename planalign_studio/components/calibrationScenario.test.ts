@@ -21,6 +21,7 @@ describe('growth metric settings', () => {
       growth_metric: 'payroll_per_head',
       compound_band_pct: 0.04,
       salary_growth_max: 0.05,
+      stop_on_plateau: true,
     });
   });
 
