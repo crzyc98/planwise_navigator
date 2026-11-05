@@ -9653,6 +9653,12 @@ export interface components {
             merit_budget?: number | null;
             /** Merit Budget Percent */
             merit_budget_percent?: number | null;
+            /** Raise Budget */
+            raise_budget?: number | null;
+            /** Raise Budget Percent */
+            raise_budget_percent?: number | null;
+            /** Raise Coverage Percent */
+            raise_coverage_percent?: number | null;
         } & {
             [key: string]: unknown;
         };

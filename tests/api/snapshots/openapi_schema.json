@@ -15159,6 +15159,39 @@
               }
             ],
             "title": "Merit Budget Percent"
+          },
+          "raise_budget": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raise Budget"
+          },
+          "raise_budget_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raise Budget Percent"
+          },
+          "raise_coverage_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raise Coverage Percent"
           }
         },
         "title": "StudioCompensationConfig",

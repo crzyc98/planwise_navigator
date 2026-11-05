@@ -4,6 +4,9 @@
 ) }}
 
 {% set simulation_year = var('simulation_year') %}
+{% set raise_coverage = var('raise_coverage', 1.0) | float %}
+{# The budget is total spend: a lower coverage gives each recipient a larger share. #}
+{% set raise_rate = '(e.merit_raise + c.cola_rate)' if raise_coverage == 1 else '((e.merit_raise + c.cola_rate) / ' ~ raise_coverage ~ ')' %}
 
 -- Generate merit increase events for active workforce based on hazard rates
 -- Applies merit raise percentages from dim_hazard_table to eligible employees
@@ -77,6 +80,9 @@ eligible_for_merit AS (
     FROM merit_candidates
     -- Exclude employees who terminate before their raise takes effect
     WHERE termination_date IS NULL OR termination_date >= raise_effective_date
+    {% if raise_coverage < 1 %}
+      AND (ABS(PLANALIGN_HASH(employee_id || '{{ simulation_year }}' || 'raise_coverage' || '{{ subsystem_seed('raise_coverage') }}')) % 1000000) / 1000000.0 < {{ raise_coverage }}
+    {% endif %}
 ),
 
 -- Apply COLA adjustments using dynamic parameter system
@@ -104,9 +110,9 @@ SELECT
             e.employee_gross_compensation + 250000,
             -- Validate input parameters are reasonable before applying
             CASE
-                WHEN (e.merit_raise + c.cola_rate) > 0.50 THEN e.employee_gross_compensation * 1.50
-                WHEN (e.merit_raise + c.cola_rate) < 0 THEN e.employee_gross_compensation
-                ELSE e.employee_gross_compensation * (1 + e.merit_raise + c.cola_rate)
+                WHEN {{ raise_rate }} > 0.50 THEN e.employee_gross_compensation * 1.50
+                WHEN {{ raise_rate }} < 0 THEN e.employee_gross_compensation
+                ELSE e.employee_gross_compensation * (1 + {{ raise_rate }})
             END
         ), 2
     ) AS compensation_amount,
