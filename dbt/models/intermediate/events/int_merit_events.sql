@@ -4,9 +4,11 @@
 ) }}
 
 {% set simulation_year = var('simulation_year') %}
+{% set raise_budget = var('raise_budget', none) %}
 {% set raise_coverage = var('raise_coverage', 1.0) | float %}
-{# The budget is total spend: a lower coverage gives each recipient a larger share. #}
-{% set raise_rate = '(e.merit_raise + c.cola_rate)' if raise_coverage == 1 else '((e.merit_raise + c.cola_rate) / ' ~ raise_coverage ~ ')' %}
+{# A raise budget is total spend: everyone in coverage shares it evenly, so a lower
+   coverage gives each recipient a larger raise. Unset keeps merit plus COLA. #}
+{% set raise_rate = '(e.merit_raise + c.cola_rate)' if raise_budget is none else '(' ~ (raise_budget | float / raise_coverage) ~ ')' %}
 
 -- Generate merit increase events for active workforce based on hazard rates
 -- Applies merit raise percentages from dim_hazard_table to eligible employees
@@ -80,9 +82,6 @@ eligible_for_merit AS (
     FROM merit_candidates
     -- Exclude employees who terminate before their raise takes effect
     WHERE termination_date IS NULL OR termination_date >= raise_effective_date
-    {% if raise_coverage < 1 %}
-      AND (ABS(PLANALIGN_HASH(employee_id || '{{ simulation_year }}' || 'raise_coverage' || '{{ subsystem_seed('raise_coverage') }}')) % 1000000) / 1000000.0 < {{ raise_coverage }}
-    {% endif %}
 ),
 
 -- Apply COLA adjustments using dynamic parameter system
@@ -100,7 +99,11 @@ SELECT
     -- Raise timing computed once in merit_candidates (legacy/realistic modes)
     e.raise_effective_date AS effective_date,
     -- Event details for audit trail
+    {% if raise_budget is none %}
     'Merit raise: ' || ROUND(e.merit_raise * 100, 1) || '%, COLA: ' || ROUND(c.cola_rate * 100, 1) || '%' AS event_details,
+    {% else %}
+    'Raise budget: ' || ROUND({{ raise_rate }} * 100, 1) || '%' AS event_details,
+    {% endif %}
     -- Schema alignment for fct_yearly_events consumption
     ROUND(
         LEAST(
@@ -128,3 +131,6 @@ SELECT
     'raise' AS event_category
 FROM eligible_for_merit e
 CROSS JOIN cola_adjustments c
+{% if raise_budget is not none and raise_coverage < 1 %}
+WHERE (ABS(PLANALIGN_HASH(e.employee_id || '{{ simulation_year }}' || 'raise_coverage' || '{{ subsystem_seed('raise_coverage') }}')) % 1000000) / 1000000.0 < {{ raise_coverage }}
+{% endif %}

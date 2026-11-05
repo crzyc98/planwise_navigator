@@ -1,9 +1,16 @@
 """One raise budget, with the share of employees receiving a raise (#1074)."""
 
+from pathlib import Path
+
 import pytest
+import yaml
 
 from planalign_api.routers.calibration import _merge_raise_budget
-from planalign_orchestrator.calibration_runner import CalibrationParameterSet
+from planalign_orchestrator.calibration_runner import (
+    CalibrationParameterSet,
+    CalibrationRun,
+    CalibrationRunner,
+)
 from planalign_orchestrator.config import load_simulation_config, to_dbt_vars
 from planalign_orchestrator.config.loader import SimulationConfig
 from planalign_orchestrator.config.simulation import CompensationSettings
@@ -43,12 +50,39 @@ def _exported(**compensation: float) -> dict:
     return to_dbt_vars(SimulationConfig.model_validate(config))
 
 
-def test_full_coverage_adds_no_dbt_var() -> None:
-    assert "raise_coverage" not in _exported()
+def test_merit_and_cola_configs_add_no_dbt_vars() -> None:
+    exported = _exported(raise_coverage=0.9)
+    assert "raise_budget" not in exported
+    assert "raise_coverage" not in exported
+
+
+def test_full_coverage_exports_only_the_budget() -> None:
+    exported = _exported(raise_budget=0.04)
+    assert exported["raise_budget"] == 0.04
+    assert "raise_coverage" not in exported
 
 
 def test_partial_coverage_reaches_dbt() -> None:
-    assert _exported(raise_coverage=0.9)["raise_coverage"] == 0.9
+    exported = _exported(raise_budget=0.04, raise_coverage=0.9)
+    assert exported["raise_coverage"] == 0.9
+
+
+def test_calibration_levers_move_a_set_budget(tmp_path) -> None:
+    config = yaml.safe_load(Path("config/simulation_config.yaml").read_text())
+    config["compensation"]["raise_budget"] = 0.04
+    path = tmp_path / "config.yaml"
+    path.write_text(yaml.safe_dump(config))
+    run = CalibrationRun(
+        start_year=2026,
+        end_year=2027,
+        config_path=path,
+        database_path=tmp_path / "cal.duckdb",
+    )
+    runner = CalibrationRunner(run)
+    runner._apply_param_overrides(
+        CalibrationParameterSet(merit_budget=0.045, cola_rate=0.005)
+    )
+    assert runner._config.compensation.raise_budget == pytest.approx(0.05)
 
 
 def test_apply_writes_the_budget_when_one_is_set() -> None:

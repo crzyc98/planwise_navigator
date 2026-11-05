@@ -91,6 +91,7 @@ def _maximal_config():
     """
     cfg = _base_config()
     cfg.workforce.part_time_new_hire_pct = 0.05
+    cfg.compensation.raise_budget = 0.04
     cfg.compensation.raise_coverage = 0.9
     cfg.dc_plan = {
         "auto_enroll": True,
