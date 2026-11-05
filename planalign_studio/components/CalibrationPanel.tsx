@@ -275,7 +275,7 @@ export default function CalibrationPanel() {
   // papered over with raises (COLA/merit stay as set). Needs Match Census.
   const [searchMode, setSearchMode] = useState<SolveMode>('new_hire_scale');
   const [solveSalaryGrowth, setSolveSalaryGrowth] = useState(true);
-  const [growthMetric, setGrowthMetric] = useState<GrowthMetric>('active_average');
+  const [growthMetric, setGrowthMetric] = useState<GrowthMetric>('payroll_per_head');
   const [solveRaiseBudget, setSolveRaiseBudget] = useState(true);
   const [usesRaiseBudget, setUsesRaiseBudget] = useState(false);
   const solvingNewHireRanges = searchMode === 'new_hire_scale';
@@ -1218,8 +1218,8 @@ export default function CalibrationPanel() {
                 onChange={event => setGrowthMetric(event.target.value as GrowthMetric)}
                 className="mt-1 block w-full max-w-sm rounded-md border border-border-strong bg-surface-raised p-2 text-sm text-ink shadow-sm focus:border-brand-green focus:ring-brand-green"
               >
-                <option value="active_average">Average pay of active employees</option>
                 <option value="payroll_per_head">Total pay ÷ year-end headcount</option>
+                <option value="active_average">Average pay of active employees</option>
               </select>
             </label>
             {growthMetric === 'payroll_per_head' && (
