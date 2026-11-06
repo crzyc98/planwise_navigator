@@ -269,7 +269,7 @@ export function WorkspaceManagerContent({
           </button>
           <button
             onClick={() => setIsCreateOpen(true)}
-            className="flex items-center px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg hover:bg-fidelity-dark transition-colors shadow-sm"
+            className="flex items-center px-4 py-2 bg-brand-green text-ink-inverse rounded-lg hover:bg-brand-dark transition-colors shadow-sm"
           >
             <Plus size={20} className="mr-2" />
             Create New Workspace
@@ -286,7 +286,7 @@ export function WorkspaceManagerContent({
             placeholder="Search workspaces by name or description..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-border-strong rounded-lg focus:ring-fidelity-green focus:border-fidelity-green"
+            className="w-full pl-10 pr-4 py-2 border border-border-strong rounded-lg focus:ring-brand-green focus:border-brand-green"
           />
         </div>
         <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -296,7 +296,7 @@ export function WorkspaceManagerContent({
                 key={filter}
                 type="button"
                 onClick={() => setLifecycleFilter(filter)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium capitalize ${lifecycleFilter === filter ? 'bg-fidelity-green text-ink-inverse' : 'text-ink-muted hover:bg-surface-subtle'}`}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium capitalize ${lifecycleFilter === filter ? 'bg-brand-green text-ink-inverse' : 'text-ink-muted hover:bg-surface-subtle'}`}
               >
                 {filter}
               </button>
@@ -364,13 +364,13 @@ export function WorkspaceManagerContent({
                   type="text"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full px-2 py-1 border border-border-strong rounded focus:ring-fidelity-green focus:border-fidelity-green text-lg font-bold"
+                  className="w-full px-2 py-1 border border-border-strong rounded focus:ring-brand-green focus:border-brand-green text-lg font-bold"
                   autoFocus
                 />
                 <textarea
                   value={editDesc}
                   onChange={(e) => setEditDesc(e.target.value)}
-                  className="w-full px-2 py-1 border border-border-strong rounded focus:ring-fidelity-green focus:border-fidelity-green text-sm"
+                  className="w-full px-2 py-1 border border-border-strong rounded focus:ring-brand-green focus:border-brand-green text-sm"
                   rows={2}
                 />
                 <div className="flex justify-end space-x-2">
@@ -415,7 +415,7 @@ export function WorkspaceManagerContent({
                   {activeWorkspace?.id !== ws.id && ws.lifecycle === 'active' && (
                     <button
                       onClick={() => switchToWorkspace(ws)}
-                      className="mr-1 inline-flex items-center rounded-md px-2 py-1.5 text-sm font-medium text-fidelity-green hover:bg-success-surface"
+                      className="mr-1 inline-flex items-center rounded-md px-2 py-1.5 text-sm font-medium text-brand-ink hover:bg-success-surface"
                       aria-label={`Switch to ${ws.name}`}
                     >
                       Switch <ArrowRight size={14} className="ml-1" />
@@ -517,7 +517,7 @@ export function WorkspaceManagerContent({
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   placeholder="e.g., Q2 2025 Budgeting"
-                  className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-fidelity-green focus:border-fidelity-green"
+                  className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-brand-green focus:border-brand-green"
                   autoFocus
                 />
               </div>
@@ -529,7 +529,7 @@ export function WorkspaceManagerContent({
                   onChange={(e) => setNewDesc(e.target.value)}
                   placeholder="Brief description of this workspace's purpose..."
                   rows={3}
-                  className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-fidelity-green focus:border-fidelity-green"
+                  className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-brand-green focus:border-brand-green"
                 />
               </div>
               <div className="flex justify-end space-x-3 pt-2">
@@ -543,7 +543,7 @@ export function WorkspaceManagerContent({
                 <button
                   type="submit"
                   disabled={!newName.trim()}
-                  className={`px-4 py-2 text-sm font-medium text-ink-inverse rounded-lg transition-colors ${!newName.trim() ? 'bg-surface-disabled cursor-not-allowed' : 'bg-fidelity-green hover:bg-fidelity-dark'}`}
+                  className={`px-4 py-2 text-sm font-medium text-ink-inverse rounded-lg transition-colors ${!newName.trim() ? 'bg-surface-disabled cursor-not-allowed' : 'bg-brand-green hover:bg-brand-dark'}`}
                 >
                   Create Workspace
                 </button>
@@ -576,7 +576,7 @@ export function WorkspaceManagerContent({
                   type="file"
                   accept=".7z"
                   onChange={handleFileSelect}
-                  className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-fidelity-green focus:border-fidelity-green file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-fidelity-green file:text-ink-inverse hover:file:bg-fidelity-dark"
+                  className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-brand-green focus:border-brand-green file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-brand-green file:text-ink-inverse hover:file:bg-brand-dark"
                 />
               </div>
 
@@ -657,7 +657,7 @@ export function WorkspaceManagerContent({
                             type="text"
                             value={customName}
                             onChange={(e) => setCustomName(e.target.value)}
-                            className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-fidelity-green focus:border-fidelity-green text-sm"
+                            className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-brand-green focus:border-brand-green text-sm"
                           />
                         )}
                         <label htmlFor="workspace-conflict-replace" className="flex items-center">
@@ -690,7 +690,7 @@ export function WorkspaceManagerContent({
                 <button
                   onClick={handleImport}
                   disabled={!importValidation?.valid || isImporting}
-                  className={`px-4 py-2 text-sm font-medium text-ink-inverse rounded-lg transition-colors flex items-center ${!importValidation?.valid || isImporting ? 'bg-surface-disabled cursor-not-allowed' : 'bg-fidelity-green hover:bg-fidelity-dark'}`}
+                  className={`px-4 py-2 text-sm font-medium text-ink-inverse rounded-lg transition-colors flex items-center ${!importValidation?.valid || isImporting ? 'bg-surface-disabled cursor-not-allowed' : 'bg-brand-green hover:bg-brand-dark'}`}
                 >
                   {isImporting && <Loader2 size={16} className="animate-spin mr-2" />}
                   Import Workspace

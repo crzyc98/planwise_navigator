@@ -36,7 +36,7 @@ const EmptyState = ({ message, onRefresh }: Readonly<{ message: string; onRefres
     <p className="text-sm text-ink-muted mb-4 text-center max-w-md">{message}</p>
     <button
       onClick={onRefresh}
-      className="flex items-center px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-fidelity-dark transition-colors"
+      className="flex items-center px-4 py-2 bg-brand-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-brand-dark transition-colors"
     >
       <RefreshCw size={16} className="mr-2" />
       Refresh
@@ -214,7 +214,7 @@ export default function WinnersLosersTab() {
               value={planA}
               onChange={(e) => setPlanA(e.target.value)}
               disabled={loadingScenarios}
-              className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[180px] disabled:bg-surface-subtle"
+              className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-brand-green focus:border-brand-green shadow-sm min-w-[180px] disabled:bg-surface-subtle"
             >
               <option value="">{loadingScenarios ? 'Loading...' : 'Select Plan A'}</option>
               {completedScenarios.map(s => (
@@ -232,7 +232,7 @@ export default function WinnersLosersTab() {
               value={planB}
               onChange={(e) => setPlanB(e.target.value)}
               disabled={loadingScenarios}
-              className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[180px] disabled:bg-surface-subtle"
+              className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-brand-green focus:border-brand-green shadow-sm min-w-[180px] disabled:bg-surface-subtle"
             >
               <option value="">{loadingScenarios ? 'Loading...' : 'Select Plan B'}</option>
               {completedScenarios.map(s => (
@@ -262,7 +262,7 @@ export default function WinnersLosersTab() {
         />
       ) : loading ? (
         <div className="flex items-center justify-center h-96">
-          <Loader2 size={48} className="animate-spin text-fidelity-green" />
+          <Loader2 size={48} className="animate-spin text-brand-ink" />
         </div>
       ) : error ? (
         <ErrorState message={error} onRetry={fetchComparison} />
@@ -289,7 +289,7 @@ export default function WinnersLosersTab() {
             <KPICard title="Average Change per Employee" value={impactCurrency(results.average_change)} icon={Users} color="gray" />
           </div>
           {results.total_compared === 0 && <p className="text-ink-muted">No active employees are present in both plans for this year. Dollar impact and average change are $0.00.</p>}
-          <button className="text-fidelity-green underline" onClick={() => setDetailFilters({})}>View all compared employees</button>
+          <button className="text-brand-ink underline" onClick={() => setDetailFilters({})}>View all compared employees</button>
           {detailFilters && <WinnersLosersDetails
             key={JSON.stringify(detailFilters)}
             workspaceId={activeWorkspace.id} comparison={results} filters={detailFilters}
@@ -408,7 +408,7 @@ export default function WinnersLosersTab() {
                             disabled={isEmpty}
                             aria-label={`View employees: age ${ab}, tenure ${tb}`}
                             onClick={() => setDetailFilters({ age_band: ab, tenure_band: tb })}
-                            className={`relative group rounded-md p-3 text-center transition-colors focus-visible:outline-2 focus-visible:outline-fidelity-green ${cell ? heatmapColor(cell) : 'bg-surface-subtle'}`}
+                            className={`relative group rounded-md p-3 text-center transition-colors focus-visible:outline-2 focus-visible:outline-brand-green ${cell ? heatmapColor(cell) : 'bg-surface-subtle'}`}
                           >
                             <span className="text-sm font-semibold">
                               {isEmpty ? '—' : cell!.total}

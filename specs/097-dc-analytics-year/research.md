@@ -67,7 +67,7 @@ Comparing year N across scenarios only makes sense if all scenarios ran through 
 ## Contribution by Year Chart: Year Highlight Approach
 
 ### Decision
-When a year is selected, highlight the selected bar by giving it a distinct fill color (Fidelity green at full opacity) while rendering other year bars at reduced opacity (40%). No structural change to the chart is needed.
+When a year is selected, highlight the selected bar by giving it a distinct fill color (brand green at full opacity) while rendering other year bars at reduced opacity (40%). No structural change to the chart is needed.
 
 ### Rationale
 Recharts supports `Cell` components within `Bar` to set per-bar fill. This allows highlighting a single bar without changing the chart layout. Users retain full multi-year context while clearly seeing which year is selected.

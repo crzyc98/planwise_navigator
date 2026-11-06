@@ -94,7 +94,7 @@ const SegmentTooltip = ({ active, payload, label }: any) => {
       <div className="space-y-1 text-sm text-ink-muted">
         <p>{row.employee_count.toLocaleString()} employees</p>
         <p>
-          Participation: <span className="font-semibold text-fidelity-green">{formatPercent(row.participation_rate)}</span>
+          Participation: <span className="font-semibold text-brand-ink">{formatPercent(row.participation_rate)}</span>
         </p>
         <p>
           Avg deferral: <span className="font-semibold text-ink">{formatPercent(row.average_deferral_rate)}</span>
@@ -153,7 +153,7 @@ const DeferralBucketTooltip = ({ active, payload, label }: any) => {
       <p className="font-semibold text-ink mb-2 text-sm">{label} deferral</p>
       <div className="space-y-1 text-sm text-ink-muted">
         <p><span className="font-semibold text-ink">{row.count.toLocaleString()}</span> employees</p>
-        <p><span className="font-semibold text-fidelity-green">{row.percentage.toFixed(1)}%</span> of eligible</p>
+        <p><span className="font-semibold text-brand-ink">{row.percentage.toFixed(1)}%</span> of eligible</p>
       </div>
     </div>
   );
@@ -167,7 +167,7 @@ function DeferralDistributionChart({ data, context }: { data: CensusDeferralRate
     <div className="bg-surface-raised p-5 rounded-xl shadow-sm border border-border">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-ink">Deferral Rate Distribution</h3>
-        <button type="button" className="text-sm text-fidelity-green" onClick={() => void copy([
+        <button type="button" className="text-sm text-brand-ink" onClick={() => void copy([
           'Deferral Rate Distribution', context,
           'Deferral bucket\tEmployees\tPercent of eligible',
           ...data.map(row => `${row.bucket}\t${row.count}\t${row.percentage}%`),
@@ -263,13 +263,13 @@ export default function CensusAnalysis() {
               type="date"
               value={asOfDate}
               onChange={e => setAsOfDate(e.target.value)}
-              className="bg-surface-raised border border-border-strong rounded-lg px-3 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm"
+              className="bg-surface-raised border border-border-strong rounded-lg px-3 py-2 text-sm focus:ring-brand-green focus:border-brand-green shadow-sm"
             />
           </div>
           <button
             onClick={runAnalysis}
             disabled={!censusPath || loading}
-            className="flex items-center px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-fidelity-dark disabled:opacity-50 transition-colors"
+            className="flex items-center px-4 py-2 bg-brand-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-brand-dark disabled:opacity-50 transition-colors"
           >
             {loading ? <Loader2 size={16} className="mr-2 animate-spin" /> : <RefreshCw size={16} className="mr-2" />}
             Analyze
@@ -286,7 +286,7 @@ export default function CensusAnalysis() {
             disabled={loading}
             onClick={() => setEmployeeStatus(status)}
             className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors disabled:opacity-50 ${employeeStatus === status
-              ? 'bg-fidelity-green text-ink-inverse border-fidelity-green'
+              ? 'bg-brand-green text-ink-inverse border-brand-green'
               : 'bg-surface-raised text-ink-muted border-border hover:bg-surface-subtle'}`}
           >
             {status === 'all' ? 'All' : status === 'active' ? 'Active' : 'Terminated'}
@@ -299,7 +299,7 @@ export default function CensusAnalysis() {
             checked={excludeZeros}
             disabled={loading}
             onChange={e => setExcludeZeros(e.target.checked)}
-            className="mr-2 rounded border-border-strong text-fidelity-green focus:ring-fidelity-green"
+            className="mr-2 rounded border-border-strong text-brand-ink focus:ring-brand-green"
           />
           Exclude zeros from averages
         </label>
@@ -447,7 +447,7 @@ export default function CensusAnalysis() {
                   <select
                     value={dimension}
                     onChange={e => setDimension(e.target.value)}
-                    className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-9 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm"
+                    className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-9 py-2 text-sm focus:ring-brand-green focus:border-brand-green shadow-sm"
                   >
                     {result.available_segment_dimensions.map(d => (
                       <option key={d} value={d}>{DIMENSION_LABELS[d] ?? d}</option>

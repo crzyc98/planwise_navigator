@@ -37,7 +37,7 @@ def _compiled_model(tmp_path: Path) -> str:
     assert result.returncode == 0, result.stdout + result.stderr
     compiled = (
         tmp_path
-        / "target/compiled/fidelity_planalign_engine/models/marts/data_quality/dq_compliance_monitoring.sql"
+        / "target/compiled/planalign_engine/models/marts/data_quality/dq_compliance_monitoring.sql"
     )
     assert compiled.exists()
     return compiled.read_text()

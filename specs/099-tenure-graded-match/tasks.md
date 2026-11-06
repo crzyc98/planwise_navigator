@@ -9,7 +9,7 @@
 
 ## Path Conventions
 
-This is the existing Fidelity PlanAlign Engine monorepo (no new projects). Paths used below:
+This is the existing PlanAlign Engine monorepo (no new projects). Paths used below:
 - `planalign_orchestrator/config/` — Pydantic config models
 - `dbt/macros/`, `dbt/models/intermediate/events/`, `dbt/tests/data_quality/` — dbt layer
 - `planalign_studio/components/config/` — React/TypeScript Studio UI

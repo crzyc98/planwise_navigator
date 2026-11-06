@@ -162,7 +162,7 @@ export default function EnsemblesPage() {
                 onClick={() => selectDatabase(summary)}
                 className={`rounded-md border p-3 text-left text-sm transition-colors ${
                   summary.database_path === database
-                    ? 'border-fidelity-green bg-surface-subtle'
+                    ? 'border-brand-green bg-surface-subtle'
                     : 'border-border hover:bg-surface-subtle'
                 }`}
               >
@@ -182,7 +182,7 @@ export default function EnsemblesPage() {
             <input
               type="text"
               placeholder="/path/to/ensemble.duckdb"
-              className="w-full rounded-md border border-border-strong p-2 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+              className="w-full rounded-md border border-border-strong p-2 text-sm shadow-sm focus:border-brand-green focus:ring-brand-green"
               value={database}
               onChange={(e) => setDatabase(e.target.value)}
             />
@@ -192,7 +192,7 @@ export default function EnsemblesPage() {
             <input
               type="text"
               list={selectedSummary ? 'ensemble-scenario-options' : undefined}
-              className="w-full rounded-md border border-border-strong p-2 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+              className="w-full rounded-md border border-border-strong p-2 text-sm shadow-sm focus:border-brand-green focus:ring-brand-green"
               value={scenarioId}
               onChange={(e) => setScenarioId(e.target.value)}
             />
@@ -202,7 +202,7 @@ export default function EnsemblesPage() {
             <input
               type="text"
               list={selectedSummary ? 'ensemble-id-options' : undefined}
-              className="w-full rounded-md border border-border-strong p-2 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+              className="w-full rounded-md border border-border-strong p-2 text-sm shadow-sm focus:border-brand-green focus:ring-brand-green"
               value={ensembleId}
               onChange={(e) => setEnsembleId(e.target.value)}
             />
@@ -227,7 +227,7 @@ export default function EnsemblesPage() {
           type="button"
           onClick={() => void loadAnalysis()}
           disabled={!canLoad || loadLoading}
-          className="flex items-center gap-2 rounded-md bg-fidelity-green px-4 py-2 text-sm font-medium text-ink-inverse disabled:opacity-50"
+          className="flex items-center gap-2 rounded-md bg-brand-green px-4 py-2 text-sm font-medium text-ink-inverse disabled:opacity-50"
         >
           {loadLoading && <Loader2 size={14} className="animate-spin" />}
           Load distributions
@@ -280,7 +280,7 @@ export default function EnsemblesPage() {
           <button
             type="button"
             onClick={addThresholdRow}
-            className="flex items-center gap-1 text-sm text-fidelity-green hover:underline"
+            className="flex items-center gap-1 text-sm text-brand-ink hover:underline"
           >
             <Plus size={14} /> Add threshold
           </button>

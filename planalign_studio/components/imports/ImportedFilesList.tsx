@@ -104,7 +104,7 @@ export default function ImportedFilesList({ workspaceId, currentUserId = 'system
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-ink-muted">Imported Files ({files.length})</h3>
-        <button onClick={load} className="text-xs text-fidelity-green hover:underline">Refresh</button>
+        <button onClick={load} className="text-xs text-brand-ink hover:underline">Refresh</button>
       </div>
       <div className="border border-border rounded-lg overflow-hidden">
         <table className="w-full text-sm">
@@ -133,7 +133,7 @@ export default function ImportedFilesList({ workspaceId, currentUserId = 'system
                 <td className="px-4 py-2">
                   <div className="flex items-center gap-3 justify-end">
                     {settingCensus === f.file_id ? (
-                      <Loader2 size={14} className="animate-spin text-fidelity-green" />
+                      <Loader2 size={14} className="animate-spin text-brand-ink" />
                     ) : censusSuccess === f.file_id ? (
                       <span className="flex items-center gap-1 text-xs text-success-ink font-medium">
                         <Check size={12} /> Set
@@ -141,7 +141,7 @@ export default function ImportedFilesList({ workspaceId, currentUserId = 'system
                     ) : (
                       <button
                         onClick={() => handleSetCensus(f.file_id, f.storage_path)}
-                        className="text-xs text-fidelity-green font-medium hover:underline whitespace-nowrap"
+                        className="text-xs text-brand-ink font-medium hover:underline whitespace-nowrap"
                         title="Use this file as the workspace census data source"
                       >
                         Use as Census
@@ -151,7 +151,7 @@ export default function ImportedFilesList({ workspaceId, currentUserId = 'system
                       type="button"
                       onClick={() => handleDownload(f.file_id, f.filename)}
                       disabled={downloadingId === f.file_id}
-                      className="text-fidelity-green hover:text-fidelity-dark disabled:opacity-50"
+                      className="text-brand-ink hover:text-brand-ink-strong disabled:opacity-50"
                       title="Download"
                     >
                       {downloadingId === f.file_id ? (

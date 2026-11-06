@@ -1,5 +1,5 @@
 """
-Configuration helper utilities for Fidelity PlanAlign Engine CLI
+Configuration helper utilities for PlanAlign Engine CLI
 
 Functions to find, validate, and work with configuration files.
 """

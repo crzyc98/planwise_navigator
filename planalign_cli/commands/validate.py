@@ -1,5 +1,5 @@
 """
-Validate command for Fidelity PlanAlign Engine CLI
+Validate command for PlanAlign Engine CLI
 
 Configuration validation with detailed reporting.
 """

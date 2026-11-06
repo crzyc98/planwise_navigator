@@ -1,4 +1,4 @@
-# Implementation Plan: Voluntary-Enrollment Match-Magnet Dial & Match-Ceiling Fidelity
+# Implementation Plan: Voluntary-Enrollment Match-Magnet Dial & Match-Ceiling accuracy
 
 **Branch**: `102-match-magnet-dial` | **Date**: 2026-06-24 | **Spec**: [spec.md](./spec.md)
 **Input**: Feature specification from `/specs/102-match-magnet-dial/spec.md`
@@ -7,7 +7,7 @@
 
 Make the voluntary-enrollment "match magnet" behave correctly and become analyst-controllable. Three threads:
 
-1. **Ceiling fidelity (P1)**: The deferral rate that voluntary enrollees snap to (`match_max_rate`) must track the active employer-match formula's ceiling, independent of whether `deferral_match_response` is enabled. For non-deferral-based modes (graded/tenure/points) the ceiling is resolved per-employee from the applicable tier's `max_deferral_pct`.
+1. **Ceiling accuracy (P1)**: The deferral rate that voluntary enrollees snap to (`match_max_rate`) must track the active employer-match formula's ceiling, independent of whether `deferral_match_response` is enabled. For non-deferral-based modes (graded/tenure/points) the ceiling is resolved per-employee from the applicable tier's `max_deferral_pct`.
 2. **Expose the dial (P2)**: Surface match-magnet controls (`enabled`, `snap_probability`) end-to-end — Pydantic config → dbt-var export → Studio UI → scenario copy — with defaults preserving current behavior.
 3. **Configurable deferral cap (P3)**: Replace the hard-coded `LEAST(0.10, …)` clamp in both voluntary-enrollment models with a per-scenario "maximum employee deferral %" (`voluntary_max_deferral_rate`), defaulting to 0.10 for backward compatibility.
 

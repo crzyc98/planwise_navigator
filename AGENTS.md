@@ -1,4 +1,4 @@
-# Fidelity PlanAlign Engine – AGENTS.md
+# PlanAlign Engine – AGENTS.md
 
 Guidance for Codex and other coding agents. `CLAUDE.md` (root) and `dbt/CLAUDE.md` hold the full project rules. When they disagree with this file, they win.
 
@@ -55,7 +55,7 @@ Cover edge configs, not only the defaults. Run a full multi-year simulation to c
 
 ## CI
 
-Don't add the `full-ci` label by default. `scripts/ci_policy.py` already runs the invariants and edge-config matrix, and the integration shards run on every push to `main` and nightly. If a PR does need the label, apply it at creation. Labeling later starts a second run, and the cancelled first run's `CI Gate` failure is spurious.
+Don't add the `full-ci` label by default. PRs run lint, Studio, fast tests, the dependency audit and model validation. Simulations, integration shards and coverage run on every push to `main` and nightly, and a failed nightly run opens an issue. Add `full-ci` at creation only for a risky engine change. Adding it later starts a second run, and the cancelled first run's `CI Gate` failure is spurious.
 
 ## Gotchas
 

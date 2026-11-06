@@ -3,7 +3,7 @@
 **Feature Branch**: `091-census-file-errors`
 **Created**: 2026-06-05
 **Status**: Draft
-**Input**: User description: "Please implement the three Quick Wins from our error analysis plan to improve parquet file error handling in Fidelity PlanAlign."
+**Input**: User description: "Please implement the three Quick Wins from our error analysis plan to improve parquet file error handling in PlanAlign."
 
 ## User Scenarios & Testing *(mandatory)*
 

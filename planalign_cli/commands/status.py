@@ -1,5 +1,5 @@
 """
-Status command for Fidelity PlanAlign Engine CLI
+Status command for PlanAlign Engine CLI
 
 Shows system health, database status, checkpoint information, and recommendations.
 """
@@ -44,7 +44,7 @@ def show_status(
     ),
 ):
     """Show comprehensive system status and health."""
-    console.print("🔍 [bold blue]Fidelity PlanAlign Engine Status[/bold blue]")
+    console.print("🔍 [bold blue]PlanAlign Engine Status[/bold blue]")
 
     with create_status_spinner("Checking system health...") as progress:
         try:
@@ -84,7 +84,7 @@ def health_check(
 ):
     """Quick health check for system readiness."""
     console.print(
-        f"🏥 [bold blue]Fidelity PlanAlign Engine v{__version__} - Health Check[/bold blue]"
+        f"🏥 [bold blue]PlanAlign Engine v{__version__} - Health Check[/bold blue]"
     )
 
     try:

@@ -124,7 +124,7 @@ const EmptyState = ({ onRefresh }: { onRefresh: () => void }) => (
     </p>
     <button
       onClick={onRefresh}
-      className="flex items-center px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-fidelity-dark transition-colors"
+      className="flex items-center px-4 py-2 bg-brand-green text-ink-inverse rounded-lg text-sm font-medium hover:bg-brand-dark transition-colors"
     >
       <RefreshCw size={16} className="mr-2" />
       Refresh Data
@@ -435,7 +435,7 @@ export default function AnalyticsDashboard() {
             <select
               value={selectedWorkspaceId}
               onChange={(e) => setSelectedWorkspaceId(e.target.value)}
-              className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[160px]"
+              className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-brand-green focus:border-brand-green shadow-sm min-w-[160px]"
             >
               <option value="">Select Workspace</option>
               {workspaces.map(ws => (
@@ -451,7 +451,7 @@ export default function AnalyticsDashboard() {
               value={selectedScenarioId}
               onChange={(e) => setSelectedScenarioId(e.target.value)}
               disabled={!selectedWorkspaceId || loadingScenarios}
-              className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[200px] disabled:bg-surface-subtle disabled:text-ink-subtle"
+              className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-brand-green focus:border-brand-green shadow-sm min-w-[200px] disabled:bg-surface-subtle disabled:text-ink-subtle"
             >
               <option value="">
                 {(() => {
@@ -475,7 +475,7 @@ export default function AnalyticsDashboard() {
               <button
                 key={opt}
                 onClick={() => setPopulation(opt)}
-                className={`px-3 py-2 text-sm font-medium transition-colors ${population === opt ? 'bg-fidelity-green text-ink-inverse' : 'bg-surface-raised text-ink-muted hover:bg-surface-subtle'}`}
+                className={`px-3 py-2 text-sm font-medium transition-colors ${population === opt ? 'bg-brand-green text-ink-inverse' : 'bg-surface-raised text-ink-muted hover:bg-surface-subtle'}`}
               >
                 {{ all: 'All', active: 'Active', terminated: 'Terminated' }[opt]}
               </button>
@@ -507,7 +507,7 @@ export default function AnalyticsDashboard() {
               });
             }}
             disabled={!selectedScenarioId || loading}
-            className="flex items-center px-4 py-2 bg-fidelity-green text-ink-inverse border border-transparent rounded-lg text-sm font-medium hover:bg-fidelity-dark shadow-sm transition-colors disabled:bg-surface-disabled disabled:cursor-not-allowed"
+            className="flex items-center px-4 py-2 bg-brand-green text-ink-inverse border border-transparent rounded-lg text-sm font-medium hover:bg-brand-dark shadow-sm transition-colors disabled:bg-surface-disabled disabled:cursor-not-allowed"
           >
             <Download size={16} className="mr-2" />
             Export report (PDF)
@@ -518,7 +518,7 @@ export default function AnalyticsDashboard() {
       {/* Content Area */}
       {loading ? (
         <div className="flex items-center justify-center h-96">
-          <Loader2 size={48} className="animate-spin text-fidelity-green" />
+          <Loader2 size={48} className="animate-spin text-brand-ink" />
         </div>
       ) : error ? (
         <ErrorState message={error} onRetry={() => selectedScenarioId && fetchResults(selectedScenarioId)} />
@@ -589,7 +589,7 @@ export default function AnalyticsDashboard() {
             <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center">
-                  <TrendingUp size={20} className="text-fidelity-green mr-2" />
+                  <TrendingUp size={20} className="text-brand-ink mr-2" />
                   <h3 className="text-lg font-semibold text-ink">Compound Annual Growth Rate (CAGR)</h3>
                 </div>
                 <CopyTableButton rows={results.cagr_metrics} />
@@ -758,13 +758,13 @@ export default function AnalyticsDashboard() {
                   <div className="flex rounded-lg border border-border-strong overflow-hidden">
                     <button
                       onClick={() => setCompMetric('average')}
-                      className={`px-3 py-1 text-xs font-medium transition-colors ${compMetric === 'average' ? 'bg-fidelity-green text-ink-inverse' : 'bg-surface-raised text-ink-muted hover:bg-surface-subtle'}`}
+                      className={`px-3 py-1 text-xs font-medium transition-colors ${compMetric === 'average' ? 'bg-brand-green text-ink-inverse' : 'bg-surface-raised text-ink-muted hover:bg-surface-subtle'}`}
                     >
                       Average
                     </button>
                     <button
                       onClick={() => setCompMetric('total')}
-                      className={`px-3 py-1 text-xs font-medium transition-colors ${compMetric === 'total' ? 'bg-fidelity-green text-ink-inverse' : 'bg-surface-raised text-ink-muted hover:bg-surface-subtle'}`}
+                      className={`px-3 py-1 text-xs font-medium transition-colors ${compMetric === 'total' ? 'bg-brand-green text-ink-inverse' : 'bg-surface-raised text-ink-muted hover:bg-surface-subtle'}`}
                     >
                       Total
                     </button>

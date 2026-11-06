@@ -1,11 +1,11 @@
 [project]
-name = "fidelity-planalign-engine"
+name = "planalign-engine"
 version = "3.0.0"
-description = "Fidelity PlanAlign Engine - Enterprise workforce simulation platform with immutable event sourcing"
+description = "PlanAlign Engine - Enterprise workforce simulation platform with immutable event sourcing"
 readme = "README.md"
 requires-python = ">=3.12"
 authors = [
-    {name = "Nicholas Amaral", email = "nicholas.amaral@gmail.com"}
+    {name = "crzyc98", email = "crzyc98@gmail.com"}
 ]
 
 dependencies = [
@@ -15,7 +15,7 @@ dependencies = [
     "duckdb==2.0.0",
     "dbt-core==1.12.6",
     "dbt-duckdb==1.9.6",
-    "pydantic==2.14.1",
+    "pydantic==2.14.2",
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0.0",
     "pandas>=2.0.0",
@@ -31,6 +31,7 @@ dependencies = [
     "python-pptx>=0.6.23",
     # Excel export dependencies
     "openpyxl>=3.1.0",
+    "xlsxwriter>=3.3.1",
     # openpyxl uses lxml when present: ~4x faster large-sheet writes.
     "lxml>=5.0.0",
     # Tableau .hyper export (Cost Comparison page). Releases after 0.0.26479
@@ -41,7 +42,7 @@ dependencies = [
     # Corporate network and HTTP client dependencies
     "requests>=2.28.0",
     "urllib3>=1.26.0",
-    # CLI dependencies for Fidelity PlanAlign Engine CLI
+    # CLI dependencies for PlanAlign Engine CLI
     "rich>=13.0.0",
     "typer>=0.9.0",
     "inquirer>=3.1.0",
@@ -79,7 +80,7 @@ dev = [
     # Keep mypy on the validated version until the dev toolchain is reviewed.
     "mypy==1.19.1",
     # Type stubs for the CI mypy lint job (see requirements-dev.txt / #333)
-    "types-PyYAML==6.0.12.20260906",
+    "types-PyYAML==6.0.12.20261030",
     "pylint==4.1.3",
     "flake8==7.4.1",
     "pre-commit==4.7.0",

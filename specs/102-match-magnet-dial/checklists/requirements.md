@@ -1,4 +1,4 @@
-# Specification Quality Checklist: Voluntary-Enrollment Match-Magnet Dial & Match-Ceiling Fidelity
+# Specification Quality Checklist: Voluntary-Enrollment Match-Magnet Dial & Match-Ceiling accuracy
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-06-24
@@ -32,6 +32,6 @@
 ## Notes
 
 - Items marked incomplete require spec updates before `/speckit.clarify` or `/speckit.plan`
-- The two issue concerns map to prioritized stories: ceiling-fidelity fix (P1, US1), dial exposure (P2, US2), and the internal-cap fix enabling the 10%+ band (P3, US3).
+- The two issue concerns map to prioritized stories: ceiling-accuracy fix (P1, US1), dial exposure (P2, US2), and the internal-cap fix enabling the 10%+ band (P3, US3).
 - The reported "average deferral drifts down with no AE" symptom is treated as the motivation for the dial (US2) and the ceiling fix (US1) rather than a separate requirement, since its root cause is the same match-magnet mechanism.
 - Spec deliberately avoids naming model files, dbt vars, or config keys (those belong in `/speckit.plan`); requirements are stated in analyst/business terms.

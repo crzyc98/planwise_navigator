@@ -93,13 +93,13 @@ export function TenureGradedMatchEditor({ bands, onChange }: TenureGradedMatchEd
                 <span className="text-xs text-ink-muted">Band {bandIdx + 1}:</span>
                 <NumericInput integer type="number" min={0} value={band.minYears}
                   onChange={(e) => updateBand(bandIdx, { minYears: parseInt(e.target.value) || 0 })}
-                  className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
+                  className="w-16 shadow-sm focus:ring-brand-green focus:border-brand-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
                 />
                 <span className="text-sm text-ink-muted">to</span>
                 <NumericInput integer allowEmpty type="number" min={0} value={band.maxYears ?? ''}
                   placeholder="&#8734;"
                   onChange={(e) => updateBand(bandIdx, { maxYears: e.target.value === '' ? null : parseInt(e.target.value) || 0 })}
-                  className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
+                  className="w-16 shadow-sm focus:ring-brand-green focus:border-brand-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
                 />
                 <span className="text-sm text-ink-muted">yrs</span>
                 <span className="ml-auto text-xs text-ink-muted">Max effective match: {maxMatchPct.toFixed(1)}%</span>
@@ -116,17 +116,17 @@ export function TenureGradedMatchEditor({ bands, onChange }: TenureGradedMatchEd
                     <span className="text-xs text-ink-muted w-4">{tierIdx + 1}.</span>
                     <NumericInput type="number" step="1" min={0} max={100} value={tier.deferralMin}
                       onChange={(e) => updateTier(bandIdx, tierIdx, { deferralMin: parseFloat(e.target.value) || 0 })}
-                      className="w-14 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
+                      className="w-14 shadow-sm focus:ring-brand-green focus:border-brand-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
                     />
                     <span className="text-sm text-ink-muted">% to</span>
                     <NumericInput type="number" step="1" min={0} max={100} value={tier.deferralMax}
                       onChange={(e) => updateTier(bandIdx, tierIdx, { deferralMax: parseFloat(e.target.value) || 0 })}
-                      className="w-14 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
+                      className="w-14 shadow-sm focus:ring-brand-green focus:border-brand-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
                     />
                     <span className="text-sm text-ink-muted">% deferral &#8594;</span>
                     <NumericInput type="number" step="5" min={0} max={200} value={tier.matchRate}
                       onChange={(e) => updateTier(bandIdx, tierIdx, { matchRate: parseFloat(e.target.value) || 0 })}
-                      className="w-16 shadow-sm focus:ring-fidelity-green focus:border-fidelity-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
+                      className="w-16 shadow-sm focus:ring-brand-green focus:border-brand-green sm:text-sm border-border-strong rounded-md p-1 border text-center"
                     />
                     <span className="text-sm text-ink-muted">% match</span>
                     {band.tiers.length > 1 && (
@@ -138,7 +138,7 @@ export function TenureGradedMatchEditor({ bands, onChange }: TenureGradedMatchEd
                 ))}
               </div>
               <button type="button" onClick={() => addTier(bandIdx)}
-                className="mt-2 ml-4 text-xs text-fidelity-green hover:text-success-ink flex items-center gap-1"
+                className="mt-2 ml-4 text-xs text-brand-ink hover:text-success-ink flex items-center gap-1"
               >+ Add Tier</button>
 
               {tierWarnings.length > 0 && (
@@ -152,7 +152,7 @@ export function TenureGradedMatchEditor({ bands, onChange }: TenureGradedMatchEd
       </div>
 
       <button type="button" onClick={addBand}
-        className="mt-3 text-sm text-fidelity-green hover:text-success-ink flex items-center gap-1"
+        className="mt-3 text-sm text-brand-ink hover:text-success-ink flex items-center gap-1"
       >+ Add Band</button>
 
       {bands.length === 0 && (

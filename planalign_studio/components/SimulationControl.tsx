@@ -169,7 +169,7 @@ export default function SimulationControl() {
                 <button
                   onClick={handleStart}
                   disabled={!selectedScenarioId || isLoading || isSimulationRunning}
-                  className={`flex items-center px-6 py-2 text-ink-inverse rounded-lg transition-all shadow-md font-medium ${!selectedScenarioId || isLoading || isSimulationRunning ? 'bg-surface-disabled cursor-not-allowed' : 'bg-fidelity-green hover:bg-fidelity-dark'}`}
+                  className={`flex items-center px-6 py-2 text-ink-inverse rounded-lg transition-all shadow-md font-medium ${!selectedScenarioId || isLoading || isSimulationRunning ? 'bg-surface-disabled cursor-not-allowed' : 'bg-brand-green hover:bg-brand-dark'}`}
                 >
                   {isSimulationRunning ? (
                     <>
@@ -211,7 +211,7 @@ export default function SimulationControl() {
                   id="sim-scenario-select"
                   value={selectedScenarioId}
                   onChange={(e) => setSelectedScenarioId(e.target.value)}
-                  className="block w-full border border-border-strong rounded-md shadow-sm p-2 focus:ring-fidelity-green focus:border-fidelity-green"
+                  className="block w-full border border-border-strong rounded-md shadow-sm p-2 focus:ring-brand-green focus:border-brand-green"
                 >
                   {scenarios.map(s => (
                     <option key={s.id} value={s.id}>{s.name}</option>
@@ -238,7 +238,7 @@ export default function SimulationControl() {
                  </div>
                  <div className="w-full bg-surface-disabled rounded-full h-4 overflow-hidden">
                    <div
-                     className={`h-4 rounded-full transition-all duration-500 ease-out ${terminalStatus === 'failed' ? 'bg-danger-solid' : terminalStatus === 'cancelled' ? 'bg-surface-disabled' : 'bg-fidelity-green'}`}
+                     className={`h-4 rounded-full transition-all duration-500 ease-out ${terminalStatus === 'failed' ? 'bg-danger-solid' : terminalStatus === 'cancelled' ? 'bg-surface-disabled' : 'bg-brand-green'}`}
                      style={{ width: `${snapshot?.progress ?? 0}%` }}
                    ></div>
                  </div>
@@ -324,7 +324,7 @@ export default function SimulationControl() {
                   <p className="text-ink-muted font-medium">
                     Last run: <span className="text-ink">{lastRunScenario.name}</span>
                     {' — '}
-                    <span className={lastRunScenario.status === 'completed' ? 'text-fidelity-green' : 'text-danger-ink'}>
+                    <span className={lastRunScenario.status === 'completed' ? 'text-brand-ink' : 'text-danger-ink'}>
                       {lastRunScenario.status.toUpperCase()}
                     </span>
                   </p>
@@ -333,7 +333,7 @@ export default function SimulationControl() {
                   </p>
                   <button
                     onClick={() => navigate(`/simulate/${lastRunScenario.id}`)}
-                    className="mt-4 text-sm text-fidelity-green hover:text-fidelity-dark font-medium"
+                    className="mt-4 text-sm text-brand-ink hover:text-brand-ink-strong font-medium"
                   >
                     View results →
                   </button>
@@ -390,14 +390,14 @@ export default function SimulationControl() {
                     <td className="py-3 px-4">
                       <div className="flex items-center">
                         <div className="flex-1">
-                          <p className="font-medium text-ink group-hover:text-fidelity-green transition-colors">
+                          <p className="font-medium text-ink group-hover:text-brand-ink transition-colors">
                             {scenario.name}
                           </p>
                           {scenario.description && (
                             <p className="text-xs text-ink-muted mt-0.5">{scenario.description}</p>
                           )}
                         </div>
-                        <ExternalLink size={14} className="text-ink-subtle group-hover:text-fidelity-green ml-2 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <ExternalLink size={14} className="text-ink-subtle group-hover:text-brand-ink ml-2 opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
                     </td>
                     <td className="py-3 px-4">
@@ -463,7 +463,7 @@ export default function SimulationControl() {
                           }
                         }}
                         disabled={isSimulationRunning}
-                        className={`text-sm px-3 py-1.5 rounded font-medium transition-colors ${isSimulationRunning ? 'bg-surface-subtle text-ink-subtle cursor-not-allowed' : 'bg-fidelity-green text-ink-inverse hover:bg-fidelity-dark'}`}
+                        className={`text-sm px-3 py-1.5 rounded font-medium transition-colors ${isSimulationRunning ? 'bg-surface-subtle text-ink-subtle cursor-not-allowed' : 'bg-brand-green text-ink-inverse hover:bg-brand-dark'}`}
                       >
                         {isSimulationRunning && scenario.id === runningScenarioId && (
                           <>

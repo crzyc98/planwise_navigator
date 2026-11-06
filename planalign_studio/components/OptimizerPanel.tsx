@@ -106,7 +106,7 @@ function errorText(e: unknown): string {
 function StepHeader({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
     <div className="flex items-start gap-3">
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-fidelity-green text-sm font-semibold text-ink-inverse">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-green text-sm font-semibold text-ink-inverse">
         {n}
       </span>
       <div>
@@ -402,7 +402,7 @@ export default function OptimizerPanel() {
           {leverRows.map((row) => (
             <div key={row.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border p-3">
               <select
-                className="rounded-md border border-border-strong p-2 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+                className="rounded-md border border-border-strong p-2 text-sm shadow-sm focus:border-brand-green focus:ring-brand-green"
                 value={row.name}
                 onChange={(e) => updateLeverRow(row.id, { name: e.target.value })}
               >
@@ -418,7 +418,7 @@ export default function OptimizerPanel() {
                     key={kind}
                     type="button"
                     onClick={() => updateLeverRow(row.id, { kind })}
-                    className={`px-3 py-2 ${row.kind === kind ? 'bg-fidelity-green text-ink-inverse' : 'bg-surface-raised text-ink-muted'}`}
+                    className={`px-3 py-2 ${row.kind === kind ? 'bg-brand-green text-ink-inverse' : 'bg-surface-raised text-ink-muted'}`}
                   >
                     {kind}
                   </button>
@@ -493,7 +493,7 @@ export default function OptimizerPanel() {
             type="button"
             onClick={addLeverRow}
             disabled={leverRows.length >= MAX_LEVERS}
-            className="inline-flex items-center gap-1 text-sm font-medium text-fidelity-green disabled:text-ink-subtle"
+            className="inline-flex items-center gap-1 text-sm font-medium text-brand-ink disabled:text-ink-subtle"
           >
             <Plus size={16} /> Add lever
           </button>
@@ -568,7 +568,7 @@ export default function OptimizerPanel() {
                     key={dir}
                     type="button"
                     onClick={() => updateObjectiveRow(row.id, { direction: dir })}
-                    className={`px-3 py-2 ${row.direction === dir ? 'bg-fidelity-green text-ink-inverse' : 'bg-surface-raised text-ink-muted'}`}
+                    className={`px-3 py-2 ${row.direction === dir ? 'bg-brand-green text-ink-inverse' : 'bg-surface-raised text-ink-muted'}`}
                   >
                     {dir}
                   </button>
@@ -585,7 +585,7 @@ export default function OptimizerPanel() {
             type="button"
             onClick={addObjectiveRow}
             disabled={objectiveRows.length >= 2}
-            className="inline-flex items-center gap-1 text-sm font-medium text-fidelity-green disabled:text-ink-subtle"
+            className="inline-flex items-center gap-1 text-sm font-medium text-brand-ink disabled:text-ink-subtle"
           >
             <Plus size={16} /> Add objective (unlocks Pareto frontier)
           </button>
@@ -644,7 +644,7 @@ export default function OptimizerPanel() {
           <button
             type="button"
             onClick={addConstraintRow}
-            className="inline-flex items-center gap-1 text-sm font-medium text-fidelity-green"
+            className="inline-flex items-center gap-1 text-sm font-medium text-brand-ink"
           >
             <Plus size={16} /> Add constraint
           </button>
@@ -754,7 +754,7 @@ export default function OptimizerPanel() {
             type="button"
             onClick={handleValidate}
             disabled={validateLoading}
-            className="rounded-md border border-fidelity-green px-4 py-2 text-sm font-medium text-fidelity-green disabled:opacity-50"
+            className="rounded-md border border-brand-green px-4 py-2 text-sm font-medium text-brand-ink disabled:opacity-50"
           >
             {validateLoading ? <Loader2 className="animate-spin" size={14} /> : 'Validate'}
           </button>
@@ -778,7 +778,7 @@ export default function OptimizerPanel() {
           type="button"
           onClick={handleRun}
           disabled={runLoading}
-          className="rounded-md bg-fidelity-green px-4 py-2 text-sm font-medium text-ink-inverse disabled:opacity-50"
+          className="rounded-md bg-brand-green px-4 py-2 text-sm font-medium text-ink-inverse disabled:opacity-50"
         >
           {runLoading ? (
             <span className="inline-flex items-center gap-2">
@@ -959,7 +959,7 @@ export default function OptimizerPanel() {
                     type="button"
                     onClick={() => setShowPromoteModal(true)}
                     disabled={!activeWorkspace}
-                    className="rounded-lg bg-fidelity-green px-3 py-2 text-sm font-medium text-ink-inverse transition-colors hover:bg-fidelity-dark disabled:cursor-not-allowed disabled:bg-surface-disabled"
+                    className="rounded-lg bg-brand-green px-3 py-2 text-sm font-medium text-ink-inverse transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:bg-surface-disabled"
                   >
                     Create scenario from candidate
                   </button>

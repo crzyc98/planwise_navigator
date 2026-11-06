@@ -5,7 +5,7 @@
 
 ## Summary
 
-Update the Fidelity PlanAlign Engine project to officially support and recommend Python 3.12.x while maintaining backward compatibility with Python 3.11.x. This involves updating version constraints in `pyproject.toml`, verifying all dependency compatibility, and updating documentation (README.md, CLAUDE.md) to reflect Python 3.12 as the recommended version.
+Update the PlanAlign Engine project to officially support and recommend Python 3.12.x while maintaining backward compatibility with Python 3.11.x. This involves updating version constraints in `pyproject.toml`, verifying all dependency compatibility, and updating documentation (README.md, CLAUDE.md) to reflect Python 3.12 as the recommended version.
 
 ## Technical Context
 

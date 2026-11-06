@@ -29,7 +29,7 @@ interface ConfigureStepProps {
 }
 
 const inputClass =
-  'w-full rounded-md border border-border-strong bg-surface-raised p-2 text-sm text-ink shadow-sm focus:border-fidelity-green focus:ring-fidelity-green';
+  'w-full rounded-md border border-border-strong bg-surface-raised p-2 text-sm text-ink shadow-sm focus:border-brand-green focus:ring-brand-green';
 
 function parseSeeds(raw: string): number[] | null {
   const parts = raw.split(',').map((part) => part.trim()).filter(Boolean);
@@ -107,7 +107,7 @@ export function ConfigureStep({ workspaceId, history, scenarios, backtestRunning
                 key={option}
                 type="button"
                 onClick={() => setMode(option)}
-                className={`flex-1 px-3 py-2 ${mode === option ? 'bg-fidelity-green text-ink-inverse' : 'bg-surface-raised text-ink-muted'}`}
+                className={`flex-1 px-3 py-2 ${mode === option ? 'bg-brand-green text-ink-inverse' : 'bg-surface-raised text-ink-muted'}`}
               >
                 {option === 'fit' ? 'Fit only' : 'Fit + backtest'}
               </button>
@@ -173,7 +173,7 @@ export function ConfigureStep({ workspaceId, history, scenarios, backtestRunning
           type="button"
           onClick={() => void launch()}
           disabled={Boolean(blocker) || launching}
-          className="inline-flex items-center gap-2 rounded-lg bg-fidelity-green px-4 py-2 font-medium text-ink-inverse transition-colors hover:bg-fidelity-dark disabled:cursor-not-allowed disabled:bg-surface-disabled"
+          className="inline-flex items-center gap-2 rounded-lg bg-brand-green px-4 py-2 font-medium text-ink-inverse transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:bg-surface-disabled"
         >
           {launching ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
           {mode === 'backtest' ? 'Run fit + backtest' : 'Run fit'}

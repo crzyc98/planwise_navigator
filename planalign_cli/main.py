@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Fidelity PlanAlign Engine CLI
+PlanAlign Engine CLI
 
-Rich-based CLI wrapper for Fidelity PlanAlign Engine with enhanced user experience.
+Rich-based CLI wrapper for PlanAlign Engine with enhanced user experience.
 Wraps existing planalign_orchestrator functionality with beautiful terminal interfaces.
 """
 
@@ -32,7 +32,7 @@ console = Console()
 # Main app
 app = typer.Typer(
     name="planalign",
-    help="Fidelity PlanAlign Engine CLI - Enterprise workforce simulation platform",
+    help="PlanAlign Engine CLI - Enterprise workforce simulation platform",
     rich_markup_mode="rich",
     no_args_is_help=True,
     add_completion=True,
@@ -44,7 +44,7 @@ def version_callback(value: bool):
     if value:
         from planalign_cli import __version__
 
-        console.print(f"Fidelity PlanAlign Engine v{__version__}")
+        console.print(f"PlanAlign Engine v{__version__}")
         raise typer.Exit()
 
 
@@ -60,7 +60,7 @@ def main(
     ),
 ):
     """
-    [bold blue]Fidelity PlanAlign Engine CLI[/bold blue]
+    [bold blue]PlanAlign Engine CLI[/bold blue]
 
     Enterprise-grade workforce simulation and event sourcing platform with
     beautiful terminal interfaces and enhanced user experience.

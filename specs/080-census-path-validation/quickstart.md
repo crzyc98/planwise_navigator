@@ -90,7 +90,7 @@ self.patterns.append(ErrorPattern(
                 "4. Verify the file appears in the scenario folder",
                 "5. Retry the simulation"
             ],
-            documentation_url="https://docs.fidelity.com/planalign/census-upload",
+            documentation_url="https://docs.example.com/planalign/census-upload",
             estimated_resolution_time="2-3 minutes"
         )
     ]
@@ -113,7 +113,7 @@ self.patterns.append(ErrorPattern(
                 "4. If the path is incorrect, update it in scenario settings",
                 "5. Retry the simulation"
             ],
-            documentation_url="https://docs.fidelity.com/planalign/census-troubleshooting",
+            documentation_url="https://docs.example.com/planalign/census-troubleshooting",
             estimated_resolution_time="1-2 minutes"
         )
     ]

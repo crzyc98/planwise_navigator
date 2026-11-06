@@ -1,4 +1,4 @@
-"""API-wide constants for Fidelity PlanAlign Engine."""
+"""API-wide constants for PlanAlign Engine."""
 
 # Simulation telemetry constants
 MAX_RECENT_EVENTS = 20  # Maximum number of recent events to show in telemetry

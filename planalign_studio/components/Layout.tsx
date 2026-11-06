@@ -50,7 +50,7 @@ const NavItem = ({ to, icon, label, end, collapsed }: Readonly<{ to: string; ico
     end={end}
     title={collapsed ? label : undefined}
     className={({ isActive }) =>
-      `flex items-center ${collapsed ? 'justify-center px-2' : 'px-4'} py-3 text-sm font-medium transition-colors rounded-lg mb-1 ${isActive ? 'bg-fidelity-green text-ink-inverse shadow-md' : 'text-ink-muted hover:bg-surface-subtle hover:text-fidelity-green'}`
+      `flex items-center ${collapsed ? 'justify-center px-2' : 'px-4'} py-3 text-sm font-medium transition-colors rounded-lg mb-1 ${isActive ? 'bg-brand-green text-ink-inverse shadow-md' : 'text-ink-muted hover:bg-surface-subtle hover:text-brand-ink'}`
     }
   >
     <span className={collapsed ? '' : 'mr-3'}>{icon}</span>
@@ -58,7 +58,7 @@ const NavItem = ({ to, icon, label, end, collapsed }: Readonly<{ to: string; ico
   </NavLink>
 );
 
-// Sidebar nav grouped by workflow: setup → run → analyze. Dashboard stands alone at top.
+// Sidebar nav grouped by workflow: setup → run → analyze, then advanced tools. Dashboard stands alone at top.
 const NAV_SECTIONS: ReadonlyArray<{
   heading: string | null;
   items: ReadonlyArray<{ to: string; icon: React.ReactNode; label: string; end?: boolean }>;
@@ -80,12 +80,7 @@ const NAV_SECTIONS: ReadonlyArray<{
     items: [
       { to: '/simulate', icon: <PlayCircle size={20} />, label: 'Simulate' },
       { to: '/batch', icon: <Database size={20} />, label: 'Batch Processing' },
-      { to: '/timeline', icon: <Users size={20} />, label: 'Timeline' },
-      { to: '/events', icon: <Search size={20} />, label: 'Event Audit' },
       { to: '/calibrate', icon: <SlidersHorizontal size={20} />, label: 'Calibration' },
-      { to: '/optimize', icon: <Target size={20} />, label: 'Optimizer' },
-      { to: '/ensembles', icon: <Shuffle size={20} />, label: 'Ensembles' },
-      { to: '/fit', icon: <History size={20} />, label: 'Fit & Backtest' },
     ],
   },
   {
@@ -97,6 +92,17 @@ const NAV_SECTIONS: ReadonlyArray<{
       { to: '/analytics/ndt', icon: <Shield size={20} />, label: 'NDT & Compliance' },
       { to: '/analytics/winners-losers', icon: <ArrowLeftRight size={20} />, label: 'Winners & Losers' },
       { to: '/compare', icon: <BarChart3 size={20} />, label: 'Cost Comparison' },
+    ],
+  },
+  {
+    // Specialist diagnostics and modeling tools; kept below the day-to-day workflow.
+    heading: 'Advanced',
+    items: [
+      { to: '/timeline', icon: <Users size={20} />, label: 'Timeline' },
+      { to: '/events', icon: <Search size={20} />, label: 'Event Audit' },
+      { to: '/optimize', icon: <Target size={20} />, label: 'Optimizer' },
+      { to: '/ensembles', icon: <Shuffle size={20} />, label: 'Ensembles' },
+      { to: '/fit', icon: <History size={20} />, label: 'Fit & Backtest' },
     ],
   },
 ];
@@ -640,7 +646,7 @@ export default function Layout() {
     return (
       <div className="flex h-screen bg-surface-subtle items-center justify-center">
         <div className="flex flex-col items-center">
-          <Loader2 className="w-10 h-10 text-fidelity-green animate-spin mb-3" />
+          <Loader2 className="w-10 h-10 text-brand-ink animate-spin mb-3" />
           <p className="text-sm font-medium text-ink-muted">Loading workspaces...</p>
         </div>
       </div>
@@ -657,7 +663,7 @@ export default function Layout() {
           <p className="text-xs text-ink-muted mb-4">{workspaceError}</p>
           <button
             onClick={() => loadWorkspaces()}
-            className="px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg text-sm"
+            className="px-4 py-2 bg-brand-green text-ink-inverse rounded-lg text-sm"
           >
             Retry
           </button>
@@ -676,7 +682,7 @@ export default function Layout() {
           <button
             type="button"
             onClick={() => navigate('/', { replace: true })}
-            className="rounded-lg bg-fidelity-green px-4 py-2 text-sm font-medium text-ink-inverse"
+            className="rounded-lg bg-brand-green px-4 py-2 text-sm font-medium text-ink-inverse"
           >
             Choose an active workspace
           </button>
@@ -696,7 +702,7 @@ export default function Layout() {
             <p className="text-sm text-ink-muted mb-4">Create your first workspace to get started.</p>
             <button
               onClick={() => setIsCreateModalOpen(true)}
-              className="px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg text-sm flex items-center"
+              className="px-4 py-2 bg-brand-green text-ink-inverse rounded-lg text-sm flex items-center"
             >
               <Plus size={16} className="mr-2" />
               Create Workspace
@@ -724,7 +730,7 @@ export default function Layout() {
                     value={newWorkspaceName}
                     onChange={(e) => setNewWorkspaceName(e.target.value)}
                     placeholder="e.g., Q2 2025 Budgeting"
-                    className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-fidelity-green focus:border-fidelity-green"
+                    className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-brand-green focus:border-brand-green"
                     autoFocus
                   />
                 </div>
@@ -736,7 +742,7 @@ export default function Layout() {
                     onChange={(e) => setNewWorkspaceDesc(e.target.value)}
                     placeholder="Brief description of this workspace's purpose..."
                     rows={3}
-                    className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-fidelity-green focus:border-fidelity-green"
+                    className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-brand-green focus:border-brand-green"
                   />
                 </div>
                 <div className="flex justify-end space-x-3 pt-2">
@@ -750,7 +756,7 @@ export default function Layout() {
                   <button
                     type="submit"
                     disabled={!newWorkspaceName.trim()}
-                    className={`px-4 py-2 text-sm font-medium text-ink-inverse rounded-lg transition-colors ${!newWorkspaceName.trim() ? 'bg-surface-disabled cursor-not-allowed' : 'bg-fidelity-green hover:bg-fidelity-dark'}`}
+                    className={`px-4 py-2 text-sm font-medium text-ink-inverse rounded-lg transition-colors ${!newWorkspaceName.trim() ? 'bg-surface-disabled cursor-not-allowed' : 'bg-brand-green hover:bg-brand-dark'}`}
                   >
                     Create Workspace
                   </button>
@@ -792,7 +798,7 @@ export default function Layout() {
       {isWorkspaceLoading && workspaces.length > 0 && (
         <div className="absolute inset-0 bg-surface-raised/80 z-50 flex items-center justify-center backdrop-blur-sm animate-fadeIn">
           <div className="flex flex-col items-center">
-            <Loader2 className="w-10 h-10 text-fidelity-green animate-spin mb-3" />
+            <Loader2 className="w-10 h-10 text-brand-ink animate-spin mb-3" />
             <p className="text-sm font-medium text-ink-muted">Switching Workspace...</p>
           </div>
         </div>
@@ -818,7 +824,7 @@ export default function Layout() {
                   value={newWorkspaceName}
                   onChange={(e) => setNewWorkspaceName(e.target.value)}
                   placeholder="e.g., Q2 2025 Budgeting"
-                  className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-fidelity-green focus:border-fidelity-green"
+                  className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-brand-green focus:border-brand-green"
                   autoFocus
                 />
               </div>
@@ -830,7 +836,7 @@ export default function Layout() {
                   onChange={(e) => setNewWorkspaceDesc(e.target.value)}
                   placeholder="Brief description of this workspace's purpose..."
                   rows={3}
-                  className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-fidelity-green focus:border-fidelity-green"
+                  className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-brand-green focus:border-brand-green"
                 />
               </div>
               <div className="flex justify-end space-x-3 pt-2">
@@ -844,7 +850,7 @@ export default function Layout() {
                 <button
                   type="submit"
                   disabled={!newWorkspaceName.trim()}
-                  className={`px-4 py-2 text-sm font-medium text-ink-inverse rounded-lg transition-colors ${!newWorkspaceName.trim() ? 'bg-surface-disabled cursor-not-allowed' : 'bg-fidelity-green hover:bg-fidelity-dark'}`}
+                  className={`px-4 py-2 text-sm font-medium text-ink-inverse rounded-lg transition-colors ${!newWorkspaceName.trim() ? 'bg-surface-disabled cursor-not-allowed' : 'bg-brand-green hover:bg-brand-dark'}`}
                 >
                   Create Workspace
                 </button>
@@ -860,14 +866,14 @@ export default function Layout() {
           {sidebarCollapsed ? (
             <button
               onClick={() => setSidebarCollapsed(false)}
-              className="p-1.5 rounded-lg text-ink-muted hover:bg-surface-subtle hover:text-fidelity-green transition-colors"
+              className="p-1.5 rounded-lg text-ink-muted hover:bg-surface-subtle hover:text-brand-ink transition-colors"
               title="Expand sidebar"
             >
               <PanelLeftOpen size={20} />
             </button>
           ) : (
             <>
-              <Activity className="w-8 h-8 text-fidelity-green mr-3 flex-shrink-0" />
+              <Activity className="w-8 h-8 text-brand-ink mr-3 flex-shrink-0" />
               <span className="text-lg font-bold text-ink tracking-tight flex-1 truncate">{APP_NAME}</span>
               <button
                 onClick={() => setSidebarCollapsed(true)}
@@ -953,7 +959,7 @@ export default function Layout() {
                         aria-label="Search workspaces"
                         aria-expanded="true"
                         aria-controls="workspace-palette-results"
-                        className="w-full pl-8 pr-3 py-1.5 text-sm bg-surface-subtle border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-fidelity-green"
+                        className="w-full pl-8 pr-3 py-1.5 text-sm bg-surface-subtle border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-brand-green"
                       />
                     </div>
                     <p className="mt-1.5 text-[10px] text-ink-subtle">↑↓ navigate · Enter select · Esc clear/close</p>
@@ -988,10 +994,10 @@ export default function Layout() {
                             <span className={`w-7 h-7 flex-shrink-0 flex items-center justify-center rounded text-[10px] font-bold ${identity.color}`}>
                               {identity.initials}
                             </span>
-                            <span className={`flex-1 min-w-0 truncate text-sm font-medium ${activeWorkspace.id === workspace.id ? 'text-fidelity-green' : 'text-ink'}`}>
+                            <span className={`flex-1 min-w-0 truncate text-sm font-medium ${activeWorkspace.id === workspace.id ? 'text-brand-ink' : 'text-ink'}`}>
                               <HighlightedName name={workspace.name} query={workspaceQuery} />
                             </span>
-                            {activeWorkspace.id === workspace.id && <Check size={14} className="text-fidelity-green flex-shrink-0" />}
+                            {activeWorkspace.id === workspace.id && <Check size={14} className="text-brand-ink flex-shrink-0" />}
                           </button>
                         </React.Fragment>
                       );
@@ -1004,7 +1010,7 @@ export default function Layout() {
                         setIsWorkspaceMenuOpen(false);
                         setIsCreateModalOpen(true);
                       }}
-                      className="w-full py-2 text-xs font-medium text-ink-inverse bg-fidelity-green hover:bg-fidelity-dark rounded-md transition-colors flex items-center justify-center"
+                      className="w-full py-2 text-xs font-medium text-ink-inverse bg-brand-green hover:bg-brand-dark rounded-md transition-colors flex items-center justify-center"
                     >
                       <Plus size={14} className="mr-1.5" /> Create New Workspace
                     </button>
@@ -1023,7 +1029,7 @@ export default function Layout() {
             </div>
 
             <div className="h-8 w-px bg-surface-disabled mx-4 hidden sm:block"></div>
-            <span className="text-xs text-ink-subtle hidden lg:block">Fidelity Internal Use Only</span>
+            <span className="text-xs text-ink-subtle hidden lg:block">Internal Use Only</span>
           </div>
 
           {/* Right Header Controls */}
@@ -1032,7 +1038,7 @@ export default function Layout() {
              <div className="relative" ref={notificationDropdownRef}>
                <button
                  onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
-                 className={`relative p-2 text-ink-muted hover:text-fidelity-green hover:bg-surface-subtle rounded-full transition-colors ${isNotificationsOpen ? 'bg-surface-subtle text-fidelity-green' : ''}`}
+                 className={`relative p-2 text-ink-muted hover:text-brand-ink hover:bg-surface-subtle rounded-full transition-colors ${isNotificationsOpen ? 'bg-surface-subtle text-brand-ink' : ''}`}
                >
                  <Bell size={20} />
                  {unreadCount > 0 && (
@@ -1091,7 +1097,7 @@ export default function Layout() {
                        )}
                     </div>
                     <div className="p-2 border-t border-border bg-surface-subtle text-center">
-                      <button className="text-xs font-medium text-fidelity-green hover:underline">View All Notifications</button>
+                      <button className="text-xs font-medium text-brand-ink hover:underline">View All Notifications</button>
                     </div>
                  </div>
                )}
@@ -1103,7 +1109,7 @@ export default function Layout() {
                  onClick={() => setIsSettingsOpen(!isSettingsOpen)}
                  aria-label="Open settings"
                  aria-expanded={isSettingsOpen}
-                 className={`p-2 text-ink-muted hover:text-fidelity-green hover:bg-surface-subtle rounded-full transition-colors ${isSettingsOpen ? 'bg-surface-subtle text-fidelity-green' : ''}`}
+                 className={`p-2 text-ink-muted hover:text-brand-ink hover:bg-surface-subtle rounded-full transition-colors ${isSettingsOpen ? 'bg-surface-subtle text-brand-ink' : ''}`}
                >
                  <Settings size={20} />
                </button>
@@ -1116,7 +1122,7 @@ export default function Layout() {
                     <div className="p-2 space-y-1">
                        <button className="w-full text-left px-3 py-2 text-sm text-ink-muted hover:bg-surface-subtle rounded-lg flex items-center justify-between group">
                           <span className="flex items-center">
-                            <Activity size={16} className="mr-3 text-ink-subtle group-hover:text-fidelity-green" />
+                            <Activity size={16} className="mr-3 text-ink-subtle group-hover:text-brand-ink" />
                             System Preferences
                           </span>
                        </button>
@@ -1133,7 +1139,7 @@ export default function Layout() {
                              <Activity size={16} className="mr-3 text-ink-subtle" />
                              System
                            </span>
-                           {preference === 'system' && <Check size={16} className="text-fidelity-green" />}
+                           {preference === 'system' && <Check size={16} className="text-brand-ink" />}
                          </button>
                          <button
                            type="button"
@@ -1146,7 +1152,7 @@ export default function Layout() {
                              <Sun size={16} className="mr-3 text-ink-subtle" />
                              Light
                            </span>
-                           {preference === 'light' && <Check size={16} className="text-fidelity-green" />}
+                           {preference === 'light' && <Check size={16} className="text-brand-ink" />}
                          </button>
                          <button
                            type="button"
@@ -1159,7 +1165,7 @@ export default function Layout() {
                              <Moon size={16} className="mr-3 text-ink-subtle" />
                              Dark
                            </span>
-                           {preference === 'dark' && <Check size={16} className="text-fidelity-green" />}
+                           {preference === 'dark' && <Check size={16} className="text-brand-ink" />}
                          </button>
                        </div>
                     </div>

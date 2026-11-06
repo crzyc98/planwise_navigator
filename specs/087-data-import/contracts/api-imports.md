@@ -50,7 +50,7 @@ Upload a CSV or Excel file to begin an import session.
   ],
   "status": "uploaded",
   "created_at": "2026-05-30T14:00:00Z",
-  "created_by": "analyst@fidelity.com",
+  "created_by": "analyst@example.com",
   "preview_rows": [
     {"EMP_ID": "E001", "HIRE_DATE": "01/15/2020", "SALARY": "95000"}
   ]
@@ -295,7 +295,7 @@ List all generated parquet files in the workspace.
         {"name": "hire_date", "type": "date"}
       ],
       "created_at": "2026-05-30T14:10:23Z",
-      "created_by": "analyst@fidelity.com"
+      "created_by": "analyst@example.com"
     }
   ],
   "total_count": 1
@@ -343,7 +343,7 @@ List saved mapping templates for the workspace.
       "description": "Maps SAP HR column names to canonical format",
       "field_count": 8,
       "created_at": "2026-05-01T10:00:00Z",
-      "created_by": "analyst@fidelity.com"
+      "created_by": "analyst@example.com"
     }
   ]
 }

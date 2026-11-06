@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import {
   LineChart, Line, BarChart, Bar,
@@ -7,6 +7,8 @@ import {
 import { SlidersHorizontal, Loader2, Database, Sparkles, Plus, X, Check } from 'lucide-react';
 import {
   optimizeCalibration,
+  cancelCalibrationRun,
+  CalibrationCancelled,
   retrieveCalibrationResult,
   CalibrationStatusUnavailable,
   applyCalibrationCandidate,
@@ -17,6 +19,8 @@ import {
   getWorkspace,
   getScenarioConfig,
   listScenarios,
+  startSimulation,
+  getSimulationStatus,
   analyzeCompensation,
   analyzeAgeDistribution,
   analyzeTurnoverRates,
@@ -26,7 +30,7 @@ import {
 } from '../services/api';
 import { extractCensusPath } from './config/ConfigContext';
 import { useChartTheme } from '../hooks/useChartTheme';
-import { baselineScenarioId } from './calibrationScenario';
+import { baselineScenarioId, costSummary, growthMetricSettings, isMissingRunError, type GrowthMetric } from './calibrationScenario';
 
 interface CalibrationOutletContext {
   activeWorkspace: Workspace | null;
@@ -66,6 +70,9 @@ const SLIDERS: SliderConfig[] = [
   { key: 'cola_rate', label: 'COLA', min: 0, max: 0.1, step: 0.005 },
   { key: 'merit_budget', label: 'Merit', min: 0, max: 0.1, step: 0.005 },
 ];
+
+// A set budget travels in the merit field with COLA at zero; see CompensationSettings.
+const RAISE_BUDGET_SLIDER: SliderConfig = { key: 'merit_budget', label: 'Raise Budget', min: 0, max: 0.1, step: 0.005 };
 
 const GROWTH_KEYS = new Set<SliderConfig['key']>(['target_growth_pct', 'workforce_growth_rate']);
 const POLICY_KEYS = new Set<SliderConfig['key']>(['cola_rate', 'merit_budget']);
@@ -110,6 +117,9 @@ const DEFAULT_AGE_DIST: AgeRow[] = [
 ];
 
 const pct = (v: number): string => `${(v * 100).toFixed(1)}%`;
+const PAY_PER_HEAD_ASSUMPTION =
+  'Assumption: average pay is total pay for the year, including people who left, divided by active headcount at year end.';
+
 const money = (v: number | null): string =>
   v === null ? '—' : `$${Math.round(v).toLocaleString()}`;
 const growthPct = (v: number | null): string =>
@@ -139,6 +149,8 @@ function errorText(e: unknown): string {
   }
   return e instanceof Error ? e.message : String(e);
 }
+
+const RUN_POLL_MS = 3000;
 
 const DEFAULT_START_YEAR = new Date().getFullYear();
 const DEFAULT_END_YEAR = DEFAULT_START_YEAR + 1;
@@ -170,7 +182,7 @@ function StepHeader({
 }) {
   return (
     <div className="flex items-start gap-3">
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-fidelity-green text-sm font-semibold text-ink-inverse">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-green text-sm font-semibold text-ink-inverse">
         {n}
       </span>
       <div>
@@ -198,7 +210,7 @@ function SliderRow({
           {s.label}
           {s.hint && <span className="ml-2 text-xs font-normal text-ink-subtle">{s.hint}</span>}
         </span>
-        <span className="text-fidelity-green">{pct(value)}</span>
+        <span className="text-brand-ink">{pct(value)}</span>
       </div>
       <input
         type="range"
@@ -207,7 +219,7 @@ function SliderRow({
         step={s.step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-fidelity-green"
+        className="w-full accent-brand-green"
       />
     </div>
   );
@@ -244,8 +256,17 @@ export default function CalibrationPanel() {
   // Auto-calibrate: iterated comp-only runs that SOLVE for COLA/merit given
   // the two targets (workforce growth is set exactly; comp growth is searched).
   const [autoLoading, setAutoLoading] = useState(false);
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [autoCancelled, setAutoCancelled] = useState(false);
   const [autoError, setAutoError] = useState<string | null>(null);
   const [recoverableRunId, setRecoverableRunId] = useState<string | null>(null);
+  // Set when calibration failed because the scenario hasn't been run as configured.
+  const [missingRun, setMissingRun] = useState(false);
+  const [runProgress, setRunProgress] = useState<string | null>(null);
+  const [scenarioHorizon, setScenarioHorizon] = useState<{ start: number; end: number } | null>(null);
+  const unmountedRef = useRef(false);
+  useEffect(() => () => { unmountedRef.current = true; }, []);
   const [autoOutcome, setAutoOutcome] = useState<AutoCalibrationOutcome | null>(null);
   const [autoContext, setAutoContext] = useState<CalibrationContext | null>(null);
   const [tolerancePct, setTolerancePct] = useState(0.05);
@@ -254,7 +275,11 @@ export default function CalibrationPanel() {
   // papered over with raises (COLA/merit stay as set). Needs Match Census.
   const [searchMode, setSearchMode] = useState<SolveMode>('new_hire_scale');
   const [solveSalaryGrowth, setSolveSalaryGrowth] = useState(true);
+  const [growthMetric, setGrowthMetric] = useState<GrowthMetric>('payroll_per_head');
+  const [solveRaiseBudget, setSolveRaiseBudget] = useState(true);
+  const [usesRaiseBudget, setUsesRaiseBudget] = useState(false);
   const solvingNewHireRanges = searchMode === 'new_hire_scale';
+  const raiseSolved = solvingNewHireRanges && solveSalaryGrowth && solveRaiseBudget;
 
   // Use an actual scenario from the active workspace; prefer Baseline.
   const { activeWorkspace } = useOutletContext<CalibrationOutletContext>();
@@ -335,6 +360,8 @@ export default function CalibrationPanel() {
     setResults([]);
     setRecoverableRunId(null);
     setAutoError(null);
+    setMissingRun(false);
+    setScenarioHorizon(null);
     if (!activeWorkspace?.id || !selectedScenarioId) return;
     const seedFromConfig = (cfg: any, workspaceCfg: any) => {
       setCensusPath(extractCensusPath(workspaceCfg) ?? '');
@@ -344,6 +371,14 @@ export default function CalibrationPanel() {
       const newHire = cfg?.new_hire ?? {};
       if (simulation.start_year != null) setStartYear(simulation.start_year);
       if (simulation.end_year != null) setEndYear(simulation.end_year);
+      setScenarioHorizon(
+        simulation.start_year != null && simulation.end_year != null
+          ? { start: simulation.start_year, end: simulation.end_year }
+          : null
+      );
+      const raiseBudget = compensation.raise_budget
+        ?? (compensation.raise_budget_percent != null ? compensation.raise_budget_percent / 100 : null);
+      setUsesRaiseBudget(raiseBudget != null);
       setValues((prev) => ({
         ...prev,
         target_growth_pct:
@@ -352,12 +387,12 @@ export default function CalibrationPanel() {
             : prev.target_growth_pct,
         workforce_growth_rate:
           simulation.target_growth_rate ?? prev.workforce_growth_rate,
-        cola_rate:
+        cola_rate: raiseBudget != null ? 0 :
           compensation.cola_rate ??
           (compensation.cola_rate_percent != null
             ? compensation.cola_rate_percent / 100
             : prev.cola_rate),
-        merit_budget:
+        merit_budget: raiseBudget ??
           compensation.merit_budget ??
           (compensation.merit_budget_percent != null
             ? compensation.merit_budget_percent / 100
@@ -490,7 +525,12 @@ export default function CalibrationPanel() {
       return;
     }
     setAutoLoading(true);
+    setActiveRunId(resumeRunId ?? null);
+    setCancelling(false);
+    setAutoCancelled(false);
+    setRecoverableRunId(null);
     setAutoError(null);
+    setMissingRun(false);
     setAutoOutcome(null);
     setAutoContext(null);
     setResults([]);
@@ -514,6 +554,7 @@ export default function CalibrationPanel() {
           tolerance_pct: tolerancePct,
           max_iterations: maxIterations,
           search_mode: searchMode,
+          ...growthMetricSettings(growthMetric, searchMode === 'new_hire_scale' && solveSalaryGrowth, solveRaiseBudget),
           ...(searchMode === 'new_hire_scale'
             ? {
                 base_job_level_compensation: scaleBases,
@@ -534,7 +575,7 @@ export default function CalibrationPanel() {
           total_termination_rate: values.total_termination_rate,
           new_hire_termination_rate: values.new_hire_termination_rate,
         },
-      });
+      }, setActiveRunId);
       const outcome = response.outcome;
       setRecoverableRunId(null);
       setAutoContext(response.context);
@@ -552,11 +593,65 @@ export default function CalibrationPanel() {
       }
     } catch (e) {
       setRecoverableRunId(e instanceof CalibrationStatusUnavailable ? e.runId : null);
-      setAutoError(errorText(e) || 'Calibration stopped without a result. Please try again.');
+      if (e instanceof CalibrationCancelled) {
+        setAutoCancelled(true);
+        setAutoError(null);
+      } else {
+        setMissingRun(isMissingRunError(e));
+        setAutoError(errorText(e) || 'Calibration stopped without a result. Please try again.');
+      }
     } finally {
       setAutoLoading(false);
+      setActiveRunId(null);
     }
   };
+
+  const handleCancelCalibration = async () => {
+    if (!activeRunId || cancelling) return;
+    setCancelling(true);
+    try {
+      await cancelCalibrationRun(activeRunId);
+    } catch (e) {
+      setAutoError(errorText(e));
+      setCancelling(false);
+    }
+  };
+
+  // Run the selected scenario as currently configured, wait for it, then retry
+  // calibration so a missing/stale run doesn't dead-end the user.
+  const runScenarioThenCalibrate = async () => {
+    if (!selectedScenarioId) return;
+    const scenarioId = selectedScenarioId;
+    setAutoLoading(true);
+    setAutoError(null);
+    setMissingRun(false);
+    setRunProgress('Starting simulation…');
+    try {
+      await startSimulation(scenarioId);
+      for (;;) {
+        await new Promise((resolve) => setTimeout(resolve, RUN_POLL_MS));
+        if (unmountedRef.current) return;
+        const run = await getSimulationStatus(scenarioId);
+        if (run.status === 'completed') break;
+        if (run.status === 'failed' || run.status === 'cancelled') {
+          throw new Error(run.error_message || `The scenario simulation ${run.status}.`);
+        }
+        setRunProgress(
+          `Running scenario${run.current_year ? ` (year ${run.current_year})` : ''}… ${run.progress}%`
+        );
+      }
+    } catch (e) {
+      if (unmountedRef.current) return;
+      setAutoError(`Could not run the scenario: ${errorText(e)}`);
+      setAutoLoading(false);
+      return;
+    } finally {
+      if (!unmountedRef.current) setRunProgress(null);
+    }
+    await runAutoCalibrate();
+  };
+  const horizonMismatch = !!scenarioHorizon
+    && (scenarioHorizon.start !== startYear || scenarioHorizon.end !== endYear);
 
   // Apply the calibrated levers to the workspace base config AND every
   // scenario's overrides -- scenarios override these exact keys, so writing
@@ -590,6 +685,8 @@ export default function CalibrationPanel() {
     }
   };
 
+  const showsPayPerHead = results.some(row => row.active_avg_compensation !== null);
+  const cost = costSummary(autoOutcome?.cost_estimate ?? []);
   const targetLine =
     results.length > 0 && results[0].target_growth_pct !== null
       ? results[0].target_growth_pct
@@ -598,7 +695,7 @@ export default function CalibrationPanel() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-2">
-        <SlidersHorizontal className="text-fidelity-green" size={24} />
+        <SlidersHorizontal className="text-brand-ink" size={24} />
         <h1 className="text-2xl font-bold text-ink">Compensation Calibration</h1>
       </div>
       <p className="text-ink-muted">
@@ -640,7 +737,7 @@ export default function CalibrationPanel() {
               value={selectedScenarioId}
               onChange={(event) => setSelection({ workspaceId: activeWorkspace!.id, id: event.target.value })}
               disabled={!scenariosLoaded || scenarios.length === 0 || autoLoading}
-              className="mt-1 w-full rounded-md border border-border-strong bg-surface-raised p-2 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+              className="mt-1 w-full rounded-md border border-border-strong bg-surface-raised p-2 text-sm shadow-sm focus:border-brand-green focus:ring-brand-green"
             >
               <option value="" disabled>Select a scenario</option>
               {scenarios.map((scenario) => (
@@ -703,7 +800,7 @@ export default function CalibrationPanel() {
               />
             ))}
           </div>
-          <div className="rounded-md bg-fidelity-green/5 border border-fidelity-green/20 px-3 py-2 text-xs text-fidelity-dark">
+          <div className="rounded-md bg-brand-green/5 border border-brand-green/20 px-3 py-2 text-xs text-brand-ink-strong">
             <span className="font-semibold">Target Salary Growth is the objective.</span>{' '}
             Calibration auto-tunes your chosen lever (Step 2) until per-year salary
             growth lands on this target.
@@ -728,13 +825,13 @@ export default function CalibrationPanel() {
                   disabled={autoLoading}
                   className={`text-left rounded-lg border p-4 transition ${
                     selected
-                      ? 'border-fidelity-green ring-2 ring-fidelity-green/30 bg-success-surface'
+                      ? 'border-brand-green ring-2 ring-brand-green/30 bg-success-surface'
                       : 'border-border hover:border-border-strong'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm font-semibold text-ink">{m.title}</span>
-                    {selected && <Check size={16} className="text-fidelity-green shrink-0" />}
+                    {selected && <Check size={16} className="text-brand-ink shrink-0" />}
                   </div>
                   <p className="mt-1 text-xs text-ink-muted">{m.description}</p>
                 </button>
@@ -756,7 +853,7 @@ export default function CalibrationPanel() {
               something the solver derives. When held fixed, the full editor shows. */}
           {solvingNewHireRanges ? (
             <div className="rounded-md border border-dashed border-border-strong bg-surface-subtle p-4 flex items-start gap-2">
-              <Sparkles size={16} className="mt-0.5 shrink-0 text-fidelity-green" />
+              <Sparkles size={16} className="mt-0.5 shrink-0 text-brand-ink" />
               <div className="text-sm text-ink-muted">
                 <span className="font-medium text-ink">Job Level Compensation Ranges — solved automatically.</span>{' '}
                 Calibration scales census-derived new-hire ranges to hit your target,
@@ -781,7 +878,7 @@ export default function CalibrationPanel() {
                   <input
                     type="number" step="0.1" min={0.1} max={3.0} value={scaleFactor}
                     onChange={(e) => setScaleFactor(Number(e.target.value))}
-                    className="mt-1 w-24 rounded-md border border-border-strong p-1.5 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+                    className="mt-1 w-24 rounded-md border border-border-strong p-1.5 text-sm shadow-sm focus:border-brand-green focus:ring-brand-green"
                   />
                 </label>
                 <label className="block">
@@ -789,7 +886,7 @@ export default function CalibrationPanel() {
                   <input
                     type="number" min={0} max={20} value={lookbackYears}
                     onChange={(e) => setLookbackYears(Number(e.target.value))}
-                    className="mt-1 w-28 rounded-md border border-border-strong p-1.5 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+                    className="mt-1 w-28 rounded-md border border-border-strong p-1.5 text-sm shadow-sm focus:border-brand-green focus:ring-brand-green"
                   />
                 </label>
                 <button
@@ -839,7 +936,7 @@ export default function CalibrationPanel() {
                   name="ageDistMode"
                   checked={ageDistMode === 'default'}
                   onChange={() => handleAgeDistModeChange('default')}
-                  className="accent-fidelity-green"
+                  className="accent-brand-green"
                 />
                 Scenario/seed defaults
               </label>
@@ -850,7 +947,7 @@ export default function CalibrationPanel() {
                   checked={ageDistMode === 'census'}
                   onChange={() => handleAgeDistModeChange('census')}
                   disabled={!censusPath}
-                  className="accent-fidelity-green"
+                  className="accent-brand-green"
                 />
                 Match census
                 {ageDistLoading && ageDistMode === 'census' && (
@@ -863,7 +960,7 @@ export default function CalibrationPanel() {
                   name="ageDistMode"
                   checked={ageDistMode === 'custom'}
                   onChange={() => handleAgeDistModeChange('custom')}
-                  className="accent-fidelity-green"
+                  className="accent-brand-green"
                 />
                 Custom
               </label>
@@ -883,13 +980,13 @@ export default function CalibrationPanel() {
                       <input
                         type="number" min={16} max={80} value={row.age}
                         onChange={(e) => setAgeRow(idx, { age: Number(e.target.value) })}
-                        className="w-16 rounded-md border border-border-strong p-1 text-xs shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+                        className="w-16 rounded-md border border-border-strong p-1 text-xs shadow-sm focus:border-brand-green focus:ring-brand-green"
                       />
                     </label>
                     <input
                       type="range" min={0} max={0.5} step={0.01} value={row.weight}
                       onChange={(e) => setAgeRow(idx, { weight: Number(e.target.value) })}
-                      className="flex-1 accent-fidelity-green"
+                      className="flex-1 accent-brand-green"
                     />
                     <span className="w-12 text-right text-xs text-ink-muted">{pct(row.weight)}</span>
                     <button
@@ -910,7 +1007,7 @@ export default function CalibrationPanel() {
                         { age: (prev[prev.length - 1]?.age ?? 30) + 5, weight: 0.05 },
                       ])
                     }
-                    className="inline-flex items-center gap-1 text-xs text-fidelity-green hover:text-fidelity-dark"
+                    className="inline-flex items-center gap-1 text-xs text-brand-ink hover:text-brand-ink-strong"
                   >
                     <Plus size={14} /> Add age bucket
                   </button>
@@ -1033,7 +1130,7 @@ export default function CalibrationPanel() {
                     type="number" step="0.1" min={0} max={100}
                     value={Number((values.total_termination_rate * 100).toFixed(1))}
                     onChange={(e) => setValue('total_termination_rate', Number(e.target.value) / 100)}
-                    className="w-24 rounded-md border border-border-strong p-1.5 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+                    className="w-24 rounded-md border border-border-strong p-1.5 text-sm shadow-sm focus:border-brand-green focus:ring-brand-green"
                   />
                   <span className="text-xs text-ink-muted">%</span>
                 </div>
@@ -1045,7 +1142,7 @@ export default function CalibrationPanel() {
                     type="number" step="0.1" min={0} max={100}
                     value={Number((values.new_hire_termination_rate * 100).toFixed(1))}
                     onChange={(e) => setValue('new_hire_termination_rate', Number(e.target.value) / 100)}
-                    className="w-24 rounded-md border border-border-strong p-1.5 text-sm shadow-sm focus:border-fidelity-green focus:ring-fidelity-green"
+                    className="w-24 rounded-md border border-border-strong p-1.5 text-sm shadow-sm focus:border-brand-green focus:ring-brand-green"
                   />
                   <span className="text-xs text-ink-muted">%</span>
                 </div>
@@ -1063,16 +1160,18 @@ export default function CalibrationPanel() {
           {solvingNewHireRanges ? (
             <div className="rounded-md border border-border p-4">
               <div className="text-sm font-medium text-ink-muted mb-2 flex flex-wrap items-center gap-2">
-                COLA &amp; Merit
+                {usesRaiseBudget ? 'Raise Budget' : <>COLA &amp; Merit</>}
                 <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs font-medium text-ink-muted">
-                  Held fixed
+                  {raiseSolved ? 'Starting point' : 'Held fixed'}
                 </span>
                 <span className="text-xs font-normal text-ink-muted">
-                  the annual policy calibration keeps constant while it scales new-hire ranges
+                  {raiseSolved
+                    ? 'calibration sets this from the target, within 1pp, then scales new-hire ranges'
+                    : 'the annual policy calibration keeps constant while it scales new-hire ranges'}
                 </span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {SLIDERS.filter((s) => POLICY_KEYS.has(s.key)).map((s) => (
+                {(usesRaiseBudget ? [RAISE_BUDGET_SLIDER] : SLIDERS.filter((s) => POLICY_KEYS.has(s.key))).map((s) => (
                   <SliderRow
                     key={s.key}
                     s={s}
@@ -1084,7 +1183,7 @@ export default function CalibrationPanel() {
             </div>
           ) : (
             <div className="rounded-md border border-dashed border-border-strong bg-surface-subtle p-4 flex items-start gap-2">
-              <Sparkles size={16} className="mt-0.5 shrink-0 text-fidelity-green" />
+              <Sparkles size={16} className="mt-0.5 shrink-0 text-brand-ink" />
               <div className="text-sm text-ink-muted">
                 <span className="font-medium text-ink">COLA &amp; merit — solved automatically.</span>{' '}
                 Calibration finds the COLA and merit budget that hit your Target Salary
@@ -1112,11 +1211,33 @@ export default function CalibrationPanel() {
               ({pct(values.workforce_growth_rate)}) by running real comp-only simulations.
               Typically 3–6 runs (a few minutes).
             </p>
+            <label className="block text-sm text-info-ink">
+              Average pay means
+              <select
+                value={growthMetric}
+                disabled={autoLoading}
+                onChange={event => setGrowthMetric(event.target.value as GrowthMetric)}
+                className="mt-1 block w-full max-w-sm rounded-md border border-border-strong bg-surface-raised p-2 text-sm text-ink shadow-sm focus:border-brand-green focus:ring-brand-green"
+              >
+                <option value="payroll_per_head">Total pay ÷ year-end headcount</option>
+                <option value="active_average">Average pay of active employees</option>
+              </select>
+            </label>
+            {growthMetric === 'payroll_per_head' && (
+              <p className="text-xs text-info-ink">{PAY_PER_HEAD_ASSUMPTION}</p>
+            )}
             {solvingNewHireRanges && (
               <label className="flex items-center gap-2 text-sm text-info-ink">
                 <input type="checkbox" checked={solveSalaryGrowth} disabled={autoLoading}
                   onChange={event => setSolveSalaryGrowth(event.target.checked)} />
                 Also solve starting-pay growth
+              </label>
+            )}
+            {solvingNewHireRanges && solveSalaryGrowth && (
+              <label className="flex items-center gap-2 text-sm text-info-ink">
+                <input type="checkbox" checked={solveRaiseBudget} disabled={autoLoading}
+                  onChange={event => setSolveRaiseBudget(event.target.checked)} />
+                Set the raise budget from the target (within 1pp of configured)
               </label>
             )}
             {solvingNewHireRanges && baseRanges.length === 0 && (
@@ -1134,8 +1255,19 @@ export default function CalibrationPanel() {
                 className="inline-flex items-center gap-2 rounded-md bg-info-solid px-4 py-2 text-ink-inverse text-sm font-medium hover:bg-info-solid-hover disabled:opacity-50"
               >
                 {autoLoading ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
-                {autoLoading ? 'Searching…' : 'Auto-Calibrate'}
+                {runProgress ? 'Running scenario…' : autoLoading ? 'Searching…' : 'Auto-Calibrate'}
               </button>
+              {autoLoading && (
+                <button
+                  type="button"
+                  onClick={() => void handleCancelCalibration()}
+                  disabled={!activeRunId || cancelling}
+                  className="inline-flex items-center gap-2 rounded-md border border-border-strong bg-surface-raised px-4 py-2 text-sm font-medium text-ink-muted hover:bg-surface-subtle disabled:opacity-50"
+                >
+                  <X size={16} />
+                  {cancelling ? 'Cancelling…' : 'Cancel'}
+                </button>
+              )}
               <label className="block">
                 <span className="text-xs font-medium text-info-ink">Tolerance (± pp)</span>
                 <input
@@ -1154,7 +1286,32 @@ export default function CalibrationPanel() {
               </label>
             </div>
           </div>
-          {autoError && (
+          {autoCancelled && (
+            <p role="status" className="mt-3 text-sm text-ink-muted">Calibration cancelled.</p>
+          )}
+          {runProgress && (
+            <p role="status" className="mt-3 text-sm text-info-ink">{runProgress}</p>
+          )}
+          {autoError && missingRun ? (
+            <div role="alert" className="mt-3 rounded-md border border-warning-border bg-warning-surface p-3 text-sm text-warning-ink">
+              <p className="font-semibold">This scenario hasn't been run with its current settings</p>
+              {horizonMismatch && scenarioHorizon ? (
+                <p>
+                  Calibration years ({startYear}–{endYear}) differ from the scenario's
+                  ({scenarioHorizon.start}–{scenarioHorizon.end}). Match them, or change the
+                  scenario's years, so a run can be calibrated against.
+                </p>
+              ) : (
+                <>
+                  <p>Calibration needs a completed run of the selected scenario as it's configured now.</p>
+                  <button type="button" disabled={autoLoading} onClick={() => void runScenarioThenCalibrate()}
+                    className="mt-2 inline-flex items-center gap-2 rounded-md bg-info-solid px-3 py-1.5 text-ink-inverse font-medium hover:bg-info-solid-hover disabled:opacity-50">
+                    Run scenario as-is, then calibrate
+                  </button>
+                </>
+              )}
+            </div>
+          ) : autoError && (
             <div role="alert" className="mt-3 rounded-md border border-danger-border bg-danger-surface p-3 text-sm text-danger-ink">
               <p className="font-semibold">No calibration result is available to apply</p>
               <p>{autoError}</p>
@@ -1181,8 +1338,9 @@ export default function CalibrationPanel() {
                 {autoOutcome.max_abs_error_pct.toFixed(2)}pp.
               </p>
               <p className="mt-1 text-xs text-info-ink">
-                Best config: COLA {pct(autoOutcome.best_params.cola_rate ?? 0)}, merit{' '}
-                {pct(autoOutcome.best_params.merit_budget ?? 0)}
+                {usesRaiseBudget
+                  ? <>Best config: raise budget {pct(autoOutcome.best_params.merit_budget ?? 0)}</>
+                  : <>Best config: COLA {pct(autoOutcome.best_params.cola_rate ?? 0)}, merit {pct(autoOutcome.best_params.merit_budget ?? 0)}</>}
                 {autoOutcome.best_salary_growth_rate != null && (
                   <>, Starting-pay growth: {(autoOutcome.best_salary_growth_rate * 100).toFixed(1)}%/yr</>
                 )}
@@ -1196,9 +1354,10 @@ export default function CalibrationPanel() {
                 <thead className="text-info-ink">
                   <tr>
                     <th className="text-left">Run</th>
-                    <th className="text-right">COLA</th>
-                    <th className="text-right">Merit</th>
+                    {!usesRaiseBudget && <th className="text-right">COLA</th>}
+                    <th className="text-right">{usesRaiseBudget ? 'Raise Budget' : 'Merit'}</th>
                     <th className="text-right">Scale</th>
+                    <th className="text-right">Starting-Pay Growth</th>
                     <th className="text-right">Comp Growth</th>
                     <th className="text-right">Worst annual error</th>
                   </tr>
@@ -1207,9 +1366,10 @@ export default function CalibrationPanel() {
                   {autoOutcome.iterations.map((it) => (
                     <tr key={it.iteration} className="border-t border-info-border">
                       <td>{it.iteration}</td>
-                      <td className="text-right">{pct(it.cola_rate)}</td>
+                      {!usesRaiseBudget && <td className="text-right">{pct(it.cola_rate)}</td>}
                       <td className="text-right">{pct(it.merit_budget)}</td>
                       <td className="text-right">{it.scale != null ? `${it.scale.toFixed(2)}×` : '—'}</td>
+                      <td className="text-right">{it.salary_growth_rate != null ? pct(it.salary_growth_rate) : '—'}</td>
                       <td className="text-right">{it.achieved_growth_pct.toFixed(2)}%</td>
                       <td className="text-right">{it.max_abs_error_pct.toFixed(2)}pp</td>
                     </tr>
@@ -1220,6 +1380,39 @@ export default function CalibrationPanel() {
           )}
         </div>
 
+          {cost && (
+            <div className="rounded-md border border-border p-3 text-sm">
+              <div className="mb-1 font-medium text-ink">Cost of these changes</div>
+              <table className="w-full text-xs text-ink-muted">
+                <thead>
+                  <tr>
+                    <th className="text-left font-medium">Measure</th>
+                    <th className="text-right font-medium">Current settings</th>
+                    <th className="text-right font-medium">After calibration</th>
+                    <th className="text-right font-medium">Change</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { label: `Total pay, ${cost.lastYear}`, values: cost.pay },
+                    { label: `Employer contributions, ${cost.lastYear} (estimate)`, values: cost.cost },
+                    { label: `Employer contributions, ${cost.firstYear}–${cost.lastYear} (estimate)`, values: cost.horizonCost },
+                  ].map(({ label, values }) => (
+                    <tr key={label} className="border-t border-border">
+                      <td className="py-1">{label}</td>
+                      <td className="text-right">{compactMoney(values[0])}</td>
+                      <td className="text-right">{compactMoney(values[1])}</td>
+                      <td className="text-right">{values[1] >= values[0] ? '+' : '−'}{compactMoney(Math.abs(values[1] - values[0]))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mt-2 text-xs text-ink-muted">
+                Estimate: employer contributions stay the same share of pay as the current run. In testing this was within 1% of a full run. Run the scenario after applying for the exact cost.
+              </p>
+            </div>
+          )}
+
           {/* Apply the calibrated levers to the workspace base config AND every
               scenario's overrides (which otherwise shadow the base). */}
           <div className="space-y-2">
@@ -1228,7 +1421,7 @@ export default function CalibrationPanel() {
                 onClick={handleApplyToWorkspace}
                 disabled={autoLoading || applyStatus === 'applying' || !activeWorkspace?.id || !autoOutcome || !autoContext || results.length === 0}
                 title={results.length === 0 ? 'Auto-calibrate first' : 'Write these levers to the workspace base config and all its scenarios'}
-                className="inline-flex items-center gap-2 rounded bg-fidelity-green px-4 py-2 text-ink-inverse font-medium hover:bg-fidelity-dark disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded bg-brand-green px-4 py-2 text-ink-inverse font-medium hover:bg-brand-dark disabled:opacity-50"
               >
                 {applyStatus === 'applying' ? <Loader2 className="animate-spin" size={18} /> : <Database size={18} />}
                 {applyStatus === 'applying'
@@ -1259,7 +1452,7 @@ export default function CalibrationPanel() {
         <>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="bg-surface-raised rounded-lg shadow p-4">
-              <h2 className="font-semibold text-ink mb-2">Average Compensation</h2>
+              <h2 className="font-semibold text-ink mb-2">{showsPayPerHead ? 'Pay per Head' : 'Average Compensation'}</h2>
               <ResponsiveContainer width="100%" height={260}>
                 <LineChart data={results}>
                   <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid.line} />
@@ -1270,7 +1463,7 @@ export default function CalibrationPanel() {
                   <Line
                     type="monotone"
                     dataKey="avg_compensation"
-                    name="Avg Comp"
+                    name={showsPayPerHead ? 'Pay per Head' : 'Avg Comp'}
                     stroke={chartTheme.semantic.primary}
                     strokeWidth={2}
                   />
@@ -1301,14 +1494,20 @@ export default function CalibrationPanel() {
             </div>
           </div>
 
+          {showsPayPerHead && (
+            <p className="text-xs text-ink-muted">{PAY_PER_HEAD_ASSUMPTION}</p>
+          )}
+
           {/* Per-year table */}
           <div className="bg-surface-raised rounded-lg shadow overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead className="bg-surface-subtle text-ink-muted">
                 <tr>
                   <th className="px-4 py-2 text-left">Year</th>
-                  <th className="px-4 py-2 text-right">Avg Comp</th>
-                  <th className="px-4 py-2 text-right">Avg Growth</th>
+                  <th className="px-4 py-2 text-right">{showsPayPerHead ? 'Pay per Head' : 'Avg Comp'}</th>
+                  <th className="px-4 py-2 text-right">{showsPayPerHead ? 'Growth' : 'Avg Growth'}</th>
+                  {showsPayPerHead && <th className="px-4 py-2 text-right">Active Avg</th>}
+                  {showsPayPerHead && <th className="px-4 py-2 text-right">Active Growth</th>}
                   <th className="px-4 py-2 text-right">Δ vs Target</th>
                   <th className="px-4 py-2 text-right">Headcount</th>
                   <th className="px-4 py-2 text-right">HC Growth</th>
@@ -1323,6 +1522,8 @@ export default function CalibrationPanel() {
                     <td className="px-4 py-2">{r.simulation_year}</td>
                     <td className="px-4 py-2 text-right">{money(r.avg_compensation)}</td>
                     <td className="px-4 py-2 text-right">{growthPct(r.yoy_growth_pct)}</td>
+                    {showsPayPerHead && <td className="px-4 py-2 text-right">{money(r.active_avg_compensation)}</td>}
+                    {showsPayPerHead && <td className="px-4 py-2 text-right">{growthPct(r.active_growth_pct)}</td>}
                     <td className="px-4 py-2 text-right">
                       {r.growth_delta_pct === null
                         ? '—'

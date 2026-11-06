@@ -217,8 +217,11 @@ async def lifespan(app: FastAPI):
     """Application lifespan handler for startup/shutdown."""
     settings = get_settings()
 
+    from .services.calibration_jobs import get_job_runner
+
     # Startup: ensure workspaces directory exists
     settings.workspaces_root.mkdir(parents=True, exist_ok=True)
+    get_job_runner().recover()
 
     try:
         yield

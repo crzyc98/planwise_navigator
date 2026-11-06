@@ -1,5 +1,5 @@
-scenario_id: tufts_cross_tested
-plan_design_id: tufts_plan
+scenario_id: two_band_cross_tested
+plan_design_id: two_band_plan
 simulation: {start_year: 2025, end_year: 2025, random_seed: 126002, target_growth_rate: 0.0}
 setup: {load_seeds: true, run_staging_models: true, validate_results: false, fail_on_validation_error: true, census_parquet_path: injected, eligibility_waiting_period_days: 0}
 compensation: {cola_rate: 0.0, merit_budget: 0.0, promotion_increase: 0.0}

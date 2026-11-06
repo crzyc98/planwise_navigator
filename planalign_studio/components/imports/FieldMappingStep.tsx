@@ -77,7 +77,7 @@ function FormatPanel({ detection, column, chosenFormat, onChoose }: {
                 value={fmt}
                 checked={chosenFormat === fmt}
                 onChange={() => onChoose(fmt)}
-                className="accent-fidelity-green"
+                className="accent-brand-green"
               />
               <span>{fmt.startsWith('%m/') || fmt.startsWith('%m-') ? 'Month first' : 'Day first'} <span className="font-mono">({fmt})</span></span>
             </label>
@@ -432,7 +432,7 @@ export default function FieldMappingStep({ workspaceId, session, onSaved }: Prop
                       <button
                         onClick={() => toggleExpand(m.input_column)}
                         disabled={m.is_excluded}
-                        className="flex items-center gap-1 text-xs text-fidelity-green hover:underline disabled:opacity-40"
+                        className="flex items-center gap-1 text-xs text-brand-ink hover:underline disabled:opacity-40"
                       >
                         {m.transformations.length > 0 ? `${m.transformations.length} transform(s)` : 'Add'}
                         {expandedRows.has(m.input_column) ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
@@ -470,7 +470,7 @@ export default function FieldMappingStep({ workspaceId, session, onSaved }: Prop
                           {m.transformations.length < 5 && (
                             <button
                               onClick={() => addTransform(idx)}
-                              className="text-xs text-fidelity-green hover:underline"
+                              className="text-xs text-brand-ink hover:underline"
                             >
                               + Add transform
                             </button>
@@ -490,7 +490,7 @@ export default function FieldMappingStep({ workspaceId, session, onSaved }: Prop
         <button
           onClick={handleSave}
           disabled={isSaving || needsDateChoice}
-          className="flex items-center gap-2 px-4 py-2 bg-fidelity-green text-ink-inverse text-sm rounded-lg hover:bg-fidelity-dark disabled:opacity-50"
+          className="flex items-center gap-2 px-4 py-2 bg-brand-green text-ink-inverse text-sm rounded-lg hover:bg-brand-dark disabled:opacity-50"
         >
           {isSaving ? <Loader2 size={16} className="animate-spin" /> : null}
           Save Mapping & Continue

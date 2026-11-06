@@ -6,7 +6,7 @@
 
 ## Overview
 
-This guide provides step-by-step instructions for upgrading the Fidelity PlanAlign Engine project to support Python 3.12.x while maintaining backward compatibility with Python 3.11.x.
+This guide provides step-by-step instructions for upgrading the PlanAlign Engine project to support Python 3.12.x while maintaining backward compatibility with Python 3.11.x.
 
 ## Implementation Steps
 
