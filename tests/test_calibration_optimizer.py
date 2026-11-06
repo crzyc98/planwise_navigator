@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -631,8 +632,9 @@ def test_plateau_stop_keeps_the_answer_and_saves_runs(tmp_path, stop: bool) -> N
     outcome = optimizer.optimize()
     assert outcome.max_abs_error_pct == pytest.approx(0.3, abs=0.02)
     assert (len(outcome.iterations) < 8) is stop
-    if stop:
-        assert outcome.status == "best_achievable"
+    assert outcome.status == "best_achievable"
+    assert ("All 8 run(s) were used" in outcome.reason) is not stop
+    assert "seed variation" not in outcome.reason or outcome.max_abs_error_pct <= 0.26
 
 
 @pytest.mark.parametrize(
@@ -726,3 +728,16 @@ def test_cost_estimate_skips_years_without_a_baseline(tmp_path) -> None:
         ]
     )
     assert rows == []
+
+
+@pytest.mark.parametrize(
+    ("error", "mean", "noted"),
+    [(0.2, 3.0, True), (0.3, 3.0, False), (0.2, 3.2, False)],
+)
+def test_seed_note_needs_a_small_miss_with_the_mean_on_target(
+    tmp_path, error: float, mean: float, noted: bool
+) -> None:
+    optimizer = _make_optimizer(tmp_path, _two_dial_settings())
+    optimizer._best = SimpleNamespace(abs_error=error, achieved_pct=mean)
+
+    assert bool(optimizer._seed_note(3.0)) is noted

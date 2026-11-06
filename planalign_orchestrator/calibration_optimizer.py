@@ -64,6 +64,9 @@ _PLATEAU_STEP = np.array([0.001, 0.0002])
 # Raises run this far above the growth target: leavers and cheaper hires dilute
 # them, so a budget equal to the target would leave growth short.
 _RAISE_MARGIN_PP = 1.0
+# Most a single year's growth moved when only the seed changed (#1081, measured
+# on development censuses). A smaller miss can't be told apart from seed noise.
+_SEED_VARIATION_PP = 0.26
 
 
 class AutoCalibrationSettings(BaseModel):
@@ -485,7 +488,7 @@ class AutoCalibrator:
                     "best_achievable", "Trust region collapsed without convergence."
                 )
         return _DialOutcome(
-            "not_converged", "Evaluation budget exhausted before convergence."
+            "best_achievable", "Evaluation budget exhausted before convergence."
         )
 
     def _target_raise_shift(self, target_pct: float) -> float:
@@ -524,9 +527,7 @@ class AutoCalibrator:
         best = self._require_best()
         # A stalled search is only "best achievable" when the horizon mean is on
         # target and the residual is year-to-year swing; a systematic miss is not.
-        if status == "best_achievable" and (
-            abs(best.achieved_pct - target_pct) > 0.5 * best.abs_error
-        ):
+        if status == "best_achievable" and not self._mean_on_target(target_pct):
             status = "not_converged"
         if status == "best_achievable":
             message = (
@@ -534,10 +535,15 @@ class AutoCalibrator:
                 f"{best.abs_error:.2f}pp (tolerance {self.settings.tolerance_pct:.2f}pp; "
                 f"horizon mean {best.achieved_pct:.2f}% vs target {target_pct:.2f}%)."
             )
+            opening = (
+                f"All {self._evals} run(s) were used with the horizon mean on target"
+                if outcome.reason.startswith("Evaluation budget")
+                else "Further changes to new-hire pay level and growth did not "
+                "reduce the worst-year error"
+            )
             reason = (
-                "Further changes to new-hire pay level and growth did not reduce "
-                "the worst-year error; the remaining miss is year-to-year "
-                f"simulation variation. Annual growth: {self._annual_growth_detail(2)}."
+                f"{opening}; the remaining miss is year-to-year simulation "
+                f"variation. Annual growth: {self._annual_growth_detail(2)}."
             )
         return self._finish(
             converged,
@@ -797,6 +803,24 @@ class AutoCalibrator:
             return self._runner.run_calibration()
         return self._runner.rerun_with_params(params)
 
+    def _mean_on_target(self, target_pct: float) -> bool:
+        """True when the worst miss is annual swing, not a systematic shortfall."""
+        best = self._require_best()
+        return abs(best.achieved_pct - target_pct) <= 0.5 * best.abs_error
+
+    def _seed_note(self, target_pct: float) -> str:
+        """Say when the miss is too small to separate from seed variation."""
+        if (
+            self._require_best().abs_error > _SEED_VARIATION_PP
+            or not self._mean_on_target(target_pct)
+        ):
+            return ""
+        return (
+            f" In testing, changing only the seed moved a year by up to "
+            f"{_SEED_VARIATION_PP:.2f}pp, so a miss this size may be seed "
+            "variation that more searching won't remove."
+        )
+
     def _summary(self, converged: bool, target_pct: float) -> str:
         best = self._require_best()
         if converged:
@@ -849,8 +873,9 @@ class AutoCalibrator:
             status=status or ("converged" if converged else "not_converged"),
             reason=(
                 reason
-                if converged or reason
-                else "Evaluation budget exhausted before convergence."
+                if converged
+                else (reason or "Evaluation budget exhausted before convergence.")
+                + self._seed_note(target_pct)
             ),
             message=message,
             best_params=best.params,
