@@ -30,57 +30,63 @@
       ],
       "basis": "#1048 applies second-year new-hire turnover to census employees hired in the prior year, indexes new-hire starting pay, spreads hire dates across the year and hires by level. In 2025 the census has 8 experienced terminations instead of 11, so 3 more long-service employees stay and become eligible. #1051 (hire-date and termination fixes) and #1050 (promotion-aware hiring) move later zero-wait costs by under 1%.",
       "verification": "Regenerated from isolated runs of all four wait cases at 365f5460. The same harness at the pre-#1048 revision 9fcd74d8 reproduces the prior baseline exactly. The wait-1 opening-year counts (141, 109) match CI's failing runs from a5ef9a9d onward. Opening-year values come entirely from #1048. Zero-wait costs fall 3.3-7.2%, mostly from #1048. IRS seed, census, wait configurations and the absolute $0.01 tolerance are unchanged."
+    },
+    "promotion_merit_earned_pay_reconciliation": {
+      "changes": [
+        "#1117"
+      ],
+      "basis": "Employees with a promotion and a merit raise in one year kept both in earned pay. Core and match cost rise 0 to 0.28%; paid counts are unchanged."
     }
   },
   "opening_year": {
     "1": {
-      "core_cost": 757215.3,
+      "core_cost": 759053.97,
       "core_paid": 141,
-      "match_cost": 773117.19,
+      "match_cost": 774235.1,
       "match_paid": 109
     },
     "2": {
-      "core_cost": 522338.59,
+      "core_cost": 523408.66,
       "core_paid": 99,
-      "match_cost": 548525.9,
+      "match_cost": 548747.12,
       "match_paid": 78
     },
     "3": {
-      "core_cost": 465014.8,
+      "core_cost": 466084.87,
       "core_paid": 90,
-      "match_cost": 476594.92,
+      "match_cost": 476816.14,
       "match_paid": 69
     }
   },
   "zero_wait_all_years": {
     "2025": {
-      "core_cost": 776436.2,
+      "core_cost": 778274.87,
       "core_paid": 152,
-      "match_cost": 789057.66,
+      "match_cost": 790175.57,
       "match_paid": 115
     },
     "2026": {
-      "core_cost": 816153.68,
+      "core_cost": 816579.09,
       "core_paid": 155,
       "match_cost": 932716.77,
       "match_paid": 128
     },
     "2027": {
-      "core_cost": 858430.53,
+      "core_cost": 860540.87,
       "core_paid": 158,
-      "match_cost": 1018984.27,
+      "match_cost": 1021723.97,
       "match_paid": 138
     },
     "2028": {
-      "core_cost": 893393.92,
+      "core_cost": 895759.45,
       "core_paid": 161,
-      "match_cost": 1104569.55,
+      "match_cost": 1107664.33,
       "match_paid": 147
     },
     "2029": {
-      "core_cost": 932835.49,
+      "core_cost": 934839.46,
       "core_paid": 164,
-      "match_cost": 1157129.65,
+      "match_cost": 1158970.3,
       "match_paid": 150
     }
   }
