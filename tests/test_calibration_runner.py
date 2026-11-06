@@ -14,6 +14,7 @@ import pytest
 
 from planalign_orchestrator.calibration_runner import (
     DC_PREREQUISITE_TABLES,
+    EMPLOYEE_YEAR_TABLES,
     CalibrationParameterSet,
     CalibrationRun,
     CalibrationRunner,
@@ -479,3 +480,25 @@ def test_an_older_run_without_cost_columns_gives_no_estimate(tmp_path) -> None:
         )
     run = CalibrationRun(start_year=2026, end_year=2027, database_path=database)
     assert CalibrationRunner(run)._read_baseline_costs() == {}
+
+
+def test_rebuild_clears_rows_a_later_evaluation_would_not_replace(tmp_path) -> None:
+    """Hires from an earlier point must not survive as active rows (#1079)."""
+    database = tmp_path / "cal.duckdb"
+    with duckdb.connect(str(database)) as conn:
+        for table in EMPLOYEE_YEAR_TABLES:
+            conn.execute(
+                f"CREATE TABLE {table} (simulation_year INT, employee_id TEXT)"
+            )
+            conn.execute(
+                f"INSERT INTO {table} VALUES (2024, 'census'), (2025, 'stale_hire')"
+            )
+    runner = _runner_with_default_config(tmp_path)
+
+    runner._clear_employee_year_rows()
+
+    with duckdb.connect(str(database), read_only=True) as conn:
+        for table in EMPLOYEE_YEAR_TABLES:
+            assert conn.execute(f"SELECT employee_id FROM {table}").fetchall() == [
+                ("census",)
+            ]
