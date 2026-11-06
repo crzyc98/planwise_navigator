@@ -4,6 +4,7 @@ import { CompensationSection } from './CompensationSection';
 import { NewHireSection } from './NewHireSection';
 import { useConfigContext, type ConfigContextType } from './ConfigContext';
 import { DEFAULT_FORM_DATA } from './constants';
+import { numericError, type NumericInputProps } from './NumericInput';
 import { solveCompensationGrowth, analyzePartTimePct, analyzeAgeDistribution, analyzeCompensation, type CompensationSolverResponse } from '../../services/api';
 
 // Exercise the component handlers and real preview hook with deterministic hook
@@ -44,6 +45,13 @@ function render() { hooks.slot = 0; return CompensationSection({ variant: 'essen
 function renderNewHires() { hooks.slot = 0; return NewHireSection({}); }
 async function calculate() { await button(render(), 'Calculate suggested settings')!.props.onClick!(); }
 
+function scaleInput(node: ReactNode): ReactElement<NumericInputProps> | undefined {
+  if (Array.isArray(node)) return node.map(scaleInput).find(Boolean);
+  if (!node || typeof node !== 'object' || !('props' in node)) return;
+  const element = node as ReactElement<NumericInputProps>;
+  return element.props.id === 'newhire-comp-scale' ? element : scaleInput(element.props.children);
+}
+
 describe('Compensation suggestion preview', () => {
   beforeEach(() => {
     vi.clearAllMocks(); hooks.slot = 0; hooks.cells = []; hooks.effects = [];
@@ -53,6 +61,13 @@ describe('Compensation suggestion preview', () => {
     } as unknown as ConfigContextType;
     vi.mocked(useConfigContext).mockImplementation(() => context);
     vi.mocked(solveCompensationGrowth).mockResolvedValue(result);
+  });
+
+  it('lets the new-hire range scale reach the 5x the calibration search can', () => {
+    const { props } = scaleInput(renderNewHires())!;
+    expect(numericError('3.5', props)).toBe('');
+    expect(numericError('5', props)).toBe('');
+    expect(numericError('5.1', props)).toBe('Enter 5 or less.');
   });
 
   it('calculates without editing, cancels without editing, and applies only explicitly', async () => {

@@ -29,6 +29,7 @@ import {
   Scenario,
 } from '../services/api';
 import { extractCensusPath } from './config/ConfigContext';
+import { MAX_NEW_HIRE_SCALE } from './config/constants';
 import { useChartTheme } from '../hooks/useChartTheme';
 import { baselineScenarioId, costSummary, growthMetricSettings, isMissingRunError, searchLimitNotes, type SearchLimits, type GrowthMetric } from './calibrationScenario';
 
@@ -885,7 +886,7 @@ export default function CalibrationPanel() {
                 <label className="block">
                   <span className="text-xs text-ink-muted">Scale (×)</span>
                   <input
-                    type="number" step="0.1" min={0.1} max={3.0} value={scaleFactor}
+                    type="number" step="0.1" min={0.1} max={MAX_NEW_HIRE_SCALE} value={scaleFactor}
                     onChange={(e) => setScaleFactor(Number(e.target.value))}
                     className="mt-1 w-24 rounded-md border border-border-strong p-1.5 text-sm shadow-sm focus:border-brand-green focus:ring-brand-green"
                   />
@@ -1259,7 +1260,7 @@ export default function CalibrationPanel() {
                 </label>
                 <label className="block text-xs text-info-ink">
                   New-hire scale limit (×)
-                  <input type="number" step="0.1" min={1} max={5} value={scaleMax} disabled={autoLoading}
+                  <input type="number" step="0.1" min={1} max={MAX_NEW_HIRE_SCALE} value={scaleMax} disabled={autoLoading}
                     onChange={event => setScaleMax(Number(event.target.value))}
                     className="mt-1 w-24 rounded-md border border-border-strong bg-surface-raised p-1.5 text-sm shadow-sm" />
                 </label>
