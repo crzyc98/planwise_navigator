@@ -26,6 +26,7 @@ from typing_extensions import NotRequired, TypedDict
 
 from planalign_orchestrator.config import load_simulation_config
 from planalign_orchestrator.config.export import to_dbt_vars
+from planalign_orchestrator.config.seed_coverage import validate_seed_coverage
 from planalign_orchestrator.dbt_runner import DbtRunner
 from planalign_orchestrator.exceptions import ConfigurationError, ResolutionHint
 from planalign_orchestrator.pipeline.enrollment_projection import (
@@ -182,6 +183,7 @@ class CalibrationRun(BaseModel):
             raise ValueError(
                 f"end_year ({self.end_year}) must be >= start_year ({self.start_year})"
             )
+        validate_seed_coverage(self.end_year)
         return self
 
 

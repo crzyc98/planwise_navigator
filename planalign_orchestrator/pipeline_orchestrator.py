@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 
 from .config import PlanDesignAssignmentSettings, SimulationConfig, to_dbt_vars
 from .config.dbt_var_validation import validate_dbt_vars
+from .config.seed_coverage import validate_seed_coverage
 from .exceptions import ConfigurationError
 from .orchestrator_setup import (
     setup_memory_manager,
@@ -291,6 +292,7 @@ class PipelineOrchestrator:
     ) -> MultiYearSummary:
         start = start_year or self.config.simulation.start_year
         end = end_year or self.config.simulation.end_year
+        validate_seed_coverage(end)
         authoritative_run_id: Optional[str] = None
 
         if self._initialization_callback is not None:
