@@ -57,6 +57,14 @@ DC_PREREQUISITE_TABLES: List[str] = [
     "int_eligibility_events",
 ]
 
+# Tables a calibration build replaces by employee and year. A rebuild leaves any
+# employee it no longer produces, so a point with fewer hires than the one before
+# would keep that point's hires as active rows. See issue #1079.
+EMPLOYEE_YEAR_TABLES: List[str] = [
+    "int_employee_compensation_by_year",
+    "fct_workforce_snapshot",
+]
+
 
 # ---------------------------------------------------------------------------
 # Entities (see data-model.md)
@@ -430,6 +438,7 @@ class CalibrationRunner:
         # fct_compensation_growth is a full-refresh table, so each year's build
         # overwrites the prior year. Read each year's row immediately after its
         # build, before the next year overwrites it.
+        self._clear_employee_year_rows()
         results: List[PerYearCompensationResult] = []
         for year in range(self.run.start_year, self.run.end_year + 1):
             self._rebuild_prior_state_projections(year)
@@ -437,6 +446,18 @@ class CalibrationRunner:
             results.append(self._read_year(year))
         self._fill_yoy_growth(results)
         return results
+
+    def _clear_employee_year_rows(self) -> None:
+        """Remove the last evaluation's rows, so each one starts from the same state."""
+        conn = duckdb.connect(str(self.database_path))
+        try:
+            for table in EMPLOYEE_YEAR_TABLES:
+                conn.execute(
+                    f"DELETE FROM {table} WHERE simulation_year >= ?",
+                    [self.run.start_year],
+                )
+        finally:
+            conn.close()
 
     def _rebuild_prior_state_projections(self, year: int) -> None:
         """Expose only year N-1 state before calibration builds year N."""

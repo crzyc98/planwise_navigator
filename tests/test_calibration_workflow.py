@@ -190,6 +190,7 @@ def test_calibration_rebuilds_prior_state_before_each_year(
         threads=1,
     )
     calls: list[tuple[str, int]] = []
+    monkeypatch.setattr(runner, "_clear_employee_year_rows", lambda: None)
     monkeypatch.setattr(
         runner,
         "_rebuild_prior_state_projections",
