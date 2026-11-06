@@ -2,6 +2,7 @@ import { NumericInput } from './NumericInput';
 import React, { useState } from 'react';
 import { PieChart, DollarSign, Clock } from 'lucide-react';
 import { useConfigContext } from './ConfigContext';
+import { MAX_NEW_HIRE_SCALE } from './constants';
 import { CompensationInput } from './CompensationInput';
 import { useSuggestionPreview } from './useSuggestionPreview';
 import type { FormData } from './types';
@@ -401,14 +402,14 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
                   onChange={(e) => setCompScaleLocal(e.target.value)}
                   onBlur={() => {
                     const val = parseFloat(compScaleLocal);
-                    if (!Number.isFinite(val) || val < 0.5 || val > 3) return;
+                    if (!Number.isFinite(val) || val < 0.5 || val > MAX_NEW_HIRE_SCALE) return;
                     setCompScaleFactor(val);
                     setCompScaleLocal(String(val));
                   }}
                   onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-                  min={0.5} max={3.0} step={0.1}
+                  min={0.5} max={MAX_NEW_HIRE_SCALE} step={0.1}
                   className="text-xs border border-border-strong rounded px-1.5 py-1 w-16 bg-surface-raised focus:ring-focus focus:border-info-border"
-                  title="Scale up ranges to match tenured employee compensation levels (0.5x - 3.0x)"
+                  title={`Scale up ranges to match tenured employee compensation levels (0.5x - ${MAX_NEW_HIRE_SCALE}x)`}
                 />
                 <span className="text-xs text-ink-subtle">x</span>
               </div>

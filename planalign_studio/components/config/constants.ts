@@ -323,3 +323,6 @@ export const DEFAULT_FORM_DATA: FormData = {
   logLevel: 'INFO',
   strictValidation: true,
 };
+
+/** Highest new-hire range scale; matches the calibration search's `scale_max` limit. */
+export const MAX_NEW_HIRE_SCALE = 5;
