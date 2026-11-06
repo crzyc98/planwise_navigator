@@ -3266,8 +3266,16 @@ export interface components {
             best_scale: number | null;
             /** Converged */
             converged: boolean;
+            /** Cost Estimate */
+            cost_estimate: components["schemas"]["CostEstimateRow"][];
             /** End Year */
             end_year: number;
+            /**
+             * Growth Metric
+             * @default active_average
+             * @enum {string}
+             */
+            growth_metric: "active_average" | "payroll_per_head";
             /** Iterations */
             iterations: components["schemas"]["OptimizationIteration"][];
             /** Max Abs Error Pct */
@@ -3307,6 +3315,14 @@ export interface components {
             adjust?: "cola" | "merit" | "both";
             /** Base Job Level Compensation */
             base_job_level_compensation?: components["schemas"]["JobLevelRange"][] | null;
+            /** Compound Band Pct */
+            compound_band_pct?: number | null;
+            /**
+             * Growth Metric
+             * @default active_average
+             * @enum {string}
+             */
+            growth_metric?: "active_average" | "payroll_per_head";
             /**
              * Initial Scale
              * @default 1
@@ -3322,6 +3338,11 @@ export interface components {
              * @default 8
              */
             max_iterations?: number;
+            /**
+             * Raise Budget Limit Pct
+             * @default 1
+             */
+            raise_budget_limit_pct?: number;
             /**
              * Salary Growth Max
              * @default 0.08
@@ -3349,10 +3370,20 @@ export interface components {
              */
             search_mode?: "levers" | "new_hire_scale";
             /**
+             * Solve Raise Budget
+             * @default false
+             */
+            solve_raise_budget?: boolean;
+            /**
              * Solve Salary Growth
              * @default false
              */
             solve_salary_growth?: boolean;
+            /**
+             * Stop On Plateau
+             * @default false
+             */
+            stop_on_plateau?: boolean;
             /** Target Comp Growth */
             target_comp_growth: number;
             /** Target Workforce Growth */
@@ -5110,6 +5141,25 @@ export interface components {
              * @description Simulation year
              */
             year: number;
+        };
+        /**
+         * CostEstimateRow
+         * @description Pay and estimated employer cost for one year, before and after solving.
+         *
+         *     Calibration skips the plan calculations, so employer cost is estimated: it
+         *     stays the same share of pay as in the run calibration started from.
+         */
+        CostEstimateRow: {
+            /** Current Employer Cost */
+            current_employer_cost: number;
+            /** Current Total Pay */
+            current_total_pay: number;
+            /** Estimated Employer Cost */
+            estimated_employer_cost: number;
+            /** Simulation Year */
+            simulation_year: number;
+            /** Solved Total Pay */
+            solved_total_pay: number;
         };
         /** CrossCitation */
         CrossCitation: {
@@ -8163,6 +8213,10 @@ export interface components {
          * @description Per-year compensation-growth result row (one per simulation year).
          */
         PerYearCompensationResult: {
+            /** Active Avg Compensation */
+            active_avg_compensation: number | null;
+            /** Active Growth Pct */
+            active_growth_pct: number | null;
             /** Avg Compensation */
             avg_compensation: number;
             /** Existing Avg Comp */
@@ -8188,6 +8242,8 @@ export interface components {
              * @default 0
              */
             total_compensation: number;
+            /** Total Pay */
+            total_pay: number | null;
             /** Yoy Growth Pct */
             yoy_growth_pct: number | null;
         };
@@ -9653,6 +9709,12 @@ export interface components {
             merit_budget?: number | null;
             /** Merit Budget Percent */
             merit_budget_percent?: number | null;
+            /** Raise Budget */
+            raise_budget?: number | null;
+            /** Raise Budget Percent */
+            raise_budget_percent?: number | null;
+            /** Raise Coverage Percent */
+            raise_coverage_percent?: number | null;
         } & {
             [key: string]: unknown;
         };

@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, NamedTuple, Optional, Union
 
 import duckdb
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -159,6 +159,12 @@ class CalibrationParameterSet(BaseModel):
         return value
 
 
+# ``active_average``: average prorated pay of active employees.
+# ``payroll_per_head``: total pay for the year (leavers included) divided by
+# year-end active headcount, a figure a sponsor can reproduce from their data.
+GrowthMetric = Literal["active_average", "payroll_per_head"]
+
+
 class CalibrationRun(BaseModel):
     """One calibration execution over a year range against a target database."""
 
@@ -168,6 +174,7 @@ class CalibrationRun(BaseModel):
     database_path: Optional[Path] = None
     interactive: bool = False
     params: CalibrationParameterSet = Field(default_factory=CalibrationParameterSet)
+    growth_metric: GrowthMetric = "active_average"
 
     @model_validator(mode="after")
     def _range_ordered(self) -> "CalibrationRun":
@@ -197,6 +204,26 @@ class PerYearCompensationResult(BaseModel):
     new_hire_avg_comp: Optional[float] = None
     existing_avg_comp: Optional[float] = None
     new_hire_gap: Optional[float] = None
+    # Set only when the target is payroll_per_head, so the familiar active-only
+    # figure can sit beside the solved one.
+    active_avg_compensation: Optional[float] = None
+    active_growth_pct: Optional[float] = None
+    # All pay for the year, leavers included, under either metric.
+    total_pay: Optional[float] = None
+
+
+_COST_COLUMNS = {
+    "prorated_annual_compensation",
+    "employer_match_amount",
+    "employer_core_amount",
+}
+
+
+class BaselineCost(NamedTuple):
+    """One year of the completed run that calibration started from."""
+
+    pay: float
+    employer_cost: float
 
 
 # ---------------------------------------------------------------------------
@@ -289,6 +316,7 @@ class CalibrationRunner:
         self.threads = threads
         self.verbose = verbose
         self.database_path = resolve_calibration_database(run.database_path)
+        self.baseline_costs: Dict[int, BaselineCost] = {}
         self._config = (
             load_simulation_config(run.config_path)
             if run.config_path is not None
@@ -313,7 +341,34 @@ class CalibrationRunner:
         verify_dc_prerequisites(self.database_path)
         self._ensure_projection_tables()
         self._record_run_provenance()
+        self.baseline_costs = self._read_baseline_costs()
         return self._build_all_years()
+
+    def _read_baseline_costs(self) -> Dict[int, BaselineCost]:
+        """Capture pay and employer cost by year before any rebuild replaces them.
+
+        Calibration skips the plan calculations, so the completed run it starts
+        from is the only source of employer cost.
+        """
+        with duckdb.connect(str(self.database_path), read_only=True) as conn:
+            columns = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = 'fct_workforce_snapshot'"
+                ).fetchall()
+            }
+            if not _COST_COLUMNS <= columns:
+                return {}  # An older run: the estimate is simply left out.
+            rows = conn.execute("""
+                SELECT simulation_year,
+                       SUM(prorated_annual_compensation),
+                       SUM(COALESCE(employer_match_amount, 0)
+                           + COALESCE(employer_core_amount, 0))
+                FROM fct_workforce_snapshot
+                GROUP BY simulation_year
+                """).fetchall()
+        return {year: BaselineCost(pay, cost) for year, pay, cost in rows}
 
     def _ensure_projection_tables(self) -> None:
         """Create or repair disposable prior-state sources used by shared models."""
@@ -435,6 +490,12 @@ class CalibrationRunner:
             self._config.compensation.cola_rate = params.cola_rate
         if params.merit_budget is not None:
             self._config.compensation.merit_budget = params.merit_budget
+        if self._config.compensation.raise_budget is not None:
+            # A set budget drives every raise, so searched levers must move it.
+            compensation = self._config.compensation
+            compensation.raise_budget = (
+                compensation.merit_budget + compensation.cola_rate
+            )
         if params.promotion_increase is not None:
             self._config.compensation.promotion_increase = params.promotion_increase
         # workforce_growth_rate IS the headcount lever, set explicitly by the
@@ -487,13 +548,22 @@ class CalibrationRunner:
         target = self._compensation_target()
         conn = duckdb.connect(str(self.database_path), read_only=True)
         try:
-            growth = self._read_growth(conn, year)
+            active = self._read_growth(conn, year)
+            per_head = self.run.growth_metric == "payroll_per_head"
+            growth = self._read_payroll_per_head(conn, year) if per_head else active
             if year == self.run.start_year:
                 growth["yoy_growth_pct"] = None
+                active["yoy_growth_pct"] = None
             gap = self._read_snapshot_gap(conn, year)
+            total_pay = self._read_total_pay(conn, year)
         finally:
             conn.close()
-        return self._assemble_row(year, growth, gap, target)
+        row = self._assemble_row(year, growth, gap, target)
+        row.total_pay = total_pay
+        if per_head:
+            row.active_avg_compensation = active["avg_compensation"]
+            row.active_growth_pct = active["yoy_growth_pct"]
+        return row
 
     def _compensation_target(self) -> Optional[float]:
         """Return the average-compensation target as a decimal rate.
@@ -542,6 +612,54 @@ class CalibrationRunner:
         return dict(
             zip(("avg_compensation", "yoy_growth_pct", "headcount", "total_comp"), row)
         )
+
+    @staticmethod
+    def _read_payroll_per_head(
+        conn: duckdb.DuckDBPyConnection, year: int
+    ) -> Dict[str, Any]:
+        """Read total pay for the year divided by year-end active headcount."""
+        row = conn.execute(
+            """
+            WITH annual AS (
+                SELECT simulation_year,
+                       SUM(prorated_annual_compensation) AS total_comp,
+                       COUNT(*) FILTER (
+                           WHERE LOWER(employment_status) = 'active'
+                       ) AS headcount
+                FROM fct_workforce_snapshot
+                WHERE simulation_year IN (?, ?)
+                GROUP BY simulation_year
+            ),
+            per_head AS (
+                SELECT *, total_comp / NULLIF(headcount, 0) AS avg_compensation
+                FROM annual
+            )
+            SELECT current.avg_compensation,
+                   (current.avg_compensation / NULLIF(prior.avg_compensation, 0) - 1) * 100,
+                   current.headcount, current.total_comp
+            FROM per_head AS current
+            LEFT JOIN per_head AS prior
+              ON prior.simulation_year = current.simulation_year - 1
+            WHERE current.simulation_year = ? AND current.headcount > 0
+            """,
+            [year - 1, year, year],
+        ).fetchone()
+        if row is None:
+            raise ConfigurationError(
+                f"No active workforce snapshot rows produced for {year}"
+            )
+        return dict(
+            zip(("avg_compensation", "yoy_growth_pct", "headcount", "total_comp"), row)
+        )
+
+    @staticmethod
+    def _read_total_pay(conn: duckdb.DuckDBPyConnection, year: int) -> Optional[float]:
+        row = conn.execute(
+            "SELECT SUM(prorated_annual_compensation) FROM fct_workforce_snapshot "
+            "WHERE simulation_year = ?",
+            [year],
+        ).fetchone()
+        return row[0] if row else None
 
     @staticmethod
     def _read_snapshot_gap(

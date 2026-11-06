@@ -12,6 +12,7 @@ from ..auth import require_api_token
 from ..config import APISettings, get_settings
 from ..models.system import HealthResponse, SystemStatus
 from ..services.storage_usage import workspace_totals
+from ..services.workspace_service import with_raise_budget
 
 router = APIRouter()
 
@@ -133,69 +134,71 @@ def get_default_config(
     """
     if settings.default_config_path.exists():
         with open(settings.default_config_path) as f:
-            return yaml.safe_load(f)
+            return with_raise_budget(yaml.safe_load(f))
 
     # Return built-in defaults if config file doesn't exist
-    return {
-        "simulation": {
-            "start_year": 2025,
-            "end_year": 2027,
-            "random_seed": 42,
-            "target_growth_rate": 0.03,
-        },
-        "compensation": {
-            "cola_rate": 0.02,
-            "merit_budget": 0.035,
-            "promotion_compensation": {
-                "base_increase_pct": 0.125,
+    return with_raise_budget(
+        {
+            "simulation": {
+                "start_year": 2025,
+                "end_year": 2027,
+                "random_seed": 42,
+                "target_growth_rate": 0.03,
             },
-        },
-        "workforce": {
-            "total_termination_rate": 0.12,
-            "new_hire_termination_rate": 0.25,
-        },
-        "enrollment": {
-            "auto_enrollment": {
+            "compensation": {
+                "cola_rate": 0.02,
+                "merit_budget": 0.035,
+                "promotion_compensation": {
+                    "base_increase_pct": 0.125,
+                },
+            },
+            "workforce": {
+                "total_termination_rate": 0.12,
+                "new_hire_termination_rate": 0.25,
+            },
+            "enrollment": {
+                "auto_enrollment": {
+                    "enabled": True,
+                    "default_deferral_rate": 0.06,
+                    "opt_out_rates": {
+                        "by_age": {
+                            "young": 0.35,
+                            "mid_career": 0.20,
+                            "mature": 0.15,
+                            "senior": 0.10,
+                        },
+                        "by_income": {
+                            "low_income": 0.40,
+                            "moderate": 0.25,
+                            "high": 0.15,
+                            "executive": 0.05,
+                        },
+                    },
+                },
+            },
+            "employer_match": {
+                "active_formula": "simple_match",
+                "formulas": {
+                    "simple_match": {
+                        "name": "Simple Match",
+                        "type": "simple",
+                        "match_rate": 0.50,
+                        "max_match_percentage": 0.06,
+                    },
+                },
+                # E046: New match mode defaults (empty tiers = not configured)
+                "tenure_match_tiers": [],
+                "points_match_tiers": [],
+            },
+            "employer_core_contribution": {
                 "enabled": True,
-                "default_deferral_rate": 0.06,
-                "opt_out_rates": {
-                    "by_age": {
-                        "young": 0.35,
-                        "mid_career": 0.20,
-                        "mature": 0.15,
-                        "senior": 0.10,
-                    },
-                    "by_income": {
-                        "low_income": 0.40,
-                        "moderate": 0.25,
-                        "high": 0.15,
-                        "executive": 0.05,
-                    },
+                "status": "flat",
+                "contribution_rate": 0.03,
+            },
+            "optimization": {
+                "event_generation": {
+                    "mode": "polars",
                 },
             },
-        },
-        "employer_match": {
-            "active_formula": "simple_match",
-            "formulas": {
-                "simple_match": {
-                    "name": "Simple Match",
-                    "type": "simple",
-                    "match_rate": 0.50,
-                    "max_match_percentage": 0.06,
-                },
-            },
-            # E046: New match mode defaults (empty tiers = not configured)
-            "tenure_match_tiers": [],
-            "points_match_tiers": [],
-        },
-        "employer_core_contribution": {
-            "enabled": True,
-            "status": "flat",
-            "contribution_rate": 0.03,
-        },
-        "optimization": {
-            "event_generation": {
-                "mode": "polars",
-            },
-        },
-    }
+        }
+    )

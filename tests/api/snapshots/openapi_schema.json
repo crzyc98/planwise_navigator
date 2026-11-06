@@ -1327,9 +1327,25 @@
             "title": "Converged",
             "type": "boolean"
           },
+          "cost_estimate": {
+            "items": {
+              "$ref": "#/components/schemas/CostEstimateRow"
+            },
+            "title": "Cost Estimate",
+            "type": "array"
+          },
           "end_year": {
             "title": "End Year",
             "type": "integer"
+          },
+          "growth_metric": {
+            "default": "active_average",
+            "enum": [
+              "active_average",
+              "payroll_per_head"
+            ],
+            "title": "Growth Metric",
+            "type": "string"
           },
           "iterations": {
             "items": {
@@ -1401,10 +1417,12 @@
           "target_comp_growth_pct",
           "max_abs_error_pct",
           "objective",
+          "growth_metric",
           "start_year",
           "end_year",
           "iterations",
-          "results"
+          "results",
+          "cost_estimate"
         ],
         "title": "AutoCalibrationResult",
         "type": "object"
@@ -1436,6 +1454,28 @@
             ],
             "title": "Base Job Level Compensation"
           },
+          "compound_band_pct": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 5.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compound Band Pct"
+          },
+          "growth_metric": {
+            "default": "active_average",
+            "enum": [
+              "active_average",
+              "payroll_per_head"
+            ],
+            "title": "Growth Metric",
+            "type": "string"
+          },
           "initial_scale": {
             "default": 1.0,
             "exclusiveMinimum": 0.0,
@@ -1454,6 +1494,13 @@
             "minimum": 1.0,
             "title": "Max Iterations",
             "type": "integer"
+          },
+          "raise_budget_limit_pct": {
+            "default": 1.0,
+            "exclusiveMinimum": 0.0,
+            "maximum": 5.0,
+            "title": "Raise Budget Limit Pct",
+            "type": "number"
           },
           "salary_growth_max": {
             "default": 0.08,
@@ -1490,9 +1537,19 @@
             "title": "Search Mode",
             "type": "string"
           },
+          "solve_raise_budget": {
+            "default": false,
+            "title": "Solve Raise Budget",
+            "type": "boolean"
+          },
           "solve_salary_growth": {
             "default": false,
             "title": "Solve Salary Growth",
+            "type": "boolean"
+          },
+          "stop_on_plateau": {
+            "default": false,
+            "title": "Stop On Plateau",
             "type": "boolean"
           },
           "target_comp_growth": {
@@ -5173,6 +5230,40 @@
           "total_contribution_rate"
         ],
         "title": "ContributionYearSummary",
+        "type": "object"
+      },
+      "CostEstimateRow": {
+        "description": "Pay and estimated employer cost for one year, before and after solving.\n\nCalibration skips the plan calculations, so employer cost is estimated: it\nstays the same share of pay as in the run calibration started from.",
+        "properties": {
+          "current_employer_cost": {
+            "title": "Current Employer Cost",
+            "type": "number"
+          },
+          "current_total_pay": {
+            "title": "Current Total Pay",
+            "type": "number"
+          },
+          "estimated_employer_cost": {
+            "title": "Estimated Employer Cost",
+            "type": "number"
+          },
+          "simulation_year": {
+            "title": "Simulation Year",
+            "type": "integer"
+          },
+          "solved_total_pay": {
+            "title": "Solved Total Pay",
+            "type": "number"
+          }
+        },
+        "required": [
+          "simulation_year",
+          "current_total_pay",
+          "solved_total_pay",
+          "current_employer_cost",
+          "estimated_employer_cost"
+        ],
+        "title": "CostEstimateRow",
         "type": "object"
       },
       "CrossCitation": {
@@ -11903,6 +11994,28 @@
       "PerYearCompensationResult": {
         "description": "Per-year compensation-growth result row (one per simulation year).",
         "properties": {
+          "active_avg_compensation": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Avg Compensation"
+          },
+          "active_growth_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Growth Pct"
+          },
           "avg_compensation": {
             "title": "Avg Compensation",
             "type": "number"
@@ -11997,6 +12110,17 @@
             "title": "Total Compensation",
             "type": "number"
           },
+          "total_pay": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Pay"
+          },
           "yoy_growth_pct": {
             "anyOf": [
               {
@@ -12021,7 +12145,10 @@
           "total_comp_growth_pct",
           "new_hire_avg_comp",
           "existing_avg_comp",
-          "new_hire_gap"
+          "new_hire_gap",
+          "active_avg_compensation",
+          "active_growth_pct",
+          "total_pay"
         ],
         "title": "PerYearCompensationResult",
         "type": "object"
@@ -15159,6 +15286,39 @@
               }
             ],
             "title": "Merit Budget Percent"
+          },
+          "raise_budget": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raise Budget"
+          },
+          "raise_budget_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raise Budget Percent"
+          },
+          "raise_coverage_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raise Coverage Percent"
           }
         },
         "title": "StudioCompensationConfig",

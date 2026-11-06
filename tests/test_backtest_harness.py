@@ -8,7 +8,10 @@ from tests.fixtures.backtest_history import (
     SELF_TEST_BUCKET_TOLERANCE,
     SELF_TEST_TOLERANCE,
 )
-from tests.fixtures.backtest_history import generate_backtest_history
+from tests.fixtures.backtest_history import (
+    generate_backtest_history,
+    write_annual_rate_base_config,
+)
 from planalign_backtest import BacktestOptions
 from planalign_backtest.runner import run_backtest
 from pathlib import Path
@@ -64,6 +67,7 @@ def completed_backtest(tmp_path_factory, simulated_history):
         history.directory,
         BacktestOptions(
             seeds=(42,),
+            base_config=write_annual_rate_base_config(root / "base.yaml"),
             output=root / "pack",
             workdir=root / "run",
             keep_databases=True,
