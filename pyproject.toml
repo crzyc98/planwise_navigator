@@ -64,17 +64,17 @@ dev = [
     # Testing
     # pytest 9.1.1 (was 7.4.0) fixes PYSEC-2026-1845; plugins bumped
     # alongside it for compatibility (#705) -- see requirements-dev.txt.
-    "pytest==9.1.1",
+    "pytest==9.2.0",
     "pytest-cov==7.1.0",
     "pytest-mock==3.17.0",
     "pytest-xdist==3.8.0",
     "pytest-split==0.11.0",
     "hypothesis>=6.0.0",
     "factory-boy==3.3.3",
-    "Faker==40.43.0",
+    "Faker==40.44.0",
 
     # Code Quality
-    "ruff==0.17.2",
+    "ruff==0.17.3",
     "black==26.10.1",
     "isort==9.0.2",
     # Keep mypy on the validated version until the dev toolchain is reviewed.
@@ -82,7 +82,7 @@ dev = [
     # Type stubs for the CI mypy lint job (see requirements-dev.txt / #333)
     "types-PyYAML==6.0.12.20261030",
     "pylint==4.1.3",
-    "flake8==7.4.1",
+    "flake8==7.5.0",
     "pre-commit==4.7.0",
     # Dependency vulnerability scanning (#705)
     "pip-audit==2.10.1",
@@ -96,7 +96,7 @@ dev = [
     "pymdown-extensions==12.3",
     "mkdocstrings-python==2.0.10",
     "jupyter==1.1.1",
-    "ipython==9.17.1",
+    "ipython==9.18.1",
     "ipdb==0.13.13",
 ]
 
