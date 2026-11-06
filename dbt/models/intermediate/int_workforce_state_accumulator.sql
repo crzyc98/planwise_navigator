@@ -188,7 +188,16 @@ compensation_events AS (
     employee_id,
     event_type,
     effective_date AS event_date,
-    compensation_amount AS new_compensation,
+    -- Promotion and merit are both priced from opening pay, so the later event
+    -- must carry both. Otherwise earned pay drops after it, while ending salary
+    -- compounds them in existing_workforce.
+    CASE
+      WHEN merit_raise_rate IS NOT NULL AND promotion_salary IS NOT NULL AND (
+        (event_type = {{ evt_raise() }} AND effective_date >= promotion_date)
+        OR (event_type = {{ evt_promotion() }} AND effective_date > merit_date)
+      ) THEN ROUND(promotion_salary * (1 + merit_raise_rate), 2)
+      ELSE compensation_amount
+    END AS new_compensation,
     previous_compensation,
     ROW_NUMBER() OVER (
       PARTITION BY employee_id
@@ -200,7 +209,20 @@ compensation_events AS (
           WHEN {{ evt_termination() }} THEN 4
         END
     ) AS event_sequence
-  FROM current_year_events
+  FROM (
+    SELECT
+      *,
+      MAX(CASE WHEN event_type = {{ evt_promotion() }} THEN compensation_amount END)
+        OVER (PARTITION BY employee_id) AS promotion_salary,
+      MAX(CASE WHEN event_type = {{ evt_promotion() }} THEN effective_date END)
+        OVER (PARTITION BY employee_id) AS promotion_date,
+      MAX(CASE WHEN event_type = {{ evt_raise() }} AND previous_compensation > 0
+        THEN (compensation_amount / previous_compensation) - 1.0 END)
+        OVER (PARTITION BY employee_id) AS merit_raise_rate,
+      MAX(CASE WHEN event_type = {{ evt_raise() }} THEN effective_date END)
+        OVER (PARTITION BY employee_id) AS merit_date
+    FROM current_year_events
+  ) events_with_pair
   WHERE event_type IN (
     {{ evt_hire() }}, {{ evt_promotion() }}, {{ evt_raise() }}, {{ evt_termination() }}
   )
