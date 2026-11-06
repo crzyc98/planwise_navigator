@@ -326,3 +326,6 @@ export const DEFAULT_FORM_DATA: FormData = {
 
 /** Highest new-hire range scale; matches the calibration search's `scale_max` limit. */
 export const MAX_NEW_HIRE_SCALE = 5;
+
+/** Lowest new-hire scale a calibration search may try. */
+export const MIN_SEARCH_SCALE = 0.5;

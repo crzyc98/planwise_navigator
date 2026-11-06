@@ -3292,8 +3292,10 @@ export interface components {
             reason: string | null;
             /** Results */
             results: components["schemas"]["PerYearCompensationResult"][];
+            settings: components["schemas"]["AutoCalibrationSettings"];
             /** Start Year */
             start_year: number;
+            starting_params: components["schemas"]["CalibrationParameterSet"];
             /**
              * Status
              * @enum {string}

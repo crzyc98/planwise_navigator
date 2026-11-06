@@ -108,6 +108,10 @@ def test_worker(
 def test_worker_optimize(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     received = []
     outcome = AutoCalibrationResult(
+        settings=AutoCalibrationSettings(
+            target_workforce_growth=0.03, target_comp_growth=0.04
+        ),
+        starting_params=request().run.params,
         converged=True,
         status="converged",
         message="done",

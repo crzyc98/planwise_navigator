@@ -464,11 +464,16 @@ def test_concurrent_runs_on_same_db_serialize(client, monkeypatch, tmp_path) -> 
 def test_optimize_returns_outcome(client, monkeypatch, status: str) -> None:
     from planalign_orchestrator.calibration_optimizer import (
         AutoCalibrationResult,
+        AutoCalibrationSettings,
         OptimizationIteration,
     )
     from planalign_orchestrator.calibration_runner import CalibrationParameterSet
 
     outcome = AutoCalibrationResult(
+        settings=AutoCalibrationSettings(
+            target_workforce_growth=0.03, target_comp_growth=0.04
+        ),
+        starting_params=CalibrationParameterSet(),
         converged=status == "converged",
         status=status,
         reason="Analyst-facing explanation.",

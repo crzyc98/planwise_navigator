@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { baselineScenarioId, costSummary, growthMetricSettings, isMissingRunError, searchLimitNotes } from './calibrationScenario';
+import { baselineScenarioId, costSummary, growthMetricSettings, isMissingRunError, searchInputLines, searchLimitNotes } from './calibrationScenario';
 import { ApiError } from '../services/api';
 import CalibrationPanel from './CalibrationPanel';
 
@@ -120,5 +120,35 @@ describe('calibration scenario defaults', () => {
     expect(isMissingRunError(new ApiError(409, 'Conflict', 'The target workspace census is missing.'))).toBe(false);
     expect(isMissingRunError(new ApiError(422, 'Unprocessable', detail))).toBe(false);
     expect(isMissingRunError(new Error(detail))).toBe(false);
+  });
+});
+
+describe('search input lines', () => {
+  it('names every start and bound of a two-dial search', () => {
+    expect(searchInputLines({
+      tolerance_pct: 0.05,
+      max_iterations: 8,
+      search_mode: 'new_hire_scale',
+      initial_scale: 1.5,
+      scale_min: 0.5,
+      scale_max: 4,
+      solve_salary_growth: true,
+      salary_growth_min: 0,
+      salary_growth_max: 0.08,
+      compound_band_pct: 0.04,
+      solve_raise_budget: true,
+      raise_budget_limit_pct: 1,
+    })).toEqual([
+      'Tolerance ±0.05pp, up to 8 runs.',
+      'New-hire scale starts at 1.50×, searched from 0.50× to 4.00×.',
+      'Starting-pay growth searched from 0.0% to 8.0%/yr.',
+      'Horizon mean held within ±0.04pp of the target.',
+      'Raise budget set from the target, within 1.0pp of the starting raises.',
+    ]);
+  });
+
+  it('leaves out dials a raises-only search does not use', () => {
+    expect(searchInputLines({ search_mode: 'levers', tolerance_pct: 0.1, max_iterations: 4 }))
+      .toEqual(['Tolerance ±0.10pp, up to 4 runs.']);
   });
 });

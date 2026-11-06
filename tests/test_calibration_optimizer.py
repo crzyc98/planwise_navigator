@@ -741,3 +741,15 @@ def test_seed_note_needs_a_small_miss_with_the_mean_on_target(
     optimizer._best = SimpleNamespace(abs_error=error, achieved_pct=mean)
 
     assert bool(optimizer._seed_note(3.0)) is noted
+
+
+def test_result_keeps_the_inputs_it_was_given(tmp_path) -> None:
+    settings = _two_dial_settings(scale_max=4.0, salary_growth_max=0.1)
+    optimizer = _make_optimizer(tmp_path, settings)
+    _balanced_response(optimizer)
+
+    outcome = optimizer.optimize()
+
+    assert outcome.settings == settings
+    assert outcome.starting_params.workforce_growth_rate == pytest.approx(0.03)
+    assert outcome.starting_params.job_level_compensation is None

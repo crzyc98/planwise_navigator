@@ -178,6 +178,9 @@ class AutoCalibrationResult(BaseModel):
     iterations: List[OptimizationIteration]
     results: List[PerYearCompensationResult]
     cost_estimate: List[CostEstimateRow] = Field(default_factory=list)
+    # What the search was given, so a saved result can be read and rerun.
+    settings: AutoCalibrationSettings
+    starting_params: CalibrationParameterSet
 
 
 def _annual_objective(
@@ -289,6 +292,7 @@ class AutoCalibrator:
         self.run = run.model_copy(
             update={"params": params, "growth_metric": settings.growth_metric}
         )
+        self._starting_params = params
         self._runner = CalibrationRunner(self.run, threads=threads, verbose=verbose)
         # Weights for distributing a lever-stage shift across COLA/merit.
         self._weights = {
@@ -890,4 +894,6 @@ class AutoCalibrator:
             iterations=self._iterations,
             results=best.results,
             cost_estimate=self._cost_estimate(best.results),
+            settings=self.settings,
+            starting_params=self._starting_params,
         )
