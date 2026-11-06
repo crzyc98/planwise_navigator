@@ -102,6 +102,52 @@ def test_workforce_earned_compensation(year: int) -> None:
     assert actual["term"] + actual["hire"] == pytest.approx(100000, abs=1e-10)
 
 
+@pytest.mark.parametrize(
+    ("promotion_date", "raise_date", "middle_salary"),
+    [("02-01", "07-15", 112500), ("07-15", "02-01", 109000), ("07-15", "07-15", None)],
+    ids=["promotion_first", "raise_first", "same_day"],
+)
+def test_earned_pay_keeps_both_promotion_and_raise(
+    promotion_date: str, raise_date: str, middle_salary: float | None
+) -> None:
+    """Each event is priced from opening pay, so the later one must carry both."""
+    year = 2027
+    ctes = render_ctes(
+        "models/intermediate/int_workforce_state_accumulator.sql",
+        "compensation_events AS (",
+        "\nSELECT\n  '{{ scenario_id }}'",
+        year,
+    )
+    with duckdb.connect(":memory:") as conn:
+        setup_workforce(conn, year)
+        conn.execute(
+            "INSERT INTO deduplicated_workforce VALUES "
+            "('both', '2020-01-01', NULL, 'active', 122625)"
+        )
+        conn.executemany(
+            "INSERT INTO current_year_events VALUES ('both', ?, ?::DATE, ?, 100000)",
+            [
+                ("promotion", f"{year}-{promotion_date}", 112500),
+                ("raise", f"{year}-{raise_date}", 109000),
+            ],
+        )
+        actual = dict(
+            conn.execute(
+                "WITH " + ctes + " SELECT * FROM prorated_compensation"
+            ).fetchall()
+        )
+    first = date.fromisoformat(f"{year}-{min(promotion_date, raise_date)}")
+    last = date.fromisoformat(f"{year}-{max(promotion_date, raise_date)}")
+    start = date(year, 1, 1)
+    end = date(year + 1, 1, 1)
+    expected = (
+        100000 * (first - start).days
+        + (middle_salary or 0) * (last - first).days
+        + 122625 * (end - last).days
+    ) / (end - start).days
+    assert actual["both"] == pytest.approx(expected)
+
+
 @pytest.mark.parametrize("year", [2027, 2028, 2029])
 def test_census_plan_year_compensation(year: int) -> None:
     ctes = (
