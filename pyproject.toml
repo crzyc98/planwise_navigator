@@ -77,7 +77,6 @@ dev = [
     "ruff==0.17.3",
     "black==26.10.1",
     "isort==9.0.2",
-    # Keep mypy on the validated version until the dev toolchain is reviewed.
     "mypy==2.4.1",
     # Type stubs for the CI mypy lint job (see requirements-dev.txt / #333)
     "types-PyYAML==6.0.12.20261030",
