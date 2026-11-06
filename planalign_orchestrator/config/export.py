@@ -213,6 +213,11 @@ def _export_simulation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
         dbt_vars["cola_rate"] = cfg.compensation.cola_rate
     if cfg.compensation.merit_budget is not None:
         dbt_vars["merit_budget"] = cfg.compensation.merit_budget
+    if cfg.compensation.raise_budget is not None:
+        dbt_vars["raise_budget"] = cfg.compensation.raise_budget
+        dbt_vars["raise_flat_share"] = cfg.compensation.raise_flat_share
+        if cfg.compensation.raise_coverage < 1:
+            dbt_vars["raise_coverage"] = cfg.compensation.raise_coverage
 
     logger.info(
         "Compensation dbt vars: cola_rate=%s, merit_budget=%s",
@@ -679,6 +684,10 @@ def _export_legacy_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
                     repo_root = Path(__file__).resolve().parent.parent.parent
                     cpp_path = (repo_root / cpp_path).resolve()
                 dbt_vars["census_parquet_path"] = str(cpp_path)
+
+            census_pay_basis = setup.get("census_pay_basis", "earnings")
+            if census_pay_basis != "earnings":
+                dbt_vars["census_pay_basis"] = census_pay_basis
 
             # Optional plan-year & eligibility vars
             pysd = setup.get("plan_year_start_date")

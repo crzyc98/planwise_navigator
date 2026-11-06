@@ -70,7 +70,7 @@ export function TemplateModal({ templates, onClose }: TemplateModalProps) {
                 }));
                 onClose();
               }}
-              className="w-full text-left p-4 border border-border rounded-lg hover:border-fidelity-green hover:bg-success-surface transition-colors"
+              className="w-full text-left p-4 border border-border rounded-lg hover:border-brand-green hover:bg-success-surface transition-colors"
             >
               <div className="flex justify-between items-start">
                 <div>

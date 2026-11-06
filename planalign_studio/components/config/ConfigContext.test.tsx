@@ -1,7 +1,7 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { applyConfigToFormData, ConfigContextType, ConfigProvider, hasDcPlanChanges, useConfigContext } from './ConfigContext';
+import { applyConfigToFormData, ConfigContextType, ConfigProvider, draftFromBaseline, hasDcPlanChanges, useConfigContext } from './ConfigContext';
 import { DEFAULT_FORM_DATA } from './constants';
 import { buildConfigPayload } from './buildConfigPayload';
 import { previewConfiguration, updateWorkspace, Workspace } from '../../services/api';
@@ -214,5 +214,30 @@ describe('Configuration save year validation', () => {
     hydration.failed = status === 'failed';
     expect(await saveFromProvider()()).toBe(false);
     expect(updateWorkspace).not.toHaveBeenCalled();
+  });
+});
+
+describe('Copy from Scenario baseline', () => {
+  // Settings the form only hydrates from resolved engine variables, or doesn't model.
+  const source = {
+    dc_plan: {
+      core_age_schedule: [{ min_age: 0, rate: 0.02 }, { min_age: 50, rate: 0.04 }],
+      core_integration_enabled: true,
+      deferral_match_response: { enabled: true, upward_participation_rate: 0.5 },
+      voluntary_enrollment_rate: 0.4,
+    },
+  };
+  const scope = { isScenario: true };
+  const copied = { ...applyConfigToFormData(source, DEFAULT_FORM_DATA), dcVoluntaryEnrollmentMode: 'specified' as const };
+  const baseline = { config: source, form: copied, promotionHazardConfig: null, bandConfig: null };
+
+  it('saves the source scenario verbatim, without the target’s overrides', () => {
+    expect(draftFromBaseline(baseline, baseline, scope, {})).toEqual(source);
+  });
+
+  it('applies edits made after the copy on top of the source', () => {
+    const draft = draftFromBaseline(baseline, { ...baseline, form: { ...copied, totalTerminationRate: 15 } }, scope, {});
+    expect(draft.dc_plan).toEqual(source.dc_plan);
+    expect(draft.workforce.total_termination_rate).toBeCloseTo(0.15);
   });
 });

@@ -1977,6 +1977,13 @@ export async function getCalibrationRun(runId: string): Promise<CalibrationJob> 
   return handleResponse<CalibrationJob>(response);
 }
 
+export async function cancelCalibrationRun(runId: string): Promise<CalibrationJob> {
+  const response = await fetchWithAuth(`${API_BASE}/api/calibration/runs/${runId}/cancel`, {
+    method: 'POST',
+  });
+  return handleResponse<CalibrationJob>(response);
+}
+
 const CALIBRATION_POLL_MS = 2000;
 
 export class CalibrationStatusUnavailable extends Error {
@@ -1984,6 +1991,14 @@ export class CalibrationStatusUnavailable extends Error {
     super(`Unable to retrieve calibration ${runId}. The server may still be running it. `
       + `Use “Retrieve result” to check the same run. ${cause instanceof Error ? cause.message : String(cause)}`);
     this.name = 'CalibrationStatusUnavailable';
+  }
+}
+
+/** The job was cancelled (POST /calibration/runs/{run_id}/cancel). */
+export class CalibrationCancelled extends ApiError {
+  constructor() {
+    super(409, 'Calibration cancelled');
+    this.name = 'CalibrationCancelled';
   }
 }
 
@@ -2012,6 +2027,7 @@ async function awaitCalibrationJob(runId: string): Promise<CalibrationJob> {
       continue;
     }
     if (job.status === 'completed') return job;
+    if (job.status === 'cancelled') throw new CalibrationCancelled();
     if (job.status === 'failed') {
       throw new ApiError(
         job.error_status ?? 500,
@@ -2048,7 +2064,8 @@ export async function runCalibration(
  * background job and polled to completion (issue #380).
  */
 export async function optimizeCalibration(
-  request: AutoCalibrationRequest
+  request: AutoCalibrationRequest,
+  onStarted?: (runId: string) => void
 ): Promise<AutoCalibrationResponse> {
   const response = await fetchWithAuth(`${API_BASE}/api/calibration/optimize`, {
     method: 'POST',
@@ -2056,6 +2073,7 @@ export async function optimizeCalibration(
     body: JSON.stringify(request),
   });
   const started = await handleResponse<CalibrationStartResponse>(response);
+  onStarted?.(started.run_id);
   return retrieveCalibrationResult(started.run_id);
 }
 

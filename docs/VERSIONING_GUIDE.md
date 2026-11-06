@@ -1,6 +1,6 @@
 # Versioning Guide
 
-Fidelity PlanAlign Engine follows [Semantic Versioning 2.0.0](https://semver.org/):
+PlanAlign Engine follows [Semantic Versioning 2.0.0](https://semver.org/):
 **MAJOR.MINOR.PATCH**.
 
 - **MAJOR** — incompatible API/config changes or major architectural changes
@@ -28,9 +28,9 @@ reports the engine version via `planalign --version`.
    entries in README, SECURITY, and CLAUDE with `pyproject.toml`,
    `requirements.txt`, and resolved `uv.lock` versions. Keep dated upgrade
    validation records historical; do not relabel their tested versions.
-5. Review `METHODOLOGY.md` against shipped features and configuration defaults,
-   including migration semantics. Update its system version, document date,
-   scope, assumptions, limitations, and linked feature guides. Distinguish
+5. Review `docs/overview.md` and the feature guides against shipped features and configuration defaults,
+   including migration semantics. Update their
+   scope, assumptions, limitations, and links. Distinguish
    checked-in sample settings from typed defaults and per-design overrides.
 6. Check README's profile key against `profile` in `dbt/dbt_project.yml` and
    `dbt/profiles.yml`. Copy the README YAML into a fresh temporary profiles

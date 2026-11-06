@@ -1,4 +1,4 @@
-"""Centralized string constants for Fidelity PlanAlign Engine.
+"""Centralized string constants for PlanAlign Engine.
 
 This module defines constants for strings that are used across multiple files
 to eliminate duplication and ensure consistency. Organized by category.

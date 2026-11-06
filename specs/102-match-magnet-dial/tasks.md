@@ -1,8 +1,8 @@
 ---
-description: "Task list for Voluntary-Enrollment Match-Magnet Dial & Ceiling Fidelity"
+description: "Task list for Voluntary-Enrollment Match-Magnet Dial & Ceiling accuracy"
 ---
 
-# Tasks: Voluntary-Enrollment Match-Magnet Dial & Match-Ceiling Fidelity
+# Tasks: Voluntary-Enrollment Match-Magnet Dial & Match-Ceiling accuracy
 
 **Input**: Design documents from `/specs/102-match-magnet-dial/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/

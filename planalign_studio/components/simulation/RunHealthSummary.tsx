@@ -211,7 +211,7 @@ export default function RunHealthSummary({
         {runId && (
           <Link
             to={`/simulate/${scenarioId}/runs/${runId}/provenance`}
-            className="flex items-center gap-1 text-sm font-medium text-fidelity-green hover:underline"
+            className="flex items-center gap-1 text-sm font-medium text-brand-ink hover:underline"
           >
             View full audit report
             <ArrowRight size={14} />

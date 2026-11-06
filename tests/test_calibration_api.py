@@ -8,21 +8,36 @@ CalibrationRunner mocked, so no dbt build runs.
 from __future__ import annotations
 
 import time
+import sys
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from planalign_api.routers import calibration as calibration_router
 from planalign_orchestrator.calibration_runner import PerYearCompensationResult
+from planalign_orchestrator import calibration_worker
+from planalign_api.services.calibration_jobs import JobStore, JobRunner
+from planalign_api.services.calibration_process import ProcessRegistry
 from planalign_orchestrator.exceptions import ConfigurationError
 
 pytestmark = [pytest.mark.fast]
 
 
 @pytest.fixture
-def client() -> TestClient:
+def client(tmp_path, monkeypatch) -> TestClient:
     from fastapi import FastAPI
 
+    store = JobStore(tmp_path)
+
+    def command(directory: Path) -> list[str]:
+        # Existing engine mocks exercise JSON transport without invoking dbt.
+        code = calibration_worker.main(directory)
+        return [sys.executable, "-c", f"raise SystemExit({code})"]
+
+    runner = JobRunner(store, ProcessRegistry(), command)
+    monkeypatch.setattr(calibration_router, "get_job_store", lambda: store)
+    monkeypatch.setattr(calibration_router, "get_job_runner", lambda: runner)
     app = FastAPI()
     app.include_router(calibration_router.router, prefix="/api")
     return TestClient(app)
@@ -69,12 +84,12 @@ _SAMPLE = [
 
 def test_run_returns_per_year_results(client, monkeypatch) -> None:
     monkeypatch.setattr(
-        calibration_router.CalibrationRunner,
+        calibration_worker.CalibrationRunner,
         "__init__",
         lambda self, run, **kw: None,
     )
     monkeypatch.setattr(
-        calibration_router.CalibrationRunner,
+        calibration_worker.CalibrationRunner,
         "run_calibration",
         lambda self: _SAMPLE,
     )
@@ -98,7 +113,7 @@ def test_run_returns_per_year_results(client, monkeypatch) -> None:
 
 def test_missing_prerequisites_fails_job_with_409(client, monkeypatch) -> None:
     monkeypatch.setattr(
-        calibration_router.CalibrationRunner,
+        calibration_worker.CalibrationRunner,
         "__init__",
         lambda self, run, **kw: None,
     )
@@ -106,7 +121,7 @@ def test_missing_prerequisites_fails_job_with_409(client, monkeypatch) -> None:
     def _boom(self):
         raise ConfigurationError("missing DC tables; run a full simulation first")
 
-    monkeypatch.setattr(calibration_router.CalibrationRunner, "run_calibration", _boom)
+    monkeypatch.setattr(calibration_worker.CalibrationRunner, "run_calibration", _boom)
 
     resp = client.post(
         "/api/calibration/run", json={"start_year": 2025, "end_year": 2026}
@@ -121,7 +136,7 @@ def test_missing_prerequisites_fails_job_with_409(client, monkeypatch) -> None:
 
 def test_unexpected_failure_fails_job_with_500(client, monkeypatch) -> None:
     monkeypatch.setattr(
-        calibration_router.CalibrationRunner,
+        calibration_worker.CalibrationRunner,
         "__init__",
         lambda self, run, **kw: None,
     )
@@ -129,7 +144,7 @@ def test_unexpected_failure_fails_job_with_500(client, monkeypatch) -> None:
     def _boom(self):
         raise RuntimeError("dbt exploded")
 
-    monkeypatch.setattr(calibration_router.CalibrationRunner, "run_calibration", _boom)
+    monkeypatch.setattr(calibration_worker.CalibrationRunner, "run_calibration", _boom)
 
     resp = client.post(
         "/api/calibration/run", json={"start_year": 2025, "end_year": 2026}
@@ -167,10 +182,10 @@ def test_negative_cola_returns_422(client) -> None:
 def test_new_levers_accepted(client, monkeypatch) -> None:
     # workforce_growth_rate + new_hire_age_distribution are real levers now.
     monkeypatch.setattr(
-        calibration_router.CalibrationRunner, "__init__", lambda self, run, **kw: None
+        calibration_worker.CalibrationRunner, "__init__", lambda self, run, **kw: None
     )
     monkeypatch.setattr(
-        calibration_router.CalibrationRunner, "run_calibration", lambda self: _SAMPLE
+        calibration_worker.CalibrationRunner, "run_calibration", lambda self: _SAMPLE
     )
     resp = client.post(
         "/api/calibration/run",
@@ -314,9 +329,9 @@ def test_workspace_config_flows_to_runner(
         with open(run.config_path) as f:
             captured["config"] = yaml.safe_load(f)
 
-    monkeypatch.setattr(calibration_router.CalibrationRunner, "__init__", _fake_init)
+    monkeypatch.setattr(calibration_worker.CalibrationRunner, "__init__", _fake_init)
     monkeypatch.setattr(
-        calibration_router.CalibrationRunner, "run_calibration", lambda self: _SAMPLE
+        calibration_worker.CalibrationRunner, "run_calibration", lambda self: _SAMPLE
     )
     client.app.dependency_overrides[calibration_router.get_storage] = lambda: _Storage()
     try:
@@ -417,7 +432,7 @@ def test_concurrent_runs_on_same_db_serialize(client, monkeypatch, tmp_path) -> 
     gate = threading.Lock()
 
     monkeypatch.setattr(
-        calibration_router.CalibrationRunner, "__init__", lambda self, run, **kw: None
+        calibration_worker.CalibrationRunner, "__init__", lambda self, run, **kw: None
     )
 
     def _slow_build(self):
@@ -430,7 +445,7 @@ def test_concurrent_runs_on_same_db_serialize(client, monkeypatch, tmp_path) -> 
         return _SAMPLE
 
     monkeypatch.setattr(
-        calibration_router.CalibrationRunner, "run_calibration", _slow_build
+        calibration_worker.CalibrationRunner, "run_calibration", _slow_build
     )
 
     body = {"start_year": 2025, "end_year": 2026, "database_path": str(db_path)}
@@ -477,12 +492,12 @@ def test_optimize_returns_outcome(client, monkeypatch, status: str) -> None:
         results=_SAMPLE,
     )
     monkeypatch.setattr(
-        calibration_router.AutoCalibrator,
+        calibration_worker.AutoCalibrator,
         "__init__",
         lambda self, run, settings, **kw: None,
     )
     monkeypatch.setattr(
-        calibration_router.AutoCalibrator, "optimize", lambda self: outcome
+        calibration_worker.AutoCalibrator, "optimize", lambda self: outcome
     )
 
     resp = client.post(
@@ -599,10 +614,10 @@ def test_apply_persists_exact_ranges_and_reports_partial_failures(
 def test_job_level_compensation_with_name_is_accepted(client, monkeypatch) -> None:
     # Regression: ranges include a string `name`; must not 422 (was Dict[str,float]).
     monkeypatch.setattr(
-        calibration_router.CalibrationRunner, "__init__", lambda self, run, **kw: None
+        calibration_worker.CalibrationRunner, "__init__", lambda self, run, **kw: None
     )
     monkeypatch.setattr(
-        calibration_router.CalibrationRunner, "run_calibration", lambda self: _SAMPLE
+        calibration_worker.CalibrationRunner, "run_calibration", lambda self: _SAMPLE
     )
     resp = client.post(
         "/api/calibration/run",

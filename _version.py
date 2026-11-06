@@ -1,7 +1,7 @@
 """
-Fidelity PlanAlign Engine Version Information
+PlanAlign Engine Version Information
 
-This module provides centralized version management for Fidelity PlanAlign Engine.
+This module provides centralized version management for PlanAlign Engine.
 Follow Semantic Versioning 2.0.0 (https://semver.org/)
 
 Version format: MAJOR.MINOR.PATCH

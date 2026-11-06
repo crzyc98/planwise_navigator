@@ -15,7 +15,7 @@ description: "Task list for 130-promotion-fit-bias"
 
 - **[P]**: Can run in parallel — different files, no dependency on an incomplete task
 - **[Story]**: US1–US4, mapping to spec.md user stories
-- All paths are repository-relative from `/Users/nicholasamaral/Developer/fidelity_planalign`
+- All paths are repository-relative from `<repo>`
 
 ---
 

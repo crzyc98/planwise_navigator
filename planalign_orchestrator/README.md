@@ -1,7 +1,7 @@
 PlanAlign Orchestrator
 ======================
 
-Lightweight core package providing config, utility, dbt orchestration, registry management, and validation helpers for the Fidelity PlanAlign Engine pipeline.
+Lightweight core package providing config, utility, dbt orchestration, registry management, and validation helpers for the PlanAlign Engine pipeline.
 
 Modules
 - `construction`: The sole supported `PipelineOrchestrator` construction seam,

@@ -96,8 +96,8 @@ function createChartTheme(
     legendText: tooltipText,
     categorical,
     semantic: Object.freeze({
-      primary: isDark ? '#4CAF50' : '#00853F',
-      positive: isDark ? '#4CAF50' : '#00853F',
+      primary: isDark ? '#10b981' : '#047857',
+      positive: isDark ? '#10b981' : '#047857',
       negative: isDark ? '#F07A54' : '#D55E00',
       neutral: isDark ? '#A8ACA4' : '#6B7280',
       warning: isDark ? '#D18A18' : '#D97706',

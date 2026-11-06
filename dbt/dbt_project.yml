@@ -1,9 +1,9 @@
-name: 'fidelity_planalign_engine'
+name: 'planalign_engine'
 version: '3.0.0'
 config-version: 2
 
 # Profile configuration
-profile: 'fidelity_planalign_engine'
+profile: 'planalign_engine'
 
 # Directory configuration
 model-paths: ["models"]
@@ -20,7 +20,7 @@ clean-targets:
 
 # E068E: Model configuration with performance optimizations
 models:
-  fidelity_planalign_engine:
+  planalign_engine:
     # Global model settings - default to view for memory efficiency
     +materialized: view
 
@@ -111,7 +111,7 @@ models:
 
 # E068E: Seeds configuration with performance optimizations
 seeds:
-  fidelity_planalign_engine:
+  planalign_engine:
     # Global seed column types for performance
     +column_types:
       employee_id: varchar
@@ -157,7 +157,7 @@ seeds:
 
 # Snapshot configuration
 snapshots:
-  fidelity_planalign_engine:
+  planalign_engine:
     +target_schema: main
     +strategy: timestamp
     +updated_at: updated_at
@@ -170,7 +170,7 @@ snapshots:
 # +-prefixed directory config (confirmed against dbt's own docs). This is
 # the one and only place dbt supports project-wide data test config.
 data_tests:
-  fidelity_planalign_engine:
+  planalign_engine:
     +severity: warn
     +store_failures: true
     +schema: test_failures
@@ -184,6 +184,10 @@ vars:
   # Use an env-driven, repo-relative default so this works across machines
   # When running dbt from the /dbt directory, ../data points to the repo's data folder
   census_parquet_path: "{{ env_var('DATA_PATH', '../data') }}/census_preprocessed.parquet"
+
+  # Census compensation defaults to earnings; use annual_rate for true salary rates.
+  census_pay_basis: earnings
+  census_pay_min_days: 30
 
   # Simulation parameters
   simulation_year: 2025
@@ -342,7 +346,7 @@ vars:
   min_headcount_threshold: 100
 
   # Database configuration
-  database_name: 'fidelity_planalign_engine'
+  database_name: 'planalign_engine'
   schema_prefix: 'dbt_'
 
   # E068E: Performance optimization variables
@@ -396,15 +400,15 @@ on-run-start:
   - "SET memory_limit TO '48GB'"
 
   # Startup logging
-  - "{{ log('Starting dbt run for Fidelity PlanAlign Engine with performance optimizations', info=True) }}"
+  - "{{ log('Starting dbt run for PlanAlign Engine with performance optimizations', info=True) }}"
 
 on-run-end:
   # Cleanup and performance reporting
-  - "{{ log('Completed dbt run for Fidelity PlanAlign Engine', info=True) }}"
+  - "{{ log('Completed dbt run for PlanAlign Engine', info=True) }}"
 
 # Freshness configuration
 sources:
-  fidelity_planalign_engine:
+  planalign_engine:
     +freshness:
       warn_after: {count: 24, period: hour}
       error_after: {count: 48, period: hour}

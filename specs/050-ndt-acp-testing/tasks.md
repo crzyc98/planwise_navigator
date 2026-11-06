@@ -88,7 +88,7 @@
 
 ### Implementation for User Story 3
 
-- [X] T015 [US3] Add comparison mode toggle and multi-scenario pill selector in `planalign_studio/components/NDTTesting.tsx`. Follow `DCPlanAnalytics.tsx` pattern: comparison mode button toggles between single-select and multi-select. In comparison mode, show completed scenarios as selectable pills with `bg-fidelity-green` for selected. Cap at `MAX_SCENARIO_SELECTION` (6). Update API call to pass all selected scenario IDs.
+- [X] T015 [US3] Add comparison mode toggle and multi-scenario pill selector in `planalign_studio/components/NDTTesting.tsx`. Follow `DCPlanAnalytics.tsx` pattern: comparison mode button toggles between single-select and multi-select. In comparison mode, show completed scenarios as selectable pills with `bg-brand-green` for selected. Cap at `MAX_SCENARIO_SELECTION` (6). Update API call to pass all selected scenario IDs.
 - [X] T016 [US3] Add side-by-side comparison results layout in `planalign_studio/components/NDTTesting.tsx`. When multiple scenarios selected, render one result card per scenario in a responsive grid (1 column on mobile, 2-3 on desktop). Each card shows: scenario name, pass/fail badge with color coding (green pass, red fail), HCE average ACP, NHCE average ACP, applied threshold, and margin.
 
 **Checkpoint**: User Story 3 complete — multi-scenario comparison is functional with color-coded pass/fail.

@@ -1,4 +1,4 @@
-# Phase 1 Data Model: Match-Magnet Dial & Ceiling Fidelity
+# Phase 1 Data Model: Match-Magnet Dial & Ceiling accuracy
 
 No new database tables or event types. This feature adds **configuration** entities and a derived per-employee value used inside existing voluntary-enrollment models.
 

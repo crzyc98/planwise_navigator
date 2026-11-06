@@ -44,7 +44,7 @@ export function DCPlanPanel({ id, title, summary, children, enabled = true, cont
     <div className="rounded-lg border border-border bg-surface-raised sm:col-span-6">
       {control && <div className="p-4 pb-0">{control}</div>}
     <details id={id} open={enabled}>
-      <summary className="cursor-pointer rounded-lg p-4 focus-visible:outline-2 focus-visible:outline-fidelity-green">
+      <summary className="cursor-pointer rounded-lg p-4 focus-visible:outline-2 focus-visible:outline-brand-green">
         <span className="font-semibold text-ink">{title}</span>
         <span className="mt-1 block text-xs font-normal text-ink-muted break-words">{summary}</span>
       </summary>
@@ -113,7 +113,7 @@ export function EmployerEligibilityEditor({ kind, config }: { kind: Contribution
       {flags.map(([suffix, label]) => {
         const name = `${prefix}${suffix}` as const;
         return <label key={name} htmlFor={name} className="flex items-center gap-2 text-sm text-ink-muted">
-          <input id={name} name={name} type="checkbox" checked={formData[name]} onChange={handleChange} className="h-4 w-4 shrink-0 text-fidelity-green rounded" />
+          <input id={name} name={name} type="checkbox" checked={formData[name]} onChange={handleChange} className="h-4 w-4 shrink-0 text-brand-ink rounded" />
           {label}
         </label>;
       })}

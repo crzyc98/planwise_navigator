@@ -89,7 +89,7 @@ export default function Dashboard() {
           title="Active Simulations"
           value={systemStatus?.active_simulations ?? '-'}
           subtext={`${systemStatus?.queued_simulations ?? 0} Queued`}
-          icon={<ActivityIcon className="text-fidelity-green" />}
+          icon={<ActivityIcon className="text-brand-ink" />}
           color="green"
           onClick={() => navigate('/simulate')}
         />
@@ -126,7 +126,7 @@ export default function Dashboard() {
             <h2 className="text-lg font-semibold text-ink">Recent Simulations</h2>
             <button
               onClick={() => navigate('/simulate')}
-              className="text-sm text-fidelity-green hover:text-fidelity-dark font-medium"
+              className="text-sm text-brand-ink hover:text-brand-ink-strong font-medium"
             >
               View All
             </button>
@@ -159,7 +159,7 @@ export default function Dashboard() {
                         {isRunning ? <TrendingUp size={20} /> : <CheckCircle size={20} />}
                       </div>
                       <div className="ml-4">
-                        <p className="text-sm font-medium text-ink group-hover:text-fidelity-green transition-colors">
+                        <p className="text-sm font-medium text-ink group-hover:text-brand-ink transition-colors">
                           {scenario.name}
                         </p>
                         <div className="text-xs text-ink-muted flex items-center mt-0.5">
@@ -185,7 +185,7 @@ export default function Dashboard() {
           <div className="space-y-3">
              <button
                onClick={() => navigate('/simulate')}
-               className="w-full flex items-center p-3 bg-fidelity-green text-ink-inverse rounded-lg hover:bg-fidelity-dark transition-colors shadow-sm"
+               className="w-full flex items-center p-3 bg-brand-green text-ink-inverse rounded-lg hover:bg-brand-dark transition-colors shadow-sm"
              >
                 <PlayCircle size={20} className="mr-3" />
                 <span className="font-medium">New Simulation</span>

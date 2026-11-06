@@ -1,6 +1,6 @@
 # Scenario Configuration Examples
 
-This directory contains example scenario configurations for Fidelity PlanAlign Engine batch processing (Epic E069).
+This directory contains example scenario configurations for PlanAlign Engine batch processing (Epic E069).
 
 ## Usage
 

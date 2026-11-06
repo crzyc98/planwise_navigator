@@ -71,7 +71,7 @@ export function JobProgress({ workspaceId, job, onChanged }: JobProgressProps) {
       </div>
       {percent !== null && (
         <div className="h-2 overflow-hidden rounded bg-surface-raised">
-          <div className="h-full bg-fidelity-green transition-all" style={{ width: `${percent}%` }} />
+          <div className="h-full bg-brand-green transition-all" style={{ width: `${percent}%` }} />
         </div>
       )}
       <p className="text-xs">

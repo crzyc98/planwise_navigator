@@ -1,4 +1,4 @@
-# Fidelity PlanAlign Engine
+# PlanAlign Engine
 
 **An enterprise-grade, on-premises workforce and DC-plan simulation platform with immutable event sourcing — built on DuckDB, dbt, FastAPI, and React.**
 
@@ -6,9 +6,9 @@ Current version: **3.0.0** ("Plan Design & Evidence") — see [_version.py](_ver
 
 ## Overview
 
-Fidelity PlanAlign Engine replaces rigid spreadsheet projections with a transparent, reproducible simulation engine — a workforce "time machine" that records every modeled employee lifecycle and retirement-plan event with UUID-stamped precision and enables instant scenario replay and comparison.
+PlanAlign Engine replaces rigid spreadsheet projections with a transparent, reproducible simulation engine — a workforce "time machine" that records every modeled employee lifecycle and retirement-plan event with UUID-stamped precision and enables instant scenario replay and comparison.
 
-Plan sponsors and their advisors use it to estimate the multi-year financial impact of retirement plan design changes — match formulas, auto-enrollment strategies, vesting schedules, eligibility rules — against projected workforce demographics. See [METHODOLOGY.md](METHODOLOGY.md) for the full modeling methodology, assumptions, and limitations.
+Plan sponsors and their advisors use it to estimate the multi-year financial impact of retirement plan design changes — match formulas, auto-enrollment strategies, vesting schedules, eligibility rules — against projected workforce demographics.
 
 ### Key Features
 
@@ -88,7 +88,7 @@ Seed-based parameters (bands, hazards, IRS limits, match tiers) follow a strict 
 ## Directory Structure
 
 ```
-fidelity_planalign/
+planalign/
 ├── planalign_orchestrator/        # Production orchestration engine
 │   ├── pipeline/                  # Modular pipeline (workflow, year_executor,
 │   │                              #   state_manager, event_generation_executor,
@@ -136,8 +136,8 @@ fidelity_planalign/
 **macOS/Linux (uv, recommended):**
 
 ```bash
-git clone <repository-url> fidelity_planalign
-cd fidelity_planalign
+git clone <repository-url> planalign
+cd planalign
 
 uv venv .venv --python 3.12
 source .venv/bin/activate
@@ -157,8 +157,8 @@ pip install -e ".[dev]"
 
 ```powershell
 winget install --id Python.Python.3.12 -e   # then restart the terminal
-git clone <repository-url> fidelity_planalign
-cd fidelity_planalign
+git clone <repository-url> planalign
+cd planalign
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install --upgrade pip
@@ -180,7 +180,7 @@ cd planalign_studio && npm install && cd ..
 1. **dbt profile** — `~/.dbt/profiles.yml` (Windows: `%USERPROFILE%\.dbt\profiles.yml`):
 
 ```yaml
-fidelity_planalign_engine:
+planalign_engine:
   target: dev
   outputs:
     dev:
@@ -414,7 +414,6 @@ For diagnostics: `planalign health`, `planalign status --detailed`, `planalign v
 
 ## Further Reading
 
-- [METHODOLOGY.md](METHODOLOGY.md) — modeling methodology, assumptions, and limitations
 - [SECURITY.md](SECURITY.md) — security policy and deployment hardening
 - [CHANGELOG.md](CHANGELOG.md) — version history
 - [CLAUDE.md](CLAUDE.md) / [AGENTS.md](AGENTS.md) — AI-assistant playbooks

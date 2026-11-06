@@ -92,7 +92,7 @@ After each schedule `<select>` element, add:
       type="checkbox"
       checked={currentSchedule?.require_hours_credit ?? false}
       onChange={(e) => handleHoursToggle('current', e.target.checked)}
-      className="mr-2 rounded border-gray-300 text-fidelity-green focus:ring-fidelity-green"
+      className="mr-2 rounded border-gray-300 text-brand-green focus:ring-brand-green"
     />
     Require 1,000 hours
   </label>
@@ -104,7 +104,7 @@ After each schedule `<select>` element, add:
         max={2080}
         value={currentSchedule.hours_threshold ?? 1000}
         onChange={(e) => handleHoursThresholdChange('current', parseInt(e.target.value) || 0)}
-        className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-fidelity-green focus:border-fidelity-green"
+        className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-brand-green focus:border-brand-green"
       />
       <span className="text-xs text-gray-500">hours/year</span>
     </div>

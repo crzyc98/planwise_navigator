@@ -121,7 +121,7 @@ export default function FileUploadStep({ workspaceId, onDone, onParquetDone }: P
               key={sheet}
               onClick={() => handleSheetSelect(sheet)}
               disabled={isSelectingSheet}
-              className="w-full text-left px-4 py-3 border border-border rounded-lg hover:border-fidelity-green hover:bg-success-surface transition-colors text-sm font-medium text-ink-muted"
+              className="w-full text-left px-4 py-3 border border-border rounded-lg hover:border-brand-green hover:bg-success-surface transition-colors text-sm font-medium text-ink-muted"
             >
               {isSelectingSheet ? <Loader2 size={14} className="inline animate-spin mr-2" /> : null}
               {sheet}
@@ -142,7 +142,7 @@ export default function FileUploadStep({ workspaceId, onDone, onParquetDone }: P
         onDrop={handleDrop}
         onClick={() => fileInputRef.current?.click()}
         className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-colors ${
-          isDragging ? 'border-fidelity-green bg-success-surface' : 'border-border-strong hover:border-fidelity-green hover:bg-surface-subtle'
+          isDragging ? 'border-brand-green bg-success-surface' : 'border-border-strong hover:border-brand-green hover:bg-surface-subtle'
         }`}
       >
         <input
@@ -154,7 +154,7 @@ export default function FileUploadStep({ workspaceId, onDone, onParquetDone }: P
         />
         {isUploading ? (
           <div className="flex flex-col items-center gap-3">
-            <Loader2 size={40} className="text-fidelity-green animate-spin" />
+            <Loader2 size={40} className="text-brand-ink animate-spin" />
             <p className="text-sm font-medium text-ink-muted">Uploading and analyzing file…</p>
           </div>
         ) : (
@@ -223,7 +223,7 @@ export default function FileUploadStep({ workspaceId, onDone, onParquetDone }: P
 
           <div
             onClick={() => parquetInputRef.current?.click()}
-            className="border-2 border-dashed border-border rounded-xl p-6 text-center cursor-pointer hover:border-fidelity-green hover:bg-surface-subtle transition-colors"
+            className="border-2 border-dashed border-border rounded-xl p-6 text-center cursor-pointer hover:border-brand-green hover:bg-surface-subtle transition-colors"
           >
             <input
               ref={parquetInputRef}
@@ -237,7 +237,7 @@ export default function FileUploadStep({ workspaceId, onDone, onParquetDone }: P
             />
             {isParquetUploading ? (
               <div className="flex flex-col items-center gap-2">
-                <Loader2 size={28} className="text-fidelity-green animate-spin" />
+                <Loader2 size={28} className="text-brand-ink animate-spin" />
                 <p className="text-sm text-ink-muted">Validating and saving Parquet…</p>
               </div>
             ) : (
