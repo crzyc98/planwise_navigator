@@ -14,7 +14,7 @@ dependencies = [
     # rationale and SECURITY.md for the advisories this clears.
     "duckdb==2.0.0",
     "dbt-core==1.12.6",
-    "dbt-duckdb==1.9.6",
+    "dbt-duckdb==1.11.1",
     "pydantic==2.14.2",
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0.0",
