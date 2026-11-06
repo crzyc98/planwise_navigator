@@ -252,7 +252,7 @@ export default function NDTTesting() {
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-ink flex items-center">
-            <Shield size={28} className="mr-3 text-fidelity-green" />
+            <Shield size={28} className="mr-3 text-brand-ink" />
             NDT & Compliance
           </h1>
           <p className="text-ink-muted mt-1">
@@ -270,7 +270,7 @@ export default function NDTTesting() {
             <div className="relative">
               <select
                 id="ndt-test-type"
-                className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[200px]"
+                className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-brand-green focus:border-brand-green shadow-sm min-w-[200px]"
                 value={testType}
                 onChange={(e) => { setTestType(e.target.value as TestType); setTestResponse(null); setError(null); }}
               >
@@ -294,7 +294,7 @@ export default function NDTTesting() {
                   value={selectedScenarioIds[0] || ''}
                   onChange={(e) => handleScenarioToggle(e.target.value)}
                   disabled={loadingScenarios}
-                  className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[200px] disabled:bg-surface-subtle disabled:text-ink-subtle"
+                  className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-brand-green focus:border-brand-green shadow-sm min-w-[200px] disabled:bg-surface-subtle disabled:text-ink-subtle"
                 >
                   <option value="">
                     {loadingScenarios ? 'Loading...' : scenarioPlaceholder}
@@ -331,7 +331,7 @@ export default function NDTTesting() {
                 value={selectedYear ?? ''}
                 onChange={(e) => setSelectedYear(Number(e.target.value))}
                 disabled={availableYears.length === 0 || loadingYears}
-                className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[120px] disabled:bg-surface-subtle disabled:text-ink-subtle"
+                className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-brand-green focus:border-brand-green shadow-sm min-w-[120px] disabled:bg-surface-subtle disabled:text-ink-subtle"
               >
                 <option value="">
                   {loadingYears ? 'Loading...' : yearPlaceholder}
@@ -354,7 +354,7 @@ export default function NDTTesting() {
                   type="checkbox"
                   checked={includeMatch}
                   onChange={(e) => setIncludeMatch(e.target.checked)}
-                  className="mr-2 rounded border-border-strong text-fidelity-green focus:ring-fidelity-green"
+                  className="mr-2 rounded border-border-strong text-brand-ink focus:ring-brand-green"
                 />
                 <span className="text-sm text-ink-muted">Include Match</span>
               </label>
@@ -370,7 +370,7 @@ export default function NDTTesting() {
                   id="ndt-warning-threshold"
                   value={warningThreshold}
                   onChange={(e) => setWarningThreshold(Number(e.target.value))}
-                  className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[100px]"
+                  className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-brand-green focus:border-brand-green shadow-sm min-w-[100px]"
                 >
                   <option value={0.90}>90%</option>
                   <option value={0.95}>95%</option>
@@ -391,7 +391,7 @@ export default function NDTTesting() {
                   type="checkbox"
                   checked={safeHarbor}
                   onChange={(e) => setSafeHarbor(e.target.checked)}
-                  className="mr-2 rounded border-border-strong text-fidelity-green focus:ring-fidelity-green"
+                  className="mr-2 rounded border-border-strong text-brand-ink focus:ring-brand-green"
                 />
                 <span className="text-sm text-ink-muted">Safe Harbor</span>
               </label>
@@ -407,7 +407,7 @@ export default function NDTTesting() {
                   id="ndt-testing-method"
                   value={testingMethod}
                   onChange={(e) => setTestingMethod(e.target.value as 'current' | 'prior')}
-                  className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm min-w-[140px]"
+                  className="appearance-none bg-surface-raised border border-border-strong rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-brand-green focus:border-brand-green shadow-sm min-w-[140px]"
                 >
                   <option value="current">Current Year</option>
                   <option value="prior">Prior Year</option>
@@ -428,7 +428,7 @@ export default function NDTTesting() {
                   setTestResponse(null);
                 }
               }}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${comparisonMode ? 'bg-fidelity-green text-ink-inverse' : 'bg-surface-raised border border-border-strong text-ink-muted hover:bg-surface-subtle'}`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${comparisonMode ? 'bg-brand-green text-ink-inverse' : 'bg-surface-raised border border-border-strong text-ink-muted hover:bg-surface-subtle'}`}
             >
               Compare {comparisonMode && `(${selectedScenarioIds.length}/${MAX_SCENARIO_SELECTION})`}
             </button>
@@ -440,7 +440,7 @@ export default function NDTTesting() {
             <button
               onClick={handleRunTest}
               disabled={!canRun}
-              className={`flex items-center px-5 py-2 rounded-lg text-sm font-medium transition-colors ${canRun ? 'bg-fidelity-green text-ink-inverse hover:bg-fidelity-dark' : 'bg-surface-disabled text-ink-subtle cursor-not-allowed'}`}
+              className={`flex items-center px-5 py-2 rounded-lg text-sm font-medium transition-colors ${canRun ? 'bg-brand-green text-ink-inverse hover:bg-brand-dark' : 'bg-surface-disabled text-ink-subtle cursor-not-allowed'}`}
             >
               {loading ? (
                 <Loader2 size={16} className="mr-2 animate-spin" />
@@ -470,14 +470,14 @@ export default function NDTTesting() {
                   return (
                     <div
                       key={id}
-                      className="group w-full text-left px-3 py-2 rounded-lg flex items-center justify-between transition-all border bg-fidelity-green/5 border-fidelity-green/20"
+                      className="group w-full text-left px-3 py-2 rounded-lg flex items-center justify-between transition-all border bg-brand-green/5 border-brand-green/20"
                     >
                       <button
                         onClick={() => handleScenarioToggle(id)}
                         className="flex items-center flex-1 min-w-0"
                       >
-                        <CheckSquare size={16} className="text-fidelity-green mr-3 flex-shrink-0" />
-                        <span className="text-xs font-semibold text-fidelity-green truncate">
+                        <CheckSquare size={16} className="text-brand-ink mr-3 flex-shrink-0" />
+                        <span className="text-xs font-semibold text-brand-ink truncate">
                           {scenario.name}
                         </span>
                       </button>
@@ -547,7 +547,7 @@ export default function NDTTesting() {
       {loading ? (
         <div className="flex items-center justify-center h-64">
           <div className="flex flex-col items-center">
-            <Loader2 size={48} className="animate-spin text-fidelity-green mb-3" />
+            <Loader2 size={48} className="animate-spin text-brand-ink mb-3" />
             <p className="text-sm text-ink-muted">Running {TEST_TYPE_LABELS[testType]}...</p>
           </div>
         </div>
@@ -739,14 +739,14 @@ function ACPSingleResult({
         <div className="bg-surface-subtle rounded-lg p-4 space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-ink-muted">Basic Test (NHCE x 1.25)</span>
-            <span className={`font-medium ${result.applied_test === 'basic' ? 'text-fidelity-green font-bold' : 'text-ink-muted'}`}>
+            <span className={`font-medium ${result.applied_test === 'basic' ? 'text-brand-ink font-bold' : 'text-ink-muted'}`}>
               {formatPercent(result.basic_test_threshold)}
               {result.applied_test === 'basic' && ' (applied)'}
             </span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-ink-muted">Alternative Test (min of NHCE x 2, NHCE + 2%)</span>
-            <span className={`font-medium ${result.applied_test === 'alternative' ? 'text-fidelity-green font-bold' : 'text-ink-muted'}`}>
+            <span className={`font-medium ${result.applied_test === 'alternative' ? 'text-brand-ink font-bold' : 'text-ink-muted'}`}>
               {formatPercent(result.alternative_test_threshold)}
               {result.applied_test === 'alternative' && ' (applied)'}
             </span>
@@ -1446,14 +1446,14 @@ function ADPSingleResult({
         <div className="bg-surface-subtle rounded-lg p-4 space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-ink-muted">Basic Test (NHCE x 1.25)</span>
-            <span className={`font-medium ${result.applied_test === 'basic' ? 'text-fidelity-green font-bold' : 'text-ink-muted'}`}>
+            <span className={`font-medium ${result.applied_test === 'basic' ? 'text-brand-ink font-bold' : 'text-ink-muted'}`}>
               {formatPercent(result.basic_test_threshold)}
               {result.applied_test === 'basic' && ' (applied)'}
             </span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-ink-muted">Alternative Test (min of NHCE x 2, NHCE + 2%)</span>
-            <span className={`font-medium ${result.applied_test === 'alternative' ? 'text-fidelity-green font-bold' : 'text-ink-muted'}`}>
+            <span className={`font-medium ${result.applied_test === 'alternative' ? 'text-brand-ink font-bold' : 'text-ink-muted'}`}>
               {formatPercent(result.alternative_test_threshold)}
               {result.applied_test === 'alternative' && ' (applied)'}
             </span>

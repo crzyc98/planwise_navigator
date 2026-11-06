@@ -123,6 +123,7 @@ INTEGER_VARS = frozenset(
     }
 )
 ENUM_VARS = {
+    "census_pay_basis": {"annual_rate", "earnings"},
     "reenrollment_sweep_method": {"enroll_at_default", "into_aip"},
     "deferral_escalation_mode": frozenset({"automatic", "participant_elected"}),
     "auto_enrollment_scope": frozenset({"all_eligible_employees", "new_hires_only"}),

@@ -1,5 +1,5 @@
 # filename: config/schema.py
-"""Configuration schema for Fidelity PlanAlign Engine."""
+"""Configuration schema for PlanAlign Engine."""
 
 from datetime import date, datetime
 from typing import Dict, Literal, Optional

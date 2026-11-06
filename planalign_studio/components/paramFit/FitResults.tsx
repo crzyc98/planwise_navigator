@@ -65,7 +65,7 @@ export function FitResults({ workspaceId, job, result, onApply }: FitResultsProp
           type="button"
           onClick={onApply}
           disabled={blockingStale.length > 0}
-          className="rounded-lg bg-fidelity-green px-4 py-2 font-medium text-ink-inverse transition-colors hover:bg-fidelity-dark disabled:cursor-not-allowed disabled:bg-surface-disabled"
+          className="rounded-lg bg-brand-green px-4 py-2 font-medium text-ink-inverse transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:bg-surface-disabled"
         >
           Apply to a new scenario…
         </button>

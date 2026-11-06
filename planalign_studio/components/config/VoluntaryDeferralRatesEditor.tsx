@@ -111,7 +111,7 @@ export function VoluntaryDeferralRatesEditor({
             onClick={handleMatchCensus}
             disabled={analyzing || !censusDataPath || !workspaceId}
             title={censusDataPath ? undefined : 'Upload a census file first to use Match Census'}
-            className="flex items-center px-3 py-1.5 text-sm bg-fidelity-green text-ink-inverse rounded-lg hover:bg-fidelity-green-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center px-3 py-1.5 text-sm bg-brand-green text-ink-inverse rounded-lg hover:bg-brand-green-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {analyzing ? (
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-border mr-2" />

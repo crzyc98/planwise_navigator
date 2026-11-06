@@ -12,7 +12,7 @@ export function errorText(error: unknown): string {
 export function StepHeader({ n, title, children }: { n: number; title: string; children: ReactNode }) {
   return (
     <div className="flex items-start gap-3">
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-fidelity-green text-sm font-semibold text-ink-inverse">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-green text-sm font-semibold text-ink-inverse">
         {n}
       </span>
       <div>

@@ -121,7 +121,7 @@ export function ApplyWorkforceParamsModal({
               <button
                 onClick={() => setStep('confirm')}
                 disabled={selectedIds.size === 0}
-                className="px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg hover:bg-fidelity-dark transition-colors disabled:bg-surface-disabled disabled:cursor-not-allowed font-medium"
+                className="px-4 py-2 bg-brand-green text-ink-inverse rounded-lg hover:bg-brand-dark transition-colors disabled:bg-surface-disabled disabled:cursor-not-allowed font-medium"
               >
                 Apply to {selectedIds.size} Scenario{selectedIds.size !== 1 ? 's' : ''}
               </button>
@@ -165,7 +165,7 @@ export function ApplyWorkforceParamsModal({
               )}
               <button
                 onClick={onClose}
-                className="px-4 py-2 bg-fidelity-green text-ink-inverse rounded-lg hover:bg-fidelity-dark transition-colors font-medium"
+                className="px-4 py-2 bg-brand-green text-ink-inverse rounded-lg hover:bg-brand-dark transition-colors font-medium"
               >
                 Done
               </button>
@@ -204,7 +204,7 @@ function SelectStep({
         </span>
         <button
           onClick={onToggleAll}
-          className="text-sm text-fidelity-green hover:text-fidelity-dark font-medium"
+          className="text-sm text-brand-ink hover:text-brand-ink-strong font-medium"
         >
           {allSelected ? 'Deselect All' : 'Select All'}
         </button>
@@ -214,7 +214,7 @@ function SelectStep({
           key={scenario.id}
           className={`flex items-start p-4 border rounded-lg cursor-pointer transition-colors ${
             selectedIds.has(scenario.id)
-              ? 'border-fidelity-green bg-success-surface'
+              ? 'border-brand-green bg-success-surface'
               : 'border-border hover:border-border-strong'
           }`}
         >
@@ -222,7 +222,7 @@ function SelectStep({
             type="checkbox"
             checked={selectedIds.has(scenario.id)}
             onChange={() => onToggle(scenario.id)}
-            className="mt-1 mr-3 h-4 w-4 text-fidelity-green rounded border-border-strong focus:ring-fidelity-green"
+            className="mt-1 mr-3 h-4 w-4 text-brand-ink rounded border-border-strong focus:ring-brand-green"
           />
           <div className="flex-1">
             <div className="flex justify-between items-start">

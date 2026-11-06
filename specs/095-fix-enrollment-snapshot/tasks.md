@@ -15,7 +15,7 @@ description: "Task list for 095-fix-enrollment-snapshot"
 
 - **[P]**: Can run in parallel (different files, no dependencies)
 - **[Story]**: US1, US2, US3 (maps to spec user stories)
-- All paths are absolute from repo root `/Users/nicholasamaral/Developer/fidelity_planalign/`
+- All paths are absolute from repo root `<repo>/`
 
 ## Path Conventions
 

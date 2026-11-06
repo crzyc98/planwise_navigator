@@ -15,7 +15,7 @@
 
 ## Path Conventions
 
-Repo root: `/Users/nicholasamaral/Developer/fidelity_planalign`. dbt commands run from `dbt/` with `--threads 1`. Behavioral validation uses an **isolated** `DATABASE_PATH` DB, never the shared `dbt/simulation.duckdb`.
+Repo root: `<repo>`. dbt commands run from `dbt/` with `--threads 1`. Behavioral validation uses an **isolated** `DATABASE_PATH` DB, never the shared `dbt/simulation.duckdb`.
 
 ---
 

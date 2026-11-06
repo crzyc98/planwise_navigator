@@ -2506,7 +2506,7 @@
     "tests/unit/config/test_permitted_disparity.py::test_resolve_level_applies_all_modes_and_half_up_rounding[percent_of_ss_wage_base-1-50-1]": 0.23312971999985166,
     "tests/unit/config/test_permitted_disparity.py::test_resolve_level_applies_all_modes_and_half_up_rounding[percent_of_ss_wage_base-50-176100-88050]": 0.24644633700017948,
     "tests/unit/config/test_permitted_disparity.py::test_resolve_level_applies_all_modes_and_half_up_rounding[ss_wage_base-None-176100-176100]": 0.22154664200024854,
-    "tests/unit/config/test_permitted_disparity.py::test_tufts_style_two_band_integrated_design_is_permitted": 0.22140431700063345,
+    "tests/unit/config/test_permitted_disparity.py::test_two_band_integrated_design_is_permitted": 0.22140431700063345,
     "tests/unit/config/test_permitted_disparity.py::test_wage_base_for_missing_year_has_a_clear_error": 0.22794553200037626,
     "tests/unit/config/test_permitted_disparity.py::test_wage_base_for_reads_the_seed_without_a_database": 0.2346463560002121,
     "tests/unit/config/test_plan_design_formula_families.py::test_accepts_each_per_design_core_family[age_banded]": 0.23946495099971798,

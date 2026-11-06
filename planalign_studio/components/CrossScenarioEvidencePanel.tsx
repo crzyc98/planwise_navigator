@@ -79,7 +79,7 @@ function PackBody({ envelope, nameA, nameB }: { envelope: CrossScenarioEvidenceP
             A: run {pack.provenance_a.run_id} · {pack.provenance_a.verification_disposition} — B: run {pack.provenance_b.run_id} · {pack.provenance_b.verification_disposition}
           </p>
         </div>
-        <button onClick={() => downloadEvidencePack(envelope)} className="flex items-center rounded border border-fidelity-green px-3 py-2 text-sm font-medium text-fidelity-green"><Download size={15} className="mr-2" />Export Evidence Pack</button>
+        <button onClick={() => downloadEvidencePack(envelope)} className="flex items-center rounded border border-brand-green px-3 py-2 text-sm font-medium text-brand-ink"><Download size={15} className="mr-2" />Export Evidence Pack</button>
       </div>
       <div className="rounded-lg border border-success-border bg-success-surface p-4">
         <h4 className="font-semibold text-success-ink">Executive interpretation</h4>
@@ -168,7 +168,7 @@ export default function CrossScenarioEvidencePanel({ workspaceId, scenarioA, sce
           </select>
         </label>
         <div className="flex items-end">
-          <button onClick={() => void load()} disabled={loading || years.length === 0} className="flex w-full items-center justify-center rounded bg-fidelity-green px-3 py-2 text-sm font-medium text-ink-inverse disabled:opacity-50">
+          <button onClick={() => void load()} disabled={loading || years.length === 0} className="flex w-full items-center justify-center rounded bg-brand-green px-3 py-2 text-sm font-medium text-ink-inverse disabled:opacity-50">
             {loading ? <Loader2 size={15} className="mr-2 animate-spin" /> : <RefreshCw size={15} className="mr-2" />}
             {loading ? 'Computing evidence pack…' : 'Build evidence pack'}
           </button>

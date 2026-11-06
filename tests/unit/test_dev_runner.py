@@ -24,7 +24,7 @@ class DevRunnerTests(unittest.TestCase):
         for root in (self.root, self.primary):
             root.mkdir()
             (root / "pyproject.toml").write_text(
-                '[project]\nname="fidelity-planalign-engine"\n'
+                '[project]\nname="planalign-engine"\n'
                 'requires-python=">=3.12"\ndependencies=["duckdb==1.5.6"]\n'
             )
             (root / "uv.lock").write_text("same lock")

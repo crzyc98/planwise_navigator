@@ -1,5 +1,5 @@
 """
-Progress indicators and spinners for Fidelity PlanAlign Engine CLI
+Progress indicators and spinners for PlanAlign Engine CLI
 
 Rich-based progress bars, spinners, and status indicators for long-running operations.
 """

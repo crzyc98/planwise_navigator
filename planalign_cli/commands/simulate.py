@@ -1,5 +1,5 @@
 """
-Simulate command for Fidelity PlanAlign Engine CLI
+Simulate command for PlanAlign Engine CLI
 
 Multi-year workforce simulation with Rich progress bars and enhanced user experience.
 """

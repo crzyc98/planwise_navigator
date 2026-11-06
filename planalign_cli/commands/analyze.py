@@ -1,5 +1,5 @@
 """
-Analyze command for Fidelity PlanAlign Engine CLI
+Analyze command for PlanAlign Engine CLI
 
 Rich-formatted analysis commands with terminal-based visualizations
 for simulation results and workforce trends.

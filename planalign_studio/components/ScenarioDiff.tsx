@@ -241,14 +241,14 @@ export default function ScenarioDiff() {
     return () => { cancelled = true; };
   }, [activeWorkspace?.id, queryError, scenarioA, scenarioB]);
 
-  if (loading) return <div className="flex h-96 items-center justify-center"><Loader2 className="animate-spin text-fidelity-green" size={44} /></div>;
+  if (loading) return <div className="flex h-96 items-center justify-center"><Loader2 className="animate-spin text-brand-ink" size={44} /></div>;
   if (error || !comparison || !configDiff) {
     return (
       <div className="flex h-96 flex-col items-center justify-center text-center">
         <AlertCircle className="mb-3 text-danger-ink" size={44} />
         <h1 className="text-xl font-semibold text-ink">Unable to open scenario diff</h1>
         <p className="mt-2 max-w-xl text-ink-muted">{error ?? 'Comparison data is unavailable.'}</p>
-        <button onClick={() => navigate('/scenarios')} className="mt-5 rounded-lg bg-fidelity-green px-4 py-2 font-medium text-ink-inverse">Choose scenarios</button>
+        <button onClick={() => navigate('/scenarios')} className="mt-5 rounded-lg bg-brand-green px-4 py-2 font-medium text-ink-inverse">Choose scenarios</button>
       </div>
     );
   }
@@ -264,9 +264,9 @@ export default function ScenarioDiff() {
       <header className="flex items-start gap-4">
         <button onClick={() => navigate(-1)} className="rounded-lg p-2 text-ink-muted hover:bg-surface-subtle"><ArrowLeft size={20} /></button>
         <div className="flex-1">
-          <p className="text-sm font-medium uppercase tracking-wide text-fidelity-green">Scenario diff</p>
+          <p className="text-sm font-medium uppercase tracking-wide text-brand-ink">Scenario diff</p>
           <h1 className="text-2xl font-bold text-ink">{nameA} <span className="text-ink-subtle">vs</span> {nameB}</h1>
-          <button onClick={() => document.getElementById('explain-difference')?.scrollIntoView({ behavior: 'smooth' })} className="mt-1 text-sm font-medium text-fidelity-green hover:underline">Explain the difference with a cited evidence pack ↓</button>
+          <button onClick={() => document.getElementById('explain-difference')?.scrollIntoView({ behavior: 'smooth' })} className="mt-1 text-sm font-medium text-brand-ink hover:underline">Explain the difference with a cited evidence pack ↓</button>
           <div className="mt-3 flex flex-wrap gap-2 text-xs">
             {[provenanceA, provenanceB].map((item, index) => (
               <span key={index} className="rounded-full bg-surface-subtle px-3 py-1 text-ink-muted">

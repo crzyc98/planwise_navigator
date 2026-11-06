@@ -9,6 +9,7 @@ correlated to callers via request IDs / error IDs.
 from __future__ import annotations
 
 import logging
+import time
 
 from fastapi.testclient import TestClient
 
@@ -22,10 +23,11 @@ from planalign_api.routers import (
     imports as imports_router,
     sync as sync_router,
 )
-from planalign_api.routers.calibration import (
-    _execute_job as _run_calibration_job,
-    _register_job,
-)
+from planalign_api.services.calibration_jobs import JobRunner, JobStore
+from planalign_api.services.calibration_process import ProcessRegistry
+from planalign_orchestrator.calibration_worker import WorkerRequest
+from planalign_orchestrator.calibration_runner import CalibrationRun
+
 from planalign_api.services.export_service import ExportService
 from planalign_api.services.file_service import FileService
 from planalign_api.storage.workspace_storage import WorkspaceStorage
@@ -228,16 +230,22 @@ def test_run_details_failure_is_sanitized(tmp_path, monkeypatch):
 
 
 def test_calibration_job_error_record_is_sanitized(tmp_path, caplog):
-    job = _register_job("run")
-
-    with caplog.at_level(logging.ERROR, logger="planalign_api.routers.calibration"):
-        _run_calibration_job(
-            job,
-            build=_raise_secret,
-            database_path=None,
-            workspace_config=None,
+    store = JobStore(tmp_path)
+    job = store.create("run")
+    runner = JobRunner(store, ProcessRegistry(), _raise_secret)
+    with caplog.at_level(
+        logging.ERROR, logger="planalign_api.services.calibration_jobs"
+    ):
+        request = WorkerRequest(
+            kind="run", run=CalibrationRun(start_year=2025, end_year=2026)
         )
+        runner.start(job, request, None, None)
+        deadline = time.monotonic() + 5
+        while runner.registry.owns(job.run_id) and time.monotonic() < deadline:
+            time.sleep(0.01)
+    job = store.load(job.run_id)
 
+    assert job is not None
     assert job.status == "failed"
     assert job.error_status == 500
     assert "error_id:" in job.error

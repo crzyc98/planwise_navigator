@@ -7,13 +7,11 @@ suite, and dbt validation. Fast tests and model validation start independently
 of lint. New PR runs cancel obsolete runs for the same PR; post-merge, scheduled,
 and manually dispatched runs remain independent so their evidence is retained.
 
-`scripts/ci_policy.py` compares the PR base/head merge-base diff (including
-deletions and both sides of renames). Only frontend files and an explicit set of
-Markdown documentation paths may omit simulation checks. Backend, SQL, config,
-dependency, test, CI, and unknown paths require multi-year invariants and the
-edge-config matrix before `CI Gate` passes. Empty diffs select simulations;
-missing Git history fails selection. This deliberately makes engine changes
-slower than presentation changes while preserving the full fast suite for both.
+`scripts/ci_policy.py` keeps simulations off ordinary PRs. Multi-year invariants,
+the edge-config matrix, integration shards and coverage run on every push to
+`main`, nightly, on dispatch, or with the `full-ci` label. A failed nightly run
+opens one `Nightly CI failed` issue, so a regression that reaches `main` is
+reported by the next morning.
 
 The four integration shards and combined coverage still run on main/develop,
 nightly, manual dispatch, and PRs carrying `full-ci`. Adding or removing a label
@@ -35,8 +33,8 @@ The inspected PR run 38967045844 took about 7m48s, including 59s of lint before
 the fast job could start and 6m24s in its pytest step. Removing that dependency
 can save roughly a minute absent runner queueing; this is an estimate, not a
 measured result of the new workflow. Measure the next hosted runs before further
-splitting or pruning tests. The fast suite warns above 450s and fails above its
-540s wall-clock budget; see #928 for the runner-variance re-baseline.
+splitting or pruning tests. The fast suite warns above 540s and never fails on
+time, because runner speed swings it widely; see #928 and #1083.
 
 Local policy validation (no simulation database is touched):
 

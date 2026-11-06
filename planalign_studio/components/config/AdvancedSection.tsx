@@ -30,7 +30,7 @@ export function AdvancedSection() {
                 name="enableMultithreading"
                 checked={formData.enableMultithreading}
                 onChange={handleChange}
-                className="h-5 w-5 text-fidelity-green focus:ring-fidelity-green border-border-strong rounded"
+                className="h-5 w-5 text-brand-ink focus:ring-brand-green border-border-strong rounded"
               />
             </label>
             <div className="flex items-center justify-between">
@@ -39,7 +39,7 @@ export function AdvancedSection() {
                 name="checkpointFrequency"
                 value={formData.checkpointFrequency}
                 onChange={handleChange}
-                className="text-sm border-border-strong rounded-md shadow-sm focus:ring-fidelity-green focus:border-fidelity-green"
+                className="text-sm border-border-strong rounded-md shadow-sm focus:ring-brand-green focus:border-brand-green"
               >
                 <option value="year">Every Year</option>
                 <option value="stage">Every Stage (Debug)</option>
@@ -73,7 +73,7 @@ export function AdvancedSection() {
                 name="strictValidation"
                 checked={formData.strictValidation}
                 onChange={handleChange}
-                className="h-5 w-5 text-fidelity-green focus:ring-fidelity-green border-border-strong rounded"
+                className="h-5 w-5 text-brand-ink focus:ring-brand-green border-border-strong rounded"
               />
             </label>
             <div className="flex items-center justify-between">
@@ -82,7 +82,7 @@ export function AdvancedSection() {
                 name="logLevel"
                 value={formData.logLevel}
                 onChange={handleChange}
-                className="text-sm border-border-strong rounded-md shadow-sm focus:ring-fidelity-green focus:border-fidelity-green"
+                className="text-sm border-border-strong rounded-md shadow-sm focus:ring-brand-green focus:border-brand-green"
               >
                 <option value="DEBUG">DEBUG</option>
                 <option value="INFO">INFO</option>

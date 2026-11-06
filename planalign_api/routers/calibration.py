@@ -14,36 +14,30 @@ import logging
 import json
 import shutil
 import tempfile
-import threading
 from copy import deepcopy
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Literal, Optional
-from uuid import uuid4
+from typing import Any, Dict, List, Literal, Optional
 
 import yaml  # type: ignore[import]
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import Field
 
 from planalign_orchestrator.calibration_optimizer import (
-    AutoCalibrationResult,
     AutoCalibrationSettings,
-    AutoCalibrator,
 )
 from planalign_orchestrator.calibration_runner import (
     CalibrationParameterSet,
     CalibrationRun,
-    CalibrationRunner,
-    PerYearCompensationResult,
 )
-from planalign_orchestrator.exceptions import ConfigurationError
+from planalign_orchestrator.calibration_worker import WorkerRequest
 from planalign_api.services.calibration_temp import calibration_database_prefix
 from planalign_api.services.provenance.capture import config_fingerprint, sha256_file
 from planalign_api.services.simulation.run_execution import resolve_census_with_fallback
 
 from ..config import APISettings, get_settings
-from ..errors import sanitize_job_error
+from ..models.calibration import CalibrationContext, CalibrationJob
+from ..services.calibration_jobs import get_job_runner, get_job_store
 from ..models.scenario import Scenario
 from ..services.current_result import CurrentResultIntegrityError
 from ..storage.workspace_storage import WorkspaceStorage
@@ -57,138 +51,6 @@ router = APIRouter()
 def get_storage(settings: APISettings = Depends(get_settings)) -> WorkspaceStorage:
     """Dependency to get workspace storage."""
     return WorkspaceStorage(settings.workspaces_root)
-
-
-# ---------------------------------------------------------------------------
-# Background job registry (issue #380)
-# ---------------------------------------------------------------------------
-
-
-class CalibrationJob(APIModel):
-    """Status/result record for a background calibration job."""
-
-    run_id: str
-    kind: Literal["run", "optimize"]
-    status: Literal["queued", "running", "completed", "failed"]
-    created_at: datetime
-    completed_at: Optional[datetime] = None
-    # Populated on completion: `results` for kind="run", `outcome` for "optimize".
-    results: Optional[List[PerYearCompensationResult]] = None
-    outcome: Optional[AutoCalibrationResult] = None
-    context: Optional["CalibrationContext"] = None
-    # Populated on failure; error_status carries the HTTP-equivalent code the
-    # old sync endpoints returned (409 prerequisite guard, 500 unexpected).
-    error: Optional[str] = None
-    error_status: Optional[int] = None
-
-
-_jobs: Dict[str, CalibrationJob] = {}
-_jobs_lock = threading.Lock()
-_MAX_FINISHED_JOBS = 20
-
-# One lock per explicit target DB path: a second calibration against the same
-# DuckDB file queues behind the first instead of failing on the file lock.
-_db_locks: Dict[str, threading.Lock] = {}
-_db_locks_guard = threading.Lock()
-
-
-def _register_job(kind: Literal["run", "optimize"]) -> CalibrationJob:
-    prefix = "cal" if kind == "run" else "autocal"
-    job = CalibrationJob(
-        run_id=f"{prefix}_{uuid4().hex[:12]}",
-        kind=kind,
-        status="queued",
-        created_at=datetime.now(),
-    )
-    with _jobs_lock:
-        _jobs[job.run_id] = job
-        _prune_finished_jobs_locked()
-    return job
-
-
-def _prune_finished_jobs_locked() -> None:
-    """Drop the oldest finished jobs beyond the retention cap (holds _jobs_lock)."""
-    finished = [j for j in _jobs.values() if j.status in ("completed", "failed")]
-    excess = len(finished) - _MAX_FINISHED_JOBS
-    if excess <= 0:
-        return
-    finished.sort(key=lambda j: j.created_at)
-    for job in finished[:excess]:
-        del _jobs[job.run_id]
-
-
-def _update_job(run_id: str, **updates: object) -> None:
-    with _jobs_lock:
-        job = _jobs.get(run_id)
-        if job is None:  # pruned while running — nothing to record
-            return
-        for key, value in updates.items():
-            setattr(job, key, value)
-
-
-def _db_lock_for(database_path: Optional[str]) -> Optional[threading.Lock]:
-    """Per-DB serialization lock; None when no legacy database was supplied."""
-    if not database_path:
-        return None
-    key = str(Path(database_path).resolve())
-    with _db_locks_guard:
-        return _db_locks.setdefault(key, threading.Lock())
-
-
-def _execute_job(
-    job: CalibrationJob,
-    build: Callable[[], None],
-    database_path: Optional[str],
-    workspace_config: Optional[Path],
-    calibration_database: Optional[Path] = None,
-) -> None:
-    """Worker-thread body: serialize per target DB, run the build, record the outcome."""
-    db_lock = _db_lock_for(database_path)
-    try:
-        if db_lock is not None:
-            db_lock.acquire()
-        _update_job(job.run_id, status="running")
-        build()
-        _update_job(job.run_id, status="completed", completed_at=datetime.now())
-    except ConfigurationError as e:
-        # Missing prerequisite DC tables, or a build failure with a clear cause.
-        _update_job(
-            job.run_id,
-            status="failed",
-            error=str(e),
-            error_status=409,
-            completed_at=datetime.now(),
-        )
-    except Exception:
-        _update_job(
-            job.run_id,
-            status="failed",
-            error=sanitize_job_error(
-                logger, job.run_id, event="Calibration job failed"
-            ),
-            error_status=500,
-            completed_at=datetime.now(),
-        )
-    finally:
-        if db_lock is not None:
-            db_lock.release()
-        _remove_temp_config(workspace_config)
-        _remove_temp_database(calibration_database)
-
-
-def _start_job_thread(
-    job: CalibrationJob,
-    build: Callable[[], None],
-    database_path: Optional[str],
-    workspace_config: Optional[Path],
-    calibration_database: Optional[Path] = None,
-) -> None:
-    threading.Thread(
-        target=_execute_job,
-        args=(job, build, database_path, workspace_config, calibration_database),
-        name=f"calibration-{job.run_id}",
-        daemon=True,
-    ).start()
 
 
 # ---------------------------------------------------------------------------
@@ -265,20 +127,6 @@ class CalibrationApplyResult(APIModel):
 # ---------------------------------------------------------------------------
 # Config materialization helpers
 # ---------------------------------------------------------------------------
-
-
-class CalibrationContext(APIModel):
-    """PII-safe identity of the exact target and matched source run."""
-
-    workspace_id: str
-    scenario_id: Optional[str] = None
-    source_scenario_id: str
-    source_run_id: str
-    config_fingerprint: str
-    census_fingerprint: str
-    random_seed: int
-    start_year: int
-    end_year: int
 
 
 @dataclass(frozen=True)
@@ -541,8 +389,27 @@ def _resolve_config_path(
     return None, None
 
 
+def _has_raise_budget(compensation: Dict[str, Any]) -> bool:
+    return any(
+        compensation.get(key) is not None
+        for key in ("raise_budget", "raise_budget_percent")
+    )
+
+
+def _merge_raise_budget(
+    compensation: Dict[str, Any], params: CalibrationParameterSet, has_budget: bool
+) -> None:
+    """A set raise budget overrides merit and COLA on load, so it must carry them."""
+    if has_budget and params.merit_budget is not None:
+        total = params.merit_budget + (params.cola_rate or 0.0)
+        compensation["raise_budget"] = total
+        compensation["raise_budget_percent"] = total * 100
+
+
 def _merge_calibration_candidate(
-    config: Dict[str, Any], request: CalibrationApplyRequest
+    config: Dict[str, Any],
+    request: CalibrationApplyRequest,
+    inherited_budget: bool = False,
 ) -> Dict[str, Any]:
     """Persist exactly the evaluated candidate without display-derived rounding."""
     merged = deepcopy(config)
@@ -555,11 +422,15 @@ def _merge_calibration_candidate(
 
     compensation = merged.setdefault("compensation", {})
     compensation["target_compensation_growth_percent"] = request.target_comp_growth_pct
+    # Scenario overrides inherit the workspace's budget without repeating it.
+    has_budget = inherited_budget or _has_raise_budget(compensation)
     for field in ("cola_rate", "merit_budget", "promotion_increase"):
         value = getattr(params, field)
-        if value is not None:
+        # Saved merit and COLA set a budget's shape, so the budget alone moves.
+        if value is not None and not (has_budget and field != "promotion_increase"):
             compensation[field] = value
             compensation[f"{field}_percent"] = value * 100
+    _merge_raise_budget(compensation, params, has_budget)
 
     workforce = merged.setdefault("workforce", {})
     for field in ("total_termination_rate", "new_hire_termination_rate"):
@@ -604,6 +475,37 @@ def _verify_apply_context(
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
+
+def _enqueue(
+    worker_request: WorkerRequest,
+    target: Optional[_ResolvedTarget],
+    database_path: Optional[str],
+    workspace_config: Optional[Path],
+) -> CalibrationJob:
+    """Persist the job and hand it to the runner; temp files never leak.
+
+    Until ``JobRunner.start`` owns cleanup, a failed job-store write removes the
+    materialized config and database here.
+    """
+    store = get_job_store()
+    try:
+        job = store.create(worker_request.kind)
+        if target:
+            store.update(job.run_id, context=target.context)
+    except Exception:
+        _remove_temp_config(workspace_config)
+        if target:
+            _remove_temp_database(target.database_path)
+        raise
+    get_job_runner().start(
+        job,
+        worker_request,
+        database_path,
+        workspace_config,
+        target.database_path if target else None,
+    )
+    return job
 
 
 @router.post(
@@ -652,21 +554,9 @@ def run_calibration(
             _remove_temp_database(target.database_path)
         raise HTTPException(status_code=422, detail=str(e))
 
-    job = _register_job("run")
-    if target:
-        _update_job(job.run_id, context=target.context)
-
-    def _build() -> None:
-        results = CalibrationRunner(run, threads=1).run_calibration()
-        _update_job(job.run_id, results=results)
-
     database_path = str(target.database_path) if target else request.database_path
-    _start_job_thread(
-        job,
-        _build,
-        database_path,
-        workspace_config,
-        target.database_path if target else None,
+    job = _enqueue(
+        WorkerRequest(kind="run", run=run), target, database_path, workspace_config
     )
     return CalibrationStartResponse(run_id=job.run_id, status="queued")
 
@@ -728,21 +618,12 @@ def optimize_calibration(
             _remove_temp_database(target.database_path)
         raise HTTPException(status_code=422, detail=str(e))
 
-    job = _register_job("optimize")
-    if target:
-        _update_job(job.run_id, context=target.context)
-
-    def _build() -> None:
-        outcome = AutoCalibrator(run, request.settings, threads=1).optimize()
-        _update_job(job.run_id, outcome=outcome)
-
     database_path = str(target.database_path) if target else request.database_path
-    _start_job_thread(
-        job,
-        _build,
+    job = _enqueue(
+        WorkerRequest(kind="optimize", run=run, settings=request.settings),
+        target,
         database_path,
         workspace_config,
-        target.database_path if target else None,
     )
     return CalibrationStartResponse(run_id=job.run_id, status="queued")
 
@@ -756,6 +637,9 @@ def apply_calibration(
     _verify_apply_context(request.context, storage)
     workspace = storage.get_workspace(request.context.workspace_id)
     assert workspace is not None
+    inherited_budget = _has_raise_budget(
+        workspace.base_config.get("compensation") or {}
+    )
     base_config = _merge_calibration_candidate(workspace.base_config, request)
     workspace_updated = storage.update_workspace(
         request.context.workspace_id, base_config=base_config
@@ -767,7 +651,7 @@ def apply_calibration(
     for scenario in storage.list_scenarios(request.context.workspace_id):
         try:
             overrides = _merge_calibration_candidate(
-                scenario.config_overrides or {}, request
+                scenario.config_overrides or {}, request, inherited_budget
             )
             updated = storage.update_scenario(
                 request.context.workspace_id,
@@ -800,10 +684,17 @@ def apply_calibration(
 @router.get("/calibration/runs/{run_id}", response_model=CalibrationJob)
 def get_calibration_run(run_id: str) -> CalibrationJob:
     """Poll a calibration job: status, then results/outcome or error."""
-    with _jobs_lock:
-        job = _jobs.get(run_id)
-        if job is None:
-            raise HTTPException(
-                status_code=404, detail=f"Calibration run {run_id} not found"
-            )
-        return job.model_copy(deep=True)
+    job = get_job_store().load(run_id)
+    if job is None:
+        raise HTTPException(
+            status_code=404, detail=f"Calibration run {run_id} not found"
+        )
+    return job
+
+
+@router.post("/calibration/runs/{run_id}/cancel", response_model=CalibrationJob)
+def cancel_calibration_run(run_id: str) -> CalibrationJob:
+    """Stop a queued/running job, or return its already committed outcome."""
+    get_calibration_run(run_id)
+    get_job_runner().cancel(run_id)
+    return get_calibration_run(run_id)

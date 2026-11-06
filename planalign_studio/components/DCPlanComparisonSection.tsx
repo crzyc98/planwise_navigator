@@ -531,7 +531,7 @@ export default function DCPlanComparisonSection({
     return (
       <div className="flex items-center justify-center h-48">
         <div className="text-center">
-          <Loader2 size={32} className="animate-spin text-fidelity-green mx-auto mb-3" />
+          <Loader2 size={32} className="animate-spin text-brand-ink mx-auto mb-3" />
           <p className="text-ink-muted text-sm">Loading DC plan data...</p>
         </div>
       </div>

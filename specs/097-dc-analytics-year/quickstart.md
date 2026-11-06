@@ -149,7 +149,7 @@ const activeDeferralDistribution = useMemo(() => {
   <select
     value={selectedYear ?? ''}
     onChange={(e) => setSelectedYear(e.target.value ? Number(e.target.value) : null)}
-    className="appearance-none bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-fidelity-green focus:border-fidelity-green shadow-sm"
+    className="appearance-none bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-brand-green focus:border-brand-green shadow-sm"
   >
     <option value="">All Years</option>
     {availableYears.map(year => (

@@ -1,5 +1,5 @@
 """
-Sync command for Fidelity PlanAlign Engine CLI (E083).
+Sync command for PlanAlign Engine CLI (E083).
 
 Workspace cloud synchronization using Git.
 """

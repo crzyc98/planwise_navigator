@@ -55,7 +55,7 @@ export const InputField: React.FC<InputFieldProps> = ({
         disabled={disabled}
         {...(numeric ? { showStepper: duration, integer: duration || ['seed', 'startYear', 'endYear'].includes(name) } : {})}
         aria-describedby={[suffix ? `${inputId}-unit` : '', helper ? `${inputId}-help` : ''].filter(Boolean).join(' ') || undefined}
-        className="shadow-sm focus:ring-fidelity-green focus:border-fidelity-green block w-full sm:text-sm border-border-strong rounded-md p-2 border disabled:bg-surface-disabled disabled:text-ink-muted disabled:cursor-not-allowed"
+        className="shadow-sm focus:ring-brand-green focus:border-brand-green block w-full sm:text-sm border-border-strong rounded-md p-2 border disabled:bg-surface-disabled disabled:text-ink-muted disabled:cursor-not-allowed"
       />
       </div>
       {suffix && (

@@ -102,7 +102,7 @@ export default function LogViewer({ scenarioId, runId, isRunning = false, liveLi
   if (!logPage && loading) {
     return (
       <div className="flex items-center justify-center py-8 text-ink-muted">
-        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-fidelity-green mr-2" />
+        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-brand-green mr-2" />
         Loading logs...
       </div>
     );
@@ -140,7 +140,7 @@ export default function LogViewer({ scenarioId, runId, isRunning = false, liveLi
               onClick={() => { setSeverityFilter(s); setPage(1); }}
               className={`px-2.5 py-1.5 font-medium transition-colors ${
                 severityFilter === s
-                  ? 'bg-fidelity-green text-ink-inverse'
+                  ? 'bg-brand-green text-ink-inverse'
                   : 'bg-surface-raised text-ink-muted hover:bg-surface-subtle'
               }`}
             >
@@ -157,7 +157,7 @@ export default function LogViewer({ scenarioId, runId, isRunning = false, liveLi
             placeholder="Search logs…"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-7 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-fidelity-green"
+            className="w-full pl-8 pr-7 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-green"
           />
           {searchQuery && (
             <button
@@ -239,7 +239,7 @@ export default function LogViewer({ scenarioId, runId, isRunning = false, liveLi
 
       {loading && (
         <div className="flex items-center justify-center py-2 text-ink-muted text-xs">
-          <div className="animate-spin rounded-full h-3 w-3 border-b border-fidelity-green mr-1" />
+          <div className="animate-spin rounded-full h-3 w-3 border-b border-brand-green mr-1" />
           Loading…
         </div>
       )}

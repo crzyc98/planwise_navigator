@@ -18,7 +18,7 @@ WITH base_employees AS (
         stg.employee_ssn,
         stg.employee_birth_date,
         stg.employee_hire_date,
-        -- Annual salary rate from staging (equals employee_gross_compensation per data contract)
+        -- Annual salary rate from staging
         stg.employee_annualized_compensation AS current_compensation,
         -- Calculate age based on the simulation_effective_date
         EXTRACT(YEAR FROM '{{ simulation_effective_date_str }}'::DATE) - EXTRACT(YEAR FROM stg.employee_birth_date) AS current_age,
@@ -45,8 +45,8 @@ WITH base_employees AS (
             MIN(levels.level_id) as level_id
         FROM {{ ref('stg_census_data') }} stg_inner
         LEFT JOIN {{ ref('stg_config_job_levels') }} levels
-            ON stg_inner.employee_gross_compensation >= levels.min_compensation
-           AND (stg_inner.employee_gross_compensation < levels.max_compensation OR levels.max_compensation IS NULL)
+            ON stg_inner.employee_annualized_compensation >= levels.min_compensation
+           AND (stg_inner.employee_annualized_compensation < levels.max_compensation OR levels.max_compensation IS NULL)
         GROUP BY stg_inner.employee_id
     ) level_match ON stg.employee_id = level_match.employee_id
     WHERE stg.employee_termination_date IS NULL

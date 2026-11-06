@@ -58,6 +58,9 @@ class StudioCompensationConfig(PartialConfig):
     merit_budget: float | None = None
     merit_budget_percent: float | None = None
     cola_rate_percent: float | None = None
+    raise_budget: float | None = None
+    raise_budget_percent: float | None = None
+    raise_coverage_percent: float | None = None
 
 
 class StudioTurnoverConfig(PartialConfig):

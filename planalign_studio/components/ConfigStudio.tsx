@@ -133,7 +133,7 @@ export function ConfigShell() {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-fidelity-green mx-auto mb-3"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-green mx-auto mb-3"></div>
           <p className="text-sm text-ink-muted">Loading scenario...</p>
         </div>
       </div>
@@ -246,7 +246,7 @@ export function ConfigShell() {
           <button
             onClick={() => openReview()}
             disabled={saveStatus === 'saving'}
-            className={`px-4 py-2 text-ink-inverse rounded-lg flex items-center font-medium shadow-sm transition-colors ${saveStatus === 'saving' ? 'bg-surface-disabled cursor-not-allowed' : saveStatus === 'success' ? 'bg-success-solid hover:bg-success-solid-hover' : isDirty ? 'bg-warning-solid hover:bg-warning-solid-hover ring-2 ring-focus' : 'bg-fidelity-green hover:bg-fidelity-dark'}`}
+            className={`px-4 py-2 text-ink-inverse rounded-lg flex items-center font-medium shadow-sm transition-colors ${saveStatus === 'saving' ? 'bg-surface-disabled cursor-not-allowed' : saveStatus === 'success' ? 'bg-success-solid hover:bg-success-solid-hover' : isDirty ? 'bg-warning-solid hover:bg-warning-solid-hover ring-2 ring-focus' : 'bg-brand-green hover:bg-brand-dark'}`}
           >
             {saveStatus === 'saving' ? (
               <>
@@ -300,10 +300,10 @@ export function ConfigShell() {
               <button
                 key={item.id}
                 onClick={() => { if (validateNumericInputs()) setActiveSection(item.id); }}
-                className={`w-full text-left px-3 py-3 rounded-md text-sm font-medium transition-colors flex items-center justify-between ${activeSection === item.id ? 'bg-surface-raised text-fidelity-green shadow-sm border border-border' : 'text-ink-muted hover:bg-surface-subtle hover:text-ink'}`}
+                className={`w-full text-left px-3 py-3 rounded-md text-sm font-medium transition-colors flex items-center justify-between ${activeSection === item.id ? 'bg-surface-raised text-brand-ink shadow-sm border border-border' : 'text-ink-muted hover:bg-surface-subtle hover:text-ink'}`}
               >
                 <span className="flex items-center">
-                  <item.icon size={16} className={`mr-3 ${activeSection === item.id ? 'text-fidelity-green' : 'text-ink-subtle'}`} />
+                  <item.icon size={16} className={`mr-3 ${activeSection === item.id ? 'text-brand-ink' : 'text-ink-subtle'}`} />
                   {item.label}
                 </span>
                 {dirtySections.has(item.id) && (
@@ -320,10 +320,10 @@ export function ConfigShell() {
               <button
                 key={item.id}
                 onClick={() => { if (validateNumericInputs()) setActiveSection(item.id); }}
-                className={`w-full text-left px-3 py-3 rounded-md text-sm font-medium transition-colors flex items-center justify-between ${activeSection === item.id ? 'bg-surface-raised text-fidelity-green shadow-sm border border-border' : 'text-ink-muted hover:bg-surface-subtle hover:text-ink'}`}
+                className={`w-full text-left px-3 py-3 rounded-md text-sm font-medium transition-colors flex items-center justify-between ${activeSection === item.id ? 'bg-surface-raised text-brand-ink shadow-sm border border-border' : 'text-ink-muted hover:bg-surface-subtle hover:text-ink'}`}
               >
                 <span className="flex items-center">
-                  <item.icon size={16} className={`mr-3 ${activeSection === item.id ? 'text-fidelity-green' : 'text-ink-subtle'}`} />
+                  <item.icon size={16} className={`mr-3 ${activeSection === item.id ? 'text-brand-ink' : 'text-ink-subtle'}`} />
                   {item.label}
                 </span>
                 {dirtySections.has(item.id) && (

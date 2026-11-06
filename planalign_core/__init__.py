@@ -1,4 +1,4 @@
-"""Core domain package for Fidelity PlanAlign Engine.
+"""Core domain package for PlanAlign Engine.
 
 Holds domain code shared across the orchestrator, CLI, and API:
 event models (planalign_core.events), simulation config schema,
