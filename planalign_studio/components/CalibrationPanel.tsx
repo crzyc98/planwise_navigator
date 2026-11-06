@@ -30,7 +30,7 @@ import {
 } from '../services/api';
 import { extractCensusPath } from './config/ConfigContext';
 import { useChartTheme } from '../hooks/useChartTheme';
-import { baselineScenarioId, costSummary, growthMetricSettings, isMissingRunError, type GrowthMetric } from './calibrationScenario';
+import { baselineScenarioId, costSummary, growthMetricSettings, isMissingRunError, searchLimitNotes, type SearchLimits, type GrowthMetric } from './calibrationScenario';
 
 interface CalibrationOutletContext {
   activeWorkspace: Workspace | null;
@@ -278,6 +278,12 @@ export default function CalibrationPanel() {
   const [growthMetric, setGrowthMetric] = useState<GrowthMetric>('payroll_per_head');
   const [solveRaiseBudget, setSolveRaiseBudget] = useState(true);
   const [usesRaiseBudget, setUsesRaiseBudget] = useState(false);
+  // Where the search starts and how far it may go. Kept apart from scaleFactor,
+  // which holds the last result, so a rerun doesn't begin at a previous limit.
+  const [searchStartScale, setSearchStartScale] = useState(1);
+  const [scaleMax, setScaleMax] = useState(3);
+  const [salaryGrowthMaxPct, setSalaryGrowthMaxPct] = useState(8);
+  const [runLimits, setRunLimits] = useState<SearchLimits>({ scaleMax: 3, salaryGrowthMaxPct: 8 });
   const solvingNewHireRanges = searchMode === 'new_hire_scale';
   const raiseSolved = solvingNewHireRanges && solveSalaryGrowth && solveRaiseBudget;
 
@@ -535,6 +541,7 @@ export default function CalibrationPanel() {
     setAutoContext(null);
     setResults([]);
     setApplyStatus('idle');
+    if (!resumeRunId) setRunLimits({ scaleMax, salaryGrowthMaxPct });
     try {
       // Scale mode NEVER silently falls back: derive the census ranges
       // automatically if Match Census hasn't been run, or fail clearly.
@@ -558,8 +565,10 @@ export default function CalibrationPanel() {
           ...(searchMode === 'new_hire_scale'
             ? {
                 base_job_level_compensation: scaleBases,
-                initial_scale: scaleFactor,
+                initial_scale: searchStartScale,
+                scale_max: scaleMax,
                 solve_salary_growth: solveSalaryGrowth,
+                ...(solveSalaryGrowth ? { salary_growth_max: salaryGrowthMaxPct / 100 } : {}),
               }
             : {}),
         },
@@ -1240,6 +1249,30 @@ export default function CalibrationPanel() {
                 Set the raise budget from the target (within 1pp of configured)
               </label>
             )}
+            {solvingNewHireRanges && (
+              <div className="flex flex-wrap items-end gap-4">
+                <label className="block text-xs text-info-ink">
+                  Start new-hire scale at (×)
+                  <input type="number" step="0.1" min={0.5} max={scaleMax} value={searchStartScale} disabled={autoLoading}
+                    onChange={event => setSearchStartScale(Number(event.target.value))}
+                    className="mt-1 w-24 rounded-md border border-border-strong bg-surface-raised p-1.5 text-sm shadow-sm" />
+                </label>
+                <label className="block text-xs text-info-ink">
+                  New-hire scale limit (×)
+                  <input type="number" step="0.1" min={1} max={5} value={scaleMax} disabled={autoLoading}
+                    onChange={event => setScaleMax(Number(event.target.value))}
+                    className="mt-1 w-24 rounded-md border border-border-strong bg-surface-raised p-1.5 text-sm shadow-sm" />
+                </label>
+                {solveSalaryGrowth && (
+                  <label className="block text-xs text-info-ink">
+                    Starting-pay growth limit (%/yr)
+                    <input type="number" step="0.5" min={0.5} max={25} value={salaryGrowthMaxPct} disabled={autoLoading}
+                      onChange={event => setSalaryGrowthMaxPct(Number(event.target.value))}
+                      className="mt-1 w-24 rounded-md border border-border-strong bg-surface-raised p-1.5 text-sm shadow-sm" />
+                  </label>
+                )}
+              </div>
+            )}
             {solvingNewHireRanges && baseRanges.length === 0 && (
               <p className="text-xs text-ink-muted">
                 {censusPath
@@ -1350,6 +1383,11 @@ export default function CalibrationPanel() {
                 — controls updated; use “Apply to Workspace” to persist, then run the
                 full simulation.
               </p>
+              {searchLimitNotes(autoOutcome.best_scale, autoOutcome.best_salary_growth_rate, runLimits).map(note => (
+                <p key={note} className="mt-1 text-xs font-medium text-info-ink">
+                  {note} Raise the limit and rerun to see if it was holding the result back.
+                </p>
+              ))}
               <table className="mt-2 text-xs w-full max-w-lg">
                 <thead className="text-info-ink">
                   <tr>

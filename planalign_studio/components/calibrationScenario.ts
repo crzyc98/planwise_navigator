@@ -19,6 +19,27 @@ export type GrowthMetric = 'active_average' | 'payroll_per_head';
  * band and starting-pay cap it was validated with (#1073). Setting the raise
  * budget from the target needs the two-dial search, under either metric.
  */
+export interface SearchLimits {
+  scaleMax: number;
+  salaryGrowthMaxPct: number;
+}
+
+/** Say which dials finished at a limit. Reaching one doesn't prove it caused a miss. */
+export function searchLimitNotes(
+  bestScale: number | null | undefined,
+  bestSalaryGrowthRate: number | null | undefined,
+  limits: SearchLimits,
+): string[] {
+  const notes: string[] = [];
+  if (bestScale != null && bestScale >= limits.scaleMax - 1e-6) {
+    notes.push(`New-hire scale ended at its ${limits.scaleMax.toFixed(2)}× limit.`);
+  }
+  if (bestSalaryGrowthRate != null && bestSalaryGrowthRate * 100 >= limits.salaryGrowthMaxPct - 1e-6) {
+    notes.push(`Starting-pay growth ended at its ${limits.salaryGrowthMaxPct.toFixed(1)}%/yr limit.`);
+  }
+  return notes;
+}
+
 export function growthMetricSettings(
   metric: GrowthMetric,
   solveSalaryGrowth: boolean,
@@ -32,7 +53,6 @@ export function growthMetricSettings(
     ...(solveSalaryGrowth
       ? {
           compound_band_pct: 0.04,
-          salary_growth_max: 0.05,
           stop_on_plateau: true,
           solve_raise_budget: solveRaiseBudget,
         }

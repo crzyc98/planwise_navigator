@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { baselineScenarioId, costSummary, growthMetricSettings, isMissingRunError } from './calibrationScenario';
+import { baselineScenarioId, costSummary, growthMetricSettings, isMissingRunError, searchLimitNotes } from './calibrationScenario';
 import { ApiError } from '../services/api';
 import CalibrationPanel from './CalibrationPanel';
 
@@ -21,11 +21,10 @@ describe('growth metric settings', () => {
     expect(growthMetricSettings('active_average', false, true)).toEqual({});
   });
 
-  it('sends the validated band and cap with two-dial total pay per head', () => {
+  it('sends the validated band with two-dial total pay per head and leaves limits to the analyst', () => {
     expect(growthMetricSettings('payroll_per_head', true)).toEqual({
       growth_metric: 'payroll_per_head',
       compound_band_pct: 0.04,
-      salary_growth_max: 0.05,
       stop_on_plateau: true,
       solve_raise_budget: false,
     });
@@ -44,6 +43,22 @@ describe('growth metric settings', () => {
     expect(growthMetricSettings('payroll_per_head', false)).toEqual({
       growth_metric: 'payroll_per_head',
     });
+  });
+});
+
+describe('search limit notes', () => {
+  const limits = { scaleMax: 3, salaryGrowthMaxPct: 8 };
+
+  it('stays quiet when no dial reached a limit', () => {
+    expect(searchLimitNotes(1.4, 0.05, limits)).toEqual([]);
+    expect(searchLimitNotes(null, undefined, limits)).toEqual([]);
+  });
+
+  it('names each dial that finished at its limit', () => {
+    expect(searchLimitNotes(3, 0.08, limits)).toEqual([
+      'New-hire scale ended at its 3.00× limit.',
+      'Starting-pay growth ended at its 8.0%/yr limit.',
+    ]);
   });
 });
 
@@ -91,6 +106,9 @@ describe('calibration scenario defaults', () => {
     expect(html).toContain('Select a scenario');
     expect(html).not.toContain('Workspace baseline');
     expect(html).toMatch(/<option[^>]*disabled=""[^>]*>Select a scenario<\/option>/);
+    expect(html).toContain('Start new-hire scale at');
+    expect(html).toContain('New-hire scale limit');
+    expect(html).toContain('Starting-pay growth limit');
     const runButton = html.match(/<button\b[^>]*>.*?<\/button>/g)
       ?.find(button => button.includes('Auto-Calibrate'));
     expect(runButton).toContain('disabled=""');
