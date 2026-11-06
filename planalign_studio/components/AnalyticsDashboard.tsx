@@ -20,6 +20,7 @@ import {
 } from '../services/api';
 import { useChartTheme } from '../hooks/useChartTheme';
 import RunHealthSummary from './simulation/RunHealthSummary';
+import { buildPayPerHeadYears, meanGrowthPct } from './payPerHead';
 
 interface LayoutContext {
   activeWorkspace: Workspace;
@@ -372,6 +373,12 @@ export default function AnalyticsDashboard() {
         });
       })()
     : [];
+
+  // Total pay includes leavers but headcount doesn't, so only the "all" view has both.
+  const payPerHeadYears = population === 'all' && results?.compensation_by_status?.length
+    ? buildPayPerHeadYears(results.workforce_progression ?? [], results.compensation_by_status)
+    : [];
+  const payPerHeadMean = meanGrowthPct(payPerHeadYears);
 
   const eventChartData = results ? Object.keys(results.event_trends).length > 0
     ? Array.from(
@@ -856,6 +863,56 @@ export default function AnalyticsDashboard() {
               )}
             </div>
 
+          </div>
+
+          {/* The metric calibration targets, so a full run can be checked against it */}
+          <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-lg font-semibold text-ink">
+                Total Pay ÷ Year-End Headcount
+                {payPerHeadMean !== null && (
+                  <span className="text-sm font-normal text-ink-muted ml-2">
+                    — Average growth: {payPerHeadMean.toFixed(2)}%
+                  </span>
+                )}
+              </h3>
+              {payPerHeadYears.length > 0 && <CopyTableButton rows={payPerHeadYears} />}
+            </div>
+            <p className="text-sm text-ink-muted mb-4">
+              Total pay for the year, including people who left, divided by active headcount at year end.
+            </p>
+            {population !== 'all' ? (
+              <p className="text-sm text-ink-muted">Switch the population filter to All to see this metric.</p>
+            ) : payPerHeadYears.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-border">
+                  <thead>
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-ink-muted uppercase">Year</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-ink-muted uppercase">Total Pay</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-ink-muted uppercase">Year-End Headcount</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-ink-muted uppercase">Pay per Head</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-ink-muted uppercase">Growth</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {payPerHeadYears.map(row => (
+                      <tr key={row.year}>
+                        <td className="px-4 py-2 text-sm text-ink">{row.year}</td>
+                        <td className="px-4 py-2 text-sm text-ink text-right">${Math.round(row.totalPay).toLocaleString()}</td>
+                        <td className="px-4 py-2 text-sm text-ink text-right">{row.yearEndHeadcount.toLocaleString()}</td>
+                        <td className="px-4 py-2 text-sm text-ink text-right">${Math.round(row.payPerHead).toLocaleString()}</td>
+                        <td className="px-4 py-2 text-sm text-ink text-right">
+                          {row.growthPct === null ? '—' : `${row.growthPct.toFixed(2)}%`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-sm text-ink-muted">No pay data available.</p>
+            )}
           </div>
 
           {/* Compensation by Detailed Status Code */}
