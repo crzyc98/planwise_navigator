@@ -60,6 +60,43 @@ export function growthMetricSettings(
   };
 }
 
+export interface SearchInputs {
+  tolerance_pct?: number;
+  max_iterations?: number;
+  search_mode?: string;
+  initial_scale?: number;
+  scale_min?: number;
+  scale_max?: number;
+  solve_salary_growth?: boolean;
+  salary_growth_min?: number;
+  salary_growth_max?: number;
+  compound_band_pct?: number | null;
+  solve_raise_budget?: boolean;
+  raise_budget_limit_pct?: number;
+}
+
+/** Every start and bound a search uses, in words. Reads what is sent, or what was saved. */
+export function searchInputLines(inputs: SearchInputs): string[] {
+  const lines = [`Tolerance ±${(inputs.tolerance_pct ?? 0.05).toFixed(2)}pp, up to ${inputs.max_iterations ?? 8} runs.`];
+  if (inputs.search_mode !== 'new_hire_scale') return lines;
+  lines.push(
+    `New-hire scale starts at ${(inputs.initial_scale ?? 1).toFixed(2)}×, `
+    + `searched from ${(inputs.scale_min ?? 0.5).toFixed(2)}× to ${(inputs.scale_max ?? 3).toFixed(2)}×.`,
+  );
+  if (!inputs.solve_salary_growth) return lines;
+  lines.push(
+    `Starting-pay growth searched from ${((inputs.salary_growth_min ?? 0) * 100).toFixed(1)}% `
+    + `to ${((inputs.salary_growth_max ?? 0.08) * 100).toFixed(1)}%/yr.`,
+  );
+  if (inputs.compound_band_pct != null) {
+    lines.push(`Horizon mean held within ±${inputs.compound_band_pct.toFixed(2)}pp of the target.`);
+  }
+  if (inputs.solve_raise_budget) {
+    lines.push(`Raise budget set from the target, within ${(inputs.raise_budget_limit_pct ?? 1).toFixed(1)}pp of the starting raises.`);
+  }
+  return lines;
+}
+
 export interface CostEstimateRow {
   simulation_year: number;
   current_total_pay: number;

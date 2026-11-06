@@ -1386,9 +1386,15 @@
             "title": "Results",
             "type": "array"
           },
+          "settings": {
+            "$ref": "#/components/schemas/AutoCalibrationSettings"
+          },
           "start_year": {
             "title": "Start Year",
             "type": "integer"
+          },
+          "starting_params": {
+            "$ref": "#/components/schemas/CalibrationParameterSet"
           },
           "status": {
             "enum": [
@@ -1422,7 +1428,9 @@
           "end_year",
           "iterations",
           "results",
-          "cost_estimate"
+          "cost_estimate",
+          "settings",
+          "starting_params"
         ],
         "title": "AutoCalibrationResult",
         "type": "object"

@@ -29,9 +29,9 @@ import {
   Scenario,
 } from '../services/api';
 import { extractCensusPath } from './config/ConfigContext';
-import { MAX_NEW_HIRE_SCALE } from './config/constants';
+import { MAX_NEW_HIRE_SCALE, MIN_SEARCH_SCALE } from './config/constants';
 import { useChartTheme } from '../hooks/useChartTheme';
-import { baselineScenarioId, costSummary, growthMetricSettings, isMissingRunError, searchLimitNotes, type SearchLimits, type GrowthMetric } from './calibrationScenario';
+import { baselineScenarioId, costSummary, growthMetricSettings, isMissingRunError, searchInputLines, searchLimitNotes, type SearchLimits, type GrowthMetric } from './calibrationScenario';
 
 interface CalibrationOutletContext {
   activeWorkspace: Workspace | null;
@@ -282,6 +282,7 @@ export default function CalibrationPanel() {
   // Where the search starts and how far it may go. Kept apart from scaleFactor,
   // which holds the last result, so a rerun doesn't begin at a previous limit.
   const [searchStartScale, setSearchStartScale] = useState(1);
+  const [configuredRaises, setConfiguredRaises] = useState<{ cola_rate: number; merit_budget: number } | null>(null);
   const [scaleMax, setScaleMax] = useState(3);
   const [salaryGrowthMaxPct, setSalaryGrowthMaxPct] = useState(8);
   const [runLimits, setRunLimits] = useState<SearchLimits>({ scaleMax: 3, salaryGrowthMaxPct: 8 });
@@ -302,6 +303,8 @@ export default function CalibrationPanel() {
     && scenarios.some(scenario => scenario.id === selection?.id) ? selection!.id : '';
   const targetKey = selectedScenarioId ? `${activeWorkspace?.id}/${selectedScenarioId}/${searchMode}` : '';
   const targetReady = !!targetKey && loadedTarget === targetKey;
+  const raisesMoved = configuredRaises != null
+    && (configuredRaises.cola_rate !== values.cola_rate || configuredRaises.merit_budget !== values.merit_budget);
 
   // Job Level Compensation Ranges via "Match Census" x scale (Feature 105) --
   // identical to the Workforce Parameters page, so the scale transfers to the
@@ -386,6 +389,15 @@ export default function CalibrationPanel() {
       const raiseBudget = compensation.raise_budget
         ?? (compensation.raise_budget_percent != null ? compensation.raise_budget_percent / 100 : null);
       setUsesRaiseBudget(raiseBudget != null);
+      const configuredCola = raiseBudget != null ? 0 :
+        compensation.cola_rate ??
+        (compensation.cola_rate_percent != null ? compensation.cola_rate_percent / 100 : null);
+      const configuredMerit = raiseBudget ??
+        compensation.merit_budget ??
+        (compensation.merit_budget_percent != null ? compensation.merit_budget_percent / 100 : null);
+      setConfiguredRaises(configuredCola != null && configuredMerit != null
+        ? { cola_rate: configuredCola, merit_budget: configuredMerit }
+        : null);
       setValues((prev) => ({
         ...prev,
         target_growth_pct:
@@ -394,16 +406,8 @@ export default function CalibrationPanel() {
             : prev.target_growth_pct,
         workforce_growth_rate:
           simulation.target_growth_rate ?? prev.workforce_growth_rate,
-        cola_rate: raiseBudget != null ? 0 :
-          compensation.cola_rate ??
-          (compensation.cola_rate_percent != null
-            ? compensation.cola_rate_percent / 100
-            : prev.cola_rate),
-        merit_budget: raiseBudget ??
-          compensation.merit_budget ??
-          (compensation.merit_budget_percent != null
-            ? compensation.merit_budget_percent / 100
-            : prev.merit_budget),
+        cola_rate: configuredCola ?? prev.cola_rate,
+        merit_budget: configuredMerit ?? prev.merit_budget,
         total_termination_rate: wf.total_termination_rate ?? prev.total_termination_rate,
         new_hire_termination_rate:
           wf.new_hire_termination_rate ?? prev.new_hire_termination_rate,
@@ -526,6 +530,58 @@ export default function CalibrationPanel() {
     }
   };
 
+  const searchSettings = (scaleBases: JobRange[]) => ({
+    target_workforce_growth: values.workforce_growth_rate,
+    target_comp_growth: values.target_growth_pct,
+    tolerance_pct: tolerancePct,
+    max_iterations: maxIterations,
+    search_mode: searchMode,
+    ...growthMetricSettings(growthMetric, searchMode === 'new_hire_scale' && solveSalaryGrowth, solveRaiseBudget),
+    ...(searchMode === 'new_hire_scale'
+      ? {
+          base_job_level_compensation: scaleBases,
+          initial_scale: searchStartScale,
+          scale_min: MIN_SEARCH_SCALE,
+          scale_max: scaleMax,
+          solve_salary_growth: solveSalaryGrowth,
+          ...(solveSalaryGrowth ? { salary_growth_min: 0, salary_growth_max: salaryGrowthMaxPct / 100 } : {}),
+        }
+      : {}),
+  });
+
+  const loadSavedInputs = (outcome: AutoCalibrationOutcome) => {
+    const { settings, starting_params: start } = outcome;
+    setTolerancePct(settings.tolerance_pct ?? tolerancePct);
+    setMaxIterations(settings.max_iterations ?? maxIterations);
+    setSearchStartScale(settings.initial_scale ?? searchStartScale);
+    setScaleMax(settings.scale_max ?? scaleMax);
+    setSalaryGrowthMaxPct((settings.salary_growth_max ?? salaryGrowthMaxPct / 100) * 100);
+    setSolveSalaryGrowth(settings.solve_salary_growth ?? solveSalaryGrowth);
+    setSolveRaiseBudget(settings.solve_raise_budget ?? solveRaiseBudget);
+    setGrowthMetric(settings.growth_metric ?? growthMetric);
+    if (settings.base_job_level_compensation) {
+      setBaseRanges(settings.base_job_level_compensation.map(range => ({ ...range, name: range.name ?? `Level ${range.level}` })));
+    }
+    if (start.new_hire_age_distribution) {
+      setAgeDist(start.new_hire_age_distribution);
+      setAgeDistMode('custom');
+    }
+    setValues((prev) => ({
+      ...prev,
+      target_growth_pct: settings.target_comp_growth,
+      workforce_growth_rate: settings.target_workforce_growth,
+      cola_rate: start.cola_rate ?? prev.cola_rate,
+      merit_budget: start.merit_budget ?? prev.merit_budget,
+      total_termination_rate: start.total_termination_rate ?? prev.total_termination_rate,
+      new_hire_termination_rate: start.new_hire_termination_rate ?? prev.new_hire_termination_rate,
+    }));
+  };
+
+  const useConfiguredRaises = () => {
+    if (!configuredRaises) return;
+    setValues((prev) => ({ ...prev, ...configuredRaises }));
+  };
+
   const runAutoCalibrate = async (resumeRunId?: string) => {
     if (!targetReady || !activeWorkspace || !selectedScenarioId) {
       setAutoError('Select a scenario and wait for its settings to load before calibrating.');
@@ -556,23 +612,7 @@ export default function CalibrationPanel() {
         database_path: null,
         workspace_id: activeWorkspace.id,
         scenario_id: selectedScenarioId,
-        settings: {
-          target_workforce_growth: values.workforce_growth_rate,
-          target_comp_growth: values.target_growth_pct,
-          tolerance_pct: tolerancePct,
-          max_iterations: maxIterations,
-          search_mode: searchMode,
-          ...growthMetricSettings(growthMetric, searchMode === 'new_hire_scale' && solveSalaryGrowth, solveRaiseBudget),
-          ...(searchMode === 'new_hire_scale'
-            ? {
-                base_job_level_compensation: scaleBases,
-                initial_scale: searchStartScale,
-                scale_max: scaleMax,
-                solve_salary_growth: solveSalaryGrowth,
-                ...(solveSalaryGrowth ? { salary_growth_max: salaryGrowthMaxPct / 100 } : {}),
-              }
-            : {}),
-        },
+        settings: { ...searchSettings(scaleBases) },
         params: {
           cola_rate: values.cola_rate,
           merit_budget: values.merit_budget,
@@ -1254,7 +1294,7 @@ export default function CalibrationPanel() {
               <div className="flex flex-wrap items-end gap-4">
                 <label className="block text-xs text-info-ink">
                   Start new-hire scale at (×)
-                  <input type="number" step="0.1" min={0.5} max={scaleMax} value={searchStartScale} disabled={autoLoading}
+                  <input type="number" step="0.1" min={MIN_SEARCH_SCALE} max={scaleMax} value={searchStartScale} disabled={autoLoading}
                     onChange={event => setSearchStartScale(Number(event.target.value))}
                     className="mt-1 w-24 rounded-md border border-border-strong bg-surface-raised p-1.5 text-sm shadow-sm" />
                 </label>
@@ -1281,6 +1321,24 @@ export default function CalibrationPanel() {
                   : 'Needs a census — upload one to this workspace first.'}
               </p>
             )}
+            <div className="text-xs text-info-ink">
+              <p className="font-medium">This search will use:</p>
+              <ul className="mt-1 list-disc pl-4">
+                <li>
+                  Raises start at {usesRaiseBudget
+                    ? `a ${pct(values.merit_budget)} raise budget`
+                    : `COLA ${pct(values.cola_rate)}, merit ${pct(values.merit_budget)}`}
+                  {raisesMoved && ' — carried over from the last result, not the configured raises'}.
+                  {raisesMoved && (
+                    <button type="button" disabled={autoLoading} onClick={useConfiguredRaises}
+                      className="ml-2 underline disabled:opacity-50">
+                      Use configured raises
+                    </button>
+                  )}
+                </li>
+                {searchInputLines(searchSettings(baseRanges)).map(line => <li key={line}>{line}</li>)}
+              </ul>
+            </div>
             <div className="flex flex-wrap items-end gap-4">
               <button
                 onClick={() => void runAutoCalibrate()}
@@ -1389,6 +1447,20 @@ export default function CalibrationPanel() {
                   {note} Raise the limit and rerun to see if it was holding the result back.
                 </p>
               ))}
+              <details className="mt-1 text-xs text-info-ink">
+                <summary className="cursor-pointer">Inputs this result used</summary>
+                <ul className="mt-1 list-disc pl-4">
+                  <li>
+                    Raises started at COLA {pct(autoOutcome.starting_params.cola_rate ?? 0)}, merit{' '}
+                    {pct(autoOutcome.starting_params.merit_budget ?? 0)}.
+                  </li>
+                  {searchInputLines(autoOutcome.settings).map(line => <li key={line}>{line}</li>)}
+                </ul>
+                <button type="button" disabled={autoLoading} onClick={() => loadSavedInputs(autoOutcome)}
+                  className="mt-1 underline disabled:opacity-50">
+                  Load these inputs to rerun
+                </button>
+              </details>
               <table className="mt-2 text-xs w-full max-w-lg">
                 <thead className="text-info-ink">
                   <tr>
