@@ -214,7 +214,7 @@ export function DCPlanSection() {
                  id="dcAutoEnroll"
                  checked={formData.dcAutoEnroll}
                  onChange={handleChange}
-                 className="h-4 w-4 text-brand-green focus:ring-brand-green border-border-strong rounded mt-1"
+                 className="h-4 w-4 text-brand-ink focus:ring-brand-green border-border-strong rounded mt-1"
             />
             <div className="ml-3">
                <label htmlFor="dcAutoEnroll" className="block text-sm font-medium text-success-ink">Enable Auto-Enrollment</label>
@@ -235,7 +235,7 @@ export function DCPlanSection() {
          <InputField label="Modeled opt-out delay" {...inputProps('dcAutoEnrollOptOutGracePeriod')} type="number" suffix="Days" disabled={!formData.dcAutoEnroll} helper={formData.dcAutoEnroll ? 'Hire-year opt-out date: eligibility + enrollment delay + this delay. Continuing-employee branch: June 15.' : 'Inactive while auto-enrollment is off. Saved value is retained.'} min={0} />
          <fieldset disabled={!formData.dcAutoEnroll} className="sm:col-span-6 disabled:opacity-60">
            <label htmlFor="dcReenrollmentSweepEnabled" className="flex items-center gap-2 text-sm font-medium text-ink">
-             <input id="dcReenrollmentSweepEnabled" name="dcReenrollmentSweepEnabled" type="checkbox" checked={formData.dcReenrollmentSweepEnabled} onChange={handleChange} aria-describedby="reenrollment-sweep-help" className="h-4 w-4 text-brand-green rounded" />
+             <input id="dcReenrollmentSweepEnabled" name="dcReenrollmentSweepEnabled" type="checkbox" checked={formData.dcReenrollmentSweepEnabled} onChange={handleChange} aria-describedby="reenrollment-sweep-help" className="h-4 w-4 text-brand-ink rounded" />
              Periodic re-enrollment sweep
            </label>
            <p id="reenrollment-sweep-help" className="mt-1 text-xs text-ink-muted">Choose who to include and how their contributions start. Employees at 0% can opt out again; contributors can decline. Automatic increases continue in later years.</p>
@@ -337,7 +337,7 @@ export function DCPlanSection() {
                        ...prev,
                        dcOptOutRateTarget: DEFAULT_FORM_DATA.dcOptOutRateTarget,
                      }))}
-                     className="text-xs text-brand-green hover:text-success-ink font-medium"
+                     className="text-xs text-brand-ink hover:text-success-ink font-medium"
                    >
                      Reset to Default
                    </button>
@@ -537,7 +537,7 @@ export function DCPlanSection() {
                  name="dcMatchMagnetEnabled"
                  checked={formData.dcMatchMagnetEnabled}
                  onChange={handleChange}
-                 className="h-4 w-4 text-brand-green rounded"
+                 className="h-4 w-4 text-brand-ink rounded"
                />
                <span className="ml-2 text-sm text-ink-muted">Enabled</span>
              </label>
@@ -550,7 +550,7 @@ export function DCPlanSection() {
              <div className="sm:col-span-6">
                <label htmlFor="dcplan-match-magnet-downward" className="flex items-start gap-2 text-sm text-ink-muted">
                  <input id="dcplan-match-magnet-downward" type="checkbox" name="dcMatchMagnetDownwardEnabled" checked={formData.dcMatchMagnetDownwardEnabled} onChange={handleChange}
-                   disabled={!formData.dcMatchMagnetEnabled || !formData.dcAutoEnroll} aria-describedby="dcplan-match-magnet-downward-help" className="mt-1 h-4 w-4 text-brand-green rounded disabled:opacity-50" />
+                   disabled={!formData.dcMatchMagnetEnabled || !formData.dcAutoEnroll} aria-describedby="dcplan-match-magnet-downward-help" className="mt-1 h-4 w-4 text-brand-ink rounded disabled:opacity-50" />
                  Also pull rates down to the full-match rate when it is below the auto-enrollment default
                </label>
                <p id="dcplan-match-magnet-downward-help" className="mt-1 text-xs text-ink-muted">On by default. Applies only to employees whose starting rate is between the full-match rate and the auto-enrollment default. Rates above the default are never lowered. Uses the same {formData.dcMatchMagnetProbability}% probability as the upward pull. {!formData.dcAutoEnroll ? 'Inactive while auto-enrollment is off. Saved value is retained.' : !formData.dcMatchMagnetEnabled ? 'Inactive while new-enrollee match seeking is off. Saved value is retained.' : ''}</p>
@@ -573,7 +573,7 @@ export function DCPlanSection() {
                  name="dcMatchResponseEnabled"
                  checked={formData.dcMatchResponseEnabled}
                  onChange={handleChange}
-                 className="h-4 w-4 text-brand-green rounded"
+                 className="h-4 w-4 text-brand-ink rounded"
                />
                <span className="ml-2 text-sm text-ink-muted">Enabled</span>
              </label>
@@ -603,7 +603,7 @@ export function DCPlanSection() {
                    checked={formData.dcMatchResponseDownwardEnabled}
                    disabled={!formData.dcMatchResponseEnabled}
                    onChange={handleChange}
-                   className="h-4 w-4 text-brand-green rounded"
+                   className="h-4 w-4 text-brand-ink rounded"
                  />
                  <span className="ml-2 text-sm text-ink-muted">Allow Deferral Decreases</span>
                </label>
@@ -637,7 +637,7 @@ export function DCPlanSection() {
                name="dcMatchEnabled"
                checked={formData.dcMatchEnabled}
                onChange={handleChange}
-               className="h-4 w-4 text-brand-green rounded"
+               className="h-4 w-4 text-brand-ink rounded"
              />
              <span className="ml-2 text-sm text-ink-muted">Enabled</span>
            </label>
@@ -747,7 +747,7 @@ export function DCPlanSection() {
                  const newTier = { minPoints: newMin, maxPoints: null, matchRate: 100, maxDeferralPct: 6 };
                  setFormData(prev => ({ ...prev, dcPointsMatchTiers: [...updatedTiers, newTier] }));
                }}
-               className="mt-3 text-sm text-brand-green hover:text-success-ink flex items-center gap-1"
+               className="mt-3 text-sm text-brand-ink hover:text-success-ink flex items-center gap-1"
              >+ Add Tier</button>
              {formData.dcPointsMatchTiers.length === 0 && (
                <p className="mt-2 text-xs text-warning-ink">Add at least one tier to configure points-based matching</p>
@@ -891,7 +891,7 @@ export function DCPlanSection() {
                const newTier = { deferralMin: lastTier?.deferralMax || 0, deferralMax: (lastTier?.deferralMax || 0) + 2, matchRate: 50 };
                setFormData(prev => ({ ...prev, dcMatchTiers: [...prev.dcMatchTiers, newTier] }));
              }}
-             className="mt-3 text-sm text-brand-green hover:text-success-ink flex items-center gap-1"
+             className="mt-3 text-sm text-brand-ink hover:text-success-ink flex items-center gap-1"
            >
              + Add Tier
            </button>
@@ -925,7 +925,7 @@ export function DCPlanSection() {
                name="dcCoreEnabled"
                checked={formData.dcCoreEnabled}
                onChange={handleChange}
-               className="h-4 w-4 text-brand-green rounded"
+               className="h-4 w-4 text-brand-ink rounded"
              />
              <span className="ml-2 text-sm text-ink-muted">Enabled</span>
            </label>
@@ -995,7 +995,7 @@ export function DCPlanSection() {
                      ? [...formData.dcCoreAgeSchedule.slice(0, -1), { ...last, maxAge: newMin }]
                      : [...formData.dcCoreAgeSchedule];
                    setFormData((prev: any) => ({ ...prev, dcCoreAgeSchedule: [...schedule, { minAge: newMin, maxAge: null, rate: last?.rate ?? 1 }] }));
-                 }} className="mt-3 text-sm text-brand-green hover:text-success-ink font-medium">+ Add Tier</button>
+                 }} className="mt-3 text-sm text-brand-ink hover:text-success-ink font-medium">+ Add Tier</button>
                  {(() => {
                    const warnings = validateMatchTiers(formData.dcCoreAgeSchedule.map(t => ({ min: t.minAge, max: t.maxAge })), 'age');
                    return warnings.length ? <div className="mt-3 bg-warning-surface border border-warning-border rounded-md p-3"><p className="text-xs font-medium text-warning-ink">Tier configuration warnings:</p><ul className="list-disc list-inside">{warnings.map((warning, index) => <li key={index} className="text-xs text-warning-ink">{warning}</li>)}</ul></div> : null;
@@ -1079,7 +1079,7 @@ export function DCPlanSection() {
                      ];
                      setFormData((prev: any) => ({ ...prev, dcCoreGradedSchedule: newSchedule }));
                    }}
-                   className="mt-3 text-sm text-brand-green hover:text-success-ink font-medium"
+                   className="mt-3 text-sm text-brand-ink hover:text-success-ink font-medium"
                  >
                    + Add Tier
                  </button>
@@ -1181,7 +1181,7 @@ export function DCPlanSection() {
                     ];
                     setFormData((prev: any) => ({ ...prev, dcCorePointsSchedule: newSchedule }));
                   }}
-                  className="mt-3 text-sm text-brand-green hover:text-success-ink font-medium"
+                  className="mt-3 text-sm text-brand-ink hover:text-success-ink font-medium"
                 >
                   + Add Tier
                 </button>
@@ -1219,7 +1219,7 @@ export function DCPlanSection() {
                    name="dcCoreIntegrationEnabled"
                    checked={formData.dcCoreIntegrationEnabled}
                    onChange={handleChange}
-                   className="h-4 w-4 text-brand-green border-border-strong rounded focus:ring-brand-green"
+                   className="h-4 w-4 text-brand-ink border-border-strong rounded focus:ring-brand-green"
                  />
                  Social Security Integration (Permitted Disparity)
                </label>
@@ -1302,7 +1302,7 @@ export function DCPlanSection() {
   const escalationControl = <div className="flex items-center justify-between mb-2">
              <h4 className="text-sm font-semibold text-ink">Auto-Escalation</h4>
              <label htmlFor="dcplan-auto-escalation" className="flex items-center">
-                 <input id="dcplan-auto-escalation" type="checkbox" name="dcAutoEscalation" checked={formData.dcAutoEscalation} onChange={handleChange} className="h-4 w-4 text-brand-green rounded" />
+                 <input id="dcplan-auto-escalation" type="checkbox" name="dcAutoEscalation" checked={formData.dcAutoEscalation} onChange={handleChange} className="h-4 w-4 text-brand-ink rounded" />
                  <span className="ml-2 text-sm text-ink-muted">Enabled</span>
              </label>
          </div>;
@@ -1374,13 +1374,13 @@ export function DCPlanSection() {
         <DCPlanPanel id="dcplan-starting-rates-panel" title="Starting employee contribution rates" summary={`Segment rates ${Math.min(...Object.values(formData.dcVoluntaryDeferralBaseRates))}–${Math.max(...Object.values(formData.dcVoluntaryDeferralBaseRates))}%; upward spread ${formData.dcDeferralSpreadMaxLift} percentage points; voluntary cap ${formData.dcMaxVoluntaryDeferral}%. ${belowDefaultSummary(formData)}${deferralSpreadClipping ? ` Warning: spread ceiling ${deferralSpreadClipping.spreadCeiling}% exceeds the cap; rates will be clipped.` : ''}`}>{startingRateFields}</DCPlanPanel>
         <DCPlanPanel id="dcplan-easy-enroll-panel" title="Easy Enroll" enabled={formData.dcEasyEnrollEnabled} summary={easyEnrollSummary(formData)} control={
           <label htmlFor="dcplan-easy-enroll-enabled" className="flex items-center gap-2 text-sm font-medium text-ink-muted">
-            <input id="dcplan-easy-enroll-enabled" type="checkbox" name="dcEasyEnrollEnabled" checked={formData.dcEasyEnrollEnabled} onChange={handleChange} className="h-4 w-4 text-brand-green rounded" />
+            <input id="dcplan-easy-enroll-enabled" type="checkbox" name="dcEasyEnrollEnabled" checked={formData.dcEasyEnrollEnabled} onChange={handleChange} className="h-4 w-4 text-brand-ink rounded" />
             Offer Easy Enroll packages
           </label>
         }><EasyEnrollEditor form={formData} onChange={changes => setFormData(previous => ({ ...previous, ...changes }))} /></DCPlanPanel>
         <DCPlanPanel id="dcplan-rate-changes-panel" title="Changes to contribution rates over time" enabled={formData.dcDeferralRateChangesEnabled} summary={deferralRateChangesSummary(formData)} control={
           <label htmlFor="dcplan-rate-changes-enabled" className="flex items-center gap-2 text-sm font-medium text-ink-muted">
-            <input id="dcplan-rate-changes-enabled" type="checkbox" name="dcDeferralRateChangesEnabled" checked={formData.dcDeferralRateChangesEnabled} onChange={handleChange} className="h-4 w-4 text-brand-green rounded" />
+            <input id="dcplan-rate-changes-enabled" type="checkbox" name="dcDeferralRateChangesEnabled" checked={formData.dcDeferralRateChangesEnabled} onChange={handleChange} className="h-4 w-4 text-brand-ink rounded" />
             Model employees changing their own contribution rate
           </label>
         }><DeferralRateChangesEditor form={formData} onChange={changes => setFormData(previous => ({ ...previous, ...changes }))} /></DCPlanPanel>

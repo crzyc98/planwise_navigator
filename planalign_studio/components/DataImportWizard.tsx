@@ -30,7 +30,7 @@ function StepIndicator({ current }: { current: WizardStep }) {
         return (
           <React.Fragment key={step.id}>
             <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors
-              ${isActive ? 'bg-brand-green text-ink-inverse' : isDone ? 'text-brand-green' : 'text-ink-subtle'}`}>
+              ${isActive ? 'bg-brand-green text-ink-inverse' : isDone ? 'text-brand-ink' : 'text-ink-subtle'}`}>
               {step.icon}
               <span className="hidden sm:inline">{step.label}</span>
             </div>
@@ -107,7 +107,7 @@ export default function DataImportWizard() {
       <div className="p-6 space-y-4">
         <button
           onClick={() => setShowFilesView(false)}
-          className="flex items-center gap-1 text-sm text-brand-green hover:underline"
+          className="flex items-center gap-1 text-sm text-brand-ink hover:underline"
         >
           <ArrowLeft size={14} /> Back to Import Wizard
         </button>
@@ -125,7 +125,7 @@ export default function DataImportWizard() {
         </div>
         <button
           onClick={() => setShowFilesView(true)}
-          className="text-sm text-brand-green hover:underline"
+          className="text-sm text-brand-ink hover:underline"
         >
           View Imported Files
         </button>
@@ -154,7 +154,7 @@ export default function DataImportWizard() {
         )}
         {step === 'done' && parquetResult && (
           <div className="text-center space-y-4 py-6">
-            <CheckCircle2 size={48} className="mx-auto text-brand-green" />
+            <CheckCircle2 size={48} className="mx-auto text-brand-ink" />
             <h2 className="text-lg font-semibold text-ink">Census Data Ready</h2>
             <p className="text-sm text-ink-muted">
               <span className="font-mono">{parquetResult.file_name}</span> — {parquetResult.row_count.toLocaleString()} rows
@@ -178,7 +178,7 @@ export default function DataImportWizard() {
         )}
         {step === 'done' && generatedFile && (
           <div className="text-center space-y-4 py-6">
-            <CheckCircle2 size={48} className="mx-auto text-brand-green" />
+            <CheckCircle2 size={48} className="mx-auto text-brand-ink" />
             <h2 className="text-lg font-semibold text-ink">Parquet File Generated!</h2>
             <p className="text-sm text-ink-muted">
               <span className="font-mono">{generatedFile.filename}</span> — {generatedFile.row_count.toLocaleString()} rows

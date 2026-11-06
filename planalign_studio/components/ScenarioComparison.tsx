@@ -163,7 +163,7 @@ export default function ScenarioComparison() {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
-          <Loader2 size={48} className="animate-spin text-brand-green mx-auto mb-4" />
+          <Loader2 size={48} className="animate-spin text-brand-ink mx-auto mb-4" />
           <p className="text-ink-muted">Loading scenario data...</p>
         </div>
       </div>

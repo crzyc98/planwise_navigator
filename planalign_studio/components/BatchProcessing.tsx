@@ -266,7 +266,7 @@ export default function BatchProcessing() {
               <p>No scenarios available.</p>
               <button
                 onClick={() => navigate('/scenarios')}
-                className="mt-2 text-brand-green hover:underline text-sm"
+                className="mt-2 text-brand-ink hover:underline text-sm"
               >
                 Create a scenario first
               </button>
@@ -302,7 +302,7 @@ export default function BatchProcessing() {
                       </div>
                     </div>
                     {selectedScenarioIds.includes(scenario.id) && (
-                      <CheckCircle className="text-brand-green flex-shrink-0 ml-2" size={20} />
+                      <CheckCircle className="text-brand-ink flex-shrink-0 ml-2" size={20} />
                     )}
                   </div>
                 </div>
@@ -605,14 +605,14 @@ export default function BatchProcessing() {
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <button
                             onClick={(e) => handleRerun(job, e)}
-                            className="text-ink-muted hover:text-brand-green mr-4"
+                            className="text-ink-muted hover:text-brand-ink mr-4"
                             title="Re-run Batch"
                           >
                             <RotateCw size={16} />
                           </button>
                           <button
                             onClick={() => handleViewDetails(job)}
-                            className="text-brand-green hover:text-brand-dark mr-4"
+                            className="text-brand-ink hover:text-brand-ink-strong mr-4"
                           >
                             View
                           </button>

@@ -493,7 +493,7 @@ export default function OptimizerPanel() {
             type="button"
             onClick={addLeverRow}
             disabled={leverRows.length >= MAX_LEVERS}
-            className="inline-flex items-center gap-1 text-sm font-medium text-brand-green disabled:text-ink-subtle"
+            className="inline-flex items-center gap-1 text-sm font-medium text-brand-ink disabled:text-ink-subtle"
           >
             <Plus size={16} /> Add lever
           </button>
@@ -585,7 +585,7 @@ export default function OptimizerPanel() {
             type="button"
             onClick={addObjectiveRow}
             disabled={objectiveRows.length >= 2}
-            className="inline-flex items-center gap-1 text-sm font-medium text-brand-green disabled:text-ink-subtle"
+            className="inline-flex items-center gap-1 text-sm font-medium text-brand-ink disabled:text-ink-subtle"
           >
             <Plus size={16} /> Add objective (unlocks Pareto frontier)
           </button>
@@ -644,7 +644,7 @@ export default function OptimizerPanel() {
           <button
             type="button"
             onClick={addConstraintRow}
-            className="inline-flex items-center gap-1 text-sm font-medium text-brand-green"
+            className="inline-flex items-center gap-1 text-sm font-medium text-brand-ink"
           >
             <Plus size={16} /> Add constraint
           </button>
@@ -754,7 +754,7 @@ export default function OptimizerPanel() {
             type="button"
             onClick={handleValidate}
             disabled={validateLoading}
-            className="rounded-md border border-brand-green px-4 py-2 text-sm font-medium text-brand-green disabled:opacity-50"
+            className="rounded-md border border-brand-green px-4 py-2 text-sm font-medium text-brand-ink disabled:opacity-50"
           >
             {validateLoading ? <Loader2 className="animate-spin" size={14} /> : 'Validate'}
           </button>

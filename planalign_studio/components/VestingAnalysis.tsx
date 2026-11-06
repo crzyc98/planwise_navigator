@@ -131,9 +131,9 @@ const SortHeader = ({ field, label, sortField, sortDirection, onSort }: Readonly
       {label}
       {sortField === field ? (
         sortDirection === 'asc' ? (
-          <ChevronUp size={14} className="text-brand-green" />
+          <ChevronUp size={14} className="text-brand-ink" />
         ) : (
-          <ChevronDown size={14} className="text-brand-green" />
+          <ChevronDown size={14} className="text-brand-ink" />
         )
       ) : (
         <ChevronDown size={14} className="text-ink-subtle" />
@@ -406,7 +406,7 @@ export default function VestingAnalysis() {
               aria-current={view === id ? 'page' : undefined}
               className={`pb-3 -mb-px text-sm font-medium border-b-2 transition-colors ${
                 view === id
-                  ? 'border-brand-green text-brand-green'
+                  ? 'border-brand-green text-brand-ink'
                   : 'border-transparent text-ink-muted hover:text-ink-muted'
               }`}
             >
@@ -534,7 +534,7 @@ export default function VestingAnalysis() {
                   type="checkbox"
                   checked={currentSchedule?.require_hours_credit ?? false}
                   onChange={(e) => handleHoursToggle('current', e.target.checked)}
-                  className="mr-2 rounded border-border-strong text-brand-green focus:ring-brand-green"
+                  className="mr-2 rounded border-border-strong text-brand-ink focus:ring-brand-green"
                 />{' '}
                 <span>Require 1,000 hours</span>
               </label>
@@ -584,7 +584,7 @@ export default function VestingAnalysis() {
                   type="checkbox"
                   checked={proposedSchedule?.require_hours_credit ?? false}
                   onChange={(e) => handleHoursToggle('proposed', e.target.checked)}
-                  className="mr-2 rounded border-border-strong text-brand-green focus:ring-brand-green"
+                  className="mr-2 rounded border-border-strong text-brand-ink focus:ring-brand-green"
                 />{' '}
                 <span>Require 1,000 hours</span>
               </label>
@@ -664,7 +664,7 @@ export default function VestingAnalysis() {
       {/* Content Area */}
       {analyzing ? (
         <div className="flex items-center justify-center h-96">
-          <Loader2 size={48} className="animate-spin text-brand-green" />
+          <Loader2 size={48} className="animate-spin text-brand-ink" />
         </div>
       ) : error ? (
         <ErrorState message={error} onRetry={handleAnalyze} />
@@ -850,9 +850,9 @@ export default function VestingAnalysis() {
                           Employee ID
                           {sortField === 'employee_id' ? (
                             sortDirection === 'asc' ? (
-                              <ChevronUp size={14} className="text-brand-green" />
+                              <ChevronUp size={14} className="text-brand-ink" />
                             ) : (
-                              <ChevronDown size={14} className="text-brand-green" />
+                              <ChevronDown size={14} className="text-brand-ink" />
                             )
                           ) : (
                             <ChevronDown size={14} className="text-ink-subtle" />

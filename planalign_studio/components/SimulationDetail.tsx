@@ -402,7 +402,7 @@ export default function SimulationDetail() {
                           {run.status.toUpperCase()}
                         </span>
                         {index === 0 && (
-                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-brand-green/10 text-brand-green">
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-brand-green/10 text-brand-ink">
                             Latest
                           </span>
                         )}
@@ -444,7 +444,7 @@ export default function SimulationDetail() {
                         onClick={() => setActiveRunTab(t => ({ ...t, [run.id]: 'artifacts' }))}
                         className={`flex items-center px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                           (activeRunTab[run.id] ?? 'artifacts') === 'artifacts'
-                            ? 'border-brand-green text-brand-green'
+                            ? 'border-brand-green text-brand-ink'
                             : 'border-transparent text-ink-muted hover:text-ink-muted'
                         }`}
                       >
@@ -455,7 +455,7 @@ export default function SimulationDetail() {
                         onClick={() => setActiveRunTab(t => ({ ...t, [run.id]: 'logs' }))}
                         className={`flex items-center px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                           activeRunTab[run.id] === 'logs'
-                            ? 'border-brand-green text-brand-green'
+                            ? 'border-brand-green text-brand-ink'
                             : 'border-transparent text-ink-muted hover:text-ink-muted'
                         }`}
                       >
@@ -465,7 +465,7 @@ export default function SimulationDetail() {
                       {run.status === 'completed' && index === 0 && run.start_year !== null && run.end_year !== null && (
                         <button
                           onClick={() => setActiveRunTab(t => ({ ...t, [run.id]: 'evidence' }))}
-                          className={`flex items-center px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeRunTab[run.id] === 'evidence' ? 'border-brand-green text-brand-green' : 'border-transparent text-ink-muted hover:text-ink-muted'}`}
+                          className={`flex items-center px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeRunTab[run.id] === 'evidence' ? 'border-brand-green text-brand-ink' : 'border-transparent text-ink-muted hover:text-ink-muted'}`}
                         >
                           <FileText size={14} className="mr-1.5" />Evidence Pack
                         </button>
@@ -480,13 +480,13 @@ export default function SimulationDetail() {
                       )}
                       {isArchivedProvenanceRun(run) && (
                         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-success-border bg-success-surface p-3">
-                          <ShieldCheck size={18} className="text-brand-green" />
+                          <ShieldCheck size={18} className="text-brand-ink" />
                           <span className="mr-auto text-sm text-success-ink">
                             Review the execution evidence and integrity digest for this archived run.
                           </span>
                           <Link
                             to={`/simulate/${details.scenario_id}/runs/${run.id}/provenance`}
-                            className="flex items-center rounded-lg border border-brand-green bg-surface-raised px-3 py-2 text-sm font-medium text-brand-green hover:bg-success-surface"
+                            className="flex items-center rounded-lg border border-brand-green bg-surface-raised px-3 py-2 text-sm font-medium text-brand-ink hover:bg-success-surface"
                           >
                             <ShieldCheck size={15} className="mr-1.5" />
                             View Provenance
@@ -526,7 +526,7 @@ export default function SimulationDetail() {
                                   >
                                     {getArtifactIcon(artifact.type)}
                                     <div className="ml-3 flex-1 min-w-0">
-                                      <p className="font-medium text-sm text-ink group-hover:text-brand-green truncate">
+                                      <p className="font-medium text-sm text-ink group-hover:text-brand-ink truncate">
                                         {artifact.name}
                                       </p>
                                       <p className="text-xs text-ink-muted">
@@ -535,9 +535,9 @@ export default function SimulationDetail() {
                                       </p>
                                     </div>
                                     {downloadingArtifact === artifact.path ? (
-                                      <Loader2 size={14} className="text-brand-green ml-2 animate-spin" />
+                                      <Loader2 size={14} className="text-brand-ink ml-2 animate-spin" />
                                     ) : (
-                                      <Download size={14} className="text-ink-subtle group-hover:text-brand-green ml-2" />
+                                      <Download size={14} className="text-ink-subtle group-hover:text-brand-ink ml-2" />
                                     )}
                                   </button>
                                 ))}

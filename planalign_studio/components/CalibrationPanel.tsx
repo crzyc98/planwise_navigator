@@ -210,7 +210,7 @@ function SliderRow({
           {s.label}
           {s.hint && <span className="ml-2 text-xs font-normal text-ink-subtle">{s.hint}</span>}
         </span>
-        <span className="text-brand-green">{pct(value)}</span>
+        <span className="text-brand-ink">{pct(value)}</span>
       </div>
       <input
         type="range"
@@ -695,7 +695,7 @@ export default function CalibrationPanel() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-2">
-        <SlidersHorizontal className="text-brand-green" size={24} />
+        <SlidersHorizontal className="text-brand-ink" size={24} />
         <h1 className="text-2xl font-bold text-ink">Compensation Calibration</h1>
       </div>
       <p className="text-ink-muted">
@@ -800,7 +800,7 @@ export default function CalibrationPanel() {
               />
             ))}
           </div>
-          <div className="rounded-md bg-brand-green/5 border border-brand-green/20 px-3 py-2 text-xs text-brand-dark">
+          <div className="rounded-md bg-brand-green/5 border border-brand-green/20 px-3 py-2 text-xs text-brand-ink-strong">
             <span className="font-semibold">Target Salary Growth is the objective.</span>{' '}
             Calibration auto-tunes your chosen lever (Step 2) until per-year salary
             growth lands on this target.
@@ -831,7 +831,7 @@ export default function CalibrationPanel() {
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm font-semibold text-ink">{m.title}</span>
-                    {selected && <Check size={16} className="text-brand-green shrink-0" />}
+                    {selected && <Check size={16} className="text-brand-ink shrink-0" />}
                   </div>
                   <p className="mt-1 text-xs text-ink-muted">{m.description}</p>
                 </button>
@@ -853,7 +853,7 @@ export default function CalibrationPanel() {
               something the solver derives. When held fixed, the full editor shows. */}
           {solvingNewHireRanges ? (
             <div className="rounded-md border border-dashed border-border-strong bg-surface-subtle p-4 flex items-start gap-2">
-              <Sparkles size={16} className="mt-0.5 shrink-0 text-brand-green" />
+              <Sparkles size={16} className="mt-0.5 shrink-0 text-brand-ink" />
               <div className="text-sm text-ink-muted">
                 <span className="font-medium text-ink">Job Level Compensation Ranges — solved automatically.</span>{' '}
                 Calibration scales census-derived new-hire ranges to hit your target,
@@ -1007,7 +1007,7 @@ export default function CalibrationPanel() {
                         { age: (prev[prev.length - 1]?.age ?? 30) + 5, weight: 0.05 },
                       ])
                     }
-                    className="inline-flex items-center gap-1 text-xs text-brand-green hover:text-brand-dark"
+                    className="inline-flex items-center gap-1 text-xs text-brand-ink hover:text-brand-ink-strong"
                   >
                     <Plus size={14} /> Add age bucket
                   </button>
@@ -1183,7 +1183,7 @@ export default function CalibrationPanel() {
             </div>
           ) : (
             <div className="rounded-md border border-dashed border-border-strong bg-surface-subtle p-4 flex items-start gap-2">
-              <Sparkles size={16} className="mt-0.5 shrink-0 text-brand-green" />
+              <Sparkles size={16} className="mt-0.5 shrink-0 text-brand-ink" />
               <div className="text-sm text-ink-muted">
                 <span className="font-medium text-ink">COLA &amp; merit — solved automatically.</span>{' '}
                 Calibration finds the COLA and merit budget that hit your Target Salary

@@ -79,7 +79,7 @@ function PackBody({ envelope, nameA, nameB }: { envelope: CrossScenarioEvidenceP
             A: run {pack.provenance_a.run_id} · {pack.provenance_a.verification_disposition} — B: run {pack.provenance_b.run_id} · {pack.provenance_b.verification_disposition}
           </p>
         </div>
-        <button onClick={() => downloadEvidencePack(envelope)} className="flex items-center rounded border border-brand-green px-3 py-2 text-sm font-medium text-brand-green"><Download size={15} className="mr-2" />Export Evidence Pack</button>
+        <button onClick={() => downloadEvidencePack(envelope)} className="flex items-center rounded border border-brand-green px-3 py-2 text-sm font-medium text-brand-ink"><Download size={15} className="mr-2" />Export Evidence Pack</button>
       </div>
       <div className="rounded-lg border border-success-border bg-success-surface p-4">
         <h4 className="font-semibold text-success-ink">Executive interpretation</h4>

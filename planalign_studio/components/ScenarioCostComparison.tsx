@@ -1335,10 +1335,10 @@ export default function ScenarioCostComparison() {
                           className="flex items-start flex-1 min-w-0"
                         >
                           <div className="mt-1 mr-3 flex-shrink-0">
-                            <CheckSquare size={16} className={isAnchor ? 'text-info-ink' : 'text-brand-green'} />
+                            <CheckSquare size={16} className={isAnchor ? 'text-info-ink' : 'text-brand-ink'} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <span className={`text-xs font-semibold block truncate ${isAnchor ? 'text-info-ink' : 'text-brand-green'}`}>
+                            <span className={`text-xs font-semibold block truncate ${isAnchor ? 'text-info-ink' : 'text-brand-ink'}`}>
                               {scenario.name}
                             </span>
                             <p className="text-[9px] text-ink-muted uppercase tracking-tight">
@@ -1603,7 +1603,7 @@ export default function ScenarioCostComparison() {
                     type="checkbox"
                     checked={grandfatherExisting}
                     onChange={event => setGrandfatherExisting(event.target.checked)}
-                    className="h-4 w-4 rounded border-border text-brand-green"
+                    className="h-4 w-4 rounded border-border text-brand-ink"
                   />
                   Grandfather existing employees
                 </label>

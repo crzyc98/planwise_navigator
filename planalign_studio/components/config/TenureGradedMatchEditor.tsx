@@ -138,7 +138,7 @@ export function TenureGradedMatchEditor({ bands, onChange }: TenureGradedMatchEd
                 ))}
               </div>
               <button type="button" onClick={() => addTier(bandIdx)}
-                className="mt-2 ml-4 text-xs text-brand-green hover:text-success-ink flex items-center gap-1"
+                className="mt-2 ml-4 text-xs text-brand-ink hover:text-success-ink flex items-center gap-1"
               >+ Add Tier</button>
 
               {tierWarnings.length > 0 && (
@@ -152,7 +152,7 @@ export function TenureGradedMatchEditor({ bands, onChange }: TenureGradedMatchEd
       </div>
 
       <button type="button" onClick={addBand}
-        className="mt-3 text-sm text-brand-green hover:text-success-ink flex items-center gap-1"
+        className="mt-3 text-sm text-brand-ink hover:text-success-ink flex items-center gap-1"
       >+ Add Band</button>
 
       {bands.length === 0 && (

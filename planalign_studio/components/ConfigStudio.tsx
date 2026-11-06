@@ -300,10 +300,10 @@ export function ConfigShell() {
               <button
                 key={item.id}
                 onClick={() => { if (validateNumericInputs()) setActiveSection(item.id); }}
-                className={`w-full text-left px-3 py-3 rounded-md text-sm font-medium transition-colors flex items-center justify-between ${activeSection === item.id ? 'bg-surface-raised text-brand-green shadow-sm border border-border' : 'text-ink-muted hover:bg-surface-subtle hover:text-ink'}`}
+                className={`w-full text-left px-3 py-3 rounded-md text-sm font-medium transition-colors flex items-center justify-between ${activeSection === item.id ? 'bg-surface-raised text-brand-ink shadow-sm border border-border' : 'text-ink-muted hover:bg-surface-subtle hover:text-ink'}`}
               >
                 <span className="flex items-center">
-                  <item.icon size={16} className={`mr-3 ${activeSection === item.id ? 'text-brand-green' : 'text-ink-subtle'}`} />
+                  <item.icon size={16} className={`mr-3 ${activeSection === item.id ? 'text-brand-ink' : 'text-ink-subtle'}`} />
                   {item.label}
                 </span>
                 {dirtySections.has(item.id) && (
@@ -320,10 +320,10 @@ export function ConfigShell() {
               <button
                 key={item.id}
                 onClick={() => { if (validateNumericInputs()) setActiveSection(item.id); }}
-                className={`w-full text-left px-3 py-3 rounded-md text-sm font-medium transition-colors flex items-center justify-between ${activeSection === item.id ? 'bg-surface-raised text-brand-green shadow-sm border border-border' : 'text-ink-muted hover:bg-surface-subtle hover:text-ink'}`}
+                className={`w-full text-left px-3 py-3 rounded-md text-sm font-medium transition-colors flex items-center justify-between ${activeSection === item.id ? 'bg-surface-raised text-brand-ink shadow-sm border border-border' : 'text-ink-muted hover:bg-surface-subtle hover:text-ink'}`}
               >
                 <span className="flex items-center">
-                  <item.icon size={16} className={`mr-3 ${activeSection === item.id ? 'text-brand-green' : 'text-ink-subtle'}`} />
+                  <item.icon size={16} className={`mr-3 ${activeSection === item.id ? 'text-brand-ink' : 'text-ink-subtle'}`} />
                   {item.label}
                 </span>
                 {dirtySections.has(item.id) && (

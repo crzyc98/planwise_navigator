@@ -46,7 +46,7 @@ function severityClasses(milestone: TelemetryMilestone): {
     return { container: 'bg-warning-surface border-l-yellow-500', icon: 'text-warning-ink' };
   }
   if (milestone.kind === 'year_completed') {
-    return { container: 'bg-success-surface border-l-brand-green', icon: 'text-brand-green' };
+    return { container: 'bg-success-surface border-l-brand-green', icon: 'text-brand-ink' };
   }
   if (milestone.kind === 'terminal') {
     return { container: 'bg-surface-subtle border-l-gray-500', icon: 'text-ink-muted' };

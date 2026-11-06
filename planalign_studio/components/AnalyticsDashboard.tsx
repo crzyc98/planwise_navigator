@@ -518,7 +518,7 @@ export default function AnalyticsDashboard() {
       {/* Content Area */}
       {loading ? (
         <div className="flex items-center justify-center h-96">
-          <Loader2 size={48} className="animate-spin text-brand-green" />
+          <Loader2 size={48} className="animate-spin text-brand-ink" />
         </div>
       ) : error ? (
         <ErrorState message={error} onRetry={() => selectedScenarioId && fetchResults(selectedScenarioId)} />
@@ -589,7 +589,7 @@ export default function AnalyticsDashboard() {
             <div className="bg-surface-raised p-6 rounded-xl shadow-sm border border-border">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center">
-                  <TrendingUp size={20} className="text-brand-green mr-2" />
+                  <TrendingUp size={20} className="text-brand-ink mr-2" />
                   <h3 className="text-lg font-semibold text-ink">Compound Annual Growth Rate (CAGR)</h3>
                 </div>
                 <CopyTableButton rows={results.cagr_metrics} />

@@ -18,7 +18,7 @@ export default function TimelineYear({ year }: Readonly<{ year: TimelineYearData
               <li key={`${event.source}-${event.event_id}`}>
                 <span className="absolute -left-1.5 mt-1.5 h-2.5 w-2.5 rounded-full bg-brand-green" />
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-success-surface px-2 py-0.5 text-xs font-semibold text-brand-green">{event.event_type.replaceAll('_', ' ')}</span>
+                  <span className="rounded-full bg-success-surface px-2 py-0.5 text-xs font-semibold text-brand-ink">{event.event_type.replaceAll('_', ' ')}</span>
                   <time className="text-xs text-ink-muted">{event.effective_date}</time>
                 </div>
                 {event.event_details && (

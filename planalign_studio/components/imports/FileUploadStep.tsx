@@ -154,7 +154,7 @@ export default function FileUploadStep({ workspaceId, onDone, onParquetDone }: P
         />
         {isUploading ? (
           <div className="flex flex-col items-center gap-3">
-            <Loader2 size={40} className="text-brand-green animate-spin" />
+            <Loader2 size={40} className="text-brand-ink animate-spin" />
             <p className="text-sm font-medium text-ink-muted">Uploading and analyzing file…</p>
           </div>
         ) : (
@@ -237,7 +237,7 @@ export default function FileUploadStep({ workspaceId, onDone, onParquetDone }: P
             />
             {isParquetUploading ? (
               <div className="flex flex-col items-center gap-2">
-                <Loader2 size={28} className="text-brand-green animate-spin" />
+                <Loader2 size={28} className="text-brand-ink animate-spin" />
                 <p className="text-sm text-ink-muted">Validating and saving Parquet…</p>
               </div>
             ) : (

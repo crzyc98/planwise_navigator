@@ -344,7 +344,7 @@ export default function ScenariosPage() {
                   className="flex items-center text-sm text-ink-muted hover:text-ink"
                 >
                   {selectedIds.size === scenarios.length ? (
-                    <CheckSquare size={18} className="mr-2 text-brand-green" />
+                    <CheckSquare size={18} className="mr-2 text-brand-ink" />
                   ) : (
                     <Square size={18} className="mr-2" />
                   )}
@@ -413,7 +413,7 @@ export default function ScenariosPage() {
                     {selectMode && (
                       <div className="mr-4">
                         {selectedIds.has(scenario.id) ? (
-                          <CheckSquare size={20} className="text-brand-green" />
+                          <CheckSquare size={20} className="text-brand-ink" />
                         ) : (
                           <Square size={20} className="text-ink-subtle" />
                         )}
