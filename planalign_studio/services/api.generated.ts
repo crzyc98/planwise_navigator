@@ -3276,6 +3276,7 @@ export interface components {
              * @enum {string}
              */
             growth_metric: "active_average" | "payroll_per_head";
+            horizon: components["schemas"]["HorizonReport"] | null;
             /** Iterations */
             iterations: components["schemas"]["OptimizationIteration"][];
             /** Max Abs Error Pct */
@@ -3315,8 +3316,18 @@ export interface components {
              * @enum {string}
              */
             adjust?: "cola" | "merit" | "both";
+            /**
+             * Annual Guardrail Pct
+             * @default 0.5
+             */
+            annual_guardrail_pct?: number;
             /** Base Job Level Compensation */
             base_job_level_compensation?: components["schemas"]["JobLevelRange"][] | null;
+            /**
+             * Cagr Tolerance Pct
+             * @default 0.25
+             */
+            cagr_tolerance_pct?: number;
             /** Compound Band Pct */
             compound_band_pct?: number | null;
             /**
@@ -3325,6 +3336,21 @@ export interface components {
              * @enum {string}
              */
             growth_metric?: "active_average" | "payroll_per_head";
+            /**
+             * Hire Pay Ratio Max
+             * @default 1.1
+             */
+            hire_pay_ratio_max?: number;
+            /**
+             * Hire Pay Ratio Min
+             * @default 0.9
+             */
+            hire_pay_ratio_min?: number;
+            /**
+             * Horizon Evaluations
+             * @default 12
+             */
+            horizon_evaluations?: number;
             /**
              * Initial Scale
              * @default 1
@@ -3345,6 +3371,16 @@ export interface components {
              * @default 1
              */
             raise_budget_limit_pct?: number;
+            /**
+             * Raise Max
+             * @default 0.1
+             */
+            raise_max?: number;
+            /**
+             * Raise Min
+             * @default 0.01
+             */
+            raise_min?: number;
             /**
              * Salary Growth Max
              * @default 0.08
@@ -3370,7 +3406,12 @@ export interface components {
              * @default levers
              * @enum {string}
              */
-            search_mode?: "levers" | "new_hire_scale";
+            search_mode?: "levers" | "new_hire_scale" | "horizon";
+            /**
+             * Seed Count
+             * @default 3
+             */
+            seed_count?: number;
             /**
              * Solve Raise Budget
              * @default false
@@ -3988,6 +4029,8 @@ export interface components {
         CalibrationParameterSet: {
             /** Cola Rate */
             cola_rate?: number | null;
+            /** Hire Pay Ratio */
+            hire_pay_ratio?: number | null;
             /** Job Level Compensation */
             job_level_compensation?: components["schemas"]["JobLevelRange"][] | null;
             /** Merit Budget */
@@ -4006,6 +4049,8 @@ export interface components {
             new_hire_termination_rate?: number | null;
             /** Promotion Increase */
             promotion_increase?: number | null;
+            /** Random Seed */
+            random_seed?: number | null;
             /** Target Growth Pct */
             target_growth_pct?: number | null;
             /**
@@ -6983,6 +7028,68 @@ export interface components {
             source_digest: string;
             /** Splits */
             splits: components["schemas"]["SplitOption"][];
+        };
+        /**
+         * HorizonLimitTest
+         * @description A rerun with one bound relaxed, showing whether that bound caused a miss.
+         */
+        HorizonLimitTest: {
+            /**
+             * Bound
+             * @enum {string}
+             */
+            bound: "lower" | "upper";
+            /** Cagr Error After Pct */
+            cagr_error_after_pct: number;
+            /** Cagr Error Before Pct */
+            cagr_error_before_pct: number;
+            /** Lever */
+            lever: string;
+            /** Relaxed To */
+            relaxed_to: number;
+        };
+        /**
+         * HorizonReport
+         * @description What the horizon search found, scored on the mean of its seeds.
+         */
+        HorizonReport: {
+            /** Active Bounds */
+            active_bounds: string[];
+            /** Annual Errors Pct */
+            annual_errors_pct: number[];
+            /** Cagr Error Pct */
+            cagr_error_pct: number;
+            /** Cagr Pct */
+            cagr_pct: number;
+            /** Guardrail Misses */
+            guardrail_misses: number;
+            /** Hire Pay Growth */
+            hire_pay_growth: number;
+            /** Hire Pay Ratio */
+            hire_pay_ratio: number;
+            /** Limit Tests */
+            limit_tests: components["schemas"]["HorizonLimitTest"][];
+            /** Raises */
+            raises: number;
+            /** Seeds */
+            seeds: components["schemas"]["HorizonSeedResult"][];
+            /**
+             * Stop Reason
+             * @enum {string}
+             */
+            stop_reason: "on_target" | "no_further_improvement" | "budget_exhausted";
+        };
+        /**
+         * HorizonSeedResult
+         * @description How one seed of the best candidate grew.
+         */
+        HorizonSeedResult: {
+            /** Annual Growth Pct */
+            annual_growth_pct: number[];
+            /** Cagr Pct */
+            cagr_pct: number;
+            /** Seed */
+            seed: number;
         };
         /**
          * IRSLimitMetrics

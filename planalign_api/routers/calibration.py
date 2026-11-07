@@ -445,6 +445,8 @@ def _merge_calibration_candidate(
         new_hire["age_distribution"] = params.new_hire_age_distribution
     if params.job_level_compensation is not None:
         new_hire["job_level_compensation"] = params.job_level_compensation
+    if params.hire_pay_ratio is not None:
+        new_hire["hire_pay_ratio"] = params.hire_pay_ratio
     return merged
 
 

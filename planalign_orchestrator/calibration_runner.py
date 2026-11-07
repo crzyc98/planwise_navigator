@@ -148,6 +148,9 @@ class CalibrationParameterSet(BaseModel):
     # simulation consumes -- so a calibrated scale transfers verbatim.
     new_hire_salary_growth_rate: Optional[float] = Field(default=None, ge=0, le=0.25)
     job_level_compensation: Optional[List[JobLevelRange]] = None
+    hire_pay_ratio: Optional[float] = Field(default=None, ge=0.5, le=1.5)
+    # Horizon search only: one seed of several averaged for a candidate.
+    random_seed: Optional[int] = None
 
     @field_validator("new_hire_age_distribution")
     @classmethod
@@ -509,6 +512,10 @@ class CalibrationRunner:
             self._config.new_hire["salary_growth_rate"] = (
                 params.new_hire_salary_growth_rate
             )
+        if params.hire_pay_ratio is not None:
+            self._config.new_hire["hire_pay_ratio"] = params.hire_pay_ratio
+        if params.random_seed is not None:
+            self._config.simulation.random_seed = params.random_seed
         if params.cola_rate is not None:
             self._config.compensation.cola_rate = params.cola_rate
         if params.merit_budget is not None:
