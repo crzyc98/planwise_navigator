@@ -38,6 +38,14 @@ function button(node: ReactNode, text: string): ReactElement<Props> | undefined 
   return button(element.props.children, text);
 }
 
+type FieldProps = { id?: string; children?: ReactNode; checked?: boolean; value?: unknown; onChange?: (event: unknown) => void };
+function byId(node: ReactNode, id: string): ReactElement<FieldProps> | undefined {
+  if (Array.isArray(node)) return node.map(child => byId(child, id)).find(Boolean);
+  if (!node || typeof node !== 'object' || !('props' in node)) return;
+  const element = node as ReactElement<FieldProps>;
+  return element.props.id === id ? element : byId(element.props.children, id);
+}
+
 let context: ConfigContextType;
 const result = { cola_rate: 3, merit_budget: 4, promotion_increase: 15, promotion_budget: 1.5,
   achieved_growth_rate: 6, warnings: [] } as unknown as CompensationSolverResponse;
@@ -61,6 +69,14 @@ describe('Compensation suggestion preview', () => {
     } as unknown as ConfigContextType;
     vi.mocked(useConfigContext).mockImplementation(() => context);
     vi.mocked(solveCompensationGrowth).mockResolvedValue(result);
+  });
+
+  it('turns on the shared pay scale and suggests from all employees', () => {
+    const toggle = byId(renderNewHires(), 'shared-pay-scale')!;
+    expect(toggle.props.checked).toBe(false);
+    toggle.props.onChange!({ target: { checked: true } });
+    expect(context.formData.sharedPayScale).toBe(true);
+    expect(byId(renderNewHires(), 'newhire-comp-source')!.props.value).toBe(0);
   });
 
   it('lets the new-hire range scale reach the 5x the calibration search can', () => {

@@ -180,6 +180,8 @@ describe('resolved Easy Enroll inputs', () => {
 
 describe('resolved starting-pay growth', () => {
   it('converts the exported decimal rate to percent', () => {
+    expect(applyResolvedFormData({ shared_pay_scale: true }, DEFAULT_FORM_DATA).sharedPayScale).toBe(true);
+    expect(applyResolvedFormData({}, { ...DEFAULT_FORM_DATA, sharedPayScale: true }).sharedPayScale).toBe(false);
     expect(applyResolvedFormData({ new_hire_salary_growth_rate: 0.03 }, DEFAULT_FORM_DATA)
       .newHireSalaryGrowthPercent).toBe(3);
   });
