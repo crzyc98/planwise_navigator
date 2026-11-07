@@ -58,7 +58,9 @@ class SolverOutcome(NamedTuple):
     limit_tests: List[LimitTest]
 
 
-def horizon_cagr_error(annual_growth: Sequence[float], target_pct: float) -> float:
+def horizon_cagr_error(
+    annual_growth: Sequence[float] | Vector, target_pct: float
+) -> float:
     """Compound annual growth minus target, in pp."""
     factors = 1 + np.asarray(annual_growth, dtype=float) / 100
     return float((np.prod(factors) ** (1 / len(factors)) - 1) * 100 - target_pct)
