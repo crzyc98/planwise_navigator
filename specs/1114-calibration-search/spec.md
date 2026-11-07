@@ -14,6 +14,9 @@ Status: direction accepted, details below awaiting review.
   horizon CAGR by at most 0.22pp.
 - Each year has a guardrail of 0.5pp around the target. That's about the size of the
   normal swing, so one run with fixed inputs will still miss it in some years.
+- To keep years inside the guardrail, each candidate is scored on the average of three
+  seeds. Raises stay one number for the whole horizon. The result also shows each seed,
+  because a single full run can still leave the guardrail in some years.
 - A guardrail miss is reported, and it only rejects a candidate when another candidate
   meets the target without one.
 
@@ -65,6 +68,7 @@ The scale follows these rules:
 ### Budget and ties
 
 - 12 evaluations by default, up to 25. Each uses the same database, as #1124 allows.
+- Three seeds per evaluation makes a search about three times slower.
 - Ties are broken in order: smallest CAGR miss, fewest guardrail misses, smallest move
   from the starting inputs, lowest raises, lowest hire pay growth.
 
@@ -103,6 +107,5 @@ Validation repeats the prototype on both censuses, then at 25k.
 
 ## Open for review
 
-- How to keep years inside the guardrail: average several seeds, or vary raises by year.
 - Whether a census level column should win over pay.
 - The 20-employee threshold for sparse levels.
