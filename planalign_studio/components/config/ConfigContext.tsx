@@ -151,6 +151,7 @@ function mapNewHireFields(cfg: any, prev: FormData): Partial<FormData> {
     targetPercentile: cfg.new_hire?.target_percentile ?? prev.targetPercentile,
     newHireCompVariance: cfg.new_hire?.compensation_variance_percent ?? prev.newHireCompVariance,
     sharedPayScale: cfg.new_hire?.shared_pay_scale === true,
+    hirePayRatioPercent: typeof cfg.new_hire?.hire_pay_ratio === 'number' ? cfg.new_hire.hire_pay_ratio * 100 : null,
     newHireSalaryGrowthPercent: (cfg.new_hire?.salary_growth_rate ?? 0) * 100,
     newHireAgeDistribution: cfg.new_hire?.age_distribution
       ? cfg.new_hire.age_distribution.map((d: any, idx: number) => ({
@@ -700,6 +701,7 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
         formData.levelDistributionMode !== savedFormData.levelDistributionMode ||
         formData.marketScenario !== savedFormData.marketScenario ||
         formData.sharedPayScale !== savedFormData.sharedPayScale ||
+        formData.hirePayRatioPercent !== savedFormData.hirePayRatioPercent ||
         JSON.stringify(formData.newHireAgeDistribution) !== JSON.stringify(savedFormData.newHireAgeDistribution) ||
         JSON.stringify(formData.newHireLevelDistribution) !== JSON.stringify(savedFormData.newHireLevelDistribution) ||
         JSON.stringify(formData.jobLevelCompensation) !== JSON.stringify(savedFormData.jobLevelCompensation) ||

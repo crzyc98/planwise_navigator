@@ -18,12 +18,16 @@ class NewHireSettings(BaseModel):
     salary_growth_rate: float = Field(default=0.0, ge=0.0, le=0.25)
     # Level existing staff on job_level_compensation too, so one scale covers both.
     shared_pay_scale: bool = False
+    # Hire pay as a share of start-year existing pay at the same level; 1.0 = 100%.
+    hire_pay_ratio: Optional[float] = Field(default=None, ge=0.5, le=1.5)
 
     @model_validator(mode="after")
     def _shared_scale_needs_ranges(self) -> "NewHireSettings":
         ranges = (self.model_extra or {}).get("job_level_compensation")
         if self.shared_pay_scale and not ranges:
             raise ValueError("shared_pay_scale requires job_level_compensation")
+        if self.hire_pay_ratio is not None and not self.shared_pay_scale:
+            raise ValueError("hire_pay_ratio requires shared_pay_scale")
         return self
 
 

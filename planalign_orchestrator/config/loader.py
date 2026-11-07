@@ -167,6 +167,8 @@ class SimulationConfig(BaseModel):
         # Omit the default so existing configs keep their fingerprints.
         if not settings["shared_pay_scale"]:
             del settings["shared_pay_scale"]
+        if settings["hire_pay_ratio"] is None:
+            del settings["hire_pay_ratio"]
         return settings
 
     @field_validator(

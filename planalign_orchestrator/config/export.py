@@ -1179,6 +1179,9 @@ def _export_compensation_vars(cfg: "SimulationConfig") -> Dict[str, Any]:
         dbt_vars["new_hire_salary_growth_rate"] = salary_growth_rate
     if cfg.new_hire.get("shared_pay_scale"):
         dbt_vars["shared_pay_scale"] = True
+    hire_pay_ratio = cfg.new_hire.get("hire_pay_ratio")
+    if hire_pay_ratio is not None:
+        dbt_vars["hire_pay_ratio"] = hire_pay_ratio
 
     # E082: Job level compensation from new_hire config
     try:

@@ -459,6 +459,25 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
                 Existing staff and hires share one pay scale. Suggest ranges from all employees, not recent hires. Calibration doesn't allow for this yet, so check a full run after applying its results.
               </p>
             )}
+            {formData.sharedPayScale && (
+              <div className="mt-3">
+                <label htmlFor="hire-pay-ratio" className="block text-sm text-ink">Hire pay vs. existing staff (%)</label>
+                <NumericInput
+                  id="hire-pay-ratio"
+                  type="number"
+                  value={formData.hirePayRatioPercent ?? ''}
+                  onChange={(e) => {
+                    const { value } = e.target;
+                    setFormData(previous => ({ ...previous, hirePayRatioPercent: value === '' ? null : Number(value) }));
+                  }}
+                  min={50} max={150} step={1}
+                  className="text-sm border border-border-strong rounded px-2 py-1 w-24 mt-1 bg-surface-raised focus:ring-focus focus:border-info-border"
+                />
+                <p className="text-xs text-ink-muted mt-1">
+                  Pays hires this share of what staff at the same level earned in the first year. Leave blank to pay from the ranges below.
+                </p>
+              </div>
+            )}
           </div>
           {suggestionPanel('comp')}
           {compensationAnalysis && (

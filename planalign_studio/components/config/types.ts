@@ -155,6 +155,7 @@ export interface FormData {
   newHireLevelDistribution: LevelDistributionRow[];
   jobLevelCompensation: JobLevelCompRow[];
   sharedPayScale: boolean;
+  hirePayRatioPercent: number | null;
   newHireSalaryGrowthPercent: number;
   marketScenario: string;
   levelMarketAdjustments: LevelMarketAdjustmentRow[];

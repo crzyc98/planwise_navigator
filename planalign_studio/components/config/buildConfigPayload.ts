@@ -77,6 +77,7 @@ export function buildConfigPayload(
         max_compensation: row.maxComp,
       })),
       shared_pay_scale: formData.sharedPayScale,
+      hire_pay_ratio: formData.sharedPayScale && formData.hirePayRatioPercent !== null ? formData.hirePayRatioPercent / 100 : null,
       salary_growth_rate: formData.newHireSalaryGrowthPercent / 100,
       market_scenario: formData.marketScenario,
       level_market_adjustments: formData.levelMarketAdjustments.map(row => ({

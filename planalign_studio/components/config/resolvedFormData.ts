@@ -203,6 +203,7 @@ function applyNewHire(variables: Variables, form: FormData): FormData {
   return {
     ...form,
     sharedPayScale: variables.shared_pay_scale === true,
+    hirePayRatioPercent: typeof variables.hire_pay_ratio === 'number' ? variables.hire_pay_ratio * 100 : null,
     newHireSalaryGrowthPercent: typeof variables.new_hire_salary_growth_rate === 'number' ? variables.new_hire_salary_growth_rate * 100 : 0,
     ...(rows<Variables>(variables.new_hire_age_distribution) ? { newHireAgeDistribution: rows<Variables>(variables.new_hire_age_distribution)!.map(row => ({
       age: row.age, weight: row.weight, description: form.newHireAgeDistribution.find(age => age.age === row.age)?.description ?? '',

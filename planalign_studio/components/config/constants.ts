@@ -165,6 +165,7 @@ export const DEFAULT_FORM_DATA: FormData = {
     { level: 5, name: 'VP', minComp: 275000, maxComp: 500000 },
   ],
   sharedPayScale: false,
+  hirePayRatioPercent: null,
   newHireSalaryGrowthPercent: 0,
   marketScenario: 'baseline',
   levelMarketAdjustments: [
