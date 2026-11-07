@@ -106,6 +106,21 @@ export function horizonSummaryLines(report: HorizonReport): string[] {
   return lines;
 }
 
+/** Why the server would refuse these limits, in words, so the run never starts. */
+export function searchLimitsError(inputs: SearchInputs): string | null {
+  const { salary_growth_min: growthMin = 0, salary_growth_max: growthMax = 0.08 } = inputs;
+  if (growthMax > 0.25) return 'Keep the hire pay growth limit at 25% or lower.';
+  if (growthMin >= growthMax) return 'The hire pay growth limit must be above its minimum.';
+  if (inputs.search_mode !== 'horizon') return null;
+  const { raise_min: raiseMin = 0.01, raise_max: raiseMax = 0.1 } = inputs;
+  const { hire_pay_ratio_min: ratioMin = 0.9, hire_pay_ratio_max: ratioMax = 1.1 } = inputs;
+  if (raiseMin < 0 || raiseMax > 0.25) return 'Keep raises between 0% and 25%.';
+  if (raiseMin >= raiseMax) return 'Highest raises must be above lowest raises.';
+  if (ratioMin < 0.5 || ratioMax > 1.5) return 'Keep hire pay between 50% and 150% of existing staff.';
+  if (ratioMin >= ratioMax) return 'Highest hire pay must be above lowest hire pay.';
+  return null;
+}
+
 /** Every start and bound a search uses, in words. Reads what is sent, or what was saved. */
 export function searchInputLines(inputs: SearchInputs): string[] {
   const lines = [`Tolerance ±${(inputs.tolerance_pct ?? 0.05).toFixed(2)}pp, up to ${inputs.max_iterations ?? 8} runs.`];
