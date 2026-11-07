@@ -132,6 +132,10 @@ class AutoCalibrationSettings(BaseModel):
             raise ValueError("solve_salary_growth requires new_hire_scale search")
         if self.solve_raise_budget and not self.solve_salary_growth:
             raise ValueError("solve_raise_budget requires solve_salary_growth")
+        if self.raise_min >= self.raise_max:
+            raise ValueError("raise_min must be below raise_max")
+        if self.hire_pay_ratio_min >= self.hire_pay_ratio_max:
+            raise ValueError("hire_pay_ratio_min must be below hire_pay_ratio_max")
         if self.salary_growth_min >= self.salary_growth_max:
             raise ValueError("salary_growth_min must be < salary_growth_max")
         if self.scale_min >= self.scale_max:

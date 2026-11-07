@@ -31,7 +31,7 @@ import {
 import { extractCensusPath } from './config/ConfigContext';
 import { MAX_NEW_HIRE_SCALE, MIN_SEARCH_SCALE } from './config/constants';
 import { useChartTheme } from '../hooks/useChartTheme';
-import { baselineScenarioId, costSummary, growthMetricSettings, horizonSummaryLines, isMissingRunError, searchInputLines, searchLimitNotes, type SearchLimits, type GrowthMetric } from './calibrationScenario';
+import { baselineScenarioId, costSummary, growthMetricSettings, horizonSummaryLines, isMissingRunError, searchInputLines, searchLimitsError, searchLimitNotes, type SearchLimits, type GrowthMetric } from './calibrationScenario';
 
 interface CalibrationOutletContext {
   activeWorkspace: Workspace | null;
@@ -569,6 +569,8 @@ export default function CalibrationPanel() {
         }
       : {}),
   });
+
+  const limitsError = searchLimitsError(searchSettings(baseRanges));
 
   const loadSavedInputs = (outcome: AutoCalibrationOutcome) => {
     const { settings, starting_params: start } = outcome;
@@ -1324,15 +1326,15 @@ export default function CalibrationPanel() {
             {horizonSearch && (
               <div className="flex flex-wrap items-end gap-4">
                 {([
-                  ['Lowest raises (%)', raiseMinPct, setRaiseMinPct],
-                  ['Highest raises (%)', raiseMaxPct, setRaiseMaxPct],
-                  ['Highest hire pay growth (%/yr)', salaryGrowthMaxPct, setSalaryGrowthMaxPct],
-                  ['Lowest hire pay vs. staff (%)', ratioMinPct, setRatioMinPct],
-                  ['Highest hire pay vs. staff (%)', ratioMaxPct, setRatioMaxPct],
-                ] as const).map(([label, value, setValue]) => (
+                  ['Lowest raises (%)', raiseMinPct, setRaiseMinPct, 0, 25],
+                  ['Highest raises (%)', raiseMaxPct, setRaiseMaxPct, 0, 25],
+                  ['Highest hire pay growth (%/yr)', salaryGrowthMaxPct, setSalaryGrowthMaxPct, 0.5, 25],
+                  ['Lowest hire pay vs. staff (%)', ratioMinPct, setRatioMinPct, 50, 150],
+                  ['Highest hire pay vs. staff (%)', ratioMaxPct, setRatioMaxPct, 50, 150],
+                ] as const).map(([label, value, setValue, min, max]) => (
                   <label key={label} className="block text-xs text-info-ink">
                     {label}
-                    <input type="number" step="0.5" value={value} disabled={autoLoading}
+                    <input type="number" step="0.5" min={min} max={max} value={value} disabled={autoLoading}
                       onChange={event => setValue(Number(event.target.value))}
                       className="mt-1 w-24 rounded-md border border-border-strong bg-surface-raised p-1.5 text-sm shadow-sm" />
                   </label>
@@ -1388,11 +1390,12 @@ export default function CalibrationPanel() {
                 {searchInputLines(searchSettings(baseRanges)).map(line => <li key={line}>{line}</li>)}
               </ul>
             </div>
+            {limitsError && <p role="alert" className="text-xs text-danger-ink">{limitsError}</p>}
             <div className="flex flex-wrap items-end gap-4">
               <button
                 onClick={() => void runAutoCalibrate()}
-                disabled={autoLoading || !targetReady || endYear <= startYear}
-                title={!targetReady ? 'Select a scenario and wait for its settings to load' : endYear <= startYear ? 'Needs a multi-year range to measure YoY growth' : undefined}
+                disabled={autoLoading || !targetReady || endYear <= startYear || limitsError !== null}
+                title={limitsError ?? (!targetReady ? 'Select a scenario and wait for its settings to load' : endYear <= startYear ? 'Needs a multi-year range to measure YoY growth' : undefined)}
                 className="inline-flex items-center gap-2 rounded-md bg-info-solid px-4 py-2 text-ink-inverse text-sm font-medium hover:bg-info-solid-hover disabled:opacity-50"
               >
                 {autoLoading ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}

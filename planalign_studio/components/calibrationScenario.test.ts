@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { baselineScenarioId, costSummary, growthMetricSettings, horizonSummaryLines, isMissingRunError, searchInputLines, searchLimitNotes } from './calibrationScenario';
+import { baselineScenarioId, costSummary, growthMetricSettings, horizonSummaryLines, isMissingRunError, searchLimitsError, searchInputLines, searchLimitNotes } from './calibrationScenario';
 import { ApiError } from '../services/api';
 import CalibrationPanel from './CalibrationPanel';
 
@@ -120,6 +120,20 @@ describe('calibration scenario defaults', () => {
     expect(isMissingRunError(new ApiError(409, 'Conflict', 'The target workspace census is missing.'))).toBe(false);
     expect(isMissingRunError(new ApiError(422, 'Unprocessable', detail))).toBe(false);
     expect(isMissingRunError(new Error(detail))).toBe(false);
+  });
+});
+
+describe('search limits', () => {
+  it('stops limits the server would refuse', () => {
+    expect(searchLimitsError({ search_mode: 'horizon', salary_growth_max: 0.3 })).toBe('Keep the hire pay growth limit at 25% or lower.');
+    expect(searchLimitsError({ search_mode: 'new_hire_scale', salary_growth_max: 0.3 })).toBe('Keep the hire pay growth limit at 25% or lower.');
+    expect(searchLimitsError({ search_mode: 'horizon', raise_min: 0.1, raise_max: 0.05 })).toBe('Highest raises must be above lowest raises.');
+    expect(searchLimitsError({ search_mode: 'horizon', hire_pay_ratio_min: 1.1, hire_pay_ratio_max: 1.0 })).toBe('Highest hire pay must be above lowest hire pay.');
+  });
+
+  it('accepts the defaults', () => {
+    expect(searchLimitsError({ search_mode: 'horizon' })).toBeNull();
+    expect(searchLimitsError({ search_mode: 'levers' })).toBeNull();
   });
 });
 
