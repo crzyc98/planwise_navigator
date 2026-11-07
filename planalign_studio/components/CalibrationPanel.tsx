@@ -276,8 +276,8 @@ export default function CalibrationPanel() {
   useEffect(() => () => { unmountedRef.current = true; }, []);
   const [autoOutcome, setAutoOutcome] = useState<AutoCalibrationOutcome | null>(null);
   const [autoContext, setAutoContext] = useState<CalibrationContext | null>(null);
-  const [tolerancePct, setTolerancePct] = useState(0.05);
-  const [maxIterations, setMaxIterations] = useState(8);
+  const [tolerancePct, setTolerancePct] = useState(0.5);
+  const [maxIterations, setMaxIterations] = useState(20);
   // 'new_hire_scale': solve the new-hire range scale so hiring dilution isn't
   // papered over with raises (COLA/merit stay as set). Needs Match Census.
   const [searchMode, setSearchMode] = useState<SolveMode>('new_hire_scale');
@@ -287,15 +287,15 @@ export default function CalibrationPanel() {
   const [usesRaiseBudget, setUsesRaiseBudget] = useState(false);
   // Where the search starts and how far it may go. Kept apart from scaleFactor,
   // which holds the last result, so a rerun doesn't begin at a previous limit.
-  const [searchStartScale, setSearchStartScale] = useState(1);
+  const [searchStartScale, setSearchStartScale] = useState(2);
   const [configuredRaises, setConfiguredRaises] = useState<{ cola_rate: number; merit_budget: number } | null>(null);
-  const [scaleMax, setScaleMax] = useState(3);
+  const [scaleMax, setScaleMax] = useState(MAX_NEW_HIRE_SCALE);
   const [salaryGrowthMaxPct, setSalaryGrowthMaxPct] = useState(8);
   const [raiseMinPct, setRaiseMinPct] = useState(1);
   const [raiseMaxPct, setRaiseMaxPct] = useState(10);
   const [ratioMinPct, setRatioMinPct] = useState(90);
   const [ratioMaxPct, setRatioMaxPct] = useState(110);
-  const [runLimits, setRunLimits] = useState<SearchLimits>({ scaleMax: 3, salaryGrowthMaxPct: 8 });
+  const [runLimits, setRunLimits] = useState<SearchLimits>({ scaleMax: MAX_NEW_HIRE_SCALE, salaryGrowthMaxPct: 8 });
   const solvingNewHireRanges = searchMode === 'new_hire_scale';
   const horizonSearch = searchMode === 'horizon';
   const raiseSolved = solvingNewHireRanges && solveSalaryGrowth && solveRaiseBudget;
