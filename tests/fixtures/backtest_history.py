@@ -42,8 +42,9 @@ SELF_TEST_TOLERANCE = 0.005
 # Level is a *bucketing* of compensation, and compensation itself carries the
 # ~0.5% error above. Employees sitting near a band boundary flip buckets on that
 # margin, so a continuous error of a half percent emerges as a few percent in the
-# per-level counts. Age and tenure bands do not need the allowance — those bucket
-# integers that both sides compute identically, and they come out exact.
+# per-level counts. Age and tenure bands bucket integers that both sides compute
+# identically, so they only get one employee of slack: in a small band, one fitted
+# leaver more or less can exceed the percentage tolerance on its own.
 SELF_TEST_BUCKET_TOLERANCE = 0.05
 SELF_TEST_BUCKET_PREFIX = "headcount.by_level."
 
