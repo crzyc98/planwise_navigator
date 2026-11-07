@@ -41,12 +41,13 @@ def create_population(
     conn: duckdb.DuckDBPyConnection, current: tuple[int, ...], year: int
 ) -> None:
     conn.execute("""CREATE TABLE int_baseline_workforce AS
-        SELECT level_id, 2026 AS simulation_year, 'active' AS employment_status
+        SELECT level_id, 2026 AS simulation_year, 'active' AS employment_status,
+            50000.0 AS current_compensation
         FROM (VALUES (1, 60), (2, 30), (3, 10)) AS t(level_id, n),
         LATERAL range(n)""")
     # Distractors must not affect the frozen active start-year anchor.
     conn.execute(
-        "INSERT INTO int_baseline_workforce VALUES (4, 2026, 'terminated'), (4, 2027, 'active')"
+        "INSERT INTO int_baseline_workforce VALUES (4, 2026, 'terminated', 50000), (4, 2027, 'active', 50000)"
     )
     conn.execute("""CREATE TABLE int_employee_compensation_by_year (
         level_id INTEGER, simulation_year INTEGER, employment_status VARCHAR,

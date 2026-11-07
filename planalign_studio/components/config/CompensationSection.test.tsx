@@ -79,6 +79,15 @@ describe('Compensation suggestion preview', () => {
     expect(byId(renderNewHires(), 'newhire-comp-source')!.props.value).toBe(0);
   });
 
+  it('sets and clears the hire pay ratio once the shared scale is on', () => {
+    context.formData = { ...context.formData, sharedPayScale: true };
+    const input = byId(renderNewHires(), 'hire-pay-ratio')!;
+    input.props.onChange!({ target: { value: '95' } });
+    expect(context.formData.hirePayRatioPercent).toBe(95);
+    byId(renderNewHires(), 'hire-pay-ratio')!.props.onChange!({ target: { value: '' } });
+    expect(context.formData.hirePayRatioPercent).toBeNull();
+  });
+
   it('lets the new-hire range scale reach the 5x the calibration search can', () => {
     const { props } = scaleInput(renderNewHires())!;
     expect(numericError('3.5', props)).toBe('');

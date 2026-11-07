@@ -185,6 +185,7 @@ def _maximal_config():
     }
     cfg.new_hire = {
         "shared_pay_scale": True,
+        "hire_pay_ratio": 1.0,
         "job_level_compensation": {"1": {"min": 40000, "max": 60000}},
         "age_distribution": [{"age": 25, "weight": 1.0}],
         "market_scenario": "baseline",

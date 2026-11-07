@@ -56,3 +56,25 @@ def test_requires_ranges() -> None:
 )
 def test_every_pay_gets_a_level(pay: float, level: int) -> None:
     assert level_for(pay) == level
+
+
+def test_ratio_is_off_by_default() -> None:
+    assert "hire_pay_ratio" not in to_dbt_vars(config({}))
+
+
+def test_ratio_exports_with_shared_scale() -> None:
+    dbt_vars = to_dbt_vars(
+        config(
+            {
+                "shared_pay_scale": True,
+                "job_level_compensation": RANGES,
+                "hire_pay_ratio": 0.95,
+            }
+        )
+    )
+    assert dbt_vars["hire_pay_ratio"] == 0.95
+
+
+def test_ratio_requires_shared_scale() -> None:
+    with pytest.raises(ValidationError, match="requires shared_pay_scale"):
+        config({"hire_pay_ratio": 1.0})

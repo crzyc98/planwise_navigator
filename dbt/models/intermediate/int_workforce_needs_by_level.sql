@@ -13,6 +13,7 @@
 {% set start_year = var('start_year', 2025) | int %}
 {% set promotion_rate_multiplier = var('promotion_rate_multiplier', 1.0) %}
 {% set scenario_id = var('scenario_id', 'default') %}
+{% set hire_pay_ratio = var('hire_pay_ratio', none) %}
 
 WITH workforce_needs_summary AS (
   SELECT *
@@ -24,7 +25,9 @@ WITH workforce_needs_summary AS (
 anchor_shares AS (
   SELECT
     level_id,
-    COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () AS anchor_share
+    COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () AS anchor_share,
+    COUNT(*) AS anchor_staff,
+    AVG(current_compensation) AS anchor_avg_pay
   FROM {{ ref('int_baseline_workforce') }}
   WHERE simulation_year = {{ start_year }}
     AND employment_status = 'active'
@@ -364,12 +367,21 @@ compensation_planning AS (
     -- New hire compensation using configurable percentiles (Epic E056)
     -- Calculate percentile-based compensation with market adjustments
     -- E082: Apply market scenario adjustment
+    {% if hire_pay_ratio is none -%}
     CAST((jlm.min_compensation +
      (jlm.max_compensation - jlm.min_compensation) *
      COALESCE({{ resolve_parameter('jlm.level_id', 'HIRE', 'compensation_percentile', simulation_year) }}, 0.50) *
      COALESCE({{ resolve_parameter('jlm.level_id', 'HIRE', 'market_adjustment_multiplier', simulation_year) }}, 1.0) *
      (1 + {{ var('market_scenario_adjustment', 0) }} / 100.0)
     ) {{ new_hire_salary_index() }} AS DOUBLE) AS new_hire_avg_compensation,
+    {%- else -%}
+    -- Fixed to start-year staff pay, so only hire pay growth moves it after that.
+    -- Levels with too few staff for a reliable average use the band midpoint.
+    CAST(CASE
+      WHEN anchor.anchor_staff >= 20 THEN anchor.anchor_avg_pay * {{ hire_pay_ratio }}
+      ELSE (jlm.min_compensation + jlm.max_compensation) / 2.0
+    END {{ new_hire_salary_index() }} AS DOUBLE) AS new_hire_avg_compensation,
+    {%- endif %}
     -- Merit increase planning - use variable-based parameters for consistency
     CAST(wbl.total_compensation * {{ var('merit_budget', 0.035) }} AS DOUBLE) AS merit_increase_cost,
     -- COLA planning - use variable-based parameters for consistency
@@ -379,6 +391,7 @@ compensation_planning AS (
     CAST(wbl.avg_compensation * 0.12 * (wbl.current_headcount * 0.05) AS DOUBLE) AS promotion_cost
   FROM job_level_comp_merged jlm
   LEFT JOIN workforce_by_level wbl ON jlm.level_id = wbl.level_id
+  LEFT JOIN anchor_shares anchor ON jlm.level_id = anchor.level_id
 ),
 
 -- Additional costs (hiring, training, severance)
