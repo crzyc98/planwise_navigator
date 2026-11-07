@@ -1,4 +1,4 @@
-import { ApiError } from '../services/api';
+import { ApiError, type AutoCalibrationOutcome } from '../services/api';
 
 /** Prefer the exact Baseline name; accept capitalization/spacing differences. */
 export function baselineScenarioId(scenarios: { id: string; name: string }[]): string | null {
@@ -73,11 +73,43 @@ export interface SearchInputs {
   compound_band_pct?: number | null;
   solve_raise_budget?: boolean;
   raise_budget_limit_pct?: number;
+  raise_min?: number;
+  raise_max?: number;
+  hire_pay_ratio_min?: number;
+  hire_pay_ratio_max?: number;
+  cagr_tolerance_pct?: number;
+  annual_guardrail_pct?: number;
+  seed_count?: number;
+}
+
+type HorizonReport = NonNullable<AutoCalibrationOutcome['horizon']>;
+
+function horizonInputLines(inputs: SearchInputs): string[] {
+  const percent = (value: number | undefined, fallback: number) => ((value ?? fallback) * 100).toFixed(1);
+  return [
+    `Horizon growth within ±${(inputs.cagr_tolerance_pct ?? 0.25).toFixed(2)}pp, each year within ±${(inputs.annual_guardrail_pct ?? 0.5).toFixed(2)}pp, on the mean of ${inputs.seed_count ?? 3} seeds.`,
+    `Raises searched from ${percent(inputs.raise_min, 0.01)}% to ${percent(inputs.raise_max, 0.1)}%.`,
+    `Hire pay growth searched from ${percent(inputs.salary_growth_min, 0)}% to ${percent(inputs.salary_growth_max, 0.08)}%/yr.`,
+    `Hire pay searched from ${percent(inputs.hire_pay_ratio_min, 0.9)}% to ${percent(inputs.hire_pay_ratio_max, 1.1)}% of existing staff.`,
+  ];
+}
+
+export function horizonSummaryLines(report: HorizonReport): string[] {
+  const lines = [
+    `Horizon growth ${report.cagr_pct.toFixed(2)}% (${report.cagr_error_pct >= 0 ? '+' : ''}${report.cagr_error_pct.toFixed(2)}pp from target).`,
+    `Years outside the guardrail on the seed average: ${report.guardrail_misses}.`,
+    `By seed: ${report.seeds.map(seed => `${seed.seed}: ${seed.cagr_pct.toFixed(2)}%`).join(', ')}.`,
+  ];
+  if (report.active_bounds.length > 0) {
+    lines.push(`At a search limit: ${report.active_bounds.join(', ').replaceAll('_', ' ').replaceAll(':', ' ')}.`);
+  }
+  return lines;
 }
 
 /** Every start and bound a search uses, in words. Reads what is sent, or what was saved. */
 export function searchInputLines(inputs: SearchInputs): string[] {
   const lines = [`Tolerance ±${(inputs.tolerance_pct ?? 0.05).toFixed(2)}pp, up to ${inputs.max_iterations ?? 8} runs.`];
+  if (inputs.search_mode === 'horizon') return horizonInputLines(inputs);
   if (inputs.search_mode !== 'new_hire_scale') return lines;
   lines.push(
     `New-hire scale starts at ${(inputs.initial_scale ?? 1).toFixed(2)}×, `
