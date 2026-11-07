@@ -163,7 +163,11 @@ class SimulationConfig(BaseModel):
     @classmethod
     def validate_new_hire(cls, value: Dict[str, Any]) -> Dict[str, Any]:
         """Validate starting pay while retaining existing dictionary consumers."""
-        return NewHireSettings.model_validate(value).model_dump()
+        settings = NewHireSettings.model_validate(value).model_dump()
+        # Omit the default so existing configs keep their fingerprints.
+        if not settings["shared_pay_scale"]:
+            del settings["shared_pay_scale"]
+        return settings
 
     @field_validator(
         "deferral_auto_escalation",

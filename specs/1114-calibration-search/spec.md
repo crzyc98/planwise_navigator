@@ -53,8 +53,8 @@ The scale follows these rules:
 - A census level column, when present, wins over pay for existing staff. Censuses
   rarely have one, so pay-based levels are the main path and this can ship last.
 - Levels are assigned once, at the start. After that only promotions change them.
-- The scale must reach the FOUNDATION build. `int_baseline_workforce` is built where
-  `job_level_compensation` isn't available today, and the prototype failed on this.
+- `job_level_compensation` is empty when dbt parses every model, so anything reading
+  it must handle that. The prototype failed on this.
 
 ### Hire pay
 

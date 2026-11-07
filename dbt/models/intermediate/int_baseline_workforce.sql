@@ -26,7 +26,11 @@ WITH base_employees AS (
         -- This replaces year-only subtraction for accurate tenure values
         {{ calculate_tenure('stg.employee_hire_date', "MAKE_DATE(" ~ simulation_year ~ ", 12, 31)") }} AS current_tenure,
         -- Dynamically assign level_id with fallback for unmatched compensation ranges
+        {% if var('shared_pay_scale', false) -%}
+        {{ pay_scale_level('stg.employee_annualized_compensation') }} AS level_id,
+        {%- else -%}
         COALESCE(level_match.level_id, 1) AS level_id,
+        {%- endif %}
         -- Add eligibility and enrollment fields from census
         stg.employee_eligibility_date,
         stg.waiting_period_days,
