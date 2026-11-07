@@ -50,7 +50,8 @@ The scale follows these rules:
   everyone gets a level.
 - The analyst can enter the scale. Otherwise it's derived from all active employees'
   annualized pay at the 5th, 25th, 50th, 75th, 90th and 97th percentiles.
-- A census level column, when present, wins over pay for existing staff.
+- A census level column, when present, wins over pay for existing staff. Censuses
+  rarely have one, so pay-based levels are the main path and this can ship last.
 - Levels are assigned once, at the start. After that only promotions change them.
 - The scale must reach the FOUNDATION build. `int_baseline_workforce` is built where
   `job_level_compensation` isn't available today, and the prototype failed on this.
@@ -107,5 +108,4 @@ Validation repeats the prototype on both censuses, then at 25k.
 
 ## Open for review
 
-- Whether a census level column should win over pay.
 - The 20-employee threshold for sparse levels.
