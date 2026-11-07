@@ -22,7 +22,7 @@ Status: direction accepted, details below awaiting review.
 | Lever                      | Role                                   | Default bounds     |
 | -------------------------- | -------------------------------------- | ------------------ |
 | Hire pay growth            | Sets the sustained rate                | 0–8%               |
-| Raise budget               | Handles the early years                | 3–10%              |
+| Raise budget               | Handles the early years                | 1–10%              |
 | Hire-to-existing pay ratio | Sets the starting level of hire pay    | 90–110%, per #1075 |
 
 Analysts can change all of these bounds. Every run shows which bound stopped the
@@ -103,6 +103,6 @@ Validation repeats the prototype on both censuses, then at 25k.
 
 ## Open for review
 
-- Raise bounds of 3–10%, and the 1.0pp guardrail.
+- The 1.0pp guardrail.
 - Whether a census level column should win over pay.
 - The 20-employee threshold for sparse levels.
