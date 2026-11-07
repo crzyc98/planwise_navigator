@@ -31,7 +31,7 @@ import {
 import { extractCensusPath } from './config/ConfigContext';
 import { MAX_NEW_HIRE_SCALE, MIN_SEARCH_SCALE } from './config/constants';
 import { useChartTheme } from '../hooks/useChartTheme';
-import { baselineScenarioId, costSummary, growthMetricSettings, isMissingRunError, searchInputLines, searchLimitNotes, type SearchLimits, type GrowthMetric } from './calibrationScenario';
+import { baselineScenarioId, costSummary, growthMetricSettings, horizonSummaryLines, isMissingRunError, searchInputLines, searchLimitNotes, type SearchLimits, type GrowthMetric } from './calibrationScenario';
 
 interface CalibrationOutletContext {
   activeWorkspace: Workspace | null;
@@ -78,7 +78,7 @@ const RAISE_BUDGET_SLIDER: SliderConfig = { key: 'merit_budget', label: 'Raise B
 const GROWTH_KEYS = new Set<SliderConfig['key']>(['target_growth_pct', 'workforce_growth_rate']);
 const POLICY_KEYS = new Set<SliderConfig['key']>(['cola_rate', 'merit_budget']);
 
-type SolveMode = 'new_hire_scale' | 'levers';
+type SolveMode = 'new_hire_scale' | 'levers' | 'horizon';
 
 /**
  * The top-level calibration decision (Step 2): which lever we solve to hit the
@@ -97,6 +97,12 @@ const SOLVE_MODES: { key: SolveMode; title: string; description: string }[] = [
     title: 'COLA & merit',
     description:
       'Adjust the annual COLA and merit budget to hit your target, holding new-hire salary ranges fixed.',
+  },
+  {
+    key: 'horizon',
+    title: 'Raises and hire pay together',
+    description:
+      'Solves raises, hire pay growth and hire pay against existing staff, averaged over three seeds. Needs the shared pay scale.',
   },
 ];
 
@@ -285,8 +291,13 @@ export default function CalibrationPanel() {
   const [configuredRaises, setConfiguredRaises] = useState<{ cola_rate: number; merit_budget: number } | null>(null);
   const [scaleMax, setScaleMax] = useState(3);
   const [salaryGrowthMaxPct, setSalaryGrowthMaxPct] = useState(8);
+  const [raiseMinPct, setRaiseMinPct] = useState(1);
+  const [raiseMaxPct, setRaiseMaxPct] = useState(10);
+  const [ratioMinPct, setRatioMinPct] = useState(90);
+  const [ratioMaxPct, setRatioMaxPct] = useState(110);
   const [runLimits, setRunLimits] = useState<SearchLimits>({ scaleMax: 3, salaryGrowthMaxPct: 8 });
   const solvingNewHireRanges = searchMode === 'new_hire_scale';
+  const horizonSearch = searchMode === 'horizon';
   const raiseSolved = solvingNewHireRanges && solveSalaryGrowth && solveRaiseBudget;
 
   // Use an actual scenario from the active workspace; prefer Baseline.
@@ -547,6 +558,16 @@ export default function CalibrationPanel() {
           ...(solveSalaryGrowth ? { salary_growth_min: 0, salary_growth_max: salaryGrowthMaxPct / 100 } : {}),
         }
       : {}),
+    ...(horizonSearch
+      ? {
+          raise_min: raiseMinPct / 100,
+          raise_max: raiseMaxPct / 100,
+          salary_growth_min: 0,
+          salary_growth_max: salaryGrowthMaxPct / 100,
+          hire_pay_ratio_min: ratioMinPct / 100,
+          hire_pay_ratio_max: ratioMaxPct / 100,
+        }
+      : {}),
   });
 
   const loadSavedInputs = (outcome: AutoCalibrationOutcome) => {
@@ -556,6 +577,10 @@ export default function CalibrationPanel() {
     setSearchStartScale(settings.initial_scale ?? searchStartScale);
     setScaleMax(settings.scale_max ?? scaleMax);
     setSalaryGrowthMaxPct((settings.salary_growth_max ?? salaryGrowthMaxPct / 100) * 100);
+    setRaiseMinPct((settings.raise_min ?? raiseMinPct / 100) * 100);
+    setRaiseMaxPct((settings.raise_max ?? raiseMaxPct / 100) * 100);
+    setRatioMinPct((settings.hire_pay_ratio_min ?? ratioMinPct / 100) * 100);
+    setRatioMaxPct((settings.hire_pay_ratio_max ?? ratioMaxPct / 100) * 100);
     setSolveSalaryGrowth(settings.solve_salary_growth ?? solveSalaryGrowth);
     setSolveRaiseBudget(settings.solve_raise_budget ?? solveRaiseBudget);
     setGrowthMetric(settings.growth_metric ?? growthMetric);
@@ -901,7 +926,11 @@ export default function CalibrationPanel() {
           {/* Job Level Compensation Ranges. When calibration is solving these,
               the editor is collapsed to a label — the analyst shouldn't fill in
               something the solver derives. When held fixed, the full editor shows. */}
-          {solvingNewHireRanges ? (
+          {horizonSearch ? (
+            <p className="rounded-md border border-dashed border-border-strong bg-surface-subtle p-4 text-sm text-ink-muted">
+              This search uses the scenario's shared pay scale. Turn it on under New Hires and run the scenario before you start.
+            </p>
+          ) : solvingNewHireRanges ? (
             <div className="rounded-md border border-dashed border-border-strong bg-surface-subtle p-4 flex items-start gap-2">
               <Sparkles size={16} className="mt-0.5 shrink-0 text-brand-ink" />
               <div className="text-sm text-ink-muted">
@@ -1246,7 +1275,9 @@ export default function CalibrationPanel() {
         {/* ── Step 4: Auto-calibrate, then apply ────────────────────── */}
         <div className="bg-surface-raised rounded-lg shadow p-6 space-y-4">
           <StepHeader n={4} title="Auto-calibrate to your target, then apply">
-            {solvingNewHireRanges
+            {horizonSearch
+              ? 'Run the auto-calibration — it measures how growth responds to raises and hire pay, then solves them together on real comp-only simulations. Then apply the result to the workspace.'
+              : solvingNewHireRanges
               ? 'Run the auto-calibration — it searches the new-hire salary scale across real comp-only simulations until per-year salary growth lands on your target. Then apply the result to the workspace.'
               : 'Run the auto-calibration — it searches COLA & merit across real comp-only simulations until per-year salary growth lands on your target. Then apply the result to the workspace.'}
           </StepHeader>
@@ -1256,10 +1287,10 @@ export default function CalibrationPanel() {
         <div className="rounded-md border border-info-border bg-info-surface p-4">
           <div className="space-y-3">
             <p className="text-xs text-info-ink">
-              Solving <span className="font-semibold">{solvingNewHireRanges ? 'new-hire salary ranges' : 'COLA & merit'}</span> to
+              Solving <span className="font-semibold">{horizonSearch ? 'raises and hire pay' : solvingNewHireRanges ? 'new-hire salary ranges' : 'COLA & merit'}</span> to
               hit Target Salary Growth ({pct(values.target_growth_pct)}) at Workforce Growth
               ({pct(values.workforce_growth_rate)}) by running real comp-only simulations.
-              Typically 3–6 runs (a few minutes).
+              {horizonSearch ? 'Each setting runs three times, so expect 15 minutes or more.' : 'Typically 3–6 runs (a few minutes).'}
             </p>
             <label className="block text-sm text-info-ink">
               Average pay means
@@ -1289,6 +1320,24 @@ export default function CalibrationPanel() {
                   onChange={event => setSolveRaiseBudget(event.target.checked)} />
                 Set the raise budget from the target (within 1pp of configured)
               </label>
+            )}
+            {horizonSearch && (
+              <div className="flex flex-wrap items-end gap-4">
+                {([
+                  ['Lowest raises (%)', raiseMinPct, setRaiseMinPct],
+                  ['Highest raises (%)', raiseMaxPct, setRaiseMaxPct],
+                  ['Highest hire pay growth (%/yr)', salaryGrowthMaxPct, setSalaryGrowthMaxPct],
+                  ['Lowest hire pay vs. staff (%)', ratioMinPct, setRatioMinPct],
+                  ['Highest hire pay vs. staff (%)', ratioMaxPct, setRatioMaxPct],
+                ] as const).map(([label, value, setValue]) => (
+                  <label key={label} className="block text-xs text-info-ink">
+                    {label}
+                    <input type="number" step="0.5" value={value} disabled={autoLoading}
+                      onChange={event => setValue(Number(event.target.value))}
+                      className="mt-1 w-24 rounded-md border border-border-strong bg-surface-raised p-1.5 text-sm shadow-sm" />
+                  </label>
+                ))}
+              </div>
             )}
             {solvingNewHireRanges && (
               <div className="flex flex-wrap items-end gap-4">
@@ -1442,6 +1491,11 @@ export default function CalibrationPanel() {
                 — controls updated; use “Apply to Workspace” to persist, then run the
                 full simulation.
               </p>
+              {autoOutcome.horizon && (
+                <ul className="mt-1 list-disc pl-4 text-xs text-ink-muted">
+                  {horizonSummaryLines(autoOutcome.horizon).map(line => <li key={line}>{line}</li>)}
+                </ul>
+              )}
               {searchLimitNotes(autoOutcome.best_scale, autoOutcome.best_salary_growth_rate, runLimits).map(note => (
                 <p key={note} className="mt-1 text-xs font-medium text-info-ink">
                   {note} Raise the limit and rerun to see if it was holding the result back.

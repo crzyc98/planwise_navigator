@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { baselineScenarioId, costSummary, growthMetricSettings, isMissingRunError, searchInputLines, searchLimitNotes } from './calibrationScenario';
+import { baselineScenarioId, costSummary, growthMetricSettings, horizonSummaryLines, isMissingRunError, searchInputLines, searchLimitNotes } from './calibrationScenario';
 import { ApiError } from '../services/api';
 import CalibrationPanel from './CalibrationPanel';
 
@@ -144,6 +144,28 @@ describe('search input lines', () => {
       'Starting-pay growth searched from 0.0% to 8.0%/yr.',
       'Horizon mean held within ±0.04pp of the target.',
       'Raise budget set from the target, within 1.0pp of the starting raises.',
+    ]);
+  });
+
+  it('names every bound of a horizon search', () => {
+    expect(searchInputLines({ search_mode: 'horizon', raise_min: 0.01, raise_max: 0.1, salary_growth_max: 0.08 })).toEqual([
+      'Horizon growth within ±0.25pp, each year within ±0.50pp, on the mean of 3 seeds.',
+      'Raises searched from 1.0% to 10.0%.',
+      'Hire pay growth searched from 0.0% to 8.0%/yr.',
+      'Hire pay searched from 90.0% to 110.0% of existing staff.',
+    ]);
+  });
+
+  it('summarizes a horizon result and any limit it sits on', () => {
+    const lines = horizonSummaryLines({
+      cagr_pct: 5.55, cagr_error_pct: 0.05, guardrail_misses: 0, active_bounds: ['hire_pay_ratio:lower'],
+      seeds: [{ seed: 42, cagr_pct: 5.59, annual_growth_pct: [] }],
+    } as unknown as Parameters<typeof horizonSummaryLines>[0]);
+    expect(lines).toEqual([
+      'Horizon growth 5.55% (+0.05pp from target).',
+      'Years outside the guardrail on the seed average: 0.',
+      'By seed: 42: 5.59%.',
+      'At a search limit: hire pay ratio lower.',
     ]);
   });
 

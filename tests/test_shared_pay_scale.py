@@ -78,3 +78,40 @@ def test_ratio_exports_with_shared_scale() -> None:
 def test_ratio_requires_shared_scale() -> None:
     with pytest.raises(ValidationError, match="requires shared_pay_scale"):
         config({"hire_pay_ratio": 1.0})
+
+
+def test_apply_carries_the_solved_ratio_and_growth() -> None:
+    from planalign_api.routers.calibration import (
+        CalibrationApplyRequest,
+        CalibrationContext,
+        _merge_calibration_candidate,
+    )
+    from planalign_orchestrator.calibration_runner import CalibrationParameterSet
+
+    context = CalibrationContext(
+        workspace_id="workspace",
+        source_scenario_id="scenario",
+        source_run_id="run",
+        config_fingerprint="config",
+        census_fingerprint="census",
+        random_seed=42,
+        start_year=2026,
+        end_year=2030,
+    )
+    request = CalibrationApplyRequest(
+        context=context,
+        best_params=CalibrationParameterSet(
+            cola_rate=0.02,
+            merit_budget=0.07,
+            new_hire_salary_growth_rate=0.055,
+            hire_pay_ratio=0.92,
+        ),
+        target_comp_growth_pct=5.5,
+    )
+    original = config({"shared_pay_scale": True, "job_level_compensation": RANGES})
+    new_hire = _merge_calibration_candidate(original.model_dump(mode="json"), request)[
+        "new_hire"
+    ]
+    assert new_hire["hire_pay_ratio"] == 0.92
+    assert new_hire["salary_growth_rate"] == 0.055
+    assert new_hire["shared_pay_scale"] is True
