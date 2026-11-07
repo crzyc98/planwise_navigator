@@ -440,6 +440,26 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
               <span className="text-info-ink ml-1">Select lookback period and click "Suggest from census" to derive ranges from recent hire data.</span>
             )}
           </p>
+          <div className="mb-4">
+            <label htmlFor="shared-pay-scale" className="flex items-center gap-2 text-sm text-ink">
+              <input
+                id="shared-pay-scale"
+                type="checkbox"
+                checked={formData.sharedPayScale}
+                onChange={(e) => {
+                  const { checked } = e.target;
+                  setFormData(previous => ({ ...previous, sharedPayScale: checked }));
+                  if (checked) setCompLookbackYears(0);
+                }}
+              />
+              Use these ranges for existing staff too
+            </label>
+            {formData.sharedPayScale && (
+              <p className="text-xs text-ink-muted mt-1">
+                Existing staff and hires share one pay scale. Suggest ranges from all employees, not recent hires. Calibration doesn't allow for this yet, so check a full run after applying its results.
+              </p>
+            )}
+          </div>
           {suggestionPanel('comp')}
           {compensationAnalysis && (
             <div className={`mb-4 p-2 rounded text-xs ${compensationAnalysis.recent_hires_only ? 'bg-info-surface border border-info-border text-info-ink' : 'bg-warning-surface border border-warning-border text-warning-ink'}`}>
