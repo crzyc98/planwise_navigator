@@ -4,7 +4,7 @@ Decision record for #1114. Evidence is in
 [the pay growth results](../../docs/studies/pay_growth_results.md). Metrics follow
 [the growth metric contract](../../docs/guides/growth_metrics.md).
 
-Status: direction accepted, details below awaiting review.
+Status: reviewed with the owner, 2026-11-07.
 
 ## Decisions
 
@@ -105,7 +105,3 @@ or a census with a level column.
 Each step is opt-in. Changing Studio's defaults needs separate approval. Results for
 existing scenarios will change once a scenario opts in, and calibrations need rerunning.
 Validation repeats the prototype on both censuses, then at 25k.
-
-## Open for review
-
-- The 20-employee threshold for sparse levels.
