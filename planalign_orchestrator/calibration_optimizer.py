@@ -37,6 +37,14 @@ from scipy.optimize import linprog
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from planalign_orchestrator.calibration_solver import (
+    Candidate,
+    SolverLimits,
+    SolverOutcome,
+    best_limit_message,
+    horizon_cagr_error,
+    solve_horizon,
+)
 from planalign_orchestrator.calibration_runner import (
     CalibrationParameterSet,
     CalibrationRun,
@@ -85,7 +93,7 @@ class AutoCalibrationSettings(BaseModel):
     growth_metric: GrowthMetric = "active_average"
 
     # -- new_hire_scale mode ------------------------------------------------
-    search_mode: Literal["levers", "new_hire_scale"] = "levers"
+    search_mode: Literal["levers", "new_hire_scale", "horizon"] = "levers"
     # UNSCALED (1.0x) per-level ranges, e.g. straight from census analysis.
     base_job_level_compensation: Optional[List[JobLevelRange]] = None
     initial_scale: float = Field(default=1.0, gt=0, le=5.0)
@@ -107,6 +115,16 @@ class AutoCalibrationSettings(BaseModel):
     # this limit of configured, then solve hiring pay. Moves merit; COLA stays.
     solve_raise_budget: bool = False
     raise_budget_limit_pct: float = Field(default=1.0, gt=0, le=5.0)
+
+    # -- horizon mode: see specs/1114-calibration-search/spec.md -----------------
+    raise_min: float = Field(default=0.01, ge=0, le=0.25)
+    raise_max: float = Field(default=0.10, ge=0, le=0.25)
+    hire_pay_ratio_min: float = Field(default=0.9, ge=0.5, le=1.5)
+    hire_pay_ratio_max: float = Field(default=1.1, ge=0.5, le=1.5)
+    cagr_tolerance_pct: float = Field(default=0.25, gt=0, le=5.0)
+    annual_guardrail_pct: float = Field(default=0.5, gt=0, le=5.0)
+    horizon_evaluations: int = Field(default=12, ge=4, le=25)
+    seed_count: int = Field(default=3, ge=1, le=5)
 
     @model_validator(mode="after")
     def _validate_scale_mode(self) -> "AutoCalibrationSettings":
@@ -156,6 +174,42 @@ class CostEstimateRow(BaseModel):
     estimated_employer_cost: float
 
 
+class HorizonLimitTest(BaseModel):
+    """A rerun with one bound relaxed, showing whether that bound caused a miss."""
+
+    lever: str
+    bound: Literal["lower", "upper"]
+    relaxed_to: float
+    cagr_error_before_pct: float
+    cagr_error_after_pct: float
+
+
+class HorizonSeedResult(BaseModel):
+    """How one seed of the best candidate grew."""
+
+    seed: int
+    cagr_pct: float
+    annual_growth_pct: List[float]
+
+
+class HorizonReport(BaseModel):
+    """What the horizon search found, scored on the mean of its seeds."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    raises: float
+    hire_pay_growth: float
+    hire_pay_ratio: float
+    cagr_pct: float
+    cagr_error_pct: float
+    annual_errors_pct: List[float]
+    guardrail_misses: int
+    stop_reason: Literal["on_target", "no_further_improvement", "budget_exhausted"]
+    active_bounds: List[str]
+    limit_tests: List[HorizonLimitTest]
+    seeds: List[HorizonSeedResult]
+
+
 class AutoCalibrationResult(BaseModel):
     """Outcome of the search: best params + the run that produced them."""
 
@@ -181,6 +235,7 @@ class AutoCalibrationResult(BaseModel):
     # What the search was given, so a saved result can be read and rerun.
     settings: AutoCalibrationSettings
     starting_params: CalibrationParameterSet
+    horizon: Optional[HorizonReport] = None
 
 
 def _annual_objective(
@@ -326,6 +381,9 @@ class AutoCalibrator:
         self._evals = 0
         self._iterations = []
         self._best = None
+
+        if self.settings.search_mode == "horizon":
+            return HorizonSearch(self, target_pct).run()
 
         if self.settings.solve_salary_growth:
             return self._optimize_two_dials(target_pct)
@@ -897,3 +955,169 @@ class AutoCalibrator:
             settings=self.settings,
             starting_params=self._starting_params,
         )
+
+
+class HorizonSearch:
+    """Runs the horizon solver on real evaluations, averaged across seeds."""
+
+    def __init__(self, calibrator: AutoCalibrator, target_pct: float) -> None:
+        self.calibrator = calibrator
+        self.settings = calibrator.settings
+        self.target_pct = target_pct
+        self.base_seed = calibrator._runner._config.simulation.random_seed
+        self.seeds = [self.base_seed + i for i in range(self.settings.seed_count)]
+        self._by_levers: Dict[Tuple[float, ...], List[List[float]]] = {}
+        self._results: Dict[Tuple[float, ...], List[PerYearCompensationResult]] = {}
+
+    def _params(self, levers: NDArray[np.float64]) -> CalibrationParameterSet:
+        run = self.calibrator.run.params
+        config = self.calibrator._runner._config.compensation
+        raises, hire_growth, ratio = (float(value) for value in levers)
+        cola = min(run.cola_rate or config.cola_rate, raises)
+        return run.model_copy(
+            update={
+                "cola_rate": cola,
+                "merit_budget": raises - cola,
+                "new_hire_salary_growth_rate": hire_growth,
+                "hire_pay_ratio": ratio,
+                "workforce_growth_rate": self.settings.target_workforce_growth,
+                "target_growth_pct": self.settings.target_comp_growth,
+            }
+        )
+
+    def _annual(self, results: List[PerYearCompensationResult]) -> List[float]:
+        run = self.calibrator.run
+        return [
+            r.yoy_growth_pct
+            for r in results
+            if run.start_year < r.simulation_year <= run.end_year
+            and r.yoy_growth_pct is not None
+        ]
+
+    def _evaluate(self, levers: NDArray[np.float64]) -> Candidate:
+        params = self._params(levers)
+        growth: List[List[float]] = []
+        first: List[PerYearCompensationResult] = []
+        for seed in self.seeds:
+            results = self.calibrator._evaluate(
+                params.model_copy(update={"random_seed": seed})
+            )
+            first = first or results
+            growth.append(self._annual(results))
+        key = tuple(float(value) for value in levers)
+        self._by_levers[key], self._results[key] = growth, first
+        mean = np.mean(growth, axis=0)
+        candidate = Candidate(
+            np.array(levers, dtype=float),
+            mean - self.target_pct,
+            horizon_cagr_error(mean, self.target_pct),
+        )
+        self._record(params, candidate)
+        return candidate
+
+    def _record(self, params: CalibrationParameterSet, candidate: Candidate) -> None:
+        iterations = self.calibrator._iterations
+        iterations.append(
+            OptimizationIteration(
+                iteration=len(iterations) + 1,
+                cola_rate=params.cola_rate or 0.0,
+                merit_budget=params.merit_budget or 0.0,
+                salary_growth_rate=params.new_hire_salary_growth_rate,
+                achieved_growth_pct=candidate.cagr_error + self.target_pct,
+                error_pct=candidate.cagr_error,
+                max_abs_error_pct=float(np.abs(candidate.errors).max()),
+            )
+        )
+
+    def _start(self) -> NDArray[np.float64]:
+        params, config = self.calibrator.run.params, self.calibrator._runner._config
+        cola = params.cola_rate or config.compensation.cola_rate
+        merit = params.merit_budget or config.compensation.merit_budget
+        return np.array(
+            [
+                cola + merit,
+                config.new_hire.get("salary_growth_rate", 0.0),
+                config.new_hire.get("hire_pay_ratio") or 1.0,
+            ]
+        )
+
+    def _limits(self) -> SolverLimits:
+        s = self.settings
+        return SolverLimits(
+            np.array([s.raise_min, s.salary_growth_min, s.hire_pay_ratio_min]),
+            np.array([s.raise_max, s.salary_growth_max, s.hire_pay_ratio_max]),
+            s.cagr_tolerance_pct,
+            s.annual_guardrail_pct,
+            s.horizon_evaluations,
+        )
+
+    def _report(self, outcome: SolverOutcome) -> HorizonReport:
+        best = outcome.best
+        key = tuple(float(value) for value in best.levers)
+        return HorizonReport(
+            raises=float(best.levers[0]),
+            hire_pay_growth=float(best.levers[1]),
+            hire_pay_ratio=float(best.levers[2]),
+            cagr_pct=best.cagr_error + self.target_pct,
+            cagr_error_pct=best.cagr_error,
+            annual_errors_pct=[float(value) for value in best.errors],
+            guardrail_misses=outcome.guardrail_misses,
+            stop_reason=outcome.stop_reason,
+            active_bounds=outcome.active_bounds,
+            limit_tests=[
+                HorizonLimitTest(
+                    lever=test.lever,
+                    bound=test.bound,
+                    relaxed_to=test.relaxed_to,
+                    cagr_error_before_pct=test.cagr_error_before,
+                    cagr_error_after_pct=test.cagr_error_after,
+                )
+                for test in outcome.limit_tests
+            ],
+            seeds=[
+                HorizonSeedResult(
+                    seed=seed,
+                    cagr_pct=horizon_cagr_error(growth, 0.0),
+                    annual_growth_pct=growth,
+                )
+                for seed, growth in zip(self.seeds, self._by_levers[key])
+            ],
+        )
+
+    def _message(self, outcome: SolverOutcome, report: HorizonReport) -> str:
+        summary = (
+            f"Raises {report.raises:.2%}, hire pay growth "
+            f"{report.hire_pay_growth:.2%} and hire pay ratio "
+            f"{report.hire_pay_ratio:.0%} give {report.cagr_pct:.2f}% a year on "
+            f"average across {len(self.seeds)} seeds, with "
+            f"{report.guardrail_misses} years outside the guardrail."
+        )
+        limit = best_limit_message(outcome.limit_tests)
+        return f"{summary} {limit}" if limit else summary
+
+    def run(self) -> AutoCalibrationResult:
+        calibrator = self.calibrator
+        config = calibrator._runner._config
+        if not config.new_hire.get("shared_pay_scale"):
+            raise ValueError("Horizon search requires the shared pay scale")
+        outcome = solve_horizon(self._evaluate, self._start(), self._limits())
+        report = self._report(outcome)
+        best = outcome.best
+        key = tuple(float(value) for value in best.levers)
+        calibrator._best = _BestCandidate(
+            float(np.abs(best.errors).max()),
+            self._params(best.levers),
+            best.cagr_error + self.target_pct,
+            self._results[key],
+            None,
+            abs(best.cagr_error),
+        )
+        converged = outcome.stop_reason == "on_target"
+        result = calibrator._finish(
+            converged,
+            self._message(outcome, report),
+            self.target_pct,
+            status="converged" if converged else "best_achievable",
+            reason=None if converged else outcome.stop_reason.replace("_", " "),
+        )
+        return result.model_copy(update={"horizon": report})

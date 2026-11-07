@@ -1347,6 +1347,16 @@
             "title": "Growth Metric",
             "type": "string"
           },
+          "horizon": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HorizonReport"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "iterations": {
             "items": {
               "$ref": "#/components/schemas/OptimizationIteration"
@@ -1430,7 +1440,8 @@
           "results",
           "cost_estimate",
           "settings",
-          "starting_params"
+          "starting_params",
+          "horizon"
         ],
         "title": "AutoCalibrationResult",
         "type": "object"
@@ -1448,6 +1459,13 @@
             "title": "Adjust",
             "type": "string"
           },
+          "annual_guardrail_pct": {
+            "default": 0.5,
+            "exclusiveMinimum": 0.0,
+            "maximum": 5.0,
+            "title": "Annual Guardrail Pct",
+            "type": "number"
+          },
           "base_job_level_compensation": {
             "anyOf": [
               {
@@ -1461,6 +1479,13 @@
               }
             ],
             "title": "Base Job Level Compensation"
+          },
+          "cagr_tolerance_pct": {
+            "default": 0.25,
+            "exclusiveMinimum": 0.0,
+            "maximum": 5.0,
+            "title": "Cagr Tolerance Pct",
+            "type": "number"
           },
           "compound_band_pct": {
             "anyOf": [
@@ -1483,6 +1508,27 @@
             ],
             "title": "Growth Metric",
             "type": "string"
+          },
+          "hire_pay_ratio_max": {
+            "default": 1.1,
+            "maximum": 1.5,
+            "minimum": 0.5,
+            "title": "Hire Pay Ratio Max",
+            "type": "number"
+          },
+          "hire_pay_ratio_min": {
+            "default": 0.9,
+            "maximum": 1.5,
+            "minimum": 0.5,
+            "title": "Hire Pay Ratio Min",
+            "type": "number"
+          },
+          "horizon_evaluations": {
+            "default": 12,
+            "maximum": 25.0,
+            "minimum": 4.0,
+            "title": "Horizon Evaluations",
+            "type": "integer"
           },
           "initial_scale": {
             "default": 1.0,
@@ -1508,6 +1554,20 @@
             "exclusiveMinimum": 0.0,
             "maximum": 5.0,
             "title": "Raise Budget Limit Pct",
+            "type": "number"
+          },
+          "raise_max": {
+            "default": 0.1,
+            "maximum": 0.25,
+            "minimum": 0.0,
+            "title": "Raise Max",
+            "type": "number"
+          },
+          "raise_min": {
+            "default": 0.01,
+            "maximum": 0.25,
+            "minimum": 0.0,
+            "title": "Raise Min",
             "type": "number"
           },
           "salary_growth_max": {
@@ -1540,10 +1600,18 @@
             "default": "levers",
             "enum": [
               "levers",
-              "new_hire_scale"
+              "new_hire_scale",
+              "horizon"
             ],
             "title": "Search Mode",
             "type": "string"
+          },
+          "seed_count": {
+            "default": 3,
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Seed Count",
+            "type": "integer"
           },
           "solve_raise_budget": {
             "default": false,
@@ -2789,6 +2857,19 @@
             ],
             "title": "Cola Rate"
           },
+          "hire_pay_ratio": {
+            "anyOf": [
+              {
+                "maximum": 1.5,
+                "minimum": 0.5,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hire Pay Ratio"
+          },
           "job_level_compensation": {
             "anyOf": [
               {
@@ -2870,6 +2951,17 @@
               }
             ],
             "title": "Promotion Increase"
+          },
+          "random_seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Random Seed"
           },
           "target_growth_pct": {
             "anyOf": [
@@ -9006,6 +9098,152 @@
           "splits"
         ],
         "title": "HistorySet",
+        "type": "object"
+      },
+      "HorizonLimitTest": {
+        "description": "A rerun with one bound relaxed, showing whether that bound caused a miss.",
+        "properties": {
+          "bound": {
+            "enum": [
+              "lower",
+              "upper"
+            ],
+            "title": "Bound",
+            "type": "string"
+          },
+          "cagr_error_after_pct": {
+            "title": "Cagr Error After Pct",
+            "type": "number"
+          },
+          "cagr_error_before_pct": {
+            "title": "Cagr Error Before Pct",
+            "type": "number"
+          },
+          "lever": {
+            "title": "Lever",
+            "type": "string"
+          },
+          "relaxed_to": {
+            "title": "Relaxed To",
+            "type": "number"
+          }
+        },
+        "required": [
+          "lever",
+          "bound",
+          "relaxed_to",
+          "cagr_error_before_pct",
+          "cagr_error_after_pct"
+        ],
+        "title": "HorizonLimitTest",
+        "type": "object"
+      },
+      "HorizonReport": {
+        "description": "What the horizon search found, scored on the mean of its seeds.",
+        "properties": {
+          "active_bounds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Active Bounds",
+            "type": "array"
+          },
+          "annual_errors_pct": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Annual Errors Pct",
+            "type": "array"
+          },
+          "cagr_error_pct": {
+            "title": "Cagr Error Pct",
+            "type": "number"
+          },
+          "cagr_pct": {
+            "title": "Cagr Pct",
+            "type": "number"
+          },
+          "guardrail_misses": {
+            "title": "Guardrail Misses",
+            "type": "integer"
+          },
+          "hire_pay_growth": {
+            "title": "Hire Pay Growth",
+            "type": "number"
+          },
+          "hire_pay_ratio": {
+            "title": "Hire Pay Ratio",
+            "type": "number"
+          },
+          "limit_tests": {
+            "items": {
+              "$ref": "#/components/schemas/HorizonLimitTest"
+            },
+            "title": "Limit Tests",
+            "type": "array"
+          },
+          "raises": {
+            "title": "Raises",
+            "type": "number"
+          },
+          "seeds": {
+            "items": {
+              "$ref": "#/components/schemas/HorizonSeedResult"
+            },
+            "title": "Seeds",
+            "type": "array"
+          },
+          "stop_reason": {
+            "enum": [
+              "on_target",
+              "no_further_improvement",
+              "budget_exhausted"
+            ],
+            "title": "Stop Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "raises",
+          "hire_pay_growth",
+          "hire_pay_ratio",
+          "cagr_pct",
+          "cagr_error_pct",
+          "annual_errors_pct",
+          "guardrail_misses",
+          "stop_reason",
+          "active_bounds",
+          "limit_tests",
+          "seeds"
+        ],
+        "title": "HorizonReport",
+        "type": "object"
+      },
+      "HorizonSeedResult": {
+        "description": "How one seed of the best candidate grew.",
+        "properties": {
+          "annual_growth_pct": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Annual Growth Pct",
+            "type": "array"
+          },
+          "cagr_pct": {
+            "title": "Cagr Pct",
+            "type": "number"
+          },
+          "seed": {
+            "title": "Seed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "seed",
+          "cagr_pct",
+          "annual_growth_pct"
+        ],
+        "title": "HorizonSeedResult",
         "type": "object"
       },
       "IRSLimitMetrics": {
