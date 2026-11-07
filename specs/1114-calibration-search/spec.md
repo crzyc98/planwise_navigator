@@ -12,8 +12,8 @@ Status: direction accepted, details below awaiting review.
 
 - The search targets horizon CAGR of the chosen metric, within 0.25pp. Seeds moved
   horizon CAGR by at most 0.22pp.
-- Each year has a guardrail of 1.0pp around the target. That's about twice the normal
-  swing, so a guardrail miss means something other than ordinary turnover.
+- Each year has a guardrail of 0.5pp around the target. That's about the size of the
+  normal swing, so one run with fixed inputs will still miss it in some years.
 - A guardrail miss is reported, and it only rejects a candidate when another candidate
   meets the target without one.
 
@@ -103,6 +103,6 @@ Validation repeats the prototype on both censuses, then at 25k.
 
 ## Open for review
 
-- The 1.0pp guardrail.
+- How to keep years inside the guardrail: average several seeds, or vary raises by year.
 - Whether a census level column should win over pay.
 - The 20-employee threshold for sparse levels.
