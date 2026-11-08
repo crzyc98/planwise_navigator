@@ -38,7 +38,6 @@ it('shows consequential custom values in collapsed summaries', () => {
   state.value.formData = { ...DEFAULT_FORM_DATA, partTimeNewHirePct: 23, marketScenario: 'aggressive', seed: 129,
     promoRateMultiplier: 1.8, newHireAgeDistribution: [{ age: 44, weight: 1, description: 'custom' }],
     jobLevelCompensation: [{ level: 1, name: 'Custom level', minComp: 70000, maxComp: 90000 }],
-    levelDistributionMode: 'fixed', newHireLevelDistribution: [{ level: 1, name: 'Custom level', percentage: 100 }],
     levelMarketAdjustments: [{ level: 1, adjustment: 8 }],
   };
   state.value.promotionHazardConfig = { base: { base_rate: 0.17, level_dampener_factor: 0.12 },
@@ -53,7 +52,6 @@ it('shows consequential custom values in collapsed summaries', () => {
   expect(html).toContain('base promotion rate 17.0%');
   expect(html).toContain('age multipliers: young 1.8×');
   expect(html).toContain('tenure multipliers: new 0.7×');
-  expect(html).toContain('Custom level 100%');
   expect(html).toContain('L1 8%');
   expect(html).toContain('unsupported');
 });

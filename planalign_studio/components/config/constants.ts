@@ -149,14 +149,6 @@ export const DEFAULT_FORM_DATA: FormData = {
     { age: 45, weight: 0.08, description: 'Mature professionals' },
     { age: 50, weight: 0.02, description: 'Late career changes' },
   ],
-  levelDistributionMode: 'adaptive',
-  newHireLevelDistribution: [
-    { level: 1, name: 'Staff', percentage: 50 },
-    { level: 2, name: 'Manager', percentage: 25 },
-    { level: 3, name: 'Sr Manager', percentage: 15 },
-    { level: 4, name: 'Director', percentage: 8 },
-    { level: 5, name: 'VP', percentage: 2 },
-  ],
   jobLevelCompensation: [
     { level: 1, name: 'Staff', minComp: 56000, maxComp: 80000 },
     { level: 2, name: 'Manager', minComp: 81000, maxComp: 120000 },

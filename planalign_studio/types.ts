@@ -83,12 +83,6 @@ export interface SimulationConfig {
     weight: number;
     description: string;
   }>;
-  levelDistributionMode?: 'adaptive' | 'fixed';
-  newHireLevelDistribution?: Array<{
-    level: number;
-    name: string;
-    percentage: number;
-  }>;
 
   // Turnover
   baseTurnoverRate?: number;

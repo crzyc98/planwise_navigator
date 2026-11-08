@@ -66,7 +66,6 @@ def allocate(
     current: tuple[int, ...],
     *,
     year: int = 2027,
-    fixed: bool = False,
     hires: int = 20,
     target: int = 105,
     terms: int = 10,
@@ -82,12 +81,6 @@ def allocate(
             ? AS expected_experienced_terminations, ? AS total_hires_needed,
             ? AS target_ending_workforce, 0.25 AS new_hire_termination_rate""",
             [year, terms, hires, target],
-        )
-        conn.execute(
-            """CREATE TABLE config_new_hire_level_distribution AS SELECT
-            'default' AS scenario_id, level_id, distribution_pct, ? AS use_fixed_distribution
-            FROM (VALUES (1, 0.2), (2, 0.3), (3, 0.5)) AS t(level_id, distribution_pct)""",
-            [fixed],
         )
         conn.execute("""CREATE TABLE stg_config_job_levels AS SELECT
             level_id, 50000 AS min_compensation, 100000 AS max_compensation
@@ -116,13 +109,6 @@ def test_underfilled_level_gets_backfill() -> None:
 def test_empty_census_level_receives_hires() -> None:
     result = allocate((0, 70, 30))
     assert result[1] == (1.0, 20)
-
-
-def test_fixed_distribution_takes_precedence() -> None:
-    result = allocate((40, 40, 20), fixed=True)
-    for level, share in enumerate((0.2, 0.3, 0.5), 1):
-        assert result[level][0] == pytest.approx(share)
-        assert result[level][1] == round(20 * share)
 
 
 def test_level_absent_from_census_gets_no_hires() -> None:
@@ -190,12 +176,6 @@ def test_multiplier_and_probability_cap() -> None:
     )
     assert allocate((60, 30, 10), promotion_rate=0.8, multiplier=2) == allocate(
         (60, 30, 10), promotion_rate=1
-    )
-
-
-def test_fixed_distribution_ignores_promotion_flows() -> None:
-    assert allocate((60, 30, 10), fixed=True, promotion_rate=0.2) == allocate(
-        (60, 30, 10), fixed=True
     )
 
 

@@ -65,11 +65,6 @@ export function buildConfigPayload(
         age: row.age,
         weight: row.weight,
       })),
-      level_distribution_mode: formData.levelDistributionMode,
-      level_distribution: formData.newHireLevelDistribution.map(row => ({
-        level: row.level,
-        percentage: row.percentage / 100,
-      })),
       job_level_compensation: formData.jobLevelCompensation.map(row => ({
         level: row.level,
         name: row.name,
