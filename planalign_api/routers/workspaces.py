@@ -44,7 +44,7 @@ from ..services.export_service import (
 from ..services.seed_config_validator import validate_seed_configs
 from ..services.path_guard import PathGuardError, ProtectedPathError
 from ..services.upload_stream import stream_upload_to_tempfile
-from ..services.workspace_service import with_raise_budget
+from ..services.workspace_service import new_workspace_defaults
 from ..storage.workspace_storage import WorkspaceStorage
 
 router = APIRouter()
@@ -78,10 +78,10 @@ async def get_default_config(
 
     if settings.default_config_path.exists():
         with open(settings.default_config_path) as f:
-            return with_raise_budget(yaml.safe_load(f))
+            return new_workspace_defaults(yaml.safe_load(f))
 
     # Built-in defaults
-    return with_raise_budget(
+    return new_workspace_defaults(
         {
             "simulation": {
                 "start_year": 2025,

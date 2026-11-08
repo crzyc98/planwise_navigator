@@ -12,6 +12,13 @@ export function isMissingRunError(e: unknown): boolean {
     && typeof e.detail === 'string' && e.detail.startsWith('No completed simulation matches');
 }
 
+export type SolveMode = 'new_hire_scale' | 'levers' | 'horizon';
+
+/** Horizon search when the scenario is on the shared pay scale it needs (#1075). */
+export function defaultSearchMode(newHire: { shared_pay_scale?: unknown } | null | undefined): SolveMode {
+  return newHire?.shared_pay_scale === true ? 'horizon' : 'new_hire_scale';
+}
+
 export type GrowthMetric = 'active_average' | 'payroll_per_head';
 
 /**

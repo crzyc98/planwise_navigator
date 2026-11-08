@@ -12,7 +12,7 @@ from ..auth import require_api_token
 from ..config import APISettings, get_settings
 from ..models.system import HealthResponse, SystemStatus
 from ..services.storage_usage import workspace_totals
-from ..services.workspace_service import with_raise_budget
+from ..services.workspace_service import new_workspace_defaults
 
 router = APIRouter()
 
@@ -134,10 +134,10 @@ def get_default_config(
     """
     if settings.default_config_path.exists():
         with open(settings.default_config_path) as f:
-            return with_raise_budget(yaml.safe_load(f))
+            return new_workspace_defaults(yaml.safe_load(f))
 
     # Return built-in defaults if config file doesn't exist
-    return with_raise_budget(
+    return new_workspace_defaults(
         {
             "simulation": {
                 "start_year": 2025,

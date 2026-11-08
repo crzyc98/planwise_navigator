@@ -31,7 +31,7 @@ import {
 import { extractCensusPath } from './config/ConfigContext';
 import { MAX_NEW_HIRE_SCALE, MIN_SEARCH_SCALE } from './config/constants';
 import { useChartTheme } from '../hooks/useChartTheme';
-import { baselineScenarioId, costSummary, growthMetricSettings, horizonSummaryLines, isMissingRunError, searchInputLines, searchLimitsError, searchLimitNotes, type SearchLimits, type GrowthMetric } from './calibrationScenario';
+import { baselineScenarioId, costSummary, defaultSearchMode, growthMetricSettings, horizonSummaryLines, isMissingRunError, searchInputLines, searchLimitsError, searchLimitNotes, type SearchLimits, type GrowthMetric, type SolveMode } from './calibrationScenario';
 
 interface CalibrationOutletContext {
   activeWorkspace: Workspace | null;
@@ -78,8 +78,6 @@ const RAISE_BUDGET_SLIDER: SliderConfig = { key: 'merit_budget', label: 'Raise B
 const GROWTH_KEYS = new Set<SliderConfig['key']>(['target_growth_pct', 'workforce_growth_rate']);
 const POLICY_KEYS = new Set<SliderConfig['key']>(['cola_rate', 'merit_budget']);
 
-type SolveMode = 'new_hire_scale' | 'levers' | 'horizon';
-
 /**
  * The top-level calibration decision (Step 2): which lever we solve to hit the
  * growth target. The chosen mode is held in `searchMode`; the other lever is
@@ -87,22 +85,22 @@ type SolveMode = 'new_hire_scale' | 'levers' | 'horizon';
  */
 const SOLVE_MODES: { key: SolveMode; title: string; description: string }[] = [
   {
+    key: 'horizon',
+    title: 'Raises and hire pay together',
+    description:
+      'Solves raises, hire pay growth and hire pay against existing staff, averaged over three seeds. Needs the shared pay scale. Recommended.',
+  },
+  {
     key: 'new_hire_scale',
     title: 'New-hire salary ranges',
     description:
-      'Scale new-hire pay so hiring absorbs your compensation-growth target, holding COLA & merit fixed. Recommended.',
+      'Scale new-hire pay so hiring absorbs your compensation-growth target, holding COLA & merit fixed.',
   },
   {
     key: 'levers',
     title: 'COLA & merit',
     description:
       'Adjust the annual COLA and merit budget to hit your target, holding new-hire salary ranges fixed.',
-  },
-  {
-    key: 'horizon',
-    title: 'Raises and hire pay together',
-    description:
-      'Solves raises, hire pay growth and hire pay against existing staff, averaged over three seeds. Needs the shared pay scale.',
   },
 ];
 
@@ -278,9 +276,10 @@ export default function CalibrationPanel() {
   const [autoContext, setAutoContext] = useState<CalibrationContext | null>(null);
   const [tolerancePct, setTolerancePct] = useState(0.5);
   const [maxIterations, setMaxIterations] = useState(20);
-  // 'new_hire_scale': solve the new-hire range scale so hiring dilution isn't
-  // papered over with raises (COLA/merit stay as set). Needs Match Census.
+  // Each scenario opens on its default mode (see defaultSearchMode); after that
+  // the analyst's choice stands until another scenario is picked.
   const [searchMode, setSearchMode] = useState<SolveMode>('new_hire_scale');
+  const modeChosenFor = useRef<string | null>(null);
   const [solveSalaryGrowth, setSolveSalaryGrowth] = useState(true);
   const [growthMetric, setGrowthMetric] = useState<GrowthMetric>('payroll_per_head');
   const [solveRaiseBudget, setSolveRaiseBudget] = useState(true);
@@ -390,6 +389,11 @@ export default function CalibrationPanel() {
       const compensation = (cfg?.compensation ?? {}) as Record<string, number>;
       const wf = (cfg?.workforce ?? {}) as Record<string, number>;
       const newHire = cfg?.new_hire ?? {};
+      const scenarioKey = `${activeWorkspace.id}/${selectedScenarioId}`;
+      if (modeChosenFor.current !== scenarioKey) {
+        modeChosenFor.current = scenarioKey;
+        setSearchMode(defaultSearchMode(newHire));
+      }
       if (simulation.start_year != null) setStartYear(simulation.start_year);
       if (simulation.end_year != null) setEndYear(simulation.end_year);
       setScenarioHorizon(
