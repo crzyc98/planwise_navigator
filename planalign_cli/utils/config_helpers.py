@@ -9,6 +9,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Tuple
 
+from planalign_orchestrator.config import get_database_path
+
 
 def find_default_config() -> Path:
     """Find the default simulation configuration file."""
@@ -29,7 +31,7 @@ def find_default_config() -> Path:
 def find_default_database() -> Path:
     """Find the default database file."""
     default_paths = [
-        Path("dbt/simulation.duckdb"),
+        get_database_path(),
         Path("simulation.duckdb"),
         Path("database.duckdb"),
     ]
@@ -39,7 +41,7 @@ def find_default_database() -> Path:
             return db_path
 
     # Return the standard location even if it doesn't exist
-    return Path("dbt/simulation.duckdb")
+    return get_database_path()
 
 
 def parse_years(years_str: str) -> Tuple[int, int]:

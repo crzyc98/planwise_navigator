@@ -16,6 +16,7 @@ from rich.panel import Panel
 from ..integration.orchestrator_wrapper import OrchestratorWrapper
 from ..ui.progress import show_error_message, show_success_message, show_warning_message
 from ..utils.config_helpers import find_default_config
+from planalign_orchestrator.config import get_database_path
 
 console = Console()
 validate_command = typer.Typer()
@@ -47,7 +48,7 @@ def validate_config(
             show_error_message(f"Configuration file not found: {config_path}")
             raise typer.Exit(1)
 
-        wrapper = OrchestratorWrapper(config_path, Path("dbt/simulation.duckdb"))
+        wrapper = OrchestratorWrapper(config_path, get_database_path())
         validation_result = wrapper.validate_configuration(
             enforce_identifiers=enforce_identifiers
         )

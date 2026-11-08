@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Optional
 
 from .config import load_simulation_config
+from .config import get_database_path
 from .construction import ConstructionSpec, build_orchestrator
 from .scenario_batch_runner import ScenarioBatchRunner
 from .utils import DatabaseConnectionManager
@@ -34,7 +35,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         Path(args.config) if args.config else Path("config/simulation_config.yaml")
     )
     cfg = load_simulation_config(config_path)
-    db_path = Path(args.database) if args.database else Path("dbt/simulation.duckdb")
+    db_path = Path(args.database) if args.database else get_database_path()
     db = DatabaseConnectionManager(db_path)
 
     thread_count = args.threads if args.threads is not None else cfg.get_thread_count()
