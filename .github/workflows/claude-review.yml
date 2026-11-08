@@ -46,9 +46,18 @@ jobs:
             2. Scope: on round 1, review `git diff BASE...HEAD`. On later rounds, review only
                `git diff <last reviewed sha>..HEAD`, and don't repeat findings already posted on the PR
                (`gh pr view <PR> --comments`, `gh api repos/<REPO>/pulls/<PR>/comments`).
-            3. Look for correctness bugs only. Read the surrounding code, not just the diff.
-            4. Verify each candidate before posting: re-read the code and confirm the failure scenario is real.
-               Drop anything you can't tie to a specific line and input.
+            3. Launch three subagents in parallel with the Agent tool. Give each the diff command, the PR description,
+               REVIEW.md and one lens. Each reads the diff and the code around it (callers, consumers, validators,
+               schemas) and returns candidate bugs with file, line and a concrete input that breaks.
+               - Lens A, contracts between layers: what one layer accepts, produces or defaults vs. what the layers it
+                 talks to (Studio UI, API, config export, orchestrator, dbt) accept or expect. Limits, units, nulls, IDs.
+               - Lens B, data edge cases and time: empty, missing or null rows; missing or partial years; mid-year
+                 events; first and last simulation year; databases or saved workspaces created before this change.
+               - Lens C, intent: does every code path do what the PR description claims? What did the old code do
+                 that the new code no longer does? For fixes, is the root cause fixed or only one symptom?
+               `scripts/review_eval.py --prompt deep` scores this setup; change both together.
+            4. Merge duplicates. Re-read the code for each candidate and confirm the failure scenario is real.
+               Drop anything you can't tie to a specific line and input. Tag severity using REVIEW.md.
             5. Post each **Important** finding as an inline comment with mcp__github_inline_comment__create_inline_comment.
                Inline threads block merge, so nothing else goes inline.
             6. Post one summary with `gh pr comment`. Start with the count (or "No issues found"). List Nit and
@@ -58,4 +67,4 @@ jobs:
                where N is this round's number and L is the PR's changed-line count now (read round 1's L from its marker).
           claude_args: |
             --model opus
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments),Bash(git diff:*),Bash(git log:*),Bash(git show:*)"
+            --allowedTools "Agent,Task,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments),Bash(git diff:*),Bash(git log:*),Bash(git show:*)"

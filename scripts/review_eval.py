@@ -6,7 +6,7 @@ decides whether any finding describes the known bug. Controls are PRs with no
 follow-up fix, so findings there measure noise. Rerun after changing REVIEW.md
 or the review prompt or model, and keep a change only if the score improves.
 
-Usage: python3 scripts/review_eval.py [--only ID ...] [--jobs 4] [--model opus]
+Usage: python3 scripts/review_eval.py [--prompt single|deep] [--model opus] [--only ID ...] [--jobs 4]
 Results print as a table and are saved under var/review-evals/.
 """
 
@@ -27,7 +27,7 @@ from pydantic import BaseModel, TypeAdapter
 ROOT = Path(__file__).resolve().parent.parent
 CASES_FILE = ROOT / "scripts" / "review_eval_cases.json"
 OUT_DIR = ROOT / "var" / "review-evals"
-REVIEW_TOOLS = "Read Grep Glob Bash(git diff:*) Bash(git log:*) Bash(git show:*)"
+READ_TOOLS = "Read Grep Glob Bash(git diff:*) Bash(git log:*) Bash(git show:*)"
 JUDGE_MODEL = "sonnet"
 WORKTREE_LOCK = Lock()  # git worktree add/remove are not safe to run concurrently
 
@@ -43,6 +43,35 @@ Follow this review guide exactly:
 Verify each candidate against the code before reporting it; drop anything you can't tie to a line and input.
 Reply with only a JSON array, no prose: [{{"file": "...", "line": 0, "severity": "Important|Nit|Pre-existing",
 "summary": "...", "scenario": "..."}}]. Reply [] if nothing needs fixing."""
+
+DEEP_PROMPT = """You are leading a review of a pull request in this repository (checked out at the PR's merge commit).
+PR description:
+{intent}
+
+The diff is `git diff {sha}^ {sha}`. This is the review guide every reviewer must follow:
+
+{review_md}
+
+Step 1. Launch three subagents in parallel with the Agent tool. Give each the PR description, the diff command,
+the review guide above, and one lens. Each reads the diff and the code around it (callers, consumers, validators,
+schemas) and returns candidate bugs with file, line, and a concrete input that breaks.
+- Lens A, contracts between layers: values one layer accepts, produces or defaults vs. what the layers it talks to
+  (Studio UI, API, config export, orchestrator, dbt) accept or expect. Limits, units, null/empty handling, IDs.
+- Lens B, data edge cases and time: empty, missing or null rows; missing or partial years; mid-year events;
+  first and last simulation year; databases or saved workspaces created before this change.
+- Lens C, intent: does every code path do what the PR description claims? What did the old code do that the new
+  code no longer does? For fixes, is the root cause fixed or only one symptom?
+
+Step 2. Merge duplicates. For each candidate, re-read the code yourself and confirm the failure scenario is real.
+Drop anything you can't tie to a line and input. Then tag severity using the review guide.
+
+Reply with only a JSON array, no prose: [{{"file": "...", "line": 0, "severity": "Important|Nit|Pre-existing",
+"summary": "...", "scenario": "..."}}]. Reply [] if nothing needs fixing."""
+
+PROMPTS = {
+    "single": (REVIEW_PROMPT, READ_TOOLS),
+    "deep": (DEEP_PROMPT, READ_TOOLS + " Agent Task"),
+}
 
 JUDGE_PROMPT = """A code reviewer looked at a pull request. Known bugs in that PR (found later):
 {bugs}
@@ -128,7 +157,7 @@ def extract_json(text: str) -> str:
     return body[start : max(body.rfind("]"), body.rfind("}")) + 1]
 
 
-def review(sha: str, model: str) -> list[Finding]:
+def review(sha: str, model: str, variant: str) -> list[Finding]:
     """Review one commit's diff in a throwaway worktree."""
     review_md = (ROOT / "REVIEW.md").read_text(encoding="utf-8")
     intent = git("log", "-1", "--format=%B", sha).strip()
@@ -137,8 +166,9 @@ def review(sha: str, model: str) -> list[Finding]:
         with WORKTREE_LOCK:
             git("worktree", "add", "--detach", "-q", str(tree), sha)
         try:
-            prompt = REVIEW_PROMPT.format(intent=intent, sha=sha, review_md=review_md)
-            raw = extract_json(claude(prompt, model, tree, REVIEW_TOOLS))
+            template, tools = PROMPTS[variant]
+            prompt = template.format(intent=intent, sha=sha, review_md=review_md)
+            raw = extract_json(claude(prompt, model, tree, tools))
         finally:
             with WORKTREE_LOCK:
                 git("worktree", "remove", "--force", str(tree))
@@ -175,12 +205,12 @@ def judge(bugs: list[str], findings: list[Finding]) -> list[str]:
     return labels
 
 
-def run_item(item: Item, model: str) -> Result:
+def run_item(item: Item, model: str, variant: str) -> Result:
     bugs = [bug.description for bug in item.bugs]
     result = Result(id=item.id, sha=item.commit, bugs=bugs)
     start = time.monotonic()
     try:
-        result.findings = review(item.commit, model)
+        result.findings = review(item.commit, model, variant)
         result.caught = judge(bugs, result.findings) if bugs else []
     except (subprocess.SubprocessError, ValueError, KeyError) as exc:
         result.error = f"{type(exc).__name__}: {exc}"[:300]
@@ -214,6 +244,7 @@ def main() -> None:
     parser.add_argument("--only", nargs="*", help="case or control ids to run")
     parser.add_argument("--jobs", type=int, default=4)
     parser.add_argument("--model", default="opus", help="reviewer model")
+    parser.add_argument("--prompt", choices=sorted(PROMPTS), default="single")
     args = parser.parse_args()
 
     spec = json.loads(CASES_FILE.read_text(encoding="utf-8"))
@@ -226,7 +257,10 @@ def main() -> None:
         items = [(kind, item) for kind, item in items if item.id in args.only]
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
         results = list(
-            pool.map(lambda pair: (pair[0], run_item(pair[1], args.model)), items)
+            pool.map(
+                lambda pair: (pair[0], run_item(pair[1], args.model, args.prompt)),
+                items,
+            )
         )
     cases = [r for kind, r in results if kind == "cases"]
     controls = [r for kind, r in results if kind == "controls"]
@@ -234,9 +268,10 @@ def main() -> None:
     text = report(cases, controls)
     print(text)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    out = OUT_DIR / f"{time.strftime('%Y%m%d-%H%M%S')}-{args.model}.json"
+    out = OUT_DIR / f"{time.strftime('%Y%m%d-%H%M%S')}-{args.model}-{args.prompt}.json"
     payload = {
         "model": args.model,
+        "prompt": args.prompt,
         "review_md": git("hash-object", "REVIEW.md").strip(),
         "results": [r.model_dump() for _, r in results],
     }
