@@ -372,8 +372,10 @@ dispatch:
     search_order: ['dbt_utils']
 
 # Quoting configuration (DuckDB specific)
+# The database (catalog) name is the .duckdb file stem, which callers choose
+# (e.g. a scenario named "stable-baseline-101"), so it must be quoted (#1038).
 quoting:
-  database: false
+  database: true
   schema: false
   identifier: false
 
