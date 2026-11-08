@@ -66,6 +66,7 @@ Cover edge configs, not just defaults (e.g. `auto_enrollment_scope: all_eligible
 - Land PRs with `file-pr`, then `babysit-pr`, so the agent works through review threads before a person looks. Decline nits and suggestions that would add code outside the PR's goal, with a one-line reason.
 - When the same finding keeps coming back, fix it at the source in this order: change the code so the mistake can't happen, then add a lint rule or test, and only then add a line to `REVIEW.md` or this file.
 - A person reads the diff for event generators, accumulators, the data model, security defaults, CI workflows, and Studio defaults that change client results.
+- After changing `REVIEW.md` or the review prompt or model, run `python3 scripts/review_eval.py` and keep the change only if recall rises without more noise. It reruns the reviewer on PRs that shipped known bugs (`scripts/review_eval_cases.json`). Results vary by about one case between runs.
 - `.claude/settings.json` runs ruff/eslint on each file Claude edits. `scripts/fix_followup_rate.py` tracks how often merged work needs a fix within 14 days.
 
 ## Gotchas

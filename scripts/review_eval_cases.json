@@ -1,0 +1,79 @@
+{
+  "_comment": "Each case's intro PR added most of the lines its fix later removed (checked with git). Add a case only after confirming the bug's code came from that PR.",
+  "cases": [
+    {
+      "id": "calibration-limits",
+      "intro": "6f88e39c",
+      "bugs": [
+        {
+          "fix": "dad56791",
+          "description": "Studio accepts a hire pay growth limit above the server's 25% maximum and inverted min/max raise or hire pay limits, so Auto-Calibrate starts a run that fails with a raw validation error."
+        }
+      ]
+    },
+    {
+      "id": "deferral-rate-timing",
+      "intro": "6005076f",
+      "bugs": [
+        {
+          "fix": "9b4f050a",
+          "description": "Contributions apply the year-end deferral rate to the whole year, so a mid-year enrollee or a mid-year escalation contributes as if the rate applied since January."
+        }
+      ]
+    },
+    {
+      "id": "analyst-config-export",
+      "intro": "945a519a",
+      "bugs": [
+        {
+          "fix": "20ffc1b7",
+          "description": "Legacy match-eligibility edits store match_allow_new_hires, so a later service requirement can't re-derive the new-hire match waiver on export."
+        }
+      ]
+    },
+    {
+      "id": "calibration-transferable",
+      "intro": "1d601ccb",
+      "bugs": [
+        {
+          "fix": "702d8128",
+          "description": "The calibration target picker shows 'Workspace baseline' even when no scenario has that name and submits scenario_id null (workspace defaults), which may not match any completed scenario run."
+        },
+        {
+          "fix": "78974143",
+          "description": "Calibration rejects a scenario whose saved census override points to a deleted import, instead of falling back to the workspace census the way normal simulation does."
+        }
+      ]
+    },
+    {
+      "id": "comparison-missing-years",
+      "intro": "d57d4853",
+      "bugs": [
+        {
+          "fix": "7bd6dadf",
+          "description": "Scenario comparison plots a missing year's headcount as zero, so unequal simulation horizons look like a workforce collapse."
+        }
+      ]
+    },
+    {
+      "id": "event-publish-schema",
+      "intro": "eb043c27",
+      "bugs": [
+        {
+          "fix": "0c53d4ab",
+          "description": "Event publication's delete-then-insert into fct_yearly_events fails ('another transaction has altered this table') when the existing table's column types differ from the rebuilt rows, e.g. in a copied calibration database."
+        }
+      ]
+    }
+  ],
+  "controls": [
+    {
+      "id": "overview-headcount-chart",
+      "sha": "f8fccdcc"
+    },
+    {
+      "id": "ensemble-panel",
+      "sha": "cc351e37"
+    }
+  ]
+}
