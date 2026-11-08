@@ -8,6 +8,10 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
+from planalign_api.services.workspace_service import (
+    new_workspace_defaults,
+    with_shared_pay_scale,
+)
 from planalign_orchestrator.config import SimulationConfig, to_dbt_vars
 
 pytestmark = pytest.mark.fast
@@ -115,3 +119,30 @@ def test_apply_carries_the_solved_ratio_and_growth() -> None:
     assert new_hire["hire_pay_ratio"] == 0.92
     assert new_hire["salary_growth_rate"] == 0.055
     assert new_hire["shared_pay_scale"] is True
+
+
+def test_new_workspaces_start_on_the_shared_pay_scale() -> None:
+    """#1075: horizon calibration needs it, so a new workspace starts with it on."""
+    shared = yaml.safe_load((ROOT / "config/simulation_config.yaml").read_text())
+    defaults = new_workspace_defaults(shared)
+    SimulationConfig.model_validate(defaults)
+    assert defaults["new_hire"]["shared_pay_scale"] is True
+    assert "new_hire" not in shared or "shared_pay_scale" not in shared["new_hire"]
+
+
+def test_default_pay_scale_matches_the_seeded_job_levels() -> None:
+    seeded = duckdb.sql(
+        f"SELECT level_id, min_compensation, max_compensation "
+        f"FROM '{ROOT / 'dbt/seeds/config_job_levels.csv'}' ORDER BY level_id"
+    ).fetchall()
+    ranges = with_shared_pay_scale({})["new_hire"]["job_level_compensation"]
+    assert [
+        (r["level"], r["min_compensation"], r["max_compensation"]) for r in ranges
+    ] == seeded
+
+
+def test_a_chosen_pay_scale_setting_is_kept() -> None:
+    off = with_shared_pay_scale({"new_hire": {"shared_pay_scale": False}})
+    assert off["new_hire"] == {"shared_pay_scale": False}
+    mine = with_shared_pay_scale({"new_hire": {"job_level_compensation": RANGES}})
+    assert mine["new_hire"]["job_level_compensation"] == RANGES

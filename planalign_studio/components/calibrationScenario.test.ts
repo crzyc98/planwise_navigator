@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { baselineScenarioId, costSummary, growthMetricSettings, horizonSummaryLines, isMissingRunError, searchLimitsError, searchInputLines, searchLimitNotes } from './calibrationScenario';
+import { baselineScenarioId, costSummary, defaultSearchMode, growthMetricSettings, horizonSummaryLines, isMissingRunError, searchLimitsError, searchInputLines, searchLimitNotes } from './calibrationScenario';
 import { ApiError } from '../services/api';
 import CalibrationPanel from './CalibrationPanel';
 
@@ -112,6 +112,13 @@ describe('calibration scenario defaults', () => {
     const runButton = html.match(/<button\b[^>]*>.*?<\/button>/g)
       ?.find(button => button.includes('Auto-Calibrate'));
     expect(runButton).toContain('disabled=""');
+  });
+
+  it('opens on horizon search only when the scenario is on the shared pay scale', () => {
+    expect(defaultSearchMode({ shared_pay_scale: true })).toBe('horizon');
+    expect(defaultSearchMode({ shared_pay_scale: false })).toBe('new_hire_scale');
+    expect(defaultSearchMode({})).toBe('new_hire_scale');
+    expect(defaultSearchMode(undefined)).toBe('new_hire_scale');
   });
 
   it('recognizes only the no-matching-run 409 as offering a scenario run', () => {

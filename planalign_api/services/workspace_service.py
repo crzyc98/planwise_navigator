@@ -68,6 +68,50 @@ def with_raise_budget(config: Dict[str, Any]) -> Dict[str, Any]:
     return merged
 
 
+# Studio's default hire pay ranges, the same as dbt/seeds/config_job_levels.csv.
+_DEFAULT_PAY_SCALE: List[Dict[str, Any]] = [
+    {"level": 1, "name": "Staff", "min_compensation": 56000, "max_compensation": 80000},
+    {
+        "level": 2,
+        "name": "Manager",
+        "min_compensation": 81000,
+        "max_compensation": 120000,
+    },
+    {
+        "level": 3,
+        "name": "Sr Manager",
+        "min_compensation": 121000,
+        "max_compensation": 160000,
+    },
+    {
+        "level": 4,
+        "name": "Director",
+        "min_compensation": 161000,
+        "max_compensation": 300000,
+    },
+    {"level": 5, "name": "VP", "min_compensation": 275000, "max_compensation": 500000},
+]
+
+
+def with_shared_pay_scale(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Start a new workspace on the shared pay scale, which horizon calibration needs.
+
+    Only new workspaces get this (#1075). Saved workspaces and scenario files keep
+    their setting, because turning it on changes how incumbents and hires are paid.
+    """
+    merged = deepcopy(config)
+    new_hire = merged.setdefault("new_hire", {})
+    if new_hire.get("shared_pay_scale") is None:
+        new_hire["shared_pay_scale"] = True
+        new_hire.setdefault("job_level_compensation", deepcopy(_DEFAULT_PAY_SCALE))
+    return merged
+
+
+def new_workspace_defaults(config: Dict[str, Any]) -> Dict[str, Any]:
+    """The Studio defaults a new workspace starts from, on top of the shared config."""
+    return with_shared_pay_scale(with_raise_budget(config))
+
+
 class WorkspaceService:
     """Service for workspace operations."""
 
@@ -87,7 +131,7 @@ class WorkspaceService:
     ) -> Workspace:
         """Create a new workspace."""
         return self.storage.create_workspace(
-            data, with_raise_budget(default_config or _BUILTIN_DEFAULT_CONFIG)
+            data, new_workspace_defaults(default_config or _BUILTIN_DEFAULT_CONFIG)
         )
 
     def update_workspace(
