@@ -58,6 +58,14 @@ Cover edge configs, not just defaults (e.g. `auto_enrollment_scope: all_eligible
 - The fast suite warns above 540s on CI but never fails on time, because runner speed swings it widely. Coverage is a 75% gate that only ratchets up. Local Mac timings are unreliable, so measure timing on CI.
 - **Don't add the `full-ci` label by default.** PRs run lint, Studio, fast tests, the dependency audit and model validation. Simulations, integration shards and coverage run on every push to `main` and nightly, and a failed nightly run opens an issue. Add `full-ci` at creation only for a risky engine change. Adding it later starts a second run, and the cancelled first run's `CI Gate` failure is spurious.
 
+## Review
+
+- **Before opening a PR,** run `/code-review` and `/security-review` on the branch diff and fix what they find. Show the check output (tests, lint, typecheck) before calling work done.
+- PR bodies follow `.github/pull_request_template.md`, including Risk and How to revert.
+- `claude-review.yml` reviews every PR against `REVIEW.md`. Merging requires `CI Gate` and every review thread resolved: fix the finding, or close the thread with a one-line reason. When the same finding keeps coming back, add the rule to `REVIEW.md`, a lint rule or this file.
+- A person reads the diff for event generators, accumulators, the data model, security defaults, CI workflows, and Studio defaults that change client results.
+- `.claude/settings.json` runs ruff/eslint on each file Claude edits. `scripts/fix_followup_rate.py` tracks how often merged work needs a fix within 14 days.
+
 ## Gotchas
 
 - **"Conflicting lock is held":** an IDE or DBeaver has the DuckDB open. Close it (`planalign health` detects this).

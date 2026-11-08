@@ -1,0 +1,58 @@
+name: Claude Code Review
+
+# Reviews every same-repo PR for bugs, guided by REVIEW.md. Findings are inline
+# comments; branch rules require resolving them before merge. Re-reviews look
+# only at commits since the last review and stop after three rounds.
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    # Fork and Dependabot PRs get no secrets, so skip them.
+    if: |
+      !github.event.pull_request.draft &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+            HEAD SHA: ${{ github.event.pull_request.head.sha }}
+            BASE: origin/${{ github.event.pull_request.base.ref }}
+
+            Review this PR for bugs. Read CLAUDE.md, dbt/CLAUDE.md and REVIEW.md first and follow REVIEW.md exactly.
+
+            1. Find earlier rounds: `gh pr view <PR> --json comments` and look for comments containing
+               `<!-- claude-review round=N sha=SHA -->`. If round 3 already exists, post one PR comment saying the
+               review has gone three rounds and asking the author to reconsider the approach, then stop.
+            2. Scope: on round 1, review `git diff BASE...HEAD`. On later rounds, review only
+               `git diff <last reviewed sha>..HEAD`, and don't repeat findings already posted on the PR
+               (`gh pr view <PR> --comments`, `gh api repos/<REPO>/pulls/<PR>/comments`).
+            3. Look for correctness bugs only. Read the surrounding code, not just the diff.
+            4. Verify each candidate before posting: re-read the code and confirm the failure scenario is real.
+               Drop anything you can't tie to a specific line and input.
+            5. Post each surviving finding as an inline comment with mcp__github_inline_comment__create_inline_comment,
+               starting with **Important**, **Nit** or **Pre-existing**.
+            6. Post one summary with `gh pr comment` that starts with the count (or "No issues found") and ends with
+               `<!-- claude-review round=N sha=HEAD SHA -->`, where N is this round's number.
+          claude_args: |
+            --model opus
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments),Bash(git diff:*),Bash(git log:*),Bash(git show:*)"

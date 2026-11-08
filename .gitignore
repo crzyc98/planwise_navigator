@@ -148,7 +148,9 @@ Thumbs.db
 .cursorindexingignore
 
 # ── AI tooling ───────────────────────────────────────────────────────
-.claude/
+.claude/*
+# Shared project hooks (lint-on-edit); personal settings stay in settings.local.json.
+!.claude/settings.json
 # .specify/ is local speckit scaffolding, except constitution.md: CI
 # (.github/workflows/ci.yml's fast-tests job) and pyproject.toml enforce
 # gates it declares, so it must be versioned and reviewable like any other
