@@ -42,7 +42,7 @@ export function WorkforceParametersSection() {
           <span className="font-semibold">New-hire assumptions</span>
           <span className="block mt-2 text-sm text-ink-muted">Age profile ({formData.newHireAgeDistribution.length} buckets): {ageSummary}. Part-time: {formData.partTimeNewHirePct}%. Market: {formData.marketScenario}.</span>
           <span className="block mt-1 text-sm text-ink-muted">Pay ranges ({formData.jobLevelCompensation.length} levels): {paySummary}.</span>
-          <span className="block mt-1 text-xs text-ink-muted">Retained unsupported controls: {formData.newHireStrategy}, P{formData.targetPercentile}, variance ±{formData.newHireCompVariance}%; level mode {formData.levelDistributionMode}{formData.levelDistributionMode === 'fixed' ? ` (${formData.newHireLevelDistribution.map(row => `${row.name} ${row.percentage}%`).join(', ')})` : ''}{adjustments.length ? `; level adjustments: ${adjustments.map(row => `L${row.level} ${row.adjustment}%`).join(', ')}` : ''}.</span>
+          <span className="block mt-1 text-xs text-ink-muted">Retained unsupported controls: {formData.newHireStrategy}, P{formData.targetPercentile}, variance ±{formData.newHireCompVariance}%{adjustments.length ? `; level adjustments: ${adjustments.map(row => `L${row.level} ${row.adjustment}%`).join(', ')}` : ''}.</span>
         </summary>
         <div className="pt-6"><NewHireSection /></div>
       </details>

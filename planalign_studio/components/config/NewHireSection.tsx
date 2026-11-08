@@ -44,15 +44,6 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
     }));
   };
 
-  const handleLevelPercentageChange = (index: number, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      newHireLevelDistribution: prev.newHireLevelDistribution.map((row, i) =>
-        i === index ? { ...row, percentage: parseFloat(value) || 0 } : row
-      )
-    }));
-  };
-
   const handleJobLevelCompChange = (index: number, field: 'minComp' | 'maxComp', value: string) => {
     setFormData(prev => ({
       ...prev,
@@ -308,73 +299,6 @@ export function NewHireSection({ variant = 'full' }: { variant?: 'full' | 'essen
           </div>
         </div>
 
-        {/* E082: Level Distribution Section */}
-        <fieldset disabled className="bg-surface-subtle p-6 rounded-lg border border-border mt-6">
-          <legend className="text-sm font-semibold text-ink">Legacy level distribution (unsupported)</legend>
-          <p className="text-xs text-ink-muted mb-4">Stored mode and percentages are retained for compatibility. They are not passed to the current engine and are read-only.</p>
-          <div className="flex items-center space-x-4 mb-4">
-            <label htmlFor="newhire-level-dist-adaptive" className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${formData.levelDistributionMode === 'adaptive' ? 'bg-success-surface border-brand-green ring-1 ring-brand-green' : 'bg-surface-raised border-border hover:bg-surface-subtle'}`}>
-              <input id="newhire-level-dist-adaptive" type="radio" name="levelDistributionMode" value="adaptive" checked={formData.levelDistributionMode === 'adaptive'} onChange={(e) => setFormData({...formData, levelDistributionMode: e.target.value})} className="h-4 w-4 text-brand-ink focus:ring-brand-green border-border-strong" />
-              <div className="ml-2">
-                <span className="block text-sm font-medium text-ink">Adaptive</span>
-                <span className="block text-xs text-ink-muted">Maintain current workforce composition</span>
-              </div>
-            </label>
-            <label htmlFor="newhire-level-dist-fixed" className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${formData.levelDistributionMode === 'fixed' ? 'bg-success-surface border-brand-green ring-1 ring-brand-green' : 'bg-surface-raised border-border hover:bg-surface-subtle'}`}>
-              <input id="newhire-level-dist-fixed" type="radio" name="levelDistributionMode" value="fixed" checked={formData.levelDistributionMode === 'fixed'} onChange={(e) => setFormData({...formData, levelDistributionMode: e.target.value})} className="h-4 w-4 text-brand-ink focus:ring-brand-green border-border-strong" />
-              <div className="ml-2">
-                <span className="block text-sm font-medium text-ink">Fixed Percentages</span>
-                <span className="block text-xs text-ink-muted">Specify exact distribution below</span>
-              </div>
-            </label>
-          </div>
-
-          {formData.levelDistributionMode === 'fixed' && (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-border">
-                <thead className="bg-surface-subtle">
-                  <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-ink-muted uppercase">Level</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-ink-muted uppercase">Name</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-ink-muted uppercase">Percentage (%)</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-surface-raised divide-y divide-border">
-                  {formData.newHireLevelDistribution.map((row, idx) => (
-                    <tr key={row.level}>
-                      <td className="px-4 py-2 text-sm text-ink font-medium">{row.level}</td>
-                      <td className="px-4 py-2 text-sm text-ink-muted">{row.name}</td>
-                      <td className="px-4 py-2">
-                        <NumericInput type="number" step="1" min="0" max="100" value={row.percentage} onChange={(e) => handleLevelPercentageChange(idx, e.target.value)} className="w-20 shadow-sm focus:ring-brand-green focus:border-brand-green sm:text-sm border-border-strong rounded-md p-1 border text-right" />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot className="bg-surface-subtle">
-                  <tr>
-                    <td className="px-4 py-2 text-sm font-semibold text-ink" colSpan={2}>Total</td>
-                    <td className="px-4 py-2 text-sm font-semibold">
-                      <span className={`${Math.abs(formData.newHireLevelDistribution.reduce((sum, r) => sum + r.percentage, 0) - 100) > 1 ? 'text-danger-ink' : 'text-success-ink'}`}>
-                        {formData.newHireLevelDistribution.reduce((sum, r) => sum + r.percentage, 0)}%
-                      </span>
-                      {Math.abs(formData.newHireLevelDistribution.reduce((sum, r) => sum + r.percentage, 0) - 100) > 1 && (
-                        <span className="text-danger-ink text-xs ml-2">Should sum to 100%</span>
-                      )}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          )}
-
-          {formData.levelDistributionMode === 'adaptive' && (
-            <div className="bg-info-surface p-4 rounded-lg border border-info-border">
-              <p className="text-sm text-info-ink">
-                <strong>Retained adaptive mode:</strong> This legacy selection does not control current simulation outputs.
-              </p>
-            </div>
-          )}
-        </fieldset>
         </>)}
 
         {/* E082: Job Level Compensation Ranges */}

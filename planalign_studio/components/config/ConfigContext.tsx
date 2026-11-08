@@ -159,13 +159,6 @@ function mapNewHireFields(cfg: any, prev: FormData): Partial<FormData> {
           description: prev.newHireAgeDistribution[idx]?.description || '',
         }))
       : prev.newHireAgeDistribution,
-    levelDistributionMode: cfg.new_hire?.level_distribution_mode || prev.levelDistributionMode,
-    newHireLevelDistribution: cfg.new_hire?.level_distribution
-      ? cfg.new_hire.level_distribution.map((d: any, idx: number) => ({
-          level: d.level, name: prev.newHireLevelDistribution[idx]?.name || `Level ${d.level}`,
-          percentage: d.percentage * 100,
-        }))
-      : prev.newHireLevelDistribution,
     jobLevelCompensation: cfg.new_hire?.job_level_compensation
       ? cfg.new_hire.job_level_compensation.map((d: any) => ({
           level: d.level, name: d.name, minComp: d.min_compensation, maxComp: d.max_compensation,
@@ -698,12 +691,10 @@ export function ConfigProvider({ activeWorkspace, scenarioId, children }: Config
     if (formData.newHireStrategy !== savedFormData.newHireStrategy ||
         formData.targetPercentile !== savedFormData.targetPercentile ||
         formData.newHireCompVariance !== savedFormData.newHireCompVariance ||
-        formData.levelDistributionMode !== savedFormData.levelDistributionMode ||
         formData.marketScenario !== savedFormData.marketScenario ||
         formData.sharedPayScale !== savedFormData.sharedPayScale ||
         formData.hirePayRatioPercent !== savedFormData.hirePayRatioPercent ||
         JSON.stringify(formData.newHireAgeDistribution) !== JSON.stringify(savedFormData.newHireAgeDistribution) ||
-        JSON.stringify(formData.newHireLevelDistribution) !== JSON.stringify(savedFormData.newHireLevelDistribution) ||
         JSON.stringify(formData.jobLevelCompensation) !== JSON.stringify(savedFormData.jobLevelCompensation) ||
         JSON.stringify(formData.levelMarketAdjustments) !== JSON.stringify(savedFormData.levelMarketAdjustments)) {
       dirty.add('newhire');

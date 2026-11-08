@@ -60,31 +60,6 @@ current_workforce_by_level AS (
   HAVING COUNT(*) FILTER (WHERE employee_hire_date < DATE '{{ simulation_year }}-01-01') > 0
 ),
 
--- E082: Check if fixed level distribution is enabled for this scenario
-fixed_level_config AS (
-  SELECT
-    level_id,
-    distribution_pct,
-    use_fixed_distribution
-  FROM {{ ref('config_new_hire_level_distribution') }}
-  WHERE scenario_id = COALESCE(
-    NULLIF('{{ scenario_id }}', 'default'),
-    'default'
-  )
-  -- Fall back to default if no scenario-specific config exists
-  OR (scenario_id = 'default' AND NOT EXISTS (
-    SELECT 1 FROM {{ ref('config_new_hire_level_distribution') }}
-    WHERE scenario_id = '{{ scenario_id }}'
-      AND scenario_id != 'default'
-  ))
-),
-
--- Determine if we should use fixed distribution (any row has use_fixed_distribution = true)
-use_fixed_distribution_flag AS (
-  SELECT COALESCE(BOOL_OR(use_fixed_distribution), false) AS use_fixed
-  FROM fixed_level_config
-),
-
 workforce_by_level AS (
   SELECT
     level_id, current_headcount, experienced_headcount, new_hire_headcount,
@@ -98,7 +73,6 @@ workforce_by_level AS (
   WHERE NOT EXISTS (
     SELECT 1 FROM current_workforce_by_level w WHERE w.level_id = a.level_id
   )
-    AND NOT (SELECT use_fixed FROM use_fixed_distribution_flag)
 ),
 
 -- E077: Experienced Termination Quotas by Level (ADR E077-B with edge cases)
@@ -220,25 +194,17 @@ backfill_gaps AS (
 ),
 
 -- E077: Hiring Quotas by Level (ADR E077-B with adaptive distribution)
--- E082: Optionally override with fixed percentages
 hiring_by_level AS (
-  -- Allocate hires using adaptive OR fixed distribution based on config
+  -- Allocate hires by adaptive backfill: fill level gaps, else keep the anchor mix
   WITH level_weights AS (
     SELECT
       wbl.level_id,
       wbl.current_headcount,
-      -- E082: Use fixed distribution from seed if enabled, otherwise use adaptive
-      CASE
-        WHEN (SELECT use_fixed FROM use_fixed_distribution_flag) THEN
-          COALESCE(flc.distribution_pct, 0.0)
-        ELSE
-          CASE WHEN SUM(bg.gap) OVER () > 0
-            THEN bg.gap / SUM(bg.gap) OVER ()
-            ELSE bg.anchor_share
-          END
+      CASE WHEN SUM(bg.gap) OVER () > 0
+        THEN bg.gap / SUM(bg.gap) OVER ()
+        ELSE bg.anchor_share
       END AS raw_weight
     FROM workforce_by_level wbl
-    LEFT JOIN fixed_level_config flc ON wbl.level_id = flc.level_id
     JOIN backfill_gaps bg ON wbl.level_id = bg.level_id
   ),
   level_stats AS (

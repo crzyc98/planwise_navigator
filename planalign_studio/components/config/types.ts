@@ -30,12 +30,6 @@ export interface AgeDistributionRow {
   description: string;
 }
 
-export interface LevelDistributionRow {
-  level: number;
-  name: string;
-  percentage: number;
-}
-
 export interface JobLevelCompRow {
   level: number;
   name: string;
@@ -151,8 +145,6 @@ export interface FormData {
   targetPercentile: number;
   newHireCompVariance: number;
   newHireAgeDistribution: AgeDistributionRow[];
-  levelDistributionMode: string;
-  newHireLevelDistribution: LevelDistributionRow[];
   jobLevelCompensation: JobLevelCompRow[];
   sharedPayScale: boolean;
   hirePayRatioPercent: number | null;

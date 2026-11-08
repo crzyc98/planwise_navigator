@@ -66,8 +66,6 @@ FULL_CONFIG = {
         "compensation_variance_percent": 10,
         "market_scenario": "baseline",
         "age_distribution": [{"age": 30, "weight": 1.0}],
-        "level_distribution_mode": "adaptive",
-        "level_distribution": [{"level": 3, "percentage": 0.5}],
         "job_level_compensation": [
             {
                 "level": 3,
