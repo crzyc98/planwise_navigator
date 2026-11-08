@@ -49,10 +49,13 @@ jobs:
             3. Look for correctness bugs only. Read the surrounding code, not just the diff.
             4. Verify each candidate before posting: re-read the code and confirm the failure scenario is real.
                Drop anything you can't tie to a specific line and input.
-            5. Post each surviving finding as an inline comment with mcp__github_inline_comment__create_inline_comment,
-               starting with **Important**, **Nit** or **Pre-existing**.
-            6. Post one summary with `gh pr comment` that starts with the count (or "No issues found") and ends with
-               `<!-- claude-review round=N sha=HEAD SHA -->`, where N is this round's number.
+            5. Post each **Important** finding as an inline comment with mcp__github_inline_comment__create_inline_comment.
+               Inline threads block merge, so nothing else goes inline.
+            6. Post one summary with `gh pr comment`. Start with the count (or "No issues found"). List Nit and
+               Pre-existing findings there with `file:line`. On round 2 or later, if `git diff --shortstat BASE...HEAD`
+               shows the PR has roughly doubled since round 1, say so and ask whether the growth is in scope.
+               End with `Blocking: yes` or `Blocking: no`, then `<!-- claude-review round=N sha=HEAD SHA lines=L -->`,
+               where N is this round's number and L is the PR's changed-line count now (read round 1's L from its marker).
           claude_args: |
             --model opus
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments),Bash(git diff:*),Bash(git log:*),Bash(git show:*)"

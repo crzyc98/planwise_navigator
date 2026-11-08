@@ -17,7 +17,7 @@ Read `CLAUDE.md` and `dbt/CLAUDE.md` first. This file says what matters when rev
 ## Rules for findings
 
 - Every finding names a `file:line` and a concrete scenario: the input or state, and the wrong output or crash.
-- Tag each finding **Important** (wrong results, data loss, security, crash), **Nit**, or **Pre-existing** (a real bug this PR didn't introduce).
+- Tag each finding **Important** (wrong results, data loss, security, crash), **Nit**, or **Pre-existing** (a real bug this PR didn't introduce). Only Important findings go inline, because inline threads block merge. Nits and Pre-existing findings go in the summary.
 - Post at most 3 nits. Don't comment on style, formatting or naming that ruff and eslint accept.
 - Flag the bug class, not one line: if the same mistake appears elsewhere in the diff, list every location.
 - Don't repeat a finding already posted on the PR.
