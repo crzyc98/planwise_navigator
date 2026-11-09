@@ -10,6 +10,7 @@ import {
   listScenarios,
   runAllScenarios,
   listBatchJobs,
+  cancelSimulation,
   Scenario,
   BatchJob,
 } from '../services/api';
@@ -36,6 +37,7 @@ export default function BatchProcessing() {
   const [selectedScenarioIds, setSelectedScenarioIds] = useState<string[]>([]);
   const [exportFormat, setExportFormat] = useState<'excel' | 'csv'>('excel');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [cancellingIds, setCancellingIds] = useState<string[]>([]);
 
   // Active job polling
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
@@ -124,6 +126,18 @@ export default function BatchProcessing() {
       setError('Failed to start batch execution');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // The batch channel reports the cancelled status once the API records it.
+  const handleCancelScenario = async (scenarioId: string) => {
+    setCancellingIds(prev => [...prev, scenarioId]);
+    try {
+      await cancelSimulation(scenarioId);
+    } catch (err) {
+      console.error('Failed to cancel scenario:', err);
+      setError('Failed to cancel scenario');
+      setCancellingIds(prev => prev.filter(id => id !== scenarioId));
     }
   };
 
@@ -385,13 +399,26 @@ export default function BatchProcessing() {
                     </span>
                   )}
                   {scenario.status === 'pending' && <span className="text-xs text-ink-subtle">Waiting in queue...</span>}
+                  {scenario.status === 'cancelled' && <span className="text-xs text-ink-muted font-medium">Cancelled</span>}
                 </div>
+
+                {(scenario.status === 'pending' || scenario.status === 'running') && (
+                  <button
+                    type="button"
+                    onClick={() => handleCancelScenario(scenario.scenario_id)}
+                    disabled={cancellingIds.includes(scenario.scenario_id)}
+                    className="px-3 py-1 text-xs font-medium text-danger-ink border border-danger-border rounded-md hover:bg-danger-surface disabled:opacity-50"
+                  >
+                    {cancellingIds.includes(scenario.scenario_id) ? 'Cancelling...' : 'Cancel'}
+                  </button>
+                )}
 
                 <div className="w-24 text-right">
                   {scenario.status === 'running' && <span className="text-sm font-mono">{Math.round(scenario.progress)}%</span>}
                   {scenario.status === 'completed' && <CheckCircle size={20} className="ml-auto text-success-ink" />}
                   {scenario.status === 'failed' && <XCircle size={20} className="ml-auto text-danger-ink" />}
                   {scenario.status === 'pending' && <Clock size={20} className="ml-auto text-ink-subtle" />}
+                  {scenario.status === 'cancelled' && <XCircle size={20} className="ml-auto text-ink-subtle" />}
                 </div>
               </div>
             ))}
