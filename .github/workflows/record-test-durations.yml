@@ -27,10 +27,10 @@ jobs:
     # eliminate; allow headroom so a slow runner cannot truncate the recording.
     timeout-minutes: 180
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -59,7 +59,7 @@ jobs:
         # Always upload: a partial recording is still better than laptop
         # timings, and it shows which tests were reached if the run failed.
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-durations
           path: .test_durations
