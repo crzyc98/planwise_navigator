@@ -46,3 +46,15 @@ updates:
       # Releases after 0.0.26479 ship no macOS wheels; bumps broke macOS
       # installs (#808, #946). pyproject.toml pins it per-platform by hand.
       - dependency-name: "tableauhyperapi"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      # One PR a month for action bumps. The Claude actions are pinned to a
+      # commit SHA because they hold CLAUDE_CODE_OAUTH_TOKEN; Dependabot keeps
+      # the SHA and its version comment current.
+      github-actions:
+        patterns:
+          - "*"
