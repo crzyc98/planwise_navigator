@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import os
 import subprocess
-from functools import lru_cache
 from pathlib import Path
 
 __version__ = "3.0.0"
@@ -30,12 +29,13 @@ __release_name__ = "Plan Design & Evidence"
 _REPO_ROOT = Path(__file__).resolve().parent
 
 
-@lru_cache(maxsize=1)
 def get_git_sha() -> str | None:
     """Return the commit running this code, with ``-dirty`` for uncommitted edits.
 
-    ``PLANALIGN_GIT_SHA`` overrides it for installs without a git checkout.
-    Returns None when neither is available.
+    Read fresh on each call (twice per run, about 20 ms) so a long-running
+    Studio server records the code each run actually used. ``PLANALIGN_GIT_SHA``
+    overrides it for installs without a git checkout. Returns None when neither
+    is available.
     """
     override = os.environ.get("PLANALIGN_GIT_SHA")
     if override:

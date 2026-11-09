@@ -131,6 +131,10 @@ def publish(new: str) -> None:
         "--",
         "_version.py",
     )
+    if not commit:
+        sys.exit(
+            f"no commit on origin/main sets __version__ to {new}; is the clone shallow?"
+        )
     notes = changelog_section(run("git", "show", "origin/main:CHANGELOG.md"), new)
     name = re.search(
         r'__release_name__ = "([^"]+)"', run("git", "show", f"{commit}:_version.py")
@@ -138,19 +142,20 @@ def publish(new: str) -> None:
     title = f"{new} — {name.group(1)}" if name else new
     run("git", "tag", "-a", f"v{new}", commit, "-m", title)
     run("git", "push", "origin", f"v{new}")
-    with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as handle:
-        handle.write(notes + "\n")
-    run(
-        "gh",
-        "release",
-        "create",
-        f"v{new}",
-        "--title",
-        title,
-        "--notes-file",
-        handle.name,
-        "--latest",
-    )
+    with tempfile.TemporaryDirectory() as tmp:
+        notes_file = Path(tmp) / "notes.md"
+        notes_file.write_text(notes + "\n")
+        run(
+            "gh",
+            "release",
+            "create",
+            f"v{new}",
+            "--title",
+            title,
+            "--notes-file",
+            str(notes_file),
+            "--latest",
+        )
     print(f"Published v{new} at {commit[:8]}: {title}")
 
 
