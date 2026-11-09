@@ -14,7 +14,7 @@ factory-boy==3.3.3
 Faker==40.44.0
 
 # Code Quality
-ruff==0.17.3
+ruff==0.17.4
 black==26.10.1
 isort==9.0.2
 # Pinned mypy version validated with this project's dev toolchain.
