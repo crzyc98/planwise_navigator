@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Literal, Optional
 
 import duckdb
 
-from _version import __version__
+from _version import __version__, get_git_sha
 from planalign_orchestrator.config import to_dbt_vars
 
 if TYPE_CHECKING:
@@ -395,8 +395,8 @@ def _append_record(
             planalign_version, full_reset, construction_signature_hash,
             initialization_policy, entry_point, runner_kind,
             param_pack_id, param_pack_fingerprint, param_pack_source_digest,
-            backtest_score_ref
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            backtest_score_ref, git_sha
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """,
         [
             run_id,
@@ -436,6 +436,7 @@ def _append_record(
             pack.get("fingerprint"),
             pack.get("source_digest"),
             pack.get("backtest_score_ref"),
+            get_git_sha(),
         ],
     )
 
@@ -467,6 +468,9 @@ def _evolve_provenance_schema(conn) -> None:
         # subsystem to. Multiple anchors are averaged per subsystem, so this
         # disambiguates one frozen run among several sharing a subsystem.
         ("ensemble_frozen_anchor_seed", "INTEGER"),
+        # The exact commit that produced the run; releases are too coarse to
+        # tell apart runs made between them.
+        ("git_sha", "VARCHAR"),
     )
     for name, column_type in provenance_columns:
         conn.execute(

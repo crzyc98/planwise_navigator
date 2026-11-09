@@ -58,6 +58,7 @@ class RunTrustResult(APIModel):
     random_seed: Optional[int] = None
     run_timestamp: Optional[datetime] = None
     planalign_version: Optional[str] = None
+    git_sha: Optional[str] = None
     reasons: List[
         Literal[
             "current_config_mismatch",

@@ -14,6 +14,23 @@ engine and has no independent release version. Its `config-version: 2` is dbt's
 configuration format and must not be changed for an engine release. The CLI
 reports the engine version via `planalign --version`.
 
+## When to release
+
+Release whenever simulation results change, not only for big features. Every run
+records `planalign_version` and `git_sha` in `run_metadata`. The version says
+which release produced a run, and the SHA pins the exact commit between releases
+(`-dirty` means uncommitted edits).
+
+## Cutting a release
+
+`scripts/release.py` does the mechanical steps below (1, 2, the version numbers in 3, 7, 9 and 10):
+
+```bash
+python3 scripts/release.py prepare 3.1.0 --name "Release name"   # bump files, date the changelog
+# review SECURITY.md and docs (steps 4-6), open a PR "chore(release): 3.1.0", merge it
+python3 scripts/release.py publish 3.1.0                         # tag origin/main, publish the GitHub release
+```
+
 ## Release checklist
 
 1. Update `__version__`, `__release_date__`, and (for minor/major releases)
