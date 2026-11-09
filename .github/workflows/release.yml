@@ -61,4 +61,9 @@ jobs:
           else
             gh pr create --base main --head release/next --title "chore(release): $version" --body-file body.md
           fi
+          # Each refresh replaces the release commit, so earlier CI runs on
+          # release/next test a commit that no longer exists. Cancel them first.
+          gh run list --workflow ci.yml --branch release/next --json databaseId,status \
+            --jq '.[] | select(.status != "completed") | .databaseId' \
+            | xargs -r -n1 gh run cancel
           gh workflow run ci.yml --ref release/next
