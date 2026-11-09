@@ -25,6 +25,13 @@ def get_active_simulation_count() -> int:
     return get_active_run_count()
 
 
+def get_queued_simulation_count() -> int:
+    """Get count of simulations waiting for a slot."""
+    from .simulations import get_queued_run_count
+
+    return get_queued_run_count()
+
+
 def get_storage_usage(workspaces_root: Path) -> tuple[float, int, int]:
     """Calculate storage usage and counts (MB, workspaces, scenarios)."""
     totals = workspace_totals(workspaces_root)
@@ -108,7 +115,7 @@ def system_status(settings: APISettings = Depends(get_settings)) -> SystemStatus
         system_message="System is ready for simulations",
         timestamp=datetime.now(timezone.utc),
         active_simulations=get_active_simulation_count(),
-        queued_simulations=0,
+        queued_simulations=get_queued_simulation_count(),
         total_storage_mb=storage_mb,
         storage_limit_mb=storage_limit_mb,
         storage_percent=storage_percent,

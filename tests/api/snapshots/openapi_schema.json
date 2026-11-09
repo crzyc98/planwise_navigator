@@ -1977,12 +1977,6 @@
             "description": "Batch job name",
             "title": "Name"
           },
-          "parallel": {
-            "default": false,
-            "description": "Run scenarios in parallel",
-            "title": "Parallel",
-            "type": "boolean"
-          },
           "scenario_ids": {
             "anyOf": [
               {
@@ -2052,12 +2046,6 @@
             "title": "Name",
             "type": "string"
           },
-          "parallel": {
-            "default": false,
-            "description": "Whether running in parallel",
-            "title": "Parallel",
-            "type": "boolean"
-          },
           "results_path": {
             "anyOf": [
               {
@@ -2111,7 +2099,6 @@
           "completed_at",
           "duration_seconds",
           "scenarios",
-          "parallel",
           "export_format",
           "results_path"
         ],
@@ -20689,7 +20676,7 @@
     },
     "/api/scenarios/{scenario_id}/run/cancel": {
       "post": {
-        "description": "Cancel a running simulation.",
+        "description": "Cancel a running simulation, or one still queued for a simulation slot.",
         "operationId": "cancel_simulation_api_scenarios__scenario_id__run_cancel_post",
         "parameters": [
           {
@@ -26514,9 +26501,7 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/BatchCreate",
-                "default": {
-                  "parallel": false
-                }
+                "default": {}
               }
             }
           }

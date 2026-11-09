@@ -38,7 +38,7 @@ def test_batch_uses_service_outcome_and_distinct_run_databases(
 
     created = client.post(
         f"/api/workspaces/{workspace.id}/run-all",
-        json={"scenario_ids": [successful.id, failed.id], "parallel": False},
+        json={"scenario_ids": [successful.id, failed.id]},
         headers={"Authorization": "Bearer secret"},
     )
     status = client.get(

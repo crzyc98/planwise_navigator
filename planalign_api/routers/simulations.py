@@ -120,6 +120,48 @@ def get_active_run_count() -> int:
     return sum(run.status == "running" for run in _active_runs_snapshot())
 
 
+def get_queued_run_count() -> int:
+    """Return the count of runs waiting for a simulation slot."""
+    return sum(run.status in ("pending", "queued") for run in _active_runs_snapshot())
+
+
+def is_run_registered(run_id: str) -> bool:
+    """Whether a run is still live; cancelled and finished runs are evicted."""
+    with _active_runs_lock:
+        return run_id in _active_runs
+
+
+def release_run(run_id: str) -> None:
+    """Drop a run from the registry once its caller is done with it."""
+    with _active_runs_lock:
+        _active_runs.pop(run_id, None)
+
+
+def reserve_run(
+    storage: WorkspaceStorage, workspace_id: str, run: SimulationRun
+) -> bool:
+    """Register a run as queued unless its scenario already has an active run.
+
+    Check and reserve together so concurrent requests cannot queue duplicate
+    runs for the same scenario. The scenario is re-read under the lock because
+    an earlier copy may predate another request's status transition.
+    """
+    with _active_runs_lock:
+        scenario = storage.get_scenario(workspace_id, run.scenario_id)
+        if scenario is None or scenario.status in _NON_TERMINAL_RUN_STATUSES:
+            return False
+        if any(
+            active.scenario_id == run.scenario_id
+            and active.status in _NON_TERMINAL_RUN_STATUSES
+            for active in _active_runs_snapshot()
+        ):
+            return False
+        _register_active_run(run)
+        storage.update_scenario_status(workspace_id, run.scenario_id, "queued", run.id)
+    get_telemetry_service().discard_scenario(run.scenario_id)
+    return True
+
+
 def _find_scenario_and_workspace(
     storage: WorkspaceStorage, scenario_id: str
 ) -> tuple[Optional[Workspace], Optional[Scenario]]:
@@ -194,28 +236,11 @@ def start_simulation(
         started_at=datetime.now(),
     )
 
-    # Check and reserve together so concurrent requests cannot queue duplicate
-    # runs for the same scenario. Refresh the scenario while holding the lock;
-    # the object fetched above may predate another request's status transition.
-    with _active_runs_lock:
-        workspace, scenario = _find_scenario_and_workspace(storage, scenario_id)
-        if not scenario or not workspace:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Scenario {scenario_id} not found",
-            )
-        if scenario.status in _NON_TERMINAL_RUN_STATUSES or any(
-            active_run.scenario_id == scenario_id
-            and active_run.status in _NON_TERMINAL_RUN_STATUSES
-            for active_run in _active_runs_snapshot()
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Scenario {scenario_id} already has an active run",
-            )
-
-        _register_active_run(run)
-        storage.update_scenario_status(workspace.id, scenario_id, "queued", run_id)
+    if not reserve_run(storage, workspace_id, run):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Scenario {scenario_id} already has an active run",
+        )
 
     # Start simulation in background
     background_tasks.add_task(
@@ -334,7 +359,7 @@ async def cancel_simulation(
     simulation_service: SimulationService = Depends(get_simulation_service),
 ) -> Dict[str, bool]:
     """
-    Cancel a running simulation.
+    Cancel a running simulation, or one still queued for a simulation slot.
     """
     # Use a detached snapshot while awaiting the subprocess, then publish the
     # terminal state through the lock-aware registry helper.
@@ -366,6 +391,11 @@ async def cancel_simulation(
 
         return {"success": True}
 
+    queued = _find_active_run(scenario_id, {"pending", "queued"})
+    if queued is not None:
+        _cancel_queued_run(storage, scenario_id, queued.id)
+        return {"success": True}
+
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
         detail=(
@@ -373,6 +403,23 @@ async def cancel_simulation(
             "finished or the API was restarted"
         ),
     )
+
+
+def _cancel_queued_run(
+    storage: WorkspaceStorage, scenario_id: str, run_id: str
+) -> None:
+    """Cancel a run still waiting for a slot; it never starts a subprocess.
+
+    Evicting the run from the registry is what stops it: the slot wrapper in
+    ``run_slots`` skips any run that is no longer registered. The run has no
+    telemetry yet, so clients read the persisted ``cancelled`` status.
+    """
+    _update_active_run(
+        run_id, status="cancelled", completed_at=datetime.now(timezone.utc)
+    )
+    workspace, scenario = _find_scenario_and_workspace(storage, scenario_id)
+    if workspace and scenario:
+        storage.update_scenario_status(workspace.id, scenario_id, "cancelled")
 
 
 @router.post("/{scenario_id}/run/reset")
