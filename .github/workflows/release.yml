@@ -61,4 +61,10 @@ jobs:
           else
             gh pr create --base main --head release/next --title "chore(release): $version" --body-file body.md
           fi
+          # Each refresh replaces the release commit, so earlier CI runs on
+          # release/next test a commit that no longer exists. Cancel them first.
+          # force-cancel, because a plain cancel leaves queued runs queued.
+          gh run list --workflow ci.yml --branch release/next --json databaseId,status \
+            --jq '.[] | select(.status != "completed") | .databaseId' \
+            | xargs -r -I{} gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/{}/force-cancel"
           gh workflow run ci.yml --ref release/next
