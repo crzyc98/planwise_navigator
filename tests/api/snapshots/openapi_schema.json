@@ -1949,22 +1949,6 @@
       "BatchCreate": {
         "description": "Request to create a batch job.",
         "properties": {
-          "export_format": {
-            "anyOf": [
-              {
-                "enum": [
-                  "excel",
-                  "csv"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Export format for results",
-            "title": "Export Format"
-          },
           "name": {
             "anyOf": [
               {
@@ -2023,18 +2007,6 @@
             ],
             "description": "Total duration",
             "title": "Duration Seconds"
-          },
-          "export_format": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Export format",
-            "title": "Export Format"
           },
           "id": {
             "description": "Unique batch job ID",
@@ -2099,7 +2071,6 @@
           "completed_at",
           "duration_seconds",
           "scenarios",
-          "export_format",
           "results_path"
         ],
         "title": "BatchJob",

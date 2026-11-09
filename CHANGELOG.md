@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- Removed the Export Format choice from Batch Processing. Studio ignored it, and each run already writes its own Excel results.
 - Deleted 238 YAML settings with no effect from setup, compensation, new_hire_compensation, raise_timing, plan_year, plan_eligibility, enrollment, employee_id_generation, optimization, orchestrator, multi_year, deferral_baseline, deferral_rates, corporate_network, and legacy ops. Stopped exporting 11 unread dbt variables and added guards for YAML consumers and exported-variable readers.
 
 ### Fixed

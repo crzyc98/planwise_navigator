@@ -26,9 +26,6 @@ class BatchCreate(APIModel):
     scenario_ids: Optional[List[str]] = Field(
         None, description="Specific scenarios to run (runs all if not provided)"
     )
-    export_format: Optional[Literal["excel", "csv"]] = Field(
-        None, description="Export format for results"
-    )
 
 
 class BatchJob(APIModel):
@@ -46,7 +43,6 @@ class BatchJob(APIModel):
     scenarios: List[BatchScenario] = Field(
         default_factory=list, description="Scenarios in this batch"
     )
-    export_format: Optional[str] = Field(None, description="Export format")
     results_path: Optional[str] = Field(None, description="Path to results directory")
 
     class Config:

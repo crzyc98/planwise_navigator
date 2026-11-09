@@ -101,8 +101,7 @@ def test_batch_websocket_replays_snapshot_and_execution_terminal_state(monkeypat
                     created_at=datetime.now(timezone.utc),
                 )
             ],
-            None,
-            manager,
+            manager=manager,
         )
 
         events = [message["event"] for message in socket.messages]

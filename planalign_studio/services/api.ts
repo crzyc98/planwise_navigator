@@ -557,7 +557,6 @@ export async function runAllScenarios(
   options?: {
     scenario_ids?: string[];
     name?: string;
-    export_format?: 'excel' | 'csv';
   }
 ): Promise<BatchJob> {
   const response = await fetchWithAuth(`${API_BASE}/api/workspaces/${workspaceId}/run-all`, {
