@@ -34,7 +34,6 @@ export default function BatchProcessing() {
   // Creation State
   const [newBatchName, setNewBatchName] = useState('');
   const [selectedScenarioIds, setSelectedScenarioIds] = useState<string[]>([]);
-  const [exportFormat, setExportFormat] = useState<'excel' | 'csv'>('excel');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Active job polling
@@ -108,7 +107,6 @@ export default function BatchProcessing() {
       const batch = await runAllScenarios(activeWorkspace.id, {
         scenario_ids: selectedScenarioIds,
         name: newBatchName || `Batch ${new Date().toLocaleString()}`,
-        export_format: exportFormat,
       });
 
       setSelectedBatch(batch);
@@ -139,7 +137,6 @@ export default function BatchProcessing() {
     e.stopPropagation();
     setNewBatchName(`${job.name} (Rerun)`);
     setSelectedScenarioIds(job.scenarios.map(s => s.scenario_id));
-    setExportFormat((job.export_format as 'excel' | 'csv') || 'excel');
     setView('create');
   };
 
@@ -207,28 +204,6 @@ export default function BatchProcessing() {
             value={newBatchName}
             onChange={e => setNewBatchName(e.target.value)}
           />
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <fieldset>
-            <legend className="block text-sm font-medium text-ink-muted mb-2">Export Format</legend>
-            <div className="flex rounded-md shadow-sm">
-              <button
-                type="button"
-                onClick={() => setExportFormat('excel')}
-                className={`flex-1 px-4 py-2 text-sm font-medium border rounded-l-lg ${exportFormat === 'excel' ? 'bg-brand-green text-ink-inverse border-brand-green' : 'bg-surface-raised text-ink-muted border-border-strong hover:bg-surface-subtle'}`}
-              >
-                Excel (.xlsx)
-              </button>
-              <button
-                type="button"
-                onClick={() => setExportFormat('csv')}
-                className={`flex-1 px-4 py-2 text-sm font-medium border rounded-r-lg ${exportFormat === 'csv' ? 'bg-brand-green text-ink-inverse border-brand-green' : 'bg-surface-raised text-ink-muted border-border-strong hover:bg-surface-subtle'}`}
-              >
-                CSV (.zip)
-              </button>
-            </div>
-          </fieldset>
         </div>
 
         <div>

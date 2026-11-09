@@ -3622,11 +3622,6 @@ export interface components {
          */
         BatchCreate: {
             /**
-             * Export Format
-             * @description Export format for results
-             */
-            export_format?: ("excel" | "csv") | null;
-            /**
              * Name
              * @description Batch job name
              */
@@ -3652,11 +3647,6 @@ export interface components {
              * @description Total duration
              */
             duration_seconds: number | null;
-            /**
-             * Export Format
-             * @description Export format
-             */
-            export_format: string | null;
             /**
              * Id
              * @description Unique batch job ID

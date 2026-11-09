@@ -116,7 +116,6 @@ async def run_all_scenarios(
     logger.info(f"  workspace_id: {workspace_id}")
     logger.info(f"  data.name: {data.name}")
     logger.info(f"  data.scenario_ids: {data.scenario_ids}")
-    logger.info(f"  data.export_format: {data.export_format}")
 
     # Verify workspace exists
     workspace = storage.get_workspace(workspace_id)
@@ -169,7 +168,6 @@ async def run_all_scenarios(
         status="pending",
         submitted_at=datetime.now(timezone.utc),
         scenarios=batch_scenarios,
-        export_format=data.export_format,
     )
 
     _batch_jobs[batch_id] = batch_job
@@ -183,7 +181,6 @@ async def run_all_scenarios(
         workspace_id,
         batch_id,
         scenarios_to_run,
-        data.export_format,
         get_connection_manager(),
     )
 
@@ -274,7 +271,6 @@ async def _execute_batch(
     workspace_id: str,
     batch_id: str,
     scenarios: List[Scenario],
-    _export_format: Optional[str],
     manager: Optional[ConnectionManager] = None,
 ) -> None:
     """Execute batch scenarios (background task)."""
