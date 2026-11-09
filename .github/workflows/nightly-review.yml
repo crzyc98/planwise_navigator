@@ -1,0 +1,89 @@
+name: Nightly Code Review
+
+# Reviews one area of existing code each night (rotating) and opens an issue
+# for each real bug it confirms, at most two a night. Uses the Max subscription
+# token, like claude-review.yml. Security findings never go in public issues
+# (SECURITY.md), so the prompt tells Claude to skip them.
+on:
+  schedule:
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+    inputs:
+      area:
+        description: 'Path to review (default: tonight''s rotation)'
+        required: false
+
+concurrency:
+  group: nightly-review
+  cancel-in-progress: false
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 50
+
+      - name: Pick tonight's area
+        id: area
+        env:
+          AREA_INPUT: ${{ inputs.area }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          areas=(
+            planalign_orchestrator/generators
+            planalign_orchestrator/pipeline
+            dbt/models/intermediate
+            dbt/models/marts
+            planalign_api
+            planalign_studio/components
+            planalign_studio/services
+            planalign_orchestrator/config
+            planalign_ensemble
+            planalign_cli
+            planalign_fit
+            planalign_optimizer
+            planalign_core
+          )
+          day=$(( 10#$(date -u +%j) ))
+          area="${AREA_INPUT:-${areas[$(( day % ${#areas[@]} ))]}}"
+          echo "area=$area" >> "$GITHUB_OUTPUT"
+          gh label create nightly-review --color BFD4F2 --description "Found by the nightly Claude review" --force
+
+      - uses: anthropics/claude-code-action@61a9c274fa7110a66dfafc1bbbced03833eb25fe # v1.0.269
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            AREA: ${{ steps.area.outputs.area }}
+
+            Review the existing code under AREA for correctness bugs. This is not a PR review: there is no diff.
+            Read CLAUDE.md, dbt/CLAUDE.md and REVIEW.md first. REVIEW.md says what failure looks like here.
+
+            1. Launch three subagents in parallel with the Agent tool, each covering AREA with one lens and
+               reading callers and consumers outside AREA as needed:
+               - Lens A, contracts between layers: what AREA accepts, produces or defaults vs. what the layers it
+                 talks to (Studio UI, API, config export, orchestrator, dbt) accept or expect.
+               - Lens B, data edge cases and time: empty, missing or null rows; missing or partial years; mid-year
+                 events; first and last simulation year; databases or workspaces created by older versions.
+               - Lens C, stated behavior: docstrings, comments, UI text and docs that describe behavior the code
+                 doesn't have.
+            2. Re-read the code for each candidate and confirm a concrete input that gives a wrong result or crash.
+               Keep only Important findings (wrong results, data loss, crash). Drop nits and style.
+            3. Drop anything security-related (auth, tokens, path traversal, injection, exposure). SECURITY.md
+               forbids public issues for those.
+            4. Check for duplicates: `gh issue list --state all --search "<file name>"`. Skip anything already filed.
+            5. Open at most two issues with `gh issue create --label nightly-review --label bug`. Title in the
+               repo's commit style, e.g. `fix(studio): <what goes wrong>`. Body: `file:line`, the input that breaks,
+               what happens vs. what should, and the fix direction in one sentence. End with
+               "Found by the nightly review of `AREA`."
+            6. If nothing survives, open nothing.
+          claude_args: |
+            --model opus
+            --allowedTools "Agent,Task,Bash(gh issue list:*),Bash(gh issue view:*),Bash(gh issue create:*),Bash(git log:*),Bash(git show:*),Bash(git blame:*)"

@@ -1,0 +1,36 @@
+name: Review Eval Candidates
+
+# Weekly: list merged fixes whose bug traces back to one earlier PR, as new
+# cases for scripts/review_eval.py. Keeps one open issue up to date; no Claude
+# call, so it costs nothing.
+on:
+  schedule:
+    - cron: '0 10 * * 1'
+  workflow_dispatch:
+
+jobs:
+  candidates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      - name: Find candidates and update the tracking issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 -I scripts/review_eval_candidates.py --markdown > candidates.md
+          title="Review eval: new candidate cases"
+          number=$(gh issue list --state open --search "\"$title\" in:title" --json number --jq '.[0].number // empty')
+          if [ ! -s candidates.md ]; then
+            echo "No new candidates."
+          elif [ -n "$number" ]; then
+            gh issue edit "$number" --body-file candidates.md
+          else
+            gh issue create --title "$title" --body-file candidates.md
+          fi
