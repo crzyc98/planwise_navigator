@@ -307,13 +307,17 @@ class DatabaseConnectionManager:
         """Initialize DatabaseConnectionManager with connection pool.
 
         Args:
-            db_path: Path to the database file. Defaults to dbt/simulation.duckdb
+            db_path: Path to the database file. Defaults to ``get_database_path()``
             deterministic: If True, configure connections for deterministic behavior
             read_only: If True, open read-only connections that can coexist with
                 other processes' access to the same file instead of taking an
                 exclusive lock. See ``DatabaseConnectionPool``.
         """
-        self.db_path = db_path or Path("dbt/simulation.duckdb")
+        if db_path is None:
+            from planalign_orchestrator.config import get_database_path
+
+            db_path = get_database_path()
+        self.db_path = db_path
         self.deterministic = deterministic
         self._pool = DatabaseConnectionPool(
             db_path=self.db_path,

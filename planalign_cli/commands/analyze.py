@@ -20,6 +20,7 @@ from ..integration.orchestrator_wrapper import OrchestratorWrapper
 from ..ui.progress import show_error_message, show_success_message, show_warning_message
 from ..utils.config_helpers import find_default_config
 from planalign_orchestrator.excel_exporter import ExcelExporter
+from planalign_orchestrator.config import get_database_path
 
 console = Console()
 analyze_command = typer.Typer()
@@ -64,7 +65,7 @@ def analyze_workforce(
 
         # Setup paths
         config_path = Path(config) if config else find_default_config()
-        db_path = Path(database) if database else Path("dbt/simulation.duckdb")
+        db_path = Path(database) if database else get_database_path()
 
         if verbose:
             console.print(f"📁 [dim]Database: {db_path}[/dim]")
@@ -139,7 +140,7 @@ def analyze_events(
 
         # Setup paths
         config_path = Path(config) if config else find_default_config()
-        db_path = Path(database) if database else Path("dbt/simulation.duckdb")
+        db_path = Path(database) if database else get_database_path()
 
         # Initialize wrapper
         wrapper = OrchestratorWrapper(config_path, db_path, verbose=verbose)
@@ -642,7 +643,7 @@ def analyze_cost(
         "--database",
         help=(
             "Path to a scenario DuckDB file. Repeat to compare scenarios "
-            "(default: dbt/simulation.duckdb)"
+            "(default: DATABASE_PATH, else dbt/simulation.duckdb)"
         ),
     ),
     vesting_schedule: str = typer.Option(
@@ -769,7 +770,7 @@ def _build_cost_series(
     )
     policy = _resolve_policy(forfeiture_policy)
 
-    paths = [Path(item) for item in databases] or [Path("dbt/simulation.duckdb")]
+    paths = [Path(item) for item in databases] or [get_database_path()]
     series = []
     for path in paths:
         if not path.exists():
