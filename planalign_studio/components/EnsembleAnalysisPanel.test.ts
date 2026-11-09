@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatProbability, formatValue, metricLabel } from './EnsembleAnalysisPanel';
+import { formatProbability, formatValue, metricLabel, shareLabel } from './EnsembleAnalysisPanel';
 
 describe('ensemble metric formatting', () => {
   it('formats rates, currency, and counts with metric-aware semantics', () => {
@@ -18,5 +18,17 @@ describe('ensemble metric formatting', () => {
   it('uses canonical labels and readable fallbacks', () => {
     expect(metricLabel('active_headcount')).toBe('Active headcount');
     expect(metricLabel('custom_metric_name')).toBe('Custom Metric Name');
+  });
+});
+
+describe('attribution share labels', () => {
+  it('labels only structurally deterministic subsystems as not stochastic', () => {
+    expect(shareLabel({ stochastic_status: 'not_stochastic', variance_share: null, n_seeds: 10 })).toBe('Not stochastic');
+    expect(shareLabel({ stochastic_status: 'stochastic', variance_share: 0.25, n_seeds: 10 })).toBe('25.0%');
+  });
+
+  it('explains why a stochastic subsystem has no share', () => {
+    expect(shareLabel({ stochastic_status: 'stochastic', variance_share: null, n_seeds: 1 })).toBe('Too few seeds');
+    expect(shareLabel({ stochastic_status: 'stochastic', variance_share: null, n_seeds: 10 })).toBe('No variance');
   });
 });

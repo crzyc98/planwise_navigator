@@ -47,6 +47,13 @@ function formatValue(metric: string, value: number | null): string {
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }).format(value);
 }
 
+/** A stochastic row has no share when it has too few seeds or its outcome never varied. */
+function shareLabel(row: Pick<EnsembleAttributionRow, 'stochastic_status' | 'variance_share' | 'n_seeds'>): string {
+  if (row.stochastic_status === 'not_stochastic') return 'Not stochastic';
+  if (row.variance_share !== null) return formatProbability(row.variance_share);
+  return row.n_seeds < 2 ? 'Too few seeds' : 'No variance';
+}
+
 function formatProbability(value: number | null): string {
   return value === null ? 'Unavailable' : `${(value * 100).toFixed(1)}%`;
 }
@@ -125,7 +132,7 @@ function ExperimentalAttribution({ rows }: Readonly<{ rows: EnsembleAttributionR
               <tr key={`${row.metric}-${row.simulation_year}-${row.subsystem}`}>
                 <td className="px-3 py-2 text-ink">{metricLabel(row.metric)} · {row.simulation_year}</td>
                 <td className="px-3 py-2 capitalize text-ink">{row.subsystem.replaceAll('_', ' ')}</td>
-                <td className="px-3 py-2 text-ink">{row.stochastic_status === 'not_stochastic' || row.variance_share === null ? 'Not stochastic' : formatProbability(row.variance_share)}</td>
+                <td className="px-3 py-2 text-ink">{shareLabel(row)}</td>
                 <td className="px-3 py-2 text-ink">{row.ci_low === null || row.ci_high === null ? 'Unavailable' : `${formatProbability(row.ci_low)}–${formatProbability(row.ci_high)}`}</td>
               </tr>
             ))}
@@ -162,4 +169,4 @@ export default function EnsembleAnalysisPanel({ data }: Readonly<{ data: Ensembl
   );
 }
 
-export { formatValue, formatProbability, metricLabel };
+export { formatValue, formatProbability, metricLabel, shareLabel };
