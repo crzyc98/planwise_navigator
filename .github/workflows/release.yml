@@ -1,0 +1,64 @@
+name: Release
+
+# Every feat/fix/perf merge to main refreshes one open "chore(release): X.Y.Z"
+# PR on branch release/next (feat → minor, fix/perf → patch, `type!:` → major).
+# Merging that PR tags the commit and publishes the GitHub release.
+# scripts/release.py does the work; see docs/VERSIONING_GUIDE.md.
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write        # push release/next and tags
+      pull-requests: write   # open or update the release PR
+      actions: write         # start CI on the release PR
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      - name: Publish a merged release, or refresh the release PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          subject=$(git log -1 --format=%s)
+          if [[ "$subject" =~ ^chore\(release\):\ ([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+            python3 -I scripts/release.py publish "${BASH_REMATCH[1]}"
+            exit 0
+          fi
+
+          version=$(python3 -I scripts/release.py next)
+          if [ -z "$version" ]; then
+            echo "No feat, fix or perf commits since the last tag."
+            exit 0
+          fi
+          git switch -C release/next
+          python3 -I scripts/release.py prepare > /dev/null
+          git commit -qam "chore(release): $version"
+          git push --force origin release/next
+
+          cat > body.md <<EOF
+          Merging this releases **v$version**: the tag and GitHub release are created automatically.
+
+          It is refreshed after every feat/fix/perf merge, so it always covers everything since the last release. The release notes are the \`[$version]\` section of CHANGELOG.md.
+
+          Bot-opened PRs don't trigger CI, so this workflow starts a full CI run on \`release/next\`.
+          EOF
+          pr=$(gh pr list --head release/next --state open --json number --jq '.[0].number // empty')
+          if [ -n "$pr" ]; then
+            gh pr edit "$pr" --title "chore(release): $version" --body-file body.md
+          else
+            gh pr create --base main --head release/next --title "chore(release): $version" --body-file body.md
+          fi
+          gh workflow run ci.yml --ref release/next

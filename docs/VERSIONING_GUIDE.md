@@ -23,13 +23,16 @@ months apart share one version even when their results differ.
 
 ## Cutting a release
 
-`scripts/release.py` does the mechanical steps below (1, 2, the version numbers in 3, 7, 9 and 10):
+Releases are automatic. After every feat/fix/perf merge, `release.yml` runs
+`scripts/release.py prepare` and keeps one `chore(release): X.Y.Z` PR open on
+`release/next` (feat bumps minor, fix/perf bumps patch, `type!:` bumps major).
+Merging that PR runs `scripts/release.py publish`, which tags the commit and
+publishes the GitHub release from its CHANGELOG section.
 
-```bash
-python3 scripts/release.py prepare 3.1.0 --name "Release name"   # bump files, date the changelog
-# review SECURITY.md and docs (steps 4-6), open a PR "chore(release): 3.1.0", merge it
-python3 scripts/release.py publish 3.1.0                         # tag origin/main, publish the GitHub release
-```
+The script covers steps 1, 2, the version numbers in 3, 4's supported-versions
+table, 7, 9 and 10. For a minor or major release, check docs against what shipped
+(step 5) before merging. To name a release, run
+`python3 scripts/release.py prepare --name "..."` locally and push to `release/next`.
 
 ## Release checklist
 
