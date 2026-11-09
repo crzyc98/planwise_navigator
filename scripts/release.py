@@ -10,8 +10,8 @@
         CHANGELOG section as its notes.
 
 Release whenever simulation results change, so a run's planalign_version
-identifies the engine that produced it. Runs also record git_sha for the
-commits in between. Stdlib only.
+identifies the engine that produced it. Studio run provenance already records
+the exact commit. Stdlib only.
 """
 
 from __future__ import annotations

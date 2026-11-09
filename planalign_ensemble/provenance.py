@@ -9,7 +9,7 @@ from typing import Literal
 
 import duckdb
 
-from _version import __version__, get_git_sha
+from _version import __version__
 from planalign_orchestrator.run_metadata import (
     RUN_METADATA_TABLE,
     _CREATE_TABLE_SQL,
@@ -48,8 +48,8 @@ def write_ensemble_provenance(
                 start_year, end_year, scenario_id, plan_design_id,
                 planalign_version, full_reset, ensemble_id, ensemble_seed_list,
                 ensemble_seed_count, ensemble_role, ensemble_frozen_subsystem,
-                ensemble_frozen_anchor_seed, ensemble_member_paths, git_sha
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ensemble_frozen_anchor_seed, ensemble_member_paths
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 str(uuid.uuid4()),
@@ -73,7 +73,6 @@ def write_ensemble_provenance(
                     [str(path) for path in plan.seed_db_paths.values()],
                     separators=(",", ":"),
                 ),
-                get_git_sha(),
             ],
         )
 

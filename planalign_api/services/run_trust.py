@@ -21,8 +21,7 @@ def evaluate_run_trust(
 ) -> RunTrustResult:
     """Evaluate selected identity and mixed-generation state from newest rows.
 
-    Rows are ``run_id, timestamp, type, fingerprint, seed, full_reset, version``,
-    optionally followed by ``git_sha``.
+    Rows are ``run_id, timestamp, type, fingerprint, seed, full_reset, version``.
     A selected run is never silently replaced by the latest row.
     """
     if not rows:
@@ -45,14 +44,13 @@ def evaluate_run_trust(
         config_fingerprint=str(selected[3]) if selected[3] is not None else None,
         random_seed=selected[4],
         planalign_version=selected[6],
-        git_sha=selected[7] if len(selected) > 7 else None,
         reasons=reasons,
     )
 
 
 def _mixed(latest: tuple[Any, ...], prior: tuple[Any, ...]) -> bool:
-    run_type, fingerprint, seed, full_reset = latest[2], latest[3], latest[4], latest[5]
-    prior_fingerprint, prior_seed = prior[3], prior[4]
+    _, _, run_type, fingerprint, seed, full_reset, _ = latest
+    _, _, _, prior_fingerprint, prior_seed, _, _ = prior
     if full_reset or run_type == "calibration":
         return False
     return (
@@ -93,9 +91,8 @@ def read_run_trust(database_path, run_id: str | None) -> RunTrustResult:
             version_expression = (
                 "planalign_version" if "planalign_version" in columns else "NULL"
             )
-            sha_expression = "git_sha" if "git_sha" in columns else "NULL"
             rows = connection.execute(
-                f"SELECT {run_id_expression}, run_timestamp, run_type, config_fingerprint, {seed_expression}, {reset_expression}, {version_expression}, {sha_expression} FROM run_metadata ORDER BY run_timestamp DESC"
+                f"SELECT {run_id_expression}, run_timestamp, run_type, config_fingerprint, {seed_expression}, {reset_expression}, {version_expression} FROM run_metadata ORDER BY run_timestamp DESC"
             ).fetchall()
     except duckdb.Error:
         return RunTrustResult(available=False, run_id=run_id)

@@ -17,9 +17,9 @@ reports the engine version via `planalign --version`.
 ## When to release
 
 Release whenever simulation results change, not only for big features. Every run
-records `planalign_version` and `git_sha` in `run_metadata`. The version says
-which release produced a run, and the SHA pins the exact commit between releases
-(`-dirty` means uncommitted edits).
+records `planalign_version` in `run_metadata`, and Studio's run provenance records
+the exact commit and whether the tree was dirty. Without regular releases, runs
+months apart share one version even when their results differ.
 
 ## Cutting a release
 

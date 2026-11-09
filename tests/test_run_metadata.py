@@ -290,7 +290,6 @@ class TestTableLifecycle:
             "ensemble_member_paths",
             # Issue #543: which anchor seed an attribution_frozen run pinned to.
             "ensemble_frozen_anchor_seed",
-            "git_sha",
         }
 
     def test_second_stamp_appends_and_retains_first(self, db_manager, minimal_config):
