@@ -21,6 +21,7 @@ def simulation_start(monkeypatch):
     storage.get_merged_config.return_value = {
         "simulation": {"start_year": 2025, "end_year": 2027}
     }
+    storage.get_scenario.return_value = scenario
     monkeypatch.setattr(simulations, "_active_runs", {})
     monkeypatch.setattr(
         simulations,

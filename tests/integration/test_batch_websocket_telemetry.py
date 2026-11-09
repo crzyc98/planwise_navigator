@@ -53,6 +53,9 @@ class FakeStorage:
     def get_merged_config(self, _workspace_id: str, _scenario_id: str) -> dict:
         return {}
 
+    def update_scenario_status(self, *_args: object) -> None:
+        return None
+
     def get_scenario(self, _workspace_id: str, _scenario_id: str) -> Scenario:
         return Scenario(
             id="scenario-1",
@@ -98,7 +101,6 @@ def test_batch_websocket_replays_snapshot_and_execution_terminal_state(monkeypat
                     created_at=datetime.now(timezone.utc),
                 )
             ],
-            False,
             None,
             manager,
         )

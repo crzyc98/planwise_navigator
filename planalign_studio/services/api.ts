@@ -557,7 +557,6 @@ export async function runAllScenarios(
   options?: {
     scenario_ids?: string[];
     name?: string;
-    parallel?: boolean;
     export_format?: 'excel' | 'csv';
   }
 ): Promise<BatchJob> {

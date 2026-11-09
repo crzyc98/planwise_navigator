@@ -12,10 +12,12 @@ from ..config import APISettings, get_settings
 from ..errors import sanitize_job_error
 from ..models.batch import BatchCreate, BatchJob, BatchScenario
 from ..models.scenario import Scenario
+from ..models.simulation import SimulationRun
 from ..services.simulation_service import SimulationService
 from ..storage.workspace_storage import WorkspaceStorage
 from ..websocket.manager import ConnectionManager, get_connection_manager
 from ..services.telemetry_service import get_telemetry_service
+from .simulations import release_run, reserve_run
 
 logger = logging.getLogger(__name__)
 
@@ -114,9 +116,6 @@ async def run_all_scenarios(
     logger.info(f"  workspace_id: {workspace_id}")
     logger.info(f"  data.name: {data.name}")
     logger.info(f"  data.scenario_ids: {data.scenario_ids}")
-    logger.info(
-        f"  data.parallel: {data.parallel} (type: {type(data.parallel).__name__})"
-    )
     logger.info(f"  data.export_format: {data.export_format}")
 
     # Verify workspace exists
@@ -170,7 +169,6 @@ async def run_all_scenarios(
         status="pending",
         submitted_at=datetime.now(timezone.utc),
         scenarios=batch_scenarios,
-        parallel=data.parallel,
         export_format=data.export_format,
     )
 
@@ -185,7 +183,6 @@ async def run_all_scenarios(
         workspace_id,
         batch_id,
         scenarios_to_run,
-        data.parallel,
         data.export_format,
         get_connection_manager(),
     )
@@ -231,12 +228,52 @@ def list_batch_jobs(
     return [job for job in _batch_jobs.values() if job.workspace_id == workspace_id]
 
 
+def _reserve_batch_runs(
+    storage: WorkspaceStorage,
+    workspace_id: str,
+    batch_job: BatchJob,
+    scenarios: List[Scenario],
+) -> List[Optional[str]]:
+    """Queue every batch scenario up front, as a single run would be queued.
+
+    Reserved runs show as queued, can be cancelled before they start, and
+    block a duplicate run of the same scenario. A scenario that already has an
+    active run is marked failed and gets no run (None).
+    """
+    run_ids: List[Optional[str]] = []
+    for index, scenario in enumerate(scenarios):
+        run = SimulationRun(
+            id=str(uuid.uuid4()),
+            scenario_id=scenario.id,
+            status="queued",
+            started_at=datetime.now(timezone.utc),
+        )
+        if reserve_run(storage, workspace_id, run):
+            run_ids.append(run.id)
+            continue
+        batch_job.scenarios[index].status = "failed"
+        batch_job.scenarios[index].error_message = "Scenario already has an active run"
+        run_ids.append(None)
+    return run_ids
+
+
+def _abandon_run(
+    storage: WorkspaceStorage, workspace_id: str, scenario_id: str, run_id: str
+) -> None:
+    """Fail a reserved run that ended without a terminal status of its own."""
+    release_run(run_id)
+    scenario = storage.get_scenario(workspace_id, scenario_id)
+    if scenario is None or scenario.last_run_id != run_id:
+        return
+    if scenario.status in ("queued", "running"):
+        storage.update_scenario_status(workspace_id, scenario_id, "failed")
+
+
 async def _execute_batch(
     storage: WorkspaceStorage,
     workspace_id: str,
     batch_id: str,
     scenarios: List[Scenario],
-    parallel: bool,
     _export_format: Optional[str],
     manager: Optional[ConnectionManager] = None,
 ) -> None:
@@ -244,7 +281,6 @@ async def _execute_batch(
     _prune_batch_jobs()
     logger.info("=== BATCH EXECUTION STARTED ===")
     logger.info(f"  batch_id: {batch_id}")
-    logger.info(f"  parallel: {parallel} (type: {type(parallel).__name__})")
     logger.info(f"  num_scenarios: {len(scenarios)}")
     logger.info(f"  scenario_names: {[s.name for s in scenarios]}")
 
@@ -254,22 +290,27 @@ async def _execute_batch(
 
     # Create simulation service
     simulation_service = SimulationService(storage)
+    run_ids = _reserve_batch_runs(storage, workspace_id, batch_job, scenarios)
 
-    async def run_scenario(index: int, scenario: Scenario) -> None:
+    async def run_scenario(index: int, scenario: Scenario, run_id: str) -> None:
         """Run a single scenario and update batch status."""
-        run_id = str(uuid.uuid4())
         start_time = datetime.now(timezone.utc)
         logger.info(
             f"  [{start_time.strftime('%H:%M:%S.%f')}] [Scenario {index}] STARTED: {scenario.name}"
         )
-        batch_job.scenarios[index].status = "running"
-        await _broadcast_batch(batch_job, "running", manager)
 
         async def publish_progress() -> None:
-            """Forward the scenario's existing simulation telemetry to batch clients."""
+            """Forward the scenario's existing simulation telemetry to batch clients.
+
+            The scenario stays pending while it waits for a simulation slot;
+            telemetry appears only once the run actually starts.
+            """
             while True:
                 telemetry = get_telemetry_service().get_snapshot(run_id)
                 if telemetry is not None:
+                    if batch_job.scenarios[index].status == "pending":
+                        batch_job.scenarios[index].status = "running"
+                        await _broadcast_batch(batch_job, "running", manager)
                     next_progress = telemetry.progress
                     if batch_job.scenarios[index].progress != next_progress:
                         batch_job.scenarios[index].progress = next_progress
@@ -331,31 +372,25 @@ async def _execute_batch(
                 f"scenario {index} ({scenario.name})",
                 event="Batch scenario failed",
             )
+            _abandon_run(storage, workspace_id, scenario.id, run_id)
             await _broadcast_batch(batch_job, "failed", manager)
         finally:
+            release_run(run_id)
             progress_task.cancel()
             await asyncio.gather(progress_task, return_exceptions=True)
 
     try:
-        if parallel:
-            # Run all scenarios in parallel
-            logger.info("=== EXECUTING IN PARALLEL MODE ===")
-            logger.info(f"  Creating {len(scenarios)} concurrent tasks...")
-            tasks = [run_scenario(i, scenario) for i, scenario in enumerate(scenarios)]
-            logger.info("  Launching asyncio.gather for all tasks...")
-            await asyncio.gather(*tasks, return_exceptions=True)
-            logger.info("  All parallel tasks completed")
-        else:
-            # Run sequentially
-            logger.info("=== EXECUTING IN SEQUENTIAL MODE ===")
-            for i, scenario in enumerate(scenarios):
-                logger.info(
-                    f"  Starting scenario {i+1}/{len(scenarios)}: {scenario.name}"
-                )
-                await run_scenario(i, scenario)
-                logger.info(
-                    f"  Completed scenario {i+1}/{len(scenarios)}: {scenario.name}"
-                )
+        # Batches always run in sequence.
+        for i, (scenario, run_id) in enumerate(zip(scenarios, run_ids)):
+            if run_id is None:
+                continue
+            logger.info(
+                f"  Starting scenario {i + 1}/{len(scenarios)}: {scenario.name}"
+            )
+            await run_scenario(i, scenario, run_id)
+            logger.info(
+                f"  Completed scenario {i + 1}/{len(scenarios)}: {scenario.name}"
+            )
 
         # Check if all completed successfully
         all_completed = all(s.status == "completed" for s in batch_job.scenarios)
@@ -376,8 +411,12 @@ async def _execute_batch(
             batch_job.completed_at - batch_job.submitted_at
         ).total_seconds()
         # Mark any pending scenarios as failed
-        for batch_scenario in batch_job.scenarios:
+        for batch_scenario, run_id in zip(batch_job.scenarios, run_ids):
             if batch_scenario.status in ("pending", "running"):
+                if run_id is not None:
+                    _abandon_run(
+                        storage, workspace_id, batch_scenario.scenario_id, run_id
+                    )
                 batch_scenario.status = "failed"
                 batch_scenario.error_message = sanitize_job_error(
                     logger, batch_job.id, event="Batch execution failed"

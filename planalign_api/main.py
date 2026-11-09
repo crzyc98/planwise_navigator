@@ -218,10 +218,13 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
 
     from .services.calibration_jobs import get_job_runner
+    from .services.simulation.recovery import fail_interrupted_simulations
+    from .storage.workspace_storage import WorkspaceStorage
 
     # Startup: ensure workspaces directory exists
     settings.workspaces_root.mkdir(parents=True, exist_ok=True)
     get_job_runner().recover()
+    fail_interrupted_simulations(WorkspaceStorage(settings.workspaces_root))
 
     try:
         yield

@@ -34,7 +34,6 @@ export default function BatchProcessing() {
   // Creation State
   const [newBatchName, setNewBatchName] = useState('');
   const [selectedScenarioIds, setSelectedScenarioIds] = useState<string[]>([]);
-  const [executionMode, setExecutionMode] = useState<'parallel' | 'sequential'>('sequential');
   const [exportFormat, setExportFormat] = useState<'excel' | 'csv'>('excel');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -109,7 +108,6 @@ export default function BatchProcessing() {
       const batch = await runAllScenarios(activeWorkspace.id, {
         scenario_ids: selectedScenarioIds,
         name: newBatchName || `Batch ${new Date().toLocaleString()}`,
-        parallel: executionMode === 'parallel',
         export_format: exportFormat,
       });
 
@@ -141,7 +139,6 @@ export default function BatchProcessing() {
     e.stopPropagation();
     setNewBatchName(`${job.name} (Rerun)`);
     setSelectedScenarioIds(job.scenarios.map(s => s.scenario_id));
-    setExecutionMode(job.parallel ? 'parallel' : 'sequential');
     setExportFormat((job.export_format as 'excel' | 'csv') || 'excel');
     setView('create');
   };
@@ -213,28 +210,6 @@ export default function BatchProcessing() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <fieldset>
-            <legend className="block text-sm font-medium text-ink-muted mb-2">Execution Mode</legend>
-            <div className="flex rounded-md shadow-sm">
-              <button
-                type="button"
-                disabled
-                title="Parallel mode is not yet supported"
-                className="flex-1 px-4 py-2 text-sm font-medium border rounded-l-lg bg-surface-subtle text-ink-subtle border-border cursor-not-allowed"
-              >
-                Parallel
-              </button>
-              <button
-                type="button"
-                onClick={() => setExecutionMode('sequential')}
-                className={`flex-1 px-4 py-2 text-sm font-medium border rounded-r-lg ${executionMode === 'sequential' ? 'bg-brand-green text-ink-inverse border-brand-green' : 'bg-surface-raised text-ink-muted border-border-strong hover:bg-surface-subtle'}`}
-              >
-                Sequential
-              </button>
-            </div>
-            <p className="text-xs text-ink-muted mt-1">Sequential runs scenarios one at a time.</p>
-          </fieldset>
-
           <fieldset>
             <legend className="block text-sm font-medium text-ink-muted mb-2">Export Format</legend>
             <div className="flex rounded-md shadow-sm">
@@ -356,8 +331,6 @@ export default function BatchProcessing() {
                 <span>ID: {selectedBatch.id.substring(0, 8)}...</span>
                 <span>•</span>
                 <span>Submitted: {new Date(selectedBatch.submitted_at).toLocaleString()}</span>
-                <span>•</span>
-                <span>{selectedBatch.parallel ? 'Parallel' : 'Sequential'} Mode</span>
               </div>
             </div>
           </div>
@@ -500,8 +473,6 @@ export default function BatchProcessing() {
                           <span>{job.scenarios.length} Scenarios</span>
                           <span>•</span>
                           <span className="text-info-ink font-medium animate-pulse">Running...</span>
-                          <span>•</span>
-                          <span>{job.parallel ? 'Parallel' : 'Sequential'}</span>
                         </div>
                       </div>
                       <button

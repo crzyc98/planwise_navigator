@@ -597,7 +597,7 @@ export interface paths {
         put?: never;
         /**
          * Cancel Simulation
-         * @description Cancel a running simulation.
+         * @description Cancel a running simulation, or one still queued for a simulation slot.
          */
         post: operations["cancel_simulation_api_scenarios__scenario_id__run_cancel_post"];
         delete?: never;
@@ -3632,12 +3632,6 @@ export interface components {
              */
             name?: string | null;
             /**
-             * Parallel
-             * @description Run scenarios in parallel
-             * @default false
-             */
-            parallel?: boolean;
-            /**
              * Scenario Ids
              * @description Specific scenarios to run (runs all if not provided)
              */
@@ -3673,12 +3667,6 @@ export interface components {
              * @description Batch job name
              */
             name: string;
-            /**
-             * Parallel
-             * @description Whether running in parallel
-             * @default false
-             */
-            parallel: boolean;
             /**
              * Results Path
              * @description Path to results directory

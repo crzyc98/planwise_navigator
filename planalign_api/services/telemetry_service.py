@@ -246,6 +246,19 @@ class TelemetryService:
         )
         self._broadcast_update(state, force=True)
 
+    def discard_scenario(self, scenario_id: str) -> None:
+        """Drop a scenario's previous run state when a new run is queued.
+
+        Otherwise the old run's terminal snapshot would stand in for the new
+        run while it waits for a simulation slot.
+        """
+        stale = [
+            rid for rid, state in self._runs.items() if state.scenario_id == scenario_id
+        ]
+        for rid in stale:
+            self._runs.pop(rid, None)
+            self._telemetry_data.pop(rid, None)
+
     def get_snapshot(self, run_id: str) -> Optional[RunTelemetrySnapshot]:
         state = self._runs.get(run_id)
         return state.to_snapshot() if state else None

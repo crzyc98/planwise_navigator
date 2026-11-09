@@ -26,7 +26,6 @@ class BatchCreate(APIModel):
     scenario_ids: Optional[List[str]] = Field(
         None, description="Specific scenarios to run (runs all if not provided)"
     )
-    parallel: bool = Field(default=False, description="Run scenarios in parallel")
     export_format: Optional[Literal["excel", "csv"]] = Field(
         None, description="Export format for results"
     )
@@ -47,7 +46,6 @@ class BatchJob(APIModel):
     scenarios: List[BatchScenario] = Field(
         default_factory=list, description="Scenarios in this batch"
     )
-    parallel: bool = Field(default=False, description="Whether running in parallel")
     export_format: Optional[str] = Field(None, description="Export format")
     results_path: Optional[str] = Field(None, description="Path to results directory")
 

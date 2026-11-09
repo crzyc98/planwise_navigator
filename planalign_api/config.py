@@ -44,7 +44,8 @@ class APISettings(BaseSettings):
     recent_events_limit: int = 20
 
     # Background tasks
-    max_concurrent_simulations: int = 2
+    # Studio runs simulations one at a time unless a server raises this.
+    max_concurrent_simulations: int = Field(default=1, ge=1)
     # In-memory operation-history retention. Active operations are always kept.
     batch_operation_ttl_seconds: float = Field(default=3600.0, gt=0)
     batch_operation_max_entries: int = Field(default=100, gt=0)

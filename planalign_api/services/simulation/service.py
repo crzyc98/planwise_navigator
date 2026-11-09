@@ -22,6 +22,7 @@ from .log_writer import SimulationLogWriter
 from .output_parser import SimulationOutputParser
 from .results_reader import read_results
 from .run_archiver import archive_failed_run, archive_run, prune_old_runs
+from .run_slots import runs_in_simulation_slot
 from .excel_export_worker import export_run_excel_in_process
 from .run_execution import (
     active_process_registry as _active_process_registry,
@@ -72,6 +73,7 @@ class SimulationService:
     # Execution
     # ------------------------------------------------------------------
 
+    @runs_in_simulation_slot
     async def execute_simulation(
         self,
         workspace_id: str,
