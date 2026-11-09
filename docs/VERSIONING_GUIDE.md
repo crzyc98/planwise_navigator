@@ -14,6 +14,26 @@ engine and has no independent release version. Its `config-version: 2` is dbt's
 configuration format and must not be changed for an engine release. The CLI
 reports the engine version via `planalign --version`.
 
+## When to release
+
+Release whenever simulation results change, not only for big features. Every run
+records `planalign_version` in `run_metadata`, and Studio's run provenance records
+the exact commit and whether the tree was dirty. Without regular releases, runs
+months apart share one version even when their results differ.
+
+## Cutting a release
+
+Releases are automatic. After every feat/fix/perf merge, `release.yml` runs
+`scripts/release.py prepare` and keeps one `chore(release): X.Y.Z` PR open on
+`release/next` (feat bumps minor, fix/perf bumps patch, `type!:` bumps major).
+Merging that PR runs `scripts/release.py publish`, which tags the commit and
+publishes the GitHub release from its CHANGELOG section.
+
+The script covers steps 1, 2, the version numbers in 3, 4's supported-versions
+table, 7, 9 and 10. For a minor or major release, check docs against what shipped
+(step 5) before merging. To name a release, run
+`python3 scripts/release.py prepare --name "..."` locally and push to `release/next`.
+
 ## Release checklist
 
 1. Update `__version__`, `__release_date__`, and (for minor/major releases)

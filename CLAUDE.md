@@ -62,6 +62,7 @@ Cover edge configs, not just defaults (e.g. `auto_enrollment_scope: all_eligible
 
 - **Before opening a PR,** run `/code-review` and `/security-review` on the branch diff and fix what they find. Show the check output (tests, lint, typecheck) before calling work done.
 - PR bodies follow `.github/pull_request_template.md`, including Risk and How to revert.
+- **Versioning is automatic.** Use conventional PR titles (`feat`, `fix`, `perf`, `type!:` for breaking), and add a user-facing line under `## [Unreleased]` in CHANGELOG.md for feat/fix PRs. `release.yml` keeps a `chore(release)` PR open with the next version; merging it tags and publishes. Never edit version numbers by hand.
 - `claude-review.yml` reviews every PR against `REVIEW.md`. Merging requires `CI Gate` and every review thread resolved: fix the finding, or close the thread with a one-line reason.
 - Land PRs with `file-pr`, then `babysit-pr`, so the agent works through review threads before a person looks. Decline nits and suggestions that would add code outside the PR's goal, with a one-line reason.
 - When the same finding keeps coming back, fix it at the source in this order: change the code so the mistake can't happen, then add a lint rule or test, and only then add a line to `REVIEW.md` or this file.
