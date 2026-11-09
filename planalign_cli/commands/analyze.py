@@ -643,7 +643,7 @@ def analyze_cost(
         "--database",
         help=(
             "Path to a scenario DuckDB file. Repeat to compare scenarios "
-            "(default: dbt/simulation.duckdb)"
+            "(default: DATABASE_PATH, else dbt/simulation.duckdb)"
         ),
     ),
     vesting_schedule: str = typer.Option(
